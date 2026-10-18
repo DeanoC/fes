@@ -11,13 +11,27 @@ repository's [GPL-3.0 license](LICENSE) is retained for the unmarked microcode
 image. Preserve both the file notices and repository license when distributing
 this import. This is MCL86 microcode, separate from PC system firmware.
 
-[source.json](source.json) records upstream paths and SHA-256 hashes. One local
-change drives previously undriven status bits `system_signals[15:14,10]` to zero;
-the manifest records both upstream and patched hashes for that file. Other
-copied files retain exact upstream bytes. Simulation and diagnostic synthesis
-verify these hashes before building. The microcode is imported as the upstream
+[source.json](source.json) records upstream paths and SHA-256 hashes. A local
+status fix drives previously undriven status bits `system_signals[15:14,10]` to zero.
+The manifest records upstream and patched hashes for each changed file. Other
+copied files retain upstream bytes except the timing changes described below.
+Simulation and diagnostic synthesis verify these hashes before building. The microcode is imported as the upstream
 4096-word image; this snapshot contains no matching assembler source. Do not
 substitute the older MicroCoreLabs listing: it differs from this image.
+
+Local timing changes register predecoded operand controls in a separate ROM and
+use parallel selection instead of binary operand mux trees. `cpu_roms` in
+`scripts/sim_fes_pcxt.py` copies the original `mcl86_ucode.mem` unchanged and
+derives `mcl86_operand_select.mem` from its two four-bit select fields. The ROM
+module reads both images on the same clock/address, preserving the single-clock
+read latency and the EU's two-word sequencer lead. No instruction word changes.
+
+`tests/test_pcxt_cpu_selection.py` symbolically checks every ROM address with
+registered read alignment and compares the real operand wiring/selection against
+the imported equations for all register values and select fields. The ROM-copy
+and selector files must both be beside the executable/netlist build; the normal
+simulation and synthesis helpers generate them. These are CPU control ROMs,
+separate from the guest BIOS/firmware loader.
 
 FES fixes the wrapper to `is8086=0`, `fake286_flags=0`, cycle timing enabled,
 byte-wide accesses and no coprocessor wait. Its 100 MHz fabric clock generates

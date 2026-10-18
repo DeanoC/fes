@@ -108,9 +108,22 @@ def verify_cpu_sources():
     return verify_vendor("mcl86")
 
 
-def cpu_inputs(output, diagnostic="diagnostic"):
+def cpu_roms(output):
     vendor = verify_cpu_sources()
-    shutil.copyfile(vendor / 'mcl86_ucode.mem', output / 'mcl86_ucode.mem')
+    source = vendor / 'mcl86_ucode.mem'
+    words = [int(word, 16) for word in source.read_text().split()]
+    if len(words) != 4096 or any(word < 0 or word > 0xffffffff for word in words):
+        raise ValueError('MCL86 microcode must contain exactly 4096 32-bit words')
+    shutil.copyfile(source, output / 'mcl86_ucode.mem')
+    # Registered one-hot controls have the same address/read latency as the
+    # original selects. No instruction or raw microcode word is changed.
+    selects = [((1 << ((word >> 20) & 15)) << 16) | (1 << ((word >> 16) & 15))
+               for word in words]
+    (output / 'mcl86_operand_select.mem').write_text(''.join(f'{word:08x}\n' for word in selects))
+
+
+def cpu_inputs(output, diagnostic="diagnostic"):
+    cpu_roms(output)
     subprocess.run(['as', '--32', '-o', str(output / 'diagnostic.o'),
                     str(ROOT / ('cores/fes-pcxt/sim/' + diagnostic + '.S'))], check=True)
     subprocess.run(['ld', '-m', 'elf_i386', '-Ttext', '0', '--oformat', 'binary',

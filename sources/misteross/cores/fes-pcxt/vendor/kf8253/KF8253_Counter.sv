@@ -348,30 +348,47 @@ module KF8253_Counter (
     // either encoding immediately. Clearing an inactive counter also clears
     // the candidates, covering restart on the very next fabric clock.
     logic [16:0] dec_binary_q, dec2_binary_q, dec_bcd_q, dec2_bcd_q;
+    logic count_zero_q, count_le_one_q, count_le_two_q, count_le_three_q, count_two_q;
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             dec_binary_q <= 0; dec2_binary_q <= 0;
             dec_bcd_q <= 0; dec2_bcd_q <= 0;
+            count_zero_q <= 1; count_le_one_q <= 1; count_le_two_q <= 1;
+            count_le_three_q <= 1; count_two_q <= 0;
         end else if (!start_counting) begin
             dec_binary_q <= 0; dec2_binary_q <= 0;
             dec_bcd_q <= 0; dec2_bcd_q <= 0;
+            count_zero_q <= 1; count_le_one_q <= 1; count_le_two_q <= 1;
+            count_le_three_q <= 1; count_two_q <= 0;
         end else begin
             dec_binary_q <= decrement(count, 1'b0, 1'b0);
             dec2_binary_q <= decrement(count, 1'b0, 1'b1);
             dec_bcd_q <= decrement(count, 1'b1, 1'b0);
             dec2_bcd_q <= decrement(count, 1'b1, 1'b1);
+            count_zero_q <= count == 0; count_le_one_q <= count <= 1;
+            count_le_two_q <= count <= 2; count_le_three_q <= count <= 3;
+            count_two_q <= count == 2;
         end
     end
     logic [16:0] dec_count, dec2_count;
     assign dec_count = select_bcd ? dec_bcd_q : dec_binary_q;
     assign dec2_count = select_bcd ? dec2_bcd_q : dec2_binary_q;
 
+    // These scalar flags are equivalent to comparing the selected 17-bit
+    // next count, but avoid putting that wide data mux before output control.
+    wire preset_zero = count_preset_load == 0;
+    wire preset_one = count_preset_load == 1;
+    wire mode2_zero = counter_gate ? count_le_one_q : count_zero_q;
+    wire mode3_zero = counter_gate ? (count[0] ?
+        (counter_out ? count_le_one_q : count_le_three_q) : count_le_two_q) : count_zero_q;
+    wire mode2_next_one = (gate_edge || count_le_one_q) ? preset_one : count_two_q;
     always_comb begin
         count_next = dec_count;
-        count_period = 1'b0;
+        count_period = count_le_one_q;
 
         casez (select_mode)
             `KF8253_CONTROL_MODE_0: begin
+                count_period = load_edge ? preset_zero : (counter_gate ? count_le_one_q : count_zero_q);
                 if (counter_gate == 1'b0)
                     count_next = count;
 
@@ -380,15 +397,17 @@ module KF8253_Counter (
             end
 
             `KF8253_CONTROL_MODE_1: begin
+                count_period = gate_edge ? preset_zero : count_le_one_q;
                 if (gate_edge)
                     count_next = count_preset_load;
             end
 
             `KF8253_CONTROL_MODE_2: begin
+                count_period = (gate_edge || mode2_zero) && preset_zero;
                 if (counter_gate == 1'b0)
                     count_next = count;
 
-                if (count_next == 16'h00)
+                if (mode2_zero)
                     count_next = count_preset_load;
 
                 if (gate_edge)
@@ -396,6 +415,8 @@ module KF8253_Counter (
             end
 
             `KF8253_CONTROL_MODE_3: begin
+                count_period = (mode3_zero && !first_count_edge) ||
+                               ((gate_edge || mode3_zero) && preset_zero);
                 if (count[0] == 1'b1) begin
                     if (counter_out == 1'b0)
                         count_next = {dec2_count[16:1], 1'b0};
@@ -406,8 +427,7 @@ module KF8253_Counter (
                 if (counter_gate == 1'b0)
                     count_next = count;
 
-                if (count_next == 17'b0_0000_0000_0000_0000) begin
-                    count_period = 1'b1 & ~first_count_edge;
+                if (mode3_zero) begin
                     count_next = count_preset_load;
                 end
 
@@ -416,6 +436,7 @@ module KF8253_Counter (
             end
 
             `KF8253_CONTROL_MODE_4: begin
+                count_period = load_edge ? preset_zero : (counter_gate ? count_le_one_q : count_zero_q);
                 if (counter_gate == 1'b0)
                     count_next = count;
 
@@ -424,6 +445,7 @@ module KF8253_Counter (
             end
 
             `KF8253_CONTROL_MODE_5: begin
+                count_period = gate_edge ? preset_zero : count_le_one_q;
                 if (gate_edge)
                     count_next = count_preset_load;
             end
@@ -431,8 +453,6 @@ module KF8253_Counter (
             end
         endcase
 
-        if (count_next == 17'b0_0000_0000_0000_0000)
-            count_period = 1'b1;
     end
 
     // Update Count
@@ -508,7 +528,7 @@ module KF8253_Counter (
                 `KF8253_CONTROL_MODE_2: begin
                     if (counter_gate == 1'b0)
                         counter_out <= 1'b1;
-                    else if (count_next == 17'b0_0000_0000_0000_0001)
+                    else if (mode2_next_one)
                         counter_out <= 1'b0;
                     else
                         counter_out <= 1'b1;

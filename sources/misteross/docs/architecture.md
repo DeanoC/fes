@@ -2147,6 +2147,12 @@ probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
+CPU operand selectors are predecoded into a separate registered control ROM
+from the unchanged pinned microcode image. `cpu_roms` generates the raw copy
+and derived `mcl86_operand_select.mem` for simulation/synthesis. ROM read latency,
+the microcode sequencer lead and instruction timing are unchanged. Symbolic
+checks cover all ROM addresses and the real operand wiring for all register
+values against the imported selection equations.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
@@ -2292,7 +2298,8 @@ original serial equations. Internal registers precompute both encodings between
 sampled falling count-clock edges; such edges cannot occur on adjacent fabric
 clocks. Reset/inactive counters clear these candidates, and current BCD selection
 applies at consumption. Induction checks candidate freshness at every consuming
-edge; original count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+edge. Scalar terminal-count flags are precomputed in the same stage and selected
+in parallel with next-count data; original count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 The imported PIC resolves circular priority using parallel per-level masks;

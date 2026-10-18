@@ -151,7 +151,7 @@ module mcl86_eu_core
     reg  [51:0] eu_calling_address;     // 4-deep call stack: four 13-bit return addresses, shifted
     reg         eu_stall_pipeline;      // Squash the 2 words already in flight behind a taken jump
     wire [31:0] eu_rom_data;            // Microword fetched from the ucode ROM (registered read)
-    wire  [7:0] eu_rom_sel;             // Copy of eu_rom_data[23:16] for the operand trees
+    wire [15:0] eu_op0_select, eu_op1_select; // Registered one-hot operand controls
     wire        new_instruction;        // uPC is in the opcode dispatch page -> a macro-op is starting
 
     //--------------------------------------------------------------------------
@@ -298,7 +298,8 @@ module mcl86_eu_core
         .clk  ( CORE_CLK_INT         ),
         .addr ( eu_rom_address[11:0] ),
         .dout     ( eu_rom_data          ),
-        .dout_sel ( eu_rom_sel           )
+        .operand_select0 ( eu_op0_select ),
+        .operand_select1 ( eu_op1_select )
     );
 
     //--------------------------------------------------------------------------
@@ -325,16 +326,15 @@ module mcl86_eu_core
     assign eu_opcode_jump_cond = eu_rom_data[19:16];
 
     //--------------------------------------------------------------------------
-    // 4:1 multiplexer used to build the operand selection trees
+    // One-hot operand multiplexer
     //--------------------------------------------------------------------------
-    function automatic [15:0] mux4(input [1:0] sel, input [15:0] d0, input [15:0] d1,
-                                   input [15:0] d2, input [15:0] d3);
-        case (sel)
-            2'd0:    mux4 = d0;
-            2'd1:    mux4 = d1;
-            2'd2:    mux4 = d2;
-            default: mux4 = d3;
-        endcase
+    function automatic [15:0] select16(input [15:0] sel, input [255:0] data);
+        integer i;
+        begin
+            select16 = 0;
+            for (i = 0; i < 16; i = i + 1)
+                select16 = select16 | (data[i*16 +: 16] & {16{sel[i]}});
+        end
     endfunction
 
     //--------------------------------------------------------------------------
@@ -353,21 +353,13 @@ module mcl86_eu_core
                               (eu_opcode_op1_sel   == 4'hF) &&
                               (eu_opcode_immediate == 16'hF002);
 
-    // Built as an explicit two-level tree of 4:1 multiplexers: each first-level
-    // group (selected by op0_sel[1:0]) fits one 6-input LUT per bit, and the
-    // second level (op0_sel[3:2]) is one more. The select comes straight out
-    // of the microcode ROM at the start of the core's critical path, so the
-    // tree depth matters; a priority chain synthesised to three levels.
-    wire [15:0] eu_op0_grp0 /* synthesis keep */;
-    wire [15:0] eu_op0_grp1 /* synthesis keep */;
-    wire [15:0] eu_op0_grp2 /* synthesis keep */;
-    wire [15:0] eu_op0_grp3 /* synthesis keep */;
-
-    assign eu_op0_grp0 = mux4(eu_rom_sel[5:4], eu_register_ax, eu_register_bx, eu_register_cx, eu_register_dx);
-    assign eu_op0_grp1 = mux4(eu_rom_sel[5:4], eu_register_sp, eu_register_bp, eu_register_si, eu_register_di);
-    assign eu_op0_grp2 = mux4(eu_rom_sel[5:4], eu_flags,       eu_register_r0, eu_register_r1, eu_register_r2);
-    assign eu_op0_grp3 = mux4(eu_rom_sel[5:4], eu_register_r3, eu_biu_command, system_signals, 16'h0);
-    assign eu_operand0 = mux4(eu_rom_sel[7:6], eu_op0_grp0, eu_op0_grp1, eu_op0_grp2, eu_op0_grp3);
+    // Each decoded select serves one 16-bit source. The associative OR maps
+    // as a balanced tree; no priority chain or instruction-cycle delay.
+    assign eu_operand0 = select16(eu_op0_select, {
+        16'h0, system_signals, eu_biu_command, eu_register_r3,
+        eu_register_r2, eu_register_r1, eu_register_r0, eu_flags,
+        eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
+        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax});
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -376,17 +368,11 @@ module mcl86_eu_core
     // returned bus data, the prefetch queue, or the microword's own immediate.
     // Select 0x4 is how the microcode consumes an instruction byte - it pulls
     // the top of the prefetch queue in zero-extended.
-    // Same two-level 4:1 tree as operand 0.
-    wire [15:0] eu_op1_grp0 /* synthesis keep */;
-    wire [15:0] eu_op1_grp1 /* synthesis keep */;
-    wire [15:0] eu_op1_grp2 /* synthesis keep */;
-    wire [15:0] eu_op1_grp3 /* synthesis keep */;
-
-    assign eu_op1_grp0 = mux4(eu_rom_sel[1:0], BIU_REGISTER_ES,       BIU_REGISTER_SS,  BIU_REGISTER_CS,  BIU_REGISTER_DS);
-    assign eu_op1_grp1 = mux4(eu_rom_sel[1:0], {8'h00, PFQ_TOP_BYTE}, BIU_REGISTER_RM,  BIU_REGISTER_REG, BIU_RETURN_DATA);
-    assign eu_op1_grp2 = mux4(eu_rom_sel[1:0], PFQ_ADDR_OUT,          eu_register_r0,   eu_register_r1,   eu_register_r2);
-    assign eu_op1_grp3 = mux4(eu_rom_sel[1:0], eu_register_r3,        eu_alu_last_result, system_signals, eu_opcode_immediate);
-    assign eu_operand1 = mux4(eu_rom_sel[3:2], eu_op1_grp0, eu_op1_grp1, eu_op1_grp2, eu_op1_grp3);
+    assign eu_operand1 = select16(eu_op1_select, {
+        eu_opcode_immediate, system_signals, eu_alu_last_result, eu_register_r3,
+        eu_register_r2, eu_register_r1, eu_register_r0, PFQ_ADDR_OUT,
+        BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
+        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES});
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic

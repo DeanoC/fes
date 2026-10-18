@@ -108,6 +108,11 @@ class CounterEquivalenceTest(unittest.TestCase):
             if (!reset && start_counting && count_edge) begin
               assert(dec_count == decrement(count, select_bcd, 1'b0));
               assert(dec2_count == decrement(count, select_bcd, 1'b1));
+              assert(count_zero_q == (count == 0));
+              assert(count_le_one_q == (count <= 1));
+              assert(count_le_two_q == (count <= 2));
+              assert(count_le_three_q == (count <= 3));
+              assert(count_two_q == (count == 2));
             end
           end
         """

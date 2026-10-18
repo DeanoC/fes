@@ -22,3 +22,8 @@ still applies immediately after a control write. The counter-equivalence test
 inductively proves candidate freshness at every consuming edge. Whole-chip
 sequential equivalence also checks the original timer registers and interface;
 internal combinational candidates may differ between consuming edges.
+
+Terminal-count flags are precomputed with the candidates. Period/output control
+selects scalar conditions in parallel with next-count data, avoiding a wide
+next-count mux followed by a wide comparator. Current gate/load/preset choices
+remain live, and the same consumption invariant covers the scalar flags.

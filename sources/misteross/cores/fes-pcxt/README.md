@@ -228,12 +228,16 @@ The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
 it connects a constant/undefined unused ROM write clock to the registered read
 clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
-The CPU import remains unchanged. The PIC import uses formally checked parallel
+The CPU import uses registered predecoded operand controls generated from its
+unchanged microcode image; ROM latency and instruction timing are preserved.
+The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
 with parallel digit borrows. Both imports document the formally checked changes
 in their vendor READMEs. The PIT precomputes both encodings between sampled
 falling count-clock edges; induction checks freshness whenever a candidate is
-consumed. Guest-visible count/output updates and bus timing are unchanged.
+consumed. Scalar terminal-count flags are evaluated alongside data and selected
+in parallel with next-count data. Guest-visible count/output updates and bus
+timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
 power-on diagnostic has no runtime ABI, host session control or audio pins.
 
@@ -274,7 +278,9 @@ registers its read address before M10K fanout. Each of its three 64 KiB banks
 has a separate RAM read mux and local output register; bank selection then
 occurs alongside palette selection. Bank/subpixel/raster fields have matching
 latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
-all-input Yosys SAT checks, as do the PIT decrements. The display's fractional
+all-input Yosys SAT checks, as do the PIT decrements. CPU proofs check every
+control-ROM address and real operand selection against the imported equations;
+`cpu_roms` derives `mcl86_operand_select.mem` from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
 for every phase value and both CGA/MDA rates:

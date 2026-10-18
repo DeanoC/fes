@@ -48,10 +48,9 @@
 //   through those tools, not by hand.
 //
 // Limitations:
-//   - $readmemh resolves its path against the SIMULATOR's working directory, not
-//     this file's. Testbenches must either run from a directory containing
-//     mcl86_ucode.mem or drop a copy beside the executable (sim/sst/Makefile
-//     does the latter). A missing file loads all-X and the core simply spins.
+//   - $readmemh resolves both control-ROM paths against the working directory.
+//     FES cpu_roms copies mcl86_ucode.mem and derives the operand-select image
+//     beside the executable/netlist. Both images must exist in that directory.
 //   - Synthesis relies on the initial block for ROM contents. That is supported
 //     by Quartus, Vivado and yosys, but it is not a reset value - the array is
 //     never re-initialized after power-up.
@@ -67,7 +66,8 @@ module mcl86_ucode
         // ROM Read Port
         input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
         output logic [31:0] dout,      // Microword, valid one clock after addr
-        output logic  [7:0] dout_sel   // Copy of the operand selects, dout[23:16]
+        output logic [15:0] operand_select0, // One-hot dout[23:20]
+        output logic [15:0] operand_select1  // One-hot dout[19:16]
     );
 
     //--------------------------------------------------------------------------
@@ -91,21 +91,18 @@ module mcl86_ucode
     end
 
     //--------------------------------------------------------------------------
-    // Operand Select Copy
+    // Predecoded Operand Selects
     //--------------------------------------------------------------------------
-    // The operand select fields drive both 16-bit operand multiplexer trees,
-    // more than ninety loads per bit, at the start of the core clock's
-    // critical path. A second, narrow copy of the ROM serves only those trees
-    // so the main ROM outputs keep a small fanout. Same contents, address and
-    // registered read, so dout_sel always equals dout[23:16].
-    logic [31:0] mem_sel[0:4095];
-
+    // Generated reproducibly from the unchanged 4096-word microcode image by
+    // the FES cpu_roms helper. Decode before the registered ROM boundary so
+    // each select bit drives one register's 16 data bits, rather than a binary
+    // select bit driving every operand mux. Address/read latency is unchanged.
+    logic [31:0] operand_select_mem[0:4095];
     initial begin
-        $readmemh("mcl86_ucode.mem", mem_sel);
+        $readmemh("mcl86_operand_select.mem", operand_select_mem);
     end
-
-    always_ff @(posedge clk) begin : read_mem_sel
-        dout_sel <= mem_sel[addr][23:16];
+    always_ff @(posedge clk) begin : read_operand_select
+        {operand_select0, operand_select1} <= operand_select_mem[addr];
     end
 
 endmodule
