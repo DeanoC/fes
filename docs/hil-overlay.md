@@ -14,10 +14,14 @@ Outside agent sessions have ignored these rules. Obey them.
    `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
    the holders.
 2. Kits A and B are both designated test kits. They are interchangeable.
-3. MUST install a PR bundle on the kit's running image. After use, restore
-   the designated baseline image and bundle the status file names, and log
-   that restore. Confirm the kit is idle and lease-free before you release
-   it.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -135,7 +139,8 @@ before the host attestation command is run.
    status (free or revoking) and record `released`.
 
 8. **Core-only sequence:** confirm `kit.py status` is free and run
-   `fogcast core-load` from the exact-head build. The host command takes its own
+   `fogcast core-load` from the exact-head build. This sequence does not
+   install a bundle. The host command takes its own
    lease through `fogcast-api`. While the core runs, save status (held by
    `HOST_OWNER`) and record `claimed`. Run `core-capture` (below) and the HIL
    test. Explicitly stop the host session, save status (free or
@@ -188,11 +193,15 @@ before the host attestation command is run.
    identity, supervisor counts, and exact lease order.
 
 10. Release the kit.py lease, then restore the kit's designated baseline
-    image and bundle. The PR bundle was installed on the running image;
-    this step activates the baseline the status file names and logs that
-    restore. Bundle install-then-restore is pre-approved. It is the
-    explicit activation described in [kit software releases](kit-software-releases.md),
-    not an automatic stock restore. Confirm the kit is idle and
+    image and bundle and log that restore. A core-only run that did not
+    change the bundle does not install one. When a bundle was installed,
+    it was installed on the running image. Activating the baseline bundle
+    does not change the booted image. If the booted image is not the named
+    baseline, restore that image and verify the boot before logging the
+    kit restored. Bundle install-then-restore is pre-approved. The bundle
+    step is the explicit activation described in
+    [kit software releases](kit-software-releases.md), not an automatic
+    stock restore. Confirm the kit is idle and
     lease-free, and log the result in that status file. On an unmanaged
     overlay, `python3 scripts/fes kit restore <kit>` returns swapped files
     under the same release-before-restart discipline, and the boot id must

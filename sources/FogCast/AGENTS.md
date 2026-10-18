@@ -69,12 +69,16 @@ designated kit. Do not assume the same authorization for another device.
   the running bundle. Record source revisions separately, without aligning them.
 - Managed kits use immutable software bundles through the authenticated software
   API. Install without disrupting the owner; queue activation for a free lease.
-  Successful selections remain installed. On a shared kit, install the PR
-  bundle on the running image, then after use explicitly activate the
-  designated baseline named in the Powerboat status file and log it. That
-  activation is a generation-checked selection, not a file overlay and not
-  an automatic stock restore (`docs/kit-sharing.md`,
-  `docs/kit-software-releases.md`). Managed
+  Successful selections remain installed. When a shared-kit task installs a
+  bundle, install the PR bundle on the running image, then after use
+  explicitly activate the designated baseline bundle named in the Powerboat
+  status file and log it. That activation does not change the booted image.
+  If the booted image is not the named baseline, restore the image and
+  verify it before logging the kit restored. A core-only run that does not
+  change the bundle does not install one. The bundle step is a
+  generation-checked selection, not a file overlay and not an automatic
+  stock restore (`docs/kit-sharing.md`, `docs/kit-software-releases.md`).
+  Managed
   kits reject binary/configuration file overlays. Unmanaged adoption diagnostics
   still require target-enforced maintenance; never bypass it with SSH copying.
 - Use a branch or worktree for substantial work.

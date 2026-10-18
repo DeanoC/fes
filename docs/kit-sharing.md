@@ -14,10 +14,14 @@ Outside agent sessions have ignored these rules. Obey them.
    `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
    the holders.
 2. Kits A and B are both designated test kits. They are interchangeable.
-3. MUST install a PR bundle on the kit's running image. After use, restore
-   the designated baseline image and bundle the status file names, and log
-   that restore. Confirm the kit is idle and lease-free before you release
-   it.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -72,15 +76,21 @@ Managed kit software is installed as an [immutable bundle](kit-software-releases
 and activated at the next released idle boundary. Install the PR bundle on the
 kit's running image; a userspace bundle does not replace that image. Use
 private hosts for branch diagnostics. Managed images reject temporary
-binary/configuration swaps. After use, restore the designated baseline image
-and bundle the status file names: activate that baseline against the current
-generation, then log the restore in the status file. Bundle
-install-then-restore is pre-approved. [Kit software releases](kit-software-releases.md)
+binary/configuration swaps. After use, restore the designated baseline the
+status file names and log that restore. Bundle restore is an explicit
+activation of the baseline bundle against the current generation. That
+activation does not change the booted image. The normal path installs the
+PR bundle on the running image and leaves that image in place. If the
+booted image is not the named baseline, restore the image through the
+[appliance update or rollback](appliance-releases.md) path, verify the
+booted image, then activate a compatible baseline bundle and verify the
+active selection before logging the kit restored. Do not log a bundle
+activation as an image restore. Bundle install-then-restore is
+pre-approved. [Kit software releases](kit-software-releases.md)
 keep a successful selection installed and do not restore a stock bundle
-automatically. This post-use step is that explicit activation of the baseline
-named in the status file. It is not a file-swap restore, and it does not
-cancel another owner's pending activation. The stable supervisor owns the
-complete service group.
+automatically. This post-use bundle step is that explicit activation. It
+is not a file-swap restore, and it does not cancel another owner's pending
+activation. The stable supervisor owns the complete service group.
 
 On an unmanaged maintenance-aware image, replacing binaries or configuration
 uses the [kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a

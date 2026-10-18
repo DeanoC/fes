@@ -14,10 +14,14 @@ Outside agent sessions have ignored these rules. Obey them.
    `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
    the holders.
 2. Kits A and B are both designated test kits. They are interchangeable.
-3. MUST install a PR bundle on the kit's running image. After use, restore
-   the designated baseline image and bundle the status file names, and log
-   that restore. Confirm the kit is idle and lease-free before you release
-   it.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -79,11 +83,15 @@ never infer persistence from a display name, package path or raw RBF.
 
 - Managed kits install immutable userspace bundles and queue activation at the next
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
-  Install the PR bundle on the kit's running image. After use, restore the
-  designated baseline image and bundle named in the status file and log that
-  restore. Bundle install-then-restore is pre-approved. A successful selection
-  stays installed, and nothing restores a stock bundle automatically; the
-  return to baseline is an explicit activation of the IDs in the status file.
+  When the task installs a bundle, install that PR bundle on the kit's running
+  image. A core-only run that does not change the bundle does not install one.
+  After use, restore the designated baseline image and bundle named in the
+  status file and log that restore. Activating the baseline bundle does not
+  change the booted image. If the booted image is not the named baseline,
+  restore that image and verify the boot before logging the kit restored.
+  Bundle install-then-restore is pre-approved. A successful selection stays
+  installed, and nothing restores a stock bundle automatically; the return to
+  the baseline bundle is an explicit activation of the ID in the status file.
   Do not put another task's release in place of that baseline, require matching
   host commits, or use file overlays on a managed kit.
 - A build never authorizes deployment. Kits A and B are both designated test

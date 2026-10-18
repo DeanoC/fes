@@ -14,10 +14,14 @@ Outside agent sessions have ignored these rules. Obey them.
    `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
    the holders.
 2. Kits A and B are both designated test kits. They are interchangeable.
-3. MUST install a PR bundle on the kit's running image. After use, restore
-   the designated baseline image and bundle the status file names, and log
-   that restore. Confirm the kit is idle and lease-free before you release
-   it.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
