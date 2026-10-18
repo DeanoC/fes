@@ -8,7 +8,8 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
     input wire [15:0] firmware_address,
     input wire [7:0] firmware_data,
     output reg firmware_loaded,
-    output wire initialized, machine_reset,
+    output wire initialized,
+    output reg machine_reset = 1'b1,
     output wire [1:0] fault,
     output wire halted, dma_owner, refresh_done,
     output wire [31:0] video_request,
@@ -38,7 +39,11 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
     assign firmware_ready = loader_ready && !firmware_loaded && !loading &&
                             firmware_address == next_address;
     assign firmware_done = loader_done;
-    assign machine_reset = cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
+    // Keep the storage/firmware status decode out of the motherboard's reset
+    // fanout and PIC priority logic. All execution participants share this
+    // registered reset; storage cold reset remains immediate and independent.
+    always @(posedge clk)
+        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
     always @(posedge clk) begin
         if (cold_reset) begin firmware_loaded <= 0; next_address <= 0; loading <= 0; end
         else begin

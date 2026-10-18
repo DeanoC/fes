@@ -152,7 +152,9 @@ last complete frame. Guest clocks and CRTC timing are never stretched to 60 Hz.
 Malformed active geometry or an early EOL aborts capture until the next source
 SOF. HOLD aborts partial capture and mutes RGB, preserving complete banks and
 output timing; releasing it may repeat the last complete frame until new capture.
-System and pixel resets must be asserted together and released synchronously
+A pixel-clock register separates the framebuffer read mux from subpixel/palette
+conversion; all raster fields receive that same extra cycle. System and pixel
+resets must be asserted together and released synchronously
 in their respective domains. Independent in-flight domain resets are unsupported.
 
 CGA packs two four-bit pixels per byte; MDA losslessly packs its three levels
@@ -196,6 +198,9 @@ storage share the motherboard byte port; video memory and registers stay on ISA.
 `pcxt_boot.sv` copies an original 64 KiB diagnostic image into SDRAM through
 the firmware port. `pcxt_system` admits sequential addresses starting at zero,
 counts completed writes and releases the machine only after the final DONE.
+Execution reset is registered in the system domain, so startup decode does not
+feed combinationally through the motherboard reset fanout. Warm reset/HOLD
+requests take effect at that register; cold reset independently resets storage.
 Cold reset restarts initialization/loading; warm reset and HOLD drain storage
 without reinitializing it or reloading firmware. HOLD resets the machine and
 mutes the video, while the raster, complete framebuffer ownership and physical

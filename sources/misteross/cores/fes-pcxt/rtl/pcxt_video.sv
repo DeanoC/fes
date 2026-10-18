@@ -160,9 +160,23 @@ module pcxt_video #(parameter bit MDA = 0) (
             sof_q <= output_sof; eol_q <= output_eol; hold_q <= hold_sync;
         end
     end
-    wire [1:0] mono_q = 2'(pair >> {subpixel_q,1'b0});
+    // Separate the deep M10K read mux from nibble selection/palette/effects.
+    // Delay every raster field by the same clock, preserving pixel alignment.
+    reg [7:0] pair_r;
+    reg [1:0] subpixel_r;
+    reg image_r, de_r, hs_r, vs_r, sof_r, eol_r, hold_r;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) begin
+            pair_r <= 0; subpixel_r <= 0; image_r <= 0; de_r <= 0;
+            hs_r <= 0; vs_r <= 0; sof_r <= 0; eol_r <= 0; hold_r <= 0;
+        end else begin
+            pair_r <= pair; subpixel_r <= subpixel_q; image_r <= image_q;
+            de_r <= de_q; hs_r <= hs_q; vs_r <= vs_q; sof_r <= sof_q; eol_r <= eol_q; hold_r <= hold_q;
+        end
+    end
+    wire [1:0] mono_q = 2'(pair_r >> {subpixel_r,1'b0});
     wire [3:0] colour = MDA ? (mono_q == 0 ? 4'd0 : mono_q[1] ? 4'd15 : 4'd7) :
-                             subpixel_q[0] ? pair[7:4] : pair[3:0];
+                             subpixel_r[0] ? pair_r[7:4] : pair_r[3:0];
     function automatic [23:0] palette(input [3:0] c);
         reg [7:0] r,g,b;
         begin
@@ -173,6 +187,6 @@ module pcxt_video #(parameter bit MDA = 0) (
             palette = {r,g,b};
         end
     endfunction
-    wire [23:0] rgb = image_q && !hold_q ? palette(colour) : 24'b0;
-    assign video_request = {1'b0,hold_q,eol_q,sof_q,1'b1,vs_q,hs_q,de_q,rgb};
+    wire [23:0] rgb = image_r && !hold_r ? palette(colour) : 24'b0;
+    assign video_request = {1'b0,hold_r,eol_r,sof_r,1'b1,vs_r,hs_r,de_r,rgb};
 endmodule
