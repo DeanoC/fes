@@ -79,6 +79,7 @@ public:
  MenuDisplayStatus menu_display() const override {return menu_status_;}
  Error SetSessionDisplay(bool visible) override;
  Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) override;
+ bool AcceptsMenuDamage(std::uint32_t) const override;
 	Error FlushSave() override;
 	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;

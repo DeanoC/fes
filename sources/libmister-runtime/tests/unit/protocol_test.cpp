@@ -1049,7 +1049,12 @@ void TestMenuProtocolRequestsAndStatus()
  // A completed present reports where its time went; a prepared reply does not.
  reply.copy_us=41000;reply.submit_us=12;reply.scanout_wait_us=9000;
  const auto timed=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
- assert(timed.find("\"timing\":{\"copy_us\":41000,\"submit_us\":12,\"scanout_wait_us\":9000}")!=std::string::npos);
+ reply.stored_pixels=3424;
+ const auto stored=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
+ assert(stored.find("\"timing\":{\"copy_us\":41000,\"submit_us\":12,\"scanout_wait_us\":9000,\"stored_pixels\":3424}")!=std::string::npos);
+ assert(timed.find("\"damage\"")==std::string::npos);
+ status.menu_display.damage=true;
+ assert(mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,nullptr).find("\"damage\":true")!=std::string::npos);
  mister::daemon::MenuFrameReply prepared;prepared.generation=1;prepared.prepared=true;
  const auto begun=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&prepared);
  assert(begun.find("\"timing\"")==std::string::npos);
@@ -1058,6 +1063,19 @@ void TestMenuProtocolRequestsAndStatus()
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615,"byte_count":3686400})",&request).ok());
  assert(request.expected_generation==UINT64_MAX);
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400})",&request).ok());
+ // A commit may name the changed rects relative to the displayed frame.
+ assert(!request.has_menu_damage);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"damage":{"base_sequence":9,"rects":[[0,0,1280,720],[13,40,101,30]]}})",&request).ok());
+ assert(request.has_menu_damage&&request.menu_damage.base_sequence==9&&request.menu_damage.rects.size()==2);
+ assert(request.menu_damage.rects[1].x==13&&request.menu_damage.rects[1].y==40&&request.menu_damage.rects[1].w==101&&request.menu_damage.rects[1].h==30);
+ std::string many;for(int i=0;i<17;++i)many+=std::string(i?",":"")+"[0,0,8,8]";
+ const std::string commit=R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"damage":)";
+ for(const auto& damage:{std::string(R"({"base_sequence":0,"rects":[[0,0,8,8]]})"),std::string(R"({"base_sequence":4294967296,"rects":[[0,0,8,8]]})"),
+  std::string(R"({"base_sequence":1,"rects":[]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,0,8]]})"),std::string(R"({"base_sequence":1,"rects":[[1273,0,8,8]]})"),
+  std::string(R"({"base_sequence":1,"rects":[[0,713,8,8]]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,8]]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,8,8]],"x":1})"),
+  std::string(R"({"base_sequence":1})"),std::string(R"([1])"),R"({"base_sequence":1,"rects":[)"+many+"]}"})
+  ExpectError(commit+damage+"}",ErrorCode::invalid_request);
+ ExpectError(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":1,"byte_count":3686400,"damage":{"base_sequence":9,"rects":[[0,0,8,8]]}})",ErrorCode::invalid_request);
  for(const auto& line:{R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":0,"byte_count":3686400})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686401})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"address":805306368})"})assert(!Parse(line,&request).ok());
 }
 

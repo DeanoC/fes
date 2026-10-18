@@ -258,6 +258,20 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	if _, err := decodeProtocol2Response([]byte(malformed)); !errors.Is(err, errInvalidRuntimeResponse) {
 		t.Fatalf("unknown menu evidence accepted: %v", err)
 	}
+	// EncodeResponse appends "damage":true on menu_display when the runtime
+	// can take damaged presents. Ordinary status must still decode.
+	capable := strings.Replace(withMenu, `"underflows":0`, `"underflows":0,"damage":true`, 1)
+	fixture = newSequenceSocketFixture(t, []string{capable + "\n"})
+	status, err = NewClient(fixture.path).Protocol2Status(context.Background())
+	if err != nil || !validIdle(status) || status.MenuDisplay == nil || !status.MenuDisplay.Damage {
+		t.Fatalf("damage capability rejected: %#v, %v", status, err)
+	}
+	fixture.wait(t)
+	for _, bad := range []string{`"damage":false`, `"damage":1`, `"damage":null`} {
+		if _, err := decodeProtocol2Response([]byte(strings.Replace(capable, `"damage":true`, bad, 1))); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("damage shape %s accepted: %v", bad, err)
+		}
+	}
 }
 
 func TestProtocol2StatusAcceptsPromotedMenuFailures(t *testing.T) {

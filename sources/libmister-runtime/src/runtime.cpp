@@ -246,6 +246,13 @@ public:
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
    error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
+   // A stale damage base is an ordinary refusal: the client resends a full
+   // frame. It must not reach the hardware path, where a failed present
+   // retires the display.
+   if(const auto* damage=frame.damage()) {
+    if(!hardware_.AcceptsMenuDamage(damage->base_sequence))
+     return {ErrorCode::stale_revision,"menu damage base is not the displayed frame","menu"};
+   }
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;

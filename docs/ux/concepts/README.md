@@ -8,6 +8,11 @@ hardware acceptance record.
 Start with the [UX design index](../README.md) and the
 [visual language](../visual-language.md) for the reasoning and scope.
 
+For the current implementation baseline and the next Library pass, use
+[native references](../references/README.md). That page distinguishes native
+fixture renders from the proposed Library vector sheet and these broader
+browser concepts.
+
 ## Open the concepts
 
 Open [fes-rooms.html](fes-rooms.html) directly in a browser. Double-click the

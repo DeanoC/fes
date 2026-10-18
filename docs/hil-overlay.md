@@ -1,6 +1,53 @@
 # Overlay HIL planner
 
-Use this procedure only on the designated kit A (`192.168.10.84`), under the dedicated fixture rules in `sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device. The planner compares base image commit to the full PR head with `--no-renames`; `FULL_IMAGE` means stop and build a full image.
+## Shared kits and Powerboat (READ FIRST)
+
+Outside agent sessions have ignored these rules. Obey them.
+
+1. MUST claim the kit before you touch it, and log the result when you
+   finish. There is no separate Powerboat host claim. Record owner, PR,
+   and start time in that kit's Powerboat status file:
+   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   log is the single source of truth. NEVER take a kit that is leased or
+   claimed by someone else. NEVER use a Slack reservation, and NEVER
+   require a person to be present.
+2. Kits A and B are both designated test kits. They are interchangeable.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
+4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
+5. Destructive actions need Deano's explicit OK: reimage, an image or
+   boot-config change, killing other people's processes, and closing PRs.
+6. These stay pre-approved: deleting old images (keep the running image
+   and the previous one), SD reburn, and bundle install-then-restore.
+   Never delete a factory or known-good rollback image. Before an SD
+   reburn, verify the device path is that kit's SD card.
+7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
+   `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
+   distinctive names.
+8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
+   `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+GPU jobs follow the [Shared GPUs](../AGENTS.md#shared-gpus) section.
+
+Use this procedure on the kit claimed in its status file. Kits A and B are
+interchangeable. Kit A is `192.168.10.84`; Kit B is `192.168.10.85`. Set
+`KIT_API` to that kit's target API (`http://192.168.10.84:8182` or
+`http://192.168.10.85:8182`). The private host `[[targets]]` address must be
+the same kit, and the selected host target identity must match the
+status-file claim before launch or capture. A Kit B run uses Kit B for every
+target read, including `core-capture --target-url` and the update curls
+below. An older note that names only kit A, or that says a person must be
+present, does not apply. Follow the capture and login details in
+`sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device.
+The planner compares base image commit to the full PR head with
+`--no-renames`; `FULL_IMAGE` means stop and build a full image. A full image
+swap or reimage still needs Deano's explicit OK.
 
 Kit file changes go through the [kit runtime manifest](kit-manifest.md):
 `python3 scripts/fes kit claim`, `swap`, and `restore`. Do not copy binaries,
@@ -33,7 +80,10 @@ Every binary must embed the head. FogCast Go binaries need the full revision
 from the Makefile's `-X internal/version.Revision=$(REVISION)`, and
 `mister-runtime` needs `git-<40 hex>` (image recipe) or `git-<12 hex>`, with or
 without `-dirty` (component Makefile, whose dirty probe currently always
-appends `-dirty`). Evidence re-reads each local artifact, so generate it on the machine
+appends `-dirty`). A `host:<command>` component must target a file named
+`<command>`, and its Go build info must name the main package
+`github.com/DeanoC/FogCast/cmd/<command>`, so a `fogcast-api` binary cannot
+stand in for `host:fogcast`. Evidence re-reads each local artifact, so generate it on the machine
 where the manifest was built. For each `core:*` archive, the planner reads the local archive and derives its
 package ID and core ID. The archive must identify the requested core, and its
 embedded `build.revision` must equal the full PR head. A changed file under
@@ -89,7 +139,8 @@ before the host attestation command is run.
    status (free or revoking) and record `released`.
 
 8. **Core-only sequence:** confirm `kit.py status` is free and run
-   `fogcast core-load` from the exact-head build. The host command takes its own
+   `fogcast core-load` from the exact-head build. This sequence does not
+   install a bundle. The host command takes its own
    lease through `fogcast-api`. While the core runs, save status (held by
    `HOST_OWNER`) and record `claimed`. Run `core-capture` (below) and the HIL
    test. Explicitly stop the host session, save status (free or
@@ -112,10 +163,12 @@ before the host attestation command is run.
    never written out.
 
    ```sh
+   # Claimed kit only. Kit A: http://192.168.10.84:8182
+   KIT_API=http://192.168.10.85:8182
    fogcast --json --api http://127.0.0.1:8787 core-load /abs/path/core.fcore
    curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
-     http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
-   python3 scripts/hil_plan.py core-capture --target-url http://192.168.10.84:8182 \
+     "$KIT_API/v1/update" > /tmp/kit-update.json
+   python3 scripts/hil_plan.py core-capture --target-url "$KIT_API" \
      --out /tmp/core-capture.json
    ```
 
@@ -139,9 +192,21 @@ before the host attestation command is run.
    executable hashes, core package identity and state, image identity, boot
    identity, supervisor counts, and exact lease order.
 
-10. Release the kit.py lease, then run `python3 scripts/fes kit restore <kit>`
-    under that same release-before-restart discipline. The kit files must match
-    stock again and the boot id must be unchanged.
+10. Release the kit.py lease, then restore the kit's designated baseline
+    image and bundle and log that restore. A core-only run that did not
+    change the bundle does not install one. When a bundle was installed,
+    it was installed on the running image. Activating the baseline bundle
+    does not change the booted image. If the booted image is not the named
+    baseline, restore that image and verify the boot first, then activate
+    a compatible baseline bundle and verify it before logging the kit
+    restored. Bundle install-then-restore is pre-approved. The bundle
+    step is the explicit activation described in
+    [kit software releases](kit-software-releases.md), not an automatic
+    stock restore. Confirm the kit is idle and
+    lease-free, and log the result in that status file. On an unmanaged
+    overlay, `python3 scripts/fes kit restore <kit>` returns swapped files
+    under the same release-before-restart discipline, and the boot id must
+    be unchanged. That file restore does not replace the baseline restore.
 
 ```sh
 python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
@@ -159,6 +224,7 @@ target `agent` token. Set it in `FOGCAST_TOKEN` without printing it; never print
 or commit the token. Every curl uses the authenticated, failing form:
 
 ```sh
+# KIT_API is the claimed kit. Kit B: http://192.168.10.85:8182
 curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
-  http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
+  "$KIT_API/v1/update" > /tmp/kit-update.json
 ```

@@ -114,6 +114,11 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	}
 	out.RawSetString("machines", machines)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
+	// Save support is separate from a machine's content readiness. An omitted
+	// field stays absent so an older unpaired host keeps its existing save.
+	if v.ExpansionSelection != nil {
+		out.RawSetString("expansion_selection", lua.LBool(*v.ExpansionSelection))
+	}
 	if s := v.Session; s != nil {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)

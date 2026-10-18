@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Show who holds each shared GPU and who is waiting.
+
+Symlinks from ~/bin must resolve back to this directory so gpu_lease can be
+imported. Python puts the symlink's directory on sys.path, not the target's.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+import gpu_lease
+
+if __name__ == '__main__':
+    raise SystemExit(gpu_lease.main_status())

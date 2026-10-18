@@ -1,12 +1,12 @@
 # Kit resource limits
 
 The local host and shell on a DE10-Nano share one small board with the runtime.
-This note records the idle baseline from 2026-10-02, the proposed budgets for
-that host and shell, and the read-only collector that measures them again.
+This note records the idle baseline from 2026-10-02, the collector
+measurements on kit B from 2026-10-04, the proposed budgets for that host and
+shell, and the read-only collector that measures them again.
 
-The baseline was read on the kits at about 07:10 Europe/Sofia. This change did
-not contact either kit. Later comparisons should use the collector so the units
-match the definitions below.
+The baseline was read on the kits at about 07:10 Europe/Sofia. Later
+comparisons should use the collector so the units match the definitions below.
 
 ## Baseline
 
@@ -21,6 +21,55 @@ with `sync`. `/tmp` is a 246 MiB tmpfs.
 | CPU | 95% idle; `fogcast-tenfoot` 2% of one core | `fogcast-kit` 45% of one core while idle |
 | Memory | MemAvailable 410 MiB | MemAvailable 434 MiB |
 | `/media/fat` | 75% used, 248 MiB free | 17% used |
+
+## Kit B measurements, 2026-10-04
+
+Kit B (`192.168.10.85`) ran image `24c93192…` (0.2.0-main-84dcb29f.1) with the
+grid shell `fogcast-kit --menu-display`. The collector was
+`scripts/kit-diagnostics-ssh.sh` from main. Times are Europe/Sofia (EEST).
+Each column has two runs.
+
+| | Idle (09:00:48, 09:01:18) | Data Storm playing (09:02:20, 09:02:36) |
+| --- | --- | --- |
+| `load_1` | 0.40 / 0.55 | 1.02 / 0.91 |
+| `cpu_idle_percent` | 58 / 59 | 75 / 74 |
+| `fogcast-kit` CPU (% of one core) / RSS | 37 / 42%, about 67 MiB | 13%, 65–70 MiB |
+| MemAvailable | 408 / 409 MiB | 357 / 358 MiB |
+| `/` (read-only ext4 loop) | 83% used by `df`, 18.7 MiB free | same |
+| `/media/fat` | 66% used, 342 MiB free | same |
+| `/tmp` | 4 KiB used | same |
+
+Earlier runs on images `5af41062` (idle) and `1e7485f2` (idle and play) are in
+[#359](https://github.com/DeanoC/fes/issues/359#issuecomment-5966189267) and
+[its follow-up](https://github.com/DeanoC/fes/issues/359#issuecomment-5967709655).
+
+Against the proposed budgets below, at idle:
+
+| Budget | Result |
+| --- | --- |
+| CPU: `cpu_idle_percent` ≥ 80, `load_1` < 0.50, no `fogcast-*` > 15% | Miss: 58–59% idle, `fogcast-kit` at 37–42%; `load_1` 0.40 and 0.55 ([#389](https://github.com/DeanoC/fes/issues/389)) |
+| Memory: MemAvailable ≥ 256 MiB | Pass: 408 MiB idle, 357 MiB during play |
+| `/media/fat`: ≥ 128 MiB free | Pass: 342 MiB free |
+| `/tmp`: scratch < 32 MiB | Pass: 4 KiB used |
+
+The image id above comes from `/media/fat/fogcast/releases/boot.json`. The
+collector on that image reported the factory bootstrap image instead; see
+[#504](https://github.com/DeanoC/fes/issues/504).
+
+**Root percentage.** `df` reports 83% used on the 2026-10-04 kit measurement
+of image `24c93192…` (0.2.0-main-84dcb29f.1). The 78.41% build figure is
+rootfs use for a different image, `0.2.0-pr404-de32b3d0.1` (FES
+`de32b3d083e98ba7f387ec16da1204cdd05f4284`, rootfs SHA-256
+`cbb6d172f7ef28af8d435861b4a4356888c4a21b735a09d92144ae8c39769a27`), recorded
+in the [2026-10-03 Kit B factory Coleco acceptance](../../../docs/validation/2026-10-03-video-factory-kitb-de32b3d0.md)
+and its [`rootfs-capacity.json`](../../../docs/validation/video-factory-kitb-2026-10-03-de32b3d0/rootfs-capacity.json).
+
+The build check and `df` measure different things. The build check
+(`image/scripts/check-rootfs-headroom.sh`) divides used blocks, block count
+minus `dumpe2fs` free blocks, by the configured 128 MiB image size. `df`
+reports Capacity as used / (used + available), rounded up. Its Size leaves out
+ext4 metadata, and its Available leaves out the blocks reserved for root. The
+root is read-only, so neither figure is space the host can write.
 
 ## Collector units
 
@@ -48,19 +97,33 @@ deltas.
 
 Image id is the first readable token from:
 
-1. `/etc/fes-image-id`
-2. `/etc/fogcast-image-id`
-3. `/usr/share/mister-runtime/image-id`
-4. `/etc/os-release` `FES_IMAGE_ID`, then `IMAGE_ID`, then `BUILD_ID`
-5. `image_sha256` in `/etc/fes/factory.json` (64 hex digits)
-6. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
-7. the first standalone 7–40 hex word in `/proc/version`
+1. `image_sha256` in `/media/fat/fogcast/releases/boot.json` (64 lowercase
+   hex digits) when that ticket's `boot_id` equals
+   `/proc/sys/kernel/random/boot_id`, ignoring surrounding whitespace on
+   the proc file. That file is the appliance store's ticket for the image
+   this kernel boot selected.
+2. `/etc/fes-image-id`
+3. `/etc/fogcast-image-id`
+4. `/usr/share/mister-runtime/image-id`
+5. `/etc/os-release` `FES_IMAGE_ID`, then `IMAGE_ID`, then `BUILD_ID`
+6. `image_sha256` in `/etc/fes/factory.json` (64 hex digits)
+7. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
+8. the first standalone 7–40 hex word in `/proc/version`
+
+A boot ticket is skipped when `image_sha256` is not 64 lowercase hex digits,
+when `boot_id` is missing or differs from the kernel boot id, or when that
+proc file cannot be read. A direct-root boot leaves an older ticket on FAT;
+that ticket is not the running image. Without an accepted ticket, a kit that
+has taken A/B updates has none of entries 2–5 and would otherwise report the
+factory bootstrap image.
 
 If none of those exist, `image_id` is empty and `image_id_source` is `none`.
 The id is not shortened. `fes_revision` in those factory files is the source
-commit, not the image. The first 7–40 hex value is `source_revision`, including
-when an earlier file already supplied `image_id`. It is empty when neither
-file has that field. `sed` is used only for the factory JSON. Without it, the
+commit of the factory image. The first 7–40 hex value is `source_revision`,
+including when an earlier file already supplied `image_id`. When the id comes
+from the boot ticket, a factory file supplies `source_revision` only if its
+`image_sha256` is that same image. It is empty when no such file has that
+field. `sed` is used only for the JSON files. Without it, the boot ticket, the
 factory image id and `source_revision` are skipped.
 
 Keys, in order: `schema`, `image_id`, `image_id_source`, `source_revision`,
@@ -108,6 +171,10 @@ showed load 1.5. `fogcast-kit` was at 45% of one core, which is under half a
 core. Kit A on the newer image, running tenfoot, was at 95% idle. That idle
 load is open and is filed as [#389](https://github.com/DeanoC/fes/issues/389).
 This collector does not change the launcher.
+
+On 2026-10-04, with image `24c93192…` and the grid shell, kit B's idle load
+fell to 0.40–0.55. `fogcast-kit` still used 37–42% of one core and the board
+was 58–59% idle, so the CPU budget still misses.
 
 ## Run
 

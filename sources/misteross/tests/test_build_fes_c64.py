@@ -13,6 +13,7 @@ import subprocess
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import c64_slots
 from scripts import build_fes_c64_oss as producer
@@ -57,13 +58,13 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertIsNone(producer.execution_extra("HIP"))
         self.assertEqual(producer.execution_extra("CUDA"), {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
         self.assertEqual(producer.gpu_choice("CUDA")[0], "cuda")
-        with unittest.mock.patch.dict(os.environ, {}, clear=False):
+        with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
             self.assertEqual(
                 producer.gpu_choice("CUDA")[2],
                 "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86",
             )
-        with unittest.mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89"}):
+        with patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89"}):
             self.assertEqual(
                 producer.gpu_choice("CUDA")[2],
                 "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=89",
@@ -92,7 +93,7 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
         self.assertEqual(record["source_roots"], derived)
         self.assertIn("scripts/c64_slots.py", record["source_inputs"])
-        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertIn(producer.C64_TOOLCHAIN_LOCK, record["source_inputs"])
         self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
 
     def test_pinned_inputs_cover_every_rtl_file_and_exist(self) -> None:
@@ -213,6 +214,22 @@ class BuildFesC64Tests(unittest.TestCase):
                "Info: PLL 'system_clock.pll': 50 MHz -> 52.224 MHz, direct, M=8 N=1 C6=8, bel altera_pll.0.31.0\n")
         self.assertIsNone(re.search(producer.SYSTEM_PLL_ROUTE_RE, old))
         self.assertIsNone(re.search(producer.AUDIO_PLL_OUTPUT_RE, old))
+        producer.validate_pll_outputs(log)
+
+    def test_route_log_rejects_a_pll_output_off_its_requested_frequency(self) -> None:
+        log = ("Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.14.0\n")
+        for good, bad in (("achieved 52224000.000569507", "achieved 50000000.000000000"),
+                          ("achieved 12288000.000134002", "achieved 12288002.000000000")):
+            with self.subTest(bad=bad), self.assertRaisesRegex(BuildError, "achieved"):
+                producer.validate_pll_outputs(log.replace(good, bad))
+        requested_only = log.replace(", achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.", ".")
+        with self.assertRaisesRegex(BuildError, "audio PLL"):
+            producer.validate_pll_outputs(requested_only)
 
     def test_firmware_lanes_must_stay_out_of_sockets(self) -> None:
         inside = {"blocks": [{"bel": "M10K.026.030", "word_bits": [[500 * 7605 + 2000]]}]}

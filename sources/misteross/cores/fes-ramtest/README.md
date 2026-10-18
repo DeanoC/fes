@@ -153,7 +153,7 @@ make build-fes-ramtest-100
 make build-fes-ramtest-130
 ```
 
-Both OSS rates use the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
+Both OSS rates use `cores/fes-ramtest/toolchain.lock` and its HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.
@@ -178,7 +178,7 @@ make toolchain-fes-ramtest
 make diagnose-fes-ramtest-timing GPU_DEVICE=1
 ```
 
-The diagnostic uses `toolchain.lock`. It first routes
+The diagnostic uses `cores/fes-ramtest/toolchain.lock`. It first routes
 with up to four generic local enable copies. It then uses that timing report
 to try local LUT remap candidate 0 with up to eight LAB groups, routing the
 same synthesis and BUILD_ID again. Both attempts retain their own outputs in

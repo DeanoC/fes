@@ -21,10 +21,15 @@ import (
 
 func cliVideoArchive(t *testing.T) (string, []byte, catalog.CoreVideoPart) {
 	t.Helper()
+	return cliVideoArchiveFor(t, expansion.VideoSlot, expansion.ColecoVideoMap, "scanlines")
+}
+
+func cliVideoArchiveFor(t *testing.T, slot, socketMap, profile string) (string, []byte, catalog.CoreVideoPart) {
+	t.Helper()
 	cart := bytes.Repeat([]byte{0x33}, 65536)
 	asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: fmt.Sprintf("%x", sha256.Sum256(cart)), CartSize: int64(len(cart)),
-		Device: expansion.Device, Format: 1, Map: expansion.ColecoVideoMap, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40),
-		ShellBuildID: strings.Repeat("d", 32), ShellPackageID: strings.Repeat("a", 64), ShellSHA256: strings.Repeat("e", 64), Slot: expansion.VideoSlot, SlotMajor: 1}, cart)
+		Device: expansion.Device, Format: 1, Map: socketMap, RecipeSHA256: strings.Repeat("b", 64), Revision: strings.Repeat("c", 40),
+		ShellBuildID: strings.Repeat("d", 32), ShellPackageID: strings.Repeat("a", 64), ShellSHA256: strings.Repeat("e", 64), Slot: slot, SlotMajor: 1}, cart)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +37,11 @@ func cliVideoArchive(t *testing.T) (string, []byte, catalog.CoreVideoPart) {
 	if err := asset.Write(&archive); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "scanlines.fexp")
+	path := filepath.Join(t.TempDir(), profile+".fexp")
 	if err := os.WriteFile(path, archive.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return path, archive.Bytes(), catalog.CoreVideoPart{PartID: asset.ID, PackageID: asset.Manifest.ShellPackageID, Profile: "scanlines"}
+	return path, archive.Bytes(), catalog.CoreVideoPart{PartID: asset.ID, PackageID: asset.Manifest.ShellPackageID, Profile: profile}
 }
 
 func TestVideoCLIUsesOnlyHostSelectionAPIs(t *testing.T) {
@@ -94,6 +99,32 @@ func TestVideoCLIImportRequiresExactArchiveIdentityAndProfile(t *testing.T) {
 		if !valid && !strings.Contains(safeCommandError(result.err).Message, "outcome unknown") {
 			t.Fatal("different response claimed a confirmed import")
 		}
+	}
+}
+
+func TestVideoCLIImportAcceptsNativePixelPart(t *testing.T) {
+	path, data, expected := cliVideoArchiveFor(t, expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap, "direct")
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != "POST" || r.URL.Path != "/api/v1/library/video-parts/direct" || !bytes.Equal(body, data) {
+			t.Errorf("incorrect archive upload: %s %s size=%d", r.Method, r.URL.Path, r.ContentLength)
+		}
+		_ = json.NewEncoder(w).Encode(expected)
+	}))
+	defer server.Close()
+	result := runCoreLibraryCommand(context.Background(), server.URL, []string{"video-part-install", "direct", path})
+	if calls != 1 || result.err != nil {
+		t.Fatalf("calls=%d result=%+v", calls, result)
+	}
+}
+
+func TestVideoCLIImportRejectsNonVideoPartBeforeHTTP(t *testing.T) {
+	path, _, _ := cliVideoArchiveFor(t, expansion.ColecoSlot, expansion.ColecoMap, "direct")
+	result := runCoreLibraryCommand(context.Background(), ":invalid-origin", []string{"video-part-install", "direct", path})
+	if result.err == nil || safeCommandError(result.err).Code != "BAD_REQUEST" {
+		t.Fatalf("non-video archive reached HTTP: %+v", result)
 	}
 }
 

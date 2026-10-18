@@ -970,6 +970,87 @@ func TestServiceFailedKitStatusDropsStalePlayWithoutChangingHost(t *testing.T) {
 	}
 }
 
+func TestServiceFailedDevelopmentKitStatusDropsGameIdentity(t *testing.T) {
+	game, system := "stale", protocol.SystemSNES
+	core := "DEVCORE"
+	pkg := &protocol.CorePackageStatus{PackageID: serviceDigest, Generation: 4}
+	reported := protocol.Status{
+		State: protocol.StateFailed, Development: true, GameID: &game, System: &system,
+		ExpectedCore: &core, ObservedCore: &core, Recovery: protocol.RecoveryRebootRequired,
+		LastError:   &protocol.APIError{Code: protocol.CodeInternal, Phase: "recovery"},
+		CorePackage: pkg,
+	}
+	assertDropped := func(t *testing.T, status protocol.Status) {
+		t.Helper()
+		// GET /api/v1/status copies these fields and omits a nil game and system.
+		if status.State != protocol.StateFailed || !status.Development || status.GameID != nil || status.System != nil {
+			t.Fatalf("public status = %+v", status)
+		}
+		if status.Recovery != reported.Recovery || status.ExpectedCore == nil || *status.ExpectedCore != core ||
+			status.ObservedCore == nil || *status.ObservedCore != core || status.CorePackage == nil ||
+			status.CorePackage.PackageID != pkg.PackageID || status.CorePackage.Generation != pkg.Generation ||
+			status.LastError == nil || status.LastError.Code != protocol.CodeInternal || status.LastError.Phase != "recovery" {
+			t.Fatalf("package or recovery evidence changed: %+v", status)
+		}
+	}
+	assertPlay := func(t *testing.T, s *Service) {
+		t.Helper()
+		plays := s.PlaySessions()
+		if len(plays) != 1 || plays[0].Target != "kit" || plays[0].Execution != ExecutionFPGADevelopment || plays[0].GameID != "" || plays[0].System != "" {
+			t.Fatalf("plays=%+v", plays)
+		}
+	}
+
+	t.Run("named target", func(t *testing.T) {
+		client := &fakeServiceClient{statusResult: reported}
+		s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+			targetClients: map[string]serviceClient{"kit": client},
+			plays:         map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale", system: protocol.SystemSNES}}}
+		status, err := s.StatusTarget(context.Background(), "kit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, status)
+		public, err := s.Status(WithSessionTarget(context.Background(), "kit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, public)
+		assertPlay(t, s)
+	})
+
+	t.Run("paired target", func(t *testing.T) {
+		client := &fakeServiceClient{statusResult: reported}
+		s := &Service{
+			pairedTargetConfigs: []TargetConfig{{Name: "kit", TargetID: "paired-kit", Enabled: true}},
+			pairedTargetClients: map[string]serviceClient{"kit": client},
+			plays:               map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale", system: protocol.SystemSNES}},
+		}
+		status, err := s.Status(WithPairedTarget(context.Background(), "paired-kit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, status)
+		assertPlay(t, s)
+	})
+
+	t.Run("active development keeps game", func(t *testing.T) {
+		activeGame, activeSystem := "live", protocol.SystemSNES
+		client := &fakeServiceClient{statusResult: protocol.Status{
+			State: protocol.StateActive, Development: true, GameID: &activeGame, System: &activeSystem,
+			CorePackage: pkg,
+		}}
+		s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+			targetClients: map[string]serviceClient{"kit": client},
+			plays:         map[string]targetPlay{"kit": {execution: ExecutionFPGADevelopment, gameID: "live", system: protocol.SystemSNES, packageID: pkg.PackageID, packageGeneration: pkg.Generation}}}
+		status, err := s.StatusTarget(context.Background(), "kit")
+		if err != nil || status.GameID == nil || *status.GameID != "live" || status.System == nil || *status.System != protocol.SystemSNES ||
+			status.CorePackage == nil || status.CorePackage.PackageID != pkg.PackageID {
+			t.Fatalf("active status = %+v err=%v", status, err)
+		}
+	})
+}
+
 func TestServiceStopRejectedNamedKitKeepsHostAndOtherKit(t *testing.T) {
 	a := &fakeServiceClient{}
 	b := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, Development: true}, stopResult: protocol.Status{State: protocol.StateIdle}}

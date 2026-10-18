@@ -75,6 +75,7 @@ DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 TEST_BINS := \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_memory_test \
+	$(BUILD_DIR)/tests/unit/menu_damage_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
@@ -479,5 +480,9 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/menu_memory_test: tests/unit/menu_memory_test.cpp src/native/linux/menu_memory.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/menu_damage_test: tests/unit/menu_damage_test.cpp src/native/linux/menu_memory.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"

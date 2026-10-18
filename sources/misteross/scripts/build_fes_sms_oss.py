@@ -35,25 +35,27 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 from scripts import rom_map
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.sms")
+ROUTER = PNR["router"]
 # Seed 3 / HeAP 1000 met the earlier two-clock linked-ROM netlist. The new
 # shared audio PLL adds a third clock; retain the bounded search below.
 # A sealed BUILD_ID changes placement, so retain the bounded fallbacks.
-PLACER_SEEDS = (3, 10, 12, 2, 4, 5, 7, 1)
+PLACER_SEEDS = tuple(PNR["seeds"])
 SEED = PLACER_SEEDS[0]
-PLACER_TIMING_WEIGHT = 1000
-PLACER_TIMING_WEIGHTS = (1000, 300)
-PLACER_CRITICALITY_EXPONENT = 5
+PLACER_TIMING_WEIGHT = PNR["timing_weights"][0]
+PLACER_TIMING_WEIGHTS = tuple(PNR["timing_weights"])
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 # first-pass walks every seed at each weight; size the budget for that product.
 PLACER_QOR_BUDGET = len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS)
-PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25),
-                     ("system_clock.clocks[1]", 12.288))
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.sms")
 SMS_GPU_BACKEND = "hip"
 SMS_GPU_ROUTER = "HIP"
 SMS_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -61,7 +63,7 @@ SMS_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SMS_GPU_ROUTER}; hip-architectures={SMS_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-sms-oss")
-SMS_TOOLCHAIN_LOCK = "toolchain.lock"
+SMS_TOOLCHAIN_LOCK = "cores/fes-sms/toolchain.lock"
 SMS_TOOLCHAIN_ROOT = "build/toolchain/fes-sms"
 SMS_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
@@ -104,6 +106,7 @@ PINNED_INPUTS = (
     "scripts/fes_build_common.py", "scripts/rom_map.py", "scripts/cyclonev_rbf.py",
     ABI_DEFINITION,
     SMS_TOOLCHAIN_LOCK,
+    "scripts/pnr_recipe.py",
     QSF,
     SDC,
     *RTL_SOURCES,
@@ -169,7 +172,6 @@ def _authenticate_sms_tools(root: Path, cache_root: Path | None = None,
         root,
         lock_path=root / SMS_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=SMS_TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -543,10 +545,12 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 seeds=PLACER_SEEDS,
                 weights=PLACER_TIMING_WEIGHTS,
                 critexp=PLACER_CRITICALITY_EXPONENT,
+                timeout=ROUTE_TIMEOUT_SECONDS,
                 budget=PLACER_QOR_BUDGET,
                 mode="first-pass",
-                extra=("--router", ROUTER),
+                extra=(),
                 required=PLACER_QOR_CLOCKS,
+                core_id="fes.sms",
                 **({"gpu_devices": (gpu_device,), "env": invocation.env, "audit_source_root": root}),
             )
         except SearchError as exc:

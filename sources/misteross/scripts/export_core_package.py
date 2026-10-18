@@ -355,10 +355,15 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
     git_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
     result = dict(fields, format=2, source_path=Path(root).resolve().relative_to(git_root).as_posix(),
                   source_roots=sorted(roots), source_inputs=source_input_closure(root, sorted(roots), policy=POLICY))
+    from scripts import pnr_recipe
+    core_id = pnr_recipe.core_for_producer(fields.get("recipe", ""))
+    parameters = dict(fields["parameters"])
+    if core_id is not None:
+        parameters["pnr_recipe_sha256"] = pnr_recipe.recipe_digest(core_id)
     for path in (*pinned_inputs, fields["recipe"], fields["abi_definition"]):
         if path not in result["source_inputs"]:
             raise PackageExportError("explicit input excluded from source closure: " + path)
-    result["parameters"] = dict(fields["parameters"], execution_sha256=execution_digest(execution),
+    result["parameters"] = dict(parameters, execution_sha256=execution_digest(execution),
                                 gpu_device=execution["gpu_device"], source_closure_policy=POLICY)
     if isinstance(roots, AuditedRoots):
         result["parameters"]["source_closure_mode"] = "audited-v1"

@@ -510,7 +510,7 @@ python3 scripts/sim_atari_st_io_diagnostic.py \
   --output out/validation/atari-st/io-guest --seconds 10 --audio-phase-ticks 20
 ```
 
-`make build-fes-atari-st` authenticates the shared `toolchain.lock`. The
+`make build-fes-atari-st` authenticates `cores/fes-atari-st/toolchain.lock`. The
 factory recipe stays HIP. `--gpu-router CUDA` builds a separate package.
 The [2026-10-04 private-pin record](../../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier read-only shell and does not qualify this shared-pin

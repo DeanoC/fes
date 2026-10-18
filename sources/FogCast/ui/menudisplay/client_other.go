@@ -24,6 +24,7 @@ type Status struct {
 	Generation                                  uint64
 	Width, Height, Stride, ByteCount, SlotBytes int
 	DisplayedSequence, Underflows               uint64
+	Damage                                      bool
 }
 type Result struct {
 	Generation, DisplayedSequence, Underflows uint64
@@ -35,5 +36,8 @@ func (*Client) Status(context.Context) (Status, error) {
 	return Status{}, errors.New("native menu requires Linux")
 }
 func (*Client) Present(context.Context, uint64, []byte) (Result, error) {
+	return Result{}, errors.New("native menu requires Linux")
+}
+func (*Client) PresentDamage(context.Context, uint64, []byte, Damage) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }

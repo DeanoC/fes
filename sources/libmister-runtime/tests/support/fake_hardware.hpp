@@ -34,6 +34,8 @@ public:
   }
   info->geometry=menu_status.geometry;info->displayed_sequence=++menu_status.displayed_sequence;return {};
  }
+ bool AcceptsMenuDamage(std::uint32_t base) const override {return accepts_damage&&base==menu_status.displayed_sequence;}
+ bool accepts_damage=false;
  bool menu_configured=false;
  mister::MenuDisplayStatus menu_status;
  unsigned menu_present_calls=0;

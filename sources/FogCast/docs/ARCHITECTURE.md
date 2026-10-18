@@ -548,8 +548,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
-evidence, including a failed menu, so physical idle can still be confirmed for
-appliance maintenance. `underflows` on that object and on a frame completion
+evidence, including a failed menu and optional `"damage":true`, so physical
+idle can still be confirmed for appliance maintenance. Any other `damage`
+shape is rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The runtime and this agent must ship in the same image because decoding is
@@ -913,7 +914,11 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. It does not expose
+IDs so uncached room selections can load their detail row. It admits one
+library write: `PUT /api/v1/library/core-entries/{game_id}/expansion` for a
+strict game ID. The body is the existing compare-and-swap selection and is
+forwarded unchanged; the foreground target is not replaced. Slot writes,
+presentation edits, other library PUTs and settings stay denied. It does not expose
 full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
 and `fogcast-kit` use `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
@@ -921,8 +926,10 @@ state, owner, purpose, generation, expiry, reachability, and readiness.
 Paired-kit lease and launch guards use this projection; selected-target host
 health remains available for host-mode clients. If the projection is
 unavailable, the paired kit's lease is unknown and input fails closed. The
-endpoint exposes no host paths. The settings overlay remains unavailable on
-the paired listener and reports its normal load error.
+endpoint exposes no host paths. On the paired listener the settings overlay
+does not request host settings. Its host rows stay inert, local preferences
+still apply, and the footer says host settings are managed on the FogCast
+computer.
 
 ## Native 10-foot launcher
 
@@ -931,8 +938,11 @@ setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
-status separately. Fit/remove use the existing compare-and-swap expansion
-selection API. Catalogue schema 14 adds optional household expansion labels
+status separately. `expansion_selection` on that response says whether this
+listener accepts the single-entry next-start PUT. Fit/remove use the existing
+compare-and-swap expansion selection API, including from a paired kit when
+the flag is true. An older paired host omits the flag and the kit stays
+inspect-only. Catalogue schema 14 adds optional household expansion labels
 and descriptions; these never influence admission. The session receipt's
 composition identifies running hardware independently of the saved setup.
 Missing or mismatched composition receipts remain unknown. Bound Stop checks
@@ -1166,7 +1176,11 @@ Benchmark recipes and measurement limits are in
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. Automatic discovery filters keyboard
+and uses the shared remapper and hold gate. `nativeInputs.poll` takes those
+axes from `ui/kitlauncher/controller.Mapper`. A held D-pad hat owns each shared
+left axis: stick reports on that axis are dropped until the hat returns to
+centre, which restores the stick's latest position. The kit grid's `Device.Poll`
+uses the same mapper. Automatic discovery filters keyboard
 capabilities and physical gamepad identity, excluding virtual-bus devices and
 the FogCast virtual gamepad, and seeds startup affinity. Zero supported devices is not
 fatal: the UI paints, and automatic mode rescans evdev about once a second
@@ -1219,7 +1233,13 @@ a second and is submitted again when the generation changes. Status errors,
 underflow, and present failures back off from 250ms to 5s. An unavailable
 menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
-wait. The kit image starts that client only when `launcher.json` `kit_ui`
+wait. When the runtime advertises `damage`, a change-driven worker also skips
+the per-frame status read for up to a second after a successful present, and
+stages only the row bands that differ from the frame the runtime is showing
+(at most 16 rectangles). If the runtime refuses either shortcut, for example
+a new generation or a stale base, the frame is retried once with fresh status
+and complete pixels; Pause, Resume, rebinding and any failure drop both
+shortcuts. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
 present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
@@ -2296,7 +2316,12 @@ kit pad does not fall back onto the host route.
 Kit input discovers every eligible USB gamepad (`event*` only) plus
 physical USB keyboards for that local feed, merges
 polls in stable device-id order through `ui/inputmap`, and remaps
-logical codes with a JSON profile (default identity). Hotplug rescan runs from
+logical codes with a JSON profile (default identity). The grid's `Device.Poll`
+and the framebuffer shell's `nativeInputs.poll` share
+`ui/kitlauncher/controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
+(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
+axis. Stick reports on the axis are dropped while the hat is held; the hat's
+return to centre restores the stick's latest position. Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the
 idle framebuffer and restores it after Stop.
 The launcher only paints memory and suspends rendering during gameplay; the
@@ -2931,6 +2956,11 @@ the host session and catalog labels follow the ABI policy, not that flag.
 After a host restart, an in-progress recognized-ABI package session is
 reconstructed as `fpga_native` from that CorePackage ABI. A raw development
 RBF or unknown ABI still reconstructs as `fpga_development`.
+A failed development observation keeps that execution and the kit's package
+and recovery evidence. The host drops the reported game and system from the
+retained play and from the status it returns. `GET /api/v1/status` for a
+named target and for a paired kit copies that returned status, so the
+response omits the game the kit was recovering from.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
 database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
@@ -3158,6 +3188,19 @@ binding. Video imports do not enter CPU expansion inventory.
 | List imported video parts | `GET /api/v1/library/video-parts` |
 | Import a bounded binary archive for a profile | `POST /api/v1/library/video-parts/{profile}` |
 | Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
+
+`fogcast video-part-install direct|scanlines PATH` is the CLI for that import.
+It snapshots a regular `.fexp` within the same byte bound before opening HTTP.
+The local check accepts `fes.fabric.video.raster-rgb888` and
+`fes.fabric.video.native-pixels`; any other socket returns `BAD_REQUEST` and
+is not uploaded. The accepted bytes are posted as `application/octet-stream`
+to `POST /api/v1/library/video-parts/{profile}`.
+`fogcast.ImportCoreVideoPart` reads the body again, requires one of those
+sockets, loads the installed sealed shell named by the archive, and composes
+the part against that shell before `catalog.ImportCoreVideoPart` stores it.
+Storage still requires socket 1.0 and the matching closed native or raster
+map. A lost response is not replayed. Success requires the returned part
+identity, shell package and profile to match the snapshot.
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
 package and declared video socket. The closed Coleco shell contract, format 2

@@ -21,7 +21,8 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest['build_fes_pong'], sorted(set(manifest['build_fes_pong'])))
         roots = static('build_fes_pong')
         for expected in ('scripts/build_fes_pong.py', 'scripts/functional_execution.py',
-                         'toolchain.lock', 'cores/fes-pong/generated'):
+                         'cores/fes-pong/toolchain.lock', 'scripts/pnr_recipe.py',
+                         'cores/fes-pong/generated'):
             self.assertTrue(any(expected == root or expected.startswith(root + '/') for root in roots))
         self.assertFalse(any('/sim/' in root or root.endswith('/sim') for root in roots))
         self.assertFalse(any(root.startswith('cores/fes-common/sim') for root in roots))
@@ -111,7 +112,8 @@ class ManifestTests(unittest.TestCase):
             record = Path(temp) / 'reads.jsonl'
             record.write_text(json.dumps({'event':'read','path':'scripts/build_fes_pong.py'})+'\n')
             roots = derive('build_fes_pong', [record])
-            self.assertIn('toolchain.lock', roots)
+            self.assertIn('cores/fes-pong/toolchain.lock', roots)
+            self.assertIn('scripts/pnr_recipe.py', roots)
 
     def test_check_rejects_missing_import_and_sim(self):
         roots = static('build_fes_pong')

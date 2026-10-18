@@ -495,6 +495,8 @@ def validate_entry(entry):
         raise ValueError(f'kit component {component} must match target basename {basename}')
     if basename in BINS and (side != 'kit' or target != f'/usr/sbin/{basename}'):
         raise ValueError(f'kit binary {basename} must target /usr/sbin/{basename}')
+    if component.startswith('host:') and basename != component.removeprefix('host:'):
+        raise ValueError(f'host component {component} must match target basename {basename}')
     if component.startswith(('host:', 'core:')) and side != 'host':
         raise ValueError(f'{component} must be side host')
     if component in BINS and side != 'kit':
@@ -511,6 +513,19 @@ def validate_entry(entry):
 
 
 GO_COMPONENTS = {'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'host:fogcast-api', 'host:fogcast'}
+# Go build info (runtime/debug.modinfo) starts with this sentinel, then "path\t<main package>\n".
+GO_MODINFO_START = bytes.fromhex('3077af0c9274080241e1c107e6d618e6')
+FOGCAST_MODULE = 'github.com/DeanoC/FogCast'
+
+
+def identity_error(component, data):
+    """Check that a host Go binary was built from its own command; return a refusal or None."""
+    if not component.startswith('host:') or component not in GO_COMPONENTS:
+        return None
+    command = f"{FOGCAST_MODULE}/cmd/{component.removeprefix('host:')}"
+    if GO_MODINFO_START + b'path\t' + command.encode() + b'\n' in data:
+        return None
+    return f'{component} Go build info does not name main package {command}'
 
 
 def revision_error(component, data, head):
@@ -558,7 +573,7 @@ def manifest(head, output, specs):
             entry['package_id'] = package.package_id
             entry['core_id'] = core_id
         else:
-            error = revision_error(component, data, head)
+            error = revision_error(component, data, head) or identity_error(component, data)
             if error:
                 raise ValueError(error + '; build it from a clean worktree at the head')
         validate_entry(entry)
@@ -816,7 +831,8 @@ def evidence(args):
             artifact = Path(entry['local']).read_bytes()
             if hashlib.sha256(artifact).hexdigest() != str(entry['sha256']).lower():
                 return refuse(f"local artifact sha256 changed for {entry['component']}")
-            error = revision_error(entry['component'], artifact, head)
+            error = (revision_error(entry['component'], artifact, head) or
+                     identity_error(entry['component'], artifact))
             if error:
                 return refuse(error)
         key = (entry['side'], entry['target'])

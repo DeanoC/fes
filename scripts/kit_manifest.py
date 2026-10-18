@@ -172,20 +172,6 @@ def _owned_regular(path, private=False):
     return True
 
 
-def _hold_candidates():
-    candidates = []
-    xdg = os.environ.get('XDG_STATE_HOME')
-    if xdg:
-        candidates.append(Path(xdg) / 'fes-kit')
-    try:
-        home_default = durable_state_dir()
-    except KitError:
-        home_default = None
-    if home_default is not None and home_default not in candidates:
-        candidates.append(home_default)
-    return candidates
-
-
 def _legacy_hold_dir():
     """Previous default hold directory, kept only so an active journal can move."""
     return Path(tempfile.gettempdir()) / f'fes-kit-{os.getuid()}'
@@ -327,26 +313,22 @@ def _migrate_legacy_hold(destination):
 def hold_dir():
     """Private workstation directory for hold markers and the credential journal.
 
-    ``FES_KIT_HOLD_DIR`` is used when set and must be private, including its
-    parents. Otherwise use ``$XDG_STATE_HOME/fes-kit`` when that variable is
-    set, then ``~/.local/state/fes-kit``. Temporary storage is not a
-    candidate. A private journal left in the previous temp directory is
+    ``FES_KIT_HOLD_DIR`` is used when set, otherwise ``$XDG_STATE_HOME/fes-kit``
+    when that variable is set, then ``~/.local/state/fes-kit``. The selected
+    directory must be private, including its parents; one that is not is an
+    error and never falls back to the shared default. Temporary storage is not
+    a candidate. A private journal left in the previous temp directory is
     moved here when the destination does not already have that file.
     """
     override = os.environ.get('FES_KIT_HOLD_DIR')
+    xdg = os.environ.get('XDG_STATE_HOME')
     if override:
-        path = _ensure_private_dir(Path(override))
+        path = Path(override)
+    elif xdg:
+        path = Path(xdg) / 'fes-kit'
     else:
-        path = None
-        last = None
-        for candidate in _hold_candidates():
-            try:
-                path = _ensure_private_dir(candidate)
-                break
-            except KitError as exc:
-                last = exc
-        if path is None:
-            raise last or KitError('cannot create kit hold directory')
+        path = durable_state_dir()
+    path = _ensure_private_dir(path)
     _migrate_legacy_hold(path)
     return path
 

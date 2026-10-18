@@ -82,7 +82,7 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.producer_module, "scripts.build_fes_riscv")
         self.assertEqual(recipe.producer_script, "scripts/build_fes_riscv.py")
         self.assertEqual(recipe.authenticate, "_authenticate_tools")
-        self.assertEqual(recipe.lock_path, "toolchain.lock")
+        self.assertEqual(recipe.lock_path, "cores/fes-riscv/toolchain.lock")
         self.assertEqual(recipe.selection_filename, "fes-riscv.package-selection.toml")
         self.assertEqual(recipe.package_dir_env, "FES_RISCV_PACKAGE_DIR")
         self.assertNotIn("fes.riscv", build.selected_packages(
@@ -92,18 +92,22 @@ class RecipeRegistryTest(unittest.TestCase):
         recipe = recipes.recipe_for("fes.atari-st")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")
         self.assertEqual(recipe.authenticate, "_authenticate_atari_st_tools")
-        self.assertEqual(recipe.lock_path, "toolchain.lock")
+        self.assertEqual(recipe.lock_path, "cores/fes-atari-st/toolchain.lock")
         self.assertEqual(recipe.selection_filename, "fes-atari-st.package-selection.toml")
         self.assertEqual(recipe.package_dir_env, "FES_ATARI_ST_PACKAGE_DIR")
         self.assertEqual(build.selected_packages(
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_ramtest_and_menu_share_the_current_fes_toolchain(self):
-        # fes.ramtest returns to the shared lock with SDRAM command/address IO
-        # registers (DeanoC/nextpnr#135).
-        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchain.lock")
-        self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchain.lock")
+    def test_ramtest_and_menu_have_per_core_locks_with_the_shared_pin(self):
+        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path,
+                         "cores/fes-ramtest/toolchain.lock")
+        self.assertEqual(recipes.recipe_for("fes.menu").lock_path,
+                         "cores/fes-menu/toolchain.lock")
+        root = Path(__file__).resolve().parents[1] / "sources/misteross"
+        base = (root / "toolchain.lock").read_bytes()
+        self.assertEqual((root / recipes.recipe_for("fes.ramtest").lock_path).read_bytes(), base)
+        self.assertEqual((root / recipes.recipe_for("fes.menu").lock_path).read_bytes(), base)
 
     def assert_existing_descriptors(self):
         self.assertTrue(
@@ -113,7 +117,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.pong": {
                 "producer_script": "scripts/build_fes_pong.py",
                 "producer_module": "scripts.build_fes_pong",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-pong/toolchain.lock",
                 "selection_filename": "fes-pong.package-selection.toml",
                 "authenticate": "_authenticate_tools",
                 "package_dir_env": "FES_PONG_PACKAGE_DIR",
@@ -122,7 +126,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.zx81": {
                 "producer_script": "scripts/build_fes_zx81_oss.py",
                 "producer_module": "scripts.build_fes_zx81_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-zx81/toolchain.lock",
                 "selection_filename": "fes-zx81.package-selection.toml",
                 "authenticate": "_authenticate_tools",
                 "package_dir_env": "FES_ZX81_PACKAGE_DIR",
@@ -131,7 +135,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_socket_v2.py",
                 "producer_module": "scripts.build_fes_coleco_socket_v2",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-coleco/toolchain.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
                 "authenticate": "authenticate_tools",
                 "package_dir_env": "FES_COLECO_PACKAGE_DIR",
@@ -140,7 +144,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sms": {
                 "producer_script": "scripts/build_fes_sms_oss.py",
                 "producer_module": "scripts.build_fes_sms_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-sms/toolchain.lock",
                 "selection_filename": "fes-sms.package-selection.toml",
                 "authenticate": "_authenticate_sms_tools",
                 "package_dir_env": "FES_SMS_PACKAGE_DIR",
@@ -149,7 +153,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sg1000": {
                 "producer_script": "scripts/build_fes_sg1000_oss.py",
                 "producer_module": "scripts.build_fes_sg1000_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-sg1000/toolchain.lock",
                 "selection_filename": "fes-sg1000.package-selection.toml",
                 "authenticate": "_authenticate_sg1000_tools",
                 "package_dir_env": "FES_SG1000_PACKAGE_DIR",
@@ -158,7 +162,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.apple2": {
                 "producer_script": "scripts/build_fes_apple2_oss.py",
                 "producer_module": "scripts.build_fes_apple2_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-apple2/toolchain.lock",
                 "selection_filename": "fes-apple2.package-selection.toml",
                 "authenticate": "_authenticate_apple2_tools",
                 "package_dir_env": "FES_APPLE2_PACKAGE_DIR",
@@ -167,7 +171,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.c64": {
                 "producer_script": "scripts/build_fes_c64_oss.py",
                 "producer_module": "scripts.build_fes_c64_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-c64/toolchain.lock",
                 "selection_filename": "fes-c64.package-selection.toml",
                 "authenticate": "_authenticate_c64_tools",
                 "package_dir_env": "FES_C64_PACKAGE_DIR",
@@ -176,7 +180,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.spectrum": {
                 "producer_script": "scripts/build_fes_spectrum_oss.py",
                 "producer_module": "scripts.build_fes_spectrum_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "cores/fes-spectrum/toolchain.lock",
                 "selection_filename": "fes-spectrum.package-selection.toml",
                 "authenticate": "_authenticate_spectrum_tools",
                 "package_dir_env": "FES_SPECTRUM_PACKAGE_DIR",
@@ -205,13 +209,11 @@ class RecipeRegistryTest(unittest.TestCase):
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
-        self.assertEqual(pong.lock_path, zx81.lock_path)
-        self.assertEqual(coleco.lock_path, pong.lock_path)
-        self.assertEqual(recipes.recipe_for("fes.apple2").lock_path, pong.lock_path)
-        self.assertEqual(recipes.recipe_for("fes.spectrum").lock_path, pong.lock_path)
-        self.assertEqual(sms.lock_path, pong.lock_path)
-        self.assertEqual(sms.lock_path, coleco.lock_path)
-        self.assertEqual(recipes.recipe_for("fes.sg1000").lock_path, pong.lock_path)
+        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms",
+                        "fes.sg1000", "fes.apple2", "fes.c64", "fes.spectrum"):
+            self.assertEqual(recipes.recipe_for(core_id).lock_path,
+                             f"cores/fes-{core_id.removeprefix('fes.')}/toolchain.lock")
+        self.assertEqual(len({r.lock_path for r in (pong, zx81, coleco, sms)}), 4)
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
@@ -242,16 +244,24 @@ class RecipeDataTest(unittest.TestCase):
     def load_document(self, document):
         # Fixture serialization only: the production loader always parses TOML.
         import json
+        def encode(value):
+            if isinstance(value, dict):
+                return "{ " + ", ".join(k + " = " + encode(v) for k, v in value.items()) + " }"
+            if isinstance(value, list):
+                return "[" + ", ".join(encode(v) for v in value) + "]"
+            if isinstance(value, bool):
+                return "true" if value else "false"
+            if isinstance(value, str):
+                return json.dumps(value)
+            return str(value)
         text = "version = " + json.dumps(document["version"]) + "\n"
         for key, value in document.items():
             if key not in ("version", "recipes"):
-                text += key + " = " + json.dumps(value) + "\n"
+                text += key + " = " + encode(value) + "\n"
         for entry in document["recipes"]:
             text += "\n[[recipes]]\n"
             for key, value in entry.items():
-                encoded = ("{ " + ", ".join(k + " = " + json.dumps(v) for k, v in value.items()) + " }"
-                           if isinstance(value, dict) else json.dumps(value))
-                text += key + " = " + encoded + "\n"
+                text += key + " = " + encode(value) + "\n"
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "recipes.toml"
             path.write_text(text)
@@ -603,7 +613,7 @@ class CacheLocationTest(unittest.TestCase):
 
 
 class RamtestToolchainTargetTest(unittest.TestCase):
-    def test_toolchain_fes_ramtest_pins_shared_lock_against_env_overrides(self):
+    def test_toolchain_fes_ramtest_pins_its_core_lock_against_env_overrides(self):
         misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
         env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
                    FES_TOOLCHAIN_ROOT='/elsewhere-root')
@@ -612,6 +622,7 @@ class RamtestToolchainTargetTest(unittest.TestCase):
             env.pop(key, None)
         out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
                              env=env, check=True, capture_output=True, text=True).stdout
-        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchain.lock"', out)
-        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain"', out)
+        self.assertIn(
+            f'FES_TOOLCHAIN_LOCKFILE="{misteross}/cores/fes-ramtest/toolchain.lock"', out)
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain/fes-ramtest"', out)
         self.assertNotIn('elsewhere', out)

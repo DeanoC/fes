@@ -40,14 +40,16 @@ from scripts.fes_build_common import (
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.c64")
+ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_c64_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-c64-oss")
-C64_TOOLCHAIN_LOCK = "toolchain.lock"
+C64_TOOLCHAIN_LOCK = "cores/fes-c64/toolchain.lock"
 C64_TOOLCHAIN_ROOT = "build/toolchain"
 C64_GPU_BACKEND = "hip"
 C64_GPU_ROUTER = "HIP"
@@ -62,10 +64,11 @@ C64_TOOL_COMMITS = {
 }
 # First passing route wins; the order is part of the build identity.
 # The 0c5ed400 seal used this order. The shared-pin move does not reorder it.
-PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
-PLACER_WEIGHT = 2000
-PLACER_CRITICALITY_EXPONENT = 5
-PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.c64")
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 # nextpnr #136 (1656e473 and later) logs ref->VCO + fractional-N + M/N/K + counters and
 # one requested/achieved line per output. VCO 417.792 MHz: C6 /8 = 52.224 MHz
 # system, C7 /34 = 12.288 MHz audio. The PLL BEL is placement, not identity.
@@ -73,8 +76,13 @@ SYSTEM_PLL_ROUTE_RE = (
     r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO 417\.792000 MHz, fractional-N, "
     r"M=8 N=1 K=1528321163, counters C6,7, bel altera_pll\.[0-9.]+"
 )
-SYSTEM_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)"
-AUDIO_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)"
+SYSTEM_PLL_OUTPUT_RE = (r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\), "
+                        r"achieved ([0-9]+(?:\.[0-9]+)?) Hz")
+AUDIO_PLL_OUTPUT_RE = (r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\), "
+                       r"achieved ([0-9]+(?:\.[0-9]+)?) Hz")
+# The requested line alone does not prove the configured divisors; every
+# achieved output must land within this many Hz of its target.
+PLL_ACHIEVED_TOLERANCE_HZ = 1.0
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
@@ -115,7 +123,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/c64_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
-    ABI_DEFINITION, C64_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    ABI_DEFINITION, C64_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",
@@ -168,7 +176,6 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
         root,
         lock_path=root / C64_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=C64_TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -452,6 +459,23 @@ def validate_synth_evidence(output: Path) -> dict:
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
 
 
+def _pll_achieved(route_text: str, pattern: str, target_hz: float, missing: str) -> None:
+    achieved = [float(value) for value in re.findall(pattern, route_text)]
+    if not achieved:
+        raise BuildError(missing)
+    for value in achieved:
+        if not math.isfinite(value) or abs(value - target_hz) > PLL_ACHIEVED_TOLERANCE_HZ:
+            raise BuildError(f"route log PLL achieved {value:.6f} Hz, not {target_hz:.0f} Hz")
+
+
+def validate_pll_outputs(route_text: str) -> None:
+    if not re.search(SYSTEM_PLL_ROUTE_RE, route_text):
+        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
+    _pll_achieved(route_text, SYSTEM_PLL_OUTPUT_RE, 52224000.0,
+                  "route log does not contain the 50-to-52.224 MHz system PLL")
+    _pll_achieved(route_text, AUDIO_PLL_OUTPUT_RE, 12288000.0, "route log must prove the 12.288 MHz audio PLL")
+
+
 def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -464,10 +488,7 @@ def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND)
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    if not re.search(SYSTEM_PLL_ROUTE_RE, route_text) or not re.search(SYSTEM_PLL_OUTPUT_RE, route_text):
-        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
-    if not re.search(AUDIO_PLL_OUTPUT_RE, route_text):
-        raise BuildError("route log must prove the 12.288 MHz audio PLL")
+    validate_pll_outputs(route_text)
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
             for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}
@@ -574,9 +595,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=("--router", ROUTER),
+                mode="first-pass", extra=(), timeout=ROUTE_TIMEOUT_SECONDS,
                 required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root,
+                env=invocation.env, audit_source_root=root, core_id="fes.c64",
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc

@@ -45,7 +45,7 @@ FPGA_PRODUCER_HELPERS = {
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
-    'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
+    'core_package.py', 'export_core_package.py', 'search_placer_qor.py', 'pnr_recipe.py',
 }
 # Directory ownership includes cross-core consumers: demo and RISC-V import Pong
 # board models/constraints/PLL; SG-1000 and SMS still include Coleco generated headers.
@@ -77,7 +77,7 @@ SHARED_RTL = {
     'fes_native_video_cart.v': ('coleco',),
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
-    'coleco_video_dpram.v': COLECO_CONSUMERS,
+    'coleco_video_dpram.v': (*COLECO_CONSUMERS, 'pcxt'),
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
@@ -89,8 +89,8 @@ SHARED_RTL = {
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
     't80pa.v': ('coleco', 'sms'),
-    'fes_video_part_direct.v': ('coleco', 'atari-st'),
-    'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
+    'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
+    'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -114,6 +114,8 @@ def fpga_cores(path):
     parts = relative.parts
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
+        return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'

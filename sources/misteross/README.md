@@ -76,10 +76,14 @@ The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
 through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
 The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
 and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
-and services PIT1 refresh with CPU LOCK/INTA arbitration; RAM/ROM storage
-remains external to the synthesizable fixture. Separate ISA CGA and MDA cards
+and services PIT1 refresh with CPU LOCK/INTA arbitration; the storage lane loads its
+firmware through a reset-only byte loader and boots the ISA display diagnostic
+through the existing physical SDRAM controller in host simulation. Board
+capture/pads and routed memory timing remain unqualified. Separate ISA CGA and MDA cards
 produce independently timed RGBI guest rasters in host simulation; fonts and
-production video output remain external.
+board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
+existing shared RGB888 Direct/Scanlines effects in host simulation; the board
+producer, routed shell and exact-shell parts are still unimplemented.
 `make sim-fes-pcxt` checks it on the host; see the
 [core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
 linkable PC/XT sockets remain unimplemented.
@@ -177,18 +181,14 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the shared HIP lane for FES Pong, menu, RAM Tester and
-freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
-`toolchain.lock` HIP compiler slot (also provisioned by
-`make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
-`toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
-against `toolchain.lock`. SMS uses
-`make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
-`make toolchain-fes-zx81` against `toolchain.lock`. Atari ST uses
-`make toolchain-fes-atari-st` against `toolchain.lock`. The factory recipe
-stays HIP. The October kit notes do not accept a shared-pin seal. Those
-install under their own prefixes unless `CACHE_ROOT` selects the shared
-cache. See [Cores](docs/cores.md).
+`make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
+lane for consumers that still select that lock. Every registered core has a
+matching `toolchain-fes-<core>` target that provisions its
+`cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
+SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. The locks
+currently share identical compiler pins, so a shared `CACHE_ROOT` reuses one
+cached slot. The factory recipe stays HIP. The October kit notes do not accept
+a shared-pin seal. See [Cores](docs/cores.md).
 
 ## Freeze-scaffold cartridges
 

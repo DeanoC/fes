@@ -20,7 +20,17 @@ func (s roomServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot
 	if s.client == nil {
 		return hostclient.HardwareSnapshot{}, fmt.Errorf("host API is unavailable")
 	}
-	return s.client.Hardware(ctx)
+	snap, err := s.client.Hardware(ctx)
+	if err != nil {
+		return snap, err
+	}
+	if snap.ExpansionSelection == nil {
+		// Older hosts omit the advertisement. A paired kit must not offer a
+		// save the listener will reject. An unpaired host keeps saving.
+		allowed := !s.client.paired
+		snap.ExpansionSelection = &allowed
+	}
+	return snap, nil
 }
 
 func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, packageID, expectedID, expansionID string) (hostclient.CoreEntryExpansion, error) {
@@ -40,6 +50,8 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 
 // openPlayingHardwareRoomLocked changes only launcher presentation. The live
 // room instance, session and kit lease survive both visits and tape changes.
+const playingHardwareRoomStatus = "Hardware room · the machine is still running"
+
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
@@ -68,7 +80,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.roomDuringPlay = true
 	a.roomWasParked = false // This visit already loaded or resumed the room.
 	a.syncGPUParkLocked()
-	a.status = "Hardware room · the machine is still running"
+	a.status = playingHardwareRoomStatus
 }
 
 func (a *App) resumeRoomSessionLocked() {

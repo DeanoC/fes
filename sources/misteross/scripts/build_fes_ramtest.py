@@ -23,6 +23,7 @@ from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 QSF = "cores/fes-ramtest/constraints.qsf"
 BUILD_OUTPUTS = (
@@ -64,13 +65,13 @@ RTL_SOURCES = (
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
-# Both rates share toolchain.lock and the common HIP compiler slot. Yosys
+# Both rates use the per-core lock and common HIP compiler slot. Yosys
 # declares every fpga2sdram port and nextpnr times the HPS port paths.
-TOOLCHAIN_LOCK = "toolchain.lock"
+TOOLCHAIN_LOCK = "cores/fes-ramtest/toolchain.lock"
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
-    "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, TOOLCHAIN_LOCK,
+    "scripts/fes_de10nano_evidence.py", "scripts/pnr_recipe.py", ABI_DEFINITION, TOOLCHAIN_LOCK,
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 OUTPUT_100 = Path("build/fes-ramtest-100")
@@ -101,11 +102,12 @@ def output_for(memory_mhz: int) -> Path:
 # The build ID hashes the source revision, so each commit synthesises a
 # slightly different netlist and no single seed stays good. The seal routes
 # the seeds in turn and keeps the first that meets every clock at signoff.
-PLACER_SEEDS = (2, 6, 1, 3, 4, 5, 7, 8)
+PNR = pnr_recipe.recipe_for("fes.ramtest")
+PLACER_SEEDS = tuple(PNR["seeds"])
 # nextpnr's HeAP defaults, so the search places as a plain run does
-PLACER_TIMING_WEIGHT = 10
-PLACER_CRITICALITY_EXPONENT = 2
-ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_TIMING_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 
 
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
@@ -241,9 +243,9 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: 
                 nextpnr=authenticated["nextpnr-mistral"].path, fixture=output / "synth.json", dest=output,
                 device=board.TARGET, qsf=root / QSF, sdc=root / board_evidence.SDC, freq="74.25",
                 seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
-                budget=len(PLACER_SEEDS), mode="first-pass", extra=("--router", "gpu"),
+                budget=len(PLACER_SEEDS), mode="first-pass", extra=(),
                 timeout=ROUTE_TIMEOUT_SECONDS, gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root)
+                env=invocation.env, audit_source_root=root, core_id="fes.ramtest")
         except SearchError as exc:
             raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(

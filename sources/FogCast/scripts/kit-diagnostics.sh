@@ -242,6 +242,57 @@ json_hex() {
   printf '%s\n' "$found"
 }
 
+json_quoted() {
+  flat=$1
+  key=$2
+  found=$(printf '%s\n' "$flat" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p") || return 0
+  found=${found%%"$nl"*}
+  printf '%s\n' "$found"
+}
+
+read_flat() {
+  flat=
+  while IFS= read -r line || [ -n "$line" ]; do
+    flat=$flat$line' '
+  done < "$1"
+}
+
+# Kernel boot id for this boot, with the surrounding whitespace removed.
+# ReadBootIdentity compares the ticket against the same proc file.
+current_boot_id() {
+  file=$(kit_path /proc/sys/kernel/random/boot_id)
+  [ -f "$file" ] || return 1
+  line=
+  IFS= read -r line < "$file" || [ -n "$line" ] || return 1
+  line=$(trim "$line") || return 1
+  [ -n "$line" ] || return 1
+  printf '%s\n' "$line"
+}
+
+# The appliance store's boot ticket names the image this boot selected. On a
+# kit with A/B updates that is the running image; the factory files are not.
+# A direct-root boot does not rewrite the ticket, so an older one can remain
+# on FAT. Accept it only when its boot_id is this kernel boot.
+read_boot_ticket() {
+  logical=$1
+  file=$2
+  [ -n "$image_id" ] && return 0
+  [ -f "$file" ] || return 0
+  sed_path=$(command -v sed || true)
+  [ -n "$sed_path" ] || return 0
+  kernel_boot=$(current_boot_id) || return 0
+  read_flat "$file"
+  ticket_boot=$(json_quoted "$flat" boot_id)
+  [ -n "$ticket_boot" ] || return 0
+  [ "$ticket_boot" = "$kernel_boot" ] || return 0
+  found=$(json_hex "$flat" image_sha256 64)
+  case $found in
+    ''|*[!0-9a-f]*) return 0 ;;
+  esac
+  image_id=$found
+  image_id_source=$logical
+}
+
 read_factory() {
   logical=$1
   file=$2
@@ -251,16 +302,18 @@ read_factory() {
   [ -f "$file" ] || return 0
   sed_path=$(command -v sed || true)
   [ -n "$sed_path" ] || return 0
-  flat=
-  while IFS= read -r line || [ -n "$line" ]; do
-    flat=$flat$line' '
-  done < "$file"
+  read_flat "$file"
+  factory_image=$(json_hex "$flat" image_sha256 64)
   if [ -z "$image_id" ]; then
-    found=$(json_hex "$flat" image_sha256 64)
-    if valid_token "$found"; then
-      image_id=$found
+    if valid_token "$factory_image"; then
+      image_id=$factory_image
       image_id_source=$logical
     fi
+  fi
+  # A factory revision describes the factory image. Beside a boot-ticket
+  # image it is reported only when both name the same image.
+  if [ "$image_id_source" = "$boot_ticket" ] && [ "$factory_image" != "$image_id" ]; then
+    return 0
   fi
   if [ -z "$source_revision" ]; then
     found=$(json_hex "$flat" fes_revision '7,40')
@@ -669,6 +722,8 @@ fi
 image_id=
 image_id_source=none
 source_revision=
+boot_ticket=/media/fat/fogcast/releases/boot.json
+read_boot_ticket "$boot_ticket" "$(kit_path "$boot_ticket")"
 take_id /etc/fes-image-id "$(kit_path /etc/fes-image-id)"
 take_id /etc/fogcast-image-id "$(kit_path /etc/fogcast-image-id)"
 take_id /usr/share/mister-runtime/image-id "$(kit_path /usr/share/mister-runtime/image-id)"
