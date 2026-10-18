@@ -56,8 +56,11 @@ module pcxt_dma (
             if (!chosen_valid && eligible[candidate]) begin chosen=candidate; chosen_valid=1; end
         end
     end
-    wire [1:0] operation = mode[channel][3:2];
-    wire [1:0] transfer_mode = mode[channel][7:6];
+    // Resolve a new service at grant, not when HRQ first becomes pending:
+    // a higher-priority request can arrive during a long CPU wait or LOCK.
+    wire [1:0] service_channel = state == SELECT && !service_started ? chosen : channel;
+    wire [1:0] operation = mode[service_channel][3:2];
+    wire [1:0] transfer_mode = mode[service_channel][7:6];
     wire memory_phase = state == MEM_SEND || state == MEM_WAIT;
     assign hold_request = state != IDLE && state != YIELD && state != FAILED && !reset;
     assign cycle_valid = !reset && granted && (state == MEM_SEND || state == DEV_SEND);
@@ -140,15 +143,17 @@ module pcxt_dma (
                 SELECT: if (granted && guest_ce) begin
                     // Unsupported bus modes fail visibly instead of producing
                     // misleading device commits. External EOP is not exposed.
-                    if (command[2] || mask_bits[channel] || (!service_started && !eligible[channel])) begin
+                    if (command[2] || (!service_started && !chosen_valid) ||
+                        (service_started && (mask_bits[channel] ||
+                         (transfer_mode == 0 && !hardware_request[channel])))) begin
                         yield_served<=0; state<=YIELD;
                     end else if (command[0] || transfer_mode == 3 || operation == 3 ||
-                        (channel == 0 && operation == 1)) begin fault<=3; state<=FAILED; end
+                        (service_channel == 0 && operation == 1)) begin fault<=3; state<=FAILED; end
                     else begin
-                        service_started<=1; minimum_wait<=3;
-                        if (channel == 0) refresh_pending<=refresh_edge;
-                        transfer_address <= {page[channel == 2 ? 1 : channel == 3 ? 2 : 3], current_address[channel]};
-                        terminal <= current_count[channel] == 0;
+                        channel<=service_channel; service_started<=1; minimum_wait<=3;
+                        if (service_channel == 0) refresh_pending<=refresh_edge;
+                        transfer_address <= {page[service_channel == 2 ? 1 : service_channel == 3 ? 2 : 3], current_address[service_channel]};
+                        terminal <= current_count[service_channel] == 0;
                         if (operation == 0) state<=COMPLETE;
                         else if (operation == 1) state<=DEV_SEND;
                         else state<=MEM_SEND;

@@ -109,7 +109,9 @@ is writable but unused. Low 16-bit address wrap never carries into the page.
 The controller implements shared low/high byte selection, current/base
 address and count, read-clear TC status, masks, command/disable, mode and
 software-request writes, increment/decrement, auto-init, and fixed/rotating
-priority. Demand retains ownership while DREQ is active; block runs to TC;
+priority. A new service resolves priority after CPU ownership is released,
+so a higher-priority request arriving during a CPU wait or LOCK can win.
+Demand rechecks DREQ before each byte; block runs to TC;
 single yields to a waiting CPU request between bytes. Software requests are
 serviced in block mode as Intel specifies. Count `FFFF` means 65,536 bytes.
 Verify advances address/count without memory or peripheral strobes. Master
@@ -243,7 +245,9 @@ all service modes, verify, all-mask and clear-mask writes, shared byte selection
 page aliases/mappings and 64 KiB wrap, including an independent 65,536-byte
 memory scoreboard. It checks auto-init, fixed/rotating priority, software
 requests, DREQ polarity/withdrawal, LOCK and paired INTA exclusion, CPU fairness,
-refresh cadence, first/second-half faults and reset across pending halves.
+refresh cadence, a higher-priority request arriving before grant, DREQ
+withdrawal between demand bytes, first/second-half faults and reset across
+pending halves.
 Unsupported bus modes must fault without committing a byte.
 
 The integrated machine suite boots the original `sim/motherboard.S` ROM on the

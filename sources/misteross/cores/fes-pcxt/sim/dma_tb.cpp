@@ -126,6 +126,26 @@ int main(int argc,char** argv) {
             check(b.dma_bytes.size()==4,"priority completion");
             check(b.dma_bytes[0].channel==2 && b.dma_bytes[1].channel==(rotate?3u:2u),"priority ordering");
         }
+        // A later higher-priority request must win when CPU ownership is
+        // finally released; the initial HRQ candidate is not a reservation.
+        for(bool rotate: {false,true}) {
+            b.reset();program(b,2,0x2000,0,0x44);program(b,3,0x3000,0,0x44);
+            b.out(8,rotate?0x10:0);b.out(0x0a,2);b.out(0x0a,3);
+            b.d.cpu_bus_lock=1;b.d.external_drq=4;b.idle(100);
+            b.d.external_drq=6;b.idle(100);b.d.cpu_bus_lock=0;settled(b);
+            check(b.dma_bytes.size()==2 && b.dma_bytes[0].channel==2,"late priority at grant");
+        }
+        // A demand request can drop in the gap after one byte has completed
+        // and before the next byte starts. Do not issue an extra device read.
+        b.reset();b.wait=3;program(b,2,0x2000,7,4);b.out(0x0a,2);b.d.external_drq=2;
+        unsigned demand_deadline=b.ticks+2000;
+        while(!((b.d.observed_request>>31)&1) && b.ticks<demand_deadline)b.tick();
+        check(b.ticks<demand_deadline,"demand request setup timeout");
+        // Request preparation occurs just after the service's first guest
+        // enable. Five enables retire the byte; withdraw one fabric edge later.
+        unsigned service_start=b.ticks-((b.ticks-1)%21),withdraw=service_start+4*21+1;
+        b.idle(withdraw-b.ticks);b.d.external_drq=0;settled(b);
+        check(b.dma_bytes.size()==1,"demand withdrawal between bytes");
         // Refresh channel 0 performs memory reads, clears its request latch,
         // and keeps running while the CPU is idle. No DMA0 peripheral packet.
         b.reset();program(b,0,0x0100,0xffff,0x58);b.out(0x0a,0);b.pit(1,2,18);settled(b,30000);

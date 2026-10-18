@@ -2248,7 +2248,9 @@ Ports `00–1F` select controller registers through A3:0; write-only four-bit pa
 latches at `80–9F` use A1:0 (DMA2 index 1, DMA3 index 2, DMA1/refresh index 3).
 Both ranges ignore A15:10. The shared byte pointer, base/current address/count,
 TC status, masks, demand/single/block/verify, software block requests, DREQ sense,
-auto-init and fixed/rotating priority are implemented. Low-address wrap stays
+auto-init and fixed/rotating priority are implemented. New services resolve
+priority after CPU ownership is released; demand rechecks DREQ before each
+byte. Low-address wrap stays
 within the selected 64 KiB page. Master clear preserves address/count/mode/page
 programming; read-clear TC status changes only once per accepted register read.
 
