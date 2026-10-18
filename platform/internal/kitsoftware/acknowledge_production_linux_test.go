@@ -65,7 +65,7 @@ func TestRunningPriorProofUsesRealChildrenAndReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths := []string{"mister-runtime", "mister-agent", "fogcast-kit"}
+	paths := []string{"mister-runtime", "mister-agent", "fogcast-tenfoot"}
 	for _, name := range paths {
 		if err := os.WriteFile(filepath.Join(root, "bin", name), bytes, 0555); err != nil {
 			t.Fatal(err)
