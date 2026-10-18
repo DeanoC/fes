@@ -2474,7 +2474,11 @@ reserved regions and routed timing. The diagnostic `fes_pcxt_top.sv` supplies
 release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
 assemble CPU/motherboard, separate ISA cards, real storage and one video
 pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
-through the sequential 64 KiB loader before machine release. Warm reset/HOLD
+through the sequential 64 KiB loader before machine release. Its continuous
+registered ROM read uses the existing completion-to-offer gap. Motherboard
+I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
+existing state/phase decode, preserving every active/release cycle while
+removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.

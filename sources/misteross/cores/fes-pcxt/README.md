@@ -198,7 +198,14 @@ CGA or MDA capture/Direct/Scanlines pipeline. CPU firmware accesses and DMA
 storage share the motherboard byte port; video memory and registers stay on ISA.
 
 `pcxt_boot.sv` copies an original 64 KiB diagnostic image into SDRAM through
-the firmware port. `pcxt_system` admits sequential addresses starting at zero,
+the firmware port. Its ROM reads continuously into a clocked output; the
+completion-to-next-offer gap supplies the read cycle without delaying a valid
+offer. A focused test checks every byte under backpressure and a cold restart.
+Motherboard I/O strobes and PIC/PIT/PPI chip selects are predicted at the
+preceding edge, preserving setup, eight active clocks and nine release clocks.
+An unbounded induction proof checks their original state/phase equations on
+the actual motherboard after reset, with arbitrary bus inputs and later resets.
+`pcxt_system` admits sequential addresses starting at zero,
 counts completed writes and releases the machine only after the final DONE.
 Execution reset is registered in the system domain, so startup decode does not
 feed combinationally through the motherboard reset fanout. Warm reset/HOLD
