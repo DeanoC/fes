@@ -1800,3 +1800,32 @@ func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
 		t.Fatalf("elapsed %s did not exceed hard budget %s (%s)", elapsed, hard, msg)
 	}
 }
+
+// A room retired by consecutive soft overruns reports each callback's time
+// and the GC and image-loading context, so a kit failure is diagnosable.
+func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
+	r := newRoom(t, memPack(t, "slow", "function draw() gfx.clear('#000000') end", nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.images["cover:a"] = &Image{Key: "cover:a"}
+	r.images["cover:b"] = &Image{Key: "cover:b", Ready: true}
+	for i := 0; i < maxConsecutiveOverruns; i++ {
+		elapsed := time.Duration(13+i) * time.Millisecond
+		r.recordFrameOverrun(fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, elapsed: elapsed}))
+	}
+	err := r.Err()
+	if err == nil {
+		t.Fatal("soft overruns did not retire the room")
+	}
+	msg := err.Error()
+	for _, want := range []string{"draw callback", "12ms soft callback budget", "8 consecutive overruns",
+		"elapsed 13ms, 14ms, 15ms, 16ms, 17ms, 18ms, 19ms, 20ms", "GC cycles", "up to 1 images loading"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("retirement %q lacks %q", msg, want)
+		}
+	}
+	if !errors.Is(softOverrun{}, errSoftOverrun) {
+		t.Fatal("softOverrun is not errSoftOverrun")
+	}
+}
