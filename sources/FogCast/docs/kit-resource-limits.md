@@ -49,7 +49,10 @@ deltas.
 Image id is the first readable token from:
 
 1. `image_sha256` in `/media/fat/fogcast/releases/boot.json` (64 lowercase
-   hex digits), the appliance store's boot ticket for the active A/B image
+   hex digits) when that ticket's `boot_id` equals
+   `/proc/sys/kernel/random/boot_id`, ignoring surrounding whitespace on
+   the proc file. That file is the appliance store's ticket for the image
+   this kernel boot selected.
 2. `/etc/fes-image-id`
 3. `/etc/fogcast-image-id`
 4. `/usr/share/mister-runtime/image-id`
@@ -58,9 +61,12 @@ Image id is the first readable token from:
 7. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
 8. the first standalone 7–40 hex word in `/proc/version`
 
-A boot ticket without a valid `image_sha256` is skipped. Without the ticket, a
-kit that has taken A/B updates has none of entries 2–5 and would otherwise
-report the factory bootstrap image.
+A boot ticket is skipped when `image_sha256` is not 64 lowercase hex digits,
+when `boot_id` is missing or differs from the kernel boot id, or when that
+proc file cannot be read. A direct-root boot leaves an older ticket on FAT;
+that ticket is not the running image. Without an accepted ticket, a kit that
+has taken A/B updates has none of entries 2–5 and would otherwise report the
+factory bootstrap image.
 
 If none of those exist, `image_id` is empty and `image_id_source` is `none`.
 The id is not shortened. `fes_revision` in those factory files is the source

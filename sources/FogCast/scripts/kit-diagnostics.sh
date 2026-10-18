@@ -242,6 +242,14 @@ json_hex() {
   printf '%s\n' "$found"
 }
 
+json_quoted() {
+  flat=$1
+  key=$2
+  found=$(printf '%s\n' "$flat" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p") || return 0
+  found=${found%%"$nl"*}
+  printf '%s\n' "$found"
+}
+
 read_flat() {
   flat=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -249,8 +257,22 @@ read_flat() {
   done < "$1"
 }
 
+# Kernel boot id for this boot, with the surrounding whitespace removed.
+# ReadBootIdentity compares the ticket against the same proc file.
+current_boot_id() {
+  file=$(kit_path /proc/sys/kernel/random/boot_id)
+  [ -f "$file" ] || return 1
+  line=
+  IFS= read -r line < "$file" || [ -n "$line" ] || return 1
+  line=$(trim "$line") || return 1
+  [ -n "$line" ] || return 1
+  printf '%s\n' "$line"
+}
+
 # The appliance store's boot ticket names the image this boot selected. On a
 # kit with A/B updates that is the running image; the factory files are not.
+# A direct-root boot does not rewrite the ticket, so an older one can remain
+# on FAT. Accept it only when its boot_id is this kernel boot.
 read_boot_ticket() {
   logical=$1
   file=$2
@@ -258,7 +280,11 @@ read_boot_ticket() {
   [ -f "$file" ] || return 0
   sed_path=$(command -v sed || true)
   [ -n "$sed_path" ] || return 0
+  kernel_boot=$(current_boot_id) || return 0
   read_flat "$file"
+  ticket_boot=$(json_quoted "$flat" boot_id)
+  [ -n "$ticket_boot" ] || return 0
+  [ "$ticket_boot" = "$kernel_boot" ] || return 0
   found=$(json_hex "$flat" image_sha256 64)
   case $found in
     ''|*[!0-9a-f]*) return 0 ;;

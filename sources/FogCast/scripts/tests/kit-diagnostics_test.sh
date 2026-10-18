@@ -303,11 +303,15 @@ for shell in $shells; do
 
   # The boot ticket names the active A/B image and outranks every stamp and
   # the factory files. The factory revision describes another image here.
+  # The ticket counts only when its boot_id is this kernel boot.
   build_fx
-  mkdir -p "$fx/media/fat/fogcast/releases" "$fx/.fes-bootstrap/etc/fes"
+  mkdir -p "$fx/media/fat/fogcast/releases" "$fx/.fes-bootstrap/etc/fes" \
+    "$fx/proc/sys/kernel/random"
   ticket=$fx/media/fat/fogcast/releases/boot.json
   active=24c931923371e2bff128cd957b01bc271bf5c86c2a6d3e41a60df9037af2d450
-  printf '%s\n' "{\"boot_id\":\"887951d8-0000-4000-8000-000000000000\",\"image_sha256\":\"$active\",\"trial\":false}" \
+  boot_id=887951d8-0000-4000-8000-000000000000
+  printf '%s\n' "$boot_id" > "$fx/proc/sys/kernel/random/boot_id"
+  printf '%s\n' "{\"boot_id\":\"$boot_id\",\"image_sha256\":\"$active\",\"trial\":false}" \
     > "$ticket"
   printf '%s\n' '{"image_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","fes_revision":"abcdefabcdefabcdefabcdefabcdefabcdefabcd"}' \
     > "$fx/.fes-bootstrap/etc/fes/factory.json"
@@ -340,6 +344,22 @@ for shell in $shells; do
   got=$(run_collector "$shell" 2>"$err") || fail "$shell absent boot ticket run failed"
   [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell absent boot ticket id"
   [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell absent boot ticket source"
+
+  # A direct-root boot leaves the previous appliance ticket on FAT. Its
+  # boot_id is not this kernel boot, so the running stamp is the image.
+  stale=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  printf '%s\n' "{\"boot_id\":\"11111111-2222-4333-8444-555555555555\",\"image_sha256\":\"$stale\",\"trial\":false}" \
+    > "$ticket"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell stale boot ticket run failed"
+  [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell stale boot ticket id"
+  [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell stale boot ticket source"
+
+  rm -f "$fx/proc/sys/kernel/random/boot_id"
+  printf '%s\n' "{\"boot_id\":\"$boot_id\",\"image_sha256\":\"$stale\",\"trial\":false}" \
+    > "$ticket"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell unread boot id run failed"
+  [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell unread boot id used the ticket"
+  [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell unread boot id source"
 
   build_fx
   rm -f "$fx/etc/fes-image-id" "$fx/etc/os-release"
