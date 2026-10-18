@@ -240,7 +240,13 @@ operand muxes retain only sources used by ADD words; other operations use the
 full muxes. The adder sum and carry flags are consumed only for ADD, so this
 specialization covers arbitrary guest firmware and register values. A reserved
 jump-source hold is retained automatically if the image uses it. Exhaustive
-table checks and symbolic operand/jump-condition checks cover these boundaries.
+table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
+preserved through synthesis, to separate their physical fanout from the full
+logic-operation muxes. The copies capture the same ROM stage on the same edge;
+symbolic read-alignment checks include both copies. DMA arbitration evaluates
+all four circular priority masks in parallel; whole-DMA sequential equivalence
+checks its state and interface against the original indexed priority loop.
+
 
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements

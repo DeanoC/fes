@@ -218,6 +218,7 @@ module mcl86_eu_core
     // Internal Signals - ALU and Adder
     //--------------------------------------------------------------------------
     wire [15:0] eu_add_operand0, eu_add_operand1;
+    wire [15:0] eu_add_select0, eu_add_select1;
     wire [15:0] eu_operand0;            // Operand 0 mux output
     wire [15:0] eu_operand1;            // Operand 1 mux output
     wire [15:0] eu_alu2;                // ADD result
@@ -299,6 +300,8 @@ module mcl86_eu_core
     `include "mcl86_facts.vh"
 
     mcl86_ucode u_ucode_rom (
+        .add_select0 (eu_add_select0),
+        .add_select1 (eu_add_select1),
         .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
         .addr ( eu_rom_address[11:0] ),
@@ -365,7 +368,7 @@ module mcl86_eu_core
         eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
         eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax};
     assign eu_operand0 = select16(eu_op0_select, eu_sources0);
-    assign eu_add_operand0 = select16(eu_op0_select & FES_MC_ADD_OP0_MASK, eu_sources0);
+    assign eu_add_operand0 = select16(eu_add_select0 & FES_MC_ADD_OP0_MASK, eu_sources0);
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -380,7 +383,7 @@ module mcl86_eu_core
         BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
         BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES};
     assign eu_operand1 = select16(eu_op1_select, eu_sources1);
-    assign eu_add_operand1 = select16(eu_op1_select & FES_MC_ADD_OP1_MASK, eu_sources1);
+    assign eu_add_operand1 = select16(eu_add_select1 & FES_MC_ADD_OP1_MASK, eu_sources1);
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic

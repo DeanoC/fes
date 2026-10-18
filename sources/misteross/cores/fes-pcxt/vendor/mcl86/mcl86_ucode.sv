@@ -68,7 +68,9 @@ module mcl86_ucode
         input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
         output logic [31:0] dout,      // Microword, valid one clock after addr
         output logic [15:0] operand_select0, // One-hot dout[23:20]
-        output logic [15:0] operand_select1  // One-hot dout[19:16]
+        output logic [15:0] operand_select1, // One-hot dout[19:16]
+        output logic [15:0] add_select0,     // Independent ADD-consumer controls
+        output logic [15:0] add_select1
     );
 
     //--------------------------------------------------------------------------
@@ -115,8 +117,15 @@ module mcl86_ucode
     always_ff @(posedge clk_rom) begin : read_operand_select
         select_half <= operand_select_mem[addr];
     end
-    always_ff @(posedge clk) begin : read_select_output
+    (* keep *) always_ff @(posedge clk) begin : read_select_output
         {operand_select0, operand_select1} <= select_half;
+    end
+    // Preserve independent register processes through synthesis. The ADD
+    // consumer gets its own physical controls instead of sharing fanout and
+    // intermediate LUTs with the full logic-operation operand muxes. Both
+    // copies capture the same ROM stage on the same edge; no extra latency.
+    (* keep *) always_ff @(posedge clk) begin : read_add_select_output
+        {add_select0, add_select1} <= select_half;
     end
 
 endmodule

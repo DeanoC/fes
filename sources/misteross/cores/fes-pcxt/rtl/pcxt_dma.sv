@@ -49,16 +49,24 @@ module pcxt_dma (
     wire [3:0] block_mode = {mode[3][7:6] == 2, mode[2][7:6] == 2,
                              mode[1][7:6] == 2, mode[0][7:6] == 2};
     wire [3:0] eligible = (hardware_request | (software_request & block_mode)) & ~mask_bits;
-    reg chosen_valid;
-    reg [1:0] chosen, candidate;
+    wire chosen_valid = |eligible;
+    wire [3:1] winners;
+    wire [1:0] chosen = {winners[2] | winners[3], winners[1] | winners[3]};
     integer n;
-    always @* begin
-        chosen_valid = 0; chosen = 0; candidate = 0;
-        for (integer k=0; k<4; k=k+1) begin
-            candidate = command[4] ? lowest + 2'(k) + 2'd1 : 2'(k);
-            if (!chosen_valid && eligible[candidate]) begin chosen=candidate; chosen_valid=1; end
-        end
-    end
+    // Evaluate all circular priority masks in parallel. lowest is the last
+    // serviced channel; rotating priority starts immediately after it.
+    wire [3:0] higher1 = !command[4] ? 4'h1 :
+        lowest == 0 ? 4'h0 : lowest == 1 ? 4'hd :
+        lowest == 2 ? 4'h9 : 4'h1;
+    assign winners[1] = eligible[1] && !(|(eligible & higher1));
+    wire [3:0] higher2 = !command[4] ? 4'h3 :
+        lowest == 0 ? 4'h2 : lowest == 1 ? 4'h0 :
+        lowest == 2 ? 4'hb : 4'h3;
+    assign winners[2] = eligible[2] && !(|(eligible & higher2));
+    wire [3:0] higher3 = !command[4] ? 4'h7 :
+        lowest == 0 ? 4'h6 : lowest == 1 ? 4'h4 :
+        lowest == 2 ? 4'h0 : 4'h7;
+    assign winners[3] = eligible[3] && !(|(eligible & higher3));
     // Resolve a new service at grant, not when HRQ first becomes pending:
     // a higher-priority request can arrive during a long CPU wait or LOCK.
     wire [1:0] service_channel = state == SELECT && !service_started ? chosen : channel;

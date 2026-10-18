@@ -75,6 +75,9 @@ class CpuSelectionTest(unittest.TestCase):
                               source).group(1) for i in (0, 1)]
         controls = (f"wire [15:0] {bindings[0]} = 16'h1 << eu_rom_sel[7:4];\n"
                     f"wire [15:0] {bindings[1]} = 16'h1 << eu_rom_sel[3:0];\n")
+        for i in (0, 1):
+            binding = re.search(r'\.add_select' + str(i) + r'\s*\(\s*(\w+)\s*\)', source)[1]
+            controls += f"wire [15:0] {binding} = 16'h1 << eu_rom_sel[{'7:4' if i == 0 else '3:0'}];\n"
         fixture = 'module proof(input [7:0] eu_rom_sel, ' + ports + ', output ok);\n' + controls + r"""
           `include "mcl86_facts.vh"
           wire [15:0] eu_operand0, eu_operand1, eu_add_operand0, eu_add_operand1, expected0, expected1;
@@ -161,12 +164,12 @@ class CpuSelectionTest(unittest.TestCase):
                 reg [31:0] original_word;
                 always @(posedge clk) original_word <= payload;
                 wire [31:0] word;
-                wire [15:0] s0, s1;
+                wire [15:0] s0, s1, a0, a1;
                 mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(~clk), .addr(12'b0), .dout(word),
-                    .operand_select0(s0), .operand_select1(s1));
+                    .operand_select0(s0), .operand_select1(s1), .add_select0(a0), .add_select1(a1));
                 assign ok = word == original_word &&
                             s0 == (16'h1 << original_word[23:20]) &&
-                            s1 == (16'h1 << original_word[19:16]);
+                            s1 == (16'h1 << original_word[19:16]) && a0 == s0 && a1 == s1;
               endmodule
             """)
             command = ('read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; '
