@@ -1431,6 +1431,37 @@ class HilPlanTest(unittest.TestCase):
         self.assertIn('not part of the overlay decision', report)
         self.assertIn('`image/config`', report)
 
+    def test_disconnected_origin_main_falls_back_to_related_local_main(self):
+        image = self.start_repo()
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('already installed\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'image config')
+        local_main = self.git('rev-parse', 'HEAD')
+
+        self.git('checkout', '-q', '-b', 'pr')
+        runtime = self.repo / 'sources/libmister-runtime/change.cpp'
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text('overlay\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'runtime overlay')
+        head = self.git('rev-parse', 'HEAD')
+
+        self.git('checkout', '-q', '--orphan', 'unrelated')
+        self.git('commit', '--allow-empty', '-m', 'unrelated origin main')
+        unrelated_main = self.git('rev-parse', 'HEAD')
+        self.git('update-ref', 'refs/remotes/origin/main', unrelated_main)
+        self.git('checkout', '-q', 'pr')
+
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertEqual(data['image_gap']['pr_base'], local_main)
+        self.assertEqual([row['path'] for row in data['rows']],
+                         ['sources/libmister-runtime/change.cpp'])
+
     def test_merged_pr_head_falls_back_to_image_to_head_diff(self):
         image = self.start_repo()
         self.base = image

@@ -479,24 +479,34 @@ def optional_commit(repo, rev):
 def pull_request_base(repo, head):
     """Return a recoverable PR base, preferring origin/main over local main.
 
-    Local main is only a fallback when origin/main is unavailable. If the
-    preferred ref already contains head, there is no separate PR range to
-    recover; callers then classify the image commit through head.
+    Local main is a fallback when origin/main is unavailable or disconnected
+    from head. If the preferred ref already contains head, there is no separate
+    PR range to recover; callers then classify the image commit through head.
     """
     head = git_commit(repo, head)
-    resolved = optional_commit(repo, 'origin/main')
-    if resolved is None:
-        resolved = optional_commit(repo, 'main')
-    if resolved is None or resolved == head:
+
+    def merge_base(ref):
+        result = subprocess.run(['git', '-C', str(repo), 'merge-base', ref, head],
+                                text=True, capture_output=True)
+        if result.returncode or not result.stdout.strip():
+            return None
+        return result.stdout.strip()
+
+    remote_main = optional_commit(repo, 'origin/main')
+    if remote_main is not None:
+        base = merge_base(remote_main)
+        if base == head:
+            # When origin/main already contains the supplied PR head, that is
+            # not a separate PR range; use the caller's image-to-head fallback.
+            return None
+        if base is not None:
+            return base
+
+    local_main = optional_commit(repo, 'main')
+    if local_main is None:
         return None
-    result = subprocess.run(['git', '-C', str(repo), 'merge-base', resolved, head],
-                            text=True, capture_output=True)
-    if result.returncode or not result.stdout.strip():
-        return None
-    base = result.stdout.strip()
-    # When main already contains the supplied PR head, merge-base is head.
-    # That is not a PR diff; fall back to the image-to-head range instead.
-    return None if base == head else base
+    base = merge_base(local_main)
+    return None if base is None or base == head else base
 
 
 def image_gap(repo, image, pr_base):
