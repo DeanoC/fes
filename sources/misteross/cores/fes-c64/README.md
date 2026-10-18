@@ -128,7 +128,7 @@ firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
-Mistral `8fcc4cb4`, nextpnr `d2697327`). The build record uses the audited
+Mistral `8fcc4cb4`, nextpnr `e2f1e029`). The build record uses the audited
 static closure in `scripts/source_closures.json`. The seal also requires both
 achieved system-PLL outputs within 1 Hz of 52,224,000 Hz and 12,288,000 Hz.
 The [C64 build contract](../../docs/architecture.md#fes-commodore-64) states
@@ -138,8 +138,8 @@ seed runs. `--gpu-router CUDA` with
 The 6 Oct kit diagnostic used
 nextpnr `0c5ed400` and does not accept this pin. Supporting evidence from a
 HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head
-`8b713d5d5716f47bfbc58582957e77ade4878565` on the previous pin (nextpnr
-`9128800f`), on Powerboat's RX 7900 XTX: package
+`8b713d5d5716f47bfbc58582957e77ade4878565` on nextpnr
+`9128800f`, on Powerboat's RX 7900 XTX: package
 `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build
 `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel
 82.79/74.25, audio 215.33/12.29. The

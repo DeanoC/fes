@@ -65,7 +65,7 @@ SG1000_TOOLCHAIN_LOCK = "toolchain.lock"
 SG1000_TOOLCHAIN_ROOT = "build/toolchain/fes-sg1000"
 SG1000_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "d26973276e7094b5c27c7f9719fde367dc0895f7",
+    "nextpnr": "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7",
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 ROM_DATABASE_SHA256 = {

@@ -332,7 +332,7 @@ class BuildFesColecoTests(unittest.TestCase):
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
         pins = load_lock(ROOT / COLECO_TOOLCHAIN_LOCK)
         self.assertEqual(pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(pins["nextpnr"].commit, "d26973276e7094b5c27c7f9719fde367dc0895f7")
+        self.assertEqual(pins["nextpnr"].commit, "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7")
 
     def test_coleco_oss_uses_the_shared_lock(self) -> None:
         self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
@@ -340,7 +340,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(global_pins["nextpnr"].commit, "d26973276e7094b5c27c7f9719fde367dc0895f7")
+        self.assertEqual(global_pins["nextpnr"].commit, "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7")
 
     def test_oss_rejects_a_cpu_only_gpu_router_binary(self) -> None:
         with self.assertRaisesRegex(BuildError, "device backend"):

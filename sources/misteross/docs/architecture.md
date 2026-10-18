@@ -427,7 +427,7 @@ nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot. The standard ZX81 socket, SG-1000, SMS, and the old Coleco producer
-select that same lock (Yosys `5391eeb1`, nextpnr `d2697327`, Mistral
+select that same lock (Yosys `5391eeb1`, nextpnr `e2f1e029`, Mistral
 `8fcc4cb4`).
 Local HIP tools
 come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
@@ -744,7 +744,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `d2697327` provides those flags after `make toolchain-fes`.
+The locked nextpnr `e2f1e029` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -872,7 +872,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `d2697327` with Mistral `8fcc4cb4`. Factory Coleco v2, the old Coleco producer, SMS, and SG-1000 select that shared lock. SMS can build it under `build/toolchain/fes-sms`. Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `e2f1e029` with Mistral `8fcc4cb4`. Factory Coleco v2, the old Coleco producer, SMS, and SG-1000 select that shared lock. SMS can build it under `build/toolchain/fes-sms`. Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -956,7 +956,7 @@ and timing evidence without sealing.
 
 `make build-fes-sg1000` is the OSS producer
 (`scripts/build_fes_sg1000_oss.py`). It uses `toolchain.lock`
-(nextpnr `d2697327`, Mistral `8fcc4cb4`, Yosys `5391eeb1`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
+(nextpnr `e2f1e029`, Mistral `8fcc4cb4`, Yosys `5391eeb1`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system
 domain; its extra system-clock latency fits the native CPU read windows. Both
@@ -1046,7 +1046,7 @@ and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
 (`scripts/build_fes_sms_oss.py`). It uses `toolchain.lock`
-(nextpnr `d2697327` with Mistral `8fcc4cb4` and Yosys `5391eeb1`), SMS `constraints-oss.qsf` (Coleco
+(nextpnr `e2f1e029` with Mistral `8fcc4cb4` and Yosys `5391eeb1`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -1794,7 +1794,7 @@ has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
-`d2697327` from `toolchain.lock`; its
+`e2f1e029` from `toolchain.lock`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.

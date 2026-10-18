@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "d26973276e7094b5c27c7f9719fde367dc0895f7",
+    "nextpnr": "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -107,9 +107,12 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["nextpnr"].commit,
-            "d26973276e7094b5c27c7f9719fde367dc0895f7",
+            "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7",
         )
-        self.assertIn("d2697327", lock["nextpnr"].rationale)
+        self.assertIn("e2f1e029", lock["nextpnr"].rationale)
+        self.assertIn("#213", lock["nextpnr"].rationale)
+        self.assertIn("fastest-first", lock["nextpnr"].rationale)
+        self.assertIn("stays open", lock["nextpnr"].rationale)
         self.assertIn("#209", lock["nextpnr"].rationale)
         self.assertIn("matches nothing", lock["nextpnr"].rationale)
         self.assertIn("merge of #115", lock["nextpnr"].rationale)
@@ -124,7 +127,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "d26973276e7094b5c27c7f9719fde367dc0895f7\n")
+        self.assertEqual(result.stdout, "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):
