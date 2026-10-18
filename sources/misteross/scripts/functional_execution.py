@@ -32,8 +32,9 @@ _REQUIRED_YOSYS_SUPPORT = (
 )
 
 def execution_environment(home: Path, tools: dict[str, Path]) -> dict[str, str]:
-    # No ambient LD_PRELOAD, YOSYS_DATDIR, ROCm device masking, Python paths or
-    # user rc/cache settings enter synthesis/placement. Executables are absolute.
+    # No ambient loader, Yosys, GPU, Python-path or user rc/cache settings enter
+    # synthesis/placement. FunctionalInvocation separately restores gpu-run's
+    # lease marker and visibility mask when one is active. Executables are absolute.
     bins = sorted({str(path.parent) for path in tools.values()})
     return {"PATH": ":".join([*bins, "/usr/bin", "/bin"]),
             "HOME": str(home), "LANG": "C", "LC_ALL": "C", "TZ": "UTC"}
@@ -139,6 +140,8 @@ class FunctionalInvocation:
         self.gpu_device = gpu_device
         self.home = tempfile.TemporaryDirectory(prefix="fes-tool-home-")
         self.env = execution_environment(Path(self.home.name), self.tools)
+        from scripts.fes_build_common import gpu_run_environment
+        self.env.update(gpu_run_environment())
         if extra_env:
             self.env.update(extra_env)
         try:
