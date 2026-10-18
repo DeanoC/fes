@@ -477,22 +477,26 @@ def optional_commit(repo, rev):
 
 
 def pull_request_base(repo, head):
-    """Return merge-base(origin/main or main, head) when that ref is another commit.
+    """Return a recoverable PR base, preferring origin/main over local main.
 
-    A checkout whose HEAD is main has no separate pull-request range. Callers
-    then classify the image commit through head, which is the previous behaviour.
+    Local main is only a fallback when origin/main is unavailable. If the
+    preferred ref already contains head, there is no separate PR range to
+    recover; callers then classify the image commit through head.
     """
     head = git_commit(repo, head)
-    for ref in ('origin/main', 'main'):
-        resolved = optional_commit(repo, ref)
-        if resolved is None or resolved == head:
-            continue
-        result = subprocess.run(['git', '-C', str(repo), 'merge-base', resolved, head],
-                                text=True, capture_output=True)
-        if result.returncode or not result.stdout.strip():
-            continue
-        return result.stdout.strip()
-    return None
+    resolved = optional_commit(repo, 'origin/main')
+    if resolved is None:
+        resolved = optional_commit(repo, 'main')
+    if resolved is None or resolved == head:
+        return None
+    result = subprocess.run(['git', '-C', str(repo), 'merge-base', resolved, head],
+                            text=True, capture_output=True)
+    if result.returncode or not result.stdout.strip():
+        return None
+    base = result.stdout.strip()
+    # When main already contains the supplied PR head, merge-base is head.
+    # That is not a PR diff; fall back to the image-to-head range instead.
+    return None if base == head else base
 
 
 def image_gap(repo, image, pr_base):
@@ -851,7 +855,10 @@ def evidence(args):
     head = git_commit(args.repo, args.head)
     if not SHA64.fullmatch(args.base_image_sha256):
         raise ValueError('base image sha256 must be 64 hex characters')
-    classified = plan(repo_paths(args.repo, base, head), script_texts(args.repo, head))
+    pr_base = pull_request_base(args.repo, head)
+    plan_base = pr_base if pr_base is not None else base
+    gap = image_gap(args.repo, base, pr_base) if pr_base is not None else None
+    classified = plan(repo_paths(args.repo, plan_base, head), script_texts(args.repo, head))
     if classified['class'] == 'full':
         return refuse('plan requires a full image; overlay evidence refused')
     data = json.loads(Path(args.manifest).read_text())
@@ -1030,6 +1037,13 @@ def evidence(args):
     lines = ['<!-- FES HIL evidence -->', '', f'- Head: `{head}`',
              f'- Base image commit: `{base}`', f'- Base linux.img sha256: `{base_image}`',
              f'- Decision: `{classified["decision"]}`']
+    if gap:
+        lines.extend(('', '### Image gap', '',
+                      f"- Kit image commit: `{gap['base_image_commit']}`",
+                      f"- PR base commit: `{gap['pr_base']}`",
+                      f"- Relation: `{gap['relation']}` ({gap['commits']} commit(s))",
+                      '- These paths differ and are not part of the overlay decision:'))
+        lines.extend(f"  - `{path}`" for path in gap['paths'])
     if args.kit_update_json:
         lines.extend((f'- Boot ID: `{boot_id}`', f'- Good image: `{good}`',
                       f'- Release version: `{version}`'))
