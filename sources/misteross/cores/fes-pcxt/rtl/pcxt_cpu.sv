@@ -14,7 +14,7 @@ module pcxt_cpu (
     input wire [1:0] cycle_fault,
     output wire [1:0] fault,
     output wire guest_ce,
-    output wire halted
+    output wire halted, bus_locked
 );
     reg [7:0] phase;
     reg pin_clock;
@@ -33,6 +33,7 @@ module pcxt_cpu (
     wire [19:0] ad;
     wire [2:0] status;
     wire data_phase, lock_n, cpu_ready;
+    assign bus_locked = !lock_n;
     wire [7:0] cpu_rdata;
     // Status 011 is only the halt bus cycle. The bus unit may prefetch
     // (status 100) while the execution unit waits. The next other active
