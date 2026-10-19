@@ -260,12 +260,19 @@ class PnrRecipeTests(unittest.TestCase):
             {"set": ["gpurouter/maxIter=1", "gpurouter/maxIter=2"]},
             {"set": ["gpurouter/maxIter=1"], "gpu_opt": ["maxIter=2"]},
             {"critical_cohort_budget": 65},
+            {"critical_cohort_report": "prior/timing.json"},
+            {"critical_cohort_model_out": "model.json", "critical_cohort_budget": 4},
         )
         for values in rejected:
             with self.subTest(values=values), tempfile.TemporaryDirectory() as directory, \
                     _pong_on_nextpnr(directory, pnr_recipe.NEXTPNR_552BA246, values=values):
                 with self.assertRaisesRegex(pnr_recipe.RecipeError, "invalid nextpnr option value"):
                     pnr_recipe.recipe_for("fes.pong")
+        # The unrepaired baseline may export its calibration model.
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
+                directory, pnr_recipe.NEXTPNR_552BA246, values={"critical_cohort_model_out": "model.json"}):
+            command = pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)
+        self.assertEqual(command[-2:], ("--critical-cohort-model-out", "model.json"))
 
     def test_recipe_and_legacy_argv_goldens_for_every_registered_producer(self):
         for core_id, (recipe_sha, argv_sha) in GOLDENS.items():

@@ -184,6 +184,15 @@ def _valid_settings(flags: Mapping[str, object]) -> bool:
     return len(keys) == len(set(keys)) and not set(keys) & gpu_opt_keys
 
 
+def _valid_cohort_options(flags: Mapping[str, object]) -> bool:
+    """Reject cohort combinations nextpnr refuses only after loading the design."""
+    # A cohort report guides a positive repair budget; the model export
+    # calibrates the unrepaired baseline, so it needs budget 0.
+    budget = flags.get("critical_cohort_budget", 0)
+    return not ((flags.get("critical_cohort_report", "unset") != "unset" and budget == 0)
+                or (flags.get("critical_cohort_model_out", "unset") != "unset" and budget != 0))
+
+
 if (FLAG_BOOLEAN_FIELDS | FLAG_INTEGER_FIELDS | FLAG_INTEGER_OR_UNSET_FIELDS
         | FLAG_NUMBER_FIELDS | FLAG_STRING_FIELDS
         | FLAG_LIST_FIELDS) != {name for defaults in NEXTPNR_PINS.values() for name in defaults}:
@@ -247,7 +256,7 @@ def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
                 f"{core_id}: the flags must classify exactly the options of nextpnr {pin[:8]}; "
                 f"missing {sorted(options - listed)}, unknown {sorted(listed - options)}")
         if (any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items())
-                or not _valid_settings(pnr["flags"])):
+                or not _valid_settings(pnr["flags"]) or not _valid_cohort_options(pnr["flags"])):
             raise RecipeError(f"{core_id}: invalid nextpnr option value")
         if (not all(isinstance(pnr[key], list) and pnr[key]
                     for key in ("seeds", "timing_weights", "search_weights", "clocks"))
