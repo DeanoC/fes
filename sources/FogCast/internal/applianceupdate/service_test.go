@@ -459,6 +459,81 @@ func TestBootTicketRewriteRetriesWhenTheTicketBecomesWritable(t *testing.T) {
 	}
 }
 
+func TestBootTicketRepairSurvivesStatusTimeout(t *testing.T) {
+	s, _, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	if err := os.WriteFile(idPath, []byte("boot-a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	blockBootJSON(t, root)
+	logs := captureTicketLogs(t)
+	if err := svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("confirm log count = %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	requireAdmissionOpen(t, svc, c)
+	// The failed rewrite scheduled one repair. Make the ticket writable and
+	// hold the store lock so status times out before the rewrite.
+	if err := os.RemoveAll(filepath.Join(root, "boot.json")); err != nil {
+		t.Fatal(err)
+	}
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
+	lock, err := os.OpenFile(filepath.Join(root, ".lock"), os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	if _, err = svc.Status(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timed-out status = %v", err)
+	}
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("timeout consumed the repair: %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	got, err := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("timeout rewrote ticket: %+v %v", got, err)
+	}
+	if err = unix.Flock(int(lock.Fd()), unix.LOCK_UN); err != nil {
+		t.Fatal(err)
+	}
+	requireAdmissionOpen(t, svc, c)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || !status.RawIdleReady || !c.Health("").Ready {
+		t.Fatalf("status after timeout: %+v %v ready=%v", status, err, c.Health("").Ready)
+	}
+	got, err = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("repair after timeout = %+v %v", got, err)
+	}
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("successful repair logged a failure: %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	// The rewrite was attempted, so the one retry is spent.
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, err = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("later status retried again: %+v %v", got, err)
+	}
+}
+
 func TestStartupReconcileOpensAdmissionWhenBootTicketRewriteFails(t *testing.T) {
 	s, _, n, c := fixture(t)
 	if err := s.Activate(n.ImageSHA256); err != nil {

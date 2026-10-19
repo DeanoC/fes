@@ -39,8 +39,10 @@ type Service struct {
 	blocked     bool
 	trial       bool
 	// ticketRepair requests one later rewrite of a boot.json that stayed
-	// trial:true after a durable confirmation. It is cleared after that
-	// attempt so a full volume cannot make every status read rewrite it.
+	// trial:true after a durable confirmation. It stays set until that
+	// rewrite is attempted, so a timed-out status read can try again. A
+	// failed rewrite still clears it, so a full volume cannot make every
+	// status read rewrite the ticket.
 	ticketRepair bool
 	operations   map[*operation]struct{}
 	drained      chan struct{}
@@ -76,7 +78,8 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // Reconcile only after the store proves persistence for this exact trial; merely
 // seeing matching fields must not release the admission or watchdog gate.
 // A boot.json rewrite failure after that proof opens admission and is retried
-// once on a later idle status read.
+// once on a later idle status read. A cancellation or timeout before that
+// rewrite leaves the retry pending.
 func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error {
 	if !s.boot.Trial || !rawIdle || !s.mutation.TryLock() {
 		return nil
@@ -133,13 +136,18 @@ func (s *Service) finishConfirmation(ctx context.Context) error {
 	return nil
 }
 
-// retryBootTicket makes the single follow-up rewrite. The attempt is consumed
-// whether or not the write succeeds, so reconciliation cannot loop on it.
+// retryBootTicket makes the single follow-up rewrite. The repair is consumed
+// only once ConfirmContext attempts the boot.json rewrite. Context
+// cancellation or a timeout before that attempt, including a store-lock wait,
+// leaves the repair pending. A rewrite failure still spends the one retry.
 func (s *Service) retryBootTicket(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	if err != nil && !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		return err
+	}
 	s.mu.Lock()
 	s.ticketRepair = false
 	s.mu.Unlock()
