@@ -248,6 +248,49 @@ func TestMenuDisplayWaitIdleSucceedsWhenNothingSubmitted(t *testing.T) {
 	if err := d.WaitIdle(ctx); err != nil {
 		t.Fatalf("WaitIdle with no submission = %v", err)
 	}
+	if err := d.WaitPending(ctx); err != nil {
+		t.Fatalf("WaitPending with no submission = %v", err)
+	}
+}
+
+func TestMenuDisplayWaitPendingIgnoresStaleFailure(t *testing.T) {
+	block := make(chan struct{})
+	client := &testMenuClient{generation: 3, fail: true, ready: make(chan struct{}, 2), presentBlock: block}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.SetChangeDriven(true)
+	d.Present()
+	select {
+	case <-client.ready:
+	case <-time.After(time.Second):
+		t.Fatal("frame did not begin")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := d.WaitPending(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitPending while present blocked = %v, want deadline", err)
+	}
+	close(block)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), time.Second)
+	defer cancel2()
+	if err := d.WaitPending(ctx2); err != nil {
+		t.Fatalf("WaitPending after failed present = %v", err)
+	}
+	err = d.WaitIdle(ctx2)
+	if err == nil || !strings.Contains(err.Error(), "stale menu") {
+		t.Fatalf("WaitIdle after failed present = %v, want present error", err)
+	}
+	d.Resume()
+	if err := d.WaitPending(ctx2); err != nil {
+		t.Fatalf("WaitPending after Resume with no new frame = %v", err)
+	}
+	err = d.WaitIdle(ctx2)
+	if err == nil || !strings.Contains(err.Error(), "stale menu") {
+		t.Fatalf("WaitIdle after Resume = %v, want the old present error", err)
+	}
 }
 
 func TestMenuDisplayRendersAndRetriesAfterFailure(t *testing.T) {

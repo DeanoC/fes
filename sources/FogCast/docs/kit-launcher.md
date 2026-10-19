@@ -70,8 +70,11 @@ requires `expected_generation`; missing or stale generations are refused before
 the runtime is called. Select+Start held for one second stops a kit-local core
 instead of posting the host session stop. Keyboard F12 or a pad's Guide button
 also stops it with one press; neither is forwarded to the core. The first
-loading frame shows phase and elapsed time. Tenfoot waits for that frame to
-drain, pauses menu display, then dispatches the launch request. Local status
+loading frame shows phase and elapsed time. Tenfoot waits until that frame
+has been presented, pauses menu display, then dispatches the launch request.
+A failed or unpresented frame aborts dispatch. Late adoption of a core that
+already owns HDMI submits no loading frame, drains outstanding menu work, and
+pauses; an older menu failure does not block that pause. Local status
 exposes only `launching`/`running`, so no percentage is invented.
 
 While a kit-local core runs, `ui/localfeed` writes pad and USB keyboard events
