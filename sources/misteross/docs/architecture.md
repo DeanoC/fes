@@ -488,8 +488,9 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. The locks currently contain identical
-commits, so the shared compiler cache reuses one slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. All registered core locks except Atari ST
+currently select the same commits and share one compiler-cache slot. Atari ST
+selects Yosys `5391eeb1` and uses its own slot. Producers select the shared
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,

@@ -291,7 +291,7 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
-(Yosys `3a5accbd`, nextpnr `9128800f`). The factory recipe stays HIP.
+(Yosys `5391eeb1`, nextpnr `9128800f`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM Tester and menu use their own
 per-core lock files, which currently select the same HIP compiler slot. The
 130 MHz timing comparison uses the RAM Tester lock.

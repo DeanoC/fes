@@ -32,12 +32,13 @@ These are the choices already in the tree at `6d9939c2`.
    says so. A failed HIP route does not fall back to Quartus. Quartus never
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Their current bytes match the repository-level
-   `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
-   nextpnr `9128800f`, deliberately before nextpnr #172. HIP architectures
-   are `gfx1100;gfx1201`. The identical lock contents share one cache slot;
-   future pin changes are scoped to the affected core. The repository-level
-   lock remains for unregistered consumers.
+   `config/core-recipes.toml`. All registered locks except Atari ST match the
+   repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
+   Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172.
+   Atari ST selects Yosys `5391eeb1` with the same Mistral and nextpnr pins.
+   HIP architectures are `gfx1100;gfx1201`. The matching locks share one
+   cache slot; Atari ST uses its own. Future pin changes are scoped to the
+   affected core. The repository-level lock remains for unregistered consumers.
 3. Registered M10K is synchronous. No core under `sources/misteross/cores`
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
