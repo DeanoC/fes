@@ -19,8 +19,8 @@ import (
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
-	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
 	"golang.org/x/sys/unix"
 )
 

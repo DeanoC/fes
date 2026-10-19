@@ -22,13 +22,12 @@ import (
 // Keep three worst-case sequential service stops below the appliance watchdog's
 // shutdown budget, including init's other service teardown.
 const (
-	StopTermGrace        = 5 * time.Second
-	StopKillGrace        = 2 * time.Second
-	StopGroupTimeout     = 22 * time.Second
-	StopCommandTimeout   = 24 * time.Second
-	AgentConfigPath      = "/media/fat/fogcast/agent.toml"
-	AgentConfigWait      = 30 * time.Second
-	LauncherProbeTimeout = 10 * time.Second
+	StopTermGrace      = 5 * time.Second
+	StopKillGrace      = 2 * time.Second
+	StopGroupTimeout   = 22 * time.Second
+	StopCommandTimeout = 24 * time.Second
+	AgentConfigPath    = "/media/fat/fogcast/agent.toml"
+	AgentConfigWait    = 30 * time.Second
 	// PersistentStateDir is the writable FAT directory for kit userspace
 	// state. launcher.json, agent.toml and target-id stay beside it. The
 	// supervisor publishes this path as XDG_CONFIG_HOME and XDG_STATE_HOME.
@@ -84,9 +83,8 @@ type ProcessController struct {
 	RunDir              string
 	// AgentConfigPath and AgentConfigWait override the FAT configuration wait.
 	// Zero values use AgentConfigPath and AgentConfigWait.
-	AgentConfig          string
-	AgentConfigWait      time.Duration
-	LauncherProbeTimeout time.Duration
+	AgentConfig     string
+	AgentConfigWait time.Duration
 	// Output receives child stdout and stderr. Nil uses the supervisor stdout.
 	Output          io.Writer
 	mu              sync.Mutex
@@ -415,22 +413,7 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 		}
 	}
 	catalog := filepath.Join(root, "share/fogcast/config.toml")
-	kit := filepath.Join(root, "bin/fogcast-kit")
-	probeTimeout := c.LauncherProbeTimeout
-	if probeTimeout <= 0 {
-		probeTimeout = LauncherProbeTimeout
-	}
-	output, err := probeLauncherUI(ctx, kit, probeTimeout)
-	if err != nil {
-		_ = c.stopLocked(ctx)
-		return err
-	}
-	if output == "tenfoot" {
-		err = c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher)
-	} else {
-		err = c.start(kit, []string{"--config", "/media/fat/fogcast/launcher.json", "--catalog-config", catalog, "--menu-display"}, env, roleLauncher)
-	}
-	if err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
@@ -525,22 +508,6 @@ func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) er
 		case <-timer.C:
 		}
 	}
-}
-func probeLauncherUI(ctx context.Context, kit string, timeout time.Duration) (string, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	probe := exec.CommandContext(probeCtx, kit, "--config", "/media/fat/fogcast/launcher.json", "--print-kit-ui")
-	// A descendant that inherits the output pipe must not extend the probe
-	// past this deadline after the launcher process itself is killed.
-	probe.WaitDelay = timeout
-	output, err := probe.Output()
-	if err != nil {
-		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
-			return "", fmt.Errorf("read launcher selection: timed out after %s", timeout)
-		}
-		return "", fmt.Errorf("read launcher selection: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()

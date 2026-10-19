@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/ui/kitlauncher"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -146,27 +145,6 @@ func summarizeTenfoot(result hostclient.SessionResult) sharedSessionSummary {
 	return summary
 }
 
-func summarizeKit(result kitlauncher.Session) sharedSessionSummary {
-	summary := sharedSessionSummary{
-		State:        result.State,
-		GameID:       result.GameID,
-		Execution:    result.Execution,
-		InputState:   result.Input.State,
-		InputReady:   result.Input.Ready,
-		InputSession: result.Input.SessionID,
-	}
-	if result.CorePackage != nil {
-		summary.Generation = result.CorePackage.Generation
-		summary.Gamepad = result.CorePackage.Gamepad
-		for _, contract := range result.CorePackage.ActiveInterfaces {
-			summary.Interfaces = append(summary.Interfaces, hostclient.SessionCoreInterface{
-				ID: contract.ID, Major: contract.Major, Minor: contract.Minor,
-			})
-		}
-	}
-	return summary
-}
-
 type callerHeaderTransport struct {
 	base        http.RoundTripper
 	sawDeadline bool
@@ -227,9 +205,6 @@ func TestSessionClientsConsumeSharedContractFixture(t *testing.T) {
 		Timeout:   3 * time.Second,
 	}
 	tenfootClient := tenfoot.NewClient(apiURL, callerClient)
-	const token = "tttttttttttttttttttttttttttttttt"
-	const targetID = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
-	kitClient := kitlauncher.NewClient(kitlauncher.Config{API: apiURL, Token: token, TargetID: targetID})
 
 	for _, testCase := range fixture.Cases {
 		t.Run(testCase.ID, func(t *testing.T) {
@@ -238,13 +213,12 @@ func TestSessionClientsConsumeSharedContractFixture(t *testing.T) {
 			defer cancel()
 
 			tenfootResult, tenfootErr := tenfootClient.Session(ctx)
-			kitResult, kitErr := kitClient.Session(ctx)
 			if testCase.Expect.Common.Split && !sharedSessionGoAccepts(testCase) {
 				t.Fatal("split fixture must be accepted by Go clients")
 			}
 			if !sharedSessionGoAccepts(testCase) {
-				if tenfootErr == nil || kitErr == nil {
-					t.Fatalf("fixture %s accepted by tenfoot=%v kit=%v", testCase.ID, tenfootErr, kitErr)
+				if tenfootErr == nil {
+					t.Fatalf("fixture %s accepted by tenfoot", testCase.ID)
 				}
 				if testCase.Expect.Common.HTTPStatus != 0 && tenfootResult.HTTPStatus != testCase.Expect.Common.HTTPStatus {
 					t.Fatalf("tenfoot HTTP status=%d, want %d", tenfootResult.HTTPStatus, testCase.Expect.Common.HTTPStatus)
@@ -254,15 +228,11 @@ func TestSessionClientsConsumeSharedContractFixture(t *testing.T) {
 				}
 				return
 			}
-			if tenfootErr != nil || kitErr != nil {
-				t.Fatalf("fixture %s errors: tenfoot=%v kit=%v", testCase.ID, tenfootErr, kitErr)
+			if tenfootErr != nil {
+				t.Fatalf("fixture %s tenfoot error: %v", testCase.ID, tenfootErr)
 			}
 
 			tenfootSummary := summarizeTenfoot(tenfootResult)
-			kitSummary := summarizeKit(kitResult)
-			if !sameSharedSessionSummary(tenfootSummary, kitSummary) {
-				t.Fatalf("client summaries differ: tenfoot=%+v kit=%+v", tenfootSummary, kitSummary)
-			}
 			common := testCase.Expect.Common
 			if common.State != "" && tenfootSummary.State != common.State {
 				t.Fatalf("common state=%q, want %q", tenfootSummary.State, common.State)
@@ -320,24 +290,18 @@ func TestSessionClientsConsumeSharedContractFixture(t *testing.T) {
 	}
 
 	records := serverState.requestSnapshot()
-	if len(records) != len(fixture.Cases)*2 {
-		t.Fatalf("session requests=%d, want %d", len(records), len(fixture.Cases)*2)
+	if len(records) != len(fixture.Cases) {
+		t.Fatalf("session requests=%d, want %d", len(records), len(fixture.Cases))
 	}
 	for index, record := range records {
 		if !strings.HasPrefix(record.Host, "localhost:") {
 			t.Fatalf("request %d host=%q, want localhost loopback", index, record.Host)
 		}
-		if index%2 == 0 {
-			if record.CallerMarker != "tenfoot" {
-				t.Fatalf("request %d caller marker=%q, want tenfoot transport", index, record.CallerMarker)
-			}
-			if record.Authorization != "" || record.TargetID != "" {
-				t.Fatalf("tenfoot request %d unexpectedly carried kit identity auth=%q target=%q", index, record.Authorization, record.TargetID)
-			}
-		} else {
-			if record.Authorization != "Bearer "+token || record.TargetID != targetID {
-				t.Fatalf("kit request %d identity auth=%q target=%q", index, record.Authorization, record.TargetID)
-			}
+		if record.CallerMarker != "tenfoot" {
+			t.Fatalf("request %d caller marker=%q, want tenfoot transport", index, record.CallerMarker)
+		}
+		if record.Authorization != "" || record.TargetID != "" {
+			t.Fatalf("tenfoot request %d unexpectedly carried kit identity auth=%q target=%q", index, record.Authorization, record.TargetID)
 		}
 	}
 	if !callerTransport.sawDeadline {
@@ -395,15 +359,8 @@ func TestSessionClientsPreserveMaxUint64Generation(t *testing.T) {
 	if tenfootErr != nil {
 		t.Fatalf("tenfoot session: %v", tenfootErr)
 	}
-	kitResult, kitErr := kitlauncher.NewClient(kitlauncher.Config{API: apiURL}).Session(context.Background())
-	if kitErr != nil {
-		t.Fatalf("kit session: %v", kitErr)
-	}
 	if tenfootResult.CorePackage == nil || tenfootResult.CorePackage.Generation != ^uint64(0) {
 		t.Fatalf("tenfoot generation=%v, want %d", tenfootResult.CorePackage, ^uint64(0))
-	}
-	if kitResult.CorePackage == nil || kitResult.CorePackage.Generation != ^uint64(0) {
-		t.Fatalf("kit generation=%v, want %d", kitResult.CorePackage, ^uint64(0))
 	}
 }
 
@@ -428,16 +385,4 @@ func replaceSessionGeneration(t *testing.T, body json.RawMessage, generation uin
 		t.Fatalf("encode active fixture body: %v", err)
 	}
 	return encoded
-}
-
-func sameSharedSessionSummary(left, right sharedSessionSummary) bool {
-	return left.State == right.State &&
-		left.GameID == right.GameID &&
-		left.Execution == right.Execution &&
-		left.InputState == right.InputState &&
-		left.InputReady == right.InputReady &&
-		left.InputSession == right.InputSession &&
-		left.Generation == right.Generation &&
-		left.Gamepad == right.Gamepad &&
-		slices.Equal(left.Interfaces, right.Interfaces)
 }

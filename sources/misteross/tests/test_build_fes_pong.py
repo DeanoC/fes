@@ -81,10 +81,13 @@ def publish_shared_toolchain(
     mistral_target: bool = True,
     mutate_after_probe: bool = False,
 ) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
-    """Publish a complete five-tool lane through the real cache API."""
+    """Publish a complete five-tool lane through the real cache API.
+
+    The slot is keyed by the selected lock, so it defaults to Pong's own lock;
+    pass the lock of any other producer under test."""
 
     cache = base / "shared-cache"
-    selected_lock = SOURCE_ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
+    selected_lock = SOURCE_ROOT / build_fes_pong.TOOLCHAIN_LOCK if lock_path is None else Path(lock_path)
     host = {"system": "Linux", "release": "test", "machine": "x86_64"}
     compiler = {"commands": {"cc": {"path": "/test/cc"}}}
     environment = {
@@ -106,7 +109,7 @@ def publish_shared_toolchain(
             cuda_architectures=cuda_architectures,
         )
 
-    cache.mkdir(mode=0o700)
+    cache.mkdir(mode=0o700, exist_ok=True)
     cache.chmod(0o700)
     slot = toolchain_cache.slot_path(request)
     for directory in (slot / "src", slot / "build", slot / "install" / "bin", slot / "evidence"):
@@ -464,14 +467,14 @@ class BuildFesPongTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
                     build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
-    def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
+    def test_local_lane_uses_its_own_core_root_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             lock_path = root / build_fes_pong.TOOLCHAIN_LOCK
             lock_path.parent.mkdir(parents=True, exist_ok=True)
             lock_path.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
-            install = root / "build/toolchain/install/bin"
-            build_root = root / "build/toolchain/build"
+            install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
+            build_root = root / build_fes_pong.TOOLCHAIN_ROOT / "build"
             install.mkdir(parents=True)
             definitions = {
                 "yosys": ("yosys", "--version"),
@@ -872,15 +875,12 @@ class BuildFesPongTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildError, "unknown resources in use: .*fpga2sdram"):
                 validate_build_evidence(output)
 
-    def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:
-        self.assertEqual(
-            build_fes_pong.EXPECTED_TOOL_COMMITS,
-            {
-                "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-                "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-                "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-            },
-        )
+    def test_recipe_pins_the_toolchain_of_its_own_lock(self) -> None:
+        from scripts import pnr_recipe
+
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.pong"), ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        pins = load_lock(ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        self.assertEqual(pins["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.pong"))
 
     def test_record_exists_before_synthesis_and_export_waits_for_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

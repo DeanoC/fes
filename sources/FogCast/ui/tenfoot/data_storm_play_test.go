@@ -90,7 +90,7 @@ root = %q
 	var launches atomic.Int32
 	var inputs atomic.Int32
 	handler := hostapi.New(service)
-	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	hostServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/session/launch" {
 			launches.Add(1)
 		}
@@ -99,7 +99,7 @@ root = %q
 		}
 		handler.ServeHTTP(w, r)
 	}))
-	t.Cleanup(host.Close)
+	t.Cleanup(hostServer.Close)
 
 	hold := make(chan struct{})
 	var once sync.Once
@@ -125,7 +125,7 @@ root = %q
 	waitForSocket(t, sock)
 
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", dataStormPlayScript)})
-	app := NewApp(NewClient(host.URL, host.Client()), 1280, 720, 50)
+	app := NewApp(NewClient(hostServer.URL, hostServer.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(index, t.TempDir())
 	app.SetHomeRooms(true)
