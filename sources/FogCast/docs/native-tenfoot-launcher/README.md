@@ -473,9 +473,14 @@ make tenfoot-smoke
   `fes.keyboard.hid` sessions post each SDL scancode as its HID usage
   (code `0x1000 + usage`), including Esc, Backspace and `/`.
 - `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
-  keeps the kit lease (rooms Soft-stop). Offered while the session is
-  active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). Shell exit (Start, Q, or window close) waits for
+  keeps the kit lease (rooms Soft-stop: East/B, Esc/Backspace, or `s`).
+  Kit Select+Start held for one second is the library session's completed
+  exit, not that Soft-stop. It posts `retain_lease` false with the captured
+  play identity, or an empty body when that identity is absent, so idle
+  cleanup releases the owned grant and renewal stops. A delayed chord cannot
+  stop a replacement play. A failed release stays visible for Release kit,
+  shell exit, and a retry that still releases. Offered while the session is
+  active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a
   failed release. An empty body is not sent while a promoted play remains.

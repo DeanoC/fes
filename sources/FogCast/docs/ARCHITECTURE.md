@@ -1550,8 +1550,13 @@ that fails leaves that grant retained so the next explicit Stop can retry it. Re
 Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
 do not revoke the live session. A failed explicit Stop of that surviving play
-still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
-the retain request and keeps the grant while the shell stays up. Guide settings
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
+the retain request and keeps the grant while the shell stays up. Kit Select+Start
+is the library session's completed exit on that same route: `retain_lease` false
+with the captured play identity, or an empty body when that identity is absent.
+Idle cleanup then releases the owned grant and renewal stops. A delayed chord
+keeps that identity and cannot stop a replacement play. Unpaired sofa Soft-stop
+still retains. Guide settings
 includes **Release kit**. Confirm posts that same idle release and leaves the
 menu open, so the host stops renewal and does not claim the kit again while
 the menu remains up. The shell does not start a game while that release is
@@ -2636,8 +2641,11 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts `POST /api/v1/session/stop`
-for this host's active or failed session. For a kit-local run it goes to local
+lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+for this host's active or failed session: `retain_lease` false with the captured
+play identity when that identity is known, otherwise an empty body. Idle cleanup
+releases the owned kit grant and renewal stops. Rooms B/Back stays the retain
+request. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, with the exact launch generation. A
 foreign-owned core accepts local play controls, but this launcher cannot stop
 it. Stop and kit menu actions stay on the kit. If the

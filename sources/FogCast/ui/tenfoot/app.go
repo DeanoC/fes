@@ -404,19 +404,25 @@ type App struct {
 	session                hostclient.SessionResult
 	sessionTitle           string
 	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
-	// grant. A later active or relaunched play does not clear it: another
-	// target's grant can still be retained. Shell exit releases idle grants.
-	// B/Back does not.
+	// grant, and when a kit Select+Start release failed while that grant may
+	// still be renewing. A later active or relaunched play does not clear it:
+	// another target's grant can still be retained. Shell exit and Release
+	// kit release idle grants. B/Back does not. A successful Select+Start
+	// release clears it: that exit already dropped the owned idle grant.
 	retainedIdleLease bool
 	leaseReleaseBusy  bool
 	// stopResponseLost is a Soft-stop whose transport failed after the host
 	// may already have retained the grant. Shell exit reconciles it.
 	stopResponseLost bool
 	// stopWait is closed when the in-flight Soft-stop goroutine returns.
-	stopWait           chan struct{}
-	sessionGen         int
-	stopPhase          string
-	stopExpected       hostclient.SessionResult
+	stopWait     chan struct{}
+	sessionGen   int
+	stopPhase    string
+	stopExpected hostclient.SessionResult
+	// stopReleasesLease is the kit Select+Start completed exit. A retry of
+	// that stop keeps releasing. Rooms B/Back leaves it false. Session
+	// change clears it so the next stop captures the new play on its own.
+	stopReleasesLease  bool
 	stopMessage        string
 	gpuParked          bool
 	sessionKick        chan struct{}
@@ -2385,6 +2391,17 @@ func (a *App) sessionStopOfferedLocked() bool {
 }
 
 func (a *App) startStopLocked() {
+	a.startStopModeLocked(false)
+}
+
+// startReleaseStopLocked is the kit Select+Start completed exit. Idle cleanup
+// releases the captured play's kit grant. Rooms B/Back stays on startStopLocked
+// and retains the lease for the unpaired sofa Soft-stop.
+func (a *App) startReleaseStopLocked() {
+	a.startStopModeLocked(true)
+}
+
+func (a *App) startStopModeLocked(releaseLease bool) {
 	if a.stopPhase == "stopping" {
 		return
 	}
@@ -2393,10 +2410,14 @@ func (a *App) startStopLocked() {
 	}
 	if a.inputBusy {
 		a.stopQueued = true
+		if !a.retryStopLock {
+			a.stopReleasesLease = releaseLease
+		}
 		return
 	}
 	if !a.retryStopLock {
 		a.stopExpected = a.session
+		a.stopReleasesLease = releaseLease
 	}
 	a.roomDuringPlay = false
 	a.roomPickerOpen = false
@@ -2421,10 +2442,11 @@ func (a *App) startStopLocked() {
 		"state":   a.session.State,
 	})
 	expected := a.stopExpected
+	release := a.stopReleasesLease
 	done := make(chan struct{})
 	a.stopWait = done
 	go func() {
-		a.doStop(ctx, stamp, expected)
+		a.doStop(ctx, stamp, expected, release)
 		a.mu.Lock()
 		if a.stopWait == done {
 			a.stopWait = nil
@@ -2434,11 +2456,17 @@ func (a *App) startStopLocked() {
 	}()
 }
 
-func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient.SessionResult) {
+func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient.SessionResult, releaseLease bool) {
 	var result hostclient.SessionResult
 	var err error
 	if expected.CorePackage != nil && expected.GameID != "" {
-		result, err = a.client.StopExpectedStamped(ctx, expected, stamp)
+		if releaseLease {
+			result, err = a.client.StopReleaseExpectedStamped(ctx, expected, stamp)
+		} else {
+			result, err = a.client.StopExpectedStamped(ctx, expected, stamp)
+		}
+	} else if releaseLease {
+		result, err = a.client.StopReleaseStamped(ctx, stamp)
 	} else {
 		result, err = a.client.StopStamped(ctx, stamp)
 	}
@@ -2455,6 +2483,11 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient
 		if result.ErrorCode == "" {
 			a.stopResponseLost = true
 		}
+		if releaseLease {
+			// The exit asked to drop the grant. Failure can leave it renewing
+			// after the machine is already idle, so Release kit can retry.
+			a.retainedIdleLease = true
+		}
 		a.syncGPUParkLocked()
 		return
 	}
@@ -2465,6 +2498,7 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient
 		a.retryStopHint = ""
 		a.retryStopCode = ""
 		a.stopExpected = hostclient.SessionResult{}
+		a.stopReleasesLease = false
 		a.stopPhase = "host"
 		a.stopMessage = "The running machine changed. Review it before stopping."
 		a.status = a.stopMessage
@@ -2480,6 +2514,9 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient
 		a.stopPhase = "host"
 		a.stopMessage = fmt.Sprintf("host stop %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
 		a.lockRetryStopLocked(result.ErrorCode, result.ErrorMessage)
+		if releaseLease {
+			a.retainedIdleLease = true
+		}
 		a.syncGPUParkLocked()
 		return
 	}
@@ -2490,7 +2527,11 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp, expected hostclient
 	a.stopMessage = ""
 	a.applySessionLocked(result)
 	if result.State == "" || result.State == "idle" {
-		a.retainedIdleLease = true
+		if releaseLease {
+			a.retainedIdleLease = false
+		} else {
+			a.retainedIdleLease = true
+		}
 		a.stopResponseLost = false
 	}
 	a.kickSessionPollLocked()
@@ -3004,7 +3045,7 @@ func (a *App) flushQueuedStopLocked() {
 		return
 	}
 	a.stopQueued = false
-	a.startStopLocked()
+	a.startStopModeLocked(a.stopReleasesLease)
 }
 
 func inputFailureStatus(action string) string {

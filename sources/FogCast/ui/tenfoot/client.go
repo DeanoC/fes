@@ -203,6 +203,29 @@ func (c *Client) StopExpectedStamped(ctx context.Context, expected hostclient.Se
 	return c.Client.StopRetainLeaseExpected(ctx, expected, hostStamp(stamp))
 }
 
+// StopReleaseStamped is the kit Select+Start completed exit when the displayed
+// play has no package identity. An empty body is the explicit user Stop:
+// idle cleanup releases the owned kit grant and renewal stops.
+func (c *Client) StopReleaseStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	return c.Client.StopStamped(ctx, hostStamp(stamp))
+}
+
+// StopReleaseExpectedStamped is that same exit bound to the captured play.
+// retain_lease false releases after idle cleanup. A delayed chord cannot
+// stop a replacement play. Rooms B/Back stays on StopExpectedStamped.
+func (c *Client) StopReleaseExpectedStamped(ctx context.Context, expected hostclient.SessionResult, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	if expected.ID == "" {
+		return c.StopReleaseStamped(ctx, stamp)
+	}
+	return c.Client.StopExpectedStamped(ctx, expected, hostStamp(stamp))
+}
+
 // ReleaseIdleLease is shell exit after that Soft-stop when the service is
 // idle. An empty body asks idle cleanup to release the retained kit lease.
 // B/Back stays on StopStamped.
