@@ -224,7 +224,8 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe |
+| `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` pin. That lock has its own HIP cache slot. |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

@@ -138,15 +138,17 @@ contracts.
 
 ### 2. Current pins
 
-The registered lock files start at the same pin. The following historical
-seal records remain tied to the artifacts they name; current recipe lock
-paths are shown in `config/core-recipes.toml`.
+Coleco's registered lock pins Yosys `5391eeb1` and has its own toolchain
+cache slot. Every other registered lock matches the repository-level pin:
+Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`. The following
+historical seal records remain tied to the artifacts they name; current
+recipe lock paths are shown in `config/core-recipes.toml`.
 
 | Order | Core | Current lock / recorded pin | Why this order |
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `cores/fes-c64/toolchain.lock` (`9128800f`) | The recorded CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`) predates the per-core lock layout. Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the same commits (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `cores/fes-atari-st/toolchain.lock` | Factory. The October kit notes do not accept a shared-pin seal. |
-| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
+| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` | Same multi-region cart support. Both files start at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
