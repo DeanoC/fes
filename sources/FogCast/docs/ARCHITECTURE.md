@@ -1197,7 +1197,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Shared remap lives in `ui/inputmap`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time, waits for its runtime transaction, pauses presents, then dispatches the launch so the core owns HDMI. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -1226,8 +1226,13 @@ a new generation or a stale base, the frame is retried once with fresh status
 and complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
-phase and elapsed time, drains it, pauses presents, then dispatches the local
-launch. On the HPS framebuffer the overlay keeps animating and shows
+phase and elapsed time. Dispatch waits until that frame has been presented,
+then pauses presents and dispatches the local launch. A failed or unpresented
+frame aborts dispatch. A status probe acknowledges only the submission
+sequence that was presented, so a healthy status for an older frame does not
+accept a newer frame that never reached the display. Late adoption submits no
+overlay: it drains outstanding menu work and pauses, and an older failure
+does not block that pause. On the HPS framebuffer the overlay keeps animating and shows
 elapsed time. A loading Select+Start chord stops after the runtime reports
 `running`.
 The configured FogCast service still supplies library/setup operations and
@@ -1550,8 +1555,21 @@ that fails leaves that grant retained so the next explicit Stop can retry it. Re
 Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
 do not revoke the live session. A failed explicit Stop of that surviving play
-still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
-the retain request and keeps the grant while the shell stays up. Guide settings
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
+the retain request and keeps the grant while the shell stays up. Kit Select+Start
+is the library session's completed exit on that same route: `retain_lease` false
+with the captured play. A package play sends that package generation. A play
+without a package sends the session id, launch flight, game, and target; a
+missing flight is not posted as an empty body, because an unbound stop would
+release whatever play is foreground at admission. Idle cleanup releases that
+play's grant. A bound stop releases only its target, and a host-only stop
+releases no kit grant, so a grant retained by an earlier Soft-stop of another
+target stays tracked until shell exit or Release kit. A Select+Start queued
+while input is in flight keeps the play captured at chord time and does not
+stop a replacement observed before the reply. A release that fails after the
+play is already idle retries the idle-grant release; a failure that leaves the
+original play running retries the bound stop. Unpaired sofa Soft-stop
+still retains. Guide settings
 includes **Release kit**. Confirm posts that same idle release and leaves the
 menu open, so the host stops renewal and does not claim the kit again while
 the menu remains up. The shell does not start a game while that release is
@@ -2524,9 +2542,10 @@ loop. The event that reaches that mark is not forwarded. Stop returns the runtim
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
 On startup, with a local-control client and no local run yet, that tick reads
 GET /v1/local/status until one read succeeds. A running answer with a valid
-generation is re-adopted as this launcher's run: menu presents stay paused,
-and late adopt skips the stray menu frame, because that core already owns
-HDMI. The session status is the In use copy, Select+Start calls
+generation is re-adopted as this launcher's run: menu presents stay paused.
+Late adopt drains outstanding menu work and skips the stray menu frame,
+because that core already owns HDMI. An older menu failure does not block
+that pause. The session status is the In use copy, Select+Start calls
 generation-checked stop, and idle status returns to the menu. The idle menu
 plane cannot scan out over a running core, so this panel is launcher state
 and not a second HDMI picture while that core owns the display. A launching
@@ -2554,7 +2573,11 @@ feed, without Select+Start stop, until status is idle with an empty generation.
 That hold has no timeout. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 Packages declaring firmware stay in that class: the local socket does not
-link firmware ROMs. A cartridge for an installed core is linked by
+link firmware ROMs. A cartridge launch posts `library_root` and `relative_path`.
+The agent pins the library root and opens each relative component from that
+directory handle, refusing a symlink under the root, so a parent directory
+swapped for a symlink cannot name a file outside the library. A cartridge for
+an installed core is linked by
 LoadCartridge, which rebuilds the canonical archive from the extracted
 directory, verifies the exact archived identity with the runtime and programs
 the core through the existing staging path. A held, busy, blocked, or recovery lease returns 409 and does not
@@ -2636,8 +2659,15 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts `POST /api/v1/session/stop`
-for this host's active or failed session. For a kit-local run it goes to local
+lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+for this host's active or failed session: `retain_lease` false with the captured
+play. Package plays send that generation. Package-free plays send the session
+id, launch flight, game, and target, and are not posted unbound. A queued chord
+keeps the play from chord time. Idle cleanup releases that play's grant and
+renewal of that grant stops; grants retained on other targets stay until shell
+exit or Release kit. A release that fails after idle retries the idle-grant
+release rather than the captured play. Rooms B/Back stays the retain
+request. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, with the exact launch generation. A
 foreign-owned core accepts local play controls, but this launcher cannot stop
 it. Stop and kit menu actions stay on the kit. If the

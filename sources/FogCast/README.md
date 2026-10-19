@@ -240,7 +240,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   Explicit `-api`, `-token`, and `-target-id` flags override matching
   environment variables, which override launcher configuration. On this
   backend tenfoot opens the kit-local control socket, shows "Starting
-  {title}…", pauses presents so the core owns HDMI, and resumes them after
+  {title}…", and pauses presents after that loading frame is presented so the
+  core owns HDMI. A failed or unpresented frame aborts the launch. Late
+  adoption drains outstanding menu work and pauses without a loading frame;
+  an older menu failure does not block that pause. Presents resume after
   Select+Start stop, or when that kit-local session is no longer running.
   See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
