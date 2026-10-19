@@ -312,7 +312,9 @@ the SDR mirror registers prove the layout.
 timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
-`CACHE_ROOT=/absolute/cache` selects the same root-lock HIP slot as Pong.
+`CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
+`toolchain.lock` (nextpnr `9128800f`). Pong's own lock pins nextpnr
+`552ba246`, so Pong uses a separate slot.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
