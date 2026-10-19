@@ -3,7 +3,9 @@ package localcores
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -234,6 +236,57 @@ func TestLaunchCartridgeDeliversROMWithoutLoadingTheBareCore(t *testing.T) {
 	loads, _ = runtime.calls()
 	if len(loads) != 0 || len(runtime.roms()) != 1 {
 		t.Fatalf("absolute rom_path launched loads=%v roms=%d", loads, len(runtime.roms()))
+	}
+}
+
+func TestLaunchROMKeepsLeadingSpaceBesideUnspacedSibling(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service, _, selections, packages := testService(t, runtime)
+	smsID := installCore(t, packages, selections, "fes.sms", "Master System", "fes.computer", coreOpts{cartridge: true})
+	library := t.TempDir()
+	const spacedName = " Game.sms"
+	const plainName = "Game.sms"
+	if err := os.WriteFile(filepath.Join(library, spacedName), []byte("spaced-rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(library, plainName), []byte("plain-rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	sock := shortSock(t)
+	serveUnix(t, sock, Handler(service))
+	client := NewClient(sock)
+	before := len(runtime.roms())
+	if _, err := client.LaunchROM(context.Background(), smsID, library, ""); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("empty path %v", err)
+	}
+	if _, err := client.LaunchROM(context.Background(), smsID, library, "/"+plainName); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("absolute path %v", err)
+	}
+	if _, err := client.LaunchROM(context.Background(), smsID, library, "../"+plainName); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("escaping path %v", err)
+	}
+	if len(runtime.roms()) != before {
+		t.Fatalf("rejected path delivered %q", runtime.roms())
+	}
+
+	if _, err := client.LaunchROM(context.Background(), smsID, library, spacedName); err != nil {
+		t.Fatal(err)
+	}
+	got := runtime.roms()
+	if len(got) != 1 || string(got[0]) != "spaced-rom" {
+		t.Fatalf("leading-space launch delivered %q", got)
+	}
+
+	if err := service.Stop(t.Context(), service.RunStatus().Generation); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.LaunchROM(context.Background(), smsID, library, plainName); err != nil {
+		t.Fatal(err)
+	}
+	got = runtime.roms()
+	if len(got) != 2 || string(got[0]) != "spaced-rom" || string(got[1]) != "plain-rom" {
+		t.Fatalf("sibling launch delivered %q", got)
 	}
 }
 

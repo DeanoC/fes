@@ -155,7 +155,8 @@ func cartridgeLocation(libraryRoot, relativePath string) (string, []string, erro
 	if libraryRoot == "" || strings.ContainsRune(libraryRoot, 0) || !filepath.IsAbs(libraryRoot) {
 		return "", nil, errUnavailable
 	}
-	relativePath = strings.TrimSpace(relativePath)
+	// A space is part of the catalog file name. Trimming it opens the
+	// unspaced sibling, which is a different game.
 	if relativePath == "" || strings.ContainsRune(relativePath, 0) {
 		return "", nil, errUnavailable
 	}

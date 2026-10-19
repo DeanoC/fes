@@ -140,7 +140,8 @@ func (c *Client) Launch(ctx context.Context, packageID string) (LaunchResult, er
 }
 
 // LaunchROM posts the same launch route with a library root and the
-// catalog-relative cartridge path. The agent opens that pair from a
+// catalog-relative cartridge path. Spaces in that path are kept; trimming
+// them would open a different file. The agent opens that pair from a
 // directory handle on the root. An empty root, a relative root, or an
 // absolute cartridge path is not sent. This does not call the host session.
 func (c *Client) LaunchROM(ctx context.Context, packageID, libraryRoot, relativePath string) (LaunchResult, error) {
@@ -148,7 +149,6 @@ func (c *Client) LaunchROM(ctx context.Context, packageID, libraryRoot, relative
 		return LaunchResult{}, ErrNotFound
 	}
 	libraryRoot = strings.TrimSpace(libraryRoot)
-	relativePath = strings.TrimSpace(relativePath)
 	if libraryRoot == "" || !filepath.IsAbs(libraryRoot) || strings.ContainsAny(libraryRoot, "\r\n\x00") {
 		return LaunchResult{}, ErrUnavailable
 	}
