@@ -467,14 +467,14 @@ class BuildFesPongTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
                     build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
-    def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
+    def test_local_lane_uses_its_own_core_root_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             lock_path = root / build_fes_pong.TOOLCHAIN_LOCK
             lock_path.parent.mkdir(parents=True, exist_ok=True)
             lock_path.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
-            install = root / "build/toolchain/install/bin"
-            build_root = root / "build/toolchain/build"
+            install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
+            build_root = root / build_fes_pong.TOOLCHAIN_ROOT / "build"
             install.mkdir(parents=True)
             definitions = {
                 "yosys": ("yosys", "--version"),

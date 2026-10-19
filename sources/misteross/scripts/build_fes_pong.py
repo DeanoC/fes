@@ -63,6 +63,7 @@ ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.pong")
 OUTPUT_RELATIVE = Path("build/fes-pong")
 TOOLCHAIN_LOCK = "cores/fes-pong/toolchain.lock"
+TOOLCHAIN_ROOT = "build/toolchain/fes-pong"
 QSF = "cores/fes-pong/constraints.qsf"
 RECIPE = "scripts/build_fes_pong.py"
 ABI_DEFINITION = "cores/fes-pong/generated/fes_gp.vh"
@@ -99,7 +100,8 @@ BUILD_OUTPUTS = (
 
 def _authenticate_tools(root: Path, *, cache_root: Path | None = None):
     return _authenticate_default(
-        root, lock_path=root / TOOLCHAIN_LOCK, cache_root=cache_root)
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        cache_root=cache_root)
 ORDINARY_RESOURCES = frozenset(
     {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
 )

@@ -50,7 +50,7 @@ CUDA_PRODUCERS = (
 )
 
 
-def _write_local_root_tools(
+def _write_local_pong_tools(
     root: Path,
     *,
     nextpnr_config: str | None,
@@ -66,7 +66,7 @@ def _write_local_root_tools(
             raise AssertionError("expected one nextpnr commit in the fixture lock")
         lock_text = lock_text.replace(old, f'commit = "{nextpnr_commit}"', 1)
     lock.write_text(lock_text, encoding="utf-8")
-    install = root / "build/toolchain/install/bin"
+    install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
     install.mkdir(parents=True)
     pins = load_lock(lock)
     for lock_name, binary_name in (
@@ -76,7 +76,7 @@ def _write_local_root_tools(
     ):
         binary = install / binary_name
         _write_fake_tool(binary, lock_name)
-        evidence = root / "build/toolchain/build" / lock_name
+        evidence = root / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
         evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
         (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
@@ -226,7 +226,7 @@ class FesHipLaneTests(unittest.TestCase):
             lock = local / build_fes_pong.TOOLCHAIN_LOCK
             lock.parent.mkdir(parents=True, exist_ok=True)
             lock.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
-            install = local / "build/toolchain/install/bin"
+            install = local / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
             install.mkdir(parents=True)
             from tests.test_build_fes_pong import _write_fake_tool
             from scripts.lockfile import load_lock
@@ -235,7 +235,7 @@ class FesHipLaneTests(unittest.TestCase):
                                            ("nextpnr", "nextpnr-mistral")):
                 binary = install / binary_name
                 _write_fake_tool(binary, lock_name)
-                evidence = local / "build/toolchain/build" / lock_name
+                evidence = local / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit
                 (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
@@ -364,10 +364,10 @@ class FesHipLaneTests(unittest.TestCase):
                 with self.subTest(module=module.__name__, stamp=stamp):
                     with tempfile.TemporaryDirectory() as directory:
                         root = Path(directory)
-                        (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
+                        (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_pong_tools)(
                             root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            target = "toolchain-fes-zx81" if module is build_fes_zx81_oss else "toolchain-fes"
+                            target = "toolchain-fes-zx81" if module is build_fes_zx81_oss else "toolchain-fes-pong"
                             hint = rf"make {target}"
                             with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
@@ -382,7 +382,7 @@ class FesHipLaneTests(unittest.TestCase):
                 self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
             root = Path(directory) / "pong"
             root.mkdir()
-            install = _write_local_root_tools(root, nextpnr_config=HIP_CONFIGURATION)
+            install = _write_local_pong_tools(root, nextpnr_config=HIP_CONFIGURATION)
             with patch.dict(os.environ, {}, clear=True):
                 authenticated = build_fes_pong._authenticate_tools(root)
                 self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
@@ -392,7 +392,7 @@ class FesHipLaneTests(unittest.TestCase):
         commit = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            install = _write_local_root_tools(
+            install = _write_local_pong_tools(
                 root,
                 nextpnr_config=HIP_CONFIGURATION,
                 nextpnr_commit=commit,

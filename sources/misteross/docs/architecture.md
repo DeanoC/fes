@@ -500,7 +500,11 @@ GPU-router OFF for generic OSS experiments. `make toolchain` and
 `make toolchain-fes` share `build/toolchain`; the last one run wins.
 `CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid shared-cache
 forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer recipes. Omitting
-`--cache-root` / `CACHE_ROOT` preserves that local HIP install. Quartus
+`--cache-root` / `CACHE_ROOT` selects the local HIP install that the
+producer's own `make toolchain-fes-<core>` target writes without a cache
+(`build/toolchain/fes-<core>`, or `build/toolchain/zx81-expansion` and
+`build/toolchain/fes-coleco-socket-v2`), so a core whose lock moves never reads
+another lock's tools. Quartus
 ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a nextpnr fallback.
 For a shared cache, the same `CACHE_ROOT=/absolute/cache` spelling selects
 the FES HIP toolchain for every registered `toolchain-fes-<core>` target;
