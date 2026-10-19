@@ -95,14 +95,13 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
             **extra,
         }
 
-    def run_gpu_route(self, *, timeout=None, cwd=ROOT, audit_source_root=None, **environment):
+    def run_gpu_route(self, *, timeout=None, cwd=ROOT, **environment):
         with patch.object(board, "_gpu_run_path", return_value=self.wrapper):
             return board._run_command(
                 (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
                 cwd=cwd,
                 env=self.environment(**environment),
                 timeout=timeout,
-                audit_source_root=audit_source_root,
                 stdout=board.subprocess.PIPE,
                 stderr=board.subprocess.STDOUT,
                 gpu_label="unit-test-route",
@@ -135,8 +134,17 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
 
     @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited routes")
     def test_audited_route_reads_only_the_dispatcher_from_a_narrowed_closure(self):
-        result, events = narrowed_source_events(
-            lambda: self.run_gpu_route(audit_source_root=ROOT), self.directory)
+        result, events = narrowed_source_events(lambda: board._run_command(
+            (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+            cwd=ROOT,
+            env=self.environment(GPU_LEASE_DIR=str(self.real_lease), GPU_LEASE_IDS="7",
+                                 FAKE_BACKEND_READY="1"),
+            timeout=10,
+            audit_source_root=ROOT,
+            stdout=board.subprocess.PIPE,
+            stderr=board.subprocess.STDOUT,
+            gpu_label="narrowed-closure-route",
+        ), self.directory)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertEqual(events, {("read", "scripts/nextpnr_lease.py")})
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
