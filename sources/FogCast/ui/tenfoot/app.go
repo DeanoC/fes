@@ -3564,31 +3564,68 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 			return
 		}
 		fails++
-		a.noteLibraryUnreachable(gen)
+		a.holdLibraryForRetry(gen, query, previous, keepID, keepIndex, &pinned, &lastFocus)
 		if !a.libraryRetryWait(ctx, fails, gen, false) {
 			return
 		}
 	}
 }
 
-// libraryNetRetry is a connect or read failure. A host API status, a decode
-// error, and a superseded or cancelled load are not retried.
+// libraryNetRetry is a connect, a short read, or a truncated body. A host
+// API status, an oversize body, a JSON decode error, and a superseded or
+// cancelled load are not retried.
 func libraryNetRetry(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errLibrarySuperseded) {
 		return false
+	}
+	// ReadResponseBody turns a mid-body disconnect into ErrResponseTruncated
+	// without wrapping the original net error, so errors.As would miss it.
+	if errors.Is(err, hostclient.ErrResponseTruncated) {
+		return true
 	}
 	var netErr net.Error
 	return errors.As(err, &netErr)
 }
 
-func (a *App) noteLibraryUnreachable(gen int) {
+// holdLibraryForRetry puts the last same-filter shelf back while this
+// generation keeps retrying. loading is only the launch gate, so Select can
+// start a title that is already on screen. The retry loop is separate and
+// keeps running. Another filter's rows stay off this shelf, matching
+// finishLibraryLoad, and a later success replaces them there.
+func (a *App) holdLibraryForRetry(gen int, query hostclient.GameListQuery, previous []hostclient.Game, keepID string, keepIndex int, pinned *bool, lastFocus *int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if gen != a.loadGen {
 		return
 	}
-	a.loadErr = "Can't reach the library right now."
-	a.status = a.loadErr
+	saved, ok := sameFilterSavedShelf(a.shelfQuerySet, a.shelfQuery, a.shelfGames, previous, query)
+	if !ok {
+		a.loadErr = "Can't reach the library right now."
+		a.status = a.loadErr
+		return
+	}
+	shown := append([]hostclient.Game(nil), saved...)
+	a.applyCatalogPageLocked(shown, keepID, keepIndex, pinned, lastFocus)
+	a.loading = false
+	a.loadErr = ""
+	a.status = savedListOfflineCopy
+}
+
+// sameFilterSavedShelf is the last shelf for query. Rows saved for another
+// filter are refused. previous is the shelf this generation cleared, used
+// when a successful shelf has not been stored yet.
+func sameFilterSavedShelf(shelfSet bool, shelfQuery hostclient.GameListQuery, shelfGames, previous []hostclient.Game, query hostclient.GameListQuery) ([]hostclient.Game, bool) {
+	if shelfSet && !shelfFilterEqual(shelfQuery, query) {
+		return nil, false
+	}
+	saved := previous
+	if shelfSet && len(shelfGames) > 0 {
+		saved = shelfGames
+	}
+	if len(saved) == 0 {
+		return nil, false
+	}
+	return saved, true
 }
 
 func (a *App) libraryRetryWait(ctx context.Context, fails, gen int, recents bool) bool {
@@ -3681,11 +3718,8 @@ func (a *App) finishLibraryLoad(ctx context.Context, gen int, query hostclient.G
 			}
 			return
 		}
-		saved := previous
-		if a.shelfQuerySet && len(a.shelfGames) > 0 {
-			saved = a.shelfGames
-		}
-		if len(saved) > 0 {
+		saved, ok := sameFilterSavedShelf(a.shelfQuerySet, a.shelfQuery, a.shelfGames, previous, query)
+		if ok {
 			pinned := true
 			lastFocus := -1
 			a.applyCatalogPageLocked(saved, keepID, keepIndex, &pinned, &lastFocus)
