@@ -37,6 +37,50 @@ ROCM_CONCISE = textwrap.dedent("""\
     1    41.0c           26.0W   800Mhz 1600Mhz 0% auto 220.0W 0% 0%
     ================================================================================
     """)
+# A scripted GPU_LEASE_FD client. Each argument after the log path is a
+# request line, whose reply is logged, or an @action used to sequence a test.
+PHASE_CLIENT = textwrap.dedent("""\
+    import os, signal, socket, sys, time
+    log_path = sys.argv[1]
+    lease = socket.socket(fileno=int(os.environ['GPU_LEASE_FD']))
+
+    def note(text):
+        with open(log_path, 'a') as stream:
+            stream.write(text + '\\n')
+
+    def ask(line):
+        lease.sendall(line.encode() + b'\\n')
+        reply = b''
+        while not reply.endswith(b'\\n'):
+            chunk = lease.recv(1)
+            if not chunk:
+                return 'EOF'
+            reply += chunk
+        return reply.decode().rstrip('\\n')
+
+    for step in sys.argv[2:]:
+        action, _, value = step.partition(':')
+        if action == '@touch':
+            open(value, 'w').close()
+        elif action == '@wait':
+            while not os.path.exists(value):
+                time.sleep(0.01)
+        elif action == '@close':
+            lease.close()
+        elif action == '@crash':
+            os.kill(os.getpid(), signal.SIGKILL)
+        elif action == '@handoff-crash':
+            # A grandchild takes the grant and dies; only it held the socket.
+            child = os.fork()
+            if child == 0:
+                note('ACQUIRE 1 -> ' + ask('ACQUIRE 1'))
+                os.kill(os.getpid(), signal.SIGKILL)
+            lease.close()
+            os.waitpid(child, 0)
+            note('handoff crashed')
+        else:
+            note(step + ' -> ' + ask(step))
+    """)
 
 
 class GpuLeaseTests(unittest.TestCase):
@@ -49,9 +93,10 @@ class GpuLeaseTests(unittest.TestCase):
     def env(self, **extra):
         base = os.environ.copy()
         for key in ('GPU_LEASE_DIR', 'GPU_LEASE_IDS', 'GPU_LEASE_VENDOR',
-                    'GPU_LEASE_MAX_PER_OWNER', 'HIP_VISIBLE_DEVICES',
-                    'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'FES_GPU_IDS',
-                    'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE', 'NEXTPNR_REQUIRE_GPU'):
+                    'GPU_LEASE_MAX_PER_OWNER', 'GPU_LEASE_MAX_JOBS_PER_OWNER', 'GPU_LEASE_FD',
+                    'HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES',
+                    'CUDA_DEVICE_ORDER', 'FES_GPU_IDS', 'GPU_RUN_DEVICE',
+                    'GPU_RUN_EXPECTED_DEVICE', 'NEXTPNR_REQUIRE_GPU'):
             base.pop(key, None)
         base['GPU_LEASE_DIR'] = str(self.lease)
         base['GPU_LEASE_IDS'] = '0,1'
@@ -761,6 +806,327 @@ class GpuLeaseTests(unittest.TestCase):
             created = gpu_lease.ensure_lease_dir(self.lease)
         self.assertTrue(created.is_dir())
         self.assertEqual(stat.S_IMODE(created.stat().st_mode), 0o700)
+
+    def phase_client(self):
+        client = self.root / 'phase_client.py'
+        if not client.exists():
+            client.write_text(PHASE_CLIENT)
+        return client
+
+    def phase(self, owner, log, *steps, env=None):
+        return self.popen(['--phase-lease', '--owner', owner, '--label', 'phase-' + owner, '--',
+                           sys.executable, str(self.phase_client()), str(log), *steps], env=env)
+
+    def marker(self, name):
+        return self.root / name
+
+    def held_by(self, env=None):
+        return {gpu['id']: (gpu.get('owner'), gpu.get('pid'))
+                for gpu in self.status(env)['gpus'] if gpu['state'] == 'held'}
+
+    def test_phase_lease_holds_a_gpu_only_between_acquire_and_release(self):
+        log = self.root / 'phase.log'
+        m = self.marker
+        proc = self.phase('alice', log, '@touch:%s' % m('started'), '@wait:%s' % m('go-acquire'),
+                          'ACQUIRE 1', '@touch:%s' % m('granted'), '@wait:%s' % m('go-release'),
+                          'RELEASE', '@touch:%s' % m('released'), '@wait:%s' % m('go-exit'))
+        self.wait_for(lambda: m('started').exists())
+        # Running on the CPU: the job holds a job slot but no GPU.
+        self.assertEqual(self.held_by(), {})
+        self.assertEqual(self.status()['queue'], [])
+        m('go-acquire').touch()
+        self.wait_for(lambda: m('granted').exists())
+        self.assertEqual(log.read_text().splitlines(), ['ACQUIRE 1 -> GRANT 0'])
+        self.assertEqual(self.held_by(), {'0': ('alice', proc.pid)})
+        meta = json.loads((self.lease / 'gpu-0.lock').read_text())
+        self.assertEqual(meta['label'], 'phase-alice')
+        m('go-release').touch()
+        self.wait_for(lambda: m('released').exists())
+        self.assertEqual(log.read_text().splitlines()[-1], 'RELEASE -> OK')
+        self.assertEqual(self.held_by(), {})
+        self.assertIsNone(proc.poll())
+        m('go-exit').touch()
+        _out, err = proc.communicate(timeout=10)
+        self.assertEqual(proc.returncode, 0, err)
+        self.assertEqual(self.status()['queue'], [])
+
+    def test_phase_lease_protocol_errors_keep_the_broker_serving(self):
+        log = self.root / 'phase.log'
+        completed = self.run_tool(GPU_RUN, [
+            '--phase-lease', '--owner', 'alice', '--', sys.executable, str(self.phase_client()),
+            str(log), 'RELEASE', 'HELLO', 'ACQUIRE 2', 'ACQUIRE', 'acquire 1', 'X' * 300,
+            'ACQUIRE 1', 'ACQUIRE 1', 'RELEASE', 'RELEASE'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(log.read_text().splitlines(), [
+            'RELEASE -> ERR not-held',
+            'HELLO -> ERR unknown-command',
+            'ACQUIRE 2 -> ERR unsupported-count',
+            'ACQUIRE -> ERR unknown-command',
+            'acquire 1 -> ERR unknown-command',
+            'X' * 300 + ' -> ERR unknown-command',
+            'ACQUIRE 1 -> GRANT 0',
+            'ACQUIRE 1 -> ERR already-held',
+            'RELEASE -> OK',
+            'RELEASE -> ERR not-held',
+        ])
+        self.assertEqual(self.held_by(), {})
+
+    def test_phase_lease_exit_with_a_grant_releases_it(self):
+        log = self.root / 'phase.log'
+        completed = self.run_tool(GPU_RUN, [
+            '--phase-lease', '--owner', 'alice', '--', sys.executable, str(self.phase_client()),
+            str(log), 'ACQUIRE 1'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(log.read_text().splitlines(), ['ACQUIRE 1 -> GRANT 0'])
+        self.assertEqual(self.held_by(), {})
+        again = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--owner', 'bob', '--', '/bin/true'])
+        self.assertEqual(again.returncode, 0, again.stderr)
+
+    def test_phase_lease_socket_close_releases_while_the_command_runs(self):
+        log = self.root / 'phase.log'
+        m = self.marker
+        proc = self.phase('alice', log, 'ACQUIRE 1', '@touch:%s' % m('granted'),
+                          '@wait:%s' % m('go-close'), '@close', '@touch:%s' % m('closed'),
+                          '@wait:%s' % m('go-exit'))
+        self.wait_for(lambda: m('granted').exists())
+        self.assertEqual(self.held_by(), {'0': ('alice', proc.pid)})
+        m('go-close').touch()
+        self.wait_for(lambda: m('closed').exists())
+        self.wait_for(lambda: self.held_by() == {})
+        self.assertIsNone(proc.poll())
+        m('go-exit').touch()
+        _out, err = proc.communicate(timeout=10)
+        self.assertEqual(proc.returncode, 0, err)
+
+    def test_phase_lease_client_crash_releases_its_grant(self):
+        log = self.root / 'phase.log'
+        m = self.marker
+        proc = self.phase('alice', log, '@handoff-crash', '@touch:%s' % m('crashed'),
+                          '@wait:%s' % m('go-exit'))
+        self.wait_for(lambda: m('crashed').exists())
+        self.assertEqual(log.read_text().splitlines(), ['ACQUIRE 1 -> GRANT 0', 'handoff crashed'])
+        # The command is still running; EOF alone released the crashed client's GPU.
+        self.wait_for(lambda: self.held_by() == {})
+        self.assertIsNone(proc.poll())
+        m('go-exit').touch()
+        _out, err = proc.communicate(timeout=10)
+        self.assertEqual(proc.returncode, 0, err)
+
+        crashed = self.run_tool(GPU_RUN, [
+            '--phase-lease', '--owner', 'alice', '--', sys.executable, str(self.phase_client()),
+            str(log), 'ACQUIRE 1', '@crash'])
+        self.assertEqual(crashed.returncode, 128 + signal.SIGKILL, crashed.stderr)
+        self.assertEqual(self.held_by(), {})
+        slots = gpu_lease.job_slot_directory(self.lease, 'alice')
+        self.assertEqual(gpu_lease.read_holder(slots, '0'), None)
+
+    def test_phase_lease_owner_cap_counts_only_active_gpu_phases(self):
+        env = self.env(GPU_LEASE_MAX_PER_OWNER='1')
+        m = self.marker
+        first = self.phase('alice', self.root / 'a.log', 'ACQUIRE 1', '@touch:%s' % m('a-granted'),
+                           '@wait:%s' % m('a-release'), 'RELEASE', '@touch:%s' % m('a-released'),
+                           '@wait:%s' % m('a-exit'), env=env)
+        self.wait_for(lambda: m('a-granted').exists())
+        # A second job of the same owner runs its CPU phase while the first
+        # holds the owner's only GPU phase.
+        second = self.phase('alice', self.root / 'b.log', '@touch:%s' % m('b-started'),
+                            'ACQUIRE 1', '@touch:%s' % m('b-granted'), '@wait:%s' % m('b-release'),
+                            'RELEASE', env=env)
+        self.wait_for(lambda: m('b-started').exists())
+        self.wait_for(lambda: any(item['pid'] == second.pid for item in self.status(env)['queue']))
+        time.sleep(0.5)
+        self.assertFalse(m('b-granted').exists())
+        self.assertEqual(self.held_by(env), {'0': ('alice', first.pid)})
+        # Another owner is not held back by alice's capped phase request.
+        bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', sys.executable, '-c',
+                                      'import os; print(os.environ["FES_GPU_IDS"])'], env=env)
+        self.assertEqual(bob.returncode, 0, bob.stderr)
+        self.assertEqual(bob.stdout.strip(), '1')
+        m('a-release').touch()
+        self.wait_for(lambda: m('b-granted').exists())
+        self.assertEqual(self.held_by(env), {(self.root / 'b.log').read_text().split()[-1]:
+                                             ('alice', second.pid)})
+        self.assertIsNone(first.poll())
+        m('b-release').touch()
+        m('a-exit').touch()
+        for proc in (first, second):
+            _out, err = proc.communicate(timeout=10)
+            self.assertEqual(proc.returncode, 0, err)
+
+    def test_phase_lease_job_slot_cap_waits_without_holding_a_gpu(self):
+        env = self.env(GPU_LEASE_MAX_JOBS_PER_OWNER='1')
+        m = self.marker
+        first = self.phase('alice', self.root / 'a.log', '@touch:%s' % m('a-started'),
+                           '@wait:%s' % m('a-exit'), env=env)
+        self.wait_for(lambda: m('a-started').exists())
+        second = self.phase('alice', self.root / 'b.log', '@touch:%s' % m('b-started'), env=env)
+        slots = gpu_lease.job_slot_directory(self.lease, 'alice')
+        self.wait_for(lambda: any(item['pid'] == second.pid
+                                  for item in gpu_lease.iter_tickets(slots)))
+        other = self.phase('bob', self.root / 'c.log', 'ACQUIRE 1', '@touch:%s' % m('c-granted'),
+                           env=env)
+        self.wait_for(lambda: m('c-granted').exists())
+        _out, err = other.communicate(timeout=10)
+        self.assertEqual(other.returncode, 0, err)
+        time.sleep(0.3)
+        self.assertFalse(m('b-started').exists())
+        self.assertEqual(self.held_by(env), {})
+        report = self.status(env)
+        self.assertEqual(report['queue'], [])
+        # gpu-status still shows the running job and the one waiting for a slot.
+        jobs = {(job['state'], job['pid']): job for job in report['jobs']}
+        self.assertEqual(set(jobs), {('running', first.pid), ('waiting', second.pid)})
+        self.assertEqual(jobs[('running', first.pid)]['owner'], 'alice')
+        self.assertEqual(jobs[('waiting', second.pid)]['label'], 'phase-alice')
+        text = self.status(env, json_output=False)
+        self.assertIn('phase job running  owner=alice slot=0 label=phase-alice pid=%d' % first.pid, text)
+        self.assertRegex(text, r'phase job waiting \d+  owner=alice label=phase-alice owner_pid=%d' % second.pid)
+        m('a-exit').touch()
+        self.wait_for(lambda: m('b-started').exists())
+        for proc in (first, second):
+            _out, err = proc.communicate(timeout=10)
+            self.assertEqual(proc.returncode, 0, err)
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('GPU_LEASE_MAX_JOBS_PER_OWNER', None)
+            self.assertEqual(gpu_lease.job_slot_cap(), 4)
+        for value in ('0', '-1', 'x', '257', '1e3'):
+            with self.subTest(value=value):
+                bad = self.run_tool(GPU_RUN, ['--phase-lease', '--', '/bin/true'],
+                                    env=self.env(GPU_LEASE_MAX_JOBS_PER_OWNER=value))
+                self.assertEqual(bad.returncode, 2, bad.stderr)
+
+    def test_phase_lease_job_slot_cap_counts_jobs_started_with_other_caps(self):
+        m = self.marker
+        wide = self.env(GPU_LEASE_MAX_JOBS_PER_OWNER='4')
+        first = self.phase('alice', self.root / 'a.log', '@touch:%s' % m('a-started'),
+                           '@wait:%s' % m('a-exit'), env=wide)
+        self.wait_for(lambda: m('a-started').exists())
+        second = self.phase('alice', self.root / 'b.log', '@touch:%s' % m('b-started'),
+                            '@wait:%s' % m('b-exit'), env=wide)
+        self.wait_for(lambda: m('b-started').exists())
+        m('a-exit').touch()
+        _out, err = first.communicate(timeout=10)
+        self.assertEqual(first.returncode, 0, err)
+        # Slot 0 is free again, but a job capped at one must still wait for
+        # the owner's other running job.
+        narrow = self.phase('alice', self.root / 'c.log', '@touch:%s' % m('c-started'),
+                            env=self.env(GPU_LEASE_MAX_JOBS_PER_OWNER='1'))
+        slots = gpu_lease.job_slot_directory(self.lease, 'alice')
+        self.wait_for(lambda: any(item['pid'] == narrow.pid
+                                  for item in gpu_lease.iter_tickets(slots)))
+        time.sleep(0.3)
+        self.assertFalse(m('c-started').exists())
+        m('b-exit').touch()
+        self.wait_for(lambda: m('c-started').exists())
+        for proc in (second, narrow):
+            _out, err = proc.communicate(timeout=10)
+            self.assertEqual(proc.returncode, 0, err)
+
+    def test_lander_phase_yields_to_another_owner_when_a_gpu_frees(self):
+        env = self.env(GPU_LEASE_IDS='0', GPU_LEASE_MAX_PER_OWNER='2')
+        m = self.marker
+        order = self.root / 'order'
+        first = self.phase('lander', self.root / 'a.log', 'ACQUIRE 1', '@touch:%s' % m('a-granted'),
+                           '@wait:%s' % m('a-release'), 'RELEASE', '@wait:%s' % m('a-exit'), env=env)
+        self.wait_for(lambda: m('a-granted').exists())
+        second = self.phase('lander', order, 'ACQUIRE 1', 'RELEASE', env=env)
+        self.wait_for(lambda: any(item['pid'] == second.pid for item in self.status(env)['queue']))
+        harness = self.popen(['--wait', '--owner', 'codex-harness', '--', sys.executable, '-c',
+                              'import sys,time; open(sys.argv[1],"a").write("harness\\n"); time.sleep(0.3)',
+                              str(order)], env=env)
+        self.wait_for(lambda: any(item['pid'] == harness.pid for item in self.status(env)['queue']))
+        queue = self.status(env)['queue']
+        by_pid = {item['pid']: item for item in queue}
+        # The lander phase asked first, but it waits in the yielding queue.
+        self.assertLess(by_pid[second.pid]['ticket'], by_pid[harness.pid]['ticket'])
+        self.assertEqual([item['pid'] for item in queue], [harness.pid, second.pid])
+        self.assertTrue(by_pid[second.pid]['yields'])
+        self.assertNotIn('yields', by_pid[harness.pid])
+        self.assertIn('owner=lander yields gpus=1', self.status(env, json_output=False))
+        # No pre-emption: the running phase keeps its GPU until it releases.
+        time.sleep(0.3)
+        self.assertFalse(order.exists())
+        self.assertEqual(self.held_by(env), {'0': ('lander', first.pid)})
+        m('a-release').touch()
+        _out, err = harness.communicate(timeout=10)
+        self.assertEqual(harness.returncode, 0, err)
+        _out, err = second.communicate(timeout=10)
+        self.assertEqual(second.returncode, 0, err)
+        self.assertEqual(order.read_text().splitlines(),
+                         ['harness', 'ACQUIRE 1 -> GRANT 0', 'RELEASE -> OK'])
+        m('a-exit').touch()
+        _out, err = first.communicate(timeout=10)
+        self.assertEqual(first.returncode, 0, err)
+
+    def test_whole_command_leases_ignore_yielding_phase_requests(self):
+        gpu_lease.ensure_lease_dir(self.lease)
+        gpu_lease.ensure_private_subdir(self.lease / gpu_lease.YIELD_QUEUE)
+        ticket = {
+            'ticket': 1, 'owner': 'lander', 'label': 'phase', 'pid': os.getpid(),
+            'host': socket.gethostname(), 'gpus': 1, 'eligible_ids': ['0', '1'],
+            'vendor': 'amd', 'vendor_mask': 'ROCR_VISIBLE_DEVICES', 'cap': None,
+            'enqueued': '2026-10-19T00:00:00Z', 'enqueued_unix': time.time(),
+            'starttime': gpu_lease.process_starttime(os.getpid()), 'command': ['nextpnr-mistral'],
+        }
+        gpu_lease.write_atomic(self.lease / gpu_lease.YIELD_QUEUE / '00000001.json', ticket)
+        self.assertEqual(len(self.status()['queue']), 1)
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--owner', 'codex-harness',
+                                            '--', '/bin/true'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_without_phase_lease_the_command_keeps_its_whole_lease_and_no_lease_fd(self):
+        code = ('import os,sys; print(os.environ.get("GPU_LEASE_FD", "unset")); '
+                'print(os.environ["FES_GPU_IDS"]); '
+                'print(sorted(int(fd) for fd in os.listdir("/proc/self/fd") if int(fd) > 2))')
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--', sys.executable, '-c', code])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        lines = completed.stdout.splitlines()
+        self.assertEqual(lines[:2], ['unset', '0'])
+        self.assertEqual(len(json.loads(lines[2])), 1)  # only listdir's own descriptor
+        self.assertFalse((self.lease / 'jobs').exists())
+        self.assertFalse((self.lease / gpu_lease.YIELD_QUEUE).exists())
+        self.assertNotIn('jobs', self.status())
+
+    def test_phase_lease_command_gets_only_the_lease_fd_and_no_mask(self):
+        code = ('import os,socket; fd=int(os.environ["GPU_LEASE_FD"]); '
+                's=socket.socket(fileno=fd); print(s.family == socket.AF_UNIX, s.type == socket.SOCK_STREAM); s.detach(); '
+                'print(sorted(int(n) for n in os.listdir("/proc/self/fd") if int(n) > 2 and int(n) != fd)); '
+                'print([os.environ.get(k, "-") for k in ("ROCR_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", '
+                '"CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "GPU_RUN_DEVICE", "NEXTPNR_REQUIRE_GPU", '
+                '"CUDA_DEVICE_ORDER")])')
+        env = self.env(ROCR_VISIBLE_DEVICES='1', HIP_VISIBLE_DEVICES='1', FES_GPU_IDS='1',
+                       GPU_RUN_DEVICE='0')
+        completed = self.run_tool(GPU_RUN, ['--phase-lease', '--owner', 'alice', '--',
+                                            sys.executable, '-c', code], env=env)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        lines = completed.stdout.splitlines()
+        self.assertEqual(lines[0], 'True True')
+        self.assertEqual(len(json.loads(lines[1])), 1)  # only listdir's own descriptor
+        self.assertEqual(lines[2], str(['-', '-', '-', '-', '-', '1', '-']))
+        nvidia = gpu_lease.phase_child_env('nvidia', 9)
+        self.assertEqual((nvidia['GPU_LEASE_FD'], nvidia['CUDA_DEVICE_ORDER']), ('9', 'PCI_BUS_ID'))
+        self.assertNotIn('CUDA_DEVICE_ORDER', gpu_lease.phase_child_env('amd', 9))
+
+    def test_phase_lease_rejects_gpu_routes_that_never_request_a_phase(self):
+        command = self.root / 'nextpnr-mistral'
+        command.write_text('#!/bin/sh\nexit 0\n')
+        command.chmod(0o755)
+        completed = self.run_tool(GPU_RUN, ['--phase-lease', '--', str(command), '--router', 'gpu'])
+        self.assertEqual(completed.returncode, 70, completed.stderr)
+        self.assertIn('never requested a GPU phase', completed.stderr)
+        self.assertEqual(self.held_by(), {})
+
+    def test_phase_lease_usage_errors(self):
+        for args, env in ((['--phase-lease', '--no-wait', '--', '/bin/true'], None),
+                          (['--phase-lease', '--timeout', '1', '--', '/bin/true'], None),
+                          (['--phase-lease', '--gpus', '2', '--', '/bin/true'], None),
+                          (['--phase-lease', '--', '/bin/true'], self.env(GPU_LEASE_IDS='0,gpu-b'))):
+            with self.subTest(args=args):
+                result = self.run_tool(GPU_RUN, args, env=env)
+                self.assertEqual(result.returncode, 2, result.stderr)
+        help_text = self.run_tool(GPU_RUN, ['--help'])
+        self.assertIn('GPU_LEASE_FD', help_text.stdout)
+        self.assertIn('ERR already-held', help_text.stdout)
 
 
 if __name__ == '__main__':
