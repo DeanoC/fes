@@ -1480,8 +1480,7 @@ lease through the same cleanup path; it never aborts FPGA programming halfway
 through a transition. Clients retry a busy takeover using the same request ID.
 Old lease credentials cannot stop or send input to the replacement owner.
 This protects agent API operations; direct root SSH or runtime socket access
-remains outside agent admission. Supported FES file replacement uses the
-maintenance reservation below rather than that escape.
+remains outside agent admission.
 
 ### Target maintenance ownership
 
@@ -1513,35 +1512,14 @@ idle before marking the same reservation ready. End rechecks idle before opening
 ordinary admission. A completed private receipt supports lost-response
 reconciliation; stale credentials cannot end a newer reservation.
 
-Managed images reject file-overlay claim/swap/restore plans before mutation.
 Diagnostics use private hosts and immutable software bundles; returning to a
-prior bundle requires explicit generation-checked activation. Configuration-only
-temporary overlays are not supported by this lifecycle.
+prior bundle requires explicit generation-checked activation.
 
-Marker transitions and the FES SSH file executor share
-`/run/fogcast/kit-maintenance.lock`. The executor validates ready operation,
-generation, boot and its planned manifest digest before stopping services. The
-replacement agent loads its marker asynchronously while ordinary admission stays
-revoking, allowing process health to respond without claiming the kit. Neither
-workstation task markers nor the private credential journal grant target access.
-The agent's `--print-maintenance-contract` flag exits without initialization and
-prints `fes-kit-maintenance-v1`, which the executor requires of replacement or
-restored agents. Initial adoption uses the appliance image workflow; missing
-maintenance support has no unguarded compatibility path.
-
-On unmanaged maintenance-aware images, FES `scripts/kit_maintenance.py` handles
-owned start/resume/end and private journal recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
-completes. When `agent.toml` omits `target_id`, that client binds the saved
-`/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
-id from authenticated health. A configured or saved id must match health.
-Finish of a config swap records one successor target id after the original boot
-and reservation still match, then ends that reservation. A later finish accepts
-that recorded successor only on the same boot. A different boot, a different
-reservation, a health id that disagrees with the new config or saved file, or
-a further id change keeps the journal. This is temporary-overlay
-tooling, not yet a persistent userspace release manager. See FES
-[modular updates](../../../docs/modular-updates.md) for remaining durable-package
-and userspace-release work.
+Marker transitions take `/run/fogcast/kit-maintenance.lock`. The replacement
+agent loads its marker asynchronously while ordinary admission stays revoking,
+allowing process health to respond without claiming the kit. The agent's
+`--print-maintenance-contract` flag exits without initialization and prints
+`fes-kit-maintenance-v1`.
 
 ## Host kit lease
 

@@ -250,8 +250,8 @@ activate the designated baseline bundle against the current generation, as
 booted image and leaves the successful selection installed. Verify the active
 bundle before logging the kit restored. A core-only run that does not
 change the bundle does not install one. Do not cancel another owner's pending activation to
-clean up. Temporary configuration-only overlays are not supported on managed
-images. [Kit sharing](kit-sharing.md) describes execution ownership;
+clean up. Kits take no file or configuration overlays.
+[Kit sharing](kit-sharing.md) describes execution ownership;
 [appliance releases](appliance-releases.md) cover OS changes and boot identity.
 Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit
