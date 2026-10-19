@@ -164,7 +164,7 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	// A directory-fsync failure happens AFTER rename made confirmed state
 	// visible. The reader must establish durability itself before disarming.
 	s.syncDirectory = func(string) error { return unix.EIO }
-	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) {
+	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) || errors.Is(err, ErrBootTicketRewrite) {
 		t.Fatalf("missing injected fsync failure: %v", err)
 	}
 	st, err := s.Status()
@@ -183,6 +183,69 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	}
 	if err := s.Confirm("trial-boot", m.ImageSHA256); err != nil {
 		t.Fatalf("durable retry failed: %v", err)
+	}
+}
+
+func TestBootTicketRewriteFailurePreservesDurableConfirmation(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":true}\n", "boot-a", m.ImageSHA256)
+	ticketPath := filepath.Join(s.root, "boot.json")
+	if err := os.WriteFile(ticketPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// The state temp file syncs once. Later boot.json temp files fail the way
+	// a full FAT fails CreateTemp's successor: the rename never happens.
+	tempWrites := 0
+	s.syncFile = func(f *os.File) error {
+		if strings.Contains(f.Name(), ".write-") {
+			tempWrites++
+			if tempWrites > 1 {
+				return unix.ENOSPC
+			}
+		}
+		return f.Sync()
+	}
+	err := s.Confirm("boot-a", m.ImageSHA256)
+	if !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("confirm error = %v", err)
+	}
+	raw, err := os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("ticket changed: %q %v", raw, err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != m.ImageSHA256 || st.ConfirmedImage != m.ImageSHA256 || st.TrialImage != "" || st.ConfirmedBootID != "boot-a" {
+		t.Fatalf("status %+v %v", st, err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-a", m.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog boundary = %v %v", ok, err)
+	}
+	if err = s.Confirm("boot-a", m.ImageSHA256); !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("second rewrite error = %v", err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("second rewrite changed ticket: %q %v", raw, err)
+	}
+	s.syncFile = (*os.File).Sync
+	if err = s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticket bootTicket
+	if err = json.Unmarshal(raw, &ticket); err != nil || ticket.Trial || ticket.BootID != "boot-a" || ticket.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("repaired ticket = %s %v", raw, err)
 	}
 }
 

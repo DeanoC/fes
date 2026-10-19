@@ -1350,6 +1350,9 @@ the HTTP response and requests reboot. During an unconfirmed trial these normal
 operations are blocked; status, Stop, lease management and confirmation remain
 available. A failed response/reboot leaves pending visible and releases admission
 on the current known-good image. Confirmation requires actual native idle.
+Once the release record is durable, admission opens even when the following
+`boot.json` rewrite fails. The agent logs that failure and retries the rewrite
+once on a later idle status read.
 
 The host uploads once and activates once. It resolves response loss by reading
 authenticated boot/image identity, rediscovers a changed address using the existing
@@ -2125,11 +2128,14 @@ one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
 run factory software, then reconcile persistent storage and queued work after
-confirmation. Confirmation rewrites that boot's ticket to `trial:false`
-without changing its boot id or image, so bundle operations are not refused
-until another reboot. The storage gate still accepts a leftover `trial:true`
-ticket once the durable store has confirmed that exact boot and image, which
-covers an interrupted ticket write. A base-image update blocks activation
+confirmation. Confirmation records the durable release, then rewrites that
+boot's ticket to `trial:false` without changing its boot id or image, so
+bundle operations are not refused until another reboot. When the rewrite
+fails, the durable record still confirms the release and admission opens.
+The storage gate accepts the leftover `trial:true` ticket for that boot and
+image. The agent logs the failure and retries the rewrite once on a later
+idle status read. Further status reads leave the ticket in place. The next
+agent start tries the rewrite again. A base-image update blocks activation
 and software installation.
 
 `WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`

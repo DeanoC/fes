@@ -34,6 +34,12 @@ var ErrBusy = errors.New("release trial or pending activation already exists")
 // the upload long enough to verify it.
 var ErrInsufficientStorage = errors.New("insufficient release storage")
 
+// ErrBootTicketRewrite means this boot's release confirmation is already
+// durable and the matching boot.json trial flag could not be cleared. The
+// leftover trial ticket stays acceptable for this boot and image. Callers
+// retry the rewrite; the confirmation itself has succeeded.
+var ErrBootTicketRewrite = errors.New("boot ticket rewrite failed after durable confirmation")
+
 var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
 
 const releaseHeadroom = 1 << 20
@@ -999,6 +1005,16 @@ func (s *Store) clearBootTrial(bootID, imageSHA string) error {
 	return atomicWriteWithSync(filepath.Join(s.root, "boot.json"), append(body, '\n'), s.syncFile, s.syncDirectory)
 }
 
+// clearConfirmedBootTicket clears a durable confirmation's trial ticket.
+// It is only called after the release record and its directory are synced.
+// A rewrite error is ErrBootTicketRewrite and does not undo that record.
+func (s *Store) clearConfirmedBootTicket(bootID, imageSHA string) error {
+	if err := s.clearBootTrial(bootID, imageSHA); err != nil {
+		return fmt.Errorf("%w: %w", ErrBootTicketRewrite, err)
+	}
+	return nil
+}
+
 func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error) {
 	dir := filepath.Join(s.root, "images")
 	entries, err := os.ReadDir(dir)
@@ -1283,8 +1299,9 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		}
 		// The release is already durable. Still clear a trial ticket left by an
 		// interrupted confirm or an older writer, so this boot does not keep
-		// reporting trial until the next reboot.
-		return s.clearBootTrial(bootID, imageSHA)
+		// reporting trial until the next reboot. A rewrite failure leaves the
+		// durable record in place.
+		return s.clearConfirmedBootTicket(bootID, imageSHA)
 	}
 	if st.TrialImage != imageSHA {
 		return errors.New("confirmation image is not this boot's trial")
@@ -1302,5 +1319,5 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	if e = s.writeState(st); e != nil {
 		return e
 	}
-	return s.clearBootTrial(bootID, imageSHA)
+	return s.clearConfirmedBootTicket(bootID, imageSHA)
 }

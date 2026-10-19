@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -307,5 +309,226 @@ func TestRestoredConfirmationWaitsForRawNativeIdle(t *testing.T) {
 	}
 	if got, e := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath); e != nil || got.Trial || got.ImageSHA256 != n.ImageSHA256 || got.BootID != "boot-a" {
 		t.Fatalf("reconciled ticket = %+v %v", got, e)
+	}
+}
+
+func captureTicketLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &buf
+}
+
+func ticketRewriteLogs(buf *bytes.Buffer) int {
+	return strings.Count(buf.String(), `msg="appliance boot ticket rewrite failed after durable confirmation"`)
+}
+
+func blockBootJSON(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, "boot.json")
+	if err := os.RemoveAll(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requireAdmissionOpen(t *testing.T, svc *applianceupdate.Service, c *agent.Coordinator) {
+	t.Helper()
+	if !c.Health("").Ready {
+		t.Fatal("admission stayed blocked")
+	}
+	ctx, done, err := svc.BeginOperation(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Err() != nil {
+		done()
+		t.Fatal(ctx.Err())
+	}
+	done()
+}
+
+func TestBootTicketRewriteFailureOpensAdmissionAndRetriesOnce(t *testing.T) {
+	s, _, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	if err := os.WriteFile(idPath, []byte("boot-a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	if c.Health("").Ready {
+		t.Fatal("unconfirmed trial admitted launch")
+	}
+	blockBootJSON(t, root)
+	logs := captureTicketLogs(t)
+	if err := svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("confirm log count = %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	requireAdmissionOpen(t, svc, c)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || !status.RawIdleReady || status.Good != n.ImageSHA256 {
+		t.Fatalf("status after failed ticket rewrite: %+v %v", status, err)
+	}
+	if ticketRewriteLogs(logs) != 2 {
+		t.Fatalf("retry log count = %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	requireAdmissionOpen(t, svc, c)
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if ticketRewriteLogs(logs) != 2 {
+		t.Fatalf("status repeated the failing rewrite: %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	// The one retry is spent. A ticket that becomes writable stays until an
+	// explicit confirm, which still repairs it.
+	if err = os.RemoveAll(filepath.Join(root, "boot.json")); err != nil {
+		t.Fatal(err)
+	}
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("reconciliation rewrote the ticket after its one retry: %+v %v", got, err)
+	}
+	if err = svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	got, err = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("explicit confirm left the ticket: %+v %v", got, err)
+	}
+	requireAdmissionOpen(t, svc, c)
+}
+
+func TestBootTicketRewriteRetriesWhenTheTicketBecomesWritable(t *testing.T) {
+	s, _, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	if err := os.WriteFile(idPath, []byte("boot-a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	blockBootJSON(t, root)
+	logs := captureTicketLogs(t)
+	if err := svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	requireAdmissionOpen(t, svc, c)
+	if err := os.RemoveAll(filepath.Join(root, "boot.json")); err != nil {
+		t.Fatal(err)
+	}
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || !c.Health("").Ready {
+		t.Fatalf("retry status: %+v %v ready=%v", status, err, c.Health("").Ready)
+	}
+	got, err := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("retried ticket = %+v %v", got, err)
+	}
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("successful retry logged a failure: %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, err = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || got.Trial {
+		t.Fatalf("later status restored trial: %+v %v", got, err)
+	}
+}
+
+func TestStartupReconcileOpensAdmissionWhenBootTicketRewriteFails(t *testing.T) {
+	s, _, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	blockBootJSON(t, root)
+	if err := s.Confirm("boot-a", n.ImageSHA256); !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		t.Fatalf("store confirm = %v", err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-a", n.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("durable confirm = %v %v", ok, err)
+	}
+	logs := captureTicketLogs(t)
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	if ticketRewriteLogs(logs) != 1 {
+		t.Fatalf("startup log count = %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	requireAdmissionOpen(t, svc, c)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial {
+		t.Fatalf("startup status: %+v %v", status, err)
+	}
+	if ticketRewriteLogs(logs) != 2 {
+		t.Fatalf("startup retry log count = %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if ticketRewriteLogs(logs) != 2 {
+		t.Fatalf("startup reconciliation looped: %d\n%s", ticketRewriteLogs(logs), logs.String())
+	}
+	requireAdmissionOpen(t, svc, c)
+}
+
+func TestConfirmFailureBeforeDurableRecordKeepsAdmissionBlocked(t *testing.T) {
+	s, _, n, c := fixture(t)
+	if err := s.Activate(n.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	image, err := s.ImagePath(n.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(image); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureTicketLogs(t)
+	if err = svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); err == nil || errors.Is(err, appliance.ErrBootTicketRewrite) {
+		t.Fatalf("missing image confirm = %v", err)
+	}
+	if c.Health("").Ready {
+		t.Fatal("admission opened without a durable confirm")
+	}
+	if _, _, err = svc.BeginOperation(context.Background()); !errors.Is(err, applianceupdate.ErrBlocked) {
+		t.Fatalf("begin = %v", err)
+	}
+	if ticketRewriteLogs(logs) != 0 {
+		t.Fatalf("pre-durable failure logged a ticket rewrite: %s", logs.String())
+	}
+	if _, err = os.Stat(filepath.Join(root, "boot.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("pre-durable confirm created a ticket: %v", err)
 	}
 }

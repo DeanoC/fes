@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"sync"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -37,8 +38,12 @@ type Service struct {
 	mu          sync.Mutex
 	blocked     bool
 	trial       bool
-	operations  map[*operation]struct{}
-	drained     chan struct{}
+	// ticketRepair requests one later rewrite of a boot.json that stayed
+	// trial:true after a durable confirmation. It is cleared after that
+	// attempt so a full volume cannot make every status read rewrite it.
+	ticketRepair bool
+	operations   map[*operation]struct{}
+	drained      chan struct{}
 }
 type operation struct{ cancel context.CancelFunc }
 
@@ -70,6 +75,8 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // A confirmation write can rename successfully and then report a sync failure.
 // Reconcile only after the store proves persistence for this exact trial; merely
 // seeing matching fields must not release the admission or watchdog gate.
+// A boot.json rewrite failure after that proof opens admission and is retried
+// once on a later idle status read.
 func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error {
 	if !s.boot.Trial || !rawIdle || !s.mutation.TryLock() {
 		return nil
@@ -77,9 +84,13 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	defer s.mutation.Unlock()
 	s.mu.Lock()
 	trial := s.trial
+	repair := s.ticketRepair
 	s.mu.Unlock()
-	if !trial {
+	if !trial && !repair {
 		return nil
+	}
+	if !trial {
+		return s.retryBootTicket(ctx)
 	}
 	confirmed, err := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
 	if err != nil || !confirmed {
@@ -88,17 +99,58 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	// ConfirmContext is idempotent once this boot is durable. It clears
-	// trial on the matching boot ticket without waiting for another reboot.
-	if err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256); err != nil {
-		return err
+	return s.finishConfirmation(ctx)
+}
+
+// finishConfirmation opens admission once ConfirmContext has made this trial
+// durable. ErrBootTicketRewrite is that durable result with a failed ticket
+// rewrite: it is logged, admission opens, and the rewrite is retried once.
+func (s *Service) finishConfirmation(ctx context.Context) error {
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	repair := false
+	if err != nil {
+		if !errors.Is(err, appliance.ErrBootTicketRewrite) {
+			return err
+		}
+		confirmed, confirmErr := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		if !confirmed {
+			return err
+		}
+		repair = true
 	}
 	s.mu.Lock()
 	s.trial = false
 	s.blocked = false
+	s.ticketRepair = repair
 	s.coordinator.SetUpdateBlocked(false)
 	s.mu.Unlock()
+	if repair {
+		s.logBootTicket(err)
+	}
 	return nil
+}
+
+// retryBootTicket makes the single follow-up rewrite. The attempt is consumed
+// whether or not the write succeeds, so reconciliation cannot loop on it.
+func (s *Service) retryBootTicket(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	s.mu.Lock()
+	s.ticketRepair = false
+	s.mu.Unlock()
+	if err != nil {
+		s.logBootTicket(err)
+	}
+	return nil
+}
+
+func (s *Service) logBootTicket(err error) {
+	slog.Warn("appliance boot ticket rewrite failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
 }
 
 // BeginOperation fences HTTP launch, development, input and cast operations.
@@ -261,13 +313,5 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	if !s.coordinator.RawIdleReady(ctx) {
 		return errors.New("native runtime is not idle")
 	}
-	if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	s.trial = false
-	s.blocked = false
-	s.coordinator.SetUpdateBlocked(false)
-	s.mu.Unlock()
-	return nil
+	return s.finishConfirmation(ctx)
 }
