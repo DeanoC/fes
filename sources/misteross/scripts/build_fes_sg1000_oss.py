@@ -64,11 +64,6 @@ SG1000_TOOLCHAIN_CONFIGURATION = (
 OUTPUT_RELATIVE = Path("build/fes-sg1000-oss")
 SG1000_TOOLCHAIN_LOCK = "cores/fes-sg1000/toolchain.lock"
 SG1000_TOOLCHAIN_ROOT = "build/toolchain/fes-sg1000"
-SG1000_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-}
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",

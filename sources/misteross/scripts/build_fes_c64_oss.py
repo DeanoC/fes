@@ -57,11 +57,6 @@ C64_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 C64_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={C64_GPU_ROUTER}; hip-architectures={C64_GPU_ARCHITECTURES}"
 )
-C64_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-}
 # First passing route wins; the order is part of the build identity.
 # The 0c5ed400 seal used this order. The shared-pin move does not reorder it.
 PLACER_SEEDS = tuple(PNR["seeds"])

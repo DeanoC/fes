@@ -37,7 +37,6 @@ from scripts.build_fes_sms_oss import (
     SMS_GPU_BACKEND,
     SMS_TOOLCHAIN_LOCK,
     SMS_TOOLCHAIN_ROOT,
-    SMS_TOOL_COMMITS,
     build_commands,
     create_build_record,
 )
@@ -178,16 +177,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(SMS_TOOLCHAIN_LOCK, "cores/fes-sms/toolchain.lock")
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
-        self.assertEqual(SMS_TOOL_COMMITS["yosys"], "3a5accbd78c526ab7bae32640044a2e062a3cfc9")
-        self.assertEqual(SMS_TOOL_COMMITS["mistral"], "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f")
-        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
+        from scripts import pnr_recipe
         self.assertNotEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
-        self.assertEqual((ROOT / SMS_TOOLCHAIN_LOCK).read_bytes(), (ROOT / "toolchain.lock").read_bytes())
-        self.assertEqual(pins["yosys"].commit, SMS_TOOL_COMMITS["yosys"])
-        self.assertEqual(pins["mistral"].commit, SMS_TOOL_COMMITS["mistral"])
-        self.assertEqual(pins["nextpnr"].commit, SMS_TOOL_COMMITS["nextpnr"])
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.sms"), ROOT / SMS_TOOLCHAIN_LOCK)
+        self.assertEqual(pins["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.sms"))
         self.assertEqual(
             [line.strip() for line in
              (ROOT / "cores/fes-sms/clocks-oss.sdc").read_text().splitlines()

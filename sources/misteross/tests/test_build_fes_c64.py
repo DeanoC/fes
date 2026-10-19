@@ -48,11 +48,11 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), f'python3 scripts/build_fes_c64_oss.py --root "{ROOT}"')
 
-    def test_lock_pins_the_expected_tools(self) -> None:
+    def test_recipe_lock_pins_the_classified_nextpnr(self) -> None:
+        from scripts import pnr_recipe
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.c64"), ROOT / producer.C64_TOOLCHAIN_LOCK)
         lock = load_lock(ROOT / producer.C64_TOOLCHAIN_LOCK)
-        commits = {name: pin.commit for name, pin in lock.items()}
-        for name, commit in producer.C64_TOOL_COMMITS.items():
-            self.assertEqual(commits[name], commit)
+        self.assertEqual(lock["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.c64"))
 
     def test_cuda_lane_uses_pci_bus_order(self) -> None:
         self.assertIsNone(producer.execution_extra("HIP"))

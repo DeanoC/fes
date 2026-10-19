@@ -21,7 +21,6 @@ from scripts.export_core_package import build_identity, encode_build_record, exp
 from scripts.fes_build_common import (
     AuthenticatedTool,
     BuildError,
-    EXPECTED_TOOL_COMMITS,
     FES_GPU_ARCHITECTURES,
     FES_GPU_BACKEND,
     FES_GPU_ROUTER,

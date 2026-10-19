@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -177,6 +178,44 @@ class FesHipLaneTests(unittest.TestCase):
                 )
             self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
             self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+
+    def test_one_shared_cache_gives_each_core_its_own_lock_slot(self) -> None:
+        # The image build authenticates every selected core against one cache
+        # root. A core whose lock moves to another nextpnr gets that lock's
+        # slot; a core on the old lock keeps the old slot.
+        from scripts import build_fes_catch, pnr_recipe
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "misteross"
+            for relative in ("scripts/bootstrap.sh", "scripts/lockfile.py", "scripts/toolchain_cache.py",
+                             build_fes_pong.TOOLCHAIN_LOCK, build_fes_catch.TOOLCHAIN_LOCK):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_bytes((ROOT / relative).read_bytes())
+            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_552BA246),
+                                  (build_fes_catch.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_9128800F)):
+                text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
+                                      rf'\g<1>{pin}"', (root / relative).read_text())
+                self.assertEqual(count, 1)
+                (root / relative).write_text(text)
+            pong_request, pong_manifest = publish_shared_toolchain(
+                base, lock_path=root / build_fes_pong.TOOLCHAIN_LOCK, gpu_router=HIP)
+            catch_request, catch_manifest = publish_shared_toolchain(
+                base, lock_path=root / build_fes_catch.TOOLCHAIN_LOCK, gpu_router=HIP)
+            self.assertEqual(pong_request.cache_root, catch_request.cache_root)
+            self.assertNotEqual(pong_manifest.slot, catch_manifest.slot)
+            with patch.dict(os.environ, {"PATH": str(base)}, clear=True), patch.object(
+                toolchain_cache, "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache, "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                pong = build_fes_pong._authenticate_tools(root, cache_root=pong_request.cache_root)
+                catch = build_fes_catch._authenticate_tools(root, cache_root=catch_request.cache_root)
+            self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
+            self.assertEqual(catch["nextpnr-mistral"].path, catch_manifest.install / "bin/nextpnr-mistral")
+            self.assertIn(f"commit={pnr_recipe.NEXTPNR_552BA246};", pong["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={pnr_recipe.NEXTPNR_9128800F};", catch["nextpnr-mistral"].identity)
 
     def test_ambient_cache_root_does_not_select_shared_lane(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -529,10 +568,11 @@ class CudaLaneConfigurationTests(unittest.TestCase):
         compiler = {"commands": {"cc": {"path": "/test/cc"}}}
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _manifest = publish_shared_toolchain(
-                base, gpu_router="CUDA", cuda_architectures=selected
-            )
             spectrum = importlib.import_module("scripts.build_fes_spectrum_oss")
+            request, _manifest = publish_shared_toolchain(
+                base, lock_path=ROOT / spectrum.SPECTRUM_TOOLCHAIN_LOCK,
+                gpu_router="CUDA", cuda_architectures=selected
+            )
             with patch.dict(
                 os.environ,
                 {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},
@@ -556,7 +596,8 @@ class CudaLaneConfigurationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            publish_shared_toolchain(base, gpu_router="CUDA", cuda_architectures="86")
+            publish_shared_toolchain(base, lock_path=ROOT / spectrum.SPECTRUM_TOOLCHAIN_LOCK,
+                                     gpu_router="CUDA", cuda_architectures="86")
             with patch.dict(
                 os.environ,
                 {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},
