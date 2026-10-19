@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -19,7 +20,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fes_build_common import (
     FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION,
-    _authenticate_tools, _require_gpu_backend,
+    _authenticate_tools, _require_gpu_backend, _run_command,
     cuda_toolchain_configuration, gpu_backend_for_router,
 )
 from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor
@@ -49,18 +50,6 @@ def authenticate_tools(root, cache_root, gpu_router='HIP'):
         expected_configuration={'nextpnr': configuration},
         gpu_router=gpu_router, hip_architectures=architectures,
         cache_root=cache_root)
-
-
-def route_environment():
-    env = dict(os.environ)
-    leased = env.get('FES_GPU_IDS')
-    # gpu-run exports both masks. ROCr first restricts the physical list;
-    # HIP then indexes that restricted list, so a second mask of "1" hides
-    # leased physical GPU 1. Retain the exact lease restriction at ROCr and
-    # remove only a redundant HIP mask, never an independent restriction.
-    if leased and env.get('ROCR_VISIBLE_DEVICES') == leased and env.get('HIP_VISIBLE_DEVICES') == leased:
-        del env['HIP_VISIBLE_DEVICES']
-    return env
 
 
 def main():
@@ -97,6 +86,7 @@ def main():
                'sources': sources, 'tools': {k: v.identity for k, v in tools.items()},
                'mda': args.mda, 'scanlines': args.scanlines, 'seed': 1,
                'gpu_router': args.gpu_router, 'route_timeout_seconds': args.route_timeout,
+               'route_timeout_basis': 'nextpnr work time; GPU lease waits excluded by the common runner',
                'placement': {'timing_weight': PLACER_TIMING_WEIGHT,
                              'criticality_exponent': PLACER_CRITICALITY_EXPONENT},
                'limits': ['no SDRAM pad setup/hold or retention qualification',
@@ -132,7 +122,7 @@ def main():
                        '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
                        '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
                        '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths', '64']
-            env = route_environment()
+            env = dict(os.environ)
             env['NEXTPNR_REQUIRE_GPU'] = '1'
             receipt['route_command'] = command
             receipt['gpu_visibility'] = {key: env.get(key) for key in
@@ -141,12 +131,17 @@ def main():
             started = time.monotonic()
             try:
                 with (output / 'nextpnr.log').open('w') as log:
-                    subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
-                                   check=True, timeout=args.route_timeout, env=env)
+                    _run_command(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
+                                 check=True, timeout=args.route_timeout, env=env,
+                                 gpu_label='pcxt-' + ('mda' if args.mda else 'cga') +
+                                           '-' + ('scanlines' if args.scanlines else 'direct'))
             finally:
                 receipt['route_elapsed_seconds'] = time.monotonic() - started
 
-            receipt['gpu_backend'] = _require_gpu_backend((output / 'nextpnr.log').read_text(), gpu_backend)
+            route_text = (output / 'nextpnr.log').read_text()
+            receipt['gpu_backend'] = _require_gpu_backend(route_text, gpu_backend)
+            receipt['gpu_backend_devices'] = sorted(set(re.findall(
+                r'\bbackend ((?:hip|cuda):[^\n]*?) ready\b', route_text, re.IGNORECASE)))
             receipt['status'] = 'routed-diagnostic-unqualified'
             receipt['timing'] = json.loads((output / 'timing.json').read_text())
             receipt['rbf_sha256'] = hashlib.sha256((output / 'diagnostic.rbf').read_bytes()).hexdigest()

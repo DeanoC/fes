@@ -288,8 +288,8 @@ power-on diagnostic has no runtime ABI, host session control or audio pins.
 make toolchain-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
 python3 scripts/sim_fes_pcxt.py --suite system
 python3 scripts/sim_fes_pcxt.py --suite system-mda
-gpu-run --owner pcxt-agent --label pcxt-cga-direct -- make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
-gpu-run --owner pcxt-agent --label pcxt-mda-scanlines -- make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
 # Optional frontend/resource probe; no route:
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 ```
@@ -306,11 +306,11 @@ assembled firmware, microcode, synthesis/netlist/resource counts and a
 `diagnostic.json` source/tool receipt. The normal command attempts one seed-1
 GPU route with a bounded 1800-second timeout and retains failures. Placement
 uses fixed timing weight 2000 and criticality exponent 5, as in the existing
-Coleco socket lane; there is no placement-parameter or seed search. For `gpu-run`
-leases, the producer retains the ROCr physical-device mask and removes a matching
-redundant HIP mask, so leased physical GPU 1 remains visible as logical GPU 0.
-Independent visibility restrictions are preserved. The receipt records the
-route command, timeout, placement settings and effective GPU visibility. A completed
+Coleco socket lane; there is no placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
+synthesis outside the lease. Invoke the producer directly; an outer `gpu-run`
+is rejected. GPU queue waits do not consume the 1800-second route work budget.
+The receipt records the route command, timeout, wall duration, initial visibility
+restrictions and the backend/device identities reported by nextpnr. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
 `diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
 clock-domain pair so remaining failures can be traced without rerouting.
