@@ -125,6 +125,25 @@ class CpuSelectionTest(unittest.TestCase):
                 cwd=work, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_prefetch_empty_for_every_pointer_value(self):
+        source = (VENDOR / 'mcl86_biu_max.sv').read_text()
+        actual = re.search(r'    assign pfq_empty = .*?;', source, re.S)[0]
+        fixture = r"""
+          module proof(input [15:0] pfq_addr_in, pfq_addr_out, output ok);
+            wire pfq_empty;
+            wire [3:0] pfq_used = pfq_addr_in[3:0] - pfq_addr_out[3:0];
+        """ + actual + r"""
+            assign ok = pfq_empty == (pfq_used == 4'd0);
+          endmodule
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'proof.sv').write_text(fixture)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv proof.sv; prep -top proof -flatten; sat -verify -prove ok 1'],
+                cwd=work, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_rom_contents_and_two_phase_registered_read_alignment(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)

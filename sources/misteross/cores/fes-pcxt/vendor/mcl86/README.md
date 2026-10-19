@@ -70,6 +70,9 @@ EU timing table also assumes 100 MHz. Changing that frequency requires a new
 timing qualification, not just changing the pin-clock divider.
 
 The bus unit has a four-byte 8088 prefetch queue and serializes word accesses.
+Its empty flag compares the low four pointer bits directly, equivalent to
+testing their four-bit difference for zero. An all-input SAT check proves
+that replacement; the occupancy subtraction remains for the other flags.
 FES connects its multiplexed bus through `pcxt_cpu_bus.sv`, holds READY low until
 the byte transaction finishes, and preserves read data through the following
 passive status phase. LOCK is propagated. INTA transactions are distinct from
