@@ -1553,9 +1553,17 @@ do not revoke the live session. A failed explicit Stop of that surviving play
 still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
 the retain request and keeps the grant while the shell stays up. Kit Select+Start
 is the library session's completed exit on that same route: `retain_lease` false
-with the captured play identity, or an empty body when that identity is absent.
-Idle cleanup then releases the owned grant and renewal stops. A delayed chord
-keeps that identity and cannot stop a replacement play. Unpaired sofa Soft-stop
+with the captured play. A package play sends that package generation. A play
+without a package sends the session id, launch flight, game, and target; a
+missing flight is not posted as an empty body, because an unbound stop would
+release whatever play is foreground at admission. Idle cleanup releases that
+play's grant. A bound stop releases only its target, and a host-only stop
+releases no kit grant, so a grant retained by an earlier Soft-stop of another
+target stays tracked until shell exit or Release kit. A Select+Start queued
+while input is in flight keeps the play captured at chord time and does not
+stop a replacement observed before the reply. A release that fails after the
+play is already idle retries the idle-grant release; a failure that leaves the
+original play running retries the bound stop. Unpaired sofa Soft-stop
 still retains. Guide settings
 includes **Release kit**. Confirm posts that same idle release and leaves the
 menu open, so the host stops renewal and does not claim the kit again while
@@ -2643,8 +2651,12 @@ through `ui/localfeed` while a kit-local core it launched is running. That feed 
 session's input.ready, launcher.json reachability, or which host holds the
 lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
 for this host's active or failed session: `retain_lease` false with the captured
-play identity when that identity is known, otherwise an empty body. Idle cleanup
-releases the owned kit grant and renewal stops. Rooms B/Back stays the retain
+play. Package plays send that generation. Package-free plays send the session
+id, launch flight, game, and target, and are not posted unbound. A queued chord
+keeps the play from chord time. Idle cleanup releases that play's grant and
+renewal of that grant stops; grants retained on other targets stay until shell
+exit or Release kit. A release that fails after idle retries the idle-grant
+release rather than the captured play. Rooms B/Back stays the retain
 request. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, with the exact launch generation. A
 foreign-owned core accepts local play controls, but this launcher cannot stop

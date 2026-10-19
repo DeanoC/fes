@@ -476,10 +476,14 @@ make tenfoot-smoke
   keeps the kit lease (rooms Soft-stop: East/B, Esc/Backspace, or `s`).
   Kit Select+Start held for one second is the library session's completed
   exit, not that Soft-stop. It posts `retain_lease` false with the captured
-  play identity, or an empty body when that identity is absent, so idle
-  cleanup releases the owned grant and renewal stops. A delayed chord cannot
-  stop a replacement play. A failed release stays visible for Release kit,
-  shell exit, and a retry that still releases. Offered while the session is
+  play: package generation when the play has one, otherwise the session id,
+  launch flight, game, and target. A missing flight is not posted unbound.
+  A chord queued during input keeps that captured play and does not stop a
+  replacement. Idle cleanup releases that play's grant. A grant retained on
+  another target, and a host-only stop that releases no kit grant, stays
+  tracked until shell exit or Release kit. A release that fails after the
+  play is idle retries the idle-grant release; a failure that leaves the
+  play running retries the bound stop. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a

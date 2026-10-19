@@ -137,7 +137,8 @@ func TestSelectStartReleasesLibraryLeaseAndBackRetains(t *testing.T) {
 	})
 }
 
-func TestSelectStartWithoutPackageIdentityPostsEmptyRelease(t *testing.T) {
+func TestSelectStartWithoutPackageIdentityBindsFlight(t *testing.T) {
+	const flight = "11111111-1111-4111-8111-111111111111"
 	var body string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/session/stop" {
@@ -149,13 +150,57 @@ func TestSelectStartWithoutPackageIdentityPostsEmptyRelease(t *testing.T) {
 		_, _ = io.WriteString(w, `{"state":"idle"}`)
 	}))
 	t.Cleanup(server.Close)
-	session := hostclient.SessionResult{ID: "host", State: "active", GameID: "nes-pong"}
+	session := hostclient.SessionResult{
+		ID: "host-session", State: "active", GameID: "nes-pong", Target: "kit", TargetID: "kit-id", FlightID: flight,
+	}
 	app := kitLeaseApp(t, server, session)
 	t.Cleanup(app.Stop)
 	holdSelectStart(app, time.Now())
-	waitFor(t, app, "unbound chord idle", func(s Snapshot) bool { return s.Session.State == "idle" })
-	if body != "" {
-		t.Fatalf("stop body = %q, want empty explicit release", body)
+	waitFor(t, app, "bound package-free chord idle", func(s Snapshot) bool { return s.Session.State == "idle" })
+	var decoded struct {
+		Retain   bool `json:"retain_lease"`
+		Expected struct {
+			ID       string `json:"id"`
+			FlightID string `json:"flight_id"`
+			GameID   string `json:"game_id"`
+			Target   string `json:"target"`
+			Package  string `json:"package_id"`
+		} `json:"expected_session"`
+	}
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("stop body = %q: %v", body, err)
+	}
+	if decoded.Retain || decoded.Expected.ID != session.ID || decoded.Expected.FlightID != flight || decoded.Expected.GameID != session.GameID || decoded.Expected.Target != session.Target || decoded.Expected.Package != "" {
+		t.Fatalf("package-free release = %+v, want flight binding and no package", decoded)
+	}
+}
+
+func TestSelectStartWithoutFlightDoesNotReleaseReplacement(t *testing.T) {
+	var posts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/stop" {
+			posts++
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	session := hostclient.SessionResult{ID: "host-session", State: "active", GameID: "nes-pong", Target: "kit"}
+	app := kitLeaseApp(t, server, session)
+	t.Cleanup(app.Stop)
+	holdSelectStart(app, time.Now())
+	waitFor(t, app, "unbound chord rejected", func(s Snapshot) bool {
+		return strings.Contains(s.Status, "changed") && s.Session.State == "active"
+	})
+	if posts != 0 {
+		t.Fatalf("posts = %d, want no unbound stop", posts)
+	}
+	app.mu.Lock()
+	retry := app.retryStopLock
+	app.mu.Unlock()
+	if retry {
+		t.Fatal("missing flight locked a retry that would stop a replacement")
 	}
 }
 
@@ -314,4 +359,183 @@ func TestQueuedSelectStartKeepsTheRelease(t *testing.T) {
 	}
 	<-done
 	assertStopReleasesCapturedPlay(t, body, prior)
+}
+
+func TestExplicitStopKeepsAnotherRetainedLease(t *testing.T) {
+	kitA := kitDisplaySession()
+	kitA.Target = "kit-a"
+	kitB := kitDisplaySession()
+	kitB.Target = "kit-b"
+	kitB.GameID = "snes-other"
+	pkg := *kitB.CorePackage
+	pkg.Generation = 10
+	kitB.CorePackage = &pkg
+	hostOnly := hostclient.SessionResult{
+		ID: "host-session", State: "active", GameID: "host-game", Execution: hostclient.ExecutionHostOnly,
+		FlightID: "22222222-2222-4222-8222-222222222222",
+	}
+	var mu sync.Mutex
+	var bodies []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/stop" {
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, string(raw))
+		mu.Unlock()
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	assertShellStillReleases := func(t *testing.T, app *App) {
+		t.Helper()
+		app.mu.Lock()
+		held := app.retainedIdleLease
+		app.mu.Unlock()
+		if !held {
+			t.Fatal("explicit stop cleared the earlier retained grant")
+		}
+		app.Stop()
+		mu.Lock()
+		got := append([]string(nil), bodies...)
+		bodies = nil
+		mu.Unlock()
+		if len(got) != 3 || got[2] != `{"release_idle":true}` {
+			t.Fatalf("stops = %#v, want soft-stop, explicit stop, then shell release of the earlier grant", got)
+		}
+	}
+
+	t.Run("other kit", func(t *testing.T) {
+		app := kitLeaseApp(t, server, kitA)
+		app.HandleCommand(CmdBack, time.Now())
+		waitFor(t, app, "soft-stop idle", func(s Snapshot) bool { return s.Session.State == "idle" })
+		app.mu.Lock()
+		app.session = kitB
+		app.syncGPUParkLocked()
+		app.mu.Unlock()
+		holdSelectStart(app, time.Now())
+		waitFor(t, app, "kit B idle", func(s Snapshot) bool { return s.Session.State == "idle" })
+		mu.Lock()
+		got := append([]string(nil), bodies...)
+		mu.Unlock()
+		if len(got) != 2 {
+			t.Fatalf("stops before shell exit = %#v", got)
+		}
+		assertStopRetainsLease(t, got[0])
+		assertStopReleasesCapturedPlay(t, got[1], kitB)
+		assertShellStillReleases(t, app)
+	})
+
+	t.Run("host-only", func(t *testing.T) {
+		app := kitLeaseApp(t, server, kitA)
+		app.HandleCommand(CmdBack, time.Now())
+		waitFor(t, app, "soft-stop idle", func(s Snapshot) bool { return s.Session.State == "idle" })
+		app.mu.Lock()
+		app.session = hostOnly
+		app.syncGPUParkLocked()
+		app.mu.Unlock()
+		holdSelectStart(app, time.Now())
+		waitFor(t, app, "host-only idle", func(s Snapshot) bool { return s.Session.State == "idle" })
+		mu.Lock()
+		got := append([]string(nil), bodies...)
+		mu.Unlock()
+		if len(got) != 2 || !strings.Contains(got[1], hostOnly.FlightID) {
+			t.Fatalf("stops before shell exit = %#v, want the host-only flight and not a release of kit A", got)
+		}
+		assertShellStillReleases(t, app)
+	})
+}
+
+func TestSelectStartLeaseReleaseFailureRetriesIdleGrant(t *testing.T) {
+	prior := kitDisplaySession()
+	var mu sync.Mutex
+	var bodies []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
+			http.NotFound(w, r)
+		case r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			bodies = append(bodies, string(raw))
+			n := len(bodies)
+			mu.Unlock()
+			if n == 1 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = io.WriteString(w, `{"error":{"code":"MISTER_UNAVAILABLE","message":"lease release failed","stop_stage":"lease_release"}}`)
+				return
+			}
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := kitLeaseApp(t, server, prior)
+	t.Cleanup(app.Stop)
+	holdSelectStart(app, time.Now())
+	waitFor(t, app, "release-stage failure", func(s Snapshot) bool { return s.Session.RetryStop && s.Session.State == "active" })
+	app.mu.Lock()
+	idleRetry := app.stopRetryIdleRelease
+	app.mu.Unlock()
+	if !idleRetry {
+		t.Fatal("lease_release failure would retry the captured play")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "idle grant released", func(s Snapshot) bool { return s.Session.State == "idle" && !s.Session.RetryStop })
+	mu.Lock()
+	got := append([]string(nil), bodies...)
+	mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("stops = %#v", got)
+	}
+	assertStopReleasesCapturedPlay(t, got[0], prior)
+	if got[1] != "" {
+		t.Fatalf("retry body = %q, want an idle-grant release, not the captured play", got[1])
+	}
+}
+
+func TestQueuedSelectStartDoesNotReleaseReplacement(t *testing.T) {
+	prior := kitDisplaySession()
+	replacement := prior
+	pkg := *prior.CorePackage
+	pkg.Generation++
+	replacement.CorePackage = &pkg
+	var posts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/stop" {
+			posts++
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := kitLeaseApp(t, server, prior)
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.inputBusy = true
+	app.mu.Unlock()
+	holdSelectStart(app, time.Now())
+	app.mu.Lock()
+	if !app.stopQueued || !app.stopCaptured || app.stopExpected.CorePackage.Generation != prior.CorePackage.Generation {
+		gen := uint64(0)
+		if app.stopExpected.CorePackage != nil {
+			gen = app.stopExpected.CorePackage.Generation
+		}
+		app.mu.Unlock()
+		t.Fatalf("queued chord did not capture generation %d (got %d)", prior.CorePackage.Generation, gen)
+	}
+	app.session = replacement
+	app.inputBusy = false
+	app.flushQueuedStopLocked()
+	phase, msg := app.stopPhase, app.stopMessage
+	app.mu.Unlock()
+	if phase == "stopping" || posts != 0 || !strings.Contains(msg, "changed") {
+		t.Fatalf("queued chord released the replacement: phase %q posts %d message %q", phase, posts, msg)
+	}
 }

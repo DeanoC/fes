@@ -111,6 +111,29 @@ func (c *Client) stopExpectedStamped(ctx context.Context, expected SessionResult
 	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader(payload), c.stopHTTPForSession(expected), stamp, "stop", "idle")
 }
 
+// StopIdentityStamped is the explicit release for a play that has no package
+// generation. Session ids persist across launches, so the launch flight is
+// required and a stale flight cannot stop the replacement.
+func (c *Client) StopIdentityStamped(ctx context.Context, expected SessionResult, stamp ClientStamp) (SessionResult, error) {
+	if strings.TrimSpace(expected.ID) == "" || strings.TrimSpace(expected.FlightID) == "" || protocol.ValidateGameID(expected.GameID) != nil {
+		return SessionResult{}, fmt.Errorf("the displayed session identity is unavailable; refresh before stopping")
+	}
+	if expected.CorePackage != nil && expected.CorePackage.PackageID != "" && expected.CorePackage.Generation != 0 {
+		return c.StopExpectedStamped(ctx, expected, stamp)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"retain_lease": false,
+		"expected_session": map[string]any{
+			"id": expected.ID, "game_id": expected.GameID, "target": expected.Target, "target_id": expected.TargetID,
+			"flight_id": expected.FlightID,
+		},
+	})
+	if err != nil {
+		return SessionResult{}, err
+	}
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader(payload), c.stopHTTPForSession(expected), stamp, "stop", "idle")
+}
+
 // StopRetainLease is the sofa Soft-stop. retain_lease asks idle cleanup to
 // keep the kit lease. Stamps stay on the existing client-clock headers.
 func (c *Client) StopRetainLease(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
