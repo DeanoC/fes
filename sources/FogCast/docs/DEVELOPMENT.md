@@ -232,14 +232,9 @@ recorded attempt to recover the prior bundle; a failed recovery stays blocked.
 Do not restart individual runtime, agent or launcher processes, kill them as a
 routine update, or invoke retired per-service init scripts. The supervisor must
 verify that the old processes exited before any replacement can control hardware.
-Temporary binary and configuration overlays are refused on managed images.
 Branch diagnostics use a private host and an explicitly installed bundle;
-returning to a prior bundle is another generation-checked activation.
-
-An unmanaged maintenance-aware image retains the [file-overlay adoption
-workflow](../../../docs/kit-manifest.md) only until it is moved to the supporting
-base image. Its temporary swaps require target maintenance and explicit cleanup.
-They are not a second update path for managed images.
+returning to a prior bundle is another generation-checked activation. There is
+no file-overlay path.
 
 A software update does not reboot the board. `/sbin/reboot` and
 `POST /v1/development/reboot` are not service-restart operations. If physical
@@ -288,9 +283,7 @@ agent or launcher change. Use the [durable core library](../../../docs/kit-core-
 for compatible core installation and future selection. Neither operation requires
 rebuilding the base OS, and core installation does not restart services. Retain
 the operator's shared host; branch diagnostics use private configurations, ports,
-catalogs and evidence. Configuration-only temporary kit overlays are currently
-unsupported on managed images. The file-overlay commands remain restricted to
-unmanaged bootstrap adoption as described above.
+catalogs and evidence.
 
 ## Deploy and exercise the kit
 
