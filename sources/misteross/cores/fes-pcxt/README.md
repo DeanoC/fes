@@ -312,12 +312,13 @@ qualification. There is no automatic Quartus fallback or kit programming.
 No factory package selection or shared contract changes are made.
 
 The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`
-passes final analogue setup and hold with the pinned native-HIP tools and the
-unchanged constraints above. It uses 6,280 routed `MISTRAL_COMB` cells, 3,628 FFs,
+reports a nextpnr-only setup/hold pass with the old pre-per-pin timer
+(`9128800f`), but **fails the Quartus STA cross-check and is not timing-qualified**.
+It uses 6,280 routed `MISTRAL_COMB` cells, 3,628 FFs,
 333 of 553 M10Ks, two PLLs and no DSPs. Its retained run is
 `build/diagnostic/fes-pcxt/cga/direct/20261018T204544Z-89efeae9/`.
 
-| Domain | Required MHz | Achieved MHz | Setup WNS ns | Hold WNS ns |
+| Domain | Required MHz | Old nextpnr MHz | Old setup WNS ns | Old hold WNS ns |
 | --- | ---: | ---: | ---: | ---: |
 | System | 100 | 100.412 | +0.041 | +0.756 |
 | Pixel | 74.25 | 78.119 | +0.667 | +0.721 |
@@ -326,9 +327,17 @@ unchanged constraints above. It uses 6,280 routed `MISTRAL_COMB` cells, 3,628 FF
 RBF SHA-256: `92277530eeb51924e54ed57e231f34aac7fee0c362086294757c7ed1922820d3`.
 Timing-report SHA-256: `195393ce0ed5591951a48ae8f5b68a555861c9c4c301cd328f5083a0e37ea751`.
 The receipt records clean source inputs and the HIP backend; all input hashes
-match this source revision. The narrow system margin qualifies this exact
-artifact only. Other display profiles, SDRAM pad timing/retention, package
-sealing and hardware acceptance remain open.
+match this source revision. The [Quartus 17.0.2 cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615)
+reconstructs the sampled paths at the same sites, pins and routes, at Slow
+1100 mV 100 °C. Its worst sampled system path reaches 93.23 MHz (−0.726 ns)
+with nextpnr launch/setup values. With TimeQuest's own launch/setup cells,
+the sampled pixel and ROM-phase paths reach 73.30 and 83.26 MHz respectively.
+These are sampled-path upper bounds, not whole-design Quartus signoff; clock
+uncertainty is also excluded. The old timer undercharges physical LUT pins
+and M10K clock-to-output. Timing closure remains open in [#840](https://github.com/DeanoC/fes/issues/840).
+The next check reroutes with per-pin nextpnr `552ba246` and requires a Quartus
+pass at unchanged clocks. Other display profiles, SDRAM pad timing/retention,
+package sealing and hardware acceptance remain open.
 
 Both system suites run in the default simulation family. They check interrupted
 cold loading, a pause near the end of loading, reset during an issued CPU
