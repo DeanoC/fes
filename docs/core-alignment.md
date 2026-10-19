@@ -32,12 +32,13 @@ These are the choices already in the tree at `6d9939c2`.
    says so. A failed HIP route does not fall back to Quartus. Quartus never
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Their current bytes match the repository-level
-   `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
-   nextpnr `9128800f`, deliberately before nextpnr #172. HIP architectures
-   are `gfx1100;gfx1201`. The identical lock contents share one cache slot;
-   future pin changes are scoped to the affected core. The repository-level
-   lock remains for unregistered consumers.
+   `config/core-recipes.toml`. Every lock except Coleco matches the
+   repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
+   Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172.
+   Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr commits, so
+   it has its own cache slot. HIP architectures are `gfx1100;gfx1201`. Future
+   pin changes stay scoped to the affected core. The repository-level lock
+   remains for unregistered consumers.
 3. Registered M10K is synchronous. No core under `sources/misteross/cores`
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
@@ -127,8 +128,9 @@ older kit note does not accept the new bytes.
 
 Issue #843 adds one lock file for each registered core. Since #882 each lock
 can pin its own nextpnr, provided `scripts/pnr_recipe.py` classifies that
-nextpnr's options and the core's recipe lists them. The files are still
-byte-identical copies today. Keep the files at the registered
+nextpnr's options and the core's recipe lists them. Coleco's Yosys pin is
+`5391eeb1`; the other registered locks are still byte-identical to each
+other and to the repository-level lock. Keep the files at the registered
 `cores/fes-<core>/toolchain.lock` paths and route future pin changes through
 that core's lock and recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
 new external ROM uses format 3. A new shell picks one of the two display
@@ -150,8 +152,10 @@ paths are shown in `config/core-recipes.toml`.
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 The recipe `lock_path` selects each per-core file, and its producer
-authenticates that file. The current files resolve to the same tool commits
-and cached slot.
+authenticates that file. The current files resolve to the same nextpnr and
+Mistral commits. Coleco's Yosys commit is `5391eeb1`, so that core has its
+own cached slot. Every other registered lock still shares the
+repository-level slot.
 
 The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
 The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
