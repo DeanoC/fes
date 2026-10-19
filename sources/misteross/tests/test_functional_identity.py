@@ -194,6 +194,29 @@ class FunctionalColecoTests(unittest.TestCase):
         self.assertNotIn("YOSYS_DATDIR", env)
         self.assertNotEqual(execution_digest({"gpu_device": 0}), execution_digest({"gpu_device": 1}))
 
+    def test_sealed_execution_does_not_name_the_requested_gpu(self):
+        from scripts.functional_execution import execution_inputs
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "nextpnr-mistral"
+            binary.write_bytes(b"router")
+            binary.chmod(0o755)
+            tools = {"nextpnr-mistral": binary}
+            env = execution_environment(Path(temporary), tools)
+            with patch("scripts.functional_execution._machine_input_files", return_value=[]), \
+                 patch("scripts.functional_execution.subprocess.run",
+                       return_value=SimpleNamespace(returncode=0, stdout="", stderr="")):
+                requested_zero = execution_inputs(tools, env, 0)
+                requested_one = execution_inputs(tools, env, 1)
+            self.assertEqual(requested_zero["gpu_device"], "lease")
+            self.assertEqual(requested_zero["gpu_selection"], "lease")
+            self.assertNotIn("gpu_device_requested", requested_zero)
+            self.assertEqual(requested_zero, requested_one)
+            self.assertEqual(execution_digest(requested_zero), execution_digest(requested_one))
+            with self.assertRaisesRegex(ValueError, "nonnegative"):
+                execution_inputs(tools, env, -1)
+            with self.assertRaisesRegex(ValueError, "nonnegative"):
+                execution_inputs(tools, env, True)
+
     def test_functional_invocation_preserves_gpu_lease_routing_environment(self):
         from scripts.functional_execution import FunctionalInvocation
         lease_env = {

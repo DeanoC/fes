@@ -357,13 +357,20 @@ class AtariSTSlotCardTests(unittest.TestCase):
                 self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
             route = fixture.commands[1]
             self.assertEqual(route[route.index("--gpu-device") + 1], "0")
-            recipe = json.loads((next(Path(directory).glob("build/atari-st-cards/*/build-summary.json"))).read_text())["recipe"]
-            self.assertEqual(recipe["gpu_device"], 0)
+            summary = json.loads((next(Path(directory).glob("build/atari-st-cards/*/build-summary.json"))).read_text())
+            recipe = summary["recipe"]
+            self.assertNotIn("gpu_device", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(recipe["gpu_device_requested"], 0)
+            self.assertEqual(summary["gpu"]["gpu_device_granted"], [])
 
     def test_cuda_route_selects_requested_gpu_and_records_it(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = BuildFixture(Path(directory))
-            fixture.route_text = "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            fixture.route_text = (
+                "FES-GPU-GRANT 8\n"
+                "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            )
             with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "0", "CUDA_VISIBLE_DEVICES": "0",
                                           "CUDA_DEVICE_ORDER": "FASTEST_FIRST"}):
                 selected = fixture.build(gpu=1, gpu_router="CUDA", toolchain_root=Path("/tmp/st-cuda"))
@@ -376,8 +383,14 @@ class AtariSTSlotCardTests(unittest.TestCase):
                 self.assertNotIn("GPU_LEASE_IDS", env)
                 self.assertNotIn("HIP_VISIBLE_DEVICES", env)
                 self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
-            recipe = json.loads((selected.parent / "build-summary.json").read_text())["recipe"]
-            self.assertEqual(recipe["gpu_device"], 1)
+            summary = json.loads((selected.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
+            self.assertNotIn("gpu_device", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(recipe["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"], {
+                "gpu_selection": "lease", "gpu_device_requested": 1, "gpu_device_granted": ["8"],
+            })
             recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
             self.assertEqual(selected.parent.name, card.digest(recipe_bytes))
         with tempfile.TemporaryDirectory() as directory:
@@ -426,8 +439,13 @@ class AtariSTSlotCardTests(unittest.TestCase):
                 self.assertNotIn("GPU_DEVICE_ORDINAL", env)
                 # A box inventory override is inherited. The requested GPU must not replace it.
                 self.assertEqual(env["GPU_LEASE_IDS"], "8")
-            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            summary = json.loads((result.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
             self.assertNotIn("gpu_device", recipe)
+            self.assertNotIn("gpu_device_requested", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(summary["gpu"]["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"]["gpu_device_granted"], [])
 
     def test_invalid_seed_rejected_before_source_tools_or_artifact_writes(self):
         with tempfile.TemporaryDirectory() as directory:

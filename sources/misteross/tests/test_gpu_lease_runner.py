@@ -121,6 +121,7 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         device = captured["argv"].index("--gpu-device")
         self.assertEqual(captured["argv"][device + 1], "0")
+        self.assertIn(b"FES-GPU-GRANT 7", result.stdout)
         self.assertEqual(captured["env"]["FES_GPU_IDS"], "7")
         self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "7")
         self.assertEqual(captured["env"]["NEXTPNR_REQUIRE_GPU"], "1")
@@ -298,6 +299,8 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
             captured = json.loads(self.capture.read_text(encoding="utf-8"))
             self.assertEqual(captured["env"]["FES_GPU_IDS"], "8")
             self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "8")
+            self.assertIn(b"FES-GPU-GRANT 8", result.stdout)
+            self.assertNotIn(b"FES-GPU-GRANT 7", result.stdout)
             self.assertEqual(captured["argv"][captured["argv"].index("--gpu-device") + 1], "0")
         finally:
             release_holder.write_text("release", encoding="utf-8")
@@ -479,6 +482,7 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         result = self.route(timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn(b"GPU lease: GRANT 7", result.stdout)
+        self.assertIn(b"FES-GPU-GRANT 7", result.stdout)
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         self.assertEqual((captured["grant"], captured["release"]), ("GRANT 7", "OK"))
         # No mask: nextpnr keeps the physical id that gpu-run granted.

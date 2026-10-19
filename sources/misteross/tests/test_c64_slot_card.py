@@ -334,6 +334,10 @@ class C64CardGpuLaneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fixture = CardBuildFixture(Path(directory), backend="cuda")
             toolchain = Path("/tmp/c64-cuda")
+            fixture.route_text = (
+                "FES-GPU-GRANT 8\n"
+                "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            )
             with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "0", "CUDA_VISIBLE_DEVICES": "0",
                                           "CUDA_DEVICE_ORDER": "FASTEST_FIRST"}):
                 result = fixture.build(gpu=1, gpu_router="CUDA", toolchain_root=toolchain)
@@ -348,8 +352,14 @@ class C64CardGpuLaneTests(unittest.TestCase):
                 self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
             route = fixture.commands[1]
             self.assertEqual(route[route.index("--gpu-device") + 1], "1")
-            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
-            self.assertEqual(recipe["gpu_device"], 1)
+            summary = json.loads((result.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
+            self.assertNotIn("gpu_device", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(recipe["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"], {
+                "gpu_selection": "lease", "gpu_device_requested": 1, "gpu_device_granted": ["8"],
+            })
 
     def test_cuda_route_preserves_gpu_run_mask_and_uses_logical_device(self) -> None:
         for gpu in (0, 1):
@@ -389,8 +399,13 @@ class C64CardGpuLaneTests(unittest.TestCase):
                 self.assertNotIn("GPU_DEVICE_ORDINAL", env)
                 # A box inventory override is inherited. The requested GPU must not replace it.
                 self.assertEqual(env["GPU_LEASE_IDS"], "8")
-            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            summary = json.loads((result.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
             self.assertNotIn("gpu_device", recipe)
+            self.assertNotIn("gpu_device_requested", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(summary["gpu"]["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"]["gpu_selection"], "lease")
             self.assertEqual(fixture.authenticate.call_args.kwargs["gpu_router"], "HIP")
 
     def test_route_backend_must_match_the_selected_lane(self) -> None:

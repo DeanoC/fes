@@ -34,7 +34,7 @@ from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
     _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool,
-    gpu_run_active, nextpnr_gpu_command,
+    gpu_route_evidence, gpu_run_active, nextpnr_gpu_command,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -310,8 +310,14 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "slot_clock": SLOT_CLOCK, "probe_mode": slot - 1, "placer_seed": PLACER_SEED,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
     extra = shell_recipe.execution_extra(gpu_router)
+    # The recipe is hashed before the route, so it cannot name the GPU
+    # gpu-run will grant. "lease" is that unbound selection. CUDA still
+    # passes the requested index to nextpnr; record it as a request, not
+    # as the device that routed. The grant is copied from the route log
+    # into the summary after the route, outside this hash.
+    recipe["gpu_selection"] = "lease"
     if gpu_router == "CUDA":
-        recipe["gpu_device"] = gpu
+        recipe["gpu_device_requested"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/c64-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -401,7 +407,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             archive.addfile(info, io.BytesIO(data))
     (output / "build-summary.json").write_text(json.dumps(
         {"recipe": recipe, "expansion_id": expansion_id, "manifest": json.loads(encoded),
-         "timing_mhz": achieved, "cram_diff": changes}, sort_keys=True, indent=2) + "\n")
+         "timing_mhz": achieved, "cram_diff": changes,
+         "gpu": gpu_route_evidence(route_text, gpu)}, sort_keys=True, indent=2) + "\n")
     return destination
 
 

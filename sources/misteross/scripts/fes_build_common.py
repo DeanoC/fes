@@ -90,6 +90,50 @@ def nextpnr_gpu_command(
     return tuple(result) if isinstance(command, tuple) else result
 
 
+# Printed by scripts/nextpnr_lease.py. That file cannot import this module:
+# an audited route reads only the dispatcher from the source tree.
+_GPU_GRANT_LINE = re.compile(
+    r"^FES-GPU-GRANT ([A-Za-z0-9._+-]+(?:,[A-Za-z0-9._+-]+)*)\s*$",
+    re.MULTILINE,
+)
+
+
+def granted_gpu_ids(route_text: str) -> list[str]:
+    """Physical GPU ids from FES-GPU-GRANT lines, in first-seen order.
+
+    Repeated grants of one id collapse. The requested --gpu-device index is
+    not a substitute when the log has no grant.
+    """
+
+    found: list[str] = []
+    for match in _GPU_GRANT_LINE.finditer(route_text):
+        for part in match.group(1).split(","):
+            if part in (".", "..") or part in found:
+                continue
+            found.append(part)
+    return found
+
+
+def gpu_route_evidence(route_text: str, requested: int | None = None) -> dict[str, object]:
+    """Route evidence for the GPU that actually routed.
+
+    This stays out of the sealed build record. BUILD_ID is a synthesis
+    parameter, so the grant cannot enter it without making RBF bytes depend
+    on which GPU was free. ``gpu_device_requested`` is the CLI index, not
+    the device that routed.
+    """
+
+    if requested is not None and (type(requested) is not int or requested < 0):
+        raise BuildError("requested GPU device must be a nonnegative integer")
+    evidence: dict[str, object] = {
+        "gpu_selection": "lease",
+        "gpu_device_granted": granted_gpu_ids(route_text),
+    }
+    if requested is not None:
+        evidence["gpu_device_requested"] = requested
+    return evidence
+
+
 def gpu_run_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Copy the wrapper's device index and visibility mask into a controlled env."""
     source = os.environ if env is None else env
@@ -271,7 +315,9 @@ def _run_command(
         # GPU_LEASE_IDS is a box inventory override. A --gpu-device argument
         # must not narrow it: gpu-run grants any free device, then the
         # whole-route dispatcher passes GPU_RUN_DEVICE and a phase-lease
-        # nextpnr uses the physical id from the grant.
+        # nextpnr uses the physical id from the grant. The sealed record
+        # says gpu_device "lease"; the dispatcher prints FES-GPU-GRANT with
+        # the physical id that routed. The request is not that id.
         run_env.pop("HIP_VISIBLE_DEVICES", None)
         run_env.pop("ROCR_VISIBLE_DEVICES", None)
         run_env.pop("CUDA_VISIBLE_DEVICES", None)
