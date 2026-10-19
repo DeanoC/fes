@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,6 +57,11 @@ type Paths struct {
 // Installer copies a verified splash into the release store and onto FAT.
 type Installer struct {
 	Paths
+	// publishWrite, when set, replaces the FAT writer inside Publish. Nil uses
+	// atomicwrite.WriteFile. A mode 0555 directory does not stop root creating
+	// that temporary, so tests install a writer that fails for every uid.
+	// Production leaves this nil.
+	publishWrite func(path string, data []byte, perm fs.FileMode) error
 }
 
 func New(p Paths) *Installer {
@@ -148,7 +154,17 @@ func (p *Installer) Publish(ctx context.Context, imageSHA string) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	return atomicwrite.WriteFile(p.FAT, data, 0o600)
+	write := atomicwrite.WriteFile
+	if p.publishWrite != nil {
+		write = p.publishWrite
+	}
+	return write(p.FAT, data, 0o600)
+}
+
+// SetPublishWriteForTest replaces the writer Publish uses for the FAT file.
+// A nil writer restores atomicwrite.WriteFile. Production code does not call this.
+func (p *Installer) SetPublishWriteForTest(write func(path string, data []byte, perm fs.FileMode) error) {
+	p.publishWrite = write
 }
 
 // FATSHA256 is the current FAT splash digest, or empty when it cannot be read.

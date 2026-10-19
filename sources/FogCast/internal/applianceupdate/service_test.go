@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/appliancesplash"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"golang.org/x/sys/unix"
 )
@@ -489,18 +490,10 @@ func TestNonTrialSplashRepairFailureStaysOnStatus(t *testing.T) {
 	dir := t.TempDir()
 	idle := filepath.Join(dir, "idle.rbf")
 	record := filepath.Join(dir, "build-inputs")
-	fatDir := filepath.Join(dir, "fat")
-	if err := os.Mkdir(fatDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	fat := filepath.Join(fatDir, "idle.rbf")
+	fat := filepath.Join(dir, "idle.fat")
 	if err := os.WriteFile(fat, []byte("stale-readable-splash"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(fatDir, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(fatDir, 0o755) })
 	sumIdle := writeImageSplash(t, idle, record, []byte("splash-of-running-image"))
 	sumFAT := shaOf(t, fat)
 	if sumFAT == sumIdle {
@@ -512,6 +505,20 @@ func TestNonTrialSplashRepairFailureStaysOnStatus(t *testing.T) {
 	}
 	splash := appliancesplash.New(appliancesplash.Paths{
 		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, factory.ImageSHA256),
+	})
+	// A mode 0555 directory does not stop root creating Publish's temporary.
+	// The writer fails closed for every uid. Each blocked attempt names a
+	// different temporary, so the warning stays comparable only after that
+	// name is dropped.
+	var blockPublish atomic.Bool
+	var publishAttempt atomic.Uint64
+	blockPublish.Store(true)
+	splash.SetPublishWriteForTest(func(path string, data []byte, perm os.FileMode) error {
+		if blockPublish.Load() {
+			name := fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), publishAttempt.Add(1))
+			return &os.PathError{Op: "open", Path: filepath.Join(filepath.Dir(path), name), Err: os.ErrPermission}
+		}
+		return atomicwrite.WriteFile(path, data, perm)
 	})
 	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-stable", ImageSHA256: factory.ImageSHA256}, nil, nil, splash)
 	assertOpen := func() applianceupdate.Status {
@@ -566,9 +573,7 @@ func TestNonTrialSplashRepairFailureStaysOnStatus(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || cancelled.SplashWarning != first.SplashWarning {
 		t.Fatalf("cancelled status: %+v %v", cancelled, err)
 	}
-	if err = os.Chmod(fatDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	blockPublish.Store(false)
 	status, err := svc.Status(context.Background())
 	if err != nil || status.SplashWarning != "" || status.Trial || status.FatIdleSHA256 != sumIdle || status.IdleSHA256 != sumIdle || status.Good != factory.ImageSHA256 {
 		t.Fatalf("repair did not recover: %+v %v", status, err)
