@@ -1,5 +1,17 @@
 # Working in FES
 
+## Rules for all agents
+
+Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
+
+All GPU work goes through the `gpu-run` wrapper. Never pin a GPU vendor.
+
+Nobody kills a GPU job, and nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
+
+Never relax a seal or timing check; stop and report instead.
+
+Delete superseded code instead of keeping compatibility shims or "kept for older kits" branches.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -10,9 +22,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -34,5 +44,26 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+GPU jobs follow the [Shared GPUs](AGENTS.md#shared-gpus) section.
+
+nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
+timing and route evidence are interchangeable: references, pins, seed results and
+replays from either backend remain valid on the other. This is route-result
+equivalence only; production builds, promotion and seal evidence still require an
+authenticated live HIP or CUDA backend as producer validators require. Registered
+producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
+can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
+artifact identities because backend is part of functional execution identity, even
+though their timing and route evidence is interchangeable. Among current core
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
+Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
+and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
+the backend. On a CUDA host, select CUDA and its matching toolchain for a
+router-selectable producer; a device-only producer can use CUDA only with an
+authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
+record the backend in the build record. Never require a separate HIP run or
+discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
+override).
 
 Read [AGENTS.md](AGENTS.md) for every other working rule.

@@ -70,7 +70,13 @@ Only a pending queued operation can be cancelled. A service replacement already
 underway retains its maintenance ownership through completion or recovery.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
-outcome; a newer generation rejects stale changes.
+outcome; a newer generation rejects stale changes. The client dials with a
+10 second connect timeout and keeps `--timeout` (15 minutes by default) as
+the whole-operation deadline. After the request body is written it waits at
+most five minutes for response headers. Health, status, and list retry a
+network failure up to three times, and each of those reads fails within
+30 seconds. Install, activate, and cancel are not retried. A kit that still
+does not answer reports that it is not ready.
 
 ## Activation and recovery
 
@@ -242,8 +248,8 @@ activate the designated baseline bundle against the current generation, as
 booted image and leaves the successful selection installed. Verify the active
 bundle before logging the kit restored. A core-only run that does not
 change the bundle does not install one. Do not cancel another owner's pending activation to
-clean up. Temporary configuration-only overlays are not supported on managed
-images. [Kit sharing](kit-sharing.md) describes execution ownership;
+clean up. Kits take no file or configuration overlays.
+[Kit sharing](kit-sharing.md) describes execution ownership;
 [appliance releases](appliance-releases.md) cover OS changes and boot identity.
 Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit

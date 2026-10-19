@@ -93,7 +93,10 @@ is preserved. Module relocation alone does not enter the functional projection.
 
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
-loader, Yosys and GPU overrides. It records one explicit GPU device (default 0),
+loader, Yosys and GPU overrides. It preserves only the GPU routing variables
+set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+`GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
+functional input digest. It records one explicit GPU device (default 0),
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
@@ -118,6 +121,63 @@ It does not substitute for current tool authentication or payload verification.
 Existing FES whole-record matching continues to distinguish
 commits until that coordinated change lands. No new hardware acceptance is
 claimed by these host-side identity and exporter tests.
+
+## Per-core place-and-route recipes
+
+Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
+table and a `cores/<core>/toolchain.lock`. The step-1 locks are byte copies
+of `toolchain.lock`, so they select the existing pinned nextpnr `9128800f`
+slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+timeouts, thread count, timing-failure policy, option defaults and the
+controlled environment are recorded with that core's recipe. Registered
+producer constants are read from this table.
+
+`scripts/pnr_recipe.py` builds the complete nextpnr argv and validates the
+producer's controlled environment. `search_placer_qor.py` uses it for every
+registered search route; Catch uses it for its direct route. A producer's
+seed, weight, clock, timeout or raw extra argument must be listed in its
+recipe. Candidate evidence carries the argv, environment, recipe digest and
+authenticated toolchain slot. The producer-argv regression test pins the
+effective command and option coverage without invoking the physical router.
+When a producer runs under `gpu-run`, it retains the wrapper's visibility mask
+and maps an explicit physical `--gpu-device` selection to `GPU_RUN_DEVICE`, the
+logical index visible inside that mask. Multi-device searches use one worker
+for the leased view; runs outside `gpu-run` keep their configured indices.
+
+An active `gpu-run` lease adds only its complete marker set and the one
+visibility mask for the recipe backend. The physical ID list and mask must
+match, the logical device marker and expected device must be coherent, and
+the requested nextpnr device must be within the lease. Incomplete or
+inconsistent lease values fail; ambient GPU masks without a lease remain
+forbidden. For HIP, a render-node path must match the first leased ID's KFD
+mapping. If KFD cannot map that ID, only the exact `amd:<id>` fallback marker
+is accepted; an unmapped render-node path fails closed. The accepted lease
+values remain part of the functional execution identity.
+
+This binds host build behavior to the selected recipe. It is not route timing
+qualification or hardware acceptance; those remain separate evidence gates.
+
+Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
+repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
+outside that lease. A producer's requested physical GPU id, from its
+`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
+dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
+visibility mask. Producers must run outside an outer
+gpu-run so a lease cannot span synthesis or multiple routes. The dispatcher
+starts its route timer after the lease is granted, while the producer's audited
+deadline bounds queue wait plus route time and cancels the full process group
+on expiry. Search workers still use their producer concurrency limits, and
+each worker releases its GPU before starting another route.
+
+When the selected `nextpnr-mistral` binary reads `GPU_LEASE_FD` (the
+DeanoC/nextpnr#224 client), the producer runs it under `gpu-run --phase-lease`
+instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for its
+requested physical GPU only for each GPU routing phase; packing, placement,
+timing analysis and bitstream writing hold no GPU. There is no visibility mask,
+so `--gpu-device` keeps the physical id. The dispatcher relays the lease socket
+and pauses the route budget while a GPU request waits, and the producer sets no
+outer deadline, so queue time never counts toward the route timeout. Any other
+nextpnr binary keeps the per-invocation lease above.
 
 ## Build lanes
 
@@ -213,15 +273,15 @@ The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
 because the pinned OSS packer cannot put DDR input registers on those pads.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the shared
-`toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
+`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
+`cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
 are recorded in the [core README](../cores/fes-ramtest/README.md).
-`make diagnose-fes-ramtest-timing` uses the shared `toolchain.lock` and
+`make diagnose-fes-ramtest-timing` uses `cores/fes-ramtest/toolchain.lock` and
 compares a baseline route with report-guided LUT remapping on the same
 synthesis. It retains the remap only when final memory timing improves without
 regressing the other clocks or reporting hold violations. Both routes remain
@@ -405,8 +465,8 @@ production source lists, and OSS synthesis flags come from the closed experiment
 policy. Simulation-only models never enter synthesis.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock` (core recipes may select a tracked qualified compatibility
-lock and isolated toolchain root). nextpnr writes a compressed Cyclone V RBF
+`toolchain.lock`; registered core recipes select their corresponding
+`cores/fes-<core>/toolchain.lock`. nextpnr writes a compressed Cyclone V RBF
 (`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
 sources and tools live under `build/toolchain/`. Build output lives under
 `build/oss/<experiment>/`.
@@ -417,33 +477,29 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 
 ## Shared compiler installation
 
-FES Python Pong, ZX81, Coleco, SG-1000, and SMS recipes select a shared compiler
-only through an explicit `--cache-root` argument or the Make `CACHE_ROOT=`
-variable on `build-fes-pong`, `build-fes-zx81`, `build-fes-coleco`,
-`build-fes-sg1000`, and `build-fes-sms`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is
-not a policy selector for those producers. HIP (`gpu-router=HIP`,
+Registered FES producers select compiler pins from their corresponding
+`cores/fes-<core>/toolchain.lock`. The locks currently contain identical
+commits, so the shared compiler cache reuses one slot. Producers select that
+cache only through an explicit `--cache-root` argument or the Make
+`CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
+selector for registered producers. HIP (`gpu-router=HIP`,
 `hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane:
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
-CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
-slot. The standard ZX81 socket, SG-1000, SMS, and the old Coleco producer
-select that same lock (Yosys `5391eeb1`, nextpnr `9128800f`, Mistral
-`8fcc4cb4`).
-Local HIP tools
-come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
-standard ZX81 socket, `make toolchain-fes-coleco` for
-Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
-for SMS. `make toolchain` remains GPU-router OFF for generic OSS experiments.
-`make toolchain` and `make toolchain-fes` share `build/toolchain`; the last
-one run wins. `CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid
-shared-cache forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer
-recipes. Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP
-install. Quartus ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a
-nextpnr fallback. For a shared cache, the same CACHE_ROOT=/absolute/cache
-spelling selects the FES HIP toolchain for toolchain-fes,
-toolchain-fes-coleco, toolchain-fes-sg1000, and toolchain-fes-sms; doctor and
-doctor-strict use that same selection. An explicit FES_TOOLCHAIN_CACHE_ROOT
-remains accepted and wins when it agrees with CACHE_ROOT.
+CPU-reference fallback. Each `make toolchain-fes-<core>` target provisions
+the matching core lock. `make toolchain-fes` provisions the repository-level
+lock for consumers that still select it, and `make toolchain` remains
+GPU-router OFF for generic OSS experiments. `make toolchain` and
+`make toolchain-fes` share `build/toolchain`; the last one run wins.
+`CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid shared-cache
+forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer recipes. Omitting
+`--cache-root` / `CACHE_ROOT` preserves that local HIP install. Quartus
+ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a nextpnr fallback.
+For a shared cache, the same `CACHE_ROOT=/absolute/cache` spelling selects
+the FES HIP toolchain for every registered `toolchain-fes-<core>` target;
+doctor and doctor-strict use that same selection. An explicit
+`FES_TOOLCHAIN_CACHE_ROOT` remains accepted and wins when it agrees with
+`CACHE_ROOT`.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler
@@ -876,7 +932,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2, the old Coleco producer, SMS, and SG-1000 select that shared lock. SMS can build it under `build/toolchain/fes-sms`. Quartus needs neither lock. |
+| Toolchain selection | Registered Coleco v2, SMS and SG-1000 producers use their per-core lock files, all currently byte-identical to the repository-level pin: Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`. The old Coleco producer still selects the repository-level lock. Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -899,8 +955,9 @@ The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
-owns the window-enable and AY register decode. The v2 shell authenticates
-`toolchain.lock`. The former `toolchains/coleco-sgm.lock` pin is retired.
+owns the window-enable and AY register decode. The registered v2 shell
+authenticates `cores/fes-coleco/toolchain.lock`. The former
+`toolchains/coleco-sgm.lock` pin is retired.
 The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
@@ -959,8 +1016,8 @@ programs hardware. `--compile-only` writes `build/fes-sg1000-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sg1000` is the OSS producer
-(`scripts/build_fes_sg1000_oss.py`). It uses `toolchain.lock`
-(nextpnr `9128800f`, Mistral `8fcc4cb4`, Yosys `5391eeb1`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
+(`scripts/build_fes_sg1000_oss.py`). It uses `cores/fes-sg1000/toolchain.lock`
+(nextpnr `9128800f`, Mistral `8fcc4cb4`, Yosys `3a5accbd`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system
 domain; its extra system-clock latency fits the native CPU read windows. Both
@@ -1049,8 +1106,8 @@ programs hardware. `--compile-only` writes `build/fes-sms-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
-(`scripts/build_fes_sms_oss.py`). It uses `toolchain.lock`
-(nextpnr `9128800f` with Mistral `8fcc4cb4` and Yosys `5391eeb1`), SMS `constraints-oss.qsf` (Coleco
+(`scripts/build_fes_sms_oss.py`). It uses `cores/fes-sms/toolchain.lock`
+(nextpnr `9128800f` with Mistral `8fcc4cb4` and Yosys `3a5accbd`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -1250,7 +1307,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates the shared `toolchain.lock`, writes
+`fes.zx81` 1.5.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1549,7 +1606,7 @@ log must prove a live HIP backend.
 Before synthesis, the recipe requires a clean source checkout, checks every
 recipe/source/constraint/ABI/lock input is tracked and non-symlinked,
 authenticates Yosys, Mistral and nextpnr-mistral against the recipe's expected
-commits and `toolchain.lock` through their canonical cache stamps and executable
+commits and `cores/fes-pong/toolchain.lock` through their canonical cache stamps and executable
 digests, then writes canonical `build-inputs.json`.
 The record uses `scripts/build_fes_pong.py` as its recipe,
 `cores/fes-pong/generated/fes_gp.vh` as its tracked ABI definition, and an empty
@@ -1616,7 +1673,7 @@ The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
 `make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
-`toolchain.lock`, `make toolchain-fes-apple2`) is the format-3
+`cores/fes-apple2/toolchain.lock`, `make toolchain-fes-apple2`) is the format-3
 product lane. The registered recipe selects HIP. Backend identity is part of
 the build record, so a CUDA route of the same sources is a different package.
 The shared-pin clocks that closed on this lock move were a CUDA exploratory
@@ -1714,7 +1771,7 @@ sync and data edges across mixed bytes and consecutive blocks, then checks
 partial tails and live eject/replacement.
 
 `make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
-`toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
+`cores/fes-spectrum/toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
@@ -1756,7 +1813,7 @@ NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
 `make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
 TOD, serial shifting and timer port outputs remain outside this slice.
 
-`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
+`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `cores/fes-c64/toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
 HIP. `--gpu-router CUDA` with `--toolchain-root` builds a separate package.
 The route log must show `system_clock.pll` as a 50.000000 MHz reference into
@@ -1797,8 +1854,8 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
-`9128800f` from `toolchain.lock`; its
+factory image. The shell uses Yosys `3a5accbd`, Mistral `8fcc4cb4` and nextpnr
+`9128800f` from `cores/fes-c64/toolchain.lock`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.
@@ -2122,7 +2179,7 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates the shared `toolchain.lock`. When at least
+The board producer authenticates `cores/fes-atari-st/toolchain.lock`. When at least
 one route finishes and every finished route misses timing, it writes
 `build/fes-core-unavailable.json` (version 1, the requested seeds, and the
 finished routes' per-clock achieved and constraint figures) and exits
@@ -2684,7 +2741,7 @@ The firmware is hand-written RV32I assembled by `cores/fes-riscv/firmware/assemb
 into `firmware.hex` and four lane images. Source, assembler and images are
 pinned producer inputs, and `scripts/build_fes_riscv.py` re-assembles the
 source and refuses images that differ. The producer authenticates
-`toolchain.lock`, synthesises with M10K enabled (MLAB, DSP and the HPS SDRAM
+`cores/fes-riscv/toolchain.lock`, synthesises with M10K enabled (MLAB, DSP and the HPS SDRAM
 bridge forbidden), runs a bounded first-pass HeAP seed search that stops at
 the first placement meeting 74.25 MHz, validates the shared board, PLL and
 I2C evidence and exports a format-2 package (`fes.riscv` 0.1.0, profile
@@ -2823,8 +2880,10 @@ Coleco, SMS and SG-1000, their shared PLLs, RAMs, TMS9918 video path and legacy
 simple-computer mailbox. Existing HDL module names remain unchanged. TV80 retains
 its embedded MIT notices and pinned upstream attribution; other moved files
 retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
-and constraints remain in their existing directories. The old Coleco producer, SMS, and
-SG-1000 select the shared `toolchain.lock` and do not keep a private slot.
+and constraints remain in their existing directories. The old Coleco producer
+selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
+SG-1000 producers select per-core locks; identical lock contents share the
+same cache slot.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
@@ -2889,7 +2948,7 @@ Both are diagnostics, without a GP menu identity or a described launch package.
 
 `build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
 producer with GPU 0, closed functional inputs and separate output directories.
-The DDR mode uses the shared `toolchain.lock` HIP compiler slot; its artifact gates
+The DDR mode uses `cores/fes-menu/toolchain.lock` and its HIP compiler slot; its artifact gates
 check layout constants in both netlists, fixed pixel timing and inactive
 writes/unused ports. Neither producer programs hardware or changes image inputs.
 The runtime presenter and exact DDR scanout acceptance remain later work.
@@ -2898,7 +2957,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `toolchain.lock`
+system identity. FES now selects it as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port

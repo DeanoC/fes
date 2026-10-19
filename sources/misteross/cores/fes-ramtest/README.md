@@ -153,7 +153,7 @@ make build-fes-ramtest-100
 make build-fes-ramtest-130
 ```
 
-Both OSS rates use the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
+Both OSS rates use `cores/fes-ramtest/toolchain.lock` and its HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.
@@ -170,15 +170,15 @@ the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
 
-For the 130 MHz timing diagnostic, use the shared toolchain and run the
-paired seed-2 routes:
+For the 130 MHz timing diagnostic, provision the per-core RAM Tester toolchain
+and run the paired seed-2 routes:
 
 ```sh
 make toolchain-fes-ramtest
 make diagnose-fes-ramtest-timing GPU_DEVICE=1
 ```
 
-The diagnostic uses `toolchain.lock`. It first routes
+The diagnostic uses `cores/fes-ramtest/toolchain.lock`. It first routes
 with up to four generic local enable copies. It then uses that timing report
 to try local LUT remap candidate 0 with up to eight LAB groups, routing the
 same synthesis and BUILD_ID again. Both attempts retain their own outputs in
@@ -193,8 +193,9 @@ clock maxima and no final reported hold violations. A completed HIP route is
 reported even below 130 MHz; `passing` records whether all three frequency
 constraints were met. The hold screen covers final nextpnr warnings, not the
 full package evidence or hardware acceptance. The diagnostic RBF is not a
-sealed package. The normal 100 and 130 MHz package builds keep their existing
-lock and signoff gate. The historical 116.918 MHz route
+sealed package. The normal 100 and 130 MHz package builds use
+`cores/fes-ramtest/toolchain.lock` and keep their signoff gate. The historical
+116.918 MHz route
 also used two opt-in,
 cell-name-specific probes. Those probes no longer match the current RTL and
 remain disabled here; 116.918 MHz is not a result for the current source.

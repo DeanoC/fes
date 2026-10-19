@@ -41,14 +41,16 @@ from scripts.fes_build_common import (
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.apple2")
+ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_apple2_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-apple2-oss")
-APPLE2_TOOLCHAIN_LOCK = "toolchain.lock"
+APPLE2_TOOLCHAIN_LOCK = "cores/fes-apple2/toolchain.lock"
 APPLE2_TOOLCHAIN_ROOT = "build/toolchain/fes-apple2"
 APPLE2_GPU_BACKEND = "hip"
 APPLE2_GPU_ROUTER = "HIP"
@@ -59,14 +61,15 @@ APPLE2_TOOLCHAIN_CONFIGURATION = (
 APPLE2_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
 }
 # First passing route wins; the order is part of the build identity. The
 # exploratory synthesis closed all three clocks on seeds 5, 4, 2 and 1.
-PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
-PLACER_WEIGHT = 2000
-PLACER_CRITICALITY_EXPONENT = 5
-PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.apple2")
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
@@ -106,7 +109,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/apple2_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
-    ABI_DEFINITION, APPLE2_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    ABI_DEFINITION, APPLE2_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",
@@ -156,7 +159,6 @@ def _authenticate_apple2_tools(root: Path, cache_root: Path | None = None,
         root,
         lock_path=root / APPLE2_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=APPLE2_TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -469,9 +471,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=("--router", ROUTER),
+                mode="first-pass", extra=(), timeout=ROUTE_TIMEOUT_SECONDS,
                 required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root,
+                env=invocation.env, audit_source_root=root, core_id="fes.apple2",
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc

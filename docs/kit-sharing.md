@@ -10,9 +10,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -35,6 +33,8 @@ Outside agent sessions have ignored these rules. Obey them.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
 
+GPU jobs follow the [Shared GPUs](../AGENTS.md#shared-gpus) section.
+
 ## Development host protocol
 
 Keep the operator-selected shared host and its autostart setting unchanged.
@@ -53,10 +53,10 @@ cleanup.
 
 Claim the kit in its Powerboat status file before use and log the result
 there when you finish. There is no separate Powerboat host claim. That
-file is the single source of truth. GPU jobs on Powerboat go through the
-`gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows the
-holders. Do not open a Slack reservation, and do not require a person to be
-present. The target lease remains the execution lock for ordinary use:
+file is the single source of truth. GPU jobs follow the
+[Shared GPUs](../AGENTS.md#shared-gpus) section. Do not open a Slack
+reservation, and do not require a person to be present. The target lease
+remains the execution lock for ordinary use:
 loading a core, supplying media/input, collecting diagnostics and stopping
 the session. It does not replace the status-file claim.
 
@@ -92,27 +92,13 @@ automatically. This post-use bundle step is that explicit activation. It
 is not a file-swap restore, and it does not cancel another owner's pending
 activation. The stable supervisor owns the complete service group.
 
-On an unmanaged maintenance-aware image, replacing binaries or configuration
-uses the [kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
-target maintenance reservation before changing files or stopping services,
-retains it across agent restart, and ends it only after idle cleanup succeeds.
-Workstation hold markers record a diagnostic task; they cannot reserve hardware
-against another host. Release an ordinary kit.py session before starting a
-swap/restore; the tool claims its own grant and promotes it into maintenance.
-
-An agent that does not provide `fes-kit-maintenance-v1` cannot admit this workflow.
-Install the supporting agent once through the existing authorized appliance-image
-procedure. The tools reject missing maintenance routes and refuse replacement
-agents that cannot enforce the reservation; there is no SSH-only fallback.
-
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Diagnostics pin the active bundle and base-image digests; sealed
 base-image runtime provenance does not identify the active bundle. Record each
 exact artifact independently. A new core using a supported
 ABI uses package import/selection/launch rather than a kit-file swap or OS update.
 An appliance update is the designated baseline only when the status file names
-it. Unmanaged temporary overlay diagnostics retain their explicit restore
-procedure. After use, restore the baseline image and bundle that file names.
+it. After use, restore the baseline image and bundle that file names.
 
 ## Claim a development session
 

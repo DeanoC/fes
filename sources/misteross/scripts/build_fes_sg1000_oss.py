@@ -35,25 +35,26 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 from scripts import rom_map
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.sg1000")
+ROUTER = PNR["router"]
 # Search the exact BUILD_ID netlist; a diagnostic winner is not a sealed seed.
 # first-pass tries each seed at one weight before the bounded fallback weight.
-PLACER_SEEDS = (2, 3, 4, 1, 5, 6, 7, 8, 9, 10)
+PLACER_SEEDS = tuple(PNR["seeds"])
 SEED = PLACER_SEEDS[0]
-PLACER_TIMING_WEIGHT = 2000
-PLACER_TIMING_WEIGHTS = (2000, 1000)
-PLACER_CRITICALITY_EXPONENT = 5
-ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_TIMING_WEIGHT = PNR["timing_weights"][0]
+PLACER_TIMING_WEIGHTS = tuple(PNR["timing_weights"])
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 PLACER_QOR_MODE = "first-pass"
 PLACER_QOR_BUDGET = len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS)
-PLACER_QOR_CLOCKS = (("system_clock.clocks[0]", 52.224), (None, 74.25),
-                     ("system_clock.clocks[1]", 12.288))
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.sg1000")
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
 SG1000_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -61,12 +62,12 @@ SG1000_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SG1000_GPU_ROUTER}; hip-architectures={SG1000_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-sg1000-oss")
-SG1000_TOOLCHAIN_LOCK = "toolchain.lock"
+SG1000_TOOLCHAIN_LOCK = "cores/fes-sg1000/toolchain.lock"
 SG1000_TOOLCHAIN_ROOT = "build/toolchain/fes-sg1000"
 SG1000_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
 }
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
@@ -103,6 +104,7 @@ PINNED_INPUTS = (
     "scripts/search_placer_qor.py",
     ABI_DEFINITION,
     SG1000_TOOLCHAIN_LOCK,
+    "scripts/pnr_recipe.py",
     QSF,
     SDC,
     *RTL_SOURCES,
@@ -170,7 +172,6 @@ def _authenticate_sg1000_tools(root: Path, cache_root: Path | None = None,
         root,
         lock_path=root / SG1000_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=SG1000_TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -510,9 +511,10 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_de
         device=TARGET, qsf=root / QSF, sdc=root / SDC, freq="74.25",
         seeds=PLACER_SEEDS, weights=PLACER_TIMING_WEIGHTS,
         critexp=PLACER_CRITICALITY_EXPONENT, budget=PLACER_QOR_BUDGET,
-        mode=PLACER_QOR_MODE, extra=("--router", ROUTER),
+        mode=PLACER_QOR_MODE, extra=(),
         required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
         gpu_devices=(gpu_device,), env=invocation.env, audit_source_root=root,
+        core_id="fes.sg1000",
     )
 
 

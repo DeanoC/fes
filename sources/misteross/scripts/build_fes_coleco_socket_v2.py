@@ -27,19 +27,23 @@ from scripts.fes_build_common import (
 )
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_coleco_socket_v2.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2")
 VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-video")
 NATIVE_VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-native-video")
-TOOLCHAIN_LOCK = "toolchain.lock"
+TOOLCHAIN_LOCK = "cores/fes-coleco/toolchain.lock"
 COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
-PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
+PNR = pnr_recipe.recipe_for("fes.coleco")
+PLACER_SEEDS = tuple(PNR["seeds"])
 PLACER_QOR_MODE = "first-pass"
-PLACER_TIMEOUT_SECONDS = 600
+PLACER_TIMEOUT_SECONDS = PNR["timeout_s"]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.coleco")
 TOOL_COMMITS = {
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
 }
@@ -56,6 +60,7 @@ RTL_SOURCES = (*factory.RTL_SOURCES,
 PINNED_INPUTS = tuple(dict.fromkeys((
     RECIPE, "scripts/coleco_expansion.py", "cores/fes-coleco/rtl/coleco_bus_v2_pack.vh",
     TOOLCHAIN_LOCK,
+    "scripts/pnr_recipe.py",
     *(path for path in factory.PINNED_INPUTS
       if path not in (factory.RECIPE, factory.COLECO_TOOLCHAIN_LOCK)),
     *RTL_SOURCES,
@@ -86,7 +91,7 @@ def video_profile(*, video_socket: bool = False, native_video: bool = False):
 
 
 def placement_policy(*, native_video: bool = False) -> tuple[tuple[int, ...], int]:
-    weights = (2000, 1000) if native_video else (2000,)
+    weights = tuple(PNR["timing_weights"]) if native_video else (PNR["timing_weights"][0],)
     return weights, len(PLACER_SEEDS) * len(weights)
 
 
@@ -97,11 +102,12 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, *,
         nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
         device=factory.TARGET, qsf=output / "socket.qsf",
         sdc=root / factory.SDC, freq="74.25", seeds=PLACER_SEEDS,
-        weights=weights, critexp=factory.PLACER_CRITICALITY_EXPONENT,
+        weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
         budget=budget, mode=PLACER_QOR_MODE, timeout=PLACER_TIMEOUT_SECONDS,
-        extra=("--router", factory.ROUTER),
-        required=factory.PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
+        extra=(),
+        required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
         env=env, audit_source_root=root,
+        core_id="fes.coleco",
     )
 
 
@@ -121,7 +127,6 @@ def authenticate_tools(root: Path, cache_root: Path | None,
     return _authenticate_tools(
         root, lock_path=root / TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -164,7 +169,7 @@ def create_build_record(root: Path, repository: str, revision: str,
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": weights[0],
             "placer_heap_timingweights": ",".join(str(weight) for weight in weights),
-            "placer_heap_critexp": factory.PLACER_CRITICALITY_EXPONENT,
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "placer_qor_mode": PLACER_QOR_MODE,
             "placer_qor_budget": budget,
             "placer_qor_timeout_seconds": PLACER_TIMEOUT_SECONDS,
@@ -219,7 +224,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "--sdc", factory.SDC, "--freq", "74.25",
         "--seed", str(PLACER_SEEDS[0]),
         "--placer-heap-timingweight", str(weights[0]),
-        "--placer-heap-critexp", str(factory.PLACER_CRITICALITY_EXPONENT),
+        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", factory.ROUTER, "--timing-allow-fail",
         "--rbf", f"{relative}/core.rbf", "--compress-rbf",
         "--write", f"{relative}/routed.json",

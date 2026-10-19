@@ -1,5 +1,13 @@
 # Working in FES
 
+## Rules for all agents
+
+Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
+
+Never pin a GPU vendor.
+
+Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -10,9 +18,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -34,6 +40,8 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+GPU jobs follow the [Shared GPUs](#shared-gpus) section.
 
 The four first-party modules develop only in this repository. Their former
 standalone repositories are archived; never send work or PRs there. Go import
@@ -78,6 +86,12 @@ never infer persistence from a display name, package path or raw RBF.
   keep cold `make build` / `make verify` and Quartus for stabilized integration.
 - Parent builds use committed module bytes. Never claim a build tested edits it
   did not select.
+- Delete superseded code; don't keep it. When a replacement lands, remove the
+  old path, its tests, build targets and docs in the same or the next PR. Don't
+  add compatibility shims, fallbacks or "kept for older kits" branches: both kits
+  are test kits and an SD reburn is pre-approved. Removal needs no special
+  justification. Keeping legacy code does. [#871](https://github.com/DeanoC/fes/issues/871)
+  tracks the current list.
 
 ## Hardware, media and releases
 
@@ -94,7 +108,7 @@ never infer persistence from a display name, package path or raw RBF.
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.
   Do not put another task's release in place of that baseline, require matching
-  host commits, or use file overlays on a managed kit.
+  host commits, or put file overlays on a kit.
 - A build never authorizes deployment. Kits A and B are both designated test
   kits and are interchangeable. Claim one in its status file and hold the
   session described in [kit sharing](docs/kit-sharing.md). Never bypass
@@ -115,10 +129,30 @@ never infer persistence from a display name, package path or raw RBF.
 
 Powerboat (AMD, HIP; GPU0 and GPU1) and the CUDA box `chip-30x0-ai-dev`
 (RTX 3070 and RTX 3090) are shared by agents and by Deano's Codex harness.
-All GPU work on those hosts goes through `gpu-run`. First come, first served.
+All GPU jobs on those hosts go through `gpu-run`: one `flock` lease per GPU,
+first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
-wait their turn like everyone else.
+are legitimate and must not be killed; they wait their turn like everyone else.
+
+nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
+timing and route evidence are interchangeable: references, pins, seed results and
+replays from either backend remain valid on the other. This is route-result
+equivalence only; production builds, promotion and seal evidence still require an
+authenticated live HIP or CUDA backend as producer validators require. Registered
+producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
+can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
+artifact identities because backend is part of functional execution identity, even
+though their timing and route evidence is interchangeable. Among current core
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
+Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
+and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
+the backend. On a CUDA host, select CUDA and its matching toolchain for a
+router-selectable producer; a device-only producer can use CUDA only with an
+authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
+record the backend in the build record. Never require a separate HIP run or
+discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
+override).
 
 `scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
 as a child. That child does not inherit the lock, so the lease ends when the
@@ -141,6 +175,31 @@ ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
 
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
 when the GPUs are not free.
+
+## Timing-failure playbook (P&R misses)
+
+This applies when a factory build, sweep, replay or nightly run misses timing on any core. Don't just reroll seeds.
+
+A job must never patch a shared script or repro directory in place; each job works on its own private copy.
+
+1. **Confirm the miss is real.** Replay the core's production recipe (seed, weight, critexp, every flag, env, timeout) on the same frozen `synth.json` and the same binary, using whichever GPU is free via `gpu-run`. If the old binary is in question, run a paired old/new replay as well. Record the GPU backend/device and whether it was contended.
+2. **Never relax a constraint.** Don't edit the SDC/QSF clocks, add `--timing-allow-fail` to a signoff, loosen a seal, or lower a required clock. If closing would need any of these, stop and report.
+3. **Work through the core's option matrix in order, within the budget:**
+   1. the production seed list at the production weight (what the producer does already)
+   2. timing weight variants {production, 300, 1000, 2000} × critexp {production, 2, 5}
+   3. known-helpful fork flags, one at a time, on the best two weight/critexp pairs: `--arrival-pin-assignment`, `--isolated-lut-placement`, then both
+   4. any core-specific entries listed in that core's recipe `playbook` table
+   - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
+4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything
+   through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's
+   job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA and
+   CPU have interchangeable route outcomes, subject to the live-GPU production
+   evidence requirement above.
+5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
+6. **If a combination closes** on at least 2 of 3 seeds, treat it as a candidate, not promotion evidence. Before promotion, rerun the full production build with the proposed recipe and require fresh timing evidence from that build, with its embedded `BUILD_ID` reflecting the new recipe; a frozen-`synth.json` sweep alone is insufficient. Record this build in the campaign evidence. The recipe-change PR contains only that core's recipe change plus the campaign evidence files: `runs.jsonl` and the summary table under `docs/validation/<date>-<core>-timing-playbook/`. Include the run table and before/after per-clock fmax in the PR body as well. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
+7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.
+
+Long term this matrix becomes an automatic, alphamister-style search over the same option space, with the same budget and recording rules.
 
 ## Finish with a handoff
 

@@ -16,7 +16,7 @@ the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using
-`toolchain.lock` (Yosys `5391eeb1`, nextpnr `9128800f`, Mistral
+`cores/fes-sg1000/toolchain.lock` (Yosys `3a5accbd`, replacing previous Yosys pin `5391eeb1`, nextpnr `9128800f`, Mistral
 `8fcc4cb4`). It seals a
 format-3 package from a clean tree. The parent image route is package-only,
 and `fes.sg1000` is in the factory image.
@@ -200,7 +200,7 @@ requires one exact 16 KiB `cartridge-rom`, required
 requires two PLLs, the four routed HDMI audio pads, and passing system,
 pixel and audio timing domains.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
-`toolchain.lock`. Yosys defines
+`cores/fes-sg1000/toolchain.lock`. Yosys defines
 `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
 seal. A prior synth-only gap ladder is not sealed-bitstream or hardware

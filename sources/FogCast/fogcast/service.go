@@ -1040,7 +1040,7 @@ func (s *Service) corePackageHasRecognizedPlayABI(ctx context.Context, gameID st
 	if err != nil {
 		return false
 	}
-	inspection, _, err := s.corePackages.Read(ctx, entry.PackageID)
+	inspection, err := s.corePackages.Inspect(ctx, entry.PackageID)
 	if err != nil {
 		return false
 	}

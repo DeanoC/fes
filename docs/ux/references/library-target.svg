@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1216" viewBox="0 0 1680 1216" role="img" aria-labelledby="sheet-title sheet-desc">
+  <title id="sheet-title">Proposed FES native Library — annotated visual reference</title>
+  <desc id="sheet-desc">A proposed 1280 by 720 Library viewport in the warm FES visual language. Tiny Tide remains the selected fictional game while a separate Details button has controller focus. Direct Play, catalog controls, a missing-artwork placeholder, readiness and the picture destination remain visible. Numbered guidance sits outside the viewport. Every game, creator, cover and capability shown is a design fixture; this is not a native render or hardware acceptance evidence.</desc>
+  <!--
+    Design reference, not a renderer implementation or a capability claim.
+    Product viewport: x=64, y=176, width=1280, height=720.
+    Essential product safe area: x=64..1216, y=36..684 within that viewport.
+    Product type: 36px selected/room title, 24px actions/game names/destination,
+    22px support/status/controller hints. Sheet annotations are outside the UI.
+    Go is the native face; the self-contained source has a portable system-font
+    fallback and uses no external assets. Verify final type with the Go renderer.
+    Focus shown: Details. Selection retained: Tiny Tide.
+    Illustrated pad mapping: South=A=Confirm, East=B=Back.
+  -->
+  <defs>
+    <style>
+      text { font-family: 'Go', 'DejaVu Sans', sans-serif; fill: #243631; }
+      .bold { font-weight: 700; }
+      .secondary { fill: #53625A; }
+      .sheet-kicker { font-size: 16px; font-weight: 700; letter-spacing: 1.4px; }
+      .sheet-body { font-size: 18px; }
+      .callout-title { font-size: 20px; font-weight: 700; }
+      .callout-body { font-size: 18px; fill: #53625A; }
+      .callout-number { font-size: 17px; font-weight: 700; fill: #FCFCF3; text-anchor: middle; }
+      .product-title { font-size: 36px; font-weight: 700; }
+      .product-body { font-size: 24px; }
+      .product-support { font-size: 22px; }
+      .button { fill: #FFFCF5; stroke: #CECFC0; stroke-width: 1; }
+      .control { fill: #E9E6DC; }
+      .rule { stroke: #CECFC0; stroke-width: 1; }
+    </style>
+    <clipPath id="viewport-clip">
+      <rect width="1280" height="720"/>
+    </clipPath>
+    <clipPath id="card-art-clip">
+      <path d="M12 0H258Q270 0 270 12V120H0V12Q0 0 12 0Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Sheet context, deliberately outside the proposed product viewport. -->
+  <rect width="1680" height="1216" fill="#E8E5DD"/>
+  <text x="64" y="52" class="sheet-kicker">FES / NATIVE UI REFERENCE</text>
+  <text x="64" y="99" font-size="34" class="bold">Library, brought into the shared FES shell</text>
+  <text x="64" y="136" class="sheet-body secondary">PROPOSED LAYOUT · 1280 × 720 viewport · Fictional design fixtures · No hardware acceptance</text>
+
+  <!-- Exact 1280×720 product viewport. No drafting callouts appear inside it. -->
+  <g id="proposed-library-viewport" transform="translate(64 176)" clip-path="url(#viewport-clip)">
+    <rect width="1280" height="720" fill="#F4F0E8"/>
+
+    <!-- Common shell: every essential element remains inside the 5% safe area. -->
+    <rect x="64" y="36" width="72" height="48" rx="10" fill="#235A46"/>
+    <text x="100" y="69" font-size="28" class="bold" text-anchor="middle" style="fill:#FCFCF3">FES</text>
+    <text x="156" y="71" class="product-title">Library</text>
+    <rect x="944" y="36" width="116" height="48" rx="10" class="button"/>
+    <text x="1002" y="68" class="product-body" text-anchor="middle">Home</text>
+    <rect x="1076" y="36" width="140" height="48" rx="10" class="button"/>
+    <text x="1146" y="68" class="product-body" text-anchor="middle">System</text>
+    <path d="M64 106H1216" class="rule"/>
+
+    <!-- Existing catalog functions, exposed as directional focus targets. -->
+    <rect x="64" y="124" width="260" height="48" rx="10" class="control"/>
+    <text x="88" y="157" class="product-body">All platforms</text>
+    <path d="M288 144l7 7 7-7" fill="none" stroke="#53625A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="340" y="124" width="192" height="48" rx="10" class="control"/>
+    <circle cx="371" cy="145" r="8" fill="none" stroke="#53625A" stroke-width="2.5"/>
+    <path d="M377 151l7 7" fill="none" stroke="#53625A" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="398" y="157" class="product-body">Search</text>
+    <rect x="548" y="124" width="172" height="48" rx="10" class="control"/>
+    <path d="M570 140H590M574 148H586M578 156H582" fill="none" stroke="#53625A" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="604" y="157" class="product-body">Filter</text>
+    <rect x="736" y="124" width="240" height="48" rx="10" class="control"/>
+    <text x="760" y="157" class="product-body">Sort: Title</text>
+    <path d="M940 144l7 7 7-7" fill="none" stroke="#53625A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="992" y="124" width="224" height="48" rx="10" class="control"/>
+    <text x="1016" y="157" class="product-body">View: Grid</text>
+    <path d="M1180 144l7 7 7-7" fill="none" stroke="#53625A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Selected record: a stable side marker and bold name, not a second focus ring. -->
+    <g id="selected-game-tiny-tide" transform="translate(946 196)">
+      <rect width="270" height="206" rx="12" fill="#FFFCF5" stroke="#CECFC0"/>
+      <g clip-path="url(#card-art-clip)">
+        <rect width="270" height="120" fill="#D5E4D9"/>
+        <circle cx="220" cy="31" r="17" fill="#EFD48D"/>
+        <path d="M0 62Q49 35 93 65T187 63T270 60V120H0Z" fill="#A2C2B6"/>
+        <path d="M0 94Q48 78 97 97T193 94T270 97V120H0Z" fill="#5C927F"/>
+        <path d="M90 81H139L130 92H101Z" fill="#243631"/>
+        <path d="M116 45V79H143Z" fill="#FFFCF5"/>
+        <path d="M113 56V79H94Z" fill="#EFD48D"/>
+        <path d="M116 43V83" stroke="#243631" stroke-width="2"/>
+      </g>
+      <path d="M3 12V194" stroke="#235A46" stroke-width="6" stroke-linecap="round"/>
+      <text x="20" y="154" class="product-body bold">Tiny Tide</text>
+      <text x="20" y="185" class="product-support secondary">Soft Harbour</text>
+    </g>
+
+    <g id="game-night-orchard" transform="translate(64 196)">
+      <rect width="270" height="206" rx="12" fill="#FFFCF5" stroke="#CECFC0"/>
+      <g clip-path="url(#card-art-clip)">
+        <rect width="270" height="120" fill="#D4CFDE"/>
+        <circle cx="214" cy="33" r="18" fill="#FFFCF5"/>
+        <path d="M0 105Q71 70 139 96T270 96V120H0Z" fill="#9AA695"/>
+        <path d="M109 111V59M109 89l-25-18M109 78l26-20" fill="none" stroke="#435951" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="87" cy="50" r="22" fill="#687565"/>
+        <circle cx="116" cy="35" r="29" fill="#7B876F"/>
+        <circle cx="141" cy="58" r="25" fill="#687565"/>
+        <circle cx="103" cy="48" r="5" fill="#EFD48D"/>
+        <circle cx="137" cy="60" r="5" fill="#EFD48D"/>
+      </g>
+      <text x="18" y="154" class="product-body">Night Orchard</text>
+      <text x="18" y="185" class="product-support secondary">Bramble Works</text>
+    </g>
+
+    <g id="game-orbit-post" transform="translate(358 196)">
+      <rect width="270" height="206" rx="12" fill="#FFFCF5" stroke="#CECFC0"/>
+      <g clip-path="url(#card-art-clip)">
+        <rect width="270" height="120" fill="#CDDCE2"/>
+        <circle cx="143" cy="62" r="33" fill="#73939D"/>
+        <ellipse cx="143" cy="62" rx="63" ry="13" transform="rotate(-20 143 62)" fill="none" stroke="#FFFCF5" stroke-width="7"/>
+        <rect x="45" y="32" width="30" height="23" rx="3" transform="rotate(-12 60 44)" fill="#EFD48D"/>
+        <path d="M48 36l14 7 11-12" fill="none" stroke="#53625A" stroke-width="2"/>
+        <circle cx="222" cy="25" r="3" fill="#FFFCF5"/>
+        <circle cx="50" cy="91" r="3" fill="#FFFCF5"/>
+      </g>
+      <text x="18" y="154" class="product-body">Orbit Post</text>
+      <text x="18" y="185" class="product-support secondary">Mira Byte</text>
+    </g>
+
+    <!-- A useful fallback is an ordinary record with intact identity and geometry. -->
+    <g id="game-missing-artwork" transform="translate(652 196)">
+      <rect width="270" height="206" rx="12" fill="#FFFCF5" stroke="#CECFC0"/>
+      <g clip-path="url(#card-art-clip)">
+        <rect width="270" height="120" fill="#E9E6DC"/>
+        <rect x="18" y="27" width="50" height="36" rx="4" fill="none" stroke="#53625A" stroke-width="2"/>
+        <path d="M27 39H59M27 46H59M27 53H59M36 34V57M46 34V57M55 34V57" fill="none" stroke="#53625A" stroke-width="1.5"/>
+        <text x="84" y="54" class="product-body secondary">ZX81</text>
+        <text x="18" y="99" class="product-support secondary">Artwork unavailable</text>
+      </g>
+      <text x="18" y="154" class="product-body">Signal 81</text>
+      <text x="18" y="185" class="product-support secondary">North Window</text>
+    </g>
+
+    <!-- Stable selected-title panel. Readiness and destination describe one route. -->
+    <rect x="64" y="426" width="1152" height="196" rx="16" fill="#FFFCF5" stroke="#CECFC0"/>
+    <text x="88" y="469" class="product-title">Tiny Tide</text>
+    <text x="88" y="502" class="product-support secondary">by Soft Harbour · ZX81</text>
+    <text x="88" y="533" class="product-support secondary">Left, right + action</text>
+    <rect x="88" y="552" width="96" height="44" rx="22" fill="#E0EAD9"/>
+    <text x="136" y="581" class="product-support bold" text-anchor="middle" style="fill:#235A46">Ready</text>
+    <text x="202" y="581" class="product-body">Plays on this TV</text>
+
+    <!-- Play is still direct from a Ready tile; Details is also reachable by D-pad. -->
+    <rect x="776" y="449" width="184" height="56" rx="10" fill="#235A46"/>
+    <path d="M804 466l16 11-16 11Z" fill="#FCFCF3"/>
+    <text x="867" y="486" class="product-body bold" text-anchor="middle" style="fill:#FCFCF3">Play</text>
+    <rect x="970" y="443" width="228" height="68" rx="16" fill="none" stroke="#235A46" stroke-width="4"/>
+    <rect x="976" y="449" width="216" height="56" rx="10" fill="#FFFCF5" stroke="#CECFC0"/>
+    <text x="1084" y="486" class="product-body bold" text-anchor="middle">Details</text>
+    <text x="776" y="549" class="product-support secondary">One little boat. One enormous sea.</text>
+    <text x="776" y="581" class="product-support secondary">Find your way home.</text>
+
+    <path d="M64 644H1216" class="rule"/>
+    <text x="64" y="678" class="product-support secondary">D-pad Move · A Open Details · B Back</text>
+    <text x="1216" y="678" class="product-support secondary" text-anchor="end">4 of 4</text>
+  </g>
+  <rect x="64" y="176" width="1280" height="720" fill="none" stroke="#B4B8AC" stroke-width="1"/>
+
+  <!-- Numbered annotations are outside the product viewport. -->
+  <g id="annotations">
+    <circle cx="1376" cy="207" r="13" fill="#235A46"/>
+    <text x="1376" y="213" class="callout-number">1</text>
+    <text x="1404" y="214" class="callout-title">One FES shell</text>
+    <text x="1364" y="248" class="callout-body">Shared palette, type and</text>
+    <text x="1364" y="274" class="callout-body">Home / System navigation.</text>
+
+    <circle cx="1376" cy="315" r="13" fill="#235A46"/>
+    <text x="1376" y="321" class="callout-number">2</text>
+    <text x="1404" y="322" class="callout-title">Reachable controls</text>
+    <text x="1364" y="352" class="callout-body">Search, filter, sort and view</text>
+    <text x="1364" y="378" class="callout-body">remain visible focus targets.</text>
+    <text x="1364" y="404" class="callout-body">Reuse the existing catalog.</text>
+
+    <circle cx="1376" cy="437" r="13" fill="#235A46"/>
+    <text x="1376" y="443" class="callout-number">3</text>
+    <text x="1404" y="444" class="callout-title">Missing artwork</text>
+    <text x="1364" y="474" class="callout-body">Keep the frame, full title</text>
+    <text x="1364" y="500" class="callout-body">and known creator. Loading</text>
+    <text x="1364" y="526" class="callout-body">art never shifts selection.</text>
+
+    <circle cx="1376" cy="559" r="13" fill="#235A46"/>
+    <text x="1376" y="565" class="callout-number">4</text>
+    <text x="1404" y="566" class="callout-title">Selection and focus</text>
+    <text x="1364" y="596" class="callout-body">Tiny Tide stays selected.</text>
+    <text x="1364" y="622" class="callout-body">Only Details has the focus</text>
+    <text x="1364" y="648" class="callout-body">ring. Ready is a status.</text>
+
+    <circle cx="1376" cy="681" r="13" fill="#235A46"/>
+    <text x="1376" y="687" class="callout-number">5</text>
+    <text x="1404" y="688" class="callout-title">Two useful actions</text>
+    <text x="1364" y="718" class="callout-body">Confirm on a Ready tile</text>
+    <text x="1364" y="744" class="callout-body">plays. D-pad reaches Details;</text>
+    <text x="1364" y="770" class="callout-body">Confirm opens that action.</text>
+
+    <circle cx="1376" cy="803" r="13" fill="#235A46"/>
+    <text x="1376" y="809" class="callout-number">6</text>
+    <text x="1404" y="810" class="callout-title">Picture destination</text>
+    <text x="1364" y="840" class="callout-body">Ready + “Plays on this TV”</text>
+    <text x="1364" y="866" class="callout-body">describe the same kit route.</text>
+    <text x="1364" y="892" class="callout-body">No streaming is implied.</text>
+  </g>
+
+  <text x="64" y="944" class="sheet-kicker">REFERENCE NOTES / OUTSIDE THE PRODUCT VIEWPORT</text>
+  <text x="64" y="980" font-size="22" class="bold">Focus shown: Details. The selected game remains Tiny Tide.</text>
+  <text x="64" y="1014" class="sheet-body secondary">Essential UI stays within 5% safe margins: 64 px horizontally and 36 px vertically. Support 22–24 px; selected title 36 px.</text>
+  <text x="64" y="1044" class="sheet-body secondary">Illustrated mapping: South = A / Confirm, East = B / Back. Real prompts must follow the connected controller.</text>
+  <text x="64" y="1074" class="sheet-body secondary">Tiny Tide, Night Orchard, Orbit Post, Signal 81, their creators, covers and readiness are fictional design fixtures.</text>
+  <text x="64" y="1104" class="sheet-body secondary">Reuse existing Library data, identity, filters, readiness and launch paths. These drawings establish no content or hardware capability.</text>
+
+  <rect x="64" y="1132" width="1552" height="52" rx="10" fill="#FFFCF5"/>
+  <text x="84" y="1165" font-size="20" class="bold">Empty library</text>
+  <text x="260" y="1165" font-size="20" class="secondary">Offer a supported host setup action; never fill an empty library with these fictional games.</text>
+</svg>

@@ -23,7 +23,7 @@ from scripts.search_placer_qor import ranking_document, search
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/diagnose_fes_ramtest_timing.py"
-LOCK = "toolchain.lock"
+LOCK = ramtest.TOOLCHAIN_LOCK
 OUTPUT = Path("build/fes-ramtest-timing-130")
 TOOLCHAIN_ROOT = Path("build/toolchain")
 TOOL_COMMITS = board.EXPECTED_TOOL_COMMITS

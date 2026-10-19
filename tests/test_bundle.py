@@ -215,7 +215,8 @@ class BundleTest(unittest.TestCase):
         self.assertTrue(producer.is_file())
         self.assertTrue((root / 'sources/misteross/toolchain.lock').is_file())
         text = producer.read_text()
-        self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(3,')
+        self.assertIn('PNR = pnr_recipe.recipe_for("fes.sms")', text)
+        self.assertIn('PLACER_SEEDS = tuple(PNR["seeds"])', text)
         self.assertRegex(text, r'(?m)^SEED = PLACER_SEEDS\[0\]$')
         module = self.module()
         # Probe this working module's CLI, authentication and lock contract,
@@ -226,9 +227,11 @@ import inspect
 import sys
 from pathlib import Path
 from scripts.fes_build_common import _authenticate_tools as default_authenticate
+from scripts import pnr_recipe
 producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 locks = [value for name, value in vars(producer).items() if name == "TOOLCHAIN_LOCK" or name.endswith("_TOOLCHAIN_LOCK")]
+locks.append(pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).relative_to(Path.cwd()).as_posix())
 authenticate = getattr(producer, sys.argv[2])
 # A scoped socket compiler does not replace the shared authenticator's
 # default lock used by the ordinary ZX81 recipe.
@@ -247,7 +250,7 @@ inspect.signature(authenticate).bind(
                 self.assertIn('--cache-root', help_text)
                 subprocess.run(
                     [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate,
-                     str(source / recipe.producer_script), recipe.lock_path],
+                     str(source / recipe.producer_script), recipe.lock_path, recipe.core_id],
                     cwd=source, check=True, capture_output=True, text=True, timeout=30)
         common = Path(subprocess.check_output(
             ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())
@@ -260,7 +263,7 @@ inspect.signature(authenticate).bind(
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

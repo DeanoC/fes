@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.sh"
 ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
@@ -56,7 +56,7 @@ case "$1" in
     status|submodule) exit 0 ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) commit="5391eeb1e91b38a3d0e96d04f24cf921743c9c78" ;;
+            yosys) commit="3a5accbd78c526ab7bae32640044a2e062a3cfc9" ;;
             mistral) commit="8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f" ;;
             nextpnr) commit="9128800fa6e77c4138088a7107a95376ba47ff15" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
@@ -205,7 +205,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
                 env=environment,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("5391eeb1e91b38a3d0e96d04f24cf921743c9c78", result.stdout)
+        self.assertIn("3a5accbd78c526ab7bae32640044a2e062a3cfc9", result.stdout)
         self.assertIn(f"source: {toolchain_root}/src/yosys", result.stdout)
         self.assertIn(f"lock: {lock_path}", result.stdout)
         self.assertIn("gpu-router: HIP", result.stdout)

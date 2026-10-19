@@ -914,7 +914,11 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. It does not expose
+IDs so uncached room selections can load their detail row. It admits one
+library write: `PUT /api/v1/library/core-entries/{game_id}/expansion` for a
+strict game ID. The body is the existing compare-and-swap selection and is
+forwarded unchanged; the foreground target is not replaced. Slot writes,
+presentation edits, other library PUTs and settings stay denied. It does not expose
 full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
 and `fogcast-kit` use `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
@@ -934,8 +938,11 @@ setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
-status separately. Fit/remove use the existing compare-and-swap expansion
-selection API. Catalogue schema 14 adds optional household expansion labels
+status separately. `expansion_selection` on that response says whether this
+listener accepts the single-entry next-start PUT. Fit/remove use the existing
+compare-and-swap expansion selection API, including from a paired kit when
+the flag is true. An older paired host omits the flag and the kit stays
+inspect-only. Catalogue schema 14 adds optional household expansion labels
 and descriptions; these never influence admission. The session receipt's
 composition identifies running hardware independently of the saved setup.
 Missing or mismatched composition receipts remain unknown. Bound Stop checks
@@ -1491,8 +1498,7 @@ lease through the same cleanup path; it never aborts FPGA programming halfway
 through a transition. Clients retry a busy takeover using the same request ID.
 Old lease credentials cannot stop or send input to the replacement owner.
 This protects agent API operations; direct root SSH or runtime socket access
-remains outside agent admission. Supported FES file replacement uses the
-maintenance reservation below rather than that escape.
+remains outside agent admission.
 
 ### Target maintenance ownership
 
@@ -1524,35 +1530,14 @@ idle before marking the same reservation ready. End rechecks idle before opening
 ordinary admission. A completed private receipt supports lost-response
 reconciliation; stale credentials cannot end a newer reservation.
 
-Managed images reject file-overlay claim/swap/restore plans before mutation.
 Diagnostics use private hosts and immutable software bundles; returning to a
-prior bundle requires explicit generation-checked activation. Configuration-only
-temporary overlays are not supported by this lifecycle.
+prior bundle requires explicit generation-checked activation.
 
-Marker transitions and the FES SSH file executor share
-`/run/fogcast/kit-maintenance.lock`. The executor validates ready operation,
-generation, boot and its planned manifest digest before stopping services. The
-replacement agent loads its marker asynchronously while ordinary admission stays
-revoking, allowing process health to respond without claiming the kit. Neither
-workstation task markers nor the private credential journal grant target access.
-The agent's `--print-maintenance-contract` flag exits without initialization and
-prints `fes-kit-maintenance-v1`, which the executor requires of replacement or
-restored agents. Initial adoption uses the appliance image workflow; missing
-maintenance support has no unguarded compatibility path.
-
-On unmanaged maintenance-aware images, FES `scripts/kit_maintenance.py` handles
-owned start/resume/end and private journal recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
-completes. When `agent.toml` omits `target_id`, that client binds the saved
-`/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
-id from authenticated health. A configured or saved id must match health.
-Finish of a config swap records one successor target id after the original boot
-and reservation still match, then ends that reservation. A later finish accepts
-that recorded successor only on the same boot. A different boot, a different
-reservation, a health id that disagrees with the new config or saved file, or
-a further id change keeps the journal. This is temporary-overlay
-tooling, not yet a persistent userspace release manager. See FES
-[modular updates](../../../docs/modular-updates.md) for remaining durable-package
-and userspace-release work.
+Marker transitions take `/run/fogcast/kit-maintenance.lock`. The replacement
+agent loads its marker asynchronously while ordinary admission stays revoking,
+allowing process health to respond without claiming the kit. The agent's
+`--print-maintenance-contract` flag exits without initialization and prints
+`fes-kit-maintenance-v1`.
 
 ## Host kit lease
 
@@ -2385,7 +2370,14 @@ agent's software drain so supervisor calls back into admission cannot deadlock;
 the stable supervisor serializes installation and activation independently.
 Authenticated health reports `software` separately from sealed image artifacts.
 `targetclient` mutations have no implicit replay; `cmd/fes-software` records the
-operation ID and expected generation for later status reconciliation.
+operation ID and expected generation for later status reconciliation. That
+client dials with a 10 second connect timeout. Health, status, and list retry
+transient network failures, including truncated response bodies, up to three
+times; each probe is bounded by 30 seconds. TLS certificate verification
+failures return immediately with a certificate error. Install, activate, and
+cancel are not retried. `--timeout` remains the whole-operation deadline. After
+a request body is written, the client waits
+at most five minutes for response headers.
 See [kit software releases](../../../docs/kit-software-releases.md) for commands,
 recovery boundaries and evidence limits.
 
@@ -2540,12 +2532,22 @@ in library `slot_expansions`. Launch reads every selected card before target
 contact; a missing or incompatible card is an admission error, so no Stop or
 programming follows.
 
-Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`,
-which runs `expansion.ComposeSlotsROM` and records the v2 composition and
-programmed digest in the `rom-link.json` receipt beside ascending
-`slot-N.tar` members. A ROM-less shell sends `corepackage.SlotCompositionBundle`
-(`slot-composition.json`, `package.tar`, `slot-N.tar`, `linked.rbf`) through
-the existing compose route. The agent's `corepackage.StageROMInput` /
+Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`
+to assemble the selected ROM and any selected composition inputs from their
+raw assets. Selected video-part assets enter `ROMInput.Parts`; one preparation
+pass links the video parts and ROM together through `expansion.ComposePartsROM`
+and records the parts composition and programmed digest in the `rom-link.json`
+receipt. Slot cards use `expansion.ComposeSlotsROM` and record the v2
+composition and programmed digest beside ascending `slot-N.tar` members.
+`romLaunchSource` does not build a standalone parts archive for a successful
+launch. If preparation fails with selected slot cards, launch reports the slot
+expansion as unavailable. If selected video assets are present, it checks
+`ComposePartsArchive` only to classify the failure: a failed check reports the
+video part as unavailable, while a successful check leaves the preparation
+failure classified as a ROM admission error. A ROM-less shell sends
+`corepackage.SlotCompositionBundle` (`slot-composition.json`, `package.tar`,
+`slot-N.tar`, `linked.rbf`) through the existing compose route. The agent's
+`corepackage.StageROMInput` /
 `StageComposition` relink independently and refuse different evidence, then
 publish the shell, one `slot-N-<publication>` directory per card (exactly
 `manifest.json` and `cart.rbf`) and `composition-<publication>/linked.rbf`.

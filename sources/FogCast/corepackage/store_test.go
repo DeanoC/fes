@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func storeArchive(t *testing.T) ([]byte, Inspection) {
@@ -252,5 +253,178 @@ func TestStoreRejectsInvalidRootAndPackageID(t *testing.T) {
 	}
 	if _, _, err := store.Read(context.Background(), strings.Repeat("a", 64)); !errors.Is(err, ErrPackageNotFound) {
 		t.Fatalf("Read missing ID error = %v", err)
+	}
+	if _, err := store.Inspect(context.Background(), "../escape"); !errors.Is(err, ErrInvalidPackageID) {
+		t.Fatalf("Inspect invalid ID error = %v", err)
+	}
+	if _, err := store.Inspect(context.Background(), strings.Repeat("a", 64)); !errors.Is(err, ErrPackageNotFound) {
+		t.Fatalf("Inspect missing ID error = %v", err)
+	}
+}
+
+func TestStoreInspectionCacheSkipsUnchangedArchives(t *testing.T) {
+	archive, expected := storeArchive(t)
+	root := filepath.Join(t.TempDir(), "core-packages")
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, _, err := store.Import(ctx, int64(len(archive)), bytes.NewReader(archive)); err != nil {
+		t.Fatal(err)
+	}
+	// Inside the racy window a verification is not remembered.
+	fullVerifications.Store(0)
+	for range 2 {
+		if _, err := store.Inspect(ctx, expected.PackageID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := fullVerifications.Load(); n != 2 {
+		t.Fatalf("racy archive verified %d times, want 2", n)
+	}
+	defer func(window time.Duration) { racyWindow = window }(racyWindow)
+	racyWindow = 50 * time.Millisecond
+	time.Sleep(2 * racyWindow)
+	fullVerifications.Store(0)
+	got, err := store.Inspect(ctx, expected.PackageID)
+	if err != nil || !reflect.DeepEqual(got, expected) {
+		t.Fatalf("Inspect = %#v, %v", got, err)
+	}
+	if n := fullVerifications.Load(); n != 1 {
+		t.Fatalf("first Inspect verified %d times, want 1", n)
+	}
+	for range 3 {
+		if _, err := store.Inspect(ctx, expected.PackageID); err != nil {
+			t.Fatal(err)
+		}
+		if listed, err := store.List(ctx); err != nil || len(listed) != 1 || !reflect.DeepEqual(listed[0], expected) {
+			t.Fatalf("List = %#v, %v", listed, err)
+		}
+		inspection, data, err := store.Read(ctx, expected.PackageID)
+		if err != nil || !bytes.Equal(data, archive) || !reflect.DeepEqual(inspection, expected) {
+			t.Fatalf("Read = %#v, %d bytes, %v", inspection, len(data), err)
+		}
+	}
+	if n := fullVerifications.Load(); n != 1 {
+		t.Fatalf("unchanged archive verified %d times, want 1", n)
+	}
+
+	// A same-size rewrite that restores mtime still changes ctime, so the
+	// cached verification must not be reused.
+	installed := filepath.Join(root, expected.PackageID+".fcore")
+	before, err := os.Stat(installed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, payload := fixtureBytes(t, loadCases(t)[0])
+	corrupt := bytes.Clone(archive)
+	corrupt[bytes.Index(archive, payload)+len(payload)/2] ^= 0xff
+	if err := os.Chmod(installed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(installed, corrupt, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(installed, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(installed, before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Lstat(installed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterKey, _ := statKey(after)
+	if beforeKey, _ := statKey(before); afterKey == beforeKey {
+		t.Fatalf("same-size rewrite left the fingerprint unchanged: %s", afterKey)
+	}
+	if _, err := store.Inspect(ctx, expected.PackageID); err == nil {
+		t.Fatal("Inspect trusted a rewritten archive")
+	}
+	if _, _, err := store.Read(ctx, expected.PackageID); err == nil {
+		t.Fatal("Read trusted a rewritten archive")
+	}
+	if n := fullVerifications.Load(); n != 3 {
+		t.Fatalf("rewritten archive verified %d times, want 3", n)
+	}
+}
+
+func TestStoreInspectionCacheReturnsIndependentDescriptorCopies(t *testing.T) {
+	defer func(window time.Duration) { racyWindow = window }(racyWindow)
+	racyWindow = -24 * time.Hour
+
+	for _, test := range []struct {
+		name    string
+		archive func(*testing.T) []byte
+		mutate  func(*Inspection)
+	}{
+		{
+			name: "format-3",
+			archive: func(t *testing.T) []byte {
+				_, _, _, archive := romPackageFixture(t)
+				return archive
+			},
+			mutate: func(inspection *Inspection) {
+				inspection.Descriptor.ROM.ID = "changed"
+				inspection.Descriptor.Interfaces[0].ID = "changed"
+			},
+		},
+		{
+			name: "format-4",
+			archive: func(t *testing.T) []byte {
+				return linkedTwoROMFixture(t).Package
+			},
+			mutate: func(inspection *Inspection) {
+				inspection.Descriptor.ROMs[0].ID = "changed"
+				inspection.Descriptor.ROMMap.File = "changed"
+				inspection.Descriptor.Interfaces[0].ID = "changed"
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			archive := test.archive(t)
+			store, err := NewStore(filepath.Join(t.TempDir(), "core-packages"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			expected, _, err := store.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fullVerifications.Store(0)
+			result, err := store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(result, expected) {
+				t.Fatalf("initial Inspect = %#v, %v", result, err)
+			}
+			if n := fullVerifications.Load(); n != 1 {
+				t.Fatalf("initial Inspect verified %d times, want 1", n)
+			}
+
+			test.mutate(&result)
+			result, err = store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(result, expected) {
+				t.Fatalf("cached Inspect = %#v, %v", result, err)
+			}
+			// A cache-hit result must not expose the cached descriptor either.
+			test.mutate(&result)
+			got, err := store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(got, expected) {
+				t.Fatalf("Inspect after mutating cache hit = %#v, %v", got, err)
+			}
+			got, data, err := store.Read(ctx, expected.PackageID)
+			if err != nil || !bytes.Equal(data, archive) || !reflect.DeepEqual(got, expected) {
+				t.Fatalf("Read = %#v, %d bytes, %v", got, len(data), err)
+			}
+			listed, err := store.List(ctx)
+			if err != nil || !reflect.DeepEqual(listed, []Inspection{expected}) {
+				t.Fatalf("List = %#v, %v", listed, err)
+			}
+			if n := fullVerifications.Load(); n != 1 {
+				t.Fatalf("cache hits verified %d times, want 1", n)
+			}
+		})
 	}
 }

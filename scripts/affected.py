@@ -45,7 +45,7 @@ FPGA_PRODUCER_HELPERS = {
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
-    'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
+    'core_package.py', 'export_core_package.py', 'search_placer_qor.py', 'pnr_recipe.py',
 }
 # Directory ownership includes cross-core consumers: demo and RISC-V import Pong
 # board models/constraints/PLL; SG-1000 and SMS still include Coleco generated headers.

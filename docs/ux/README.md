@@ -1,14 +1,16 @@
 # FES UX design
 
-**Status:** product direction agreed with Deano on 17 October 2026. Detailed
-visual choices and the implementation slices below are proposed until reviewed
-on the native interface. This document records intended experience, not a claim
-that every capability is implemented or hardware-accepted.
+**Status:** Home, Library/Details and ZX81 Workshop are implemented, with
+slice-specific kit evidence. The next milestone is a coherent, dependable
+native play-and-setup journey. Remaining design changes are labelled below;
+the individual slice results do not establish acceptance of every journey on
+the combined current build.
 
-**Product owner:** Deano. **UI owner:** FogCast. Documentation preparation used
-FES commit [`cf6987bb953f234da2ba54198280886e5553463f`](https://github.com/DeanoC/fes/commit/cf6987bb953f234da2ba54198280886e5553463f)
-as its source baseline. The first implementation task must inspect its own
-current base and the relevant open work before editing.
+**Product owner:** Deano. **UI owner:** FogCast.
+FES commit [`9b463dcee641e3622ace0fffe6f516d8e7848632`](https://github.com/DeanoC/fes/commit/9b463dcee641e3622ace0fffe6f516d8e7848632)
+was reviewed on 18 October 2026. Each implementation task must inspect its own
+current base, issue comments and related work before editing. Product direction
+was agreed on 17 October; this update reconciles it with the native result.
 
 ## Start here
 
@@ -17,6 +19,7 @@ current base and the relevant open work before editing.
 | This brief | Product direction, navigation, core journeys and implementation scope |
 | [Visual language](visual-language.md) | Visual hierarchy, typography, focus, artwork and display rules |
 | [Concepts](concepts/README.md) | Portable interactive sketches, editable source and screenshots |
+| [Native references and Library target](references/README.md) | Current renderer captures, a proposed Library layout and reproduction commands |
 | [Acceptance](acceptance.md) | User tasks and the evidence required to assess the native result |
 
 Delivery status, owners, dependencies and PRs belong in GitHub issues through
@@ -42,6 +45,43 @@ selection and launch/return behavior.
 The first useful outcome is a complete journey: choose a real supported game,
 understand where it will appear, resolve a requirement if necessary, play, and
 return to the same place. Visual polish is judged alongside that journey.
+
+## Next native milestone
+
+The current implementation gives us useful Home and Workshop presentations.
+The next work should make those promises dependable across the everyday path:
+**arrive, choose, inspect, play, stop, and return**, plus **inspect, save a setup,
+and use it on the next start**. Follow the task links in [#770](https://github.com/DeanoC/fes/issues/770)
+for current owners, ordering and evidence.
+
+1. **Complete visible actions.** A Ready Home item needs a direction-and-Confirm
+   route to Details while keeping direct Play. The kit Workshop needs a guarded
+   host-owned Next start save that actually works through its paired API.
+   Unsupported hosts must expose a truthful read-only state. Resolve Running
+   setup uncertainty without claiming the machine has stopped (#768), and
+   qualify the kit Library's stop/lease behavior (#805).
+2. **Make the native surfaces read as one FES product.** Migrate the Library
+   grid, list, header and prompts to the shared visual language. Correct the
+   selected-title contrast first. Keep existing browsing, readiness, Details,
+   import and session behavior. The [Library target](references/README.md#proposed-library-target)
+   explains the intended hierarchy; it is a design reference, not a new catalog.
+3. **Make arrival reliable.** Complete the existing tenfoot-default task (#728)
+   and network-startup recovery (#730). An older launcher configuration,
+   unpaired kit, empty library and temporarily unreachable host each need a
+   usable, truthful first screen. These are separate implementation scopes.
+4. **Bring real games to the foreground.** Project existing playable title
+   records into Home and, where supported, a small Games for this machine row.
+   Keep machine startup and Utilities explicit. Preserve a useful installed-core
+   view labelled "On this kit" until real title data exists; do not relabel an
+   inventory as a game library or invent recents, creators or compatibility.
+5. **Qualify the assembled journey.** Exercise the remaining readiness and
+   Workshop cases, input routes, cold entry and frame timings on the actual
+   combined result. Use the existing trace tools and #811; a faster old sample
+   does not accept a new layout or erase a watchdog failure.
+
+Homebrew Club can then grow through a small authored collection of real games
+and creator material. Streaming, save migration, Studio and dream-machine
+authoring retain their longer-term scope. They do not block this native pass.
 
 ## Authority and current behavior
 
@@ -271,32 +311,17 @@ native Home implementation.
 
 ## Implementation sequence
 
-The sequence below describes design scope; live ownership and progress belong
-in the linked GitHub work.
+The initial Home, Library/Details and Workshop slices landed through #776/#787,
+#790/#796 and #799. Continue with the [next native milestone](#next-native-milestone)
+and [acceptance journeys](acceptance.md); do not restart those slices from the
+browser concept or copy an old implementation branch.
 
-1. **Establish the native baseline.** Review current code and open work, map
-   the approved direction onto supported interactions, and capture the existing
-   1280x720 UI. Resolve the specific gaps that block the Home journey.
-2. **Implement the Home journey.** Use the Lounge direction, real content,
-   shared readiness and input, supported destination display, and one real
-   launch/return path. Retain Library, Rooms, Settings and Utilities access.
-3. **Extend shared Library and Details presentation.** Reuse the same state,
-   focus, artwork and action rules; keep machine and utility identity clear.
-4. **Apply the language to the ZX81 Workshop.** Preserve selected/saved/running
-   distinctions and the current lifecycle and media contract.
-5. **Develop richer authored discovery.** Add Club content and creator journeys
-   using available releases and shared project material.
-
-The immediate first implementation outcome is:
-
-> A welcoming native Home room that launches a real supported game and returns
-> to the same selection.
-
-Relevant work to assess before editing includes
-[#728, the tenfoot-only kit UI](https://github.com/DeanoC/fes/issues/728), and
-[#764, installed-core readiness and Confirm during warm-up](https://github.com/DeanoC/fes/issues/764).
-Coordinate against their actual current work; determine the specific dependency
-instead of copying fixes or assuming an open issue establishes current code.
+Resolve the specific dependency before broadening a task. For example, #619
+owns offline/local library fallback, #493 owns particular local platform
+coverage, and #730 owns network-startup retries. #451 has later fix evidence to
+reconcile before treating its original report as a current blocker. The Home
+content pass consumes the existing catalog contracts; it does not absorb all
+of these source and transport tasks.
 
 Use one FES task worktree and an explicit file scope. FogCast owns the UI;
 physical transitions remain in libmister-runtime. Do not create another launcher,
@@ -310,16 +335,19 @@ The design package alone establishes none of the latter. See [acceptance](accept
 
 ## Native Home: first-slice decisions
 
-**Status:** implemented for review in FogCast on the kit path
-(`fogcast-tenfoot -gfx menu-display`, rooms home `example.fes-cores`). The
-evidence so far is host-only: native software-renderer captures and focused
-tests, recorded in
-[the 17 October host record](../validation/2026-10-17-ux-lounge-home/README.md).
-Hardware journeys H1–H9 remain pending.
+**Status:** implemented in #776 and #787 on the kit path
+(`fogcast-tenfoot -gfx menu-display`, rooms home `example.fes-cores`).
+[The Home HIL](https://github.com/DeanoC/fes/pull/776#issuecomment-6234640302)
+and [exit-route HIL](https://github.com/DeanoC/fes/pull/787#issuecomment-6236689248)
+record the tested artifacts. Persistent room state subsequently landed in #786
+with [kit persistence evidence](https://github.com/DeanoC/fes/pull/786#issuecomment-6239802675).
+See the [remaining acceptance cases](acceptance.md) and
+[current host renders](references/README.md), rather than treating those results
+as a blanket pass for the combined build.
 
-- **Entry path.** The kit already opens tenfoot's rooms Home on
-  `menu-display`, which defaults to `example.fes-cores`. The Lounge applies to
-  that room; the retiring grid launcher (#728) is untouched. A
+- **Entry path.** An explicitly tenfoot-configured kit opens rooms Home on
+  `menu-display`, whose default room is `example.fes-cores`. The Lounge applies
+  to that room; the retiring grid launcher (#728) is untouched. A
   `launcher.json` without `kit_ui = "tenfoot"` still boots the grid until #728
   lands.
 - **Ownership split.** The room manifest selects
@@ -349,6 +377,8 @@ Hardware journeys H1–H9 remain pending.
   (Y, or A on a blocked core) shows the core id, short package id and the
   kit's verbatim block in the hero; Back closes it. After an ambiguous local
   launch the core shows Checking, not Ready, until the agent reports idle.
+  **Remaining gap:** the drawn Details control for a Ready core has no
+  direction-and-Confirm focus route; Y/pointer access does not satisfy H5.
 - **Confirm during Checking.** Acknowledged ("Still checking. Press A again
   once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
@@ -377,12 +407,18 @@ Hardware journeys H1–H9 remain pending.
   only route on a pad without Guide; that is an accepted limit for sparse
   pads, since every other button belongs to the game. The hero names all
   three routes before Play. A press during loading stops the core once it is
-  running, as the hold does. Hardware check of the new routes is pending.
+  running, as the hold does. These routes have the #787 kit evidence linked
+  above. The Guide-less exception is recorded in
+  [the 17 October decision](https://github.com/DeanoC/fes/issues/770#issuecomment-6234959632);
+  it does not waive menu or Details reachability.
 
 ## Library and Details: second-slice decisions
 
-**Status:** implemented for review (#789). Evidence is host-only; L1/L2 on a
-kit are pending.
+**Status:** implemented in #790 and #796 (tasks #789 and #795), with
+[kit evidence](https://github.com/DeanoC/fes/pull/790#issuecomment-6237617795)
+and the [combined slice handoff](https://github.com/DeanoC/fes/issues/770#issuecomment-6243878257).
+The shared chrome migration remains a new bounded task; it is not part of that
+completed presentation/behavior scope.
 
 - **Back returns to its origin.** The Library opened from Home, a room or the
   Home overlay keeps that room suspended, so Back (and the Home key) returns to
@@ -416,11 +452,16 @@ kit are pending.
 - **Not yet.** The grid, list and header chrome keep their dark sofa styling
   and debug-font prompts. The browse prompt still says "launch". Edition choice
   stays in rooms because Library rows are single editions.
+  The selected grid title uses light text over the amber selection fill, about
+  1.51:1 contrast. The [visual contract](visual-language.md#library-migration)
+  requires readable title surfaces and a separate focus indicator.
 
 ## ZX81 Workshop: third-slice decisions
 
-**Status:** implemented for review (#797). Evidence is host-only; Z1–Z3 on a
-kit are pending.
+**Status:** implemented in #799 (task #797). The
+[Workshop kit run](https://github.com/DeanoC/fes/pull/799#issuecomment-6243785291)
+checks live opening, focus, labels and return to play. Z1–Z3's save/read-back,
+restart, BASIC continuity and two-client cases still need their own evidence.
 
 - **The workbench is restyled, not rebuilt.** `example.hardware` keeps its
   host-owned setup, guarded saves, live tape, Stop and session-display
@@ -446,13 +487,27 @@ kit are pending.
   Refresh, More cards and Library.
   Control IDs and guards are unchanged.
 - **Not yet.** "Games for this machine" needs its own focus and launch design.
+  On the reviewed paired-kit path, Hardware reads work but the host-owned
+  expansion-selection PUT is denied by the launcher API. The room can still
+  offer Fit & save. A mock that accepts the service call does not demonstrate
+  that a kit can save. The next change must add narrowly admitted paired save
+  behavior, retain the existing expected-package/expected-selection guards,
+  and expose a read-only explanation when that capability is absent. Host
+  configuration ownership and physical runtime ownership remain unchanged.
 
-## Decisions still to validate
+## Remaining validation and later decisions
 
-- Native typography, spacing, safe margins and comfortable TV reading distance
-  on the real HDMI output (host captures exist; the TV check is pending).
-- The F12 and Guide gameplay exits on the kit with a physical keyboard and a
-  Guide-equipped pad.
+- Observe Checking and Needs a choice on the native target path with controlled
+  inputs; retain the reviewed retry-Confirm policy.
+- Complete the Ready Details focus route and the paired Workshop's save,
+  read-back, restart and conflict journeys. Check known versus unknown Running
+  setup without deriving it from Next start (#768).
+- Qualify the Library's selected text, full-word prompts, safe margins and
+  long titles after its shared-style migration. Larger-text reflow is a design
+  goal, not a setting claimed by this document.
+- Check the combined build's stop/return/lease behavior (#805), cold room entry
+  and input-to-picture trace (#811). Preserve intentional host sofa Soft-stop
+  retention; qualify the kit Library exit separately.
 - The first acceptance baseline is 1280x720 HDMI. CRT modes require an
   explicitly added scope and their own layout and hardware evidence.
 - Which existing offline and alternate-destination capabilities can be exposed

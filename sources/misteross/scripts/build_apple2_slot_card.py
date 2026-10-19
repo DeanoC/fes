@@ -29,7 +29,10 @@ from scripts import apple2_slots
 from scripts import build_fes_apple2_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source, reject_async_m10k_reads
+from scripts.fes_build_common import (
+    _prepare_output, _require_clean_source, _run_tool,
+    gpu_visibility_environment, reject_async_m10k_reads,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -228,7 +231,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
+    env["GPU_LEASE_IDS"] = str(gpu)
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",
@@ -245,14 +249,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     ]
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            try:
-                subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=900)
-            except subprocess.TimeoutExpired as exc:
-                raise ValueError(f"{name} timed out; see {log_path}") from exc
-            except subprocess.CalledProcessError as exc:
-                raise ValueError(f"{name} failed; see {log_path}") from exc
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root),
+                  env=env, timeout=900)
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
             raise ValueError(f"{name} reported an error; see {log_path}")
         required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")

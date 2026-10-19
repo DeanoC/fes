@@ -33,11 +33,13 @@ func registerHardware(mux *http.ServeMux, service Service, session *sessionCoord
 			writeCoreLibraryError(w, err)
 			return
 		}
+		_, selectable := service.(coreExpansionService)
 		result := struct {
-			Machines     []fogcast.HardwareMachine `json:"machines"`
-			Session      *sessionResult            `json:"session,omitempty"`
-			SessionError string                    `json:"session_error,omitempty"`
-		}{Machines: machines}
+			Machines           []fogcast.HardwareMachine `json:"machines"`
+			Session            *sessionResult            `json:"session,omitempty"`
+			SessionError       string                    `json:"session_error,omitempty"`
+			ExpansionSelection bool                      `json:"expansion_selection"`
+		}{Machines: machines, ExpansionSelection: selectable}
 		if result.Machines == nil {
 			result.Machines = []fogcast.HardwareMachine{}
 		}

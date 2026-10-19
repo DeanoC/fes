@@ -18,6 +18,10 @@ make toolchain-fes-ramtest-timing
 make diagnose-fes-ramtest-timing GPU_DEVICE=1
 ```
 
+`toolchain-fes-ramtest-timing` names the alias measured at that commit.
+Current builds provision `cores/fes-ramtest/toolchain.lock` with
+`make toolchain-fes-ramtest`.
+
 The recipe synthesizes once, then routes seed 2 / HeAP weight 10 / exponent 2
 with enable-replication budget 4. It next uses that completed report to request
 generic remap candidate 0 with up to eight LAB groups and fully routes again.
