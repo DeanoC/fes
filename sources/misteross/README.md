@@ -224,7 +224,7 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe |
+| `toolchain.lock` | Repository-level OSS lock for unregistered consumers; registered core recipes use per-core locks |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

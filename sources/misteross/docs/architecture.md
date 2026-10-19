@@ -133,11 +133,12 @@ nextpnr, including options left at their default, and only values that
 differ from that nextpnr's defaults reach argv. A lock on an unclassified
 nextpnr fails validation, so moving a lock to a newer nextpnr starts by
 classifying the options it adds. Each distinct lock selects its own cached
-toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
-nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
-timeouts, thread count, timing-failure policy, option defaults and the
-controlled environment are recorded with that core's recipe. Registered
-producer constants are read from this table.
+toolchain slot. All registered core locks except Atari ST currently match
+`toolchain.lock` at Yosys `3a5accbd` and share one slot. Atari ST selects Yosys
+`5391eeb1` and uses its own slot. Placement seeds and weights, clock checks,
+routing mode, GPU binding, timeouts, thread count, timing-failure policy,
+option defaults and the controlled environment are recorded with that core's
+recipe. Registered producer constants are read from this table.
 
 `scripts/pnr_recipe.py` builds the complete nextpnr argv and validates the
 producer's controlled environment. `search_placer_qor.py` uses it for every

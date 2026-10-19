@@ -35,9 +35,11 @@ A successful package-only C64 preparation would use
 `fes-c64.package-selection.toml`.
 The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Each registered
-producer selects the per-core lock in its `config/core-recipes.toml` entry;
-the locks currently contain the same tool commits. Use the matching
-`make toolchain-fes-<core>` target when provisioning a selected core. Inspect
+producer selects the per-core lock in its `config/core-recipes.toml` entry.
+All registered core locks except Atari ST currently use Yosys `3a5accbd` and
+share one compiler slot; Atari ST uses Yosys `5391eeb1` and its own slot. Use
+the matching `make toolchain-fes-<core>` target when provisioning a selected
+core. Inspect
 `config/core-recipes.toml` for each registered producer's current lock and HIP
 settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).

@@ -249,8 +249,9 @@ select that cache. If both variables are set they must be the same absolute
 path.
 
 Each registered package authenticates the lock named by its `lock_path` in
-`config/core-recipes.toml`; the per-core lock files currently contain the same
-bytes as `toolchain.lock` and therefore share one cached compiler slot. A lock
+`config/core-recipes.toml`. All registered core locks except Atari ST currently
+match the repository-level lock at Yosys `3a5accbd` and share one cached
+compiler slot. Atari ST selects Yosys `5391eeb1` and uses its own slot. A lock
 can move to another nextpnr that `scripts/pnr_recipe.py` classifies; that core
 then gets its own slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
