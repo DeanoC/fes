@@ -11,6 +11,9 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -26,7 +29,24 @@ var (
 type Store struct {
 	root     string
 	rootInfo os.FileInfo
+
+	verifyMu sync.Mutex
+	verified map[string]verifiedPackage
 }
+
+type verifiedPackage struct {
+	key        string
+	inspection Inspection
+}
+
+// fullVerifications counts archive decodes and identity hashes. A read whose
+// stat fingerprint matches an earlier verification does not increment it.
+var fullVerifications atomic.Int64
+
+// racyWindow covers the filesystem's coarse ctime clock: a rewrite inside
+// the same tick as the verified write leaves ctime unchanged, so a
+// verification is remembered only once the archive's ctime is this old.
+var racyWindow = 2 * time.Second
 
 // NewStore opens or creates a private package store rooted at an absolute path.
 func NewStore(path string) (*Store, error) {
@@ -181,13 +201,70 @@ func (s *Store) List(ctx context.Context) ([]Inspection, error) {
 		if len(name) != 70 || name[64:] != ".fcore" || !hex64RE.MatchString(name[:64]) {
 			return nil, fmt.Errorf("core package: unexpected store entry %q", name)
 		}
-		inspection, _, err := s.readOpened(ctx, root, name[:64])
+		inspection, err := s.inspectOpened(ctx, root, name[:64])
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, inspection)
 	}
 	return result, nil
+}
+
+// Inspect returns one validated inspection. It reads and hashes the archive
+// only when its stat fingerprint differs from the last verification.
+func (s *Store) Inspect(ctx context.Context, packageID string) (Inspection, error) {
+	if ctx == nil {
+		return Inspection{}, errors.New("core package: missing inspect context")
+	}
+	if !hex64RE.MatchString(packageID) {
+		return Inspection{}, ErrInvalidPackageID
+	}
+	root, err := s.open()
+	if err != nil {
+		return Inspection{}, err
+	}
+	defer root.Close()
+	return s.inspectOpened(ctx, root, packageID)
+}
+
+func (s *Store) inspectOpened(ctx context.Context, root *os.Root, packageID string) (Inspection, error) {
+	if err := ctx.Err(); err != nil {
+		return Inspection{}, err
+	}
+	if info, err := root.Lstat(packageID + ".fcore"); err == nil && info.Mode().IsRegular() && info.Mode().Perm() == 0o400 {
+		key, _ := statKey(info)
+		if inspection, ok := s.cachedVerified(packageID, key); ok {
+			return inspection, nil
+		}
+	}
+	inspection, _, err := s.readOpened(ctx, root, packageID)
+	return inspection, err
+}
+
+func (s *Store) rememberVerified(packageID string, info os.FileInfo, inspection Inspection) {
+	key, changed := statKey(info)
+	if key == "" || time.Since(changed) < racyWindow {
+		return
+	}
+	s.verifyMu.Lock()
+	defer s.verifyMu.Unlock()
+	if s.verified == nil {
+		s.verified = make(map[string]verifiedPackage)
+	}
+	s.verified[packageID] = verifiedPackage{key: key, inspection: inspection}
+}
+
+func (s *Store) cachedVerified(packageID, key string) (Inspection, bool) {
+	if key == "" {
+		return Inspection{}, false
+	}
+	s.verifyMu.Lock()
+	defer s.verifyMu.Unlock()
+	hit, ok := s.verified[packageID]
+	if !ok || hit.key != key {
+		return Inspection{}, false
+	}
+	return hit.inspection, true
 }
 
 // Read returns one validated inspection and the same exact canonical archive
@@ -254,6 +331,17 @@ func (s *Store) readOpened(ctx context.Context, root *os.Root, packageID string)
 	if err != nil || !os.SameFile(opened, after) {
 		return Inspection{}, nil, errors.New("core package: installed archive changed while reading")
 	}
+	// The archive is immutable (0400, published by link). An unchanged
+	// fingerprint, which includes ctime, means these bytes were already
+	// decoded and hashed.
+	key, _ := statKey(after)
+	if openedKey, _ := statKey(opened); key != openedKey {
+		return Inspection{}, nil, errors.New("core package: installed archive changed while reading")
+	}
+	if inspection, ok := s.cachedVerified(packageID, key); ok {
+		return inspection, data, nil
+	}
+	fullVerifications.Add(1)
 	manifest, payload, romMap, err := readArchive(data)
 	if err != nil {
 		return Inspection{}, nil, err
@@ -266,6 +354,7 @@ func (s *Store) readOpened(ctx context.Context, root *os.Root, packageID string)
 	if inspection.PackageID != packageID {
 		return Inspection{}, nil, errors.New("core package: installed archive identity does not match its filename")
 	}
+	s.rememberVerified(packageID, after, inspection)
 	return inspection, data, nil
 }
 

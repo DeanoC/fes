@@ -55,7 +55,6 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			return nil, mapCoreFirmwareError(err)
 		}
 	}
-	declares := map[string]bool{}
 	for _, id := range ids {
 		entry, err := entries.CoreEntry(ctx, id)
 		if errors.Is(err, catalog.ErrCoreEntryNotFound) {
@@ -65,7 +64,16 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			return nil, mapCoreEntryError(err)
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
-		inspection, base, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
+		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
+		// Only expansion and slot-card checks need the archive bytes.
+		var base []byte
+		var baseErr error
+		loadBase := func() ([]byte, error) {
+			if base == nil && baseErr == nil {
+				_, base, baseErr = s.readInstalledCore(ctx, entry.PackageID)
+			}
+			return base, baseErr
+		}
 		if inspectErr == nil && inspection.Descriptor.Format == 4 {
 			comp.FirmwareRequired = true
 			comp.ROMRequired = true
@@ -90,15 +98,15 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.ExpansionID = selected.ExpansionID
 			if selected.ExpansionID != "" {
 				asset, assetErr := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
-				inspection, base, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
 				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
 				if comp.ExpansionReady {
-					comp.ExpansionReady = corepackage.ValidateExpansionArchive(base, asset) == nil
+					data, err := loadBase()
+					comp.ExpansionReady = err == nil && corepackage.ValidateExpansionArchive(data, asset) == nil
 				}
 			}
 		}
 		if inspectErr == nil {
-			slots, err := s.slotCompositionFor(ctx, entry, inspection, base)
+			slots, err := s.slotCompositionFor(ctx, entry, inspection, loadBase)
 			if err != nil {
 				return nil, err
 			}
@@ -113,12 +121,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			out[id] = comp
 			continue
 		}
-		declared, known := declares[entry.PackageID]
-		if !known {
-			inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
-			declared = inspectErr == nil && protocol.DeclaresFirmwareSlot(inspection.Descriptor)
-			declares[entry.PackageID] = declared
-		}
+		declared := inspectErr == nil && protocol.DeclaresFirmwareSlot(inspection.Descriptor)
 		comp.FirmwareReady = protocol.FirmwareReady(true, filled, declared)
 		out[id] = comp
 	}

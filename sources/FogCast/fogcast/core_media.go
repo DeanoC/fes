@@ -45,7 +45,7 @@ func (s *Service) CoreMedia(ctx context.Context, id string) (catalog.CoreMedia, 
 // CoreMediaCapabilities is an offline declaration projection. The running
 // target remains the authority for actual active capability and delivery.
 func (s *Service) CoreMediaCapabilities(ctx context.Context, id string) (protocol.CoreMediaCapabilities, error) {
-	inspection, _, err := s.readInstalledCore(ctx, id)
+	inspection, err := s.installedCoreInspection(ctx, id)
 	if err != nil {
 		return protocol.CoreMediaCapabilities{}, err
 	}
@@ -82,7 +82,7 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia {
 		return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 	}
-	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
