@@ -309,15 +309,25 @@ module st_native_low_video (
         resolved_token.index = color_index;
     end
     reg output_tick;
+    // Phase 2, palette and hold cross from the machine. Register them together so
+    // lookup reads phase-2 values one edge later, on the registered native pulse;
+    // the retained token cannot change before that edge.
+    reg lookup_ce, lookup_hold;
+    reg [143:0] lookup_palette;
+    always @(posedge clk_sys) begin
+        lookup_ce <= native_lookup_ce;
+        lookup_hold <= hold;
+        lookup_palette <= palette;
+    end
     wire prepared_visible = native_line >= (frame_pal ? 9'd34 : 9'd5) &&
         native_line < (frame_pal ? 9'd310 : 9'd260) &&
         native_cycle >= (frame_pal ? 9'd8 : 9'd4) &&
         native_cycle < (frame_pal ? 9'd424 : 9'd420);
-    wire lookup_due = native_lookup_ce && output_tick;
-    wire write_pixel = lookup_due && output_token.pixel && !hold;
+    wire lookup_due = lookup_ce && output_tick;
+    wire write_pixel = lookup_due && output_token.pixel && !lookup_hold;
     wire [8:0] output_x = output_token.x;
     wire [8:0] output_row = output_token.row_number;
-    wire [8:0] pixel_rgb = output_token.blank ? 9'd0 : palette[output_token.index * 9 +: 9];
+    wire [8:0] pixel_rgb = output_token.blank ? 9'd0 : lookup_palette[output_token.index * 9 +: 9];
     wire [8:0] sample_rgb = output_token.valid ? pixel_rgb : 9'd0;
     reg output_pending;
     always @* begin
@@ -341,7 +351,7 @@ module st_native_low_video (
             frame_write <= 1'b0; frame_write_black <= 1'b1;
             frame_write_bank <= 2'd0; frame_write_address <= 17'd0; frame_write_rgb <= 9'd0;
         end else begin
-            if (native_lookup_ce) output_tick <= 1'b0;
+            if (lookup_ce) output_tick <= 1'b0;
             if (pixel_due) begin
                 output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
@@ -376,7 +386,7 @@ module st_native_low_video (
             word2 <= frame2[output_address[9:0]];
         end
         always @(posedge clk_sys) begin
-            if (frame_write && !reset_sys && !hold && frame_write_address[16:10] == 7'(chunk)) begin
+            if (frame_write && !reset_sys && !lookup_hold && frame_write_address[16:10] == 7'(chunk)) begin
                 case (frame_write_bank)
                     2'd0: frame0[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
                     2'd1: frame1[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
@@ -411,10 +421,10 @@ module st_native_low_video (
     wire border_failed = border_overflow && !border_overflow_reported;
     st_native_border borders (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .capture_start(border_start), .capture_active(output_token.visible && !hold),
+        .capture_start(border_start), .capture_active(output_token.visible && !lookup_hold),
         .capture_pal(output_token.pal), .capture_tick(lookup_due), .capture_display(output_token.active),
         .capture_bank(border_start ? free_bank : output_token.bank), .native_line(output_token.line_number),
-        .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : palette[8:0]),
+        .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : lookup_palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),
         .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
         .output_consume_bank(front_bank),
