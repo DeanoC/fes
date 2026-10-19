@@ -1,5 +1,13 @@
 # Working in FES
 
+## Rules for all agents
+
+Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
+
+Never pin a GPU vendor.
+
+Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.

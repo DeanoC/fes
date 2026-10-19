@@ -1,5 +1,17 @@
 # Working in FES
 
+## Rules for all agents
+
+Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
+
+All GPU work goes through the `gpu-run` wrapper. Never pin a GPU vendor.
+
+Nobody kills a GPU job, and nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
+
+Never relax a seal or timing check; stop and report instead.
+
+Delete superseded code instead of keeping compatibility shims or "kept for older kits" branches.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
