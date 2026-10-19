@@ -169,6 +169,16 @@ deadline bounds queue wait plus route time and cancels the full process group
 on expiry. Search workers still use their producer concurrency limits, and
 each worker releases its GPU before starting another route.
 
+When the selected `nextpnr-mistral` binary reads `GPU_LEASE_FD` (the
+DeanoC/nextpnr#224 client), the producer runs it under `gpu-run --phase-lease`
+instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for its
+requested physical GPU only for each GPU routing phase; packing, placement,
+timing analysis and bitstream writing hold no GPU. There is no visibility mask,
+so `--gpu-device` keeps the physical id. The dispatcher relays the lease socket
+and pauses the route budget while a GPU request waits, and the producer sets no
+outer deadline, so queue time never counts toward the route timeout. Any other
+nextpnr binary keeps the per-invocation lease above.
+
 ## Build lanes
 
 ### Composable application reference
