@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -107,6 +108,9 @@ def main():
     save()
     try:
         board_inputs(output)
+        receipt['generated_roms'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                                     for p in sorted(output.glob('*.mem'))}
+        save()
         program = ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
                    ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
                    ' '.join(str(ROOT / s) for s in RTL) + '; ' +
@@ -134,9 +138,14 @@ def main():
             receipt['gpu_visibility'] = {key: env.get(key) for key in
                                         ('FES_GPU_IDS', 'ROCR_VISIBLE_DEVICES', 'HIP_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES')}
             save()
-            with (output / 'nextpnr.log').open('w') as log:
-                subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=args.route_timeout, env=env)
+            started = time.monotonic()
+            try:
+                with (output / 'nextpnr.log').open('w') as log:
+                    subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
+                                   check=True, timeout=args.route_timeout, env=env)
+            finally:
+                receipt['route_elapsed_seconds'] = time.monotonic() - started
+
             receipt['gpu_backend'] = _require_gpu_backend((output / 'nextpnr.log').read_text(), gpu_backend)
             receipt['status'] = 'routed-diagnostic-unqualified'
             receipt['timing'] = json.loads((output / 'timing.json').read_text())
