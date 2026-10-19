@@ -118,7 +118,7 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
         head0 <= events0[read_pointer]; head1 <= events1[read_pointer]; head2 <= events2[read_pointer];
         if (reset_pixel) begin
             next_pointer <= 1; remaining <= 0; colour <= 0;
-            held_valid <= 1'b0; held0 <= 0; held1 <= 0; held2 <= 0;
+            held_valid <= 1'b0;
         end else if (output_sof || output_line_start) begin
             held_valid <= 1'b0;
             next_pointer <= line_successor;
@@ -129,8 +129,12 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
             colour <= consume_head[8:0]; remaining <= remaining - 1'b1;
             if (remaining > 9'd1) next_pointer <= next_pointer + 1'b1;
         end else if (!held_valid) begin
-            held0 <= head0; held1 <= head1; held2 <= head2;
             held_valid <= 1'b1;
+        end
+        // Held events are read only while held_valid, so load them whenever
+        // it is clear. Neither the consume decision nor reset enables them.
+        if (!held_valid) begin
+            held0 <= head0; held1 <= head1; held2 <= head2;
         end
     end
 endmodule
