@@ -635,10 +635,11 @@ func localStatusStoppable(status localcores.RunStatus) bool {
 }
 
 // adoptStartupLocalRunLocked takes a running generation as this launcher's
-// session. Menu presents stay paused, and late adopt skips the stray menu
-// frame, because the core already owns HDMI. Select+Start stops that
-// generation. The In use copy is the session status. It does not claim this
-// process started the run.
+// session. Menu presents stay paused. Late adopt drains outstanding menu
+// work and skips the stray menu frame, because the core already owns HDMI.
+// An older menu failure does not keep the menu presenting. Select+Start
+// stops that generation. The In use copy is the session status. It does not
+// claim this process started the run.
 func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	a.applyStartupClaimLocked(status, localPhaseRunning)
 	a.localWatchStartup = false

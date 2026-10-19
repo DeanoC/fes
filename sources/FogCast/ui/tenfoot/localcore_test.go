@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -749,6 +750,59 @@ func TestPresentHoldLateAdoptionSkipsArmedFrame(t *testing.T) {
 	dev.Present()
 	if calls, _, _ := rec.snapshot(); calls != 0 {
 		t.Fatalf("late adoption submitted %d menu frames", calls)
+	}
+}
+
+type staleFailMenu struct {
+	mu    sync.Mutex
+	fail  error
+	calls int
+}
+
+func (c *staleFailMenu) Status(context.Context) (menudisplay.Status, error) {
+	return menudisplay.Status{Available: true, Generation: 4, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes}, nil
+}
+
+func (c *staleFailMenu) Present(context.Context, uint64, []byte) (menudisplay.Result, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.fail != nil {
+		return menudisplay.Result{}, c.fail
+	}
+	return menudisplay.Result{Generation: 4, DisplayedSequence: uint64(c.calls)}, nil
+}
+
+func (c *staleFailMenu) snapshot() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
+}
+
+func TestPresentHoldLateAdoptionPausesAfterStaleFailure(t *testing.T) {
+	rec := &staleFailMenu{fail: errors.New("stale menu")}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dev.SetChangeDriven(true)
+	dev.Present()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := dev.WaitIdle(ctx); err == nil || !strings.Contains(err.Error(), "stale menu") {
+		t.Fatalf("failed frame WaitIdle = %v", err)
+	}
+	dev.Resume()
+	var hold presentHold
+	snap := Snapshot{LocalCorePresentsPaused: true, LocalCoreLateAdopt: true}
+	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
+		t.Fatalf("late adoption after a stale failure: skip=%v err=%v", skip, err)
+	}
+	before := rec.snapshot()
+	dev.Present()
+	if dev.FramePending() || rec.snapshot() != before {
+		t.Fatalf("late adoption left the menu presenting: pending=%v calls=%d", dev.FramePending(), rec.snapshot())
 	}
 }
 
