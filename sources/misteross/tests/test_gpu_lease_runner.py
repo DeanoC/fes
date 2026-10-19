@@ -12,9 +12,30 @@ from unittest.mock import patch
 
 from scripts import fes_build_common as board
 from scripts import compiler_read_audit as audit
+from scripts.functional_execution import AuditedRoots, source_roots_for_producer
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def narrowed_source_events(route, directory):
+    """Run an audited route inside the menu package's narrowed source closure.
+
+    Return the route result and the source events the audit recorded. fes#881:
+    a lease dispatcher that imported the producer modules listed the source root
+    and failed with "source list outside audited closure: .".
+    """
+    record = Path(directory) / "source-events.jsonl"
+    with patch.dict(os.environ, {"FES_SOURCE_READ_RECORD": str(record)}):
+        for name in ("FES_SOURCE_CLOSURE_AUDIT", "FES_SOURCE_CLOSURE_BROAD",
+                     "FES_SOURCE_CLOSURE_RECORD_ONLY"):
+            os.environ.pop(name, None)
+        roots = source_roots_for_producer("build_fes_menu_package", (), ROOT)
+        assert isinstance(roots, AuditedRoots)
+        with audit.python_source_guard(ROOT, roots):
+            result = route()
+    events = [json.loads(line) for line in record.read_text(encoding="utf-8").splitlines()]
+    return result, {(event["event"], event["path"]) for event in events}
 
 
 class PerInvocationGpuLeaseTests(unittest.TestCase):
@@ -104,13 +125,30 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.assertEqual(captured["env"]["NEXTPNR_REQUIRE_GPU"], "1")
         self.assertNotIn("GPU_LEASE_MAX_PER_OWNER", captured["env"])
         self.assertNotIn("FES_GPU_LEASE_OWNER", captured["env"])
-        self.assertNotIn("FES_MISTEROSS_PYTHONPATH", captured["env"])
 
-    def test_dispatch_import_does_not_depend_on_working_directory(self):
+    def test_dispatch_does_not_depend_on_working_directory(self):
         result = self.run_gpu_route(cwd=self.directory)
         self.assertEqual(result.returncode, 0, result.stdout)
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "7")
+
+    @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited routes")
+    def test_audited_route_reads_only_the_dispatcher_from_a_narrowed_closure(self):
+        result, events = narrowed_source_events(lambda: board._run_command(
+            (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+            cwd=ROOT,
+            env=self.environment(GPU_LEASE_DIR=str(self.real_lease), GPU_LEASE_IDS="7",
+                                 FAKE_BACKEND_READY="1"),
+            timeout=10,
+            audit_source_root=ROOT,
+            stdout=board.subprocess.PIPE,
+            stderr=board.subprocess.STDOUT,
+            gpu_label="narrowed-closure-route",
+        ), self.directory)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(events, {("read", "scripts/nextpnr_lease.py")})
+        captured = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual(captured["argv"][captured["argv"].index("--gpu-device") + 1], "0")
 
     @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited timeout cancellation")
     def test_audited_timeout_covers_lease_wait_and_cancels_route_children(self):
@@ -465,11 +503,20 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
         for name in ("CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_LEASE_IDS",
                      "GPU_LEASE_MAX_PER_OWNER", "GPU_LEASE_MAX_JOBS_PER_OWNER",
-                     "FES_GPU_LEASE_OWNER", "FES_MISTEROSS_PYTHONPATH"):
+                     "FES_GPU_LEASE_OWNER"):
             self.assertNotIn(name, env)
         holder = json.loads((self.lease / "gpu-7.lock").read_text(encoding="utf-8"))
         self.assertEqual((holder["owner"], holder["label"]), ("lander", "phase-route"))
         self.assertTrue((self.lease / "jobs" / "lander").is_dir())
+        self.assertEqual(self.status()["gpus"][0]["state"], "free")
+
+    @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited routes")
+    def test_audited_phase_route_reads_only_the_dispatcher_from_a_narrowed_closure(self):
+        result, events = narrowed_source_events(
+            lambda: self.route(timeout=10, audit=True), self.directory)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn(b"GPU lease: GRANT 7", result.stdout)
+        self.assertEqual(events, {("read", "scripts/nextpnr_lease.py")})
         self.assertEqual(self.status()["gpus"][0]["state"], "free")
 
     def test_route_budget_excludes_gpu_lease_wait(self):
