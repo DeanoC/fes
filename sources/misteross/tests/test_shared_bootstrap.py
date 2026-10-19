@@ -243,6 +243,23 @@ fi
     return fake_bin
 
 
+def _set_yosys_commit(lock: Path, commit: str) -> None:
+    """Point a temporary lock's Yosys pin at commit. Repository locks stay put."""
+    lines = lock.read_text(encoding="utf-8").splitlines(keepends=True)
+    in_yosys = False
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[tool."):
+            in_yosys = stripped == "[tool.yosys]"
+            continue
+        if in_yosys and stripped.startswith("commit "):
+            newline = "\n" if line.endswith("\n") else ""
+            lines[index] = f'commit = "{commit}"{newline}'
+            lock.write_text("".join(lines), encoding="utf-8")
+            return
+    raise AssertionError(f"no yosys commit in {lock}")
+
+
 class SharedBootstrapEnvironmentTests(unittest.TestCase):
     def test_shared_check_prereqs_reports_missing_capabilities_before_cache_planning(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -346,6 +363,10 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             core_lock = root / "cores" / "fes-coleco" / "toolchain.lock"
             core_lock.parent.mkdir(parents=True)
             shutil.copy2(ROOT / "cores" / "fes-coleco" / "toolchain.lock", core_lock)
+            # On main the checked-in Coleco lock matches the shared lock, so
+            # the distinct-slot check below would not reach bootstrap. The
+            # temporary lock must name the fixture Yosys commit.
+            _set_yosys_commit(core_lock, coleco_commit)
             sibling_lock = root / "cores" / "fes-pong" / "toolchain.lock"
             sibling_lock.parent.mkdir(parents=True)
             shutil.copy2(root / "toolchain.lock", sibling_lock)
