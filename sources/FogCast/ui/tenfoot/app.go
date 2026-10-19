@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"image"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -3541,23 +3542,72 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 	lastFocus := -1
 	a.mu.Unlock()
 
-	all, notice, err := a.collectLibraryPages(ctx, gen, query, keepID, keepIndex, &pinned, &lastFocus)
-	if err != nil {
-		a.finishLibraryLoad(ctx, gen, query, previous, nil, keepID, keepIndex, notice, err)
+	fails := 0
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		all, notice, err := a.collectLibraryPages(ctx, gen, query, keepID, keepIndex, &pinned, &lastFocus)
+		if err == nil && len(all) == 0 && shelfQueryUnfiltered(query) && strings.TrimSpace(query.Availability) == "" {
+			fallback := query
+			fallback.Availability = "all"
+			fallback.Cursor = ""
+			saved, savedNotice, savedErr := a.collectLibraryPages(ctx, gen, fallback, keepID, keepIndex, &pinned, &lastFocus)
+			if savedNotice != "" {
+				notice = savedNotice
+			}
+			all = saved
+			err = savedErr
+		}
+		if err == nil || !libraryNetRetry(err) {
+			a.finishLibraryLoad(ctx, gen, query, previous, all, keepID, keepIndex, notice, err)
+			return
+		}
+		fails++
+		a.noteLibraryUnreachable(gen)
+		if !a.libraryRetryWait(ctx, fails, gen, false) {
+			return
+		}
+	}
+}
+
+// libraryNetRetry is a connect or read failure. A host API status, a decode
+// error, and a superseded or cancelled load are not retried.
+func libraryNetRetry(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errLibrarySuperseded) {
+		return false
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr)
+}
+
+func (a *App) noteLibraryUnreachable(gen int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if gen != a.loadGen {
 		return
 	}
-	if len(all) == 0 && shelfQueryUnfiltered(query) && strings.TrimSpace(query.Availability) == "" {
-		fallback := query
-		fallback.Availability = "all"
-		fallback.Cursor = ""
-		saved, savedNotice, savedErr := a.collectLibraryPages(ctx, gen, fallback, keepID, keepIndex, &pinned, &lastFocus)
-		if savedNotice != "" {
-			notice = savedNotice
-		}
-		all = saved
-		err = savedErr
+	a.loadErr = "Can't reach the library right now."
+	a.status = a.loadErr
+}
+
+func (a *App) libraryRetryWait(ctx context.Context, fails, gen int, recents bool) bool {
+	timer := time.NewTimer(presentationRetryDelay(fails))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
 	}
-	a.finishLibraryLoad(ctx, gen, query, previous, all, keepID, keepIndex, notice, err)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if ctx.Err() != nil {
+		return false
+	}
+	if recents {
+		return gen == a.homeRecentsGen
+	}
+	return gen == a.loadGen
 }
 
 func (a *App) collectLibraryPages(ctx context.Context, gen int, query hostclient.GameListQuery, keepID string, keepIndex int, pinned *bool, lastFocus *int) ([]hostclient.Game, string, error) {
