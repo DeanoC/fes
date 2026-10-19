@@ -8,6 +8,13 @@ Never pin a GPU vendor.
 
 Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
+## PR scope
+
+- One issue per PR. Don't bundle unrelated fixes.
+- The PR body says `Closes #N` for the issue it resolves.
+- Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
+- Stay inside the repo and the scope the task names.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
