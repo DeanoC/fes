@@ -47,6 +47,66 @@ func candidate(t *testing.T, s *Store, b []byte) release.Manifest {
 	}
 	return m
 }
+func TestConfirmClearsMatchingBootTicketOnly(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	write := func(bootID, image string, trial bool) {
+		t.Helper()
+		body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":%t}\n", bootID, image, trial)
+		if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() bootTicket {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(s.root, "boot.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ticket bootTicket
+		if err := json.Unmarshal(raw, &ticket); err != nil {
+			t.Fatal(err)
+		}
+		return ticket
+	}
+	other := strings.Repeat("ab", 32)
+	write("other-boot", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "other-boot" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("unrelated ticket changed: %+v", got)
+	}
+	// State is already confirmed. A later matching ticket, such as one left
+	// behind by an interrupted rewrite, is cleared by the idempotent confirm.
+	write("boot-a", other, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != other {
+		t.Fatalf("other image ticket changed: %+v", got)
+	}
+	write("boot-a", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("confirmed ticket = %+v", got)
+	}
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial {
+		t.Fatal("retry restored trial")
+	}
+}
+
 func TestTrialConsumptionAndConfirmation(t *testing.T) {
 	s, f, b := fixture(t)
 	m := candidate(t, s, b)

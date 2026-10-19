@@ -13,8 +13,8 @@ import (
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
+	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"golang.org/x/sys/unix"
@@ -54,6 +54,58 @@ func fixture(t *testing.T) (*appliance.Store, release.Manifest, release.Manifest
 	}
 	c := agent.New(misterruntime.NewRuntime(idleControl{}, "", time.Millisecond, time.Second), time.Second, time.Second)
 	return s, m, n, c
+}
+
+func writeTrialTicket(t *testing.T, root, bootID, image string, trial bool) {
+	t.Helper()
+	body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":%t}\n", bootID, image, trial)
+	if err := os.WriteFile(filepath.Join(root, "boot.json"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func releaseRoot(t *testing.T, s *appliance.Store, hash string) string {
+	t.Helper()
+	path, err := s.ImagePath(hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Dir(filepath.Dir(path))
+}
+
+func TestConfirmClearsBootTicketTrial(t *testing.T) {
+	s, m, n, c := fixture(t)
+	if e := s.Activate(n.ImageSHA256); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := s.BeginBoot("boot-a"); e != nil {
+		t.Fatal(e)
+	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	if e := os.WriteFile(idPath, []byte("boot-a\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
+	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
+	if e := svc.Confirm(context.Background(), "boot-a", m.ImageSHA256); e == nil {
+		t.Fatal("wrong image confirmed")
+	}
+	got, e := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if e != nil || !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("rejected confirm rewrote ticket: %+v %v", got, e)
+	}
+	if e = svc.Confirm(context.Background(), "boot-a", n.ImageSHA256); e != nil {
+		t.Fatal(e)
+	}
+	got, e = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if e != nil || got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != n.ImageSHA256 {
+		t.Fatalf("confirmed ticket = %+v %v", got, e)
+	}
+	status, e := svc.Status(context.Background())
+	if e != nil || status.Trial || status.Good != n.ImageSHA256 {
+		t.Fatalf("status after confirm: %+v %v", status, e)
+	}
 }
 
 func TestTrialRequiresExactBootAndRawIdleConfirmation(t *testing.T) {
@@ -229,6 +281,14 @@ func TestRestoredConfirmationWaitsForRawNativeIdle(t *testing.T) {
 	if e := s.Confirm("boot-a", n.ImageSHA256); e != nil {
 		t.Fatal(e)
 	}
+	root := releaseRoot(t, s, n.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	if e := os.WriteFile(idPath, []byte("boot-a\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	// An older confirm left the durable release confirmed while boot.json
+	// still says trial. Reconciliation must not clear that ticket before raw idle.
+	writeTrialTicket(t, root, "boot-a", n.ImageSHA256, true)
 	control := &saveFailureControl{}
 	control.failed.Store(true)
 	c := agent.New(misterruntime.NewRuntime(control, "", time.Millisecond, time.Second), time.Second, time.Second)
@@ -237,9 +297,15 @@ func TestRestoredConfirmationWaitsForRawNativeIdle(t *testing.T) {
 	if e != nil || !status.Trial || status.RawIdleReady || c.Health("").Ready {
 		t.Fatalf("restored confirmation skipped raw idle: %+v %v", status, e)
 	}
+	if got, e := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath); e != nil || !got.Trial {
+		t.Fatalf("ticket cleared before raw idle: %+v %v", got, e)
+	}
 	control.failed.Store(false)
 	status, e = svc.Status(context.Background())
 	if e != nil || status.Trial || !status.RawIdleReady || !c.Health("").Ready {
 		t.Fatalf("idle recovery did not reconcile confirmation: %+v %v", status, e)
+	}
+	if got, e := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath); e != nil || got.Trial || got.ImageSHA256 != n.ImageSHA256 || got.BootID != "boot-a" {
+		t.Fatalf("reconciled ticket = %+v %v", got, e)
 	}
 }

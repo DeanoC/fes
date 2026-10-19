@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
+	"github.com/DeanoC/FogCast/internal/agent"
 )
 
 var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this operation")
@@ -86,6 +86,11 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 		return err
 	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// ConfirmContext is idempotent once this boot is durable. It clears
+	// trial on the matching boot ticket without waiting for another reboot.
+	if err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256); err != nil {
 		return err
 	}
 	s.mu.Lock()

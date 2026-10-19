@@ -935,36 +935,68 @@ func (s *Store) protectedImages() (map[string]struct{}, error) {
 	return keep, nil
 }
 
+type bootTicket struct {
+	BootID      string `json:"boot_id"`
+	ImageSHA256 string `json:"image_sha256"`
+	Trial       bool   `json:"trial"`
+}
+
 func (s *Store) bootImage() (string, error) {
-	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	ticket, err := s.readBootTicket()
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
+	return ticket.ImageSHA256, nil
+}
+
+func (s *Store) readBootTicket() (bootTicket, error) {
+	var ticket bootTicket
+	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	if err != nil {
+		return ticket, err
+	}
 	defer f.Close()
 	b, err := io.ReadAll(io.LimitReader(f, 4097))
 	if err != nil {
-		return "", err
+		return ticket, err
 	}
 	if len(b) > 4096 {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
-	var ticket struct {
-		BootID      string `json:"boot_id"`
-		ImageSHA256 string `json:"image_sha256"`
-		Trial       bool   `json:"trial"`
-	}
 	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
 	if err = dec.Decode(&struct{}{}); err != io.EOF {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
-	return ticket.ImageSHA256, nil
+	return ticket, nil
+}
+
+// clearBootTrial rewrites a matching trial ticket to trial:false. The boot id
+// and image stay as the bootstrap recorded them. A missing ticket, or a ticket
+// for another boot or image, is left untouched. The caller holds the store lock.
+func (s *Store) clearBootTrial(bootID, imageSHA string) error {
+	ticket, err := s.readBootTicket()
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if ticket.BootID != bootID || ticket.ImageSHA256 != imageSHA || !ticket.Trial {
+		return nil
+	}
+	ticket.Trial = false
+	body, err := json.Marshal(ticket)
+	if err != nil {
+		return err
+	}
+	return atomicWriteWithSync(filepath.Join(s.root, "boot.json"), append(body, '\n'), s.syncFile, s.syncDirectory)
 }
 
 func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error) {
@@ -1246,7 +1278,13 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		return errors.New("confirmation boot does not match")
 	}
 	if st.ConfirmedImage == imageSHA && st.Good == imageSHA {
-		return s.syncState(ctx)
+		if e = s.syncState(ctx); e != nil {
+			return e
+		}
+		// The release is already durable. Still clear a trial ticket left by an
+		// interrupted confirm or an older writer, so this boot does not keep
+		// reporting trial until the next reboot.
+		return s.clearBootTrial(bootID, imageSHA)
 	}
 	if st.TrialImage != imageSHA {
 		return errors.New("confirmation image is not this boot's trial")
@@ -1261,5 +1299,8 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	st.Good = imageSHA
 	st.TrialImage = ""
 	st.ConfirmedImage = imageSHA
-	return s.writeState(st)
+	if e = s.writeState(st); e != nil {
+		return e
+	}
+	return s.clearBootTrial(bootID, imageSHA)
 }
