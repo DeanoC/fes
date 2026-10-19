@@ -33,7 +33,7 @@
 //
 // Description:
 //   4K x 32 microcode store for mcl86_eu_core. Single synchronous read port,
-//   inferred as a block ROM on every target. Each word is one microinstruction;
+//   split into four byte-wide block ROMs. Each word is one microinstruction;
 //   the field layout lives in mcl86_eu_core.sv, which decodes it.
 //
 //   The read is REGISTERED, and that one clock of latency is what gives the EU
@@ -49,8 +49,8 @@
 //
 // Limitations:
 //   - $readmemh resolves both control-ROM paths against the working directory.
-//     FES cpu_roms copies mcl86_ucode.mem and derives the operand-select image
-//     beside the executable/netlist. Both images must exist in that directory.
+//     FES cpu_roms copies mcl86_ucode.mem and emits its four byte lanes
+//     beside the executable/netlist. All four lane images must exist there.
 //   - Synthesis relies on the initial block for ROM contents. That is supported
 //     by Quartus, Vivado and yosys, but it is not a reset value - the array is
 //     never re-initialized after power-up.
@@ -59,75 +59,51 @@
 `default_nettype none
 `timescale 1ns/1ps
 
-module mcl86_ucode
-    (
-        // System Interface
-        input  wire         clk,   // Core clock; read is registered on the rising edge
-        input  wire         clk_rom, // Same frequency, 180 degrees after clk
-        // ROM Read Port
-        input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
-        output logic [31:0] dout,      // Microword, valid one clock after addr
-        output logic [15:0] operand_select0, // One-hot dout[23:20]
-        output logic [15:0] operand_select1, // One-hot dout[19:16]
-        output logic [15:0] add_select0,     // Independent ADD-consumer controls
-        output logic [15:0] add_select1
-    );
-
-    //--------------------------------------------------------------------------
-    // ROM Storage
-    //--------------------------------------------------------------------------
-    logic [31:0] mem[0:4095];
-
-    //--------------------------------------------------------------------------
-    // ROM Initialization (Vivado / Others)
-    //--------------------------------------------------------------------------
-    initial begin
-        $readmemh("mcl86_ucode.mem", mem);
-    end
-
-    //--------------------------------------------------------------------------
-    // ROM Read Port
-    //--------------------------------------------------------------------------
-    // Registered read - the EU's 2-word sequencer lead depends on this latency.
+module mcl86_ucode (
+    input wire clk,
+    // One read edge between successive system edges; the board uses +90 deg.
+    input wire clk_rom,
+    input wire reset,
+    // Same next-PC value that the EU captures on this system edge.
+    input wire [11:0] next_addr,
+    output logic [31:0] dout,
+    output logic [15:0] operand_select0, operand_select1,
+    output logic [15:0] add_select0, add_select1
+);
     logic [31:0] data_half;
-    always_ff @(posedge clk_rom) begin : read_mem
-        data_half <= mem[addr];
-    end
+    // Four independent address registers give each 8-bit ROM lane a local
+    // driver. They capture the EU's next PC on the same edge as the real PC;
+    // no additional address/read cycle is introduced.
+    generate for (genvar lane = 0; lane < 4; lane = lane + 1) begin: bytes
+        reg [11:0] read_address;
+        (* keep *) always_ff @(posedge clk) begin : read_address_output
+            if (reset) read_address <= 12'h020;
+            else read_address <= next_addr;
+        end
+        logic [7:0] rom[0:4095];
+        initial begin
+            if (lane == 0) $readmemh("mcl86_ucode_byte0.mem", rom);
+            else if (lane == 1) $readmemh("mcl86_ucode_byte1.mem", rom);
+            else if (lane == 2) $readmemh("mcl86_ucode_byte2.mem", rom);
+            else $readmemh("mcl86_ucode_byte3.mem", rom);
+        end
+        always_ff @(posedge clk_rom) begin : read_mem
+            data_half[lane*8 +: 8] <= rom[read_address];
+        end
+    end endgenerate
     always_ff @(posedge clk) begin : read_data_output
         dout <= data_half;
     end
-
-    //--------------------------------------------------------------------------
-    // Predecoded Operand Selects
-    //--------------------------------------------------------------------------
-    // Generated reproducibly from the unchanged 4096-word microcode image by
-    // the FES cpu_roms helper. Decode before the registered ROM boundary so
-    // each select bit drives one register's 16 data bits, rather than a binary
-    // select bit driving every operand mux. Address/read latency is unchanged.
-    // The CPU address changes only on rising edges. Reading block RAM on
-    // the intervening falling edge and capturing its output on the next
-    // rising edge preserves the original rising-edge read latency. Local
-    // output flops separate ROM routing from operand/ALU/writeback logic.
-    // Both half-cycle paths require routed timing qualification.
-    logic [31:0] operand_select_mem[0:4095];
-    logic [31:0] select_half;
-    initial begin
-        $readmemh("mcl86_operand_select.mem", operand_select_mem);
-    end
-    always_ff @(posedge clk_rom) begin : read_operand_select
-        select_half <= operand_select_mem[addr];
-    end
+    // Decode the same immutable microword before the system output registers.
+    // Separate kept processes preserve local controls for ADD and logic uses.
+    wire [31:0] select_half = {(16'h1 << data_half[23:20]),
+                             (16'h1 << data_half[19:16])};
     (* keep *) always_ff @(posedge clk) begin : read_select_output
         {operand_select0, operand_select1} <= select_half;
     end
-    // Preserve independent register processes through synthesis. The ADD
-    // consumer gets its own physical controls instead of sharing fanout and
-    // intermediate LUTs with the full logic-operation operand muxes. Both
-    // copies capture the same ROM stage on the same edge; no extra latency.
     (* keep *) always_ff @(posedge clk) begin : read_add_select_output
         {add_select0, add_select1} <= select_half;
     end
-
 endmodule
 
 `default_nettype wire

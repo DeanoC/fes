@@ -12,19 +12,42 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import uuid
 
-from build_fes_coleco_socket_v2 import authenticate_tools
-from fes_build_common import _require_gpu_backend
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fes_build_common import (
+    FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION,
+    _authenticate_tools, _require_gpu_backend,
+    cuda_toolchain_configuration, gpu_backend_for_router,
+)
 from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
 RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/fes_pcxt_top.sv',)
 QSF = 'cores/fes-ramtest/constraints.qsf'
 SDC = 'boards/de10nano/clocks.sdc'
 ROM_CLOCK_MAP = 'cores/fes-pcxt/synth/rom_clock_map.v'
 PLACER_TIMING_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
+
+
+def gpu_choice(gpu_router):
+    backend = gpu_backend_for_router(gpu_router)
+    if gpu_router == 'HIP':
+        return backend, FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION
+    return backend, 'unused', cuda_toolchain_configuration()
+
+
+def authenticate_tools(root, cache_root, gpu_router='HIP'):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    return _authenticate_tools(
+        root, lock_path=root / TOOLCHAIN_LOCK,
+        toolchain_root=root / 'build/toolchain/fes-pcxt',
+        expected_configuration={'nextpnr': configuration},
+        gpu_router=gpu_router, hip_architectures=architectures,
+        cache_root=cache_root)
 
 
 def route_environment():
@@ -42,6 +65,7 @@ def route_environment():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache-root', required=True, type=Path)
+    parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP')
     parser.add_argument('--mda', action='store_true')
     parser.add_argument('--scanlines', action='store_true')
     parser.add_argument('--synth-only', action='store_true')
@@ -49,7 +73,8 @@ def main():
     args = parser.parse_args()
     if args.route_timeout <= 0:
         parser.error('--route-timeout must be positive')
-    tools = authenticate_tools(ROOT, args.cache_root)
+    tools = authenticate_tools(ROOT, args.cache_root, args.gpu_router)
+    gpu_backend, _architectures, _configuration = gpu_choice(args.gpu_router)
     for name in ('kf8259', 'kf8253', 'kf8255'):
         verify_vendor(name)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:8]
@@ -57,7 +82,7 @@ def main():
     output.mkdir(parents=True)
     print(output, flush=True)
     # Headers, microcode and assembly are part of the diagnostic source record.
-    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, 'toolchain.lock', 'scripts/build_fes_pcxt.py',
+    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-pcxt/vendor').rglob('*')
@@ -70,10 +95,12 @@ def main():
                'working_tree_changes': subprocess.check_output(['git', 'status', '--porcelain', '--', '.'], cwd=ROOT, text=True).splitlines(),
                'sources': sources, 'tools': {k: v.identity for k, v in tools.items()},
                'mda': args.mda, 'scanlines': args.scanlines, 'seed': 1,
+               'gpu_router': args.gpu_router, 'route_timeout_seconds': args.route_timeout,
                'placement': {'timing_weight': PLACER_TIMING_WEIGHT,
                              'criticality_exponent': PLACER_CRITICALITY_EXPONENT},
                'limits': ['no SDRAM pad setup/hold or retention qualification',
                           'no physical ISA containment', 'no sealed package or runtime ABI',
+                          'Quartus qualification is a separate manual check',
                           'no hardware acceptance']}
     def save():
         (output / 'diagnostic.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
@@ -102,14 +129,15 @@ def main():
                        '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
                        '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths', '64']
             env = route_environment()
+            env['NEXTPNR_REQUIRE_GPU'] = '1'
             receipt['route_command'] = command
             receipt['gpu_visibility'] = {key: env.get(key) for key in
-                                        ('FES_GPU_IDS', 'ROCR_VISIBLE_DEVICES', 'HIP_VISIBLE_DEVICES')}
+                                        ('FES_GPU_IDS', 'ROCR_VISIBLE_DEVICES', 'HIP_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES')}
             save()
             with (output / 'nextpnr.log').open('w') as log:
                 subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
                                check=True, timeout=args.route_timeout, env=env)
-            receipt['gpu_backend'] = _require_gpu_backend((output / 'nextpnr.log').read_text(), 'hip')
+            receipt['gpu_backend'] = _require_gpu_backend((output / 'nextpnr.log').read_text(), gpu_backend)
             receipt['status'] = 'routed-diagnostic-unqualified'
             receipt['timing'] = json.loads((output / 'timing.json').read_text())
             receipt['rbf_sha256'] = hashlib.sha256((output / 'diagnostic.rbf').read_bytes()).hexdigest()

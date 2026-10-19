@@ -2205,17 +2205,21 @@ probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
-CPU operand selectors are predecoded into a separate registered control ROM
-from the unchanged pinned microcode image. `cpu_roms` generates the raw copy
-and derived `mcl86_operand_select.mem` for simulation/synthesis. ROM read latency,
-the microcode sequencer lead and instruction timing are unchanged. Exhaustive
-checks cover all 4096 generated ROM rows; symbolic checks cover the actual
-read/output stages for arbitrary registered-address payloads and the real operand
-wiring for all register values against the imported equations. Both ROMs use block RAM on
-the existing 180-degree memory PLL clock and local output registers on the
-system clock. The EU address
-is rising-edge registered, so the visible rising-edge read latency is unchanged.
-The address-to-ROM and ROM-to-output half-cycle paths need routed qualification.
+`cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
+Each lane has a kept local address register, driven by the same next-PC value
+and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
+ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
+7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
+PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+Operand selectors are decoded from the raw ROM read before independent
+system-edge output registers. Read latency, sequencer lead and instruction
+cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
+prove the original PC/call-stack/stall control equations, and prove local
+address-copy equality after reset. Symbolic checks retain the actual read and
+output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
+Both shorter address setup and longer ROM output paths require routed and
+Quartus qualification. The prefetch-empty flag compares its low pointer bits
+directly; all-input equivalence checks the original zero-difference equation.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
 operand muxes retain only sources used by ADD words; other operations use the

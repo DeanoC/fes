@@ -46,6 +46,7 @@ help:
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
+		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
 		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
 		"  toolchain-fes-catch  Provision the FES Catch HIP toolchain (per-core lock)" \
 		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
@@ -1908,6 +1909,12 @@ synth-fes-pcxt-isa:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
 
 # Autonomous board diagnostic; no package export or programming.
-.PHONY: build-fes-pcxt
+PCXT_GPU_ROUTER ?= HIP
+.PHONY: build-fes-pcxt toolchain-fes-pcxt
+toolchain-fes-pcxt:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pcxt/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pcxt") \
+	FES_TOOLCHAIN_GPU_ROUTER="$(PCXT_GPU_ROUTER)" \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
 build-fes-pcxt:
-	$(PYTHON) scripts/build_fes_pcxt.py --cache-root "$(CACHE_ROOT)" $(PCXT_BUILD_ARGS)
+	$(PYTHON) scripts/build_fes_pcxt.py --cache-root "$(CACHE_ROOT)" --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)

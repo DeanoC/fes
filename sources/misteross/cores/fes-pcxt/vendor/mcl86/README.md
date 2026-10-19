@@ -19,15 +19,20 @@ Simulation and diagnostic synthesis verify these hashes before building. The mic
 4096-word image; this snapshot contains no matching assembler source. Do not
 substitute the older MicroCoreLabs listing: it differs from this image.
 
-Local timing changes register predecoded operand controls in a separate ROM and
-use parallel selection instead of binary operand mux trees. `cpu_roms` in
-`scripts/sim_fes_pcxt.py` copies the original `mcl86_ucode.mem` unchanged and
-derives `mcl86_operand_select.mem` from its two four-bit select fields. The ROM
-module reads both block-ROM images on the dedicated 180-degree clock and captures them
-in local rising-edge output registers. The EU address is exclusively a
-rising-edge register, so the original rising-edge read latency and two-word
-sequencer lead are preserved. Both half-cycle paths need routed qualification.
-No instruction word changes.
+The unchanged microcode is split into four byte-wide block ROMs. `cpu_roms`
+in `scripts/sim_fes_pcxt.py` copies the raw image and emits
+`mcl86_ucode_byte0.mem` through `mcl86_ucode_byte3.mem`. Each lane captures a
+local address from the EU's next-PC value on the same system edge as the real
+PC. The next-value equations preserve the original reset, jumps, stall and
+call-stack behavior. Four kept register processes separate ROM address loads
+from the PC's other consumers without another cycle.
+
+The board reads those ROMs on a dedicated +90-degree 100 MHz clock and captures
+the word and decoded one-hot controls on the next system edge. SDRAM capture
+retains its separate +180-degree clock. The original registered-read latency
+and two-word sequencer lead are preserved. Address setup has 2.5 ns and ROM
+read/output has 7.5 ns; both require timing qualification. No instruction word
+changes.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
 operand muxes retain only sources used by ADD words; other operations use the
@@ -53,14 +58,16 @@ constant masks; exhaustive partial-constant proofs cover those transformations.
 
 
 
-`tests/test_pcxt_cpu_selection.py` exhaustively checks all 4096 generated ROM
-rows, then cuts the immutable lookup and symbolically checks the actual
-two-phase read/output stages for arbitrary 32-bit payload transitions at
-registered addresses, against the original rising-edge ROM. It also compares the real operand wiring/selection against
-the imported equations for all register values and select fields. The ROM-copy
-and selector files must both be beside the executable/netlist build; the normal
-simulation and synthesis helpers generate them. These are CPU control ROMs,
-separate from the guest BIOS/firmware loader.
+`tests/test_pcxt_cpu_selection.py` reconstructs every control word from the four
+byte images, then cuts only those immutable lookups and checks the actual
+read/output stages at 90/180/270 degrees for arbitrary registered-address
+payloads. An unbounded invariant checks all four local addresses after reset,
+including later resets. A sequential equivalence check covers the 66 original
+PC/call-stack/stall bits with arbitrary control and bus inputs; operand and
+jump checks cover the real bindings for all input values. These are compositional
+CPU proofs, not a monolithic whole-CPU equivalence result. All four byte files
+must be beside the executable/netlist; the normal helpers generate them.
+These are CPU control ROMs, separate from the guest firmware loader.
 
 FES fixes the wrapper to `is8086=0`, `fake286_flags=0`, cycle timing enabled,
 byte-wide accesses and no coprocessor wait. Its 100 MHz fabric clock generates

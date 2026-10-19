@@ -228,7 +228,8 @@ byte port for a later user-selected loader; no production HPS loader or sealed
 firmware map is claimed.
 
 `rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
-fabric input capture clock, inverted DDR SDRAM clock pin, bidirectional SDRAM
+fabric input capture clock, a dedicated +90-degree 100 MHz CPU ROM clock,
+inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.
 The retained `altddio_out` is passed to the locked nextpnr native output packer.
@@ -236,12 +237,12 @@ The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
 it connects a constant/undefined unused ROM write clock to the registered read
 clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
-The CPU import uses registered predecoded operand controls generated from its
-unchanged microcode image; ROM latency and instruction timing are preserved.
-Both ROMs read block RAM on the existing 180-degree memory PLL clock and capture
-local output registers on the system clock. The EU address changes only on rising edges; the original
-rising-edge read latency is preserved. Both half-cycle paths require routed
-timing qualification.
+The CPU import splits its unchanged microcode into four byte-wide ROMs, each
+with a local system-edge address register driven by the same next PC and reset
+as the CPU PC. A separate +90-degree PLL output reads the ROMs; the next system
+edge captures the word and decoded operand controls. Read and instruction
+latency are preserved. The shorter 2.5 ns address path and longer 7.5 ns ROM
+output path both require qualification; SDRAM capture remains at +180 degrees.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
 operand muxes retain only sources used by ADD words; other operations use the
@@ -284,6 +285,7 @@ power-on diagnostic has no runtime ABI, host session control or audio pins.
 
 ```sh
 # From sources/misteross; no shared compiler cache environment for simulations.
+make toolchain-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
 python3 scripts/sim_fes_pcxt.py --suite system
 python3 scripts/sim_fes_pcxt.py --suite system-mda
 gpu-run --owner pcxt-agent --label pcxt-cga-direct -- make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
@@ -292,17 +294,23 @@ gpu-run --owner pcxt-agent --label pcxt-mda-scanlines -- make build-fes-pcxt CAC
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 ```
 
+The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with per-pin
+nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Select
+`PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and
+CUDA routes have equal standing. Neither backend's timing pass substitutes for
+the separate Quartus cross-check.
+
 Each invocation retains a separate directory beneath
 `build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
 assembled firmware, microcode, synthesis/netlist/resource counts and a
 `diagnostic.json` source/tool receipt. The normal command attempts one seed-1
-HIP route with a bounded 1800-second timeout and retains failures. Placement
+GPU route with a bounded 1800-second timeout and retains failures. Placement
 uses fixed timing weight 2000 and criticality exponent 5, as in the existing
 Coleco socket lane; there is no placement-parameter or seed search. For `gpu-run`
 leases, the producer retains the ROCr physical-device mask and removes a matching
 redundant HIP mask, so leased physical GPU 1 remains visible as logical GPU 0.
 Independent visibility restrictions are preserved. The receipt records the
-route command, placement settings and effective GPU visibility. A completed
+route command, timeout, placement settings and effective GPU visibility. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
 `diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
 clock-domain pair so remaining failures can be traced without rerouting.
@@ -349,10 +357,12 @@ registers its read address before M10K fanout. Each of its three 64 KiB banks
 has a separate RAM read mux and local output register; bank selection then
 occurs alongside palette selection. Bank/subpixel/raster fields have matching
 latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
-all-input Yosys SAT checks, as do the PIT decrements. CPU checks cover every
-generated control-ROM row, symbolic two-phase read alignment, and real operand
+all-input Yosys SAT checks, as do the PIT decrements. CPU checks reconstruct every
+control-ROM word from its four byte lanes, prove the PC/call-stack/stall
+projection and local address-copy invariant, check read alignment at
+90/180/270 degrees, and compare real operand
 selection against the imported equations;
-`cpu_roms` derives `mcl86_operand_select.mem` from the unchanged raw image. The display's fractional
+`cpu_roms` derives four byte-lane images from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
 for every phase value and both CGA/MDA rates. The CPU pin-clock divider decodes its wrap threshold directly from phase bits

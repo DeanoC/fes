@@ -299,12 +299,30 @@ module mcl86_eu_core
     // read is registered, which is where the sequencer's 2-word lead comes from.
     `include "mcl86_facts.vh"
 
+    reg [12:0] eu_rom_address_next;
+    always_comb begin : next_microcode_pc
+        eu_rom_address_next = eu_rom_address + 1'b1;
+        if (eu_stall_pipeline == 1'b0 && eu_opcode_type == 3'h1 && eu_jump_boolean == 1'b1) begin
+            case (eu_opcode_jump_src)
+                3'h0: eu_rom_address_next = eu_opcode_immediate[12:0];
+                3'h1: eu_rom_address_next = {4'b0, 1'b1, PFQ_TOP_BYTE};
+                3'h2: eu_rom_address_next = {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0};
+                3'h3: eu_rom_address_next = eu_calling_address[12:0];
+                3'h4: eu_rom_address_next = {eu_opcode_immediate[7:0], eu_biu_dataout[3:0], 1'b0};
+                3'h5: eu_rom_address_next = {eu_opcode_immediate[6:0], eu_biu_dataout[3:0], 2'b0};
+                3'h6: eu_rom_address_next = {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};
+                default: eu_rom_address_next = FES_MC_JUMP7_USED ? eu_rom_address : eu_rom_address + 1'b1;
+            endcase
+        end
+    end
+
     mcl86_ucode u_ucode_rom (
         .add_select0 (eu_add_select0),
         .add_select1 (eu_add_select1),
         .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
-        .addr ( eu_rom_address[11:0] ),
+        .reset ( RESET_INT ),
+        .next_addr ( eu_rom_address_next[11:0] ),
         .dout     ( eu_rom_data          ),
         .operand_select0 ( eu_op0_select ),
         .operand_select1 ( eu_op1_select )
@@ -618,6 +636,7 @@ module mcl86_eu_core
             idiv_opcode         <=   '0;
         end
         else begin
+            eu_rom_address <= eu_rom_address_next;
             // Delay the INTR enable flag until after the next instruction begins.
             // No delay when it is disabled.
             //
@@ -913,27 +932,11 @@ module mcl86_eu_core
                     eu_calling_address[51:0] <= {eu_calling_address[38:0], eu_rom_address[12:0]};  // 4 deep calling addresses
                 end
 
-                case (eu_opcode_jump_src)  // synthesis parallel_case
-                    3'h0: eu_rom_address <= eu_opcode_immediate[12:0];
-                    3'h1: eu_rom_address <= {4'b0, 1'b1, PFQ_TOP_BYTE};                                             // If only used for primary opcode jump, maybe make fixed prepend rather than immediate value prepend?
-                    3'h2: eu_rom_address <= {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0}; // Rearranged mod_reg_rm byte - imm,MOD,RM,000
-                    3'h3: begin
-                        eu_rom_address           <= eu_calling_address[12:0];
-                        eu_calling_address[38:0] <= eu_calling_address[51:13];
-                    end
-                    3'h4: eu_rom_address <= {eu_opcode_immediate[7:0],  eu_biu_dataout[3:0], 1'b0};  // Jump table for EA register fetch decoding.  Jump Addresses decoded from biu_dataout.
-                    3'h5: eu_rom_address <= {eu_opcode_immediate[6:0],  eu_biu_dataout[3:0], 2'b0};  // Jump table for EA register writeback decoding.  Jump Addresses decoded from biu_dataout.
-                    3'h6: eu_rom_address <= {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};        // Jump table for instructions that share same opcode and decode using the REG field.
-                    // Preserve source-7 hold behavior for any control image
-                    // that uses it. Otherwise remove its unreachable PC-enable
-                    // path; every word in the pinned image is checked at build.
-                    default: eu_rom_address <= FES_MC_JUMP7_USED ?
-                        eu_rom_address : eu_rom_address + 1'b1;
-                endcase
+                if (eu_opcode_jump_src == 3'h3)
+                    eu_calling_address[38:0] <= eu_calling_address[51:13];
             end
             else begin
                 eu_stall_pipeline <= 1'b0; // Debounce the pipeline stall
-                eu_rom_address    <= eu_rom_address + 1'b1;
             end
         end
     end

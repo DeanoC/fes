@@ -118,11 +118,10 @@ def cpu_roms(output):
     if len(words) != 4096 or any(word < 0 or word > 0xffffffff for word in words):
         raise ValueError('MCL86 microcode must contain exactly 4096 32-bit words')
     shutil.copyfile(source, output / 'mcl86_ucode.mem')
-    # Registered one-hot controls have the same address/read latency as the
-    # original selects. No instruction or raw microcode word is changed.
-    selects = [((1 << ((word >> 20) & 15)) << 16) | (1 << ((word >> 16) & 15))
-               for word in words]
-    (output / 'mcl86_operand_select.mem').write_text(''.join(f'{word:08x}\n' for word in selects))
+    # Four byte lanes retain every bit of the unchanged control image.
+    for lane in range(4):
+        (output / f'mcl86_ucode_byte{lane}.mem').write_text(
+            ''.join(f'{(word >> (8 * lane)) & 255:02x}\n' for word in words))
     # Conservative facts over every control-ROM word, independent of guest
     # firmware/data. A different pinned image automatically expands the masks
     # and retains the reserved jump-source hold behavior when it is used.

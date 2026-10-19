@@ -144,62 +144,193 @@ class CpuSelectionTest(unittest.TestCase):
                 cwd=work, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_rom_contents_and_two_phase_registered_read_alignment(self):
+    def cut_rom_lookup(self):
+        source = (VENDOR / 'mcl86_ucode.sv').read_text()
+        for lane in range(3):
+            self.assertIn(f'if (lane == {lane}) $readmemh("mcl86_ucode_byte{lane}.mem", rom);', source)
+        self.assertIn('else $readmemh("mcl86_ucode_byte3.mem", rom);', source)
+        source, count = re.subn(r'input\s+wire\s+clk,',
+            'input wire [31:0] rom_payload, input wire clk,', source)
+        self.assertEqual(count, 1)
+        source, count = re.subn(r'logic \[7:0\] rom\[0:4095\];', '', source)
+        self.assertEqual(count, 1)
+        source, count = re.subn(r'initial begin.*?end\n', '', source, flags=re.S)
+        self.assertEqual(count, 1)
+        source, count = re.subn(r'rom\[read_address\]', 'rom_payload[lane*8 +: 8]', source)
+        self.assertEqual(count, 1)
+        return source
+
+    def test_rom_contents_and_registered_read_alignment(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             inputs.cpu_roms(work)
             self.assertEqual((work / 'mcl86_ucode.mem').read_bytes(),
                              (VENDOR / 'mcl86_ucode.mem').read_bytes())
             words = [int(s, 16) for s in (work / 'mcl86_ucode.mem').read_text().split()]
-            controls = [int(s, 16) for s in (work / 'mcl86_operand_select.mem').read_text().split()]
+            lanes = [[int(s, 16) for s in (work / f'mcl86_ucode_byte{lane}.mem').read_text().split()]
+                     for lane in range(4)]
             self.assertEqual(len(words), 4096)
-            self.assertEqual(controls, [((1 << ((w >> 20) & 15)) << 16) |
-                                       (1 << ((w >> 16) & 15)) for w in words])
-            # Cut only the immutable table lookup, after exhaustively checking
-            # its contents above. Preserve the actual RTL clocks, read stages
-            # and output bindings. A symbolic 32-bit lookup value registered
-            # on clk models any pure ROM at the EU's registered address,
-            # including arbitrary changes between successive addresses.
-            source = (VENDOR / 'mcl86_ucode.sv').read_text()
-            source, count = re.subn(r'input\s+wire\s+clk,',
-                'input wire [31:0] rom_payload, input wire clk,', source)
-            self.assertEqual(count, 1)
-            for memory in ('operand_select_mem', 'mem'):
-                source, count = re.subn(r'logic \[31:0\] ' + memory + r'\[0:4095\];', '', source)
-                self.assertEqual(count, 1)
-                filename = 'mcl86_operand_select.mem' if memory == 'operand_select_mem' else 'mcl86_ucode.mem'
-                source, count = re.subn(r'initial begin\s*\$readmemh\("' + re.escape(filename) + r'", ' + memory + r'\);\s*end', '', source)
-                self.assertEqual(count, 1)
-                payload = ("{(16'h1 << rom_payload[23:20]), (16'h1 << rom_payload[19:16])}"
-                           if memory == 'operand_select_mem' else 'rom_payload')
-                source, count = re.subn(r'\b' + memory + r'\[addr\]', payload, source)
-                self.assertEqual(count, 1)
-            (work / 'rom.sv').write_text(source)
+            self.assertTrue(all(len(lane) == 4096 for lane in lanes))
+            self.assertEqual(words, [sum(lanes[lane][row] << (8*lane) for lane in range(4))
+                                    for row in range(4096)])
+            (work / 'rom.sv').write_text(self.cut_rom_lookup())
             (work / 'proof.sv').write_text(r"""
-              module proof(input clk, input [31:0] next_payload, output ok);
-                // The real EU drives this port exclusively from its
-                // rising-edge microcode-PC register. Inputs may otherwise
-                // change arbitrarily on every formal half-cycle.
+              module proof(input clk, clk_rom, input [31:0] next_payload, output ok);
                 reg [31:0] payload;
                 always @(posedge clk) payload <= next_payload;
                 reg [31:0] original_word;
                 always @(posedge clk) original_word <= payload;
                 wire [31:0] word;
                 wire [15:0] s0, s1, a0, a1;
-                mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(~clk), .addr(12'b0), .dout(word),
+                mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(clk_rom),
+                    .reset(1'b0), .next_addr(12'b0), .dout(word),
                     .operand_select0(s0), .operand_select1(s1), .add_select0(a0), .add_select1(a1));
                 assign ok = word == original_word &&
                             s0 == (16'h1 << original_word[23:20]) &&
                             s1 == (16'h1 << original_word[19:16]) && a0 == s0 && a1 == s1;
               endmodule
             """)
-            command = ('read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; '
-                       'clk2fflogic; opt; '
-                       'sat -verify -seq 6 -set-init-zero -prove-skip 4 -prove ok 1 '
-                       + ' '.join(f'-set-at {step} clk {int(step % 2 == 0)}'
-                                  for step in range(1, 7)) + ' -show-inputs')
-            result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
-                                    capture_output=True, text=True, timeout=90)
+            for phase in (90, 180, 270):
+                with self.subTest(phase=phase):
+                    rom_high = {90: (3, 0), 180: (0, 1), 270: (1, 2)}[phase]
+                    command = ('read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; '
+                               'clk2fflogic; opt; '
+                               'sat -verify -seq 12 -set-init-zero -prove-skip 8 -prove ok 1 '
+                               + ' '.join(f'-set-at {step} clk {int(step % 4 in (2,3))} '
+                                          f'-set-at {step} clk_rom {int(step % 4 in rom_high)}'
+                                          for step in range(1, 13)) + ' -show-inputs')
+                    result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
+                                            capture_output=True, text=True, timeout=90)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_local_rom_addresses_match_the_microcode_pc_after_reset(self):
+        source = self.cut_rom_lookup().replace('input wire [31:0] rom_payload,',
+            'output wire [47:0] read_addresses, input wire [31:0] rom_payload,')
+        source = source.replace('reg [11:0] read_address;',
+            'reg [11:0] read_address; assign read_addresses[lane*12 +: 12] = read_address;')
+        fixture = r"""
+          module proof(input clk, reset, input [11:0] next_addr, output ok);
+            reg [11:0] pc;
+            reg seen_reset = 0;
+            always @(posedge clk) if (reset) seen_reset <= 1;
+            always @(posedge clk) if (reset) pc <= 12'h020; else pc <= next_addr;
+            wire [47:0] addresses;
+            mcl86_ucode dut(.clk(clk), .clk_rom(clk), .reset(reset), .next_addr(next_addr),
+              .rom_payload(32'b0), .read_addresses(addresses), .dout(),
+              .operand_select0(), .operand_select1(), .add_select0(), .add_select1());
+            assign ok = !seen_reset || addresses == {4{pc}};
+          endmodule
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'rom.sv').write_text(source)
+            (work / 'proof.sv').write_text(fixture)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; opt; '
+                'dffunmap; sat -verify -seq 2 -tempinduct -maxsteps 8 '
+                '-prove ok 1 -show-inputs'],
+                cwd=work, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_microcode_next_address_matches_original_sequencer(self):
+        source = (VENDOR / 'mcl86_eu_core.sv').read_text()
+        block = source[source.index('    always_comb begin : next_microcode_pc'):
+                       source.index('    mcl86_ucode u_ucode_rom')]
+        writes = re.findall(r'\beu_rom_address\s*<=\s*(.*?);', source, re.S)
+        self.assertEqual([w.strip() for w in writes], ["13'h0020", 'eu_rom_address_next'])
+        self.assertRegex(source, r'\.next_addr\s*\(\s*eu_rom_address_next\[11:0\]\s*\)')
+        self.assertRegex(source, r'\.reset\s*\(\s*RESET_INT\s*\)')
+        fixture = r"""
+          module proof(input [12:0] eu_rom_address, input [51:0] eu_calling_address,
+            input [15:0] eu_opcode_immediate, eu_biu_dataout, input [7:0] PFQ_TOP_BYTE,
+            input eu_stall_pipeline, eu_jump_boolean, FES_MC_JUMP7_USED,
+            input [2:0] eu_opcode_type, eu_opcode_jump_src, output ok);
+            reg [12:0] eu_rom_address_next, expected;
+        """ + block + r"""
+            always @* begin
+              if (!eu_stall_pipeline && eu_opcode_type == 3'h1 && eu_jump_boolean) begin
+                case (eu_opcode_jump_src)
+                  0: expected = eu_opcode_immediate[12:0];
+                  1: expected = {4'b0, 1'b1, PFQ_TOP_BYTE};
+                  2: expected = {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0};
+                  3: expected = eu_calling_address[12:0];
+                  4: expected = {eu_opcode_immediate[7:0], eu_biu_dataout[3:0], 1'b0};
+                  5: expected = {eu_opcode_immediate[6:0], eu_biu_dataout[3:0], 2'b0};
+                  6: expected = {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};
+                  default: expected = FES_MC_JUMP7_USED ? eu_rom_address : eu_rom_address + 1'b1;
+                endcase
+              end else expected = eu_rom_address + 1'b1;
+            end
+            assign ok = eu_rom_address_next == expected;
+          endmodule
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'proof.sv').write_text(fixture)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv proof.sv; prep -top proof -flatten; sat -verify -prove ok 1'],
+                cwd=work, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_microcode_pc_stack_and_stall_match_original(self):
+        source = (VENDOR / 'mcl86_eu_core.sv').read_text()
+        start = source.index('            if (eu_stall_pipeline ==', source.index('// JUMP Opcode'))
+        end = source.index('\n        end\n    end\n', start)
+        actual = source[start:end]
+        self.assertEqual(len(re.findall(r'\beu_stall_pipeline\s*<=', source)), 3)
+        self.assertEqual(len(re.findall(r'\beu_calling_address(?:\[[^]]+\])?\s*<=', source)), 3)
+        next_pc = source[source.index('    always_comb begin : next_microcode_pc'):
+                         source.index('    mcl86_ucode u_ucode_rom')]
+        # Original sequential JUMP block, including overlapping call/return
+        # nonblocking writes and the reserved-source hold used by this import.
+        reference = r"""
+          if (eu_stall_pipeline == 0 && eu_opcode_type == 1 && eu_jump_boolean == 1) begin
+            eu_stall_pipeline <= 1;
+            if (eu_opcode_jump_call)
+              eu_calling_address[51:0] <= {eu_calling_address[38:0], eu_rom_address[12:0]};
+            case (eu_opcode_jump_src)
+              0: eu_rom_address <= eu_opcode_immediate[12:0];
+              1: eu_rom_address <= {4'b0, 1'b1, PFQ_TOP_BYTE};
+              2: eu_rom_address <= {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0};
+              3: begin
+                eu_rom_address <= eu_calling_address[12:0];
+                eu_calling_address[38:0] <= eu_calling_address[51:13];
+              end
+              4: eu_rom_address <= {eu_opcode_immediate[7:0], eu_biu_dataout[3:0], 1'b0};
+              5: eu_rom_address <= {eu_opcode_immediate[6:0], eu_biu_dataout[3:0], 2'b0};
+              6: eu_rom_address <= {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};
+              default: eu_rom_address <= FES_MC_JUMP7_USED ? eu_rom_address : eu_rom_address + 1'b1;
+            endcase
+          end else begin
+            eu_stall_pipeline <= 0;
+            eu_rom_address <= eu_rom_address + 1'b1;
+          end
+        """
+        def module(name, body, next_logic=''):
+            return f'module {name}' + r"""(input clk, RESET_INT,
+              input [15:0] eu_opcode_immediate, eu_biu_dataout, input [7:0] PFQ_TOP_BYTE,
+              input eu_jump_boolean, eu_opcode_jump_call, FES_MC_JUMP7_USED,
+              input [2:0] eu_opcode_type, eu_opcode_jump_src,
+              output reg [12:0] eu_rom_address, output reg [51:0] eu_calling_address,
+              output reg eu_stall_pipeline);
+              reg [12:0] eu_rom_address_next;
+            """ + next_logic + r"""
+              always @(posedge clk) begin
+                if (RESET_INT) begin
+                  eu_rom_address <= 13'h0020;
+                  eu_calling_address <= 0;
+                  eu_stall_pipeline <= 0;
+                end else begin
+            """ + body + ' end end endmodule\n'
+        fixture = module('reference', reference) + module('actual',
+            'eu_rom_address <= eu_rom_address_next;\n' + actual, next_pc)
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'proof.sv').write_text(fixture)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv proof.sv; proc; opt; equiv_make reference actual equiv; '
+                'hierarchy -top equiv; equiv_simple; equiv_induct -seq 4; equiv_status -assert'],
+                cwd=work, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
