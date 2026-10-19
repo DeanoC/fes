@@ -18,7 +18,7 @@ A machine may play several roles.
 | --- | --- |
 | Library | `fogcast-api` catalog and ROM storage (Linux kit-host or Mac sofa) |
 | Coordinator | same `fogcast-api` process; owns session/lease *client* |
-| Surface | browser on loopback `:8787`, SDL `fogcast-tenfoot`, kit `fogcast-kit` |
+| Surface | browser on loopback `:8787`, SDL `fogcast-tenfoot`, kit `fogcast-tenfoot -gfx menu-display` |
 | Input source | sofa HID, kit evdev pad (today forwarded through the host) |
 | Output sink | FPGA HDMI, ShadowCast preview on the host, sofa window |
 | FPGA target | `mister-agent` + `mister-runtime` on the DE10-Nano |

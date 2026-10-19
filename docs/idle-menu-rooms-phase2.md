@@ -82,16 +82,11 @@ historical Menu tests. Sequence prose:
 [`ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md)
 native idle admission.
 
-Kit HDMI after Stop is still `/usr/sbin/fogcast-kit`
-(started by [`S40fes-kit-software`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software)).
-[`ui/kitlauncher/run.go`](../sources/FogCast/ui/kitlauncher/run.go)
-skips `present` while a session is active, and after confirmed idle when
-that idle has no HPS framebuffer (`0x002f`). FPGA splash pixels stay on
-HDMI. The service logs that skip and keeps running if linuxfb cannot
-open. When launcher config or the session sets `hps_framebuffer`, the
-kit may paint a temporary linuxfb overlay (connecting, retry, last-good
-shelf). That overlay is not rooms, not Menu's file browser, and not a
-permanent catalog. Slice 6 is the leased HDMI proof.
+Kit HDMI after Stop is `fogcast-tenfoot -gfx menu-display`, started by
+[`S40fes-kit-software`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software).
+The `fogcast-kit` grid that slice 5 changed has since been removed (#728).
+Tenfoot pauses menu-display presents while a core runs; FPGA splash pixels
+stay on HDMI until the menu is available again. Slice 6 is the leased HDMI proof.
 
 `config/core-recipes.toml` has play packages only. Splash is sealed
 board firmware, not a `fes.*` package.
@@ -288,7 +283,6 @@ Prefer a strawman in the implementing PR. Do not fork a second lock.
 | [Kit sharing](kit-sharing.md) | Exclusive lease; no unleased programming |
 | [Agent workflow](agent-workflow.md) | File ownership, worktrees, handoff shape |
 | [Core packages](core-packages.md) | Play packages; locked splash/idle is sealed misteross `fes-splash.rbf` |
-| [Sofa launcher](sofa-launcher-design.md) | Current MENU + kit-grid HDMI |
 | Runtime [`ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | Current `LoadIdle` MENU + HPS fb sequence |
 | FogCast [`fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not this phase |
 

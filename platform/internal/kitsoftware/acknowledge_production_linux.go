@@ -217,7 +217,7 @@ func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *Proce
 	if len(children) != 3 {
 		return proof, errors.New("supervisor does not own exactly three services")
 	}
-	expected := []string{"mister-runtime", "mister-agent", "fogcast-kit", "fogcast-tenfoot"}
+	expected := []string{"mister-runtime", "mister-agent", "fogcast-tenfoot"}
 	matched := map[string]int{}
 	for _, pid := range children {
 		name := ""
@@ -234,10 +234,7 @@ func captureRunningPriorAt(ctx context.Context, req AcknowledgeRequest, c *Proce
 		}
 		matched[name] = pid
 	}
-	launcher := matched["fogcast-kit"]
-	if launcher == 0 {
-		launcher = matched["fogcast-tenfoot"]
-	}
+	launcher := matched["fogcast-tenfoot"]
 	if matched["mister-runtime"] == 0 || matched["mister-agent"] == 0 || launcher == 0 {
 		return proof, errors.New("prior service group incomplete")
 	}

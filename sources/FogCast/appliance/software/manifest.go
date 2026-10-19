@@ -25,7 +25,9 @@ const DefaultRoot = "/run/fogcast/fesdata3/software-releases"
 
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var namePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$`)
-var RequiredExecutables = []string{"bin/fogcast-kit", "bin/fogcast-tenfoot", "bin/mister-agent", "bin/mister-runtime"}
+// Update bundles still carry bin/fogcast-kit for bases whose supervisor
+// probes it before starting tenfoot (#728); this base does not require it.
+var RequiredExecutables = []string{"bin/fogcast-tenfoot", "bin/mister-agent", "bin/mister-runtime"}
 
 type File struct {
 	Path   string `json:"path"`

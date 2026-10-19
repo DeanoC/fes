@@ -19,7 +19,7 @@ import (
 
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/ui/kitlauncher"
+	"github.com/DeanoC/FogCast/ui/launcherconfig"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
@@ -154,8 +154,8 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
-	var launcher kitlauncher.Config
-	if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
+	var launcher launcherconfig.Config
+	if c, err := launcherconfig.Load(*configPath); err == nil {
 		launcher = c
 	}
 	apiValue := firstNonempty(flagValue(fs, "api"), getenv("FOGCAST_API"), launcher.API, hostclient.DefaultAPIBase)

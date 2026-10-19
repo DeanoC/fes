@@ -1,5 +1,5 @@
 // Package localfeed writes one pad or keyboard stream to mister-agent's
-// kit-local input socket. The kit grid and tenfoot share it so a core sees
+// kit-local input socket. Tenfoot uses it so a core sees
 // one frame encoding. A missing socket stays dark for a second between dials.
 package localfeed
 

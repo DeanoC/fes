@@ -35,8 +35,8 @@ if [ ! -d "$root/targetclient" ]; then
   exit 1
 fi
 
-if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/host(/|")' "$root/ui/kitlauncher"; then
-  echo 'kit launcher still depends on host package' >&2
+if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/host(/|")' "$root/ui/tenfoot"; then
+  echo 'kit UI still depends on host package' >&2
   exit 1
 fi
 
