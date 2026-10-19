@@ -5,7 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -370,7 +373,7 @@ func TestConfirmKeepsTrialUntilSplashPublishes(t *testing.T) {
 		t.Fatalf("failed publish did not leave an accepted trial: %+v %v", st, err)
 	}
 	status, err := svc.Status(context.Background())
-	if err != nil || !status.Trial || c.Health("").Ready {
+	if err != nil || !status.Trial || status.SplashWarning != "" || c.Health("").Ready {
 		t.Fatalf("gate lifted without a splash: %+v %v", status, err)
 	}
 	if err := os.Remove(fat); err != nil {
@@ -472,6 +475,118 @@ func TestNonTrialBootFinishesInterruptedSplash(t *testing.T) {
 	status, err := stable.Status(context.Background())
 	if err != nil || status.Trial || status.FatIdleSHA256 != sum || status.IdleSHA256 != sum {
 		t.Fatalf("non-trial status: %+v %v", status, err)
+	}
+}
+
+func TestNonTrialSplashRepairFailureStaysOnStatus(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	s, factory, _, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fatDir := filepath.Join(dir, "fat")
+	if err := os.Mkdir(fatDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fat := filepath.Join(fatDir, "idle.rbf")
+	if err := os.WriteFile(fat, []byte("stale-readable-splash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(fatDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(fatDir, 0o755) })
+	sumIdle := writeImageSplash(t, idle, record, []byte("splash-of-running-image"))
+	sumFAT := shaOf(t, fat)
+	if sumFAT == sumIdle {
+		t.Fatal("fixture digests match")
+	}
+	sel, err := s.BeginBoot("boot-stable")
+	if err != nil || sel.Trial || sel.Manifest.ImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("factory boot: %+v %v", sel, err)
+	}
+	splash := appliancesplash.New(appliancesplash.Paths{
+		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, factory.ImageSHA256),
+	})
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-stable", ImageSHA256: factory.ImageSHA256}, nil, nil, splash)
+	assertOpen := func() applianceupdate.Status {
+		t.Helper()
+		status, statusErr := svc.Status(context.Background())
+		if statusErr != nil {
+			t.Fatalf("status hid the repair failure: %v", statusErr)
+		}
+		if status.Trial || status.Good != factory.ImageSHA256 || status.ImageSHA256 != factory.ImageSHA256 || status.BootID != "boot-stable" {
+			t.Fatalf("boot state: %+v", status)
+		}
+		if status.FatIdleSHA256 != sumFAT || status.IdleSHA256 != sumIdle || status.SplashWarning == "" {
+			t.Fatalf("digests or warning: %+v", status)
+		}
+		if !strings.Contains(status.SplashWarning, "permission denied") {
+			t.Fatalf("warning %q", status.SplashWarning)
+		}
+		body, marshalErr := json.Marshal(status)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		for _, needle := range []string{
+			`"fat_idle_sha256":"` + sumFAT + `"`,
+			`"idle_sha256":"` + sumIdle + `"`,
+			`"splash_warning":`,
+			`"trial":false`,
+			`"good":"` + factory.ImageSHA256 + `"`,
+		} {
+			if !strings.Contains(string(body), needle) {
+				t.Fatalf("status JSON missing %s: %s", needle, body)
+			}
+		}
+		if got := shaOf(t, fat); got != sumFAT {
+			t.Fatalf("failed repair changed FAT: %s", got)
+		}
+		return status
+	}
+	first := assertOpen()
+	second := assertOpen()
+	if first.SplashWarning != second.SplashWarning {
+		t.Fatalf("warning changed across polls: %q %q", first.SplashWarning, second.SplashWarning)
+	}
+	if got := strings.Count(logs.String(), "splash repair failed"); got != 1 {
+		t.Fatalf("repair failure logged %d times:\n%s", got, logs.String())
+	}
+	if !strings.Contains(logs.String(), factory.ImageSHA256) {
+		t.Fatalf("log missing image: %s", logs.String())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cancelled, err := svc.Status(ctx)
+	if !errors.Is(err, context.Canceled) || cancelled.SplashWarning != first.SplashWarning {
+		t.Fatalf("cancelled status: %+v %v", cancelled, err)
+	}
+	if err = os.Chmod(fatDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil || status.SplashWarning != "" || status.Trial || status.FatIdleSHA256 != sumIdle || status.IdleSHA256 != sumIdle || status.Good != factory.ImageSHA256 {
+		t.Fatalf("repair did not recover: %+v %v", status, err)
+	}
+	if got := shaOf(t, fat); got != sumIdle {
+		t.Fatalf("recovered FAT %s", got)
+	}
+	if got := strings.Count(logs.String(), "splash repair succeeded"); got != 1 {
+		t.Fatalf("recovery logged %d times:\n%s", got, logs.String())
+	}
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(logs.String(), "splash repair succeeded"); got != 1 {
+		t.Fatalf("recovery logged again:\n%s", logs.String())
+	}
+	if got := strings.Count(logs.String(), "splash repair failed"); got != 1 {
+		t.Fatalf("failure logged again:\n%s", logs.String())
 	}
 }
 

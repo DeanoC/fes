@@ -5,6 +5,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -28,21 +32,25 @@ type Status struct {
 	RawIdleReady  bool   `json:"raw_idle_ready"`
 	FatIdleSHA256 string `json:"fat_idle_sha256,omitempty"`
 	IdleSHA256    string `json:"idle_sha256,omitempty"`
+	// SplashWarning is the non-trial splash repair error. Status still returns
+	// the boot state and both digests when this is set.
+	SplashWarning string `json:"splash_warning,omitempty"`
 }
 
 type Service struct {
-	store       *appliance.Store
-	coordinator *agent.Coordinator
-	boot        BootIdentity
-	reboot      func(context.Context) error
-	cleanup     func(context.Context) error
-	mutation    sync.Mutex
-	mu          sync.Mutex
-	blocked     bool
-	trial       bool
-	operations  map[*operation]struct{}
-	drained     chan struct{}
-	splash      *appliancesplash.Installer
+	store         *appliance.Store
+	coordinator   *agent.Coordinator
+	boot          BootIdentity
+	reboot        func(context.Context) error
+	cleanup       func(context.Context) error
+	mutation      sync.Mutex
+	mu            sync.Mutex
+	blocked       bool
+	trial         bool
+	operations    map[*operation]struct{}
+	drained       chan struct{}
+	splash        *appliancesplash.Installer
+	splashWarning string
 }
 type operation struct{ cancel context.CancelFunc }
 
@@ -70,11 +78,12 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	s.mu.Lock()
 	boot := s.boot
 	boot.Trial = s.trial
+	warning := s.splashWarning
 	s.mu.Unlock()
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
-	status := Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle}
+	status := Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle, SplashWarning: warning}
 	if s.splash != nil {
 		status.FatIdleSHA256 = s.splash.FATSHA256()
 		status.IdleSHA256 = s.splash.IdleSHA256()
@@ -87,13 +96,17 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // seeing matching fields must not release the admission or watchdog gate.
 // A non-trial boot republishes the running image's splash. That repairs an
 // interrupted publication and a factory fallback whose staged copy is gone.
+// A failed repair is logged and returned in SplashWarning. It does not fail
+// Status, so the boot state and splash digests stay visible. A trial boot
+// does not use that path: the watchdog stays armed until the FAT publish
+// succeeds.
 func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error {
 	if !s.mutation.TryLock() {
 		return nil
 	}
 	defer s.mutation.Unlock()
 	if !s.boot.Trial {
-		return s.repairSplash(ctx)
+		return s.noteSplashRepair(s.repairSplash(ctx))
 	}
 	if !rawIdle {
 		return nil
@@ -150,6 +163,47 @@ func (s *Service) repairSplash(ctx context.Context) error {
 		return err
 	}
 	return s.installSplash(ctx, s.boot.ImageSHA256)
+}
+
+// noteSplashRepair records a non-trial publication failure for status reads.
+// A cancelled repair still returns the context error. The same failure text
+// is logged once; a later successful repair clears it.
+func (s *Service) noteSplashRepair(err error) error {
+	if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return err
+	}
+	message := ""
+	if err != nil {
+		message = splashRepairMessage(err)
+	}
+	s.mu.Lock()
+	previous := s.splashWarning
+	s.splashWarning = message
+	s.mu.Unlock()
+	if message == previous {
+		return nil
+	}
+	if message == "" {
+		slog.Info("splash repair succeeded", "image_sha256", s.boot.ImageSHA256)
+		return nil
+	}
+	slog.Warn("splash repair failed", "error", message, "image_sha256", s.boot.ImageSHA256)
+	return nil
+}
+
+// splashRepairMessage drops the random atomic-publish temporary name so a
+// polled status stays comparable. The directory and the OS error remain.
+func splashRepairMessage(err error) string {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) && pathErr.Err != nil {
+		path := pathErr.Path
+		base := filepath.Base(path)
+		if strings.HasPrefix(base, ".") && strings.HasSuffix(base, ".tmp") {
+			path = filepath.Dir(path)
+		}
+		return pathErr.Op + " " + path + ": " + pathErr.Err.Error()
+	}
+	return err.Error()
 }
 
 func (s *Service) releaseTrialGate() {

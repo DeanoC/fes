@@ -1368,7 +1368,9 @@ itself write FAT; the agent publishes that image's splash when the non-trial
 boot starts. U-Boot programs whatever is on FAT at the following boot.
 Confirming a rollback writes the restored image's splash. Prune removes the
 staged splash with the image. Status reports `fat_idle_sha256` and
-`idle_sha256`.
+`idle_sha256`. A non-trial splash repair failure is logged and returned in
+`splash_warning` without hiding that status. A trial stays unconfirmed until
+the publish succeeds.
 
 The host uploads once and activates once. It resolves response loss by reading
 authenticated boot/image identity, rediscovers a changed address using the existing

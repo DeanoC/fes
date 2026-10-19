@@ -42,7 +42,7 @@ migrations of save/configuration formats in this release ABI.
 
 | Target route | Request | Result |
 | --- | --- | --- |
-| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending, state integrity, `fat_idle_sha256` and `idle_sha256` |
+| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending, state integrity, `fat_idle_sha256`, `idle_sha256`, and `splash_warning` when a non-trial splash repair fails |
 | `POST /v1/update/stage` | Raw image, exact Content-Length, `X-FogCast-Release-Manifest` base64 JSON | Verified immutable staged manifest (201) |
 | `POST /v1/update/activate` | JSON `image_sha256` | Persist selection, flush `rebooting:true`, reboot (202) |
 | `POST /v1/update/rollback` | Empty body | Select previous, flush, reboot (202) |
@@ -108,7 +108,11 @@ not write FAT itself. When that image starts, the agent republishes its idle
 core. U-Boot programs the splash that is on FAT at the following boot.
 Confirming the restored image writes that image's splash back.
 `GET /v1/update` reports `fat_idle_sha256` for the FAT file and `idle_sha256`
-for the running image record. U-Boot, the kernel, `u-boot.txt` and `/menu.rbf`
+for the running image record. When a non-trial boot cannot publish that
+splash, the agent logs the failure and the same response still returns the
+boot state and both digests, with `splash_warning` set to the repair error.
+A trial boot does not use that field: the watchdog stays armed until the FAT
+publish succeeds. U-Boot, the kernel, `u-boot.txt` and `/menu.rbf`
 are not rewritten.
 
 If a response is lost, inspect status; do not blindly replay activation. A pending

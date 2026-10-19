@@ -9,8 +9,10 @@
 // trial does not touch the FAT file, so fallback still boots the previous
 // splash. A non-trial boot, including factory fallback, republishes the
 // running image's splash when FAT does not match, even if the staged copy
-// was removed. A later confirmation of a restored image writes that image's
-// splash back.
+// was removed. A failed republish is logged and reported as splash_warning;
+// update status still returns the boot state and both digests. The watchdog
+// stays armed until a trial's publish succeeds. A later confirmation of a
+// restored image writes that image's splash back.
 package appliancesplash
 
 import (

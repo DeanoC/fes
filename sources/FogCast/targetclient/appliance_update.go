@@ -29,6 +29,7 @@ type ApplianceStatus struct {
 	Corrupt       bool   `json:"corrupt"`
 	FatIdleSHA256 string `json:"fat_idle_sha256,omitempty"`
 	IdleSHA256    string `json:"idle_sha256,omitempty"`
+	SplashWarning string `json:"splash_warning,omitempty"`
 }
 
 func (c *Client) ApplianceStatus(ctx context.Context) (ApplianceStatus, error) {
