@@ -44,9 +44,13 @@ config does not declare only disabled targets (#616). Otherwise the host
 library stays in place.
 
 A present Master System row from that catalog is Play on the tenfoot room path:
-Confirm posts the cartridge path to the local-control launch route and does not
-post the host session or fall back to the network. The agent reads that file
-and calls LoadCartridge with the bytes. LoadCartridge rebuilds the canonical
+Confirm posts the library root and the catalog-relative cartridge path to the
+local-control launch route and does not post the host session or fall back to
+the network. The agent pins that root and opens the relative path from the
+root directory handle. A symlink in any component under the root is refused,
+so a parent directory replaced with a symlink cannot be read from outside the
+library. Symlinks above the configured root stay followed. The agent then
+calls LoadCartridge with the bytes. LoadCartridge rebuilds the canonical
 package archive from the extracted install, wraps the cartridge with that
 archive, and programs the core through the same ROM-link load the host uses. A
 missing install, a core that cannot be read or take a cartridge, or a cartridge

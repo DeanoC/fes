@@ -234,7 +234,7 @@ func TestClientLaunchWarmingReturnsWithoutReconcile(t *testing.T) {
 	if time.Since(started) >= time.Second {
 		t.Fatalf("warming launch waited %s", time.Since(started))
 	}
-	_, romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp/cart.rom")
+	_, romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp", "cart.rom")
 	if !errors.Is(romErr, ErrWarming) {
 		t.Fatalf("cartridge launch %v", romErr)
 	}

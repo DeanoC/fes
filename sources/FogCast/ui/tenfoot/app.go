@@ -573,7 +573,7 @@ type App struct {
 	localInstallGen            uint64
 	localInstallCancel         context.CancelFunc
 	localCatalogClose          func() error
-	localContent               func(context.Context, string) (string, error)
+	localContent               func(context.Context, string) (string, string, error)
 	localPhase                 string
 	localReconcileAfterFailure bool
 	localReconcileDeadline     time.Time
