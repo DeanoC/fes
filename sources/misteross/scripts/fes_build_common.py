@@ -219,31 +219,6 @@ def _resolved_tool(executable: str, cwd: Path, env: Mapping[str, str]) -> Path:
     return path if path.is_absolute() else Path(cwd) / path
 
 
-def _requested_gpu_id(command: Sequence[str]) -> str | None:
-    requested = None
-    args = list(command[1:])
-    index = 0
-    while index < len(args):
-        argument = args[index]
-        if argument == "--gpu-device":
-            if index + 1 >= len(args):
-                raise BuildError("nextpnr --gpu-device is missing its value")
-            value = args[index + 1]
-            index += 2
-        elif argument.startswith("--gpu-device="):
-            value = argument.split("=", 1)[1]
-            index += 1
-        else:
-            index += 1
-            continue
-        if not value.isdigit():
-            raise BuildError("nextpnr --gpu-device must name a numeric GPU id")
-        if requested is not None:
-            raise BuildError("nextpnr invocation selects more than one GPU")
-        requested = value
-    return requested
-
-
 def _nextpnr_supports_phase_lease(path: Path) -> bool:
     """Return whether this nextpnr binary asks gpu-run for each GPU phase."""
     try:
@@ -293,20 +268,13 @@ def _run_command(
                      else nextpnr_lease.GPU_LEASE_CONFIG_ENV):
             if name not in run_env and name in os.environ:
                 run_env[name] = os.environ[name]
-        requested_gpu = _requested_gpu_id(command)
-        if requested_gpu is not None:
-            configured_ids = run_env.get("GPU_LEASE_IDS", "").strip()
-            if configured_ids:
-                allowed_ids = {value.strip() for value in configured_ids.split(",") if value.strip()}
-                if requested_gpu not in allowed_ids:
-                    raise BuildError(
-                        f"requested GPU {requested_gpu} is outside GPU_LEASE_IDS"
-                    )
-            # gpu-run masks one physical device and nextpnr then selects its
-            # logical index 0. Restrict the lease inventory to the producer's
-            # requested physical id so the existing --gpu-device contract is
-            # preserved while the lease ends after this route.
-            run_env["GPU_LEASE_IDS"] = requested_gpu
+        # GPU_LEASE_IDS is a box inventory override. A --gpu-device argument
+        # must not narrow it: gpu-run grants any free device, then the
+        # whole-route dispatcher passes GPU_RUN_DEVICE and a phase-lease
+        # nextpnr uses the physical id from the grant.
+        run_env.pop("HIP_VISIBLE_DEVICES", None)
+        run_env.pop("ROCR_VISIBLE_DEVICES", None)
+        run_env.pop("CUDA_VISIBLE_DEVICES", None)
         wrapper = _gpu_run_path()
         if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
             raise BuildError(f"gpu-run is unavailable: {wrapper}")

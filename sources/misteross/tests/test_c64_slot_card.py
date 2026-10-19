@@ -343,7 +343,9 @@ class C64CardGpuLaneTests(unittest.TestCase):
                 self.assertEqual(call.kwargs, {"toolchain_root": toolchain, "gpu_router": "CUDA"})
             for env in fixture.envs:
                 self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
-                self.assertEqual(env["GPU_LEASE_IDS"], "1")
+                self.assertNotIn("GPU_LEASE_IDS", env)
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
             route = fixture.commands[1]
             self.assertEqual(route[route.index("--gpu-device") + 1], "1")
             recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
@@ -366,17 +368,27 @@ class C64CardGpuLaneTests(unittest.TestCase):
                     self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
                     self.assertNotIn("HIP_VISIBLE_DEVICES", env)
 
-    def test_hip_route_leases_and_masks_requested_gpu_without_nextpnr_device_flag(self) -> None:
+    def test_hip_route_does_not_pin_a_gpu_or_pass_a_nextpnr_device_flag(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = CardBuildFixture(Path(directory))
-            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "9", "CUDA_VISIBLE_DEVICES": "3"}):
+            with patch.dict(os.environ, {
+                "HIP_VISIBLE_DEVICES": "9",
+                "ROCR_VISIBLE_DEVICES": "9",
+                "CUDA_VISIBLE_DEVICES": "3",
+                "GPU_DEVICE_ORDINAL": "3",
+                "GPU_LEASE_IDS": "8",
+            }):
                 os.environ.pop("GPU_RUN_DEVICE", None)
                 result = fixture.build(gpu=1)
             route = fixture.commands[1]
             self.assertNotIn("--gpu-device", route)
             for env in fixture.envs:
-                self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
-                self.assertEqual(env["GPU_LEASE_IDS"], "1")
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("ROCR_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
+                self.assertNotIn("GPU_DEVICE_ORDINAL", env)
+                # A box inventory override is inherited. The requested GPU must not replace it.
+                self.assertEqual(env["GPU_LEASE_IDS"], "8")
             recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
             self.assertNotIn("gpu_device", recipe)
             self.assertEqual(fixture.authenticate.call_args.kwargs["gpu_router"], "HIP")
