@@ -78,7 +78,7 @@ Families, not a second copy of every result:
 | `410`–`470` | DSP packing, MLAB power-up contents |
 | `480`–`600`, `680`, `700`–`880` | M10K shapes: width, ports, clear, stall, async read |
 | `610`–`670`, `690` | Fractional 74.25 MHz, DDR/SDR and IO buffers |
-| `740`, `750`, `760`, `780`, `850` | Dual-PLL memory, 18×19 DSP, 52 MHz, Quartus SDC forms, HPS location |
+| `740`, `750`, `755`, `760`, `780`, `850` | Dual-PLL memory, 18×19 DSP, signed/unsigned DSP modes, 52 MHz, Quartus SDC forms, HPS location |
 | `890`–`893` | Reserved M10K column and ZX81 BASIC proof sites |
 | `900`–`907` | Freeze-scaffold shells and carts |
 

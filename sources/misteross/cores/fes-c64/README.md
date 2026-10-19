@@ -127,7 +127,7 @@ pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `cores/fes-c64/toolchain.lock` (Yosys `5391eeb1`,
+`build-fes-c64` authenticates `cores/fes-c64/toolchain.lock` (Yosys `3a5accbd`,
 Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
 static closure in `scripts/source_closures.json`. The seal also requires both
 achieved system-PLL outputs within 1 Hz of 52,224,000 Hz and 12,288,000 Hz.

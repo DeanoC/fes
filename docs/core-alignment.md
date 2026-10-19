@@ -33,7 +33,7 @@ These are the choices already in the tree at `6d9939c2`.
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
    `config/core-recipes.toml`. Their current bytes match the repository-level
-   `sources/misteross/toolchain.lock`: Yosys `5391eeb1`, Mistral `8fcc4cb4`,
+   `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
    nextpnr `9128800f`, deliberately before nextpnr #172. HIP architectures
    are `gfx1100;gfx1201`. The identical lock contents share one cache slot;
    future pin changes are scoped to the affected core. The repository-level

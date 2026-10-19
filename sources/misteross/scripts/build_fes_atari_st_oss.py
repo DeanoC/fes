@@ -57,7 +57,7 @@ ST_TOOLCHAIN_CONFIGURATION = (
 ST_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
 }
 # First passing route wins; the order is part of the build identity. Seed 4
 # completed the initial diagnostic route; seed 5 exceeded its old placement bound.
