@@ -1917,4 +1917,4 @@ toolchain-fes-pcxt:
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 build-fes-pcxt:
-	$(PYTHON) scripts/build_fes_pcxt.py --cache-root "$(CACHE_ROOT)" --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py --cache-root "$(CACHE_ROOT)" --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
