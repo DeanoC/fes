@@ -56,10 +56,6 @@ type clientStamp struct {
 	FlightID string
 }
 
-func (c clientStamp) present() bool {
-	return c.TsUTC != "" || c.MonoSet
-}
-
 func parseClientStamp(r *http.Request, bodyTs string, bodyMono *int64, bodyFlight string) clientStamp {
 	stamp := clientStamp{}
 	ts := strings.TrimSpace(bodyTs)

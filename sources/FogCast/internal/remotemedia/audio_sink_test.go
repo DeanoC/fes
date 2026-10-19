@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-var _ AudioSink = (*boundedAudioSink)(nil)
-
 func TestAudioSinkRequiresBoundedReadyDrainMuteReset(t *testing.T) {
 	sink := &boundedAudioSink{}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -77,5 +75,4 @@ func (s *boundedAudioSink) Write(ctx context.Context, _ AudioFrame) error { retu
 func (s *boundedAudioSink) Drain(ctx context.Context) error               { return s.bounded(ctx) }
 func (s *boundedAudioSink) Mute(ctx context.Context) error                { return s.bounded(ctx) }
 func (s *boundedAudioSink) Reset(ctx context.Context) error               { return s.bounded(ctx) }
-func (s *boundedAudioSink) Stats() AudioSinkStats                         { return AudioSinkStats{} }
 func (s *boundedAudioSink) Close(ctx context.Context) error               { return s.bounded(ctx) }

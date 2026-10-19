@@ -195,12 +195,6 @@ func defaultAudioSource(config remotemedia.AudioSourceConfig) (remotemedia.Audio
 	return remotemedia.OpenNativeAudioSource(config)
 }
 
-// newMediaSources is the default launch-time source seam. Composition tests
-// replace it through makeMediaSourcesFactory without opening either source.
-func newMediaSources(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
-	return makeMediaSourcesFactory(defaultCaptureSource, defaultAudioSource)(config)
-}
-
 func makeMediaSourcesFactory(newCapture captureSourceFactory, newAudio audioSourceFactory) mediaSourcesFactory {
 	return func(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
 		if newCapture == nil {

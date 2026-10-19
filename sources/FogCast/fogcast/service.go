@@ -1715,17 +1715,6 @@ func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error)
 	return platforms, nil
 }
 
-func (s *Service) hostLaunchable(system protocol.System) bool {
-	if s.hostExecutor == nil {
-		return false
-	}
-	if s.hostEmulator.CoreFor(system) != "" {
-		return true
-	}
-	execution, err := s.executionResolver.Resolve(context.Background(), catalog.Game{System: system})
-	return err == nil && execution == ExecutionHostOnly
-}
-
 func (s *Service) Health(parent context.Context) (protocol.Health, error) {
 	if targetID, _ := parent.Value(pairedTargetContextKey{}).(string); targetID != "" {
 		ctx, cancel := serviceTimeout(parent, s.requestTimeout)
@@ -3189,10 +3178,6 @@ func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	return nil
 }
 
-func contentIdentityFromCatalog(content catalog.Content) protocol.ContentIdentity {
-	return protocol.ContentIdentity{SHA256: content.SHA256, Size: content.Size, Extension: content.Extension}
-}
-
 func serviceTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		return context.WithCancel(parent)
@@ -3216,14 +3201,6 @@ func (r *throttledReader) Read(p []byte) (int, error) {
 		time.Sleep(r.delay)
 	}
 	return r.Reader.Read(p)
-}
-
-func (r *throttledReader) Close() error {
-	closer, ok := r.Reader.(io.Closer)
-	if !ok {
-		return nil
-	}
-	return closer.Close()
 }
 
 type progressReader struct {

@@ -286,15 +286,6 @@ func parseMediaPath(relative string) (platform, key, role, ext string, ok bool) 
 	return "", "", "", "", false
 }
 
-func validRole(role string) bool {
-	switch role {
-	case RoleCover, RoleLogo, RoleMarquee, RoleScreenshot, RoleBackdrop, RoleVideo, RoleBox3D:
-		return true
-	default:
-		return false
-	}
-}
-
 func mediaFileRole(stem string) (string, bool) {
 	switch stem {
 	case RoleCover, RoleLogo, RoleMarquee, RoleScreenshot, RoleBackdrop, RoleVideo:

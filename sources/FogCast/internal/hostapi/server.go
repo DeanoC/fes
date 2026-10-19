@@ -929,45 +929,6 @@ func safePresentationHandle(value string) string {
 	return ""
 }
 
-func requireMetadata(w http.ResponseWriter, state metadata.ConfigState) error {
-	switch state {
-	case metadata.StateReady:
-		return nil
-	case metadata.StateDisabled:
-		writeError(w, http.StatusNotFound, "METADATA_DISABLED", "presentation metadata is disabled")
-	default:
-		writeError(w, http.StatusServiceUnavailable, "METADATA_UNCONFIGURED", "presentation metadata is not configured")
-	}
-	return errors.New("metadata is not ready")
-}
-
-func metadataCode(err error) metadata.ErrorCode {
-	var operation *metadata.OpError
-	if errors.As(err, &operation) && operation != nil {
-		return operation.Code
-	}
-	return ""
-}
-
-func writeMetadataError(w http.ResponseWriter, err error) {
-	switch metadataCode(err) {
-	case metadata.ErrRateLimited:
-		writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "metadata provider is rate limited")
-	case metadata.ErrDeadline:
-		writeError(w, http.StatusGatewayTimeout, "UPSTREAM_TIMEOUT", "metadata provider timed out")
-	case metadata.ErrCanceled:
-		writeError(w, http.StatusServiceUnavailable, "CANCELED", "metadata request was canceled")
-	case metadata.ErrUpstreamUnavailable, metadata.ErrUnauthorized, metadata.ErrInvalidResponse:
-		writeError(w, http.StatusBadGateway, "UPSTREAM_UNAVAILABLE", "metadata provider is unavailable")
-	case metadata.ErrStorage:
-		writeError(w, http.StatusServiceUnavailable, "STORAGE_UNAVAILABLE", "metadata storage is unavailable")
-	case metadata.ErrPolicyBlocked:
-		writeError(w, http.StatusServiceUnavailable, "POLICY_BLOCKED", "metadata request was blocked")
-	default:
-		writeError(w, http.StatusServiceUnavailable, "METADATA_UNAVAILABLE", "metadata is unavailable")
-	}
-}
-
 func publicErrorMessage(code protocol.ErrorCode) string {
 	switch code {
 	case protocol.CodeCorruptData:
@@ -1064,20 +1025,6 @@ func lookupGameMetadata(ctx context.Context, runtime metadata.Runtime, game cata
 		fallback = result
 	}
 	return fallback, nil
-}
-
-func publicGameWithGenre(ctx context.Context, config serverOptions, game catalog.Game) gameResult {
-	result := publicGame(game)
-	if config.metadata == nil || config.metadataState != metadata.StateReady {
-		return result
-	}
-	lookup, err := lookupGameMetadata(ctx, config.metadata, game)
-	if err != nil || (lookup.Outcome != metadata.OutcomeExact && lookup.Outcome != metadata.OutcomeConfident) {
-		return result
-	}
-	result.Genre = strings.TrimSpace(lookup.Presentation.Genre)
-	result.Year = strings.TrimSpace(lookup.Presentation.Year)
-	return result
 }
 
 func noStore(next http.Handler) http.Handler {

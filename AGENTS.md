@@ -83,7 +83,8 @@ never infer persistence from a display name, package path or raw RBF.
   add compatibility shims, fallbacks or "kept for older kits" branches: both kits
   are test kits and an SD reburn is pre-approved. Removal needs no special
   justification. Keeping legacy code does. [#871](https://github.com/DeanoC/fes/issues/871)
-  tracks the current list.
+  tracks the current list. `make deadcode` fails CI on unused Go functions,
+  types, fields and variables; delete what it reports.
 
 ## Hardware, media and releases
 
