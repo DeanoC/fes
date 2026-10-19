@@ -94,6 +94,7 @@ INTERFACES = ("fes.video.fixed-720p60", "fes.gamepad")
 
 def _authenticate_tools(root, *, cache_root=None):
     return board._authenticate_tools(root, lock_path=pnr_recipe.lock_path(root, "fes.riscv"),
+                                     toolchain_root=root / "build/toolchain/fes-riscv",
                                      cache_root=cache_root)
 
 

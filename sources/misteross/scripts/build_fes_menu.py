@@ -26,6 +26,7 @@ DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
 TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
+TOOLCHAIN_ROOT = 'build/toolchain/fes-menu'
 INPUTS = (RECIPE, CONTRACT, QSF, evidence.SDC, TOOLCHAIN_LOCK, 'scripts/pnr_recipe.py',
           'scripts/fes_build_common.py', 'scripts/fes_de10nano_evidence.py',
           'scripts/functional_execution.py', 'scripts/compiler_read_audit.py', *SOURCES)
@@ -55,7 +56,8 @@ def inputs_for(mode):
 
 def authenticate(root, cache_root, mode):
     output_for(mode)
-    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK, cache_root=cache_root)
+    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK,
+                                     toolchain_root=root / TOOLCHAIN_ROOT, cache_root=cache_root)
 
 
 def seed_for(mode, seed):

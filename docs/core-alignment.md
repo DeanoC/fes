@@ -125,10 +125,12 @@ older kit note does not accept the new bytes.
 
 ### 1. Per-core lock files
 
-Issue #843 adds one lock file for each registered core. These are currently
-byte-identical copies, not separate toolchain pins. Keep the files at the
-registered `cores/fes-<core>/toolchain.lock` paths and route future pin changes
-through that core's recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
+Issue #843 adds one lock file for each registered core. Since #882 each lock
+can pin its own nextpnr, provided `scripts/pnr_recipe.py` classifies that
+nextpnr's options and the core's recipe lists them. The files are still
+byte-identical copies today. Keep the files at the registered
+`cores/fes-<core>/toolchain.lock` paths and route future pin changes through
+that core's lock and recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
 new external ROM uses format 3. A new shell picks one of the two display
 contracts.
 

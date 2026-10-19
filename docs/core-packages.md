@@ -198,7 +198,10 @@ make dev
 `FES_TOOLCHAIN_CACHE_ROOT` selects the parent shared-cache root; `CACHE_ROOT`
 is not a substitute for it. The generic `toolchain-fes` target selects the
 repository-level lock; registered package builds use their corresponding
-`toolchain-fes-<core>` target. The ZX81 and Coleco examples above compile the
+`toolchain-fes-<core>` target. The image build authenticates every selected
+core against its own lock's slot, and its error names the lock whose slot is
+missing. Cores whose locks have the same bytes share one slot, so after a
+core's lock moves, provision that core's target as well. The ZX81 and Coleco examples above compile the
 authenticated HIP/nextpnr tools into their per-core slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.

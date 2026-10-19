@@ -130,7 +130,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if not (shell / name).is_file():
             raise ValueError(f"shell producer directory requires {name}")
     tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -204,7 +204,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if digest((shell / name).read_bytes()) != closure["shell/" + name]:
             raise ValueError("frozen shell changed during cart build")
     final_tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise ValueError("authenticated compiler changed during cart build")
     destination = output / (expansion_id + ".tar")

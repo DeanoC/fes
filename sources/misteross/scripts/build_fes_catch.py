@@ -23,12 +23,14 @@ OUTPUT = Path("build/fes-catch")
 GAME_SOURCES = tuple("cores/fes-demo/rtl/" + name for name in
     ("fes_catch_game.v", "fes_catch_core.v", "fes_catch_audio.v"))
 TOOLCHAIN_LOCK = "cores/fes-catch/toolchain.lock"
+TOOLCHAIN_ROOT = "build/toolchain/fes-catch"
 PINNED_INPUTS = (*(p for p in demo.PINNED_INPUTS if p != "toolchain.lock"),
     demo.AUDIO_QSF, *demo.AUDIO_SOURCES, *GAME_SOURCES, RECIPE,
     "scripts/functional_execution.py", "scripts/pnr_recipe.py", TOOLCHAIN_LOCK)
 
 def _authenticate_tools(root, *, cache_root=None):
-    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK, cache_root=cache_root)
+    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK,
+                                     toolchain_root=root / TOOLCHAIN_ROOT, cache_root=cache_root)
 
 def _require_clean_source(root, *, identity_version=2):
     return board._require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)

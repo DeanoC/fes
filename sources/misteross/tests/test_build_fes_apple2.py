@@ -31,11 +31,11 @@ class BuildFesApple2Tests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), f'python3 scripts/build_fes_apple2_oss.py --root "{ROOT}"')
 
-    def test_lock_pins_the_expected_tools(self) -> None:
+    def test_recipe_lock_pins_the_classified_nextpnr(self) -> None:
+        from scripts import pnr_recipe
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.apple2"), ROOT / producer.APPLE2_TOOLCHAIN_LOCK)
         lock = load_lock(ROOT / producer.APPLE2_TOOLCHAIN_LOCK)
-        commits = {name: pin.commit for name, pin in lock.items()}
-        for name, commit in producer.APPLE2_TOOL_COMMITS.items():
-            self.assertEqual(commits[name], commit)
+        self.assertEqual(lock["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.apple2"))
 
     def test_pinned_inputs_cover_every_rtl_file_and_exist(self) -> None:
         for relative in producer.PINNED_INPUTS:

@@ -37,11 +37,8 @@ FES_CUDA_TOOLCHAIN_CONFIGURATION = (
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
-EXPECTED_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-}
+# Tools whose commits each producer authenticates against its selected lock.
+PINNED_TOOLS = ("mistral", "nextpnr", "yosys")
 
 GPU_VISIBILITY_ENV = (
     "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
@@ -606,7 +603,7 @@ def _authenticate_tools(
     if expected_commits is None:
         # The selected lock is the pin authority. Per-core locks may diverge
         # independently; hard-coded global SHAs would silently defeat that.
-        expected_commits = {name: pins[name].commit for name in EXPECTED_TOOL_COMMITS}
+        expected_commits = {name: pins[name].commit for name in PINNED_TOOLS}
     gpu_router = FES_GPU_ROUTER if gpu_router is None else gpu_router
     hip_architectures = FES_GPU_ARCHITECTURES if hip_architectures is None else hip_architectures
     expected_configuration = (

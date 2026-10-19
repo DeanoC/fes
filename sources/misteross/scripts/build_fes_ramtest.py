@@ -68,6 +68,7 @@ RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
 # Both rates use the per-core lock and common HIP compiler slot. Yosys
 # declares every fpga2sdram port and nextpnr times the HPS port paths.
 TOOLCHAIN_LOCK = "cores/fes-ramtest/toolchain.lock"
+TOOLCHAIN_ROOT = "build/toolchain/fes-ramtest"
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
@@ -116,7 +117,8 @@ def inputs_for(memory_mhz: int) -> tuple[str, ...]:
 
 def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
     return board._authenticate_tools(
-        root, lock_path=root / TOOLCHAIN_LOCK, cache_root=cache_root,
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        cache_root=cache_root,
     )
 
 
