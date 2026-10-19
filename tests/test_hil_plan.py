@@ -147,6 +147,11 @@ class HilPlanTest(unittest.TestCase):
             'sources/FogCast/internal/appliancesplash/publish.go': 'appliance-trial',
             'sources/FogCast/internal/appliancedata/gate.go': 'storage-gate',
             'sources/FogCast/internal/appliancedata/bind.go': 'storage-gate',
+            # Linked into fes-boot / fes-kit-data / the image trial supervisor.
+            # release.go used to be pinned overlay; that missed the image binary.
+            'sources/FogCast/appliance/release.go': 'appliance-trial',
+            'sources/FogCast/appliance/blockprobe/probe.go': 'appliance-trial',
+            'sources/FogCast/appliance/softwarecontrol/contract.go': 'kit-software',
             # Trial startup and trial boot already ship in the image.
             'platform/cmd/fes-kit-software/main_linux.go': 'platform',
             'platform/internal/kitsoftware/engine.go': 'platform',
@@ -161,13 +166,60 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(row['class'], 'full')
                 self.assertEqual(row['component'], component)
         # These rules do not pull neighbouring FogCast code out of the overlay.
+        # Importers of the image-linked packages stay on their own rules.
         for path in ('sources/FogCast/cmd/mister-agent/appliance.go',
                      'sources/FogCast/internal/httpapi/update.go',
                      'sources/FogCast/fogcast/service.go',
-                     'sources/FogCast/appliance/release.go',
-                     'sources/FogCast/internal/example.go'):
+                     'sources/FogCast/internal/example.go',
+                     'sources/FogCast/catalog/scanner.go',
+                     'sources/FogCast/ui/tenfoot/tape.go',
+                     'sources/FogCast/protocol/types.go',
+                     'sources/FogCast/targetclient/kit_software.go'):
             with self.subTest(path=path):
                 self.assertEqual(plan.classify_path(path)['class'], 'overlay')
+        for path in ('sources/FogCast/appliance/release_test.go',
+                     'sources/FogCast/appliance/blockprobe/probe_test.go'):
+            with self.subTest(path=path):
+                self.assertEqual(plan.classify_path(path)['class'], 'none')
+
+    def test_image_binary_appliance_fixtures_are_full(self):
+        expected = {
+            'release.files': ('sources/FogCast/appliance/release.go', 'appliance-trial'),
+            'blockprobe.files': ('sources/FogCast/appliance/blockprobe/probe.go', 'appliance-trial'),
+            'softwarecontrol.files': ('sources/FogCast/appliance/softwarecontrol/contract.go', 'kit-software'),
+        }
+        for filename, (path, component) in expected.items():
+            with self.subTest(filename=filename):
+                result = run('classify', '--paths-file', FIXTURES / filename, '--json')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads(result.stdout)
+                self.assertEqual(data['decision'], 'FULL_IMAGE')
+                by_path = {row['path']: row for row in data['rows']}
+                self.assertEqual(by_path[path]['class'], 'full')
+                self.assertEqual(by_path[path]['component'], component)
+                for row in data['rows']:
+                    if row['path'].endswith('_test.go'):
+                        self.assertEqual(row['class'], 'none', row['path'])
+        # A mixed diff is a full image. Overlay importers of the same packages stay overlay.
+        mixed = self.work / 'mixed-image-appliance.files'
+        mixed.write_text('\n'.join((
+            'sources/FogCast/appliance/release.go',
+            'sources/FogCast/appliance/blockprobe/probe.go',
+            'sources/FogCast/catalog/scanner.go',
+            'sources/FogCast/internal/httpapi/update.go',
+            'sources/FogCast/protocol/types.go',
+        )) + '\n')
+        result = run('classify', '--paths-file', mixed, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        self.assertEqual(by_path['sources/FogCast/appliance/release.go']['class'], 'full')
+        self.assertEqual(by_path['sources/FogCast/appliance/blockprobe/probe.go']['class'], 'full')
+        for path in ('sources/FogCast/catalog/scanner.go',
+                     'sources/FogCast/internal/httpapi/update.go',
+                     'sources/FogCast/protocol/types.go'):
+            self.assertEqual(by_path[path]['class'], 'overlay', path)
 
     def test_producer_script_suffixes_map_to_canonical_cores(self):
         path = self.work / 'producers.files'
