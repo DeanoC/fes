@@ -94,6 +94,38 @@ class HilPlanTest(unittest.TestCase):
                      'sources/FogCast/internal/appliancedata/gate_test.go',
                      'sources/FogCast/internal/applianceupdate/service_test.go'):
             self.assertEqual(by_path[path]['class'], 'none', path)
+        # #902's FAT splash refresh, rollback-confirm publish and staged-splash
+        # prune run in the image's mister-agent during an fes-update trial boot.
+        result = run('classify', '--paths-file', FIXTURES / 'pr902.files', '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        for path in ('sources/FogCast/appliance/store/store.go',
+                     'sources/FogCast/internal/appliancesplash/splash.go',
+                     'sources/FogCast/internal/applianceupdate/service.go'):
+            self.assertEqual(by_path[path]['class'], 'full', path)
+            self.assertEqual(by_path[path]['component'], 'appliance-trial', path)
+        for path in ('docs/appliance-releases.md',
+                     'docs/bootable-media.md',
+                     'docs/hps-ddr.md',
+                     'sources/FogCast/README.md',
+                     'sources/FogCast/appliance/store/store_test.go',
+                     'sources/FogCast/docs/ARCHITECTURE.md',
+                     'sources/FogCast/docs/appliance-updates.md',
+                     'sources/FogCast/docs/kit-resource-limits.md',
+                     'sources/FogCast/internal/appliancesplash/splash_test.go',
+                     'sources/FogCast/internal/applianceupdate/service_test.go'):
+            self.assertEqual(by_path[path]['class'], 'none', path)
+        # The mister-agent command, host diagnostics and the host status client
+        # stay overlay. The splash package linked into the image agent is what
+        # forces the full image. The shell test stays on the FogCast overlay rule.
+        for path, kind in (('sources/FogCast/cmd/mister-agent/appliance.go', 'mister-agent'),
+                           ('sources/FogCast/scripts/kit-diagnostics.sh', 'kit-go+host'),
+                           ('sources/FogCast/scripts/tests/kit-diagnostics_test.sh', 'kit-go+host'),
+                           ('sources/FogCast/targetclient/appliance_update.go', 'kit-go+host')):
+            self.assertEqual(by_path[path]['class'], 'overlay', path)
+            self.assertEqual(by_path[path]['component'], kind, path)
         for filename, components in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
@@ -111,6 +143,8 @@ class HilPlanTest(unittest.TestCase):
             'sources/FogCast/appliance/store/store.go': 'appliance-trial',
             'sources/FogCast/internal/applianceupdate/service.go': 'appliance-trial',
             'sources/FogCast/internal/applianceupdate/identity.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancesplash/splash.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancesplash/publish.go': 'appliance-trial',
             'sources/FogCast/internal/appliancedata/gate.go': 'storage-gate',
             'sources/FogCast/internal/appliancedata/bind.go': 'storage-gate',
             # Trial startup and trial boot already ship in the image.

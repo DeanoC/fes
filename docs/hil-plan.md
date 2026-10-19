@@ -66,10 +66,12 @@ Each changed path gets a class and a component:
   boot `fes-kit-software` starts only the image's built-in software (it does
   not open the bundle store) and the storage gate runs as the image's
   `/usr/sbin/fes-kit-data`, so a bundle install cannot exercise that code.
-  The paths are `sources/FogCast/appliance/store/**` (release confirm and
-  boot-ticket rewrite), `sources/FogCast/internal/applianceupdate/**` (the
-  agent's reconcile and repair) and `sources/FogCast/internal/appliancedata/**`
-  (the fes-kit-data gate). Trial startup (`platform/cmd/fes-kit-software`,
+  The paths are `sources/FogCast/appliance/store/**` (release confirm,
+  boot-ticket rewrite, and splash prune), `sources/FogCast/internal/applianceupdate/**`
+  (the agent's reconcile and repair), `sources/FogCast/internal/appliancesplash/**`
+  (FAT `idle.rbf` refresh on confirm, and the restored image's splash on
+  rollback confirm) and `sources/FogCast/internal/appliancedata/**` (the
+  fes-kit-data gate). Trial startup (`platform/cmd/fes-kit-software`,
   `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
   `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
   commands are already full through the platform and unmapped-command rules.

@@ -49,6 +49,12 @@ RULES = [
     # The agent's confirm reconcile and boot-ticket repair, linked into that
     # same image agent (and into /usr/sbin/fes-kit-data for the ticket read).
     ('sources/FogCast/internal/applianceupdate/**', 'full', 'appliance-trial'),
+    # FAT splash publish. On an fes-update trial boot the image's mister-agent
+    # refreshes idle.rbf when the trial is confirmed and writes the restored
+    # image's splash when a rollback is confirmed. The store prunes that staged
+    # splash with the image. fes-kit-software does not start the bundle agent
+    # for that boot, so a bundle install cannot exercise this package.
+    ('sources/FogCast/internal/appliancesplash/**', 'full', 'appliance-trial'),
     # The fes-kit-data storage gate. It runs as the image's /usr/sbin/fes-kit-data,
     # which refuses the bundle store while the boot is still a trial.
     ('sources/FogCast/internal/appliancedata/**', 'full', 'storage-gate'),
