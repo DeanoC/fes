@@ -350,3 +350,81 @@ func TestStoreInspectionCacheSkipsUnchangedArchives(t *testing.T) {
 		t.Fatalf("rewritten archive verified %d times, want 3", n)
 	}
 }
+
+func TestStoreInspectionCacheReturnsIndependentDescriptorCopies(t *testing.T) {
+	defer func(window time.Duration) { racyWindow = window }(racyWindow)
+	racyWindow = -24 * time.Hour
+
+	for _, test := range []struct {
+		name    string
+		archive func(*testing.T) []byte
+		mutate  func(*Inspection)
+	}{
+		{
+			name: "format-3",
+			archive: func(t *testing.T) []byte {
+				_, _, _, archive := romPackageFixture(t)
+				return archive
+			},
+			mutate: func(inspection *Inspection) {
+				inspection.Descriptor.ROM.ID = "changed"
+				inspection.Descriptor.Interfaces[0].ID = "changed"
+			},
+		},
+		{
+			name: "format-4",
+			archive: func(t *testing.T) []byte {
+				return linkedTwoROMFixture(t).Package
+			},
+			mutate: func(inspection *Inspection) {
+				inspection.Descriptor.ROMs[0].ID = "changed"
+				inspection.Descriptor.ROMMap.File = "changed"
+				inspection.Descriptor.Interfaces[0].ID = "changed"
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			archive := test.archive(t)
+			store, err := NewStore(filepath.Join(t.TempDir(), "core-packages"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			expected, _, err := store.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fullVerifications.Store(0)
+			result, err := store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(result, expected) {
+				t.Fatalf("initial Inspect = %#v, %v", result, err)
+			}
+			if n := fullVerifications.Load(); n != 1 {
+				t.Fatalf("initial Inspect verified %d times, want 1", n)
+			}
+
+			test.mutate(&result)
+			result, err = store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(result, expected) {
+				t.Fatalf("cached Inspect = %#v, %v", result, err)
+			}
+			// A cache-hit result must not expose the cached descriptor either.
+			test.mutate(&result)
+			got, err := store.Inspect(ctx, expected.PackageID)
+			if err != nil || !reflect.DeepEqual(got, expected) {
+				t.Fatalf("Inspect after mutating cache hit = %#v, %v", got, err)
+			}
+			got, data, err := store.Read(ctx, expected.PackageID)
+			if err != nil || !bytes.Equal(data, archive) || !reflect.DeepEqual(got, expected) {
+				t.Fatalf("Read = %#v, %d bytes, %v", got, len(data), err)
+			}
+			listed, err := store.List(ctx)
+			if err != nil || !reflect.DeepEqual(listed, []Inspection{expected}) {
+				t.Fatalf("List = %#v, %v", listed, err)
+			}
+			if n := fullVerifications.Load(); n != 1 {
+				t.Fatalf("cache hits verified %d times, want 1", n)
+			}
+		})
+	}
+}

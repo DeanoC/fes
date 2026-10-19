@@ -39,11 +39,14 @@ func startProfiles(ctx context.Context, cpuPath, heapPath string, stderr io.Writ
 		}
 	}
 	var heapSignal chan os.Signal
+	var heapExited chan struct{}
 	done := make(chan struct{})
 	if heapPath != "" {
 		heapSignal = make(chan os.Signal, 1)
+		heapExited = make(chan struct{})
 		signal.Notify(heapSignal, syscall.SIGUSR1)
 		go func() {
+			defer close(heapExited)
 			for {
 				select {
 				case <-ctx.Done():
@@ -60,6 +63,9 @@ func startProfiles(ctx context.Context, cpuPath, heapPath string, stderr io.Writ
 		close(done)
 		if heapSignal != nil {
 			signal.Stop(heapSignal)
+		}
+		if heapExited != nil {
+			<-heapExited
 		}
 		// Exclude the forced heap GC and serialization from the CPU capture.
 		if cpu != nil {

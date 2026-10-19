@@ -2554,12 +2554,22 @@ in library `slot_expansions`. Launch reads every selected card before target
 contact; a missing or incompatible card is an admission error, so no Stop or
 programming follows.
 
-Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`,
-which runs `expansion.ComposeSlotsROM` and records the v2 composition and
-programmed digest in the `rom-link.json` receipt beside ascending
-`slot-N.tar` members. A ROM-less shell sends `corepackage.SlotCompositionBundle`
-(`slot-composition.json`, `package.tar`, `slot-N.tar`, `linked.rbf`) through
-the existing compose route. The agent's `corepackage.StageROMInput` /
+Launch links on the host first. Format 3 uses `corepackage.PrepareROMInput`
+to assemble the selected ROM and any selected composition inputs from their
+raw assets. Selected video-part assets enter `ROMInput.Parts`; one preparation
+pass links the video parts and ROM together through `expansion.ComposePartsROM`
+and records the parts composition and programmed digest in the `rom-link.json`
+receipt. Slot cards use `expansion.ComposeSlotsROM` and record the v2
+composition and programmed digest beside ascending `slot-N.tar` members.
+`romLaunchSource` does not build a standalone parts archive for a successful
+launch. If preparation fails with selected slot cards, launch reports the slot
+expansion as unavailable. If selected video assets are present, it checks
+`ComposePartsArchive` only to classify the failure: a failed check reports the
+video part as unavailable, while a successful check leaves the preparation
+failure classified as a ROM admission error. A ROM-less shell sends
+`corepackage.SlotCompositionBundle` (`slot-composition.json`, `package.tar`,
+`slot-N.tar`, `linked.rbf`) through the existing compose route. The agent's
+`corepackage.StageROMInput` /
 `StageComposition` relink independently and refuse different evidence, then
 publish the shell, one `slot-N-<publication>` directory per card (exactly
 `manifest.json` and `cart.rbf`) and `composition-<publication>/linked.rbf`.

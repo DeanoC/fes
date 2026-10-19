@@ -251,7 +251,7 @@ func (s *Store) rememberVerified(packageID string, info os.FileInfo, inspection 
 	if s.verified == nil {
 		s.verified = make(map[string]verifiedPackage)
 	}
-	s.verified[packageID] = verifiedPackage{key: key, inspection: inspection}
+	s.verified[packageID] = verifiedPackage{key: key, inspection: cloneInspection(inspection)}
 }
 
 func (s *Store) cachedVerified(packageID, key string) (Inspection, bool) {
@@ -264,7 +264,34 @@ func (s *Store) cachedVerified(packageID, key string) (Inspection, bool) {
 	if !ok || hit.key != key {
 		return Inspection{}, false
 	}
-	return hit.inspection, true
+	return cloneInspection(hit.inspection), true
+}
+
+// cloneInspection keeps the verification cache independent from both its
+// callers and the inspections returned on cache hits. Descriptor's nested
+// structs contain only values; copy each mutable member explicitly.
+func cloneInspection(inspection Inspection) Inspection {
+	descriptor := inspection.Descriptor
+	if descriptor.ROM != nil {
+		rom := *descriptor.ROM
+		descriptor.ROM = &rom
+	}
+	if descriptor.ROMMap != nil {
+		romMap := *descriptor.ROMMap
+		descriptor.ROMMap = &romMap
+	}
+	if descriptor.ROMs != nil {
+		roms := make([]ROMRequirement, len(descriptor.ROMs))
+		copy(roms, descriptor.ROMs)
+		descriptor.ROMs = roms
+	}
+	if descriptor.Interfaces != nil {
+		interfaces := make([]Interface, len(descriptor.Interfaces))
+		copy(interfaces, descriptor.Interfaces)
+		descriptor.Interfaces = interfaces
+	}
+	inspection.Descriptor = descriptor
+	return inspection
 }
 
 // Read returns one validated inspection and the same exact canonical archive
