@@ -11,18 +11,16 @@ unchanged.
 - Host diagnostics accept independently specified full host, agent and runtime
   revisions. Exact identities are still recorded and checked. API/ABI admission
   decides compatibility, and diagnostic host labels still require opt-in.
-- Kit swap/restore transactions use target-enforced maintenance reservations,
-  which fence ordinary execution across agent restart on the same boot.
-- Temporary diagnostic ownership and installed artifact provenance remain
-  distinct from execution ownership. A workstation marker cannot reserve a kit
-  against another host.
+- Target-enforced maintenance reservations fence ordinary execution across an
+  agent restart on the same boot. Managed kit-software changes use immutable
+  userspace bundles.
 - Shared operator hosts remain available; branch diagnostics use private hosts,
   configurations, catalogs and ports. Cleanup affects the diagnostic owner's
   resources rather than resetting the shared environment.
 
 These paths have software tests. They do not establish physical kit acceptance.
 The first adoption requires an authorized image update containing the supporting
-agent. There is no fallback to file swaps outside target admission.
+agent. The host-side file-overlay claim/swap/restore workflow has been removed.
 
 ## Update boundaries
 

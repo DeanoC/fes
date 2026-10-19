@@ -75,8 +75,11 @@ names it, the plan requires `core:ALL`. The splash (`cores/fes-splash/**`,
 `build_fes_splash*`, `sealed/**`), the video part producers
 (`scripts/*video_part*`) and any core file they read force `FULL_IMAGE`.
 
-For an `overlay` decision, install the PR bundle on the claimed kit's running
-image and load any core packages through a private host, as
-[kit sharing](kit-sharing.md) and [kit software releases](kit-software-releases.md)
-describe. Afterwards restore the baseline image and bundle the status file
-names and log that restore.
+For an `overlay` decision, use a private host for the changed artifacts. Install
+the PR kit-software bundle on the claimed kit's running image only when the plan
+includes changed kit software, as [kit sharing](kit-sharing.md) and
+[kit software releases](kit-software-releases.md) describe. For a core-only
+plan, load the core package through a private host without installing a bundle.
+For a host-only plan, run the changed private host binary without touching kit
+software. After installing a kit-software bundle, restore the baseline image and
+bundle named in the kit status file and log that restore.
