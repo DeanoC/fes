@@ -220,7 +220,7 @@ func (s *Service) meshCatalogTitle(ctx context.Context, gameID string) (MeshTitl
 	if err != nil {
 		return MeshTitle{}, catalog.CoreFirmware{}, false
 	}
-	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
 	if err != nil {
 		return MeshTitle{}, catalog.CoreFirmware{}, false
 	}

@@ -148,7 +148,10 @@ func (s *Service) videoCandidates(ctx context.Context, inspection corepackage.In
 	return candidates, nil
 }
 
-func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreEntry, base []byte, candidate catalog.CoreVideoPart) (*corepackage.PartsBundle, error) {
+// videoCandidateAssets returns the parts a candidate links with: the video
+// part plus the title's ST slot cards or selected CPU expansion. inspection
+// and base are the entry's installed package.
+func (s *Service) videoCandidateAssets(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte, candidate catalog.CoreVideoPart) ([]expansion.Asset, error) {
 	store, ok := s.catalog.(coreVideoCatalog)
 	if !ok {
 		return nil, videoPartUnavailable()
@@ -159,10 +162,6 @@ func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreE
 	}
 	assets := []expansion.Asset{asset}
 	if asset.Manifest.Map == expansion.AtariStVideoMap {
-		inspection, installed, err := s.readInstalledCore(ctx, entry.PackageID)
-		if err != nil || !bytes.Equal(installed, base) {
-			return nil, videoPartUnavailable()
-		}
 		if store, ok := s.catalog.(coreSlotExpansionCatalog); ok {
 			cards, _, err := s.readSlotCards(ctx, store, entry, inspection, base)
 			if err != nil {
@@ -183,6 +182,14 @@ func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreE
 			assets = append(assets, part)
 		}
 	}
+	return assets, nil
+}
+
+func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte, candidate catalog.CoreVideoPart) (*corepackage.PartsBundle, error) {
+	assets, err := s.videoCandidateAssets(ctx, entry, inspection, base, candidate)
+	if err != nil {
+		return nil, err
+	}
 	bundle, err := corepackage.ComposePartsArchive(ctx, base, assets)
 	if err != nil {
 		return nil, videoPartUnavailable()
@@ -190,25 +197,43 @@ func (s *Service) composeVideoCandidate(ctx context.Context, entry catalog.CoreE
 	return &bundle, nil
 }
 
-// A missing profile may fall back to direct. An installed selected part must
-// pass admission: corruption or an incompatible CPU selection is an error.
-func (s *Service) composeVideoEntry(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (*corepackage.PartsBundle, error) {
+// videoEntryCandidate picks the next launch's video part. A missing profile
+// may fall back to direct; found is false for built-in direct output.
+func (s *Service) videoEntryCandidate(ctx context.Context, inspection corepackage.Inspection) (catalog.CoreVideoPart, bool, error) {
 	candidates, err := s.videoCandidates(ctx, inspection)
 	if err != nil {
-		return nil, err
+		return catalog.CoreVideoPart{}, false, err
 	}
 	profile := s.LibrarySettings().VideoProfile
 	candidate, found := candidates[profile]
 	if !found {
 		candidate, found = candidates["direct"]
 	}
-	if !found {
-		if requiresVideoPart(inspection) {
-			return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "native video shell requires a matching Direct video part for this exact core package"}
-		}
-		return nil, nil
+	if !found && requiresVideoPart(inspection) {
+		return catalog.CoreVideoPart{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "native video shell requires a matching Direct video part for this exact core package"}
 	}
-	return s.composeVideoCandidate(ctx, entry, base, candidate)
+	return candidate, found, nil
+}
+
+// An installed selected part must pass admission: corruption or an
+// incompatible CPU selection is an error.
+func (s *Service) composeVideoEntry(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) (*corepackage.PartsBundle, error) {
+	candidate, found, err := s.videoEntryCandidate(ctx, inspection)
+	if err != nil || !found {
+		return nil, err
+	}
+	return s.composeVideoCandidate(ctx, entry, inspection, base, candidate)
+}
+
+// videoEntryAssets is composeVideoEntry for ROM launches, which link the
+// parts with the ROM in corepackage.PrepareROMInput; composing them here
+// first would link the 32 MB shell a second time only to discard it.
+func (s *Service) videoEntryAssets(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) ([]expansion.Asset, error) {
+	candidate, found, err := s.videoEntryCandidate(ctx, inspection)
+	if err != nil || !found {
+		return nil, err
+	}
+	return s.videoCandidateAssets(ctx, entry, inspection, base, candidate)
 }
 
 func (s *Service) CoreEntryVideo(ctx context.Context, gameID string) (CoreEntryVideo, error) {
@@ -238,7 +263,7 @@ func (s *Service) CoreEntryVideo(ctx context.Context, gameID string) (CoreEntryV
 		choice := CoreVideoChoice{Profile: profile, Label: label, Available: profile == "direct" && builtin}
 		if candidate, found := candidates[profile]; found {
 			choice.PartID = candidate.PartID
-			_, err := s.composeVideoCandidate(ctx, entry, base, candidate)
+			_, err := s.composeVideoCandidate(ctx, entry, inspection, base, candidate)
 			choice.Available = err == nil
 			if err != nil {
 				choice.Reason = "Installed part failed compatibility or integrity checks; launch requires repair."

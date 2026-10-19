@@ -60,7 +60,7 @@ func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, 
 	if entry.PackageID != packageID {
 		return catalog.CoreEntryROM{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 	}
-	inspected, _, err := s.readInstalledCore(ctx, packageID)
+	inspected, err := s.installedCoreInspection(ctx, packageID)
 	if err != nil {
 		return catalog.CoreEntryROM{}, err
 	}
@@ -126,16 +126,16 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	if err != nil {
 		return coreLoadSource{}, err
 	}
-	var videoParts *corepackage.PartsBundle
+	var videoParts []expansion.Asset
 	shell := corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}
 	if descriptor.Format == 3 && hasVideoSocket(shell) {
-		videoParts, err = s.composeVideoEntry(ctx, entry, shell, base)
+		videoParts, err = s.videoEntryAssets(ctx, entry, shell, base)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
 	}
 	var asset *expansion.Asset
-	if store, ok := s.catalog.(coreExpansionCatalog); ok && videoParts == nil {
+	if store, ok := s.catalog.(coreExpansionCatalog); ok && len(videoParts) == 0 {
 		selection, err := store.CoreEntryExpansion(ctx, entry.GameID)
 		if err != nil {
 			return coreLoadSource{}, expansionError(err)
@@ -152,7 +152,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		}
 	}
 	var slotCards []expansion.Asset
-	if store, ok := s.catalog.(coreSlotExpansionCatalog); ok && corepackage.SlotSockets(descriptor) != nil && videoParts == nil {
+	if store, ok := s.catalog.(coreSlotExpansionCatalog); ok && corepackage.SlotSockets(descriptor) != nil && len(videoParts) == 0 {
 		cards, _, err := s.readSlotCards(ctx, store, entry, corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}, base)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -175,13 +175,17 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		var transport corepackage.ROMTransport
 		input := corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards}
 		input.InitialMedia = initial
-		if videoParts != nil {
-			input.Parts = videoParts.Assets
-		}
+		input.Parts = videoParts
 		transport, err = corepackage.PrepareROMInput(ctx, input)
 		data, slotComposition, partsComposition = transport.Data, transport.SlotComposition, transport.PartsComposition
 		if err != nil && len(slotCards) != 0 {
 			return coreLoadSource{}, slotExpansionUnavailable()
+		}
+		// A part that cannot link with the shell is a video part fault, not a ROM one.
+		if err != nil && len(videoParts) != 0 {
+			if _, composeErr := corepackage.ComposePartsArchive(ctx, base, videoParts); composeErr != nil {
+				return coreLoadSource{}, videoPartUnavailable()
+			}
 		}
 	}
 	if err != nil {

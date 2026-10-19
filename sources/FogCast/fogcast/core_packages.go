@@ -92,25 +92,48 @@ func (s *Service) CorePackages(ctx context.Context) ([]InstalledCorePackage, err
 }
 
 func (s *Service) CorePackage(ctx context.Context, id string) (corepackage.Inspection, error) {
-	value, _, err := s.readInstalledCore(ctx, id)
-	return value, err
+	return s.installedCoreInspection(ctx, id)
+}
+
+// installedCoreInspection is readInstalledCore for callers that need only
+// the descriptor; an unchanged archive is not read or hashed again.
+func (s *Service) installedCoreInspection(ctx context.Context, id string) (corepackage.Inspection, error) {
+	if err := s.installedCoreRequest(id); err != nil {
+		return corepackage.Inspection{}, err
+	}
+	value, err := s.corePackages.Inspect(ctx, id)
+	if err != nil {
+		return corepackage.Inspection{}, installedCoreError(err)
+	}
+	return value, nil
 }
 
 func (s *Service) readInstalledCore(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
-	if !packageIDPattern.MatchString(id) {
-		return corepackage.Inspection{}, nil, canonicalError(protocol.CodeBadRequest, nil)
-	}
-	if s.corePackages == nil {
-		return corepackage.Inspection{}, nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	if err := s.installedCoreRequest(id); err != nil {
+		return corepackage.Inspection{}, nil, err
 	}
 	value, data, err := s.corePackages.Read(ctx, id)
-	if errors.Is(err, corepackage.ErrPackageNotFound) {
-		return corepackage.Inspection{}, nil, canonicalError(protocol.CodeROMNotFound, nil)
-	}
 	if err != nil {
-		return corepackage.Inspection{}, nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+		return corepackage.Inspection{}, nil, installedCoreError(err)
 	}
 	return value, data, nil
+}
+
+func (s *Service) installedCoreRequest(id string) error {
+	if !packageIDPattern.MatchString(id) {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if s.corePackages == nil {
+		return canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	return nil
+}
+
+func installedCoreError(err error) error {
+	if errors.Is(err, corepackage.ErrPackageNotFound) {
+		return canonicalError(protocol.CodeROMNotFound, nil)
+	}
+	return canonicalError(protocol.CodeInternal, safeContextError(err))
 }
 
 func (s *Service) CorePackageCompatibility(parent context.Context, id string) (CoreCompatibility, error) {

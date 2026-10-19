@@ -180,12 +180,26 @@ func (s *Service) importSlotCard(ctx context.Context, asset expansion.Asset) (ca
 
 // slotCompositionFor returns the readiness rows of a title's selected slot
 // cards for its already read package; nil when none is selected.
-func (s *Service) slotCompositionFor(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base []byte) ([]protocol.SlotExpansionStatus, error) {
+// slotCompositionFor reads the package archive only when the title selects
+// slot cards; a listing of titles without cards never loads one.
+func (s *Service) slotCompositionFor(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection, base func() ([]byte, error)) ([]protocol.SlotExpansionStatus, error) {
 	store, ok := s.catalog.(coreSlotExpansionCatalog)
 	if !ok {
 		return nil, nil
 	}
-	_, statuses, err := s.readSlotCards(ctx, store, entry, inspection, base)
+	selected, err := store.CoreEntrySlotExpansions(ctx, entry.GameID)
+	if err != nil {
+		return nil, slotExpansionError(err)
+	}
+	if len(selected) == 0 {
+		return nil, nil
+	}
+	data, err := base()
+	if err != nil {
+		// An unreadable package reports no slot state, as when it fails inspection.
+		return nil, nil
+	}
+	_, statuses, err := s.readSlotCards(ctx, store, entry, inspection, data)
 	if err != nil && statuses == nil {
 		return nil, err
 	}
