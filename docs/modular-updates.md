@@ -55,7 +55,7 @@ Compatibility uses explicit base-system and interface contracts; revisions remai
 independent provenance. The target waits for the execution lease to become free
 before acquiring maintenance. It never takes over to make an update happen.
 
-Managed-kit file overlays are rejected. An accepted release remains selected;
+Kits take no file overlays. An accepted release remains selected;
 ordinary diagnostic cleanup cannot restore an older release. Status identifies
 the base image, active software and pending operation independently. Host-only
 regressions do not establish physical acceptance of the bootstrap cutover.

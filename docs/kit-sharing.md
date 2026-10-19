@@ -92,27 +92,13 @@ automatically. This post-use bundle step is that explicit activation. It
 is not a file-swap restore, and it does not cancel another owner's pending
 activation. The stable supervisor owns the complete service group.
 
-On an unmanaged maintenance-aware image, replacing binaries or configuration
-uses the [kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
-target maintenance reservation before changing files or stopping services,
-retains it across agent restart, and ends it only after idle cleanup succeeds.
-Workstation hold markers record a diagnostic task; they cannot reserve hardware
-against another host. Release an ordinary kit.py session before starting a
-swap/restore; the tool claims its own grant and promotes it into maintenance.
-
-An agent that does not provide `fes-kit-maintenance-v1` cannot admit this workflow.
-Install the supporting agent once through the existing authorized appliance-image
-procedure. The tools reject missing maintenance routes and refuse replacement
-agents that cannot enforce the reservation; there is no SSH-only fallback.
-
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Diagnostics pin the active bundle and base-image digests; sealed
 base-image runtime provenance does not identify the active bundle. Record each
 exact artifact independently. A new core using a supported
 ABI uses package import/selection/launch rather than a kit-file swap or OS update.
 An appliance update is the designated baseline only when the status file names
-it. Unmanaged temporary overlay diagnostics retain their explicit restore
-procedure. After use, restore the baseline image and bundle that file names.
+it. After use, restore the baseline image and bundle that file names.
 
 ## Claim a development session
 
