@@ -133,8 +133,9 @@ nextpnr, including options left at their default, and only values that
 differ from that nextpnr's defaults reach argv. A lock on an unclassified
 nextpnr fails validation, so moving a lock to a newer nextpnr starts by
 classifying the options it adds. Each distinct lock selects its own cached
-toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
-nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+toolchain slot. Pong's lock pins nextpnr `552ba246` (fes#887) and selects its
+own slot. Every other lock is still a byte copy of `toolchain.lock` on
+nextpnr `9128800f`, so those cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
