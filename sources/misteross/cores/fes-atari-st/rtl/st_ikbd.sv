@@ -230,8 +230,10 @@ module st_ikbd #(
                    (remaining == 0 && parameter_count(command_data) == 0));
     wire [7:0] executing_command = remaining == 0 ? command_data : command;
     wire soft_reset = execute && executing_command == 8'h80 && args[0] == 1;
+    reg head_staged;
+    reg [7:0] staged_packet [0:7];
     assign response_valid = count != 0 && !paused && !reset;
-    assign response_data = fifo[head];
+    assign response_data = head_staged ? staged_packet[0] : fifo[head];
     wire pop = response_valid && response_ready;
     assign mouse_ready = !reset && !command_accept;
     wire mouse_accept = mouse_ready && mouse_valid;
@@ -314,34 +316,46 @@ module st_ikbd #(
         end
     end
 
+    // Register the selected packet with the tail it starts at and write its
+    // bytes one edge later, so packet selection ends at these registers
+    // rather than at every FIFO byte enable. head, tail and count keep their
+    // original edges. While a packet that became the head of an empty queue
+    // is still staged, the response reads its first byte from the stage.
+    // Writes left over at a reset or soft reset land outside the emptied
+    // queue; reply F1 wins.
+    reg [3:0] staged_length;
+    reg [5:0] staged_tail;
+    always @(posedge clk) begin
+        for (integer p=0;p<8;p=p+1) staged_packet[p]<=packet[p];
+        staged_length <= reset || soft_reset ? 4'd0 : packet_length;
+        staged_tail <= tail;
+        head_staged <= !reset && !soft_reset && packet_length != 0 && (count == 0 || (count == 1 && pop));
+    end
     // A packet has at most eight bytes, so every low-address bank receives
     // at most one write. Rotate the packet once per bank, then decode its
     // three-bit row locally instead of arbitrating eight writes at every byte.
-    // The reads and packet accounting retain their original clock edges.
     generate
         for (genvar bank=0;bank<8;bank=bank+1) begin : fifo_bank
-            wire [2:0] packet_index = 3'(bank)-tail[2:0];
+            wire [2:0] packet_index = 3'(bank)-staged_tail[2:0];
             wire row_carry;
             if (bank == 7) begin : last_bank
                 assign row_carry=1'b0;
             end else begin : wrapped_bank
-                assign row_carry=3'(bank) < tail[2:0];
+                assign row_carry=3'(bank) < staged_tail[2:0];
             end
-            wire [2:0] write_row = tail[5:3]+3'(row_carry);
-            wire bank_write = packet_length > {1'b0,packet_index};
-            wire [7:0] write_data = packet[packet_index];
+            wire [2:0] write_row = staged_tail[5:3]+3'(row_carry);
+            wire bank_write = staged_length > {1'b0,packet_index};
+            wire [7:0] write_data = staged_packet[packet_index];
             for (genvar row=0;row<8;row=row+1) begin : fifo_row
                 if (bank == 0 && row == 0) begin : reset_reply
                     always @(posedge clk) begin
-                        if (!reset) begin
-                            if (soft_reset) fifo[0]<=8'hf1;
-                            else if (bank_write && write_row == 3'(row))
-                                fifo[8*row+bank]<=write_data;
-                        end
+                        if (!reset && soft_reset) fifo[0]<=8'hf1;
+                        else if (bank_write && write_row == 3'(row))
+                            fifo[8*row+bank]<=write_data;
                     end
                 end else begin : packet_byte
                     always @(posedge clk) begin
-                        if (!reset && bank_write && write_row == 3'(row))
+                        if (bank_write && write_row == 3'(row))
                             fifo[8*row+bank]<=write_data;
                     end
                 end
