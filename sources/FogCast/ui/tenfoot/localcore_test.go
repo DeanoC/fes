@@ -342,7 +342,9 @@ func TestAmbiguousLocalLaunchDoesNotAdoptReplacement(t *testing.T) {
 			fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusSet: true, status: localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID, Generation: strings.Repeat("b", 64)}}
 			app := NewApp(nil, 1280, 720, 50)
 			app.localCores = fake
-			app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+			app.localContent = func(context.Context, string) (string, string, error) {
+				return "/tmp", "game.sms", nil
+			}
 			app.mu.Lock()
 			if cartridge {
 				app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
@@ -407,7 +409,7 @@ func TestAmbiguousLocalLaunchBlocksRelaunchUntilIdle(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
 	app := NewApp(nil, 1280, 720, 50)
 	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
 	app.mu.Lock()
 	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
 	app.mu.Unlock()
@@ -452,7 +454,7 @@ func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "idle"}}}
 	app := NewApp(nil, 1280, 720, 50)
 	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
 	app.mu.Lock()
 	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
 	app.mu.Unlock()
@@ -1129,7 +1131,7 @@ func (f *fakeLocalCores) Launch(_ context.Context, id string) (localcores.Launch
 	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, err
 }
 
-func (f *fakeLocalCores) LaunchROM(ctx context.Context, id, _ string) (localcores.LaunchResult, error) {
+func (f *fakeLocalCores) LaunchROM(ctx context.Context, id, _, _ string) (localcores.LaunchResult, error) {
 	return f.Launch(ctx, id)
 }
 

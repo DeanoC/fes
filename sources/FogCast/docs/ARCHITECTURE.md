@@ -2554,7 +2554,11 @@ feed, without Select+Start stop, until status is idle with an empty generation.
 That hold has no timeout. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 Packages declaring firmware stay in that class: the local socket does not
-link firmware ROMs. A cartridge for an installed core is linked by
+link firmware ROMs. A cartridge launch posts `library_root` and `relative_path`.
+The agent pins the library root and opens each relative component from that
+directory handle, refusing a symlink under the root, so a parent directory
+swapped for a symlink cannot name a file outside the library. A cartridge for
+an installed core is linked by
 LoadCartridge, which rebuilds the canonical archive from the extracted
 directory, verifies the exact archived identity with the runtime and programs
 the core through the existing staging path. A held, busy, blocked, or recovery lease returns 409 and does not

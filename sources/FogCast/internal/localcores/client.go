@@ -139,15 +139,20 @@ func (c *Client) Launch(ctx context.Context, packageID string) (LaunchResult, er
 	return result, nil
 }
 
-// LaunchROM posts the same launch route with a local cartridge path.
-// The agent reads the file. An empty or relative path is not sent.
-// This does not call the host session.
-func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) (LaunchResult, error) {
+// LaunchROM posts the same launch route with a library root and the
+// catalog-relative cartridge path. The agent opens that pair from a
+// directory handle on the root. An empty root, a relative root, or an
+// absolute cartridge path is not sent. This does not call the host session.
+func (c *Client) LaunchROM(ctx context.Context, packageID, libraryRoot, relativePath string) (LaunchResult, error) {
 	if !sha256Hex(packageID) {
 		return LaunchResult{}, ErrNotFound
 	}
-	romPath = strings.TrimSpace(romPath)
-	if romPath == "" || !filepath.IsAbs(romPath) || strings.ContainsAny(romPath, "\r\n") {
+	libraryRoot = strings.TrimSpace(libraryRoot)
+	relativePath = strings.TrimSpace(relativePath)
+	if libraryRoot == "" || !filepath.IsAbs(libraryRoot) || strings.ContainsAny(libraryRoot, "\r\n\x00") {
+		return LaunchResult{}, ErrUnavailable
+	}
+	if relativePath == "" || filepath.IsAbs(relativePath) || strings.ContainsAny(relativePath, "\r\n\x00") {
 		return LaunchResult{}, ErrUnavailable
 	}
 	if c == nil || c.http == nil || c.path == "" {
@@ -157,8 +162,9 @@ func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) (Laun
 		ctx = context.Background()
 	}
 	body, err := json.Marshal(struct {
-		ROMPath string `json:"rom_path"`
-	}{ROMPath: romPath})
+		LibraryRoot  string `json:"library_root"`
+		RelativePath string `json:"relative_path"`
+	}{LibraryRoot: libraryRoot, RelativePath: relativePath})
 	if err != nil {
 		return LaunchResult{}, ErrUnavailable
 	}

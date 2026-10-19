@@ -284,7 +284,7 @@ type localTitleLauncher interface {
 
 type localROMLauncher interface {
 	List(context.Context) ([]localcores.Core, error)
-	LaunchROM(context.Context, string, string) (localcores.LaunchResult, error)
+	LaunchROM(context.Context, string, string, string) (localcores.LaunchResult, error)
 }
 
 // startLocalTitleLocked plays one catalog row through the local socket.
@@ -425,15 +425,15 @@ func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	a.localStatusNext = time.Time{}
 }
 
-func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) (localcores.LaunchResult, error) {
+func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, string, error), game hostclient.Game) (localcores.LaunchResult, error) {
 	if titled, ok := client.(localTitleLauncher); ok {
 		return titled.LaunchTitle(ctx, game)
 	}
 	if client == nil || resolve == nil {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
-	romPath, err := resolve(ctx, game.ID)
-	if err != nil || strings.TrimSpace(romPath) == "" {
+	libraryRoot, relativePath, err := resolve(ctx, game.ID)
+	if err != nil || strings.TrimSpace(libraryRoot) == "" || strings.TrimSpace(relativePath) == "" {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	rommer, ok := client.(localROMLauncher)
@@ -458,7 +458,7 @@ func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func
 	if packageID == "" {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
-	return rommer.LaunchROM(ctx, packageID, romPath)
+	return rommer.LaunchROM(ctx, packageID, libraryRoot, relativePath)
 }
 
 func localCartridgeCore(system string) string {
