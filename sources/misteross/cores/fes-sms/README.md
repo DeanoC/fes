@@ -20,7 +20,7 @@ top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using
-`cores/fes-sms/toolchain.lock` (Yosys `3a5accbd`, nextpnr `9128800f`). The parent
+`cores/fes-sms/toolchain.lock` (Yosys `3a5accbd`, replacing previous Yosys pin `5391eeb1`, nextpnr `9128800f`). The parent
 image route is package-only, and `fes.sms` is in the factory image.
 
 ## Implemented slice

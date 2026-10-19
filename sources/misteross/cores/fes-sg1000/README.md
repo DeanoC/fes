@@ -16,7 +16,7 @@ the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using
-`cores/fes-sg1000/toolchain.lock` (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral
+`cores/fes-sg1000/toolchain.lock` (Yosys `3a5accbd`, replacing previous Yosys pin `5391eeb1`, nextpnr `9128800f`, Mistral
 `8fcc4cb4`). It seals a
 format-3 package from a clean tree. The parent image route is package-only,
 and `fes.sg1000` is in the factory image.
