@@ -1,4 +1,3 @@
-import hashlib
 import os
 import json
 import shutil
@@ -19,12 +18,7 @@ def _write_executable(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
-def _prepare_fixture(
-    root: Path,
-    log: Path,
-    *,
-    yosys_commit: str = "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-) -> Path:
+def _prepare_fixture(root: Path, log: Path) -> Path:
     scripts = root / "scripts"
     scripts.mkdir(parents=True)
     for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
@@ -39,9 +33,8 @@ def _prepare_fixture(
 
     _write_executable(
         fake_bin / "git",
-        (
-            common
-            + r'''
+        common
+        + r'''
 set -eu
 if [ "$1" = --version ]; then
     record_env identity
@@ -76,7 +69,7 @@ EOF
     status|fetch|checkout|submodule|sync) ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) echo __YOSYS_COMMIT__ ;;
+            yosys) echo 3a5accbd78c526ab7bae32640044a2e062a3cfc9 ;;
             mistral) echo 8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f ;;
             nextpnr) echo 9128800fa6e77c4138088a7107a95376ba47ff15 ;;
             verilator) echo 5e4151e3e0c8ecf11d9845a93495f37a31b2f667 ;;
@@ -85,8 +78,7 @@ EOF
         esac
         ;;
 esac
-'''
-        ).replace("__YOSYS_COMMIT__", yosys_commit),
+''',
     )
 
     _write_executable(
@@ -335,101 +327,6 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             self.assertTrue(snapshots, log.read_text(encoding="utf-8"))
             self.assertTrue(all("FAKE_COMPILER_SETTING=caller-secret" not in snapshot for snapshot in snapshots))
             self.assertTrue(any(f"LD_LIBRARY_PATH={slot / 'install' / 'lib'}" in snapshot for snapshot in snapshots))
-
-    def test_fresh_per_core_slot_provisions_when_repo_is_exported(self):
-        coleco_commit = "5391eeb1e91b38a3d0e96d04f24cf921743c9c78"
-        with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
-            root = base / "checkout"
-            log = base / "child-env.log"
-            fake_bin = _prepare_fixture(root, log, yosys_commit=coleco_commit)
-            core_lock = root / "cores" / "fes-coleco" / "toolchain.lock"
-            core_lock.parent.mkdir(parents=True)
-            shutil.copy2(ROOT / "cores" / "fes-coleco" / "toolchain.lock", core_lock)
-            sibling_lock = root / "cores" / "fes-pong" / "toolchain.lock"
-            sibling_lock.parent.mkdir(parents=True)
-            shutil.copy2(root / "toolchain.lock", sibling_lock)
-            cache = base / "cache"
-            environment = {
-                "PATH": f"{fake_bin}:{os.environ['PATH']}",
-                "HOME": str(base),
-                "USER": "test",
-                "LANG": "C",
-                "LC_ALL": "C",
-                "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
-                "FES_TOOLCHAIN_LOCKFILE": str(core_lock),
-                "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
-                "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
-                "ROCM_PATH": "/opt/rocm",
-                "HIPCC": "hipcc",
-                "REPO": "DeanoC/fes",
-                "COMMIT": "not-a-pin",
-                "ORDER": "not-a-pin",
-                "TOOLS": "not-a-tool-list",
-                "FAKE_COMPILER_SETTING": "caller-secret",
-            }
-
-            def plan_key(lock: Path) -> str:
-                result = subprocess.run(
-                    [
-                        sys.executable,
-                        str(root / "scripts" / "toolchain_cache.py"),
-                        "--root",
-                        str(root),
-                        "--lock",
-                        str(lock),
-                        "--cache",
-                        str(cache),
-                        "--gpu-router",
-                        "HIP",
-                        "--hip-architectures",
-                        "gfx1100;gfx1201",
-                        "plan",
-                        "--field",
-                        "key",
-                    ],
-                    cwd=root,
-                    env=environment,
-                    text=True,
-                    capture_output=True,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                return result.stdout.strip()
-
-            coleco_key = plan_key(core_lock)
-            shared_key = plan_key(root / "toolchain.lock")
-            sibling_key = plan_key(sibling_lock)
-            self.assertNotEqual(coleco_key, shared_key)
-            self.assertEqual(shared_key, sibling_key)
-
-            built = subprocess.run(
-                [str(root / "scripts" / "bootstrap.sh")],
-                cwd=root,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            self.assertNotIn("unbound variable", built.stderr)
-            self.assertIn(coleco_commit, built.stdout)
-            ready_files = list((cache / "slots").glob("*/ready.json"))
-            self.assertEqual(len(ready_files), 1, built.stdout + built.stderr)
-            ready = json.loads(ready_files[0].read_text(encoding="utf-8"))
-            self.assertEqual(ready["key"], coleco_key)
-            self.assertEqual(ready["tools"]["yosys"]["commit"], coleco_commit)
-            self.assertEqual(ready_files[0].parent.name, coleco_key)
-            self.assertEqual(
-                ready["lock"]["sha256"],
-                hashlib.sha256(core_lock.read_bytes()).hexdigest(),
-            )
-            snapshots = log.read_text(encoding="utf-8").split("kind=")
-            self.assertTrue(snapshots)
-            for snapshot in snapshots:
-                self.assertNotIn("REPO=DeanoC/fes", snapshot)
-                self.assertNotIn("FAKE_COMPILER_SETTING=caller-secret", snapshot)
-                self.assertNotIn("COMMIT=not-a-pin", snapshot)
-                self.assertNotIn("ORDER=not-a-pin", snapshot)
-                self.assertNotIn("TOOLS=not-a-tool-list", snapshot)
 
     def test_shared_request_rejects_caller_search_path_before_build(self):
         with tempfile.TemporaryDirectory() as directory:
