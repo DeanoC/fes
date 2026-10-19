@@ -78,6 +78,22 @@ class HilPlanTest(unittest.TestCase):
         # #567 rebuilt the Atari ST video part archive, which the overlay cannot attest.
         result = run('classify', '--paths-file', FIXTURES / 'pr567.files', '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        # #899's confirm, boot-ticket rewrite and storage gate run from the image
+        # on a trial boot, so a bundle overlay cannot exercise them.
+        result = run('classify', '--paths-file', FIXTURES / 'pr899.files', '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        for path in ('sources/FogCast/appliance/store/store.go',
+                     'sources/FogCast/internal/appliancedata/gate.go',
+                     'sources/FogCast/internal/applianceupdate/service.go'):
+            self.assertEqual(by_path[path]['class'], 'full', path)
+        for path in ('sources/FogCast/appliance/store/store_test.go',
+                     'sources/FogCast/docs/ARCHITECTURE.md',
+                     'sources/FogCast/internal/appliancedata/gate_test.go',
+                     'sources/FogCast/internal/applianceupdate/service_test.go'):
+            self.assertEqual(by_path[path]['class'], 'none', path)
         for filename, components in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
@@ -88,6 +104,36 @@ class HilPlanTest(unittest.TestCase):
                     self.assertIn(component, data['components'])
                 if filename == 'pr565.files':
                     self.assertNotIn('core:ramtest-quartus', data['components'])
+
+    def test_trial_image_paths_are_full_and_neighbours_stay_overlay(self):
+        plan = hil_module()
+        full = {
+            'sources/FogCast/appliance/store/store.go': 'appliance-trial',
+            'sources/FogCast/internal/applianceupdate/service.go': 'appliance-trial',
+            'sources/FogCast/internal/applianceupdate/identity.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancedata/gate.go': 'storage-gate',
+            'sources/FogCast/internal/appliancedata/bind.go': 'storage-gate',
+            # Trial startup and trial boot already ship in the image.
+            'platform/cmd/fes-kit-software/main_linux.go': 'platform',
+            'platform/internal/kitsoftware/engine.go': 'platform',
+            'platform/cmd/fes-boot/main_linux.go': 'platform',
+            'platform/internal/applianceboot/boot.go': 'platform',
+            'sources/FogCast/cmd/fes-update/main.go': 'fogcast-unmapped-command',
+            'sources/FogCast/cmd/fes-kit-data/main.go': 'fogcast-unmapped-command',
+        }
+        for path, component in full.items():
+            with self.subTest(path=path):
+                row = plan.classify_path(path)
+                self.assertEqual(row['class'], 'full')
+                self.assertEqual(row['component'], component)
+        # These rules do not pull neighbouring FogCast code out of the overlay.
+        for path in ('sources/FogCast/cmd/mister-agent/appliance.go',
+                     'sources/FogCast/internal/httpapi/update.go',
+                     'sources/FogCast/fogcast/service.go',
+                     'sources/FogCast/appliance/release.go',
+                     'sources/FogCast/internal/example.go'):
+            with self.subTest(path=path):
+                self.assertEqual(plan.classify_path(path)['class'], 'overlay')
 
     def test_producer_script_suffixes_map_to_canonical_cores(self):
         path = self.work / 'producers.files'

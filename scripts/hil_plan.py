@@ -43,6 +43,15 @@ RULES = [
     # The immutable bundle producer and stable base supervisor share this code;
     # replacing the Go kit services cannot validate or replace those consumers.
     ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),
+    # Release confirm and the boot-ticket rewrite. On a trial boot the image's
+    # mister-agent runs these; fes-kit-software does not open the bundle store.
+    ('sources/FogCast/appliance/store/**', 'full', 'appliance-trial'),
+    # The agent's confirm reconcile and boot-ticket repair, linked into that
+    # same image agent (and into /usr/sbin/fes-kit-data for the ticket read).
+    ('sources/FogCast/internal/applianceupdate/**', 'full', 'appliance-trial'),
+    # The fes-kit-data storage gate. It runs as the image's /usr/sbin/fes-kit-data,
+    # which refuses the bundle store while the boot is still a trial.
+    ('sources/FogCast/internal/appliancedata/**', 'full', 'storage-gate'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
     ('sources/misteross/toolchain.lock', 'overlay', 'core:ALL'),
     ('sources/misteross/toolchains/*.lock', 'overlay', 'core:{lock}'),

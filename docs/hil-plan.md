@@ -62,6 +62,17 @@ Each changed path gets a class and a component:
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.
+  Trial, confirm, boot-ticket and storage-gate code is full too. On a trial
+  boot `fes-kit-software` starts only the image's built-in software (it does
+  not open the bundle store) and the storage gate runs as the image's
+  `/usr/sbin/fes-kit-data`, so a bundle install cannot exercise that code.
+  The paths are `sources/FogCast/appliance/store/**` (release confirm and
+  boot-ticket rewrite), `sources/FogCast/internal/applianceupdate/**` (the
+  agent's reconcile and repair) and `sources/FogCast/internal/appliancedata/**`
+  (the fes-kit-data gate). Trial startup (`platform/cmd/fes-kit-software`,
+  `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
+  `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
+  commands are already full through the platform and unmapped-command rules.
 
 A changed file under `cores/<name>/` also requires every `build_fes_*`
 producer that names the file or one of its directories, either in its own
