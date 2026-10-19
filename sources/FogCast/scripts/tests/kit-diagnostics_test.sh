@@ -435,6 +435,26 @@ for shell in $shells; do
   got=$(run_collector "$shell" 2>"$err") || fail "$shell build-inputs symlink run failed"
   [ "$(value_of "$got" idle_sha256)" = '' ] || fail "$shell symlink image sha"
 
+  rm -f "$fx/media/fat/idle.rbf" "$fx/usr/share/mister-runtime/build-inputs"
+  printf '%s' 'splash-that-vanishes' > "$fx/media/fat/idle.rbf"
+  printf '%s\n' \
+    'idle_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+    > "$fx/usr/share/mister-runtime/build-inputs"
+  rm -f "$tools/sha256sum"
+  cat > "$tools/sha256sum" <<'EOF'
+#!/bin/sh
+printf '%s\n' "sha256sum: $1: No such file or directory" >&2
+rm -f -- "$1"
+exit 1
+EOF
+  chmod 755 "$tools/sha256sum"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell vanishing splash run failed"
+  [ ! -s "$err" ] || fail "$shell vanishing splash stderr: $(cat "$err")"
+  [ "$(value_of "$got" fat_idle_sha256)" = '' ] || fail "$shell vanishing splash fat sha"
+  [ "$(value_of "$got" idle_sha256)" = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ] || fail "$shell vanishing splash image sha"
+  rm -f "$tools/sha256sum"
+  ln -s "$sha_bin" "$tools/sha256sum"
+
   rm -f "$tools/sha256sum"
   rm -f "$fx/media/fat/idle.rbf"
   printf '%s' 'still-there' > "$fx/media/fat/idle.rbf"

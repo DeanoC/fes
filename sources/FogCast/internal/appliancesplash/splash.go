@@ -4,9 +4,13 @@
 // carries the same bytes at /usr/share/mister-runtime/idle.rbf, and
 // build-inputs records that digest as idle_sha256 (the image build rejects a
 // splash/idle mismatch). Staging keeps a copy next to the release image.
-// Confirmation is the only time those bytes replace the FAT file, so a trial
-// that falls back still boots the previous splash. A later confirmation of
-// the restored image writes that image's splash back.
+// Confirmation replaces the FAT file only after the trial is known-good, and
+// the watchdog stays armed until that publish is recorded. An unconfirmed
+// trial does not touch the FAT file, so fallback still boots the previous
+// splash. A non-trial boot, including factory fallback, republishes the
+// running image's splash when FAT does not match, even if the staged copy
+// was removed. A later confirmation of a restored image writes that image's
+// splash back.
 package appliancesplash
 
 import (
@@ -31,8 +35,8 @@ const (
 	DefaultIdle   = "/usr/share/mister-runtime/idle.rbf"
 	DefaultRecord = "/usr/share/mister-runtime/build-inputs"
 	DefaultFAT    = "/media/fat/idle.rbf"
-	// maxSplash is above the sealed ~2 MiB core and below a mistaken upload.
-	maxSplash = 8 << 20
+	// maxSplash matches release admission. A larger file is a mistaken upload.
+	maxSplash = store.MaxStagedSplash
 	maxRecord = 64 << 10
 )
 
@@ -248,7 +252,7 @@ func readSidecar(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() == 0 || info.Size() > 80 {
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() == 0 || info.Size() > store.MaxSplashSidecar {
 		return "", errors.New("splash digest is not a usable file")
 	}
 	f, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW, 0)
@@ -256,7 +260,7 @@ func readSidecar(path string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, 81))
+	data, err := io.ReadAll(io.LimitReader(f, store.MaxSplashSidecar+1))
 	if err != nil {
 		return "", err
 	}

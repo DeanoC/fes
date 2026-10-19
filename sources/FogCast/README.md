@@ -261,8 +261,11 @@ direct-root images do not expose the update API. A card with leftover capacity
 already formatted as `FESDATA3` bind-mounts cache, saves, core-data,
 launcher-cache and evidence from that partition at agent startup unless
 `GET /v1/update` shows trial, pending, or corrupt. Releases stay on the 1 GiB
-FAT. The assembler still ships the fixed 1 GiB image; expanding leftover space
-is a live-card mutation. Build the operator client with
+FAT. Confirmation promotes a trial to known-good, atomically publishes that
+image's sealed idle core to FAT `/idle.rbf`, and only then lets the watchdog
+disarm. A non-trial boot, including factory fallback, republishes the running
+image's splash when FAT does not already match. The assembler still ships the
+fixed 1 GiB image; expanding leftover space is a live-card mutation. Build the operator client with
 `make build-fes-update`, then use `bin/fes-update --action status` with the existing
 private host configuration. See [appliance updates](docs/appliance-updates.md).
 Hardware acceptance of this new boot path is tracked separately from game tests.

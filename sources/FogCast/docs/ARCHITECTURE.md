@@ -1324,7 +1324,9 @@ then opens the DesignWare hardware watchdog and acknowledges arming before
 candidate init executes. Its separate
 mount namespace retains the bootstrap and FAT views through pivot. Its deadline
 is 180 seconds. Only a durably synced confirmation matching the actual boot ID
-and selected image permits magic-close. Failure, deadline, or process death
+and selected image permits magic-close. The agent records that confirmation
+only after the image's splash is on FAT, so a failed splash publish leaves the
+watchdog armed. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
 `appliance/store` owns bounded raw-image admission, immutable publication,
@@ -1351,12 +1353,22 @@ operations are blocked; status, Stop, lease management and confirmation remain
 available. A failed response/reboot leaves pending visible and releases admission
 on the current known-good image. Confirmation requires actual native idle.
 `internal/appliancesplash` checks the running image's idle core against
-`idle_sha256` in its build-inputs, stages it under the release store, and,
-after the store confirms, atomically replaces FAT `/idle.rbf`. A trial that
-has not been confirmed does not modify that file, so watchdog fallback still
-programs the previous splash. Confirming a rollback writes the restored
-image's splash. Prune removes the staged splash with the image. Status reports
-`fat_idle_sha256` and `idle_sha256`.
+`idle_sha256` in its build-inputs and stages it under the release store.
+Release admission keeps a 1 MiB margin plus room for that splash: an idle core
+up to 8 MiB, its sidecar, and a same-directory temporary of the core, so an
+accepted release can be confirmed. Confirmation promotes the trial to
+known-good without telling the watchdog, atomically replaces FAT `/idle.rbf`,
+and only then records the confirmation the watchdog reads. A failed or
+cancelled publish leaves the watchdog armed. The same boot retries. A later
+boot of that image, including one that is no longer a trial, republishes from
+the running image's verified idle core even when the staged copy was removed.
+An unconfirmed trial does not modify FAT, so watchdog fallback still programs
+the previous splash. Factory fallback records the selected image and does not
+itself write FAT; the agent publishes that image's splash when the non-trial
+boot starts. U-Boot programs whatever is on FAT at the following boot.
+Confirming a rollback writes the restored image's splash. Prune removes the
+staged splash with the image. Status reports `fat_idle_sha256` and
+`idle_sha256`.
 
 The host uploads once and activates once. It resolves response loss by reading
 authenticated boot/image identity, rediscovers a changed address using the existing

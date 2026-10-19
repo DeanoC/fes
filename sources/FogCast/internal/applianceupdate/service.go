@@ -85,11 +85,19 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // A confirmation write can rename successfully and then report a sync failure.
 // Reconcile only after the store proves persistence for this exact trial; merely
 // seeing matching fields must not release the admission or watchdog gate.
+// A non-trial boot republishes the running image's splash. That repairs an
+// interrupted publication and a factory fallback whose staged copy is gone.
 func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error {
-	if !s.boot.Trial || !rawIdle || !s.mutation.TryLock() {
+	if !s.mutation.TryLock() {
 		return nil
 	}
 	defer s.mutation.Unlock()
+	if !s.boot.Trial {
+		return s.repairSplash(ctx)
+	}
+	if !rawIdle {
+		return nil
+	}
 	s.mu.Lock()
 	trial := s.trial
 	s.mu.Unlock()
@@ -97,23 +105,59 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 		return nil
 	}
 	confirmed, err := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
-	if err != nil || !confirmed {
+	if err != nil {
 		return err
 	}
-	if err := ctx.Err(); err != nil {
+	if !confirmed {
+		pending, pendingErr := s.store.SplashPendingContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+		if pendingErr != nil || !pending {
+			return pendingErr
+		}
+		// Acceptance is durable, but without an installer there is nothing to
+		// publish and the watchdog must stay armed.
+		if s.splash == nil {
+			return nil
+		}
+	}
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	// A splash miss keeps the admission gate down. Status still succeeds so a
 	// client can observe the trial and retry confirm; that call reports the error.
-	if err := s.installSplash(ctx, s.boot.ImageSHA256); err != nil {
+	if err = s.installSplash(ctx, s.boot.ImageSHA256); err != nil {
 		return nil
 	}
+	if !confirmed {
+		if err = s.store.CompleteSplashContext(ctx, s.boot.BootID, s.boot.ImageSHA256); err != nil {
+			return err
+		}
+	}
+	s.releaseTrialGate()
+	return nil
+}
+
+// repairSplash publishes the running image's verified idle core when FAT does
+// not already match. It uses the image's own bytes, not a staged copy.
+func (s *Service) repairSplash(ctx context.Context) error {
+	if s.splash == nil {
+		return nil
+	}
+	want := s.splash.IdleSHA256()
+	if want != "" && s.splash.FATSHA256() == want {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.installSplash(ctx, s.boot.ImageSHA256)
+}
+
+func (s *Service) releaseTrialGate() {
 	s.mu.Lock()
 	s.trial = false
 	s.blocked = false
 	s.coordinator.SetUpdateBlocked(false)
 	s.mu.Unlock()
-	return nil
 }
 
 // BeginOperation fences HTTP launch, development, input and cast operations.
@@ -276,25 +320,36 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	if !s.coordinator.RawIdleReady(ctx) {
 		return errors.New("native runtime is not idle")
 	}
-	// Verify and stage the splash before the image becomes known-good. A digest
-	// mismatch must not confirm the trial. The FAT file is replaced only after
-	// the store confirms, so a failed trial still boots the previous splash.
+	if s.splash == nil {
+		if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
+			return err
+		}
+		s.releaseTrialGate()
+		return nil
+	}
+	// Stage and accept before replacing FAT. A digest mismatch must not accept
+	// the trial, and a failed trial must still boot the previous splash.
+	// Acceptance does not record the watchdog confirmation: that waits until
+	// the FAT publish succeeds, so a failed publish leaves the guard armed.
 	if err := s.stageSplash(ctx, hash); err != nil {
 		return err
 	}
-	if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
+	if err := s.store.AcceptTrialContext(ctx, bootID, hash); err != nil {
 		return err
 	}
-	// The store is confirmed, so the watchdog may disarm. The gate stays down
-	// until the FAT splash matches, and a retry publishes without selecting again.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := s.publishSplash(ctx, hash); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	s.trial = false
-	s.blocked = false
-	s.coordinator.SetUpdateBlocked(false)
-	s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := s.store.CompleteSplashContext(ctx, bootID, hash); err != nil {
+		return err
+	}
+	s.releaseTrialGate()
 	return nil
 }
 

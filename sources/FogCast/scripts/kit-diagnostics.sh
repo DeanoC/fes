@@ -4,7 +4,9 @@
 # Reads /proc, a few identity files, and `df -P -k` of /, /media/fat and /tmp.
 # Also reports the sha256 of /media/fat/idle.rbf when sha256sum is on PATH,
 # and idle_sha256 from /usr/share/mister-runtime/build-inputs. A missing file,
-# a symlink, or a missing sha256sum leaves that value empty.
+# a symlink, a missing sha256sum, or a file that disappears while hashing
+# leaves that value empty. The hash command's stderr is discarded so that
+# race does not leak into the collector.
 # Those three mounts are skipped when sysfs says the backing disk is optical
 # or has no usable media (size missing, unreadable or zero, or SCSI state
 # not ready). Does not create files,
@@ -186,14 +188,16 @@ kit_path() {
 }
 
 # sha256 of one regular file. Empty when the file is missing, a symlink,
-# unreadable, or sha256sum is not on PATH. Never fails the collector.
+# unreadable, or sha256sum is not on PATH. stderr is discarded: the file can
+# disappear between the checks above and the hash. Never fails the collector.
 sha256_file() {
   sha_path=$1
   sha_bin=$(command -v sha256sum || true)
   if [ -z "$sha_bin" ] || [ ! -e "$sha_path" ] || [ -L "$sha_path" ] || [ ! -f "$sha_path" ] || [ ! -r "$sha_path" ]; then
     return 0
   fi
-  sha_line=$("$sha_bin" "$sha_path") || return 0
+  # 2>&- drops a complaint if the file vanishes after the checks above.
+  sha_line=$("$sha_bin" "$sha_path" 2>&-) || return 0
   sha_hex=${sha_line%% *}
   case $sha_hex in
     *[!0-9a-f]*|'') return 0 ;;
