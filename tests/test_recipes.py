@@ -99,15 +99,36 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_ramtest_and_menu_have_per_core_locks_with_the_shared_pin(self):
+    def test_ramtest_and_menu_have_their_own_core_locks(self):
         self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path,
                          "cores/fes-ramtest/toolchain.lock")
         self.assertEqual(recipes.recipe_for("fes.menu").lock_path,
                          "cores/fes-menu/toolchain.lock")
-        root = Path(__file__).resolve().parents[1] / "sources/misteross"
-        base = (root / "toolchain.lock").read_bytes()
-        self.assertEqual((root / recipes.recipe_for("fes.ramtest").lock_path).read_bytes(), base)
-        self.assertEqual((root / recipes.recipe_for("fes.menu").lock_path).read_bytes(), base)
+
+    def test_each_recipe_lists_the_options_of_its_own_lock_nextpnr(self):
+        # The parent registry checks only the shape of each flags table; the
+        # misteross builder owns every classified nextpnr pin's option schema.
+        import json
+        import tomllib
+        source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        program = (
+            "import json\nfrom scripts import pnr_recipe\n"
+            "print(json.dumps({core: [pnr_recipe.nextpnr_pin(core),"
+            " sorted(pnr_recipe.recipe_for(core)['flags']),"
+            " sorted(pnr_recipe.NEXTPNR_PINS[pnr_recipe.nextpnr_pin(core)])]"
+            " for core in json.loads(input())}))\n")
+        result = subprocess.run([sys.executable, "-c", program], cwd=source, check=True,
+                                input=json.dumps(sorted(recipes.FORMAT2_RECIPES)),
+                                capture_output=True, text=True, timeout=60)
+        selected = json.loads(result.stdout)
+        self.assertEqual(set(selected), set(recipes.FORMAT2_RECIPES))
+        for core_id, (pin, flags, options) in selected.items():
+            with self.subTest(core=core_id):
+                recipe = recipes.recipe_for(core_id)
+                lock = tomllib.loads((source / recipe.lock_path).read_text())
+                self.assertEqual(pin, lock["tool"]["nextpnr"]["commit"])
+                self.assertEqual(sorted(recipe.pnr["flags"]), flags)
+                self.assertEqual(flags, options)
 
     def assert_existing_descriptors(self):
         self.assertTrue(

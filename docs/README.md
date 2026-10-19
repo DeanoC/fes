@@ -13,7 +13,7 @@ a dated record. A dated record is not the schedule.
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
-| Plan PR hardware-test overlays and record hashes | [Overlay HIL](hil-overlay.md) |
+| Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
@@ -43,7 +43,6 @@ Use these when the start-here page names the job and you need the steps.
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
 | Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
-| Change files on a dev kit, or see who changed them | [Kit runtime manifest](kit-manifest.md) |
 | Independent host, kit software and core updates | [Modular updates](modular-updates.md) |
 | Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |

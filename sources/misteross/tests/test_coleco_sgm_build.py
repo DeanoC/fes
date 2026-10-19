@@ -176,12 +176,11 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_ram.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
-        self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
-                         "9128800fa6e77c4138088a7107a95376ba47ff15")
+        from scripts import pnr_recipe
         self.assertEqual(shell.TOOLCHAIN_LOCK, "cores/fes-coleco/toolchain.lock")
+        self.assertEqual(pnr_recipe.lock_path(shell.ROOT, "fes.coleco"), shell.ROOT / shell.TOOLCHAIN_LOCK)
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
-        for name, revision in shell.TOOL_COMMITS.items():
-            self.assertEqual(lock["tool"][name]["commit"], revision)
+        self.assertEqual(lock["tool"]["nextpnr"]["commit"], pnr_recipe.nextpnr_pin("fes.coleco"))
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \
              patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):

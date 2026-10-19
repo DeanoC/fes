@@ -10,14 +10,20 @@ import tomllib
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import MappingProxyType
 from typing import Mapping, Sequence
 from scripts.fes_build_common import nextpnr_gpu_command
 
 
 FES_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = FES_ROOT / "config/core-recipes.toml"
-PINNED_NEXTPNR = "9128800fa6e77c4138088a7107a95376ba47ff15"
-CURRENT_FLAGS = {
+NEXTPNR_9128800F = "9128800fa6e77c4138088a7107a95376ba47ff15"
+NEXTPNR_552BA246 = "552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b"
+
+# nextpnr's own default for every option a 9128800f recipe lists. The
+# Mistral/FES fork switches are fes_*, mistral_*, replicate_enables, remap_*
+# and balance_reduction_root; the rest are result-affecting kernel options.
+_DEFAULTS_9128800F = {
     "randomize_seed": False, "placer": "heap", "cstrweight": "unset",
     "starttemp": "unset", "pack_only": False, "no_route": False,
     "no_place": False, "no_pack": False, "ignore_loops": False,
@@ -42,34 +48,29 @@ CURRENT_FLAGS = {
     "remap_candidate": "unset", "remap_groups": 1, "balance_reduction_root": [],
 }
 
-# These are the Mistral/FES switches available at PINNED_NEXTPNR. Keep every
-# one classified in each per-core recipe, including options set to their
-# current disabled/default value. Later nextpnr additions require a schema
-# decision before a lock can move.
-FORK_FLAGS = frozenset({
-    "fes_scaffold", "fes_cart", "fes_cart_region", "fes_slot_clock",
-    "fes_cram_region", "mistral_ff4", "mistral_clkb", "replicate_enables",
-    "remap_critical", "remap_optimize_pins", "remap_preserve_ffs",
-    "remap_plan", "remap_post_plan", "remap_comb_critical",
-    "remap_comb_candidate", "remap_comb_plan", "remap_decompose_critical",
-    "remap_decompose_candidate", "remap_lut_pair_critical",
-    "remap_lut_pair_candidate", "remap_lut_pair_compose_copy",
-    "remap_lut_driver_critical", "remap_lut_driver_candidate",
-    "remap_candidate", "remap_groups", "balance_reduction_root",
-})
+# The nine options 552ba246 adds over 9128800f: the whole difference between
+# the two binaries' --help option lists. Existing options keep their defaults.
+_ADDED_552BA246 = {
+    # Placement and packing: opt-in Mistral/FES fork switches.
+    "arrival_pin_assignment": False, "isolated_lut_placement": False,
+    "critical_cohort_budget": 0, "critical_cohort_report": "unset",
+    "mistral_dsp_signed_lanes": False,
+    # Generic key=value context settings (_valid_settings limits the keys).
+    "set": [],
+    # Refuses the CPU-reference fallback; a completed route is unchanged.
+    "gpu_required": False,
+    # Output files; placement and routing never read them.
+    "critical_cohort_model_out": "unset", "router2_profile": "unset",
+}
 
-# Result-affecting non-fork switches whose values also need to stay reviewed.
-RECIPE_FLAGS = frozenset({
-    "randomize_seed", "placer", "cstrweight", "starttemp", "pack_only",
-    "no_route", "no_place", "no_pack", "ignore_loops", "ignore_rel_clk",
-    "no_tmdriv", "sdf_cvc", "no_print_critical_path_source",
-    "placer_heap_alpha", "placer_heap_beta",
-    "placer_heap_cell_placement_timeout", "placer_heap_no_ctrl_set",
-    "static_dump_density", "parallel_refine", "router2_heatmap",
-    "tmg_ripup", "router2_tmg_ripup", "router2_alt_weights",
-    "gpu_batches", "gpu_cpu", "gpu_perf", "gpu_telemetry", "gpu_opt",
-    "timing_report_paths", "seed_racing_contract",
-}) | FORK_FLAGS
+# Every nextpnr a core lock may pin, with nextpnr's default for each option its
+# recipes must list. Each recipe classifies every option of its own lock's
+# pin, including options left at their default. A lock may move only to a
+# nextpnr whose added options have been classified here first.
+NEXTPNR_PINS: Mapping[str, Mapping[str, object]] = MappingProxyType({
+    NEXTPNR_9128800F: MappingProxyType(_DEFAULTS_9128800F),
+    NEXTPNR_552BA246: MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246}),
+})
 
 RECIPE_FIELDS = frozenset({
     "seeds", "timing_weights", "search_weights", "critexp", "clocks",
@@ -87,12 +88,15 @@ FLAG_BOOLEAN_FIELDS = frozenset({
     "router2_tmg_ripup", "router2_alt_weights", "gpu_cpu", "gpu_perf",
     "seed_racing_contract", "fes_scaffold", "mistral_ff4", "mistral_clkb",
     "remap_optimize_pins", "remap_preserve_ffs",
-    "remap_lut_pair_compose_copy",
+    "remap_lut_pair_compose_copy", "arrival_pin_assignment",
+    "isolated_lut_placement", "mistral_dsp_signed_lanes", "gpu_required",
 })
 FLAG_INTEGER_FIELDS = frozenset({
     "placer_heap_cell_placement_timeout", "timing_report_paths",
-    "replicate_enables", "remap_groups",
+    "replicate_enables", "remap_groups", "critical_cohort_budget",
 })
+# nextpnr rejects values above these limits after loading the design.
+_FLAG_INTEGER_LIMITS = {"critical_cohort_budget": 64}
 FLAG_INTEGER_OR_UNSET_FIELDS = frozenset({
     "gpu_batches", "remap_comb_candidate", "remap_decompose_candidate",
     "remap_lut_pair_candidate", "remap_lut_driver_candidate",
@@ -107,8 +111,27 @@ FLAG_STRING_FIELDS = frozenset({
     "remap_critical", "remap_plan", "remap_post_plan",
     "remap_comb_critical", "remap_comb_plan", "remap_decompose_critical",
     "remap_lut_pair_critical", "remap_lut_driver_critical",
+    "critical_cohort_report", "critical_cohort_model_out", "router2_profile",
 })
-FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root"})
+FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root", "set"})
+
+# --set may tune only placer and router settings that no dedicated option or
+# recipe field owns. A dedicated option the builder omits at its default
+# would not conflict inside nextpnr, so --set could silently replace its
+# recorded value. Constraints (sdc/*, timing/*, target_freq), the seed, the
+# device and the FES boundary settings stay with their own recipe inputs.
+_SETTABLE_PREFIXES = ("placerHeap/", "placer1/", "router/", "router1/", "router2/", "gpurouter/")
+_DEDICATED_SETTINGS = frozenset({
+    "placer1/constraintWeight", "placer1/startTemp", "placerHeap/alpha",
+    "placerHeap/beta", "placerHeap/criticalityExponent",
+    "placerHeap/timingWeight", "placerHeap/cellPlacementTimeout",
+    "placerHeap/noCtrlSet", "placerHeap/parallelRefine", "router/tmg_ripup",
+    "router2/heatmap", "router2/profilePath", "router2/alt-weights",
+    "gpurouter/device", "gpurouter/cpu", "gpurouter/required",
+    "gpurouter/perfProfile", "gpurouter/maxBatches",
+    "gpurouter/telemetryPath", "gpurouter/telemetrySeed",
+})
+_SETTING_KEY = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\Z")
 
 # gpu-run's environment is normally removed by the functional build boundary.
 # Its small, explicit marker set is admitted only after the complete lease
@@ -128,7 +151,7 @@ def _valid_flag_value(name: str, value: object) -> bool:
     if name in FLAG_BOOLEAN_FIELDS:
         return type(value) is bool
     if name in FLAG_INTEGER_FIELDS:
-        return type(value) is int and value >= 0
+        return type(value) is int and 0 <= value <= _FLAG_INTEGER_LIMITS.get(name, value)
     if name in FLAG_INTEGER_OR_UNSET_FIELDS:
         return value == "unset" or (type(value) is int and value >= 0)
     if name in FLAG_NUMBER_FIELDS:
@@ -148,16 +171,62 @@ def _valid_flag_value(name: str, value: object) -> bool:
     return False
 
 
+def _valid_settings(flags: Mapping[str, object]) -> bool:
+    """Accept only unique key=value settings that no other recipe input owns."""
+    keys = []
+    for item in flags.get("set", ()):
+        key, separator, value = item.partition("=")
+        keys.append(key)
+        if (not separator or not value or _SETTING_KEY.fullmatch(key) is None
+                or not key.startswith(_SETTABLE_PREFIXES) or key in _DEDICATED_SETTINGS):
+            return False
+    gpu_opt_keys = {"gpurouter/" + item.partition("=")[0] for item in flags.get("gpu_opt", ())}
+    return len(keys) == len(set(keys)) and not set(keys) & gpu_opt_keys
+
+
+def _valid_cohort_options(flags: Mapping[str, object]) -> bool:
+    """Reject cohort combinations nextpnr refuses only after loading the design."""
+    # A cohort report guides a positive repair budget; the model export
+    # calibrates the unrepaired baseline, so it needs budget 0.
+    budget = flags.get("critical_cohort_budget", 0)
+    return not ((flags.get("critical_cohort_report", "unset") != "unset" and budget == 0)
+                or (flags.get("critical_cohort_model_out", "unset") != "unset" and budget != 0))
+
+
 if (FLAG_BOOLEAN_FIELDS | FLAG_INTEGER_FIELDS | FLAG_INTEGER_OR_UNSET_FIELDS
-        | FLAG_NUMBER_FIELDS | FLAG_STRING_FIELDS | FLAG_LIST_FIELDS) != RECIPE_FLAGS:
-    raise RuntimeError("nextpnr recipe flag types do not cover the closed flag schema")
+        | FLAG_NUMBER_FIELDS | FLAG_STRING_FIELDS
+        | FLAG_LIST_FIELDS) != {name for defaults in NEXTPNR_PINS.values() for name in defaults}:
+    raise RuntimeError("nextpnr recipe flag types do not cover every classified pin's options")
+if any(not _valid_flag_value(name, value) for defaults in NEXTPNR_PINS.values()
+       for name, value in defaults.items()):
+    raise RuntimeError("a classified nextpnr default does not satisfy its option type")
 
 
 class RecipeError(ValueError):
     """A registered producer disagrees with its pinned P&R recipe."""
 
 
-def _registry() -> tuple[dict, dict[str, dict]]:
+def _lock_nextpnr(core_id: str, relative: object) -> str:
+    """Return the classified nextpnr commit pinned by a recipe's own lock."""
+    if (not isinstance(relative, str) or not relative or relative.startswith("/")
+            or any(part in ("", ".", "..") for part in relative.split("/"))):
+        raise RecipeError(f"{core_id}: invalid toolchain lock path")
+    try:
+        # The selected core's lock is a pinned producer input and authenticates
+        # its toolchain slot; other cores' locks are only validated here.
+        from scripts.functional_execution import read_execution_data
+        lock = tomllib.loads(read_execution_data(
+            FES_ROOT / "sources/misteross" / relative).decode("utf-8"))
+        commit = lock["tool"]["nextpnr"]["commit"]
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, KeyError, TypeError) as exc:
+        raise RecipeError(f"{core_id}: cannot read the nextpnr pin in {relative}: {exc}") from exc
+    if commit not in NEXTPNR_PINS:
+        raise RecipeError(
+            f"{core_id}: {relative} pins nextpnr {commit!r}, which has no classified option schema")
+    return commit
+
+
+def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
     try:
         # The selected table is sealed into every registered producer record
         # with recipe_digest(). Use the narrow capture helper so a functional
@@ -171,6 +240,7 @@ def _registry() -> tuple[dict, dict[str, dict]]:
         raise RecipeError("unsupported P&R recipe registry")
     entries = document["recipes"]
     recipes = {}
+    pins = {}
     for entry in entries:
         core_id = entry.get("core_id")
         pnr = entry.get("pnr")
@@ -178,9 +248,15 @@ def _registry() -> tuple[dict, dict[str, dict]]:
             raise RecipeError("every registered core must have a [recipes.pnr] table")
         if set(pnr) != RECIPE_FIELDS:
             raise RecipeError(f"{core_id}: P&R fields differ from the closed schema")
-        if not isinstance(pnr["flags"], dict) or set(pnr["flags"]) != RECIPE_FLAGS:
-            raise RecipeError(f"{core_id}: every pinned nextpnr option must be classified")
-        if any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items()):
+        pin = _lock_nextpnr(core_id, entry.get("lock_path"))
+        options = set(NEXTPNR_PINS[pin])
+        if not isinstance(pnr["flags"], dict) or set(pnr["flags"]) != options:
+            listed = set(pnr["flags"]) if isinstance(pnr["flags"], dict) else set()
+            raise RecipeError(
+                f"{core_id}: the flags must classify exactly the options of nextpnr {pin[:8]}; "
+                f"missing {sorted(options - listed)}, unknown {sorted(listed - options)}")
+        if (any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items())
+                or not _valid_settings(pnr["flags"]) or not _valid_cohort_options(pnr["flags"])):
             raise RecipeError(f"{core_id}: invalid nextpnr option value")
         if (not all(isinstance(pnr[key], list) and pnr[key]
                     for key in ("seeds", "timing_weights", "search_weights", "clocks"))
@@ -221,17 +297,28 @@ def _registry() -> tuple[dict, dict[str, dict]]:
         if core_id in recipes:
             raise RecipeError(f"duplicate P&R recipe for {core_id}")
         recipes[core_id] = pnr
+        pins[core_id] = pin
     if not recipes:
         raise RecipeError("P&R recipe registry is empty")
-    return document, recipes
+    return document, recipes, pins
+
+
+def _selected(core_id: str) -> tuple[dict, str]:
+    registry = _registry()
+    try:
+        return registry[1][core_id], registry[2][core_id]
+    except KeyError as exc:
+        raise RecipeError(f"unknown P&R recipe {core_id!r}") from exc
 
 
 def recipe_for(core_id: str) -> dict:
     """Return one validated P&R table from config/core-recipes.toml."""
-    try:
-        return _registry()[1][core_id]
-    except KeyError as exc:
-        raise RecipeError(f"unknown P&R recipe {core_id!r}") from exc
+    return _selected(core_id)[0]
+
+
+def nextpnr_pin(core_id: str) -> str:
+    """Return the classified nextpnr commit that a registered core's lock pins."""
+    return _selected(core_id)[1]
 
 
 def recipe_digest(core_id: str) -> str:
@@ -262,12 +349,12 @@ def _path(value: str | Path) -> str:
     return os.fspath(value)
 
 
-def _flag_arguments(flags: Mapping[str, object]) -> tuple[str, ...]:
-    """Serialize only explicitly nondefault options, preserving today's argv."""
+def _flag_arguments(flags: Mapping[str, object], defaults: Mapping[str, object]) -> tuple[str, ...]:
+    """Serialize only values that differ from the pinned nextpnr's defaults."""
     arguments: list[str] = []
-    for name in sorted(RECIPE_FLAGS):
+    for name in sorted(defaults):
         value = flags[name]
-        if value == CURRENT_FLAGS[name]:
+        if value == defaults[name]:
             continue
         option = "--" + name.replace("_", "-")
         if name in FLAG_BOOLEAN_FIELDS:
@@ -328,6 +415,9 @@ def argv(
     """Build the complete nextpnr command for a registered FES producer."""
     recipe = recipe_for(core_id)
     flags = recipe["flags"]
+    defaults = NEXTPNR_PINS[nextpnr_pin(core_id)]
+    if set(flags) != set(defaults):
+        raise RecipeError(f"{core_id}: the flags do not classify its lock's nextpnr options")
     if device != "5CSEBA6U23I7":
         raise RecipeError(f"{core_id}: unexpected target device {device!r}")
     if extra and tuple(extra) != tuple(recipe["extra"]):
@@ -399,7 +489,7 @@ def argv(
     # emitted so the initial recipes retain their exact producer argv.
     if recipe["threads"] != 1 or flags["parallel_refine"]:
         command.extend(("--threads", str(recipe["threads"])))
-    command.extend(_flag_arguments(flags))
+    command.extend(_flag_arguments(flags, defaults))
     return tuple(command)
 
 

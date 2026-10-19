@@ -399,7 +399,8 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 		if err != nil {
 			return romLinkResult{}, err
 		}
-		final, overlay, programmed, err := expansion.ComposePartsROM(ctx, shell, in.Parts, m, in.ROM)
+		parts := orderedROMParts(in.Parts)
+		final, overlay, programmed, err := expansion.ComposePartsROM(ctx, shell, parts, m, in.ROM)
 		if err != nil {
 			return romLinkResult{}, err
 		}
@@ -409,7 +410,7 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 			return romLinkResult{}, err
 		}
 		result.programmed = programmed
-		result.parts = &PartsBundle{Package: in.Package, Assets: orderedROMParts(in.Parts), Composition: final, Payload: overlay}
+		result.parts = &PartsBundle{Package: in.Package, Assets: parts, Composition: final, Payload: overlay}
 		receipt.PartsComposition = &final
 		receipt.ProgrammedSHA256, receipt.ProgrammedSize = romDigest(programmed), int64(len(programmed))
 	case slotErr == nil:

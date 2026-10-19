@@ -170,26 +170,18 @@ def load_recipes(path=REGISTRY_PATH):
             "env", "optional_env", "unset_env", "compress_rbf",
             "detailed_timing_report", "flags",
         }
-        pnr_flags = {
-            "randomize_seed", "placer", "cstrweight", "starttemp", "pack_only",
-            "no_route", "no_place", "no_pack", "ignore_loops", "ignore_rel_clk",
-            "no_tmdriv", "sdf_cvc", "no_print_critical_path_source",
-            "placer_heap_alpha", "placer_heap_beta", "placer_heap_cell_placement_timeout",
-            "placer_heap_no_ctrl_set", "static_dump_density", "parallel_refine",
-            "router2_heatmap", "tmg_ripup", "router2_tmg_ripup", "router2_alt_weights",
-            "gpu_batches", "gpu_cpu", "gpu_perf", "gpu_telemetry", "gpu_opt",
-            "timing_report_paths", "seed_racing_contract", "fes_scaffold", "fes_cart",
-            "fes_cart_region", "fes_slot_clock", "fes_cram_region", "mistral_ff4",
-            "mistral_clkb", "replicate_enables", "remap_critical", "remap_optimize_pins",
-            "remap_preserve_ffs", "remap_plan", "remap_post_plan", "remap_comb_critical",
-            "remap_comb_candidate", "remap_comb_plan", "remap_decompose_critical",
-            "remap_decompose_candidate", "remap_lut_pair_critical", "remap_lut_pair_candidate",
-            "remap_lut_pair_compose_copy", "remap_lut_driver_critical",
-            "remap_lut_driver_candidate", "remap_candidate", "remap_groups",
-            "balance_reduction_root",
-        }
-        if set(pnr) != pnr_fields or not isinstance(pnr.get("flags"), dict) or set(pnr["flags"]) != pnr_flags:
-            raise ValueError("P&R recipe fields or nextpnr option coverage are incomplete")
+        if set(pnr) != pnr_fields:
+            raise ValueError("P&R recipe fields are incomplete")
+        # Which options a recipe must list depends on the nextpnr its own lock
+        # pins; sources/misteross/scripts/pnr_recipe.py owns each classified
+        # pin's closed option schema and validates every recipe against it.
+        flags = pnr["flags"]
+        if (not isinstance(flags, dict) or not flags
+                or any(not re.fullmatch(r"[a-z][a-z0-9_]*", name) for name in flags)
+                or any(type(value) not in (bool, int, float, str, list)
+                       or (type(value) is list and any(not isinstance(item, str) for item in value))
+                       for value in flags.values())):
+            raise ValueError("invalid nextpnr option table")
         if (not all(isinstance(pnr[key], list) and pnr[key]
                     for key in ("seeds", "timing_weights", "search_weights", "clocks"))
                 or any(type(value) is not int or value < 0 for value in pnr["seeds"])

@@ -1,5 +1,13 @@
 # Working in FES
 
+## Rules for all agents
+
+Never rebase, force-push, or amend pushed commits on any PR branch or main. Update a PR branch by merging main into it. Don't push to a PR branch you weren't asked to work on.
+
+Never pin a GPU vendor.
+
+Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -101,7 +109,7 @@ never infer persistence from a display name, package path or raw RBF.
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.
   Do not put another task's release in place of that baseline, require matching
-  host commits, or use file overlays on a managed kit.
+  host commits, or put file overlays on a kit.
 - A build never authorizes deployment. Kits A and B are both designated test
   kits and are interchangeable. Claim one in its status file and hold the
   session described in [kit sharing](docs/kit-sharing.md). Never bypass
