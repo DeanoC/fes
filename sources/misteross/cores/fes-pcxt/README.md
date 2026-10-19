@@ -8,8 +8,10 @@ PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a trans
 HID keyboard frontend, disk controller, BIOS, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
-command interface in host simulation. The CGA Direct board diagnostic has
-passing routed internal clocks; SDRAM pad timing and hardware remain unqualified.
+command interface in host simulation. The CGA Direct board diagnostic has no
+accepted timing result: the earlier native signoff was rejected by the
+[Quartus cross-check](https://github.com/DeanoC/fes/issues/840).
+SDRAM pad timing and hardware remain unqualified.
 
 ## SDRAM storage
 
