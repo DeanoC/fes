@@ -36,11 +36,13 @@ module st_acia #(
     wire bus_first = bus_req && !bus_ack;
     wire control_reset = bus_first && bus_write && !bus_reg && bus_wdata[1:0] == 2'b11;
     wire data_read = bus_first && !bus_write && bus_reg;
-    wire [6:0] divider = control[1:0] == 0 ? 7'd1 :
-                        control[1:0] == 1 ? 7'd16 : 7'd64;
     wire [3:0] frame_bits = control[4:2] == 2 || control[4:2] == 3 ||
                             control[4:2] == 5 ? 4'd10 : 4'd11;
-    wire [9:0] character_ticks = 10'(divider) * 10'(frame_bits);
+    // Divide-by-1/16/64 times frame_bits takes six values; a table keeps this out of a DSP
+    // block when synthesis maps multipliers.
+    wire [9:0] character_ticks = control[1:0] == 0 ? 10'(frame_bits) :
+                                 control[1:0] == 1 ? {2'b00, frame_bits, 4'b0000} :
+                                                     {frame_bits, 6'b000000};
     wire tdre = !transmit_full && !master_reset;
     wire parity_selected = control[4:2] != 4 && control[4:2] != 5;
     assign irq = !reset && !master_reset &&
