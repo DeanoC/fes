@@ -6,8 +6,7 @@ merge.
 
 **Audience:** FES parent, FogCast (host/tenfoot/rooms/kit), libmister-runtime
 idle lifecycle, and later mister-packages / misteross ABI work. Read this
-before replacing `LoadIdle()`, the locked idle RBF, `fogcast-kit`, or kit HDMI
-chrome.
+before replacing `LoadIdle()`, the locked idle RBF, or kit HDMI chrome.
 
 **Related:**
 
@@ -22,7 +21,6 @@ chrome.
 - Rooms product and Stop restore:
   [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)
 - Sofa tenfoot renderer, GPU park, FC2D software stub:
-  [`docs/sofa-launcher-design.md`](sofa-launcher-design.md),
   [`sources/FogCast/docs/native-tenfoot-launcher/README.md`](../sources/FogCast/docs/native-tenfoot-launcher/README.md),
   [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md)
 - Launch composition (slots, not idle):
@@ -39,12 +37,12 @@ chrome.
 
 ## Why this exists
 
-The living-room product is rooms on the FogCast host/tenfoot renderer. The
-kit HDMI path is still the sealed MiSTer MENU core plus `fogcast-kit` drawing
-a separate catalog on the HPS framebuffer. Stop restores the room on the
-sofa and restores MENU plus the kit grid on HDMI. That is two UIs, two idle
-stories, and a leftover Menu bitstream after the Main_MiSTer process is
-already gone.
+The living-room product is rooms on the FogCast host/tenfoot renderer. When
+this lock was written, the kit HDMI path was the sealed MiSTer MENU core plus
+a separate `fogcast-kit` grid catalog on the HPS framebuffer. Stop restored the
+room on the sofa and MENU plus the kit grid on HDMI. That was two UIs, two idle
+stories, and a leftover Menu bitstream after the Main_MiSTer process was
+already gone. The grid has since been removed (#728).
 
 This lock replaces that dual path with one rooms-driven idle through FES
 ABI packages. Cold-boot splash stays board firmware. Attract becomes an ABI.
@@ -112,8 +110,7 @@ Strawman default (edit here if wrong): the usual living-room topology stays
 a sofa/PC FogCast host plus a kit that is the FPGA/target. When there is no
 sofa/PC, the kit may run that same host/tenfoot process locally. That is a
 deployment mode of the existing host, not a new catalog product.
-`fogcast-kit`’s on-kit grid is the path that retires toward rooms, not a
-permanent offline UI.
+The on-kit grid launcher has been removed (#728); tenfoot is the only kit UI.
 
 ### 4. Video ownership
 
@@ -126,7 +123,7 @@ Near term: tenfoot keeps its custom renderer. Rooms already use it. It
 **yields when a core runs** and **restarts on Stop/exit**, the same
 lifecycle as today’s sofa GPU park
 (`sources/FogCast/docs/native-tenfoot-launcher/README.md` GPU park;
-`ui/kitlauncher/run.go` skips present while `session.State == "active"`).
+tenfoot pauses menu-display presents while a core runs).
 
 Do not claim the accelerator or FC2D HDMI path is implemented.
 
@@ -140,7 +137,7 @@ the locked product, reached across the phases below.
 | **Cold boot** | U-Boot programs FAT `/menu.rbf` (sealed Menu). Linux then `LoadIdle()`s the same bytes as `/usr/share/mister-runtime/idle.rbf`. | U-Boot loading splash RBF: logo + movement. Board firmware, not rooms, not a play package. |
 | **Idle / attract** | MENU core + HPS framebuffer. Sofa: tenfoot rooms (and optional host attract playlist). Kit HDMI: `fogcast-kit` cover grid / kit attract stills on linuxfb. | Factory default attract ABI package on the FPGA. Rooms may later override with their own attract package. Not stock MENU chrome. |
 | **Between games / Stop** | Runtime `LoadIdle()` → MENU + HPS fb. Sofa restores the room and unparks tenfoot. Kit HDMI returns to MENU + kit grid, not the room. | Same rooms surface as before launch, through one tenfoot renderer. Runtime Stop idle is a defined idle (splash or attract), not Menu’s file browser. Renderer yields during play and restarts after Stop. |
-| **Host-down** | Kit needs the workstation host for catalogue/launch (`sofa-launcher-design.md`). HDMI still has MENU; launcher shows connecting/retry. Sofa without a kit is the host UI only. | No second offline catalog. Sofa topology: connecting/retry on the existing renderer, not a kit-cache UI. Kit-as-host topology: the kit *is* the host, so “host-down” is that process down — splash/defined idle, then the same tenfoot once it is back. |
+| **Host-down** | Kit needs the workstation host for catalogue/launch. HDMI still has MENU; launcher shows connecting/retry. Sofa without a kit is the host UI only. | No second offline catalog. Sofa topology: connecting/retry on the existing renderer, not a kit-cache UI. Kit-as-host topology: the kit *is* the host, so “host-down” is that process down — splash/defined idle, then the same tenfoot once it is back. |
 | **Debug fb** | Production kit UI is `/dev/fb0` over MENU (`LinuxFramebuffer`, `gfx.OpenLinuxFB`). Overlay is flaky. | Near term: tenfoot may still use linuxfb where HDMI UI has no other path. Long term: `/dev/fb0` is debug-only once a graphics-accelerator ABI owns the framebuffer. |
 
 ## Artifact classes
@@ -181,9 +178,9 @@ Target, kit-as-host (no sofa/PC)
   still one catalog: rooms, not fogcast-kit
 ```
 
-`fogcast-kit` (`cmd/fogcast-kit`, `ui/kitlauncher`, base software supervisor `S40fes-kit-software`)
-is the current on-kit catalog. It retires toward rooms. Do not extend it
-into an offline cache UI or a second library.
+The base software supervisor `S40fes-kit-software` starts `fogcast-tenfoot`
+as the only on-kit UI; the `fogcast-kit` grid catalog was removed (#728). Do
+not add an offline cache UI or a second library on the kit.
 
 Kit-as-host is optional. It does not replace the sofa host for the usual
 living-room setup. It exists so a kit alone still runs **the same** host
@@ -203,7 +200,7 @@ product.
 | --- | --- | --- |
 | **1 — this document** | Locked split: splash vs attract ABI vs play vs (later) room RBF vs (later) accelerator. Visible contract. Process model. | Code, new RBF, ABI bytes, kit time |
 | **2 — shrink idle** | Distinct U-Boot splash RBF. Stop/`LoadIdle()` no longer brings up stock MENU chrome. Defined Stop idle (splash or an explicit non-Menu idle) so HDMI is honest while Linux/tenfoot start. Execution: [`idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md). | Attract ABI, rooms on kit HDMI, accelerator, FC2D hardware |
-| **3 — single launcher** | Rooms through one tenfoot renderer on sofa and on kit-as-host. `fogcast-kit` catalog path retires toward that renderer. Stop restores the room on the surface that launched, including kit HDMI. | A second offline catalog; room custom RBF; claiming linuxfb is gone |
+| **3 — single launcher** | Rooms through one tenfoot renderer on sofa and on kit-as-host. The `fogcast-kit` grid catalog is removed (#728). Stop restores the room on the surface that launched, including kit HDMI. | A second offline catalog; room custom RBF; claiming linuxfb is gone |
 | **4 — default attract ABI** | Factory default attract package on a described ABI. Runtime loads it as idle/attract through the package path. Room override hooks exist so a room can select a different attract package later. | Room-authored custom RBF as a general bitstream; graphics accelerator |
 | **5 — later** | Graphics-accelerator ABI owns the framebuffer; `/dev/fb0` debug-only; room custom RBF allowed as an explicit rooms feature | A compositor stack; treating FC2D software replay as done hardware |
 
@@ -255,10 +252,9 @@ implementation follow-ups inside the classes above.
 | [`docs/README.md`](README.md) | Index (Proposals) |
 | [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md) | Phase 2 execution brief (does not reopen this lock) |
 | [`docs/component-boundaries.md`](component-boundaries.md) | Host vs runtime vs image vs FPGA builder |
-| [`docs/image-assembly.md`](image-assembly.md) | FES `image/` owns idle install; FogCast supplies `fogcast-kit` |
+| [`docs/image-assembly.md`](image-assembly.md) | FES `image/` owns idle install; FogCast supplies the kit binaries |
 | [`docs/core-packages.md`](core-packages.md) | Described play packages; locked idle RBF is current assembly |
 | [`docs/bootable-media.md`](bootable-media.md) | FAT `/menu.rbf` vs rootfs `idle.rbf`; no Main process |
-| [`docs/sofa-launcher-design.md`](sofa-launcher-design.md) | Current kit HDMI grid + MENU HPS framebuffer |
 | [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md) | Launch slots; not idle |
 | [`docs/zx81-tape-media.md`](zx81-tape-media.md) | Mid-session ZX81 tape (Phase 3); not idle |
 | [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md) | Rooms UI; Stop restores room on the sofa |

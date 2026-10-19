@@ -8,7 +8,7 @@ coordinator, and target/input lease owner.
 Pass `--launcher-config /absolute/private/launcher-host.json` to `fogcast-api`.
 On a machine with no local sofa UI, also pass `--headless` so FPGA launches do
 not start the optional V4L2/FFmpeg session preview. Catalog, attract, and
-session routes stay on this listener; `fogcast-kit` reconnects with the
+session routes stay on this listener; kit tenfoot reconnects with the
 existing `launcher.json` API URL for those. Kit-local play input does not use
 this listener.
 
@@ -85,12 +85,10 @@ configured name in its `{"target":"name"}` body. An unconfigured explicit
 name returns `404 TARGET_NOT_FOUND` (`target is not configured`). A configured
 but unreachable target keeps the existing `503 TARGET_UNAVAILABLE` behavior
 for session and status reads.
-An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
-catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
-`Offline, showing your saved list`. Local D-pad/A still browse that snapshot. Offline
-launch and Stop are disabled or unavailable until the configured host API
-reconnects. The kit process never claims a target lease or calls a direct target
-launch path; all lifecycle mutations go through the persistent host session API.
+Host launch and Stop are unavailable until the configured host API reconnects.
+For host titles the kit process never claims a target lease or calls a direct
+target launch path; those lifecycle mutations go through the persistent host
+session API.
 
 Allowed operations are:
 
@@ -135,7 +133,7 @@ Allowed operations are:
 - `POST /api/v1/session/stop` with no body, scoped to the paired kit. An optional
   `target` field must match the paired kit.
 - `POST /api/v1/launcher/input?session_id=<session_id>` remains the host
-  listener's controller stream. `fogcast-kit` does not call it for a gamepad
+  listener's controller stream. Kit tenfoot does not call it for a gamepad
   or USB keyboard plugged into the kit. Those devices write raw input frames
   to `/run/fogcast/local-input.sock` while a runtime core is bound.
 
@@ -196,6 +194,6 @@ a later game. The stream connection is closed rather than reused.
 
 A client that opens this route must monitor stream completion, re-read current
 session status, and establish a fresh source after reconnect. It must discard
-queued input across that boundary. fogcast-kit does not open this route for
+queued input across that boundary. Kit tenfoot does not open this route for
 kit-local pads or keyboards. Its Stop chord remains `POST /api/v1/session/stop`.
 Failures of that Stop stay visible and retain the retry path.

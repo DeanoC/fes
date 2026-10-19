@@ -30,12 +30,12 @@ endif
 GO_RACE_TIMEOUT ?= 30m
 GO_TEST_FLAGS ?= -short
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
-test: build-agent test-ui test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix
+test: build-agent test-ui test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix
 	cd appliance && $(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) $(GO_TEST_FLAGS) ./...
 	$(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) $(GO_TEST_FLAGS) ./...
 	sh scripts/tests/fogcast-build_test.sh
@@ -65,12 +65,6 @@ test-target-boundary-rg-failure:
 
 test-target-boundary-host-prefix:
 	sh scripts/tests/target-boundary-host-prefix_test.sh
-
-test-ui-kit-tenfoot-boundary:
-	sh scripts/tests/ui-kit-tenfoot-boundary_test.sh
-
-test-ui-kit-tenfoot-boundary-prefix:
-	sh scripts/tests/ui-kit-tenfoot-boundary-prefix_test.sh
 
 test-ui-browser:
 	node --test internal/hostapi/ui_browser_test.js
@@ -118,20 +112,6 @@ tenfoot-cgo-env:
 
 tenfoot-smoke: build-fogcast-tenfoot
 	bin/fogcast-tenfoot -smoke -no-attract -api http://127.0.0.1:8787
-
-# CGO-free ARMv7 linuxfb spike: software rasterizer Present-blits to /dev/fb0
-# and reads evdev/joystick input (move cursor, quit on Start/ESC/Q).
-# No SDL3 tag. Same GOOS/GOARCH/GOARM lane as mister-agent-linux-armv7.
-build-tenfoot-linuxfb-spike:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/tenfoot-linuxfb-spike-linux-armv7 ./cmd/tenfoot-linuxfb-spike
-
-# CGO-free ARMv7 linuxfb fake cover-grid: software Present-blits to /dev/fb0,
-# navigates a hardcoded title grid, confirms with South/Enter, quits on Start.
-# No SDL3 tag. Same GOOS/GOARCH/GOARM lane as mister-agent-linux-armv7.
-build-tenfoot-linuxfb-grid:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/tenfoot-linuxfb-grid-linux-armv7 ./cmd/tenfoot-linuxfb-grid
 
 build-cli:
 	mkdir -p bin
