@@ -10,7 +10,10 @@ import (
 // presentHold pauses a menu-display device while a local core owns HDMI.
 // The first paused snapshot is still presented so the starting line is
 // submitted once. Later frames are skipped. Resume forgets the last frame
-// so the next present is sent on the new menu generation.
+// so the next present is sent on the new menu generation. A launch waits
+// until that loading frame was presented and aborts if it was not. Late
+// adoption submits nothing: it drains outstanding work and pauses, and an
+// older menu failure does not block that pause.
 type presentHold struct {
 	armed  bool
 	paused bool
@@ -39,7 +42,7 @@ func (h *presentHold) skip(ctx context.Context, dev gfx.Device, snap Snapshot) (
 						parent = context.Background()
 					}
 					pauseCtx, cancel := context.WithTimeout(parent, 2*time.Second)
-					err := md.WaitIdle(pauseCtx)
+					err := md.WaitPending(pauseCtx)
 					if err == nil {
 						err = md.Pause(pauseCtx)
 					}
