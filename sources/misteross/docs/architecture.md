@@ -125,9 +125,16 @@ claimed by these host-side identity and exporter tests.
 ## Per-core place-and-route recipes
 
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
-table and a `cores/<core>/toolchain.lock`. The step-1 locks are byte copies
-of `toolchain.lock`, so they select the existing pinned nextpnr `9128800f`
-slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+table and a `cores/<core>/toolchain.lock`, and each lock pins its own
+nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
+(`NEXTPNR_PINS`: `9128800f` and `552ba246`). A recipe's
+`[recipes.pnr.flags]` must list exactly the options of its own lock's
+nextpnr, including options left at their default, and only values that
+differ from that nextpnr's defaults reach argv. A lock on an unclassified
+nextpnr fails validation, so moving a lock to a newer nextpnr starts by
+classifying the options it adds. Each distinct lock selects its own cached
+toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
+nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.

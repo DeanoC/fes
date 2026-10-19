@@ -2,6 +2,7 @@
 import ast
 import hashlib
 import json
+import re
 import tempfile
 import tomllib
 import unittest
@@ -22,8 +23,36 @@ ENV = {
     "LC_ALL": "C",
     "TZ": "UTC",
 }
-LOCK_SHA256 = "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8"
-FLAGS_SHA256 = "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f"
+# Each registered core's own toolchain.lock. A per-core bump changes only its
+# core's entry here, plus that core's recipe and argv goldens.
+LOCK_SHA256 = {
+    "fes.menu": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.pong": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.zx81": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.coleco": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.apple2": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.c64": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.riscv": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+}
+# sha256 of each classified nextpnr pin's option defaults. No recipe records a
+# nondefault option yet, so each flags table hashes to its own lock's entry.
+FLAGS_SHA256 = {
+    pnr_recipe.NEXTPNR_9128800F: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
+    pnr_recipe.NEXTPNR_552BA246: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+}
+# The options nextpnr 552ba246 adds over 9128800f, from a diff of the two
+# binaries' --help option lists.
+ADDED_552BA246 = {
+    "arrival_pin_assignment", "isolated_lut_placement", "critical_cohort_budget",
+    "critical_cohort_report", "critical_cohort_model_out", "gpu_required",
+    "mistral_dsp_signed_lanes", "router2_profile", "set",
+}
 
 # Stable digest of each complete recipe, plus the old producer command's
 # normalized argv digest (slot, synth, output and GPU are fixed test values).
@@ -100,19 +129,143 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
     return command
 
 
+def _toml(value):
+    if type(value) is bool:
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return "[" + ", ".join(json.dumps(item) for item in value) + "]"
+    return json.dumps(value)
+
+
+def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
+    """Copy the registry and every lock to a temporary FES tree and pin only
+    Pong's lock to nextpnr *pin*. Pong's flags table becomes the defaults of
+    *schema* (default *pin*) less *omit*, with *values* applied, so the result
+    does not depend on Pong's current lock or recipe."""
+    root = Path(directory)
+    registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
+    for entry in registry["recipes"]:
+        lock = root / "sources/misteross" / entry["lock_path"]
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_bytes((ROOT / "sources/misteross" / entry["lock_path"]).read_bytes())
+    lock = root / "sources/misteross/cores/fes-pong/toolchain.lock"
+    text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
+                          rf'\g<1>{pin}"', lock.read_text())
+    assert count == 1
+    lock.write_text(text)
+    flags = dict(pnr_recipe.NEXTPNR_PINS[schema or pin], **(values or {}))
+    table = "".join(f"{name} = {_toml(value)}\n" for name, value in flags.items() if name not in omit)
+    source = (ROOT / "config/core-recipes.toml").read_text(encoding="utf-8")
+    start = source.index('core_id = "fes.pong"')
+    end = source.index("[[recipes]]", start + 1)
+    header = "[recipes.pnr.flags]\n"
+    first = source.index(header, start, end) + len(header)
+    assert "\n[" not in source[first:end]
+    (root / "config").mkdir()
+    registry_path = root / "config/core-recipes.toml"
+    registry_path.write_text(source[:first] + table + "\n" + source[end:], encoding="utf-8")
+    return patch.multiple(pnr_recipe, FES_ROOT=root, REGISTRY=registry_path)
+
+
 class PnrRecipeTests(unittest.TestCase):
-    def test_registered_locks_are_identical_to_the_pinned_global_lock(self):
-        base = ROOT / "sources/misteross/toolchain.lock"
-        base_bytes = base.read_bytes()
-        self.assertEqual(hashlib.sha256(base_bytes).hexdigest(), LOCK_SHA256)
+    def test_every_registered_lock_pins_its_recipes_classified_nextpnr(self):
         from scripts.lockfile import load_lock
-        self.assertEqual(load_lock(base)["nextpnr"].commit, pnr_recipe.PINNED_NEXTPNR)
         registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
         self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"]})
+        self.assertEqual(set(LOCK_SHA256), set(GOLDENS))
         for entry in registry["recipes"]:
-            with self.subTest(core=entry["core_id"]):
+            core_id = entry["core_id"]
+            with self.subTest(core=core_id):
                 lock = ROOT / "sources/misteross" / entry["lock_path"]
-                self.assertEqual(lock.read_bytes(), base_bytes)
+                self.assertEqual(lock, pnr_recipe.lock_path(ROOT / "sources/misteross", core_id))
+                self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
+                pin = load_lock(lock)["nextpnr"].commit
+                self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
+                self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
+                                 set(pnr_recipe.NEXTPNR_PINS[pin]))
+
+    def test_552ba246_classifies_exactly_its_added_options(self):
+        old = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_9128800F]
+        new = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_552BA246]
+        self.assertEqual(set(new) - set(old), ADDED_552BA246)
+        self.assertEqual({name: new[name] for name in old}, dict(old))
+        self.assertEqual(set(pnr_recipe.NEXTPNR_PINS), set(FLAGS_SHA256))
+        for pin, defaults in pnr_recipe.NEXTPNR_PINS.items():
+            self.assertEqual(hashlib.sha256(json.dumps(
+                dict(defaults), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                FLAGS_SHA256[pin])
+
+    def test_a_552ba246_recipe_must_set_every_added_option(self):
+        pin = pnr_recipe.NEXTPNR_552BA246
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
+                directory, pin, schema=pnr_recipe.NEXTPNR_9128800F):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "missing .*arrival_pin_assignment"):
+                pnr_recipe.recipe_for("fes.pong")
+        for name in sorted(ADDED_552BA246):
+            with self.subTest(omitted=name), tempfile.TemporaryDirectory() as directory, \
+                    _pong_on_nextpnr(directory, pin, omit=(name,)):
+                with self.assertRaisesRegex(pnr_recipe.RecipeError, f"missing \\['{name}'\\]"):
+                    pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)
+        menu = pnr_recipe.nextpnr_pin("fes.menu")
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(directory, pin):
+            self.assertEqual(pnr_recipe.nextpnr_pin("fes.pong"), pin)
+            self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), menu)
+            recipe = pnr_recipe.recipe_for("fes.pong")
+            # Defaults reach no argv, so the added options leave it unchanged.
+            self.assertEqual(list(pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)),
+                             _legacy_argv("fes.pong", recipe, seed=1))
+
+    def test_9128800f_recipes_reject_options_their_nextpnr_lacks(self):
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
+                directory, pnr_recipe.NEXTPNR_9128800F, values={"arrival_pin_assignment": False}):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, r"unknown \['arrival_pin_assignment'\]"):
+                pnr_recipe.recipe_for("fes.pong")
+
+    def test_a_lock_on_an_unclassified_nextpnr_is_rejected(self):
+        unclassified = "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7"
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
+                directory, unclassified, schema=pnr_recipe.NEXTPNR_552BA246):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "no classified option schema"):
+                pnr_recipe.recipe_digest("fes.menu")
+
+    def test_552ba246_options_reach_argv_when_set(self):
+        values = {
+            "arrival_pin_assignment": True, "isolated_lut_placement": True,
+            "critical_cohort_budget": 4, "critical_cohort_report": "prior/timing.json",
+            "gpu_required": True, "mistral_dsp_signed_lanes": True,
+            "router2_profile": "profile.json",
+            "set": ["gpurouter/repairBbExpand=4", "placerHeap/netShareWeight=0.5"],
+        }
+        with tempfile.TemporaryDirectory() as directory, \
+                _pong_on_nextpnr(directory, pnr_recipe.NEXTPNR_552BA246, values=values):
+            recipe = pnr_recipe.recipe_for("fes.pong")
+            command = list(pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT))
+        legacy = _legacy_argv("fes.pong", recipe, seed=1)
+        self.assertEqual(command[:len(legacy)], legacy)
+        self.assertEqual(command[len(legacy):], [
+            "--arrival-pin-assignment", "--critical-cohort-budget", "4",
+            "--critical-cohort-report", "prior/timing.json", "--gpu-required",
+            "--isolated-lut-placement", "--mistral-dsp-signed-lanes",
+            "--router2-profile", "profile.json",
+            "--set", "gpurouter/repairBbExpand=4", "--set", "placerHeap/netShareWeight=0.5",
+        ])
+
+    def test_552ba246_settings_cannot_replace_another_recipe_input(self):
+        rejected = (
+            {"set": ["seed=1"]}, {"set": ["target_freq=10"]}, {"set": ["sdc/clock/clk_sys=net"]},
+            {"set": ["sdc/period/clk_sys=30"]}, {"set": ["timing/allowFail=1"]},
+            {"set": ["placerHeap/alpha=0.5"]}, {"set": ["router2/profilePath=x.json"]},
+            {"set": ["gpurouter/device=1"]}, {"set": ["mistral/ff4=1"]}, {"set": ["fes/slot_clock=x"]},
+            {"set": ["gpurouter/maxIter"]}, {"set": ["gpurouter/maxIter="]}, {"set": ["=1"]},
+            {"set": ["gpurouter/maxIter=1", "gpurouter/maxIter=2"]},
+            {"set": ["gpurouter/maxIter=1"], "gpu_opt": ["maxIter=2"]},
+            {"critical_cohort_budget": 65},
+        )
+        for values in rejected:
+            with self.subTest(values=values), tempfile.TemporaryDirectory() as directory, \
+                    _pong_on_nextpnr(directory, pnr_recipe.NEXTPNR_552BA246, values=values):
+                with self.assertRaisesRegex(pnr_recipe.RecipeError, "invalid nextpnr option value"):
+                    pnr_recipe.recipe_for("fes.pong")
 
     def test_recipe_and_legacy_argv_goldens_for_every_registered_producer(self):
         for core_id, (recipe_sha, argv_sha) in GOLDENS.items():
@@ -121,7 +274,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                self.assertEqual(flags_sha, FLAGS_SHA256)
+                self.assertEqual(flags_sha, FLAGS_SHA256[pnr_recipe.nextpnr_pin(core_id)])
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)
