@@ -8,7 +8,7 @@ Baseline rows replay the original frozen netlist, SHA-256
 synthesized by Yosys `5391eeb1`. Named probes are private RTL or netlist
 experiments; their source/transform hashes are in the records. The fresh
 producer row selects committed source and its own authenticated toolchain.
-All routes use nextpnr `552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b`
+The initial 62 records use nextpnr `552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b`
 and Mistral `8fcc4cb4`. The fresh source uses Yosys `3a5accbd`.
 All keep system/ROM frequencies at 100 MHz, pixel at 74.250069 MHz and the
 original QSF/SDC. The named p90/local-ROM probes change the actual ROM PLL
@@ -148,7 +148,7 @@ inherited from the rejected artifact. Raw diagnostic directories are local;
 the committed JSONL preserves commands, source/tool/artifact hashes, terminal
 states, per-clock results and the extracted Quartus checks.
 
-## Terminal result and resume boundary
+## Initial campaign stop, before the requested main comparison
 
 **Timing is not closed.** There are 62 terminal route records. Conservative
 charged work is 18,502.155 seconds (5.140 GPU-hours), leaving 3,097.845 seconds
@@ -216,3 +216,45 @@ paths deliberately. Do not replay a different netlist as the original artifact.
 A new search needs an authorized incident budget and must achieve two-of-three
 passes, then a fresh full producer build and exact-artifact Quartus qualification
 at unchanged frequencies. Hardware acceptance remains a later leased-kit step.
+
+## Requested nextpnr main comparison
+
+After the initial stop, Deano requested incorporating recent nextpnr main
+improvements. The private clean compiler checkout fast-forwarded from
+`552ba246` to `0e2eecaff44533c31fbaea5220ca2ecaf1107279`, retaining
+Mistral `8fcc4cb4`. The new compiler is a private Release/HIP diagnostic build,
+not a promoted authenticated toolchain slot. The core lock remains unchanged.
+[nextpnr #234](https://github.com/DeanoC/nextpnr/pull/234) adds analogue
+improvement after native signoff has passed; it leaves failing routes alone.
+The other new commit affects GateMate CI only.
+
+Each replay copies its retained `synth.json` byte for byte and changes only the
+compiler executable in argv. No RTL, placement, phase, clock constraint, seed or
+router setting is changed. Five focused host tests pass, including all three
+new analogue-improvement tests. The full nextpnr test suite was not rerun.
+
+| Recipe / seed | Native system MHz, previous → main | Main pixel / ROM / capture MHz | Main result | RBF identical to previous |
+| --- | ---: | --- | --- | --- |
+| default / 2 | 100.030 → 101.000 | 98.020 / 150.220 / 300.842 | completed | False |
+| isolated / 1 | 100.261 → 100.261 | 105.130 / 148.030 / 326.584 | completed | False |
+| default / 1 | 91.208 → 91.208 | 84.955 / 137.799 / 250.376 | failed | True |
+| default / 3 | 88.794 → 88.794 | 112.499 / 152.189 / 270.856 | failed | True |
+
+Default seed 2 gains native system setup margin from 3 ps to 99 ps. Its
+sampled Quartus system path improves from −24 ps to **+46 ps** at Slow 100 C,
+including uncertainty; pixel and ROM remain +3.304 ns and +0.559 ns.
+All three samples also pass Slow −40 C. Isolated seed 1 retains its native
+frequencies but changes its routing. Fresh chain-verified Quartus replicas of
+those new bytes pass too: system/pixel/ROM are +0.057 / +4.119 / +0.747 ns at
+Slow 100 C, and all three pass Slow −40 C. Its carry ALM modes and sites are
+also verified. These are sampled paths retaining native clock skew, not
+whole-design STA; Quartus hold is not checked.
+
+The default recipe still passes **only one of three seeds**. Its failed seeds
+1 and 3 produce bit-identical RBFs to the previous compiler and never enter
+the improvement stage. The isolated result is a different recipe, so its
+passing seed cannot be combined with default seed 2 to satisfy the gate.
+No private recipe or source is promoted, and no fresh producer qualification
+or hardware run is claimed. #836 remains parked and #840 remains open.
+
+All 66 records are terminal. Total conservative charged work is 19,118.415 seconds (5.311 GPU-hours), leaving 2,481.585 seconds under the original six-hour cap. This follow-up did not increase the cap. The next integration step remains a repeatable structural/recipe candidate followed by a fresh producer build and exact-artifact qualification.
