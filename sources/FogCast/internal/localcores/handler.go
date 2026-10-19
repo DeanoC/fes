@@ -88,10 +88,16 @@ func launchFromRequest(service *Service, r *http.Request) (LaunchResult, error) 
 		return service.Launch(r.Context(), r.PathValue("package_id"))
 	}
 	var body struct {
+		ROMPath      string `json:"rom_path"`
 		LibraryRoot  string `json:"library_root"`
 		RelativePath string `json:"relative_path"`
 	}
 	if json.Unmarshal(data, &body) != nil {
+		return LaunchResult{}, errUnavailable
+	}
+	// rom_path was the absolute path. It is not opened. A body that still
+	// sends it must not fall through to a bare-core launch.
+	if strings.TrimSpace(body.ROMPath) != "" {
 		return LaunchResult{}, errUnavailable
 	}
 	if strings.TrimSpace(body.LibraryRoot) == "" && strings.TrimSpace(body.RelativePath) == "" {

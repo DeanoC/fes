@@ -223,6 +223,18 @@ func TestLaunchCartridgeDeliversROMWithoutLoadingTheBareCore(t *testing.T) {
 	if len(runtime.roms()) != 1 {
 		t.Fatalf("parent symlink delivered %d roms", len(runtime.roms()))
 	}
+
+	oldBody := []byte(`{"rom_path":"` + romPath + `"}`)
+	oldReq := httptest.NewRequest(http.MethodPost, "/v1/local/cores/"+smsID+"/launch", bytes.NewReader(oldBody))
+	oldResp := httptest.NewRecorder()
+	handler.ServeHTTP(oldResp, oldReq)
+	if oldResp.Code != http.StatusServiceUnavailable || errorCode(t, oldResp) != "unavailable" {
+		t.Fatalf("absolute rom_path %d %s", oldResp.Code, oldResp.Body.String())
+	}
+	loads, _ = runtime.calls()
+	if len(loads) != 0 || len(runtime.roms()) != 1 {
+		t.Fatalf("absolute rom_path launched loads=%v roms=%d", loads, len(runtime.roms()))
+	}
 }
 
 func cartridgeLaunchBody(t *testing.T, libraryRoot, relativePath string) []byte {
