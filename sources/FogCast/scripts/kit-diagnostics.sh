@@ -2,6 +2,9 @@
 # Read-only diagnostics for a BusyBox DE10-Nano kit.
 # Prints schema fogcast.kit-diagnostics.v1 as key=value on stdout.
 # Reads /proc, a few identity files, and `df -P -k` of /, /media/fat and /tmp.
+# Also reports the sha256 of /media/fat/idle.rbf when sha256sum is on PATH,
+# and idle_sha256 from /usr/share/mister-runtime/build-inputs. A missing file,
+# a symlink, or a missing sha256sum leaves that value empty.
 # Those three mounts are skipped when sysfs says the backing disk is optical
 # or has no usable media (size missing, unreadable or zero, or SCSI state
 # not ready). Does not create files,
@@ -180,6 +183,47 @@ kit_path() {
   else
     printf '/%s\n' "$rel"
   fi
+}
+
+# sha256 of one regular file. Empty when the file is missing, a symlink,
+# unreadable, or sha256sum is not on PATH. Never fails the collector.
+sha256_file() {
+  sha_path=$1
+  sha_bin=$(command -v sha256sum || true)
+  if [ -z "$sha_bin" ] || [ ! -e "$sha_path" ] || [ -L "$sha_path" ] || [ ! -f "$sha_path" ] || [ ! -r "$sha_path" ]; then
+    return 0
+  fi
+  sha_line=$("$sha_bin" "$sha_path") || return 0
+  sha_hex=${sha_line%% *}
+  case $sha_hex in
+    *[!0-9a-f]*|'') return 0 ;;
+  esac
+  [ "${#sha_hex}" -eq 64 ] || return 0
+  printf '%s\n' "$sha_hex"
+}
+
+# First idle_sha256= value of 64 lowercase hex digits. Empty otherwise.
+read_idle_sha() {
+  idle_sha256=
+  idle_file=$(kit_path /usr/share/mister-runtime/build-inputs)
+  if [ ! -e "$idle_file" ] || [ -L "$idle_file" ] || [ ! -f "$idle_file" ] || [ ! -r "$idle_file" ]; then
+    return 0
+  fi
+  idle_cr=$(printf '\r')
+  while IFS= read -r idle_line || [ -n "$idle_line" ]; do
+    case $idle_line in
+      idle_sha256=*)
+        idle_value=${idle_line#idle_sha256=}
+        idle_value=${idle_value%"$idle_cr"}
+        case $idle_value in
+          *[!0-9a-f]*|'') continue ;;
+        esac
+        [ "${#idle_value}" -eq 64 ] || continue
+        idle_sha256=$idle_value
+        return 0
+        ;;
+    esac
+  done < "$idle_file"
 }
 
 emit() {
@@ -722,6 +766,8 @@ fi
 image_id=
 image_id_source=none
 source_revision=
+fat_idle_sha256=
+idle_sha256=
 boot_ticket=/media/fat/fogcast/releases/boot.json
 read_boot_ticket "$boot_ticket" "$(kit_path "$boot_ticket")"
 take_id /etc/fes-image-id "$(kit_path /etc/fes-image-id)"
@@ -1024,6 +1070,10 @@ emit schema fogcast.kit-diagnostics.v1
 emit image_id "$image_id"
 emit image_id_source "$image_id_source"
 emit source_revision "$source_revision"
+fat_idle_sha256=$(sha256_file "$(kit_path /media/fat/idle.rbf)")
+read_idle_sha
+emit fat_idle_sha256 "$fat_idle_sha256"
+emit idle_sha256 "$idle_sha256"
 emit uptime_seconds "$uptime_seconds"
 emit load_1 "$load_1"
 emit load_5 "$load_5"

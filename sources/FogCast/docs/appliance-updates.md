@@ -42,7 +42,7 @@ migrations of save/configuration formats in this release ABI.
 
 | Target route | Request | Result |
 | --- | --- | --- |
-| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending and state integrity |
+| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending, state integrity, `fat_idle_sha256` and `idle_sha256` |
 | `POST /v1/update/stage` | Raw image, exact Content-Length, `X-FogCast-Release-Manifest` base64 JSON | Verified immutable staged manifest (201) |
 | `POST /v1/update/activate` | JSON `image_sha256` | Persist selection, flush `rebooting:true`, reboot (202) |
 | `POST /v1/update/rollback` | Empty body | Select previous, flush, reboot (202) |
@@ -83,10 +83,25 @@ images oldest first, only until the image fits, then copies the verified file
 into the release store. It keeps the factory image, known-good, previous,
 pending, trial, the `boot.json` image, and every image in the release store
 that backs a loop device. It does not change the boot selection and does not
-touch `u-boot.txt` or other boot files. If no qualifying filesystem can hold
+touch `u-boot.txt` or FAT `/idle.rbf`. If no qualifying filesystem can hold
 the upload, or the retained images still leave too little free space, staging
 returns the storage error and deletes nothing. An unreadable `boot.json`,
 corrupt selection state, or a failed loop-device scan refuses the prune.
+Prune also deletes `splashes/<image sha256>.rbf` and its `.sha256` sidecar
+with that image.
+
+Confirmation copies the running image's sealed idle core onto FAT `/idle.rbf`.
+The agent checks `/usr/share/mister-runtime/idle.rbf` against `idle_sha256` in
+`/usr/share/mister-runtime/build-inputs`, stages that file as
+`splashes/<image sha256>.rbf` in the release store, and, only after the store
+records the image as known-good, replaces `/media/fat/idle.rbf` through a
+same-directory temporary and rename. An unconfirmed trial leaves `/idle.rbf`
+unchanged, so a watchdog fallback still boots the previous image with the
+splash from the last confirmation. U-Boot programs the new splash on the
+following boot. Confirming the restored image writes that image's splash back.
+`GET /v1/update` reports `fat_idle_sha256` for the FAT file and `idle_sha256`
+for the running image record. U-Boot, the kernel, `u-boot.txt` and `/menu.rbf`
+are not rewritten.
 
 If a response is lost, inspect status; do not blindly replay activation. A pending
 selection after a failed reboot request remains visible and is attempted on the

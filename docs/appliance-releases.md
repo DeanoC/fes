@@ -154,12 +154,13 @@ rollback refer to the image actually booted.
 
 Rollback selects the previous confirmed release as a new protected trial.
 Corrupt/torn selection state chooses factory and preserves the corrupt record
-for repair. Updates never replace bootstrap, kernel, U-Boot, FAT boot files,
-credentials or saves. Recovery assumes those stable files and the card/watchdog
-hardware still work. A change to U-Boot or FAT `/idle.rbf` therefore needs new
-media ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)). A card
-provisioned with the earlier `core=menu.rbf` U-Boot keeps FAT `/menu.rbf` and
-that boot layout until it is reprovisioned; updates do not delete it.
+for repair. Updates never replace bootstrap, kernel, U-Boot, credentials or
+saves, and they do not rewrite `u-boot.txt`. Confirmation copies the confirmed
+image's sealed idle core to FAT `/idle.rbf`. Recovery assumes the stable boot
+files and the card/watchdog hardware still work. A change to U-Boot still needs
+new media ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)). A
+card provisioned with the earlier `core=menu.rbf` U-Boot keeps FAT `/menu.rbf`
+and that boot layout until it is reprovisioned; updates do not delete it.
 
 See the selected FogCast `docs/appliance-updates.md` for the target routes and
 `docs/ARCHITECTURE.md` for the bootstrap/store/coordinator source entry points.

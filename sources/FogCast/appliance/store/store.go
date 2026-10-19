@@ -118,6 +118,21 @@ func (s *Store) ImagePath(hash string) (string, error) {
 	}
 	return filepath.Join(s.root, "images", hash+".img"), nil
 }
+
+// SplashPaths returns the staged splash for hash and its sha256 sidecar.
+// Confirmation publishes the splash onto FAT /idle.rbf. Prune deletes both
+// files when it deletes the image. Names are not prefixes of each other, so
+// the kit exFAT lookup cannot alias one to the other.
+func SplashPaths(root, hash string) (rbf, digest string, err error) {
+	if !release.ValidHash(hash) {
+		return "", "", errors.New("invalid image hash")
+	}
+	if !filepath.IsAbs(root) {
+		return "", "", errors.New("release root must be absolute")
+	}
+	dir := filepath.Join(root, "splashes")
+	return filepath.Join(dir, hash+".rbf"), filepath.Join(dir, hash+".sha256"), nil
+}
 func (s *Store) lock(ctx context.Context) (func(), error) {
 	f, e := os.OpenFile(filepath.Join(s.root, ".lock"), os.O_CREATE|os.O_RDWR|unix.O_NOFOLLOW, 0600)
 	if e != nil {
@@ -1008,6 +1023,11 @@ func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error)
 		return stale[i].hash < stale[j].hash
 	})
 	hash := stale[0].hash
+	// Drop the staged splash first. A failure leaves the image in place so the
+	// next prune retries; removing the image first would leak the splash.
+	if err = s.removeImageSplash(hash); err != nil {
+		return false, err
+	}
 	if err = os.Remove(filepath.Join(dir, hash+".img")); err != nil {
 		return false, err
 	}
@@ -1033,6 +1053,34 @@ func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error)
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *Store) removeImageSplash(hash string) error {
+	rbf, digest, err := SplashPaths(s.root, hash)
+	if err != nil {
+		return err
+	}
+	removed := false
+	for _, path := range []string{rbf, digest} {
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return errors.New("release splash is not a regular file")
+		}
+		if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		removed = true
+	}
+	if !removed {
+		return nil
+	}
+	return s.syncDirectory(filepath.Dir(rbf))
 }
 
 func publishedImageHash(name string) (string, bool) {

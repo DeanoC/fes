@@ -8,8 +8,9 @@ import (
 	"sync"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
+	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/appliancesplash"
 )
 
 var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this operation")
@@ -24,7 +25,9 @@ type BootIdentity struct {
 type Status struct {
 	appliance.Status
 	BootIdentity
-	RawIdleReady bool `json:"raw_idle_ready"`
+	RawIdleReady  bool   `json:"raw_idle_ready"`
+	FatIdleSHA256 string `json:"fat_idle_sha256,omitempty"`
+	IdleSHA256    string `json:"idle_sha256,omitempty"`
 }
 
 type Service struct {
@@ -39,11 +42,18 @@ type Service struct {
 	trial       bool
 	operations  map[*operation]struct{}
 	drained     chan struct{}
+	splash      *appliancesplash.Installer
 }
 type operation struct{ cancel context.CancelFunc }
 
 func New(store *appliance.Store, coordinator *agent.Coordinator, boot BootIdentity, reboot func(context.Context) error, cleanup func(context.Context) error) *Service {
-	s := &Service{store: store, coordinator: coordinator, boot: boot, reboot: reboot, cleanup: cleanup, operations: make(map[*operation]struct{})}
+	return NewWithSplash(store, coordinator, boot, reboot, cleanup, nil)
+}
+
+// NewWithSplash is New, and confirmation also publishes the image splash.
+// splash is retained for the life of the service.
+func NewWithSplash(store *appliance.Store, coordinator *agent.Coordinator, boot BootIdentity, reboot func(context.Context) error, cleanup func(context.Context) error, splash *appliancesplash.Installer) *Service {
+	s := &Service{store: store, coordinator: coordinator, boot: boot, reboot: reboot, cleanup: cleanup, operations: make(map[*operation]struct{}), splash: splash}
 	_, err := store.Status()
 	s.trial = boot.Trial
 	s.blocked = s.trial || err != nil
@@ -64,7 +74,12 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	// Read durable state after the local trial snapshot so a concurrent confirm
 	// cannot return trial=false alongside a pre-confirmation known-good image.
 	st, err := s.store.StatusContext(ctx)
-	return Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle}, errors.Join(reconcileErr, err)
+	status := Status{Status: st, BootIdentity: boot, RawIdleReady: rawIdle}
+	if s.splash != nil {
+		status.FatIdleSHA256 = s.splash.FATSHA256()
+		status.IdleSHA256 = s.splash.IdleSHA256()
+	}
+	return status, errors.Join(reconcileErr, err)
 }
 
 // A confirmation write can rename successfully and then report a sync failure.
@@ -87,6 +102,11 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// A splash miss keeps the admission gate down. Status still succeeds so a
+	// client can observe the trial and retry confirm; that call reports the error.
+	if err := s.installSplash(ctx, s.boot.ImageSHA256); err != nil {
+		return nil
 	}
 	s.mu.Lock()
 	s.trial = false
@@ -256,7 +276,18 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	if !s.coordinator.RawIdleReady(ctx) {
 		return errors.New("native runtime is not idle")
 	}
+	// Verify and stage the splash before the image becomes known-good. A digest
+	// mismatch must not confirm the trial. The FAT file is replaced only after
+	// the store confirms, so a failed trial still boots the previous splash.
+	if err := s.stageSplash(ctx, hash); err != nil {
+		return err
+	}
 	if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
+		return err
+	}
+	// The store is confirmed, so the watchdog may disarm. The gate stays down
+	// until the FAT splash matches, and a retry publishes without selecting again.
+	if err := s.publishSplash(ctx, hash); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -265,4 +296,25 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	s.coordinator.SetUpdateBlocked(false)
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *Service) installSplash(ctx context.Context, hash string) error {
+	if err := s.stageSplash(ctx, hash); err != nil {
+		return err
+	}
+	return s.publishSplash(ctx, hash)
+}
+
+func (s *Service) stageSplash(ctx context.Context, hash string) error {
+	if s.splash == nil {
+		return nil
+	}
+	return s.splash.Stage(ctx, hash)
+}
+
+func (s *Service) publishSplash(ctx context.Context, hash string) error {
+	if s.splash == nil {
+		return nil
+	}
+	return s.splash.Publish(ctx, hash)
 }

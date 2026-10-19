@@ -1350,6 +1350,13 @@ the HTTP response and requests reboot. During an unconfirmed trial these normal
 operations are blocked; status, Stop, lease management and confirmation remain
 available. A failed response/reboot leaves pending visible and releases admission
 on the current known-good image. Confirmation requires actual native idle.
+`internal/appliancesplash` checks the running image's idle core against
+`idle_sha256` in its build-inputs, stages it under the release store, and,
+after the store confirms, atomically replaces FAT `/idle.rbf`. A trial that
+has not been confirmed does not modify that file, so watchdog fallback still
+programs the previous splash. Confirming a rollback writes the restored
+image's splash. Prune removes the staged splash with the image. Status reports
+`fat_idle_sha256` and `idle_sha256`.
 
 The host uploads once and activates once. It resolves response loss by reading
 authenticated boot/image identity, rediscovers a changed address using the existing

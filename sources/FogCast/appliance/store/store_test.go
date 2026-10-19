@@ -618,6 +618,24 @@ func mustAbsent(t *testing.T, path string) {
 	}
 }
 
+func writeReleaseSplash(t *testing.T, s *Store, hash string) (string, string) {
+	t.Helper()
+	rbf, digest, e := SplashPaths(s.root, hash)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.MkdirAll(filepath.Dir(rbf), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(rbf, []byte("splash-"+hash), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(digest, []byte(hash+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	return rbf, digest
+}
+
 func releasePaths(t *testing.T, s *Store, hash string) (string, string) {
 	t.Helper()
 	image, e := s.ImagePath(hash)
@@ -660,6 +678,8 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	if e := os.WriteFile(note, []byte("keep\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
+	oldSplash, oldDigest := writeReleaseSplash(t, s, staleOld.ImageSHA256)
+	goodSplash, goodDigest := writeReleaseSplash(t, s, good.ImageSHA256)
 	s.availableBytes = func(string) (uint64, error) {
 		if _, e := os.Lstat(oldImage); e == nil {
 			return 0, nil
@@ -677,7 +697,9 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	}
 	mustAbsent(t, oldImage)
 	mustAbsent(t, oldManifest)
-	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
+	mustAbsent(t, oldSplash)
+	mustAbsent(t, oldDigest)
+	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, goodSplash, goodDigest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
 		mustExist(t, path)
 	}
 	if b, e := os.ReadFile(bootloader); e != nil || string(b) != "keep\n" {
