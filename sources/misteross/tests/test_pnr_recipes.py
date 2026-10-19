@@ -38,7 +38,7 @@ LOCK_SHA256 = {
     "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.riscv": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.atari-st": "dc1617a1f2e33e2a13d20cec630b1f1b1fb1729fb8eeab61ac7c26ffb00265a3",
 }
 # sha256 of each classified nextpnr pin's option defaults. No recipe records a
 # nondefault option yet, so each flags table hashes to its own lock's entry.
