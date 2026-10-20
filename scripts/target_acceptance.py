@@ -286,13 +286,13 @@ class Runner:
         self.records: list[dict[str, Any]] = []
         self.active = False
 
-    def declared_package_ids(self) -> dict[str, str] | None:
-        """Read the exact package set selected by the image build, when recorded."""
+    def declared_package_ids(self) -> dict[str, str]:
+        """Read the exact package set selected by the image build."""
         path = self.selection_dir / "inputs.json"
         try:
             raw = path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return None
+        except FileNotFoundError as exc:
+            raise AcceptanceError(f"image inputs {path} are missing") from exc
         except OSError as exc:
             raise AcceptanceError(f"cannot read image inputs {path}: {exc}") from exc
         try:
@@ -314,6 +314,33 @@ class Runner:
                 raise AcceptanceError(f"image inputs {path} select {core} more than once")
             result[core] = package_id
         return result
+
+    def validate_declared_selections(self, declared: dict[str, str]) -> None:
+        selection_names = {**SELECTION_NAMES, "fes.menu": MENU_SELECTION_NAME}
+        unsupported = set(declared) - set(selection_names)
+        if unsupported:
+            raise AcceptanceError(
+                "image selects packages not supported by target acceptance: "
+                + ", ".join(sorted(unsupported))
+            )
+
+        expected_files = {selection_names[core] for core in declared}
+        selection_files = {
+            path.name for path in self.selection_dir.glob("*.package-selection.toml")
+        }
+        if selection_files != expected_files:
+            raise AcceptanceError(
+                "published package selection files do not match image inputs"
+            )
+
+        for core, package_id in declared.items():
+            published_id = package_id_from_selection(
+                self.selection_dir / selection_names[core]
+            )
+            if published_id != package_id:
+                raise AcceptanceError(
+                    f"{core}: published selection differs from the image's selected package identity"
+                )
 
     def check_health(self) -> None:
         host = self.host.get("/api/v1/health")
@@ -370,21 +397,11 @@ class Runner:
             raise AcceptanceError(
                 "MENU-only bootstrap acceptance does not accept playable-core entry, media, or capture options"
             )
-        menu_id = package_id_from_selection(self.selection_dir / MENU_SELECTION_NAME)
-        if menu_id != expected_menu_id:
-            raise AcceptanceError("MENU selection differs from the image's selected package identity")
-        selection_files = {
-            path.name for path in self.selection_dir.glob("*.package-selection.toml")
-        }
-        if selection_files != {MENU_SELECTION_NAME}:
-            raise AcceptanceError(
-                "MENU-only image inputs disagree with the published package selection files"
-            )
         self.check_health()
         self.wait_session("idle")
         print(
             "target bootstrap readiness passed: "
-            f"fes.menu selected package={menu_id}; host and target ready and idle"
+            f"fes.menu selected package={expected_menu_id}; host and target ready and idle"
         )
 
     def wait_session(self, state: str, game_id: str | None = None, package_id: str | None = None) -> dict[str, Any]:
@@ -516,23 +533,17 @@ class Runner:
 
     def run(self) -> None:
         declared = self.declared_package_ids()
-        if declared is not None and set(declared) == {"fes.menu"}:
+        self.validate_declared_selections(declared)
+        if set(declared) == {"fes.menu"}:
             self.run_bootstrap(declared["fes.menu"])
             return
 
-        selected_cores = (
-            [core for core in CORE_ORDER if core in declared]
-            if declared is not None
-            else list(CORE_ORDER)
-        )
+        selected_cores = [core for core in CORE_ORDER if core in declared]
         if not selected_cores:
             raise AcceptanceError(
                 "image selects no playable core supported by target acceptance"
             )
-        expected = {
-            core: package_id_from_selection(self.selection_dir / SELECTION_NAMES[core])
-            for core in selected_cores
-        }
+        expected = {core: declared[core] for core in selected_cores}
         requested_cores = set(self.entries) | set(self.media)
         unselected_requests = requested_cores - set(expected)
         if unselected_requests:
@@ -540,12 +551,6 @@ class Runner:
                 "entry or media supplied for a core not selected by the image: "
                 + ", ".join(sorted(unselected_requests))
             )
-        if declared is not None:
-            for core, package_id in expected.items():
-                if declared[core] != package_id:
-                    raise AcceptanceError(
-                        f"{core}: published selection differs from the image's selected package identity"
-                    )
         self.check_health()
         games = self.inventory(expected)
         self.wait_session("idle")

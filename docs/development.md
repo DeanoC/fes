@@ -292,11 +292,11 @@ package's exact identity, verifies that it is installed and selected by exactly
 one matching host-library entry, launches each entry through the persistent
 session API, sends its core-specific input sequence, and stops back to idle.
 The full expanded package set retains all seven current Pong, ZX81, Coleco,
-SMS, SG-1000, C64 and Spectrum lanes. Missing selections for packages declared
-by `inputs.json` remain an error. Older selection directories without
-`inputs.json` retain the seven-lane requirement. The runner always stops an
-active session during cleanup. It does not infer video correctness from a
-successful API response.
+SMS, SG-1000, C64 and Spectrum lanes. Missing or unexpected selection files
+and selections that disagree with `inputs.json` are errors. `inputs.json` is
+required; older selection directories without it are rejected. The runner
+always stops an active session during cleanup. It does not infer video
+correctness from a successful API response.
 
 Multiple library titles may select the same core and package. Select the exact
 game ID when that match is ambiguous, repeating the option for other cores:

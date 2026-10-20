@@ -212,8 +212,93 @@ class TargetAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("cannot read selection", stderr.getvalue())
+        self.assertIn("published package selection files do not match image inputs", stderr.getvalue())
         self.assertNotIn("bootstrap readiness passed", stderr.getvalue())
+
+    def test_expanded_image_checks_declared_menu_package_identity(self):
+        menu_id = "a" * 64
+        mismatched_menu_id = "c" * 64
+        pong_id = "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            selection_dir = Path(directory)
+            (selection_dir / "inputs.json").write_text(json.dumps({
+                "fpga_packages": [
+                    {"selection": {"core_id": "fes.menu", "package_id": menu_id}},
+                    {"selection": {"core_id": "fes.pong", "package_id": pong_id}},
+                ],
+            }), encoding="utf-8")
+            (selection_dir / "fes-menu.package-selection.toml").write_text(
+                f'package_id = "{mismatched_menu_id}"\n', encoding="utf-8"
+            )
+            (selection_dir / "fes-pong.package-selection.toml").write_text(
+                f'package_id = "{pong_id}"\n', encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = target_acceptance.main([
+                    "--selection-dir", str(selection_dir),
+                    "--no-capture",
+                ])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn(
+            "fes.menu: published selection differs from the image's selected package identity",
+            stderr.getvalue(),
+        )
+
+    def test_expanded_image_rejects_undeclared_selection_files(self):
+        menu_id = "a" * 64
+        pong_id = "b" * 64
+        zx81_id = "d" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            selection_dir = Path(directory)
+            (selection_dir / "inputs.json").write_text(json.dumps({
+                "fpga_packages": [
+                    {"selection": {"core_id": "fes.menu", "package_id": menu_id}},
+                    {"selection": {"core_id": "fes.pong", "package_id": pong_id}},
+                ],
+            }), encoding="utf-8")
+            (selection_dir / "fes-menu.package-selection.toml").write_text(
+                f'package_id = "{menu_id}"\n', encoding="utf-8"
+            )
+            (selection_dir / "fes-pong.package-selection.toml").write_text(
+                f'package_id = "{pong_id}"\n', encoding="utf-8"
+            )
+            (selection_dir / "fes-zx81.package-selection.toml").write_text(
+                f'package_id = "{zx81_id}"\n', encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = target_acceptance.main([
+                    "--selection-dir", str(selection_dir),
+                    "--no-capture",
+                ])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("published package selection files do not match image inputs", stderr.getvalue())
+
+    def test_target_acceptance_requires_image_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            selection_dir = Path(directory)
+            for index, core in enumerate(target_acceptance.CORE_ORDER, 1):
+                (selection_dir / target_acceptance.SELECTION_NAMES[core]).write_text(
+                    f'package_id = "{index:064x}"\n', encoding="utf-8"
+                )
+            runner = target_acceptance.Runner(
+                target_acceptance.parser().parse_args([
+                    "--selection-dir", str(selection_dir), "--no-capture",
+                ])
+            )
+
+            with self.assertRaisesRegex(
+                target_acceptance.AcceptanceError,
+                "image inputs .* are missing",
+            ):
+                runner.declared_package_ids()
 
     def test_inventory_explicit_entry_and_singleton_fallback(self):
         expected = {core: str(index) * 64 for index, core in enumerate(target_acceptance.CORE_ORDER, 1)}
