@@ -84,6 +84,8 @@ _SOURCE_OPTION_SET_SCHEMAS = MappingProxyType({
 # Each commit's full source option-set fingerprint selects a recipe-flag
 # schema. The 552ba246, 0a253257, and PR comparison commits below all have the
 # same 105-option source set. Any other fingerprint fails closed.
+# Keep the three comparison pins for the schema/argv regression checks; matching
+# option sets make their recipes comparable, but do not establish route equivalence.
 NEXTPNR_PIN_OPTION_SET_SHA256: Mapping[str, str] = MappingProxyType({
     NEXTPNR_9128800F: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
     NEXTPNR_552BA246: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
