@@ -44,6 +44,22 @@ var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticke
 
 const releaseHeadroom = 1 << 20
 
+const (
+	// MaxStagedSplash is the largest idle core confirmation will copy into the
+	// release store. appliancesplash rejects a larger file.
+	MaxStagedSplash = 8 << 20
+	// MaxSplashSidecar is the staged digest file, including its trailing newline.
+	MaxSplashSidecar = 80
+	// SplashReserve is the free space Stage leaves after the image so
+	// confirmation can write the splash. The same-directory temporary and the
+	// destination both exist until rename, and the sidecar is written after.
+	SplashReserve = MaxStagedSplash + MaxSplashSidecar + MaxStagedSplash
+)
+
+func releaseStorageNeed(size int64) uint64 {
+	return uint64(size) + releaseHeadroom + SplashReserve
+}
+
 type Store struct {
 	root    string
 	factory release.Manifest
@@ -123,6 +139,21 @@ func (s *Store) ImagePath(hash string) (string, error) {
 		return "", errors.New("invalid image hash")
 	}
 	return filepath.Join(s.root, "images", hash+".img"), nil
+}
+
+// SplashPaths returns the staged splash for hash and its sha256 sidecar.
+// Confirmation publishes the splash onto FAT /idle.rbf. Prune deletes both
+// files when it deletes the image. Names are not prefixes of each other, so
+// the kit exFAT lookup cannot alias one to the other.
+func SplashPaths(root, hash string) (rbf, digest string, err error) {
+	if !release.ValidHash(hash) {
+		return "", "", errors.New("invalid image hash")
+	}
+	if !filepath.IsAbs(root) {
+		return "", "", errors.New("release root must be absolute")
+	}
+	dir := filepath.Join(root, "splashes")
+	return filepath.Join(dir, hash+".rbf"), filepath.Join(dir, hash+".sha256"), nil
 }
 func (s *Store) lock(ctx context.Context) (func(), error) {
 	f, e := os.OpenFile(filepath.Join(s.root, ".lock"), os.O_CREATE|os.O_RDWR|unix.O_NOFOLLOW, 0600)
@@ -307,6 +338,9 @@ func (s *Store) syncState(ctx context.Context) error {
 // It can finish an earlier indeterminate post-rename confirmation safely.
 // Unconfirmed, different or corrupt state returns false; I/O failures return
 // an error and must never cause the watchdog to disarm.
+//
+// When confirmation also publishes a FAT splash, ConfirmedImage is recorded
+// only after that publish. Store acceptance alone must not disarm the watchdog.
 func (s *Store) ConfirmedContext(ctx context.Context, bootID, imageSHA string) (bool, error) {
 	if !validBootID(bootID) || !release.ValidHash(imageSHA) {
 		return false, errors.New("invalid confirmation identity")
@@ -325,6 +359,28 @@ func (s *Store) ConfirmedContext(ctx context.Context, bootID, imageSHA string) (
 	}
 	if err = s.syncState(ctx); err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+// SplashPendingContext reports that this boot's image is known-good and the
+// watchdog has not been shown confirmation yet. That is the recoverable gap
+// between accepting the trial and publishing its FAT splash.
+func (s *Store) SplashPendingContext(ctx context.Context, bootID, imageSHA string) (bool, error) {
+	if !validBootID(bootID) || !release.ValidHash(imageSHA) {
+		return false, errors.New("invalid confirmation identity")
+	}
+	unlock, err := s.lock(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
+	st, corrupt, err := s.readState()
+	if err != nil {
+		return false, err
+	}
+	if corrupt || st.BootID != bootID || st.Good != imageSHA || st.TrialImage != "" || st.ConfirmedImage != "" {
+		return false, nil
 	}
 	return true, nil
 }
@@ -527,12 +583,15 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 
 // Stage publishes only complete verified raw images. It never changes selection
 // and never replaces an existing content-addressed image, including corrupt ones.
-// When the release volume has room for the image plus a 1 MiB margin, Stage
-// writes and verifies it there and does not delete anything. Otherwise it
-// verifies the upload on a different, non-memory filesystem before deleting
-// anything. A truncated or corrupt upload removes only that temporary file.
+// When the release volume has room for the image, a 1 MiB margin, and the
+// splash confirmation will store, Stage writes and verifies it there and does
+// not delete anything. Otherwise it verifies the upload on a different,
+// non-memory filesystem before deleting anything. That spill filesystem needs
+// the image plus the 1 MiB margin; the splash reserve stays on the release
+// volume. A truncated or corrupt upload removes only that temporary file.
 // After verification, Stage deletes other release images oldest first until
-// the image and the margin fit, then copies the verified file into this store.
+// the image, the margin, and the splash reserve fit, then copies the verified
+// file into this store.
 // It keeps factory, known-good, previous, pending, trial, the boot.json image,
 // and every image in this store that backs a loop device. It does not remove
 // boot files. If no qualifying filesystem can hold the upload, or the retained
@@ -589,7 +648,7 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	if e != nil {
 		return e
 	}
-	if free >= uint64(size)+releaseHeadroom {
+	if free >= releaseStorageNeed(size) {
 		return s.publishNewImage(ctx, m, path, r, size)
 	}
 	// Retention is resolved before the upload is admitted so an unreadable
@@ -863,14 +922,15 @@ func statAvailable(root string) (uint64, error) {
 	return uint64(fs.Bavail) * uint64(fs.Bsize), nil
 }
 
-// ensureSpace frees unreferenced images until size plus the staging margin
-// fits. Protected identities are resolved before the first deletion. Callers
-// verify the incoming image before this runs, so a failed upload never reaches it.
+// ensureSpace frees unreferenced images until size, the staging margin, and
+// the splash reserve fit. Protected identities are resolved before the first
+// deletion. Callers verify the incoming image before this runs, so a failed
+// upload never reaches it.
 func (s *Store) ensureSpace(ctx context.Context, size int64) error {
 	if size < 0 {
 		return errors.New("invalid image size")
 	}
-	need := uint64(size) + releaseHeadroom
+	need := releaseStorageNeed(size)
 	free, err := s.availableBytes(s.root)
 	if err != nil {
 		return err
@@ -1056,6 +1116,11 @@ func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error)
 		return stale[i].hash < stale[j].hash
 	})
 	hash := stale[0].hash
+	// Drop the staged splash first. A failure leaves the image in place so the
+	// next prune retries; removing the image first would leak the splash.
+	if err = s.removeImageSplash(hash); err != nil {
+		return false, err
+	}
 	if err = os.Remove(filepath.Join(dir, hash+".img")); err != nil {
 		return false, err
 	}
@@ -1081,6 +1146,34 @@ func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error)
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *Store) removeImageSplash(hash string) error {
+	rbf, digest, err := SplashPaths(s.root, hash)
+	if err != nil {
+		return err
+	}
+	removed := false
+	for _, path := range []string{rbf, digest} {
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return errors.New("release splash is not a regular file")
+		}
+		if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		removed = true
+	}
+	if !removed {
+		return nil
+	}
+	return s.syncDirectory(filepath.Dir(rbf))
 }
 
 func publishedImageHash(name string) (string, bool) {
@@ -1320,4 +1413,81 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		return e
 	}
 	return s.clearConfirmedBootTicket(bootID, imageSHA)
+}
+
+// AcceptTrialContext promotes this boot's trial to known-good without recording
+// the watchdog boundary. ConfirmedImage stays empty until CompleteSplashContext.
+// A retry after promotion only finishes the state sync.
+func (s *Store) AcceptTrialContext(ctx context.Context, bootID, imageSHA string) error {
+	if !validBootID(bootID) || !release.ValidHash(imageSHA) {
+		return errors.New("invalid confirmation identity")
+	}
+	unlock, e := s.lock(ctx)
+	if e != nil {
+		return e
+	}
+	defer unlock()
+	st, c, e := s.readState()
+	if e != nil {
+		return e
+	}
+	if c {
+		return ErrCorruptState
+	}
+	if st.BootID != bootID {
+		return errors.New("confirmation boot does not match")
+	}
+	if st.Good == imageSHA && st.TrialImage == "" && (st.ConfirmedImage == "" || st.ConfirmedImage == imageSHA) {
+		return s.syncState(ctx)
+	}
+	if st.TrialImage != imageSHA {
+		return errors.New("confirmation image is not this boot's trial")
+	}
+	if _, e = s.verifyContext(ctx, imageSHA); e != nil {
+		return e
+	}
+	if e = ctx.Err(); e != nil {
+		return e
+	}
+	if st.Good != imageSHA {
+		st.Previous = st.Good
+	}
+	st.Good = imageSHA
+	st.TrialImage = ""
+	st.ConfirmedImage = ""
+	return s.writeState(st)
+}
+
+// CompleteSplashContext records the watchdog confirmation for an image whose
+// splash is already on FAT. It does not publish the splash itself.
+func (s *Store) CompleteSplashContext(ctx context.Context, bootID, imageSHA string) error {
+	if !validBootID(bootID) || !release.ValidHash(imageSHA) {
+		return errors.New("invalid confirmation identity")
+	}
+	unlock, e := s.lock(ctx)
+	if e != nil {
+		return e
+	}
+	defer unlock()
+	st, c, e := s.readState()
+	if e != nil {
+		return e
+	}
+	if c {
+		return ErrCorruptState
+	}
+	if st.BootID != bootID || st.Good != imageSHA || st.TrialImage != "" {
+		return errors.New("splash confirmation is not this boot's accepted image")
+	}
+	if st.ConfirmedImage == imageSHA {
+		return s.syncState(ctx)
+	}
+	if st.ConfirmedImage != "" {
+		return errors.New("splash confirmation does not match")
+	}
+	if e = ctx.Err(); e != nil {
+		return e
+	}
+	st.ConfirmedImage = imageSHA
+	return s.writeState(st)
 }

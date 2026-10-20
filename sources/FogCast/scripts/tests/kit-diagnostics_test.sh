@@ -24,6 +24,7 @@ sh -n "$wrapper"
 
 tr_bin=$(command -v tr) || fail 'tr is missing'
 sed_bin=$(command -v sed) || fail 'sed is missing'
+sha_bin=$(command -v sha256sum) || fail 'sha256sum is missing'
 sh_bin=$(command -v sh) || fail 'sh is missing'
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/kit-diagnostics-test.XXXXXX")
@@ -34,6 +35,12 @@ bindir=$work/bin
 mkdir -p "$tools" "$bindir"
 ln -s "$tr_bin" "$tools/tr"
 ln -s "$sed_bin" "$tools/sed"
+ln -s "$sha_bin" "$tools/sha256sum"
+
+file_sha() {
+  sum=$("$sha_bin" "$1") || fail "sha256sum $1"
+  printf '%s\n' "${sum%% *}"
+}
 
 fx=$work/root
 
@@ -186,6 +193,8 @@ schema=fogcast.kit-diagnostics.v1
 image_id=c41e58c1
 image_id_source=/etc/fes-image-id
 source_revision=
+fat_idle_sha256=
+idle_sha256=
 uptime_seconds=12345.67
 load_1=0.01
 load_5=0.05
@@ -397,6 +406,65 @@ for shell in $shells; do
   [ "$(value_of "$got" fs.media_fat.size_kib)" = '' ] || fail "$shell fat size"
   [ "$(value_of "$got" fs.root.present)" = 1 ] || fail "$shell root present"
   [ "$(value_of "$got" fs.tmp.free_kib)" = 251392 ] || fail "$shell tmp free"
+
+  build_fx
+  mkdir -p "$fx/media/fat"
+  printf '%s' 'stale-fat-splash' > "$fx/media/fat/idle.rbf"
+  printf '%s\n' \
+    'format=1' \
+    'idle_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+    'idle_size=16' \
+    > "$fx/usr/share/mister-runtime/build-inputs"
+  want_fat=$(file_sha "$fx/media/fat/idle.rbf")
+  before=$(fingerprint "$fx")
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell splash drift run failed"
+  [ ! -s "$err" ] || fail "$shell splash drift stderr: $(cat "$err")"
+  [ "$(value_of "$got" fat_idle_sha256)" = "$want_fat" ] || fail "$shell fat idle sha"
+  [ "$(value_of "$got" idle_sha256)" = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ] || fail "$shell image idle sha"
+  [ "$want_fat" != "$(value_of "$got" idle_sha256)" ] || fail "$shell drift fixture hashes match"
+  assert_eq "$(fingerprint "$fx")" "$before" "$shell splash drift wrote the fixture"
+
+  rm -f "$fx/media/fat/idle.rbf"
+  ln -s /usr/share/mister-runtime/idle.rbf "$fx/media/fat/idle.rbf"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell splash symlink run failed"
+  [ "$(value_of "$got" fat_idle_sha256)" = '' ] || fail "$shell symlink fat sha"
+  [ "$(value_of "$got" idle_sha256)" = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ] || fail "$shell symlink kept image sha"
+
+  rm -f "$fx/usr/share/mister-runtime/build-inputs"
+  ln -s /etc/fes-image-id "$fx/usr/share/mister-runtime/build-inputs"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell build-inputs symlink run failed"
+  [ "$(value_of "$got" idle_sha256)" = '' ] || fail "$shell symlink image sha"
+
+  rm -f "$fx/media/fat/idle.rbf" "$fx/usr/share/mister-runtime/build-inputs"
+  printf '%s' 'splash-that-vanishes' > "$fx/media/fat/idle.rbf"
+  printf '%s\n' \
+    'idle_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+    > "$fx/usr/share/mister-runtime/build-inputs"
+  rm -f "$tools/sha256sum"
+  cat > "$tools/sha256sum" <<'EOF'
+#!/bin/sh
+printf '%s\n' "sha256sum: $1: No such file or directory" >&2
+rm -f -- "$1"
+exit 1
+EOF
+  chmod 755 "$tools/sha256sum"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell vanishing splash run failed"
+  [ ! -s "$err" ] || fail "$shell vanishing splash stderr: $(cat "$err")"
+  [ "$(value_of "$got" fat_idle_sha256)" = '' ] || fail "$shell vanishing splash fat sha"
+  [ "$(value_of "$got" idle_sha256)" = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef ] || fail "$shell vanishing splash image sha"
+  rm -f "$tools/sha256sum"
+  ln -s "$sha_bin" "$tools/sha256sum"
+
+  rm -f "$tools/sha256sum"
+  rm -f "$fx/media/fat/idle.rbf"
+  printf '%s' 'still-there' > "$fx/media/fat/idle.rbf"
+  rm -f "$fx/usr/share/mister-runtime/build-inputs"
+  printf '%s\n' 'idle_sha256=abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd' \
+    > "$fx/usr/share/mister-runtime/build-inputs"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell missing sha256sum run failed"
+  [ "$(value_of "$got" fat_idle_sha256)" = '' ] || fail "$shell missing sha256sum fat sha"
+  [ "$(value_of "$got" idle_sha256)" = abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell missing sha256sum image sha"
+  ln -s "$sha_bin" "$tools/sha256sum"
 
   build_fx
   printf '%s\n' 'cpu  10 0 0 10 0 0 0 0 0 0' > "$fx/proc/stat.sample2"

@@ -21,6 +21,7 @@ RULES = [
         'scripts/check_deadcode.py', 'scripts/check_diff.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py',
         'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
+        'scripts/host_affected.py',
     )],
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),

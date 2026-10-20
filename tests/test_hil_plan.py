@@ -501,6 +501,7 @@ class HilPlanTest(unittest.TestCase):
     def test_ci_tooling_changes_do_not_request_an_image_or_kit(self):
         for path in ('scripts/affected.py', 'scripts/test_changed.py',
                      'scripts/check_deadcode.py', 'scripts/host_tests.py',
+                     'scripts/host_affected.py',
                      'scripts/test_policy.py', 'scripts/ci_gate.py',
                      'scripts/hil_plan.py', 'scripts/consistency.py',
                      'scripts/generate.py'):

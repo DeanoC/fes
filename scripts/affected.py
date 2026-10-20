@@ -215,6 +215,10 @@ def plan(paths):
             selected.update(('parent', 'fpga'))
             reasons.append(f'{path}: core recipe and producer tests; RTL unchanged')
             continue
+        if path in ('scripts/host_affected.py', 'tests/test_host_affected.py'):
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: host package selection and its regressions')
+            continue
         if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
