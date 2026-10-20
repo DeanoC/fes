@@ -16,8 +16,12 @@ BUILD_ID: 6b02e996d4e636f7882d36cb4e9d2070
 The profile starts with seed 1, weight 300, exponent 5 and the opt-in
 setup-relative private pin assignment. Seeds 3 and 10 remain the fallback
 list, and the original other timing weights remain available. The normal
-first-pass producer accepts its first candidate. This is one fresh sealed
-winner, not a claim of a two-of-three seed campaign or production promotion.
+first-pass producer accepts its first candidate. Two isolated confirmations
+then route the exact same fresh production synth and compiler at seeds 3
+and 10, removing the search allow-fail option for a strict final exit.
+All three declared seeds pass every clock's setup and hold checks. This
+meets the two-of-three candidate criterion; it is not hardware acceptance
+or permission to promote the recipe.
 
 Shell and ram16k cart final analogue results are identical:
 clock                    required MHz  achieved MHz  setup WNS ns  hold WNS ns
@@ -48,6 +52,12 @@ result.txt. The authenticated cache slot is f141e5ea79ad4b4079ca0346fcd3c4a00c6e
 
 Focused checks: 28 recipe tests, 21 ZX81 producer tests (one additional case
 skipped), 35 expansion/cart tests and 25 shared fake-toolchain tests pass.
+The affected 951-test parent suite passes (one skipped). After correcting a
+stale local-compiler fixture to select the lock’s 105-option schema, the
+full 1234-test producer suite passes (eight skipped), along with its
+17 focused authentication cases. make check and the selected
+make sim-fes-zx81 RTL simulation also pass. See producer-parent-checks.txt
+for the original aggregate failure and successful component reruns.
 All 16 nextpnr GitHub CI checks pass at compiler commit 5558fe25. The exact
 105-option CLI schema remains enforced; only ZX81's pin/profile goldens and
 its fake compiler selection change. Other core recipes and locks are intact.
@@ -71,3 +81,13 @@ Artifacts are retained on Powerboat beneath
 /home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/.
 Local review copies are in /tmp/issue236-production/package/ and
 /tmp/issue236-production/cart/.
+
+Additional fresh-production-netlist seed confirmation (weight 300, critexp 5):
+seed   clk_sys MHz  setup WNS ns  hold WNS ns  exit
+1       54.297661       +0.731       +0.815     0  (normal sealed producer)
+3       52.339577       +0.021       +0.696     0
+10      52.543087       +0.058       +0.704     0
+Pixel and audio setup/hold pass in all three. See seed-3.txt and seed-10.txt
+for exact argv, controlled environment, elapsed time, live leased HIP
+backend and hashes of the untouched production synth/compiler and outputs.
+The qualified shell and real-cart archive remain the seed-1/seed-2 pair.
