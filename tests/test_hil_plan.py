@@ -182,6 +182,14 @@ class HilPlanTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(plan.classify_path(path)['class'], 'none')
 
+    def test_ci_selection_scripts_are_none(self):
+        plan = hil_module()
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed'):
+            path = f'scripts/{name}.py'
+            with self.subTest(path=path):
+                row = plan.classify_path(path)
+                self.assertEqual(row['class'], 'none', path)
+
     def test_image_binary_appliance_fixtures_are_full(self):
         expected = {
             'release.files': ('sources/FogCast/appliance/release.go', 'appliance-trial'),
