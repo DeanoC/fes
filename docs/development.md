@@ -270,23 +270,33 @@ The operator command is `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'`.
 Running it against a kit requires explicit operator opt-in and exclusive use;
 ordinary `make test` exercises only host-side fixtures.
 
-## Three-system target acceptance
+## Target acceptance
 
 The package-only build checks image structure and package identity without
-mutating a target. After deploying the exact development image to the
-designated kit, run the FES-owned acceptance lane:
+mutating a target. After booting the development image on the designated kit,
+run the FES-owned acceptance lane:
 
 ```sh
 make target-acceptance
 ```
 
-It checks host and direct-target health, verifies that the selected Pong,
-ZX81 and Coleco package IDs are installed and selected in the host library,
-launches each entry through the persistent session API, attaches input,
-sends a small core-appropriate press/release sequence through the launch-owned
-input bridge, and stops back to idle.
-The runner always stops an active session during cleanup. It does not infer
-video correctness from a successful API response.
+The runner reads the selected package identities from the development image's
+`inputs.json`. For the default MENU-only image, it checks that the recorded
+`fes.menu` identity matches its published selection file, host and direct-target
+health are ready with matching host/agent revisions, and the host session is
+idle. It reports bootstrap readiness; this does not claim a playable-core
+launch or visual MENU check.
+
+For an image that selects supported playable packages, it checks every selected
+package's exact identity, verifies that it is installed and selected by exactly
+one matching host-library entry, launches each entry through the persistent
+session API, sends its core-specific input sequence, and stops back to idle.
+The full expanded package set retains all seven current Pong, ZX81, Coleco,
+SMS, SG-1000, C64 and Spectrum lanes. Missing selections for packages declared
+by `inputs.json` remain an error. Older selection directories without
+`inputs.json` retain the seven-lane requirement. The runner always stops an
+active session during cleanup. It does not infer video correctness from a
+successful API response.
 
 Multiple library titles may select the same core and package. Select the exact
 game ID when that match is ambiguous, repeating the option for other cores:

@@ -141,6 +141,80 @@ class _HTTPErrorHandler(BaseHTTPRequestHandler):
 
 
 class TargetAcceptanceTests(unittest.TestCase):
+    def test_menu_only_image_uses_bootstrap_readiness_lane(self):
+        menu_id = "a" * 64
+        state = {"active": False, "attached": False, "frames": 0, "session_failures": 0}
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _AcceptanceHandler)
+        server.state = state
+        server.events = []
+        server.attach_bodies = []
+        server.stops = 0
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                selection_dir = Path(directory)
+                (selection_dir / "inputs.json").write_text(json.dumps({
+                    "fpga_packages": [{
+                        "selection": {"core_id": "fes.menu", "package_id": menu_id},
+                    }],
+                }), encoding="utf-8")
+                (selection_dir / "fes-menu.package-selection.toml").write_text(
+                    f'package_id = "{menu_id}"\n', encoding="utf-8"
+                )
+                origin = f"http://127.0.0.1:{server.server_port}"
+                acceptance_args = (
+                    f"--host-api {origin} --target-api {origin} "
+                    "--poll-attempts 1 --poll-interval 0 --no-capture"
+                )
+                result = subprocess.run(
+                    [
+                        "make", "-C", str(ROOT), "target-acceptance",
+                        f"TARGET_ACCEPTANCE_SELECTION_DIR={selection_dir}",
+                        f"TARGET_ACCEPTANCE_ARGS={acceptance_args}",
+                    ],
+                    text=True,
+                    capture_output=True,
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"target bootstrap readiness passed: fes.menu selected package={menu_id}", result.stdout)
+        self.assertIn("host and target ready and idle", result.stdout)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(server.stops, 0)
+        self.assertEqual(server.events, [])
+
+    def test_expanded_image_missing_declared_selection_does_not_fall_back_to_bootstrap(self):
+        menu_id = "a" * 64
+        pong_id = "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            selection_dir = Path(directory)
+            (selection_dir / "inputs.json").write_text(json.dumps({
+                "fpga_packages": [
+                    {"selection": {"core_id": "fes.menu", "package_id": menu_id}},
+                    {"selection": {"core_id": "fes.pong", "package_id": pong_id}},
+                ],
+            }), encoding="utf-8")
+            (selection_dir / "fes-menu.package-selection.toml").write_text(
+                f'package_id = "{menu_id}"\n', encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = target_acceptance.main([
+                    "--selection-dir", str(selection_dir),
+                    "--no-capture",
+                ])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("cannot read selection", stderr.getvalue())
+        self.assertNotIn("bootstrap readiness passed", stderr.getvalue())
+
     def test_inventory_explicit_entry_and_singleton_fallback(self):
         expected = {core: str(index) * 64 for index, core in enumerate(target_acceptance.CORE_ORDER, 1)}
         entries = [dict(core_id=core, package_id=package, game_id=core + "-one")
@@ -317,6 +391,12 @@ class TargetAcceptanceTests(unittest.TestCase):
                     (selection_dir / filename).write_text(
                         f'package_id = "{package_id}"\n', encoding="utf-8"
                     )
+                (selection_dir / "inputs.json").write_text(json.dumps({
+                    "fpga_packages": [
+                        {"selection": {"core_id": core, "package_id": package_id}}
+                        for core, package_id in ids.items()
+                    ],
+                }), encoding="utf-8")
                 origin = f"http://127.0.0.1:{server.server_port}"
                 stdout = io.StringIO()
                 stderr = io.StringIO()
@@ -429,6 +509,12 @@ class TargetAcceptanceTests(unittest.TestCase):
                     (selection_dir / filename).write_text(
                         f'package_id = "{package_id}"\n', encoding="utf-8"
                     )
+                (selection_dir / "inputs.json").write_text(json.dumps({
+                    "fpga_packages": [
+                        {"selection": {"core_id": core, "package_id": package_id}}
+                        for core, package_id in ids.items()
+                    ],
+                }), encoding="utf-8")
                 origin = f"http://127.0.0.1:{server.server_port}"
                 result = subprocess.run(
                     [
