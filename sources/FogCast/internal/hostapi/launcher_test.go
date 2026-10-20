@@ -429,9 +429,8 @@ func TestLauncherAllowsPresentationGameGET(t *testing.T) {
 }
 
 type launcherInput struct {
-	mu      sync.Mutex
-	source  *launcherSource
-	session string
+	mu     sync.Mutex
+	source *launcherSource
 }
 
 func (*launcherInput) Attach(context.Context, string) error { return nil }

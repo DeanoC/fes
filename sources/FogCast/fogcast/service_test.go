@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -765,73 +764,6 @@ type fakeServiceScanner struct {
 	once       sync.Once
 }
 
-type serviceRoundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f serviceRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
-}
-
-type delayedUploadResult struct {
-	data     []byte
-	readErr  error
-	closeErr error
-}
-
-type delayedFailingUploadTransport struct {
-	failure error
-	started chan struct{}
-	result  chan delayedUploadResult
-}
-
-func (t *delayedFailingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if request.URL.Path == "/v1/health" {
-		return serviceJSONResponse(request, protocol.Health{APIVersion: "v1", Ready: true})
-	}
-	switch request.Method {
-	case http.MethodGet:
-		return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
-	case http.MethodPut:
-		go func() {
-			data := make([]byte, 0, request.ContentLength)
-			buffer := make([]byte, 1)
-			started := false
-			for {
-				n, readErr := request.Body.Read(buffer)
-				if n > 0 {
-					data = append(data, buffer[:n]...)
-				}
-				if !started {
-					close(t.started)
-					started = true
-				}
-				if readErr != nil {
-					t.result <- delayedUploadResult{data: data, readErr: readErr, closeErr: request.Body.Close()}
-					return
-				}
-				runtime.Gosched()
-			}
-		}()
-		<-t.started
-		return nil, t.failure
-	default:
-		return nil, fmt.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
-	}
-}
-
-func serviceJSONResponse(request *http.Request, payload any) (*http.Response, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Status:     "200 OK",
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(string(body))),
-		Request:    request,
-	}, nil
-}
-
 func (f *fakeServiceScanner) SetAdmissionGate(admit func(context.Context) (func(), error)) {
 	f.admit = admit
 }
@@ -894,11 +826,9 @@ type fakeServiceClient struct {
 	coreCalls           int
 	developmentReboots  int
 	developmentSize     int64
-	developmentBody     []byte
 	healthCalls         int
 	statusCalls         int
 	stopCalls           int
-	activeGame          string
 	healthResult        protocol.Health
 	healthFn            func(context.Context) (protocol.Health, error)
 	statusResult        protocol.Status
@@ -3264,14 +3194,6 @@ func serviceGame(content catalog.Content) catalog.Game {
 	}
 }
 
-func contentIdentity(content catalog.Content) protocol.ContentIdentity {
-	return protocol.ContentIdentity{SHA256: content.SHA256, Size: content.Size, Extension: content.Extension}
-}
-
-func absentProbe(_ context.Context, _ protocol.System, _ protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-	return protocol.CacheProbeResponse{Present: false}, nil
-}
-
 func TestCanonicalRemoteErrorPreservesUnsupportedOperation(t *testing.T) {
 	t.Parallel()
 	private := errors.New("private target detail")
@@ -3538,36 +3460,6 @@ func preparedServiceFixture(t *testing.T, body []byte, identity protocol.Content
 	}
 	prepared.Content = identity
 	return prepared
-}
-
-func assertPreparedRemoved(t *testing.T, prepared *romsource.Prepared) {
-	t.Helper()
-	if file, err := prepared.Open(); err == nil {
-		_ = file.Close()
-		t.Fatal("prepared content remained openable after service cleanup")
-	}
-	if prepared.Path != "" {
-		if _, err := os.Lstat(prepared.Path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("staging path still exists or cannot be inspected: %v", err)
-		}
-	}
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("second Remove = %v, want idempotent success", err)
-	}
-}
-
-func assertProgressStages(t *testing.T, progress []Progress, want []string) {
-	t.Helper()
-	stages := make([]string, len(progress))
-	for index, event := range progress {
-		stages[index] = event.Stage
-		if event.Message == "" {
-			t.Fatalf("progress %d has empty message", index)
-		}
-	}
-	if !reflect.DeepEqual(stages, want) {
-		t.Fatalf("progress stages = %v, want %v", stages, want)
-	}
 }
 
 func writeServiceConfig(t *testing.T, path, baseURL, token, root string) {

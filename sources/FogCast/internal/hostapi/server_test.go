@@ -62,7 +62,6 @@ type fakeService struct {
 	stopCtxErrs            []error
 	stopHasDeadline        bool
 	stopHook               func(context.Context) (protocol.Status, error)
-	progress               []string
 	execution              string
 	hostExecutionState     hostexec.State
 	executionErr           error

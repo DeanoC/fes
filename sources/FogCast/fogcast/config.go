@@ -812,13 +812,6 @@ func parseEndpoint(address string) (string, error) {
 	return endpoint.String(), nil
 }
 
-func validatePrivateAddress(name, address string) error {
-	if _, err := parsePrivateEndpoint(name, address); err != nil {
-		return fmt.Errorf("%s must be a private host:port address", name)
-	}
-	return nil
-}
-
 func normalizeZX81MachineROM(raw fileZX81MachineROM) (ZX81MachineROMConfig, error) {
 	config := ZX81MachineROMConfig{
 		Python: strings.TrimSpace(raw.Python), Script: strings.TrimSpace(raw.Script),

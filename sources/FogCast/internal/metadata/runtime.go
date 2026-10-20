@@ -719,12 +719,6 @@ func (r *metadataRuntime) recordCachedOutcome(outcome Outcome) {
 	}
 }
 
-func (r *metadataRuntime) ensureEpoch(epoch uint64) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.ensureEpochLocked(epoch)
-}
-
 func (r *metadataRuntime) ensureEpochLocked(epoch uint64) error {
 	if r.closed {
 		return newOpError(ErrCanceled, context.Canceled)

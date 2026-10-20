@@ -1,10 +1,7 @@
 package tenfoot
 
 import (
-	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -47,22 +44,6 @@ func (s ClientStamp) withFlight(id string) ClientStamp {
 	return s
 }
 
-func applyClientStamp(req *http.Request, stamp ClientStamp) {
-	if req == nil {
-		return
-	}
-	if stamp.TsUTC == "" && stamp.MonoMS == 0 && stamp.FlightID == "" {
-		stamp = ClientStampNow()
-	}
-	if stamp.TsUTC != "" {
-		req.Header.Set(headerClientTsUTC, stamp.TsUTC)
-	}
-	req.Header.Set(headerClientMonoMS, strconv.FormatInt(stamp.MonoMS, 10))
-	if id := strings.TrimSpace(stamp.FlightID); id != "" {
-		req.Header.Set(headerFlightID, id)
-	}
-}
-
 func validClientFlightID(value string) bool {
 	value = strings.TrimSpace(value)
 	if len(value) != 36 {
@@ -88,31 +69,4 @@ func validClientFlightID(value string) bool {
 		}
 	}
 	return value[14] == '4'
-}
-
-type flightMemory struct {
-	mu sync.Mutex
-	id string
-}
-
-func (m *flightMemory) remember(id string) {
-	if m == nil || !validClientFlightID(id) {
-		return
-	}
-	m.mu.Lock()
-	m.id = id
-	m.mu.Unlock()
-}
-
-func (m *flightMemory) current() string {
-	if m == nil {
-		return ""
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.id
-}
-
-func (m *flightMemory) stamp() ClientStamp {
-	return ClientStampNow().withFlight(m.current())
 }
