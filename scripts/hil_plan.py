@@ -12,6 +12,10 @@ import sys
 
 RULES = [
     ('scripts/host_affected.py', 'none', None),
+    ('scripts/affected.py', 'none', None),
+    ('scripts/hil_plan.py', 'none', None),
+    ('scripts/host_tests.py', 'none', None),
+    ('scripts/test_changed.py', 'none', None),
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
