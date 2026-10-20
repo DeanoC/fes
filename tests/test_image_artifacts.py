@@ -42,6 +42,7 @@ class ImageArtifactsTests(unittest.TestCase):
         (core / 'core.rbf').write_bytes(b'firmware')
         selection = self.root / 'fes-menu.package-selection.toml'
         selection.write_text('fixture selection')
+        selection.chmod(0o444)
         self.manifest = {'format': 1, 'provenance': {'fogcast': '1' * 40, 'runtime': '2' * 40},
             'binaries': {n: artifacts.sha(self.root / 'bin' / n) for n in artifacts.BINARIES},
             'packages': [{'selection': {'core_id': 'fes.menu', 'package_id': identity},
@@ -145,6 +146,7 @@ class ImageArtifactsTests(unittest.TestCase):
         manifest, _ = artifacts.load(output)
         self.assertEqual(manifest['binaries'], self.manifest['binaries'])
         self.assertEqual(manifest['provenance'], {'fogcast': '3' * 40, 'runtime': '4' * 40})
+        self.assertEqual((output / 'fes-menu.package-selection.toml').stat().st_mode & 0o777, 0o444)
 
     def test_export_real_ext4_image(self):
         tools = os.defpath + ':/usr/sbin:/sbin'
@@ -176,6 +178,14 @@ class ImageArtifactsTests(unittest.TestCase):
         self.assertEqual(exported['binaries'], self.manifest['binaries'])
         self.assertEqual(exported['packages'], self.manifest['packages'])
         self.assertEqual(exported['provenance'], self.manifest['provenance'])
+        selection = output / 'fes-menu.package-selection.toml'
+        self.assertEqual(selection.stat().st_mode & 0o777, 0o444)
+        with patch.object(sys, 'argv', ['image_artifacts.py', 'check', str(output)]):
+            artifacts.main()
+        selection.chmod(0o644)
+        with patch.object(sys, 'argv', ['image_artifacts.py', 'check', str(output)]):
+            with self.assertRaisesRegex(ValueError, 'package selection is writable'):
+                artifacts.main()
         with self.assertRaisesRegex(ValueError, 'already exists'):
             artifacts.export(self.root, output)
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import tomllib
@@ -71,6 +72,16 @@ def load(root):
         except ValueError as error:
             raise ValueError('bootstrap helper must be a static ARM ELF: ' + name) from error
     packages = packages_at(root, manifest['packages'])
+    for package in packages:
+        path = package['selection_path']
+        try:
+            metadata = path.lstat()
+        except OSError as error:
+            raise ValueError('bootstrap package selection is unavailable: ' + path.name) from error
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError('bootstrap package selection must be a regular file: ' + path.name)
+        if metadata.st_mode & 0o222:
+            raise ValueError('bootstrap package selection is writable: ' + path.name)
     verify_package_outputs(root, packages)
     return manifest, packages
 
@@ -119,7 +130,9 @@ def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revisi
             shutil.copyfile(source, root / 'bin' / name)
             (root / 'bin' / name).chmod(0o555)
         shutil.copytree(menu_package, root / 'core-packages' / identity, symlinks=True)
-        shutil.copyfile(menu_selection, root / 'fes-menu.package-selection.toml')
+        selection_copy = root / 'fes-menu.package-selection.toml'
+        shutil.copyfile(menu_selection, selection_copy)
+        selection_copy.chmod(0o444)
         (root / 'artifacts.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
         load(root)
         root.rename(output)
@@ -161,7 +174,9 @@ def export(image_output, output):
             (root / 'bin' / name).chmod(0o555)
         for package in packages:
             shutil.copytree(package['directory'], root / 'core-packages' / package['directory'].name)
-            shutil.copyfile(package['selection_path'], root / package['selection_path'].name)
+            selection_copy = root / package['selection_path'].name
+            shutil.copyfile(package['selection_path'], selection_copy)
+            selection_copy.chmod(0o444)
         manifest = {'format': 1, 'provenance': factory['provenance'],
                     'source_image_sha256': sha(image_output / 'linux.img'),
                     'binaries': {name: sha(root / 'bin' / name) for name in BINARIES},
