@@ -1,0 +1,7 @@
+sources/FogCast/appliance/store/store.go
+sources/FogCast/appliance/store/store_test.go
+sources/FogCast/docs/ARCHITECTURE.md
+sources/FogCast/internal/appliancedata/gate.go
+sources/FogCast/internal/appliancedata/gate_test.go
+sources/FogCast/internal/applianceupdate/service.go
+sources/FogCast/internal/applianceupdate/service_test.go

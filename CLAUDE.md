@@ -12,6 +12,13 @@ Never relax a seal or timing check; stop and report instead.
 
 Delete superseded code instead of keeping compatibility shims or "kept for older kits" branches.
 
+## PR scope
+
+- One issue per PR. Don't bundle unrelated fixes.
+- The PR body says `Closes #N` for the issue it resolves.
+- Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
+- Stay inside the repo and the scope the task names.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.

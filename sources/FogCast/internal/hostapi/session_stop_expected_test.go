@@ -70,6 +70,62 @@ func (s *lifecycleRejectedStopService) StopExpected(context.Context, fogcast.Ses
 func (s *lifecycleRejectedStopService) StopExpectedWithPreparation(context.Context, fogcast.SessionStopBinding, func(context.Context)) (protocol.Status, error) {
 	return protocol.Status{}, fogcast.ErrSessionChanged
 }
+func TestPackageFreeExpectedStopRejectsReplacementBeforeStop(t *testing.T) {
+	game := "nes-pong"
+	system := protocol.SystemNES
+	active := protocol.Status{State: protocol.StateActive, GameID: &game, System: &system}
+	service := &fakeService{
+		execution:       fogcast.ExecutionFPGANative,
+		sessionTarget:   "kit",
+		sessionTargetID: "kit-id",
+		status:          active,
+		launch:          protocol.CachedLaunchResponse{Status: active},
+		stopped:         protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	if launch := launchSessionOn(t, handler, game, "kit"); launch.Code != http.StatusOK {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	before := serve(t, handler, http.MethodGet, "/api/v1/session")
+	var actual struct {
+		ID       string          `json:"id"`
+		FlightID string          `json:"flight_id"`
+		Target   string          `json:"target"`
+		TargetID string          `json:"target_id"`
+		Core     json.RawMessage `json:"core_package"`
+		GameID   string          `json:"game_id"`
+	}
+	if err := json.Unmarshal(before.Body.Bytes(), &actual); err != nil || actual.ID == "" || actual.FlightID == "" || actual.GameID != game || len(actual.Core) != 0 {
+		t.Fatalf("session %d %s: %v", before.Code, before.Body.String(), err)
+	}
+	post := func(gameID, flight string) *httptest.ResponseRecorder {
+		raw, _ := json.Marshal(map[string]any{
+			"retain_lease": false,
+			"expected_session": map[string]any{
+				"id": actual.ID, "flight_id": flight, "game_id": gameID,
+				"target": actual.Target, "target_id": actual.TargetID,
+			},
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(string(raw)))
+		req.Host = "127.0.0.1"
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	other := "snes-other"
+	service.status.GameID = &other
+	rejected := post(game, actual.FlightID)
+	if rejected.Code != http.StatusConflict || len(service.stopCtxErrs) != 0 {
+		t.Fatalf("replacement = %d %s stops=%d", rejected.Code, rejected.Body.String(), len(service.stopCtxErrs))
+	}
+	service.status.GameID = &game
+	accepted := post(game, actual.FlightID)
+	if accepted.Code != http.StatusOK || len(service.stopCtxErrs) != 1 {
+		t.Fatalf("matching package-free stop = %d %s stops=%d", accepted.Code, accepted.Body.String(), len(service.stopCtxErrs))
+	}
+}
+
 func TestExpectedStopLifecycleRejectionPreservesAttachedInput(t *testing.T) {
 	game := "core-zx81"
 	svc := &lifecycleRejectedStopService{&fakeService{status: protocol.Status{State: protocol.StateActive, GameID: &game, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 9}}, sessionTarget: "kit", sessionTargetID: "kit-id"}}

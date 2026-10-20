@@ -491,8 +491,9 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. The locks currently contain identical
-commits, so the shared compiler cache reuses one slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. Every lock except Coleco currently
+contains identical commits and shares one compiler-cache slot. Coleco pins
+Yosys `5391eeb1` and has its own slot. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -945,7 +946,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Registered Coleco v2, SMS and SG-1000 producers use their per-core lock files, all currently byte-identical to the repository-level pin: Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`. The old Coleco producer still selects the repository-level lock. Quartus needs neither lock. |
+| Toolchain selection | Registered Coleco v2, SMS and SG-1000 producers use their per-core lock files. SMS and SG-1000 are byte-identical to the repository-level pin (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Coleco v2 pins Yosys `5391eeb1` with the same nextpnr and Mistral. The old Coleco producer still selects the repository-level lock. Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -2816,8 +2817,8 @@ its embedded MIT notices and pinned upstream attribution; other moved files
 retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
-SG-1000 producers select per-core locks; identical lock contents share the
-same cache slot.
+SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
+lock and share its slot. Coleco pins Yosys `5391eeb1` and uses its own slot.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
