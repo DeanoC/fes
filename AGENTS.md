@@ -48,6 +48,10 @@ Outside agent sessions have ignored these rules. Obey them.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
 
+Firmware, ROMs, media and software may be placed on either kit. Use the
+applicable kit lease and supported install, activation or media-delivery path;
+these rules do not require keeping those artifacts on a host or Powerboat.
+
 GPU jobs follow the [Shared GPUs](#shared-gpus) section.
 
 The four first-party modules develop only in this repository. Their former
