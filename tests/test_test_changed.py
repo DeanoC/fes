@@ -88,7 +88,8 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["argv"] for c in host],
-                         [[sys.executable, "scripts/host_tests.py"], ["make", "test-ui"]])
+                         [[sys.executable, "scripts/host_tests.py", "--paths-json",
+                           json.dumps(result["impact"]["paths"])], ["make", "test-ui"]])
         self.assertEqual([c["cwd"] for c in host], [".", "sources/FogCast"])
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
 
@@ -100,7 +101,8 @@ class TestChangedTest(unittest.TestCase):
         self.assertTrue(result["impact"]["lanes"]["host"])
         commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == sys.executable]
         self.assertEqual([c["argv"] for c in commands],
-                         [[sys.executable, "scripts/host_tests.py"]])
+                         [[sys.executable, "scripts/host_tests.py", "--paths-json",
+                           json.dumps(result["impact"]["paths"])]])
 
     def test_parent_owned_paths_select_parent_and_always_commands_only(self):
         self.change("image/Makefile")

@@ -69,6 +69,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         host_run = [sys.executable, "scripts/host_tests.py"]
         if impact["test_modes"]["full_race"]:
             host_run.append("--full")
+        else:
+            host_run.extend(["--paths-json", json.dumps(impact["paths"])])
         add("host", "host Go tests", ".", host_run, tools=["go", "cc"],
             files=["scripts/host_tests.py", "sources/FogCast/go.mod",
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
