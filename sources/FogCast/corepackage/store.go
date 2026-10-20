@@ -30,8 +30,12 @@ type Store struct {
 	root     string
 	rootInfo os.FileInfo
 
-	verifyMu sync.Mutex
-	verified map[string]verifiedPackage
+	// publishMu covers link, the losing import's read, and unlinking the
+	// temporary hard link. That unlink updates the archive ctime. A reader
+	// that samples ctime across it treats the identical bytes as rewritten.
+	publishMu sync.Mutex
+	verifyMu  sync.Mutex
+	verified  map[string]verifiedPackage
 }
 
 type verifiedPackage struct {
@@ -141,6 +145,22 @@ func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Ins
 		return Inspection{}, false, err
 	}
 
+	published, created, err := s.publishImported(ctx, root, temporary, data, inspection)
+	if err != nil {
+		return Inspection{}, false, err
+	}
+	if created {
+		removeTemporary = false
+	}
+	return published, created, nil
+}
+
+// publishImported links the temporary archive into its content-addressed name.
+// The bool is true only when this call created that name. Callers hold no
+// store locks; this method takes publishMu for the whole publish.
+func (s *Store) publishImported(ctx context.Context, root *os.Root, temporary string, data []byte, inspection Inspection) (Inspection, bool, error) {
+	s.publishMu.Lock()
+	defer s.publishMu.Unlock()
 	installed := inspection.PackageID + ".fcore"
 	if err := root.Link(temporary, installed); err != nil {
 		if !errors.Is(err, os.ErrExist) {
@@ -155,7 +175,6 @@ func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Ins
 	if err := root.Remove(temporary); err != nil {
 		return Inspection{}, false, fmt.Errorf("core package: remove linked import temporary: %w", err)
 	}
-	removeTemporary = false
 	if err := syncRoot(root); err != nil {
 		return Inspection{}, false, err
 	}
