@@ -181,6 +181,8 @@ class AtariSTProducerTests(unittest.TestCase):
         for rectangle in st.VIDEO_RAM_GUARD_RESERVATIONS:
             self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{rectangle}"'), 1)
         self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_video_parts.PLACEMENT}"'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X20 Y0 X89 Y81" -to video.native_capture.capture\n'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X0 Y0 X89 Y81" -to "video.native_capture.capture.output_pipe*"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
         self.assertEqual(route[route.index('--seed') + 1], '4')
