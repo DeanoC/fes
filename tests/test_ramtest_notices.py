@@ -36,11 +36,13 @@ class RamtestNoticesTest(unittest.TestCase):
         text = (self.destination / 'SOURCE.md').read_text()
         self.assertIn('Exact producing commit: ' + '1' * 40, text)
         self.assertIn('https://github.com/DeanoC/fes/archive/' + '1' * 40 + '.tar.gz', text)
-        # Rebuild instructions must hold for retained packages from before
-        # the shared-lock move, so the notice names the recipe's lock_path
-        # rather than one fixed lock file.
+        # The producing commit's lock_path is authoritative. The notice also
+        # names the current per-core lock and pin, plus the older lock paths.
         self.assertIn('lock_path in config/core-recipes.toml at that commit', text)
-        self.assertIn('sources/misteross/toolchains/ramtest.lock for earlier ones', text)
+        self.assertIn('sources/misteross/cores/fes-ramtest/toolchain.lock', text)
+        self.assertIn('nextpnr pin ' + notices.ramtest_nextpnr_pin(), text)
+        self.assertIn('sources/misteross/toolchain.lock', text)
+        self.assertIn('sources/misteross/toolchains/ramtest.lock', text)
         self.assertEqual((self.destination / 'COPYING').read_bytes(), notices.LICENSE.read_bytes())
         self.assertEqual({p.name for p in self.package.iterdir()}, {'manifest.toml', 'core.rbf'})
         notices.process('verify', self.target, self.package)

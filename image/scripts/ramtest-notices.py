@@ -8,7 +8,9 @@ import shutil
 import tomllib
 
 IMAGE = Path(__file__).resolve().parents[1]
+REPO = IMAGE.parent
 LICENSE = IMAGE / 'licenses/fes.ramtest/COPYING'
+RAMTEST_LOCK = REPO / 'sources/misteross/cores/fes-ramtest/toolchain.lock'
 REPOSITORY = 'https://github.com/DeanoC/fes.git'
 
 
@@ -26,6 +28,15 @@ def is_fes_repository(repository):
     return re.fullmatch(
         r'(?:https://(?i:github\.com)/|git@(?i:github\.com):|ssh://git@(?i:github\.com)/)'
         r'(?i:DeanoC/fes)(?:\.git)?/?', repository) is not None
+
+
+def ramtest_nextpnr_pin():
+    """Nextpnr commit in RAM Tester's per-core lock, for the shipped notice."""
+    lock = tomllib.loads(RAMTEST_LOCK.read_text())
+    commit = lock['tool']['nextpnr']['commit']
+    if re.fullmatch(r'[0-9a-f]{40}', commit) is None:
+        raise ValueError('RAM Tester nextpnr pin must be a 40-digit commit')
+    return commit
 
 
 def source_notice(package):
@@ -46,6 +57,7 @@ def source_notice(package):
     if payload_sha != manifest['payload']['sha256']:
         raise ValueError('RAM Tester notice payload differs from manifest')
     repository = REPOSITORY.removesuffix('.git')
+    pin = ramtest_nextpnr_pin()
     return f'''# RAM Tester corresponding source
 
 Core: fes.ramtest
@@ -63,9 +75,11 @@ From sources/misteross, run make toolchain-fes-ramtest followed by
 make build-fes-ramtest-100 for the shipped OSS 100 MHz variant.
 See cores/fes-ramtest/README.md and scripts/build_fes_ramtest.py at the
 producing commit for the build instructions. The tool lock is the one named by
-the fes.ramtest lock_path in config/core-recipes.toml at that commit:
-sources/misteross/toolchain.lock for packages built after RAM test moved to
-the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.
+the fes.ramtest lock_path in config/core-recipes.toml at that commit.
+Current packages use sources/misteross/cores/fes-ramtest/toolchain.lock
+(nextpnr pin {pin}). Packages from the shared-lock period used
+sources/misteross/toolchain.lock. Earlier packages used
+sources/misteross/toolchains/ramtest.lock.
 
 This notice identifies the source of the sealed RBF, including when an image
 built from a later FES commit reuses that package. The RBF is installed at
