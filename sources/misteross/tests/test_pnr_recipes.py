@@ -46,10 +46,24 @@ FLAGS_SHA256 = {
     pnr_recipe.NEXTPNR_9128800F: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
     pnr_recipe.NEXTPNR_552BA246: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
     pnr_recipe.NEXTPNR_0A253257: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    pnr_recipe.NEXTPNR_A728C955: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    pnr_recipe.NEXTPNR_112B92FE: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    pnr_recipe.NEXTPNR_966F8499: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
 }
-# The options nextpnr 552ba246 adds over 9128800f, from a diff of the two
-# binaries' --help option lists.
-ADDED_552BA246 = {
+# Source-derived hashes of the exact option-name sets from the add_options()
+# declarations in common/kernel/command.cc and mistral/main.cc. The 0a253257
+# set has 105 options; its nine additions over 9128800f are listed below.
+UPSTREAM_OPTION_SET_SHA256 = {
+    pnr_recipe.NEXTPNR_9128800F: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
+    pnr_recipe.NEXTPNR_552BA246: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    pnr_recipe.NEXTPNR_0A253257: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    pnr_recipe.NEXTPNR_A728C955: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    pnr_recipe.NEXTPNR_112B92FE: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    pnr_recipe.NEXTPNR_966F8499: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+}
+# nextpnr 0a253257 adds these over 9128800f; independently checked from the
+# pinned source declarations, not generated from NEXTPNR_PINS.
+ADDED_0A253257 = {
     "arrival_pin_assignment", "isolated_lut_placement", "critical_cohort_budget",
     "critical_cohort_report", "critical_cohort_model_out", "gpu_required",
     "mistral_dsp_signed_lanes", "router2_profile", "set",
@@ -189,18 +203,22 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(pnr_recipe.NEXTPNR_PINS[pin]))
 
-    def test_552ba246_classifies_exactly_its_added_options(self):
+    def test_0a253257_classifies_its_exact_source_option_set(self):
         old = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_9128800F]
-        new = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_552BA246]
-        self.assertEqual(set(new) - set(old), ADDED_552BA246)
+        new = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_0A253257]
+        self.assertEqual(set(new) - set(old), ADDED_0A253257)
         self.assertEqual({name: new[name] for name in old}, dict(old))
+        self.assertEqual(dict(new), dict(pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_552BA246]))
         self.assertEqual(set(pnr_recipe.NEXTPNR_PINS), set(FLAGS_SHA256))
+        self.assertEqual(dict(pnr_recipe.NEXTPNR_PIN_OPTION_SET_SHA256),
+                         UPSTREAM_OPTION_SET_SHA256)
         for pin, defaults in pnr_recipe.NEXTPNR_PINS.items():
+            self.assertEqual(len(defaults), 56 if pin == pnr_recipe.NEXTPNR_9128800F else 65)
             self.assertEqual(hashlib.sha256(json.dumps(
                 dict(defaults), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 FLAGS_SHA256[pin])
 
-    def test_0a253257_uses_the_reviewed_552ba246_schema_for_menu(self):
+    def test_0a253257_menu_recipe_and_argv_accept_the_source_schema(self):
         pin = pnr_recipe.NEXTPNR_0A253257
         defaults = pnr_recipe.NEXTPNR_PINS[pin]
         self.assertEqual(dict(defaults), dict(pnr_recipe.NEXTPNR_PINS[
@@ -217,13 +235,31 @@ class PnrRecipeTests(unittest.TestCase):
         self.assertEqual(command, tuple(_legacy_argv(
             "fes.menu", recipe, seed=recipe["seeds"][0])))
 
+    def test_pr_head_pins_with_the_same_source_option_set_resolve_to_that_schema(self):
+        pins = (
+            pnr_recipe.NEXTPNR_A728C955,
+            pnr_recipe.NEXTPNR_112B92FE,
+            pnr_recipe.NEXTPNR_966F8499,
+        )
+        defaults = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_0A253257]
+        for pin in pins:
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as directory, \
+                    _core_on_nextpnr(directory, "fes.menu", pin):
+                recipe = pnr_recipe.recipe_for("fes.menu")
+                self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), pin)
+                self.assertEqual(recipe["flags"], dict(defaults))
+                command = pnr_recipe.argv("fes.menu", SLOT, SYNTH,
+                                          recipe["seeds"][0], 0, output=OUTPUT)
+            self.assertEqual(command, tuple(_legacy_argv(
+                "fes.menu", recipe, seed=recipe["seeds"][0])))
+
     def test_a_552ba246_recipe_must_set_every_added_option(self):
         pin = pnr_recipe.NEXTPNR_552BA246
         with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
                 directory, pin, schema=pnr_recipe.NEXTPNR_9128800F):
             with self.assertRaisesRegex(pnr_recipe.RecipeError, "missing .*arrival_pin_assignment"):
                 pnr_recipe.recipe_for("fes.pong")
-        for name in sorted(ADDED_552BA246):
+        for name in sorted(ADDED_0A253257):
             with self.subTest(omitted=name), tempfile.TemporaryDirectory() as directory, \
                     _pong_on_nextpnr(directory, pin, omit=(name,)):
                 with self.assertRaisesRegex(pnr_recipe.RecipeError, f"missing \\['{name}'\\]"):

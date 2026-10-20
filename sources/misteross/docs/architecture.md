@@ -126,16 +126,24 @@ claimed by these host-side identity and exporter tests.
 
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
 table and a `cores/<core>/toolchain.lock`, and each lock pins its own
-nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
-(`NEXTPNR_PINS`: `9128800f`, `552ba246` and `0a253257`). The reviewed
-`552ba246..0a253257` source diff adds no option declarations or changes to
-their defaults, so both pins use the same explicit schema; the newer pin's
-route changes still need their own qualification. A recipe's
+nextpnr. `scripts/pnr_recipe.py` resolves reviewed commits by the SHA256 of
+their exact sorted CLI option-name set. `552ba246`, `0a253257`, and PR
+comparison commits `a728c955`, `112b92fe`, and `966f8499` share the same
+105-option set and 65-option recipe flag schema; `9128800f` has its own
+96-option set and 56-option recipe flag schema. The source declarations
+are in `common/kernel/command.cc` and `mistral/main.cc`. The nine options added
+after `9128800f` are classified from the `0a253257` source: placement and
+signed-DSP packing switches default off, `gpu-required` is a guard switch,
+the critical-cohort repair budget defaults to zero, its report and generic
+settings are inputs, and its calibration and router profile paths are outputs.
+These schema aliases permit recipe
+validation; they do not qualify route results from a newer pin. Any other
+commit fails closed until its exact option set is reviewed and classified. A recipe's
 `[recipes.pnr.flags]` must list exactly the options of its own lock's
 nextpnr, including options left at their default, and only values that
 differ from that nextpnr's defaults reach argv. A lock on an unclassified
 nextpnr fails validation, so moving a lock to a newer nextpnr starts by
-classifying the options it adds.
+reviewing its option set and classifying any options that differ.
 
 To register a nextpnr pin, compare the exact candidate commit with a classified
 ancestor. Compare `--help` from the candidate binary and audit option
@@ -155,7 +163,7 @@ the effective argv. Keep the unknown-pin rejection test. From
 python3 -m unittest discover -s tests -p test_pnr_recipes.py
 ```
 
-The current `0a253257` schema review is recorded in the
+The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached

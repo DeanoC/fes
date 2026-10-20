@@ -20,6 +20,9 @@ REGISTRY = FES_ROOT / "config/core-recipes.toml"
 NEXTPNR_9128800F = "9128800fa6e77c4138088a7107a95376ba47ff15"
 NEXTPNR_552BA246 = "552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b"
 NEXTPNR_0A253257 = "0a253257eadd8a7877b881ab1f940cbd9739c1be"
+NEXTPNR_A728C955 = "a728c9555a664bee002d0ac8c41c53a856324ac0"
+NEXTPNR_112B92FE = "112b92fe85e79d0c2128e759ad5bb7500aef19e0"
+NEXTPNR_966F8499 = "966f849999f5d865c41adb0d8ea2298b77306ccd"
 
 # nextpnr's own default for every option a 9128800f recipe lists. The
 # Mistral/FES fork switches are fes_*, mistral_*, replicate_enables, remap_*
@@ -49,32 +52,52 @@ _DEFAULTS_9128800F = {
     "remap_candidate": "unset", "remap_groups": 1, "balance_reduction_root": [],
 }
 
-# The nine options 552ba246 adds over 9128800f: the whole difference between
-# the two binaries' --help option lists. Existing options keep their defaults.
+# The nine options 552ba246 adds over 9128800f, as declared in the 0a253257
+# sources: common/kernel/command.cc and mistral/main.cc. The Mistral declarations
+# say both placement flags and signed-DSP packing are opt-in; cohort budget 0
+# disables setup-path repair, its report is an input, and model-out is an output
+# for an unrepaired calibration. `set` is a repeatable key=value override,
+# restricted below to settings that do not have dedicated recipe inputs.
 _ADDED_552BA246 = {
-    # Placement and packing: opt-in Mistral/FES fork switches.
     "arrival_pin_assignment": False, "isolated_lut_placement": False,
     "critical_cohort_budget": 0, "critical_cohort_report": "unset",
     "mistral_dsp_signed_lanes": False,
-    # Generic key=value context settings (_valid_settings limits the keys).
     "set": [],
-    # Refuses the CPU-reference fallback; a completed route is unchanged.
+    # The source says this fails if --router gpu cannot use a GPU device.
     "gpu_required": False,
-    # Output files; placement and routing never read them.
     "critical_cohort_model_out": "unset", "router2_profile": "unset",
 }
 
-# Every nextpnr a core lock may pin, with nextpnr's default for each option its
-# recipes must list. Each recipe classifies every option of its own lock's
-# pin, including options left at their default. A lock may move only to a
-# nextpnr whose added options have been classified here first.
+# `NEXTPNR_PINS` classifies only recipe flags; seed, device, timing, reports,
+# and other producer-owned options are separate closed recipe fields. Resolve
+# a pin by the fingerprint of its full source CLI option-name set, then select
+# the corresponding recipe-flag schema. These full-set fingerprints were
+# extracted from add_options() in common/kernel/command.cc and mistral/main.cc.
+_SCHEMA_9128800F = MappingProxyType(_DEFAULTS_9128800F)
+_SCHEMA_552BA246 = MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246})
+_SOURCE_OPTION_SET_SCHEMAS = MappingProxyType({
+    # 96 options at 9128800f; 105 options for each newer equivalent pin below.
+    "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432": _SCHEMA_9128800F,
+    "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d": _SCHEMA_552BA246,
+})
+
+# Each commit's full source option-set fingerprint selects a recipe-flag
+# schema. The 552ba246, 0a253257, and PR comparison commits below all have the
+# same 105-option source set. Any other fingerprint fails closed.
+NEXTPNR_PIN_OPTION_SET_SHA256: Mapping[str, str] = MappingProxyType({
+    NEXTPNR_9128800F: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
+    NEXTPNR_552BA246: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    NEXTPNR_0A253257: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    NEXTPNR_A728C955: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    NEXTPNR_112B92FE: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+    NEXTPNR_966F8499: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+})
+if any(option_set not in _SOURCE_OPTION_SET_SCHEMAS
+       for option_set in NEXTPNR_PIN_OPTION_SET_SHA256.values()):
+    raise RuntimeError("a nextpnr pin refers to an unclassified source option-set fingerprint")
 NEXTPNR_PINS: Mapping[str, Mapping[str, object]] = MappingProxyType({
-    NEXTPNR_9128800F: MappingProxyType(_DEFAULTS_9128800F),
-    NEXTPNR_552BA246: MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246}),
-    # The reviewed 552ba246..0a253257 source diff changes router and timing
-    # behavior, but not the nextpnr option declarations or their defaults.
-    # Reuse the exact schema; this does not qualify routes from the newer pin.
-    NEXTPNR_0A253257: MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246}),
+    pin: _SOURCE_OPTION_SET_SCHEMAS[option_set]
+    for pin, option_set in NEXTPNR_PIN_OPTION_SET_SHA256.items()
 })
 
 RECIPE_FIELDS = frozenset({

@@ -1,0 +1,19 @@
+FES menu nextpnr recipe proof (host-only schema and argv validation; no route run)
+
+The focused test creates a temporary FES recipe/lock copy with the fes.menu
+nextpnr pin set to 0a253257eadd8a7877b881ab1f940cbd9739c1be. It calls
+pnr_recipe.recipe_for("fes.menu") and pnr_recipe.argv(...) and asserts the
+selected pin and complete classified flag table. The pin's source option-set
+fingerprint is
+45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d.
+
+Command (from sources/misteross):
+PYTHONPATH=tests python3 -m unittest -v test_pnr_recipes.PnrRecipeTests.test_0a253257_menu_recipe_and_argv_accept_the_source_schema
+
+Result:
+test_0a253257_menu_recipe_and_argv_accept_the_source_schema (test_pnr_recipes.PnrRecipeTests.test_0a253257_menu_recipe_and_argv_accept_the_source_schema) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.030s
+
+OK
