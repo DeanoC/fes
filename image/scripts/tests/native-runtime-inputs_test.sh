@@ -413,11 +413,11 @@ fi
 prebuilt_sha=$(sha256sum "$selected_fogcast/bin/mister-runtime-linux-armv7" | awk '{print $1}')
 cat > "$fixture/prebuilt.mk" <<EOF
 include $repo/buildroot/package/mister-runtime/mister-runtime.mk
-all: $selected_fogcast/bin
-$selected_fogcast/bin:
+all: $selected_fogcast/bin/.installed
+$selected_fogcast/bin/.installed:
 	\$(MISTER_RUNTIME_BUILD_CMDS)
 	\$(MISTER_RUNTIME_INSTALL_TARGET_CMDS)
-.PHONY: all $selected_fogcast/bin
+.PHONY: all $selected_fogcast/bin/.installed
 EOF
 FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
   make --no-print-directory -s -f "$fixture/prebuilt.mk" \

@@ -70,12 +70,13 @@ def load(root):
 
 def stage(root, fogcast):
     """Copy validated inputs into the private assembly snapshot, then recheck."""
+    from build import publish_file
     manifest, packages = load(root)
     destination = fogcast / 'bin'
     destination.mkdir(exist_ok=True)
     for name in BINARIES:
         path = destination / (name + '-linux-armv7')
-        shutil.copyfile(Path(root) / 'bin' / name, path)
+        publish_file(Path(root) / 'bin' / name, path)
         path.chmod(0o555)
         if sha(path) != manifest['binaries'][name]:
             raise ValueError('bootstrap artifact changed while staging: ' + name)

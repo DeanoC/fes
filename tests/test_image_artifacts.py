@@ -44,6 +44,8 @@ class ImageArtifactsTests(unittest.TestCase):
     def test_stage_preserves_original_provenance_and_binary(self):
         destination = self.root / 'snapshot'
         destination.mkdir()
+        artifacts.stage(self.root, destination)
+        # Reuse of the private snapshot must replace its read-only binaries.
         manifest, packages = artifacts.stage(self.root, destination)
         self.assertEqual(manifest, self.manifest)
         self.assertEqual(len(packages), 1)
