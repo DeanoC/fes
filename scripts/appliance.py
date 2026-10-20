@@ -417,7 +417,8 @@ def verified_inputs(root,profile,allow_single_pass=False):
     import tomllib
     configuration=tomllib.loads((root/'profiles'/(profile+'.toml')).read_text())
     revisions=media.cold_build.validate(root,configuration)
-    p=ReleaseProvenance(cold['fes_revision'],revisions['FogCast'],revisions['libmister-runtime'],
+    software = cold.get('software_provenance', {'fogcast': revisions['FogCast'], 'runtime': revisions['libmister-runtime']})
+    p=ReleaseProvenance(cold['fes_revision'],software['fogcast'],software['runtime'],
         cold['rootfs_sha256'],lock.kernel.sha256,cold['image_receipt_sha256'],cold['verification_sha256'],cold['qemu_log_sha256'])
     return root/'out'/profile/'linux.img',payloads.kernel,p,fogcast,env,lock
 

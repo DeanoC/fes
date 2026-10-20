@@ -383,7 +383,12 @@ def load_verified_image(output, fingerprint, *, allow_single_pass=False):
                     and evidence.get("toolchain_key") == toolchain_key(IMAGE)
                     and re.fullmatch(r"[0-9a-f]{64}", evidence.get("toolchain_sha256", "")) is not None)
         if required:
-            return {"fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
+            selected = json.loads((output / 'inputs.json').read_text()) if 'inputs.json' in receipt['files'] else {}
+            extra = {}
+            if artifacts := selected.get('bootstrap_artifacts'):
+                bootstrap_fingerprint('', {}, artifacts)
+                extra['software_provenance'] = artifacts['provenance']
+            return {**extra, "fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
                     "image_receipt_sha256": digest(output / "image.json"),
                     "verification_sha256": digest(output / "verification.json"),
                     "qemu_log_sha256": qemu_log_sha256}
@@ -513,6 +518,16 @@ def package_arguments(packages, unavailable_path=None):
     if unavailable_path:
         arguments.append("FES_UNAVAILABLE_CORES=" + str(unavailable_path))
     return arguments
+
+
+def bootstrap_fingerprint(fingerprint, info, artifacts):
+    if artifacts is None:
+        return fingerprint, info
+    for name in ('fogcast', 'runtime'):
+        if not re.fullmatch('[0-9a-f]{40}', artifacts['provenance'][name]):
+            raise ValueError('invalid bootstrap artifact provenance')
+    enriched = dict(info, bootstrap_artifacts=artifacts)
+    return hashlib.sha256(json.dumps(enriched, sort_keys=True).encode()).hexdigest(), enriched
 
 
 def image_fingerprint(base_fingerprint, info, packages, unavailable=()):
@@ -1769,9 +1784,7 @@ def main():
             artifacts["provenance"]["runtime"] if artifacts else revisions["libmister-runtime"]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
         host_fp, host_info = host_fingerprint(revisions, profile, toolchain)
-        if artifacts:
-            info['bootstrap_artifacts'] = artifacts
-            fp = hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
+        fp, info = bootstrap_fingerprint(fp, info, artifacts)
         packages = ()
         unavailable = ()
         image_fp, image_info = fp, info

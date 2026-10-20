@@ -86,6 +86,33 @@ class ImageArtifactsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'requires --artifacts'):
                 build.main()
 
+    def test_media_uses_artifact_fingerprint_and_runtime_lock(self):
+        import media
+        import tomllib
+        repo = Path(__file__).resolve().parents[1]
+        (self.root / 'profiles').mkdir()
+        shutil.copyfile(repo / 'profiles/native-integration-dev.toml',
+                        self.root / 'profiles/native-integration-dev.toml')
+        (self.root / 'image/build').mkdir(parents=True)
+        shutil.copyfile(repo / 'image/build/native-inputs.toml', self.root / 'image/build/native-inputs.toml')
+        output = self.root / 'out/native-integration-dev'
+        output.mkdir(parents=True)
+        (output / 'inputs.json').write_text(json.dumps({'bootstrap_artifacts': self.manifest}))
+        fogcast = self.root / 'FogCast'
+        fogcast.mkdir()
+        revisions = {'FogCast': '8' * 40, 'libmister-runtime': '9' * 40}
+        with patch.object(build, 'validate', return_value=revisions), \
+             patch.object(build, 'git', return_value='module fixture'), \
+             patch.object(build, 'build_fingerprint', return_value=('base', {'recipe': 'fixture'})), \
+             patch.object(build, 'host_fingerprint', return_value=('host', {})), \
+             patch.object(build, 'source_checkout', return_value=fogcast), \
+             patch.object(media.subprocess, 'check_output', return_value='go version fixture'):
+            fingerprint, host, _, _ = media.select(self.root, 'native-integration-dev')
+        self.assertEqual(fingerprint, build.bootstrap_fingerprint('base', {'recipe': 'fixture'}, self.manifest)[0])
+        self.assertEqual(host, 'host')
+        lock = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
+        self.assertEqual(lock['mister_runtime']['commit'], self.manifest['provenance']['runtime'])
+
     def test_pack_independent_binaries_without_source_or_image(self):
         selection = self.root / 'menu.toml'
         selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a' * 64 + '"\n')
