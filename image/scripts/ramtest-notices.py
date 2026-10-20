@@ -94,24 +94,14 @@ sources/misteross/toolchain.lock. Earlier packages used
 sources/misteross/toolchains/ramtest.lock.'''
 
 
-def _previous_tool_lock_details():
-    return ''' The tool lock is the one named by
-the fes.ramtest lock_path in config/core-recipes.toml at that commit:
-sources/misteross/toolchain.lock for packages built after RAM test moved to
-the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
-
-
 def source_notice(package):
     identity = package_identity(package)
     return _format_source_notice(identity, _current_tool_lock_details(ramtest_nextpnr_pin()))
 
 
 def retained_source_notice_matches(package, source):
-    """Accept the prior notice format and any pin in the current format."""
+    """Match the current notice format while allowing its producing pin."""
     identity = package_identity(package)
-    if source == _format_source_notice(identity, _previous_tool_lock_details()):
-        return True
-
     pin = ramtest_nextpnr_pin()
     current = _format_source_notice(identity, _current_tool_lock_details(pin)).decode()
     dynamic_pin = re.escape(f'nextpnr pin {pin}')
@@ -163,8 +153,7 @@ def process(action, target, package=None):
             raise ValueError('RAM Tester notice missing, changed or unsealed: ' + name)
 
 
-def verify_retained(target):
-    """Admit only a notice for the actual package retained by a warm build."""
+def _retained_notice_context(target):
     root = target / 'usr/share/mister-runtime/core-notices/fes.ramtest'
     reject_target_symlinks(target, root)
     if not root.exists():
@@ -189,21 +178,43 @@ def verify_retained(target):
             raise ValueError('RAM Tester notice missing, changed or unsealed: ' + path.name)
     if license_path.read_bytes() != LICENSE.read_bytes():
         raise ValueError('RAM Tester notice missing, changed or unsealed: COPYING')
+    return members[0], package, source_path
+
+
+def verify_retained(target):
+    """Admit only a current-format notice for the package retained by a warm build."""
+    retained = _retained_notice_context(target)
+    if retained is None:
+        return None
+    package_id, package, source_path = retained
     if not retained_source_notice_matches(package, source_path.read_bytes()):
         raise ValueError('RAM Tester notice missing, changed or unsealed: SOURCE.md')
-    return members[0] / 'SOURCE.md'
+    return package_id / 'SOURCE.md'
+
+
+def refresh_retained(target):
+    """Regenerate stale source text from the retained package, then verify it."""
+    retained = _retained_notice_context(target)
+    if retained is None:
+        return None
+    _, package, source_path = retained
+    if not retained_source_notice_matches(package, source_path.read_bytes()):
+        process('install', target, package)
+    return verify_retained(target)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('install', 'verify', 'verify-retained'))
+    parser.add_argument(
+        'action', choices=('install', 'verify', 'verify-retained', 'refresh-retained'))
     parser.add_argument('target', type=Path)
     parser.add_argument('package', nargs='?', type=Path)
     args = parser.parse_args()
-    if args.action == 'verify-retained':
+    if args.action in ('verify-retained', 'refresh-retained'):
         if args.package is not None:
-            parser.error('verify-retained derives the package from the target tree')
-        notice = verify_retained(args.target)
+            parser.error(args.action + ' derives the package from the target tree')
+        notice = (refresh_retained(args.target) if args.action == 'refresh-retained'
+                  else verify_retained(args.target))
         if notice is not None:
             print(notice)
     else:

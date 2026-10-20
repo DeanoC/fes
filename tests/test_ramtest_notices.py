@@ -134,25 +134,36 @@ class RamtestNoticesTest(unittest.TestCase):
         self.assertIn('Exact producing commit: ' + '1' * 40,
                       (self.destination / 'SOURCE.md').read_text())
 
-    def test_retained_notice_accepts_pre_pin_format_for_unchanged_package(self):
-        package = self.retained_package()
-        notices.process('install', self.target, package)
-        source = self.destination / 'SOURCE.md'
-        text = source.read_text()
-        current_details = f'''The tool lock is the one named by
-the fes.ramtest lock_path in config/core-recipes.toml at that commit. Current
-packages use sources/misteross/cores/fes-ramtest/toolchain.lock
-(nextpnr pin {notices.ramtest_nextpnr_pin()}). Packages from the shared-lock period used
-sources/misteross/toolchain.lock. Earlier packages used
-sources/misteross/toolchains/ramtest.lock.'''
-        previous_details = '''The tool lock is the one named by
+    def previous_notice_source(self, package):
+        current = notices.source_notice(package).decode()
+        current_details = notices._current_tool_lock_details(notices.ramtest_nextpnr_pin())
+        previous_details = ''' The tool lock is the one named by
 the fes.ramtest lock_path in config/core-recipes.toml at that commit:
 sources/misteross/toolchain.lock for packages built after RAM test moved to
 the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
-        self.assertIn(current_details, text)
+        self.assertIn(current_details, current)
+        return current.replace(current_details, previous_details).encode()
+
+    def test_retained_verifier_rejects_pre_pin_format(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
         source.chmod(0o644)
-        source.write_text(text.replace(current_details, previous_details))
+        source.write_bytes(self.previous_notice_source(package))
         source.chmod(0o444)
+        self.assertFalse(notices.retained_source_notice_matches(package, source.read_bytes()))
+        with self.assertRaises(ValueError):
+            notices.verify_retained(self.target)
+
+    def test_refresh_retained_rewrites_pre_pin_format_before_verification(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        source.chmod(0o644)
+        source.write_bytes(self.previous_notice_source(package))
+        source.chmod(0o444)
+        self.assertEqual(notices.refresh_retained(self.target), self.destination / 'SOURCE.md')
+        self.assertEqual(source.read_bytes(), notices.source_notice(package))
         self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
 
     def test_retained_notice_accepts_a_notice_from_an_earlier_nextpnr_pin(self):

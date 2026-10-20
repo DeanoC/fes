@@ -375,9 +375,9 @@ NATIVE_RUNTIME_MODE=package-only \
   "$native_extra" verify-image "$cache" "$target"
 
 # Reuse the completed target while selecting a newer RAM Tester. Preparation
-# must validate the old installed package/record and notice, then replace stale
-# launchers before its unchanged whole-tree secret scan. Post-build installs
-# the new package and refreshes its source notice only after preparation.
+# refreshes a superseded retained source notice from its sealed package, verifies
+# the old package/record, then replaces stale launchers before the secret scan.
+# Post-build installs the new package and notice after preparation.
 old_ramtest_id=$(printf '%064d' 0 | tr 0 e)
 old_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$old_ramtest_id/SOURCE.md
 package_fixture ramtest 3
@@ -416,15 +416,32 @@ if "$repo/scripts/scan-target-image-secrets.sh" "$target" >"$fixture/stale-scan.
 fi
 
 cp "$old_notice" "$fixture/old-source"
-chmod u+w "$old_notice"
-printf '%s\n' 'wrong notice' >"$old_notice"
-chmod 0444 "$old_notice"
-prepare_reject 'changed source notice'
-grep -Fq 'RAM Tester notice missing, changed or unsealed' "$fixture/prepare-reject.log"
-grep -Fqx 'const token = ++epoch;' "$target/usr/sbin/fogcast-kit"
-chmod u+w "$old_notice"
-cat "$fixture/old-source" >"$old_notice"
-chmod 0444 "$old_notice"
+# Recreate the pre-pin notice that predates the current lock detail. Preparation
+# must regenerate it instead of admitting the old template in the verifier.
+python3 - "$repo" "$target/usr/share/mister-runtime/core-packages/$old_ramtest_id" \
+  "$old_notice" <<'PY'
+import importlib.util
+from pathlib import Path
+import sys
+
+repo, package, notice_path = map(Path, sys.argv[1:])
+spec = importlib.util.spec_from_file_location('ramtest_notices', repo / 'scripts/ramtest-notices.py')
+notices = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(notices)
+current = notices.source_notice(package).decode()
+current_details = notices._current_tool_lock_details(notices.ramtest_nextpnr_pin())
+previous_details = ''' The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit:
+sources/misteross/toolchain.lock for packages built after RAM test moved to
+the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
+assert current_details in current
+notice_path.chmod(0o644)
+notice_path.write_text(current.replace(current_details, previous_details))
+notice_path.chmod(0o444)
+PY
+stale_launchers
+TARGET_IMAGE_LOCK_BIN="$selector" "$prepare" "$target"
+cmp "$fixture/old-source" "$old_notice"
 
 printf '%s\n' extra >"$(dirname "$old_notice")/EXTRA.md"
 prepare_reject 'extra notice Markdown'
@@ -469,7 +486,6 @@ cmp "$fogcast/bin/fogcast-kit-linux-armv7" "$target/usr/sbin/fogcast-kit"
 cmp "$fogcast/bin/fogcast-tenfoot-linux-armv7" "$target/usr/sbin/fogcast-tenfoot"
 test "$(stat -c %a "$target/usr/sbin/fogcast-kit")" = 755
 test "$(stat -c %a "$target/usr/sbin/fogcast-tenfoot")" = 755
-cmp "$fixture/old-source" "$old_notice"
 # Exercise the normal container selector basename without an override too.
 case "$(uname -s)" in
   Darwin) default_selector=$fogcast/bin/target-image-lock ;;

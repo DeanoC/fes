@@ -169,12 +169,12 @@ Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
 requires a fresh committed-source image build and separate hardware acceptance.
 
 Incremental native builds can retain the previous post-build rootfs. Preparation
-verifies any retained RAM Tester package and installed selection record, then
-checks its exact license and source notice before allowing that one `SOURCE.md`
-through the generic payload scan. It installs the selected agent, kit and
-tenfoot binaries before scanning the complete tree for secret assignments.
-The later native post-build step refreshes packages and notices to the current
-selection; other Markdown files remain forbidden.
+refreshes stale RAM Tester source text from its retained sealed package, then
+verifies the current notice format, exact license and installed selection record
+before allowing that one `SOURCE.md` through the generic payload scan. It installs
+the selected agent, kit and tenfoot binaries before scanning the complete tree for
+secret assignments. The later native post-build step refreshes packages and
+notices to the current selection; other Markdown files remain forbidden.
 
 Normal package recipes require explicit functional identity version 2. Older
 artifact caches remain untouched but cannot supply legacy build evidence to

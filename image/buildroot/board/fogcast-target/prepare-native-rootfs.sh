@@ -48,10 +48,10 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   exit 1
 }
 
-# Retained notices belong to the previous installed selection, which the native
-# post-build step refreshes later. Validate that old closed package/record pair
-# and its exact notice before allowing this one Markdown path during scanning.
-verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" verify-retained "$target")
+# A warm tree may carry source text from an older notice template. Regenerate it
+# from the retained sealed package before scanning, then admit only the current
+# notice format. The selected package and record are verified below.
+verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" refresh-retained "$target")
 if [ -n "$verified_notice" ]; then
   selector=${TARGET_IMAGE_LOCK_BIN:-}
   if [ -z "$selector" ]; then
