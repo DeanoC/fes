@@ -17,16 +17,17 @@ const storeFlushEvery = time.Second
 
 // store is the per-room key/value persistence behind store.get/set.
 type store struct {
-	path   string
-	values map[string]any
-	dirty  bool
-	last   time.Time
-	stderr io.Writer
-	logged bool
+	path    string
+	values  map[string]any
+	written map[string]bool
+	dirty   bool
+	last    time.Time
+	stderr  io.Writer
+	logged  bool
 }
 
 func newStore(path string, stderr io.Writer) *store {
-	s := &store{path: path, values: map[string]any{}, stderr: stderr}
+	s := &store{path: path, values: map[string]any{}, written: map[string]bool{}, stderr: stderr}
 	if path == "" {
 		return s
 	}
@@ -42,12 +43,31 @@ func newStore(path string, stderr io.Writer) *store {
 }
 
 func (s *store) set(key string, v any) {
+	s.written[key] = true
 	if v == nil {
 		delete(s.values, key)
 	} else {
 		s.values[key] = v
 	}
 	s.dirty = true
+}
+
+// adoptSaved keeps outgoing unload saves while retaining writes made by the
+// replacement's load callback. New room state must not overwrite untouched
+// keys with an older pre-unload snapshot.
+func (s *store) adoptSaved() {
+	if s.path == "" {
+		return
+	}
+	saved := newStore(s.path, s.stderr)
+	for key := range s.written {
+		if value, ok := s.values[key]; ok {
+			saved.values[key] = value
+		} else {
+			delete(saved.values, key)
+		}
+	}
+	s.values = saved.values
 }
 
 func (s *store) maybeFlush(now time.Time) {

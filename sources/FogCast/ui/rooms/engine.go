@@ -236,6 +236,9 @@ func (r *Instance) Revision() string { return r.pack.Revision }
 // FlushState saves current room state before a replacement reads it.
 func (r *Instance) FlushState() { r.store.flush() }
 
+// AdoptSavedState incorporates outgoing unload saves after replacement succeeds.
+func (r *Instance) AdoptSavedState() { r.store.adoptSaved() }
+
 // Discard closes an unsuccessful candidate without persisting trial state.
 func (r *Instance) Discard() { r.store.path = ""; r.Close() }
 

@@ -27,7 +27,7 @@ func installedTestRoom(t *testing.T, root, id, title, script string) rooms.Pack 
 
 func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T) {
 	root := t.TempDir()
-	first := installedTestRoom(t, root, "live", "First", "function load() store.set('keep', 'v1') end; function draw() gfx.text('old', 1, 1) end")
+	first := installedTestRoom(t, root, "live", "First", "function load() store.set('keep', 'v1') end; function unload() store.set('on_exit', 'saved') end; function draw() gfx.text('old', 1, 1) end")
 	h := newRoomHost(t)
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
@@ -64,7 +64,7 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 			t.Fatalf("working instance lost: %s", app.status)
 		}
 		state, err := os.ReadFile(app.roomStorePathLocked("live"))
-		if err != nil || strings.Contains(string(state), "bad") || !strings.Contains(string(state), "v2") {
+		if err != nil || strings.Contains(string(state), "bad") || !strings.Contains(string(state), "v2") || !strings.Contains(string(state), "on_exit") {
 			t.Fatalf("trial changed persistent state: %s %v", state, err)
 		}
 		packs, err := rooms.LoadDir(root)

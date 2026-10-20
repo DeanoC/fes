@@ -75,6 +75,7 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) {
 	} else {
 		a.closeRoomLocked()
 	}
+	candidate.AdoptSavedState()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
