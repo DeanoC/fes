@@ -123,7 +123,9 @@ do not run a full host/image/core campaign for every ready PR.
   checks. Full regression campaigns, exhaustive instrumentation and
   reproducibility checks belong to scheduled runs or explicit integration
   milestones. Do not repeat successful checks without a changed input,
-  failure or unresolved concern.
+  failure or unresolved concern. Reuse passing CI software evidence for the
+  tested inputs; a kit smoke test does not require rerunning the full host
+  suite on Powerboat.
 - Review is still required to merge. A ready PR carries its changed artifact,
   completed checks and the specific remaining hardware check so Grokbot can
   run the appropriate path. Do not substitute an all-core build for that plan.

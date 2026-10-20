@@ -20,6 +20,7 @@ RULES = [
         'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
         'scripts/check_deadcode.py', 'scripts/check_diff.py',
         'scripts/check_doc_links.py', 'scripts/coordination.py',
+        'scripts/hil_plan.py', 'scripts/consistency.py', 'scripts/generate.py',
     )],
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
