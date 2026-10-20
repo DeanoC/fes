@@ -1105,15 +1105,6 @@ func TestConfirmRejectsSplashThatDiffersFromImageRecord(t *testing.T) {
 	}
 }
 
-func mustImage(t *testing.T, s *appliance.Store, hash string) string {
-	t.Helper()
-	path, err := s.ImagePath(hash)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 func shaOf(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
