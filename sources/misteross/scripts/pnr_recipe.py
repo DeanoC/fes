@@ -78,6 +78,10 @@ _OTHER_SOURCE_OPTIONS = frozenset({
     "router", "run", "sdc", "sdf", "seed", "test", "threads",
     "timing_allow_fail", "top", "verbose", "version", "write",
 })
+_ABSENT_BY_RECIPE_OPTIONS = frozenset({
+    "gui", "gui_no_aa", "on_failure", "post_route", "pre_pack", "pre_place",
+    "pre_route", "run",
+})
 _SOURCE_OPTION_SET_SCHEMAS: Mapping[frozenset[str], Mapping[str, object]] = MappingProxyType({
     frozenset(_SCHEMA_96_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_96_OPTIONS,
     frozenset(_SCHEMA_105_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_105_OPTIONS,
@@ -233,6 +237,11 @@ def _schema_for_option_set(option_names: Sequence[str] | set[str] | frozenset[st
                            ) -> Mapping[str, object]:
     actual = frozenset(option_names)
     schema = _SOURCE_OPTION_SET_SCHEMAS.get(actual)
+    if schema is None:
+        schema = next((classified_schema
+                       for classified_options, classified_schema
+                       in _SOURCE_OPTION_SET_SCHEMAS.items()
+                       if actual == classified_options - _ABSENT_BY_RECIPE_OPTIONS), None)
     if schema is not None:
         return schema
     expected = min(_SOURCE_OPTION_SET_SCHEMAS,

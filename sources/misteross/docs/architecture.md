@@ -144,7 +144,11 @@ option-name set to a reviewed schema. The 96-option set has 56 recipe flags;
 the 105-option set has 65. Their source declarations are in
 `common/kernel/command.cc` and `mistral/main.cc`. Schema lookup uses the option
 set, so a moving PR head remains eligible when its option set is unchanged.
-Any added or missing CLI option fails closed with the difference listed.
+The no-Python/no-GUI build also accepts each classified set with exactly these
+eight options absent: `gui`, `gui_no_aa`, `on_failure`, `post_route`, `pre_pack`,
+`pre_place`, `pre_route` and `run`. Any other added or missing CLI option,
+including a partial omission of those eight, fails closed with the difference
+listed.
 
 The nine options added after `9128800f` are classified once in the shared
 recipe defaults: placement and signed-DSP packing switches default off,

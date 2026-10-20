@@ -65,6 +65,10 @@ ADDED_0A253257 = {
     "critical_cohort_report", "critical_cohort_model_out", "gpu_required",
     "mistral_dsp_signed_lanes", "router2_profile", "set",
 }
+NO_PYTHON_GUI_OPTIONS = {
+    "gui", "gui_no_aa", "on_failure", "post_route", "pre_pack", "pre_place",
+    "pre_route", "run",
+}
 
 # Stable digest of each complete recipe, plus the old producer command's
 # normalized argv digest (slot, synth, output and GPU are fixed test values).
@@ -231,6 +235,47 @@ class PnrRecipeTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(json.dumps(
                 dict(schema), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 FLAGS_SHA256[len(schema)])
+
+    def test_each_schema_accepts_only_full_or_exact_no_python_gui_option_set(self):
+        self.assertEqual(pnr_recipe._ABSENT_BY_RECIPE_OPTIONS, NO_PYTHON_GUI_OPTIONS)
+        pins = {
+            96: "9128800fa6e77c4138088a7107a95376ba47ff15",
+            105: "f485b5857affc377199af1b5bfcd63d31330b50b",
+        }
+        for count, classified_options in SOURCE_OPTION_SETS.items():
+            with self.subTest(option_count=count), tempfile.TemporaryDirectory() as directory, \
+                    _core_on_nextpnr(directory, "fes.menu", pins[count]):
+                for variant, option_names in (
+                        ("full", classified_options),
+                        ("no-python-no-gui", classified_options - NO_PYTHON_GUI_OPTIONS)):
+                    with self.subTest(variant=variant):
+                        binary = Path(directory) / f"nextpnr-{variant}"
+                        _fake_nextpnr_help(binary, option_names)
+                        self.assertEqual(
+                            dict(pnr_recipe.validate_nextpnr_tool("fes.menu", binary)),
+                            dict(SCHEMAS_BY_OPTION_COUNT[count]))
+
+    def test_no_python_gui_option_set_rejects_partial_and_unrelated_mismatches(self):
+        pins = {
+            96: "9128800fa6e77c4138088a7107a95376ba47ff15",
+            105: "f485b5857affc377199af1b5bfcd63d31330b50b",
+        }
+        for count, classified_options in SOURCE_OPTION_SETS.items():
+            mismatches = {
+                "partial-no-python-no-gui": classified_options - {"gui"},
+                "extra-option": classified_options | {"unexpected_option"},
+                "missing-non-gui-option": classified_options - {"randomize_seed"},
+            }
+            for case, option_names in mismatches.items():
+                with self.subTest(option_count=count, case=case), \
+                        tempfile.TemporaryDirectory() as directory, \
+                        _core_on_nextpnr(directory, "fes.menu", pins[count]):
+                    binary = Path(directory) / "nextpnr-mismatch"
+                    _fake_nextpnr_help(binary, option_names)
+                    with self.assertRaisesRegex(
+                            pnr_recipe.RecipeError,
+                            "nextpnr CLI option set differs from every classified schema"):
+                        pnr_recipe.validate_nextpnr_tool("fes.menu", binary)
 
     def test_menu_pnr_step_accepts_0a253257_and_moving_f485_head(self):
         pins = (
