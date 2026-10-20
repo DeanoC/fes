@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,7 +19,9 @@ import (
 	release "github.com/DeanoC/FogCast/appliance"
 	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/appliancesplash"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
+	"github.com/DeanoC/FogCast/internal/atomicwrite"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"golang.org/x/sys/unix"
 )
@@ -606,4 +610,507 @@ func TestConfirmFailureBeforeDurableRecordKeepsAdmissionBlocked(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(root, "boot.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("pre-durable confirm created a ticket: %v", err)
 	}
+}
+
+func writeImageSplash(t *testing.T, idle, record string, payload []byte) string {
+	t.Helper()
+	sum := sha256.Sum256(payload)
+	encoded := hex.EncodeToString(sum[:])
+	if err := os.WriteFile(idle, payload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("format=1\nidle_sha256=%s\nidle_size=%d\n", encoded, len(payload))
+	if err := os.WriteFile(record, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return encoded
+}
+
+func TestUpdateConfirmAndRollbackRefreshFATSplash(t *testing.T) {
+	s, factory, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("stale-factory-splash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	splash := appliancesplash.New(appliancesplash.Paths{
+		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, factory.ImageSHA256),
+	})
+	root := releaseRoot(t, s, factory.ImageSHA256)
+	idPath := filepath.Join(root, "boot_id")
+	sumNext := writeImageSplash(t, idle, record, []byte("splash-of-candidate-image"))
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(idPath, []byte("boot-next\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeTrialTicket(t, root, "boot-next", next.ImageSHA256, true)
+	if got, err := os.ReadFile(fat); err != nil || string(got) != "stale-factory-splash" {
+		t.Fatalf("activate changed FAT: %q %v", got, err)
+	}
+	rbf, _, err := appliance.SplashPaths(splash.ReleaseRoot, next.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Lstat(rbf); !os.IsNotExist(err) {
+		t.Fatalf("splash staged before confirm: %v", err)
+	}
+	publishChecked := false
+	splash.SetPublishWriteForTest(func(path string, data []byte, perm os.FileMode) error {
+		state, statusErr := s.Status()
+		if statusErr != nil {
+			return statusErr
+		}
+		if state.Good != next.ImageSHA256 || state.TrialImage != "" || state.ConfirmedImage != "" {
+			return fmt.Errorf("FAT publish started before durable known-good record: %+v", state)
+		}
+		publishChecked = true
+		return atomicwrite.WriteFile(path, data, perm)
+	})
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-next", ImageSHA256: next.ImageSHA256, Trial: true}, nil, nil, splash)
+	if err := svc.Confirm(context.Background(), "boot-next", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if !publishChecked {
+		t.Fatal("FAT publish did not observe the durable known-good record")
+	}
+	confirmedTicket, err := applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || confirmedTicket.Trial || confirmedTicket.BootID != "boot-next" || confirmedTicket.ImageSHA256 != next.ImageSHA256 {
+		t.Fatalf("confirmed splash left trial ticket: %+v %v", confirmedTicket, err)
+	}
+	if got := shaOf(t, fat); got != sumNext {
+		t.Fatalf("confirmed FAT sha %s want %s", got, sumNext)
+	}
+	if got := shaOf(t, rbf); got != sumNext {
+		t.Fatalf("staged splash sha %s want %s", got, sumNext)
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || status.FatIdleSHA256 != sumNext || status.IdleSHA256 != sumNext || status.Good != next.ImageSHA256 {
+		t.Fatalf("status after confirm: %+v %v", status, err)
+	}
+	if err := s.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-back"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(idPath, []byte("boot-back\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeTrialTicket(t, root, "boot-back", factory.ImageSHA256, true)
+	if got := shaOf(t, fat); got != sumNext {
+		t.Fatalf("rollback activation changed FAT before confirm: %s", got)
+	}
+	sumFactory := writeImageSplash(t, idle, record, []byte("splash-of-factory-image"))
+	splash.SetPublishWriteForTest(func(path string, data []byte, perm os.FileMode) error {
+		state, statusErr := s.Status()
+		if statusErr != nil {
+			return statusErr
+		}
+		if state.Good != factory.ImageSHA256 || state.TrialImage != "" || state.ConfirmedImage != "" {
+			return fmt.Errorf("rollback FAT publish started before durable known-good record: %+v", state)
+		}
+		return atomicwrite.WriteFile(path, data, perm)
+	})
+	restored := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-back", ImageSHA256: factory.ImageSHA256, Trial: true}, nil, nil, splash)
+	if err := restored.Confirm(context.Background(), "boot-back", factory.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	confirmedTicket, err = applianceupdate.ReadBootIdentity(filepath.Join(root, "boot.json"), idPath)
+	if err != nil || confirmedTicket.Trial || confirmedTicket.BootID != "boot-back" || confirmedTicket.ImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("confirmed rollback splash left trial ticket: %+v %v", confirmedTicket, err)
+	}
+	if got := shaOf(t, fat); got != sumFactory {
+		t.Fatalf("rollback confirm FAT sha %s want %s", got, sumFactory)
+	}
+	back, _, err := appliance.SplashPaths(splash.ReleaseRoot, factory.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := shaOf(t, back); got != sumFactory {
+		t.Fatalf("factory splash not staged: %s", got)
+	}
+	status, err = restored.Status(context.Background())
+	if err != nil || status.Trial || status.FatIdleSHA256 != sumFactory || status.Good != factory.ImageSHA256 || status.Previous != next.ImageSHA256 {
+		t.Fatalf("status after rollback confirm: %+v %v", status, err)
+	}
+}
+
+func TestConfirmKeepsTrialUntilSplashPublishes(t *testing.T) {
+	s, _, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.Mkdir(fat, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeImageSplash(t, idle, record, []byte("splash-that-cannot-publish"))
+	splash := appliancesplash.New(appliancesplash.Paths{
+		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, next.ImageSHA256),
+	})
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-next", ImageSHA256: next.ImageSHA256, Trial: true}, nil, nil, splash)
+	if err := svc.Confirm(context.Background(), "boot-next", next.ImageSHA256); err == nil {
+		t.Fatal("confirm succeeded while FAT splash was a directory")
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-next", next.ImageSHA256)
+	if ok || err != nil {
+		t.Fatalf("watchdog disarmed before splash publication: %v %v", ok, err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != next.ImageSHA256 || st.ConfirmedImage != "" || st.TrialImage != "" {
+		t.Fatalf("failed publish did not leave an accepted trial: %+v %v", st, err)
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil || !status.Trial || status.SplashWarning != "" || c.Health("").Ready {
+		t.Fatalf("gate lifted without a splash: %+v %v", status, err)
+	}
+	if err := os.Remove(fat); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Confirm(context.Background(), "boot-next", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	status, err = svc.Status(context.Background())
+	if err != nil || status.Trial || !c.Health("").Ready || status.FatIdleSHA256 == "" {
+		t.Fatalf("retry did not publish splash: %+v %v", status, err)
+	}
+	ok, err = s.ConfirmedContext(context.Background(), "boot-next", next.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog still armed after splash publication: %v %v", ok, err)
+	}
+}
+
+func TestRestartPublishesSplashBeforeWatchdogConfirmation(t *testing.T) {
+	s, _, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("previous-splash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, next.ImageSHA256)
+	splash := appliancesplash.New(appliancesplash.Paths{Idle: idle, Record: record, FAT: fat, ReleaseRoot: root})
+	sum := writeImageSplash(t, idle, record, []byte("splash-after-process-death"))
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AcceptTrialContext(context.Background(), "boot-next", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-next", next.ImageSHA256)
+	if ok || err != nil {
+		t.Fatalf("watchdog confirmed before the agent restarted: %v %v", ok, err)
+	}
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-next", ImageSHA256: next.ImageSHA256, Trial: true}, nil, nil, splash)
+	if got := shaOf(t, fat); got != sum {
+		t.Fatalf("restart left FAT at %s", got)
+	}
+	ok, err = s.ConfirmedContext(context.Background(), "boot-next", next.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("restart did not record splash publication: %v %v", ok, err)
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil || status.Trial || !c.Health("").Ready || status.FatIdleSHA256 != sum {
+		t.Fatalf("restart gate: %+v %v", status, err)
+	}
+}
+
+func TestNonTrialBootFinishesInterruptedSplash(t *testing.T) {
+	s, _, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("previous-splash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, next.ImageSHA256)
+	splash := appliancesplash.New(appliancesplash.Paths{Idle: idle, Record: record, FAT: fat, ReleaseRoot: root})
+	sum := writeImageSplash(t, idle, record, []byte("splash-of-accepted-image"))
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AcceptTrialContext(context.Background(), "boot-next", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	rbf, digest, err := appliance.SplashPaths(root, next.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(rbf); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err = os.Remove(digest); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if _, err = s.BeginBoot("boot-stable"); err != nil {
+		t.Fatal(err)
+	}
+	stable := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-stable", ImageSHA256: next.ImageSHA256}, nil, nil, splash)
+	if got := shaOf(t, fat); got != sum {
+		t.Fatalf("non-trial boot left FAT at %s", got)
+	}
+	if got := shaOf(t, rbf); got != sum {
+		t.Fatalf("running image did not restage the splash: %s", got)
+	}
+	status, err := stable.Status(context.Background())
+	if err != nil || status.Trial || status.FatIdleSHA256 != sum || status.IdleSHA256 != sum {
+		t.Fatalf("non-trial status: %+v %v", status, err)
+	}
+}
+
+func TestNonTrialSplashRepairFailureStaysOnStatus(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	s, factory, _, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("stale-readable-splash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sumIdle := writeImageSplash(t, idle, record, []byte("splash-of-running-image"))
+	sumFAT := shaOf(t, fat)
+	if sumFAT == sumIdle {
+		t.Fatal("fixture digests match")
+	}
+	sel, err := s.BeginBoot("boot-stable")
+	if err != nil || sel.Trial || sel.Manifest.ImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("factory boot: %+v %v", sel, err)
+	}
+	splash := appliancesplash.New(appliancesplash.Paths{
+		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, factory.ImageSHA256),
+	})
+	// A mode 0555 directory does not stop root creating Publish's temporary.
+	// The writer fails closed for every uid. Each blocked attempt names a
+	// different temporary, so the warning stays comparable only after that
+	// name is dropped.
+	var blockPublish atomic.Bool
+	var publishAttempt atomic.Uint64
+	blockPublish.Store(true)
+	splash.SetPublishWriteForTest(func(path string, data []byte, perm os.FileMode) error {
+		if blockPublish.Load() {
+			name := fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), publishAttempt.Add(1))
+			return &os.PathError{Op: "open", Path: filepath.Join(filepath.Dir(path), name), Err: os.ErrPermission}
+		}
+		return atomicwrite.WriteFile(path, data, perm)
+	})
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-stable", ImageSHA256: factory.ImageSHA256}, nil, nil, splash)
+	assertOpen := func() applianceupdate.Status {
+		t.Helper()
+		status, statusErr := svc.Status(context.Background())
+		if statusErr != nil {
+			t.Fatalf("status hid the repair failure: %v", statusErr)
+		}
+		if status.Trial || status.Good != factory.ImageSHA256 || status.ImageSHA256 != factory.ImageSHA256 || status.BootID != "boot-stable" {
+			t.Fatalf("boot state: %+v", status)
+		}
+		if status.FatIdleSHA256 != sumFAT || status.IdleSHA256 != sumIdle || status.SplashWarning == "" {
+			t.Fatalf("digests or warning: %+v", status)
+		}
+		if !strings.Contains(status.SplashWarning, "permission denied") {
+			t.Fatalf("warning %q", status.SplashWarning)
+		}
+		body, marshalErr := json.Marshal(status)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		for _, needle := range []string{
+			`"fat_idle_sha256":"` + sumFAT + `"`,
+			`"idle_sha256":"` + sumIdle + `"`,
+			`"splash_warning":`,
+			`"trial":false`,
+			`"good":"` + factory.ImageSHA256 + `"`,
+		} {
+			if !strings.Contains(string(body), needle) {
+				t.Fatalf("status JSON missing %s: %s", needle, body)
+			}
+		}
+		if got := shaOf(t, fat); got != sumFAT {
+			t.Fatalf("failed repair changed FAT: %s", got)
+		}
+		return status
+	}
+	first := assertOpen()
+	second := assertOpen()
+	if first.SplashWarning != second.SplashWarning {
+		t.Fatalf("warning changed across polls: %q %q", first.SplashWarning, second.SplashWarning)
+	}
+	if got := strings.Count(logs.String(), "splash repair failed"); got != 1 {
+		t.Fatalf("repair failure logged %d times:\n%s", got, logs.String())
+	}
+	if !strings.Contains(logs.String(), factory.ImageSHA256) {
+		t.Fatalf("log missing image: %s", logs.String())
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cancelled, err := svc.Status(ctx)
+	if !errors.Is(err, context.Canceled) || cancelled.SplashWarning != first.SplashWarning {
+		t.Fatalf("cancelled status: %+v %v", cancelled, err)
+	}
+	blockPublish.Store(false)
+	status, err := svc.Status(context.Background())
+	if err != nil || status.SplashWarning != "" || status.Trial || status.FatIdleSHA256 != sumIdle || status.IdleSHA256 != sumIdle || status.Good != factory.ImageSHA256 {
+		t.Fatalf("repair did not recover: %+v %v", status, err)
+	}
+	if got := shaOf(t, fat); got != sumIdle {
+		t.Fatalf("recovered FAT %s", got)
+	}
+	if got := strings.Count(logs.String(), "splash repair succeeded"); got != 1 {
+		t.Fatalf("recovery logged %d times:\n%s", got, logs.String())
+	}
+	if _, err = svc.Status(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(logs.String(), "splash repair succeeded"); got != 1 {
+		t.Fatalf("recovery logged again:\n%s", logs.String())
+	}
+	if got := strings.Count(logs.String(), "splash repair failed"); got != 1 {
+		t.Fatalf("failure logged again:\n%s", logs.String())
+	}
+}
+
+func TestFactoryFallbackRepublishesSplashFromTheRunningImage(t *testing.T) {
+	s, factory, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("splash-before-trial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := releaseRoot(t, s, factory.ImageSHA256)
+	splash := appliancesplash.New(appliancesplash.Paths{Idle: idle, Record: record, FAT: fat, ReleaseRoot: root})
+	sumNext := writeImageSplash(t, idle, record, []byte("splash-of-failed-image"))
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-next", ImageSHA256: next.ImageSHA256, Trial: true}, nil, nil, splash)
+	if err := svc.Confirm(context.Background(), "boot-next", next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := shaOf(t, fat); got != sumNext {
+		t.Fatalf("confirmed splash %s", got)
+	}
+	path, err := s.ImagePath(next.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sel, err := s.BeginBoot("boot-factory")
+	if err != nil || sel.Trial || sel.Manifest.ImageSHA256 != factory.ImageSHA256 {
+		t.Fatalf("factory not selected: %+v %v", sel, err)
+	}
+	if err = s.RecordFallbackContext(context.Background(), "boot-factory", factory.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	for _, hash := range []string{factory.ImageSHA256, next.ImageSHA256} {
+		rbf, digest, pathErr := appliance.SplashPaths(root, hash)
+		if pathErr != nil {
+			t.Fatal(pathErr)
+		}
+		if err = os.Remove(rbf); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if err = os.Remove(digest); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	if got := shaOf(t, fat); got != sumNext {
+		t.Fatal("recording factory fallback changed FAT")
+	}
+	sumFactory := writeImageSplash(t, idle, record, []byte("splash-of-factory-image"))
+	restored := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-factory", ImageSHA256: factory.ImageSHA256}, nil, nil, splash)
+	if got := shaOf(t, fat); got != sumFactory {
+		t.Fatalf("factory boot FAT %s want %s", got, sumFactory)
+	}
+	staged, _, err := appliance.SplashPaths(root, factory.ImageSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := shaOf(t, staged); got != sumFactory {
+		t.Fatalf("factory splash was not restaged from the running image: %s", got)
+	}
+	status, err := restored.Status(context.Background())
+	if err != nil || status.Trial || status.FatIdleSHA256 != sumFactory || status.Good != factory.ImageSHA256 {
+		t.Fatalf("factory fallback status: %+v %v", status, err)
+	}
+}
+
+func TestConfirmRejectsSplashThatDiffersFromImageRecord(t *testing.T) {
+	s, _, next, c := fixture(t)
+	dir := t.TempDir()
+	idle := filepath.Join(dir, "idle.rbf")
+	record := filepath.Join(dir, "build-inputs")
+	fat := filepath.Join(dir, "idle.fat")
+	if err := os.WriteFile(fat, []byte("keep-me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(idle, []byte("not-the-record"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(record, []byte("format=1\nidle_sha256="+strings.Repeat("d", 64)+"\nidle_size=14\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	splash := appliancesplash.New(appliancesplash.Paths{
+		Idle: idle, Record: record, FAT: fat, ReleaseRoot: releaseRoot(t, s, next.ImageSHA256),
+	})
+	if err := s.Activate(next.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-next"); err != nil {
+		t.Fatal(err)
+	}
+	svc := applianceupdate.NewWithSplash(s, c, applianceupdate.BootIdentity{BootID: "boot-next", ImageSHA256: next.ImageSHA256, Trial: true}, nil, nil, splash)
+	if err := svc.Confirm(context.Background(), "boot-next", next.ImageSHA256); err == nil {
+		t.Fatal("mismatched splash confirmed")
+	}
+	got, err := os.ReadFile(fat)
+	if err != nil || string(got) != "keep-me" {
+		t.Fatalf("FAT changed: %q %v", got, err)
+	}
+	st, err := s.Status()
+	if err != nil || st.TrialImage != next.ImageSHA256 || st.Good == next.ImageSHA256 {
+		t.Fatalf("selection changed: %+v %v", st, err)
+	}
+}
+
+func shaOf(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
