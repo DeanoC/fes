@@ -142,7 +142,7 @@ func TestHostModeLeavesKitUnset(t *testing.T) {
 	}
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "home.json"))
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("example.fes-cores")
 	app.Start(t.Context())
@@ -961,7 +961,7 @@ func startCoreRoomWithHost(t *testing.T, cores rooms.LocalCores, feed localPadSe
 		app.client.paired = true
 	}
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("cores")
 	app.SetKitLocal(cores, feed)

@@ -25,6 +25,25 @@ func installedTestRoom(t *testing.T, root, id, title, script string) rooms.Pack 
 	return pack
 }
 
+func looseTestRoom(t *testing.T, root, id, title, script string) rooms.Pack {
+	t.Helper()
+	dir := filepath.Join(root, "loose-"+id)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "room.toml"), []byte("id = '"+id+"'\ntitle = '"+title+"'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.lua"), []byte(script), 0600); err != nil {
+		t.Fatal(err)
+	}
+	pack := rooms.LoadPackFS(os.DirFS(dir), dir)
+	if pack.Err != nil {
+		t.Fatal(pack.Err)
+	}
+	return pack
+}
+
 func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T) {
 	root := t.TempDir()
 	first := installedTestRoom(t, root, "live", "First", "function load() store.set('keep', 'v1') end; function unload() store.set('on_exit', 'saved') end; function draw() gfx.text('old', 1, 1) end")
@@ -88,6 +107,76 @@ func TestInstalledRoomStartupFailureRestoresPreviousWithoutRestart(t *testing.T)
 	defer app.closeAllRoomsLocked()
 	if !app.openHomeRoomAsRootLocked() || app.room == nil || app.room.Revision() != first.Revision {
 		t.Fatalf("startup rollback: %s", app.status)
+	}
+}
+
+func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing.T) {
+	root := t.TempDir()
+	first := installedTestRoom(t, root, "home-update", "First", "function draw() end")
+	packs, err := rooms.LoadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex(packs), root)
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("home-update")
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+	if !app.openHomeRoomAsRootLocked() || app.room == nil || app.room.Revision() != first.Revision {
+		t.Fatalf("initial home room: %s", app.status)
+	}
+	original := app.room
+
+	second := installedTestRoom(t, root, "home-update", "Second", "function draw() end")
+	if !app.openHomeRoomAsRootLocked() || app.room == original || app.room.Revision() != second.Revision {
+		t.Fatalf("home did not load the changed selection: %s", app.status)
+	}
+	working := app.room
+
+	installedTestRoom(t, root, "home-update", "Broken", "function load() error('broken home update') end")
+	if !app.openHomeRoomAsRootLocked() || app.room != working || !strings.Contains(app.status, "Room update failed") {
+		t.Fatalf("failed home trial disturbed the working room: %s", app.status)
+	}
+	packs, err = rooms.LoadDir(root)
+	if err != nil || len(packs) != 1 || packs[0].Revision != second.Revision {
+		t.Fatalf("failed home trial did not restore previous selection: %v %v", packs, err)
+	}
+}
+
+func TestRollbackRevealsLooseRoomAndPlayGuardKeepsCurrentRoom(t *testing.T) {
+	root := t.TempDir()
+	looseTestRoom(t, root, "live", "Loose", "function draw() end")
+	installed := installedTestRoom(t, root, "live", "Installed", "function draw() end")
+	packs, err := rooms.LoadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex(packs), root)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+	app.openRoomLocked("live")
+	working := app.room
+	if working == nil || working.Revision() != installed.Revision {
+		t.Fatalf("installed room was not opened: %s", app.status)
+	}
+	app.session.State = "active"
+	if err := rooms.Rollback(root, "live", ""); err != nil {
+		t.Fatal(err)
+	}
+	app.openRoomPickerLocked()
+	row := app.homeRoomRowLocked("live")
+	if row.Invalid || row.Label != "Loose" {
+		t.Fatalf("rollback did not restore loose room: %#v", row)
+	}
+	app.activateHomeRowLocked(row)
+	if app.room != working || !app.roomPickerOpen || !strings.Contains(app.status, "Stop the running machine") {
+		t.Fatalf("loose selection disturbed live room or picker: %s", app.status)
 	}
 }
 

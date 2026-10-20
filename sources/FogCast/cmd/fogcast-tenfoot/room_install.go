@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
@@ -13,7 +12,7 @@ import (
 func roomCommand(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	root := flags.String("rooms", os.Getenv("FOGCAST_ROOMS"), "local launcher's room directory")
+	root := flags.String("rooms", "", "local launcher's room directory")
 	if err := flags.Parse(args[1:]); err != nil {
 		return 2
 	}

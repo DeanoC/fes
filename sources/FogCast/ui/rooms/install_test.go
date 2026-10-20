@@ -148,6 +148,33 @@ func TestInstallIdempotentKeepsPreviousAndRejectsOversize(t *testing.T) {
 	}
 }
 
+func TestInstallLoosePackFromRoomsDirectory(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "loose-room")
+	if err := os.Mkdir(source, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for file, data := range map[string]string{
+		ManifestName: "id = 'loose.room'\ntitle = 'Loose room'\n",
+		"main.lua":   "function draw() end",
+	} {
+		if err := os.WriteFile(filepath.Join(source, file), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pack, err := Install(root, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pack.ID != "loose.room" || pack.Revision == "" {
+		t.Fatalf("installed pack = %#v", pack)
+	}
+	if _, err = os.Stat(filepath.Join(source, ManifestName)); err != nil {
+		t.Fatalf("loose source was changed or removed: %v", err)
+	}
+}
+
 func TestInstalledArtworkUsesNewSnapshotWithoutChangingLiveOldRoom(t *testing.T) {
 	root := t.TempDir()
 	create := func(c color.RGBA) Pack {

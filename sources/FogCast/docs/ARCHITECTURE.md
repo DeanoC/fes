@@ -3315,10 +3315,12 @@ and package-generation checks.
 
 `fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
 room's `room.toml`, Lua and artwork into the local launcher's room directory.
-The default resolves the same preferences, environment and persistent config
-location as the launcher. Use `--rooms` when the running launcher uses a custom
-room directory. Installation uses POSIX file locking on Linux/macOS. This is local installation,
-not a host-to-kit transfer API.
+The default resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then
+uses the persistent config location shared with the launcher. Use `--rooms`
+when the running launcher uses a custom room directory. A loose pack inside the
+rooms directory can be installed directly; a source that contains the
+installation directory is rejected. Installation uses POSIX file locking on
+Linux/macOS. This is local installation, not a host-to-kit transfer API.
 
 Installation checks the manifest, main script, icon presence and syntax of all
 Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
@@ -3334,7 +3336,10 @@ load and the first update/draw before replacing the working instance. If either
 fails, it preserves the working instance and restores the previous selection;
 a failed first installation is deselected, allowing the embedded room of that ID
 to remain available. A concurrent newer install is not undone by an older
-failure. Room replacement is refused while a game is running or launching.
+failure. Home and Rooms navigation refresh the index from embedded defaults and
+the current rooms directory. Home trials a changed installed selection before
+replacing an open instance. Room replacement is refused while a game is running
+or launching, including when the selected pack is loose.
 Nested rooms retain their parents and persistent state stays outside the pack.
 
 Errors in later callbacks retain the normal room error handling. Explicit

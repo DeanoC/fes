@@ -8,28 +8,18 @@ import (
 )
 
 // Refresh discovery at a navigation boundary, rather than polling while rendering.
-// Existing loose development packs remain supported by the same loader.
-func (a *App) refreshInstalledRoomsLocked() {
+// Rebuild from the current loose packs so rollback can reveal a shadowed pack.
+func (a *App) refreshInstalledRoomsLocked() bool {
 	if a.roomsDir == "" {
-		return
+		return true
 	}
 	packs, err := rooms.LoadDir(a.roomsDir)
 	if err != nil {
 		a.status = "Could not refresh rooms: " + err.Error()
-		return
+		return false
 	}
-	var loose []rooms.Pack
-	embedded := rooms.NewIndex(rooms.Examples())
-	if a.roomsIndex != nil {
-		for _, p := range a.roomsIndex.Packs {
-			if p.Revision == "" {
-				loose = append(loose, p)
-			} else if fallback, ok := embedded.Find(p.ID); ok {
-				loose = append(loose, fallback)
-			}
-		}
-	}
-	a.roomsIndex = rooms.NewIndex(loose, packs)
+	a.roomsIndex = rooms.NewIndex(rooms.Examples(), packs)
+	return true
 }
 
 // Trial the selected pack with actual launcher services before retiring the

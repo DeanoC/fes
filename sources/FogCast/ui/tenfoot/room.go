@@ -266,6 +266,9 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	if id == "" {
 		return false
 	}
+	if !a.refreshInstalledRoomsLocked() {
+		return false
+	}
 	pack, reason, ok := a.resolveHomeRoomLocked(id)
 	if !ok {
 		a.noteHomeRoomFallbackLocked(id, reason)
@@ -275,7 +278,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	// selection, rather than loading a new instance.
 	restored := a.restoreLibraryOriginLocked()
 	origin := a.room
-	if a.reclaimHomeRoomLocked(id) {
+	if a.reclaimHomeRoomLocked(id, pack.Revision) {
 		// Reclaim resumes a room it switches to. When the restored origin
 		// is itself the home room, resume it here so on_resume runs.
 		if restored && a.room == origin {
@@ -321,15 +324,15 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 
 // reclaimHomeRoomLocked makes an already-open home room the only room.
 // The root-most live instance is kept so Home does not reload it.
-func (a *App) reclaimHomeRoomLocked(id string) bool {
+func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	var home *rooms.Instance
 	for _, parent := range a.roomStack {
-		if parent != nil && parent.ID() == id && parent.Err() == nil {
+		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil {
 			home = parent
 			break
 		}
 	}
-	if home == nil && a.room != nil && a.room.ID() == id && a.room.Err() == nil {
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil {
 		home = a.room
 	}
 	if home == nil {
