@@ -1361,10 +1361,14 @@ on the current known-good image. Confirmation requires actual native idle.
 `idle_sha256` in its build-inputs and stages it under the release store.
 Release admission keeps a 1 MiB margin plus room for that splash: an idle core
 up to 8 MiB, its sidecar, and a same-directory temporary of the core, so an
-accepted release can be confirmed. Confirmation promotes the trial to
-known-good without telling the watchdog, atomically replaces FAT `/idle.rbf`,
-and only then records the confirmation the watchdog reads. A failed or
-cancelled publish leaves the watchdog armed. The same boot retries. A later
+accepted release can be confirmed. Confirmation first promotes the trial to
+known-good in the release store without telling the watchdog, then atomically
+replaces FAT `/idle.rbf`, and only then records the confirmation the watchdog
+reads and clears the `boot.json` trial flag. A failed or cancelled publish
+leaves the watchdog armed. A boot-ticket rewrite failure after the release
+record is durable does not undo confirmation: admission opens, the error is
+logged, and the rewrite is retried once on a later idle status read. A failed
+splash publish can be retried by the same boot. A later
 boot of that image, including one that is no longer a trial, republishes from
 the running image's verified idle core even when the staged copy was removed.
 An unconfirmed trial does not modify FAT, so watchdog fallback still programs
@@ -2164,9 +2168,14 @@ one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
 run factory software, then reconcile persistent storage and queued work after
-confirmation. The storage gate verifies durable confirmation for the exact boot
-and image even while the original boot ticket still records a trial; this opens
-persistent storage without another reboot. A base-image update blocks activation
+confirmation. Confirmation records the durable release, then rewrites that
+boot's ticket to `trial:false` without changing its boot id or image, so
+bundle operations are not refused until another reboot. When the rewrite
+fails, the durable record still confirms the release and admission opens.
+The storage gate accepts the leftover `trial:true` ticket for that boot and
+image. The agent logs the failure and retries the rewrite once on a later
+idle status read. Further status reads leave the ticket in place. The next
+agent start tries the rewrite again. A base-image update blocks activation
 and software installation.
 
 `WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`

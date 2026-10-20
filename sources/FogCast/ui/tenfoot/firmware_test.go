@@ -311,7 +311,13 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 		t.Fatal("Library did not suspend the room")
 	}
 
+	waitFor(t, app, "library catalog after room suspend", func(s Snapshot) bool {
+		return !s.Loading && len(s.Games) == 1
+	})
 	app.HandleCommand(CmdSelect, now)
+	if !app.Snapshot().FirmwarePicker.Open {
+		t.Fatal("selecting the focused library title did not open the BIOS picker")
+	}
 	selectLibraryRoot(t, app, dir)
 	selectNamedRow(t, app, "coleco.bios")
 	app.HandleCommand(CmdSelect, now)

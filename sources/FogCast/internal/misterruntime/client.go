@@ -94,11 +94,6 @@ func validRuntimePath(path string) bool {
 		len(path) <= maximumRuntimePathBytes && strings.IndexByte(path, 0) < 0
 }
 
-func writePayload(connection net.Conn, payload []byte) error {
-	_, err := writePayloadCount(connection, payload)
-	return err
-}
-
 func writePayloadCount(connection net.Conn, payload []byte) (int, error) {
 	written := 0
 	for len(payload) > 0 {

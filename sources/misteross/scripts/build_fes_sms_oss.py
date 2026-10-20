@@ -25,6 +25,7 @@ from scripts.fes_build_common import (
     _read_json,
     _require_gpu_backend,
     _run_tool,
+    gpu_route_evidence,
     _sha256,
     _write_atomic,
     reject_async_m10k_reads,
@@ -565,6 +566,12 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         evidence["route"]["placer_seed"] = winner.seed
         evidence["route"]["placer_heap_timingweight"] = winner.weight
         evidence["route"]["placer_qor_mode"] = "first-pass"
+        # The sealed execution says gpu_device "lease". The request and the
+        # physical grant live here, outside BUILD_ID.
+        evidence["route"].update(gpu_route_evidence(
+            (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace"),
+            gpu_device,
+        ))
         evidence["execution"] = invocation.inputs
         evidence.update(
             {

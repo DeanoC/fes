@@ -38,15 +38,21 @@ type Status struct {
 }
 
 type Service struct {
-	store         *appliance.Store
-	coordinator   *agent.Coordinator
-	boot          BootIdentity
-	reboot        func(context.Context) error
-	cleanup       func(context.Context) error
-	mutation      sync.Mutex
-	mu            sync.Mutex
-	blocked       bool
-	trial         bool
+	store       *appliance.Store
+	coordinator *agent.Coordinator
+	boot        BootIdentity
+	reboot      func(context.Context) error
+	cleanup     func(context.Context) error
+	mutation    sync.Mutex
+	mu          sync.Mutex
+	blocked     bool
+	trial       bool
+	// ticketRepair requests one later rewrite of a boot.json that stayed
+	// trial:true after a durable confirmation. It stays set until that
+	// rewrite is attempted, so a timed-out status read can try again. A
+	// failed rewrite still clears it, so a full volume cannot make every
+	// status read rewrite the ticket.
+	ticketRepair  bool
 	operations    map[*operation]struct{}
 	drained       chan struct{}
 	splash        *appliancesplash.Installer
@@ -93,7 +99,9 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 
 // A confirmation write can rename successfully and then report a sync failure.
 // Reconcile only after the store proves persistence for this exact trial; merely
-// seeing matching fields must not release the admission or watchdog gate.
+// seeing matching fields must not release the admission or watchdog gate. A
+// boot.json rewrite failure after that proof opens admission and is retried
+// once on a later idle status read.
 // A non-trial boot republishes the running image's splash. That repairs an
 // interrupted publication and a factory fallback whose staged copy is gone.
 // A failed repair is logged and returned in SplashWarning. It does not fail
@@ -113,9 +121,13 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	}
 	s.mu.Lock()
 	trial := s.trial
+	repair := s.ticketRepair
 	s.mu.Unlock()
-	if !trial {
+	if !trial && !repair {
 		return nil
+	}
+	if !trial {
+		return s.retryBootTicket(ctx)
 	}
 	confirmed, err := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
 	if err != nil {
@@ -145,8 +157,64 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 			return err
 		}
 	}
-	s.releaseTrialGate()
+	return s.finishConfirmation(ctx)
+}
+
+// finishConfirmation clears the boot ticket and opens admission once the
+// release store has durably recorded confirmation. ErrBootTicketRewrite is
+// that durable result with a failed ticket rewrite: it is logged, admission
+// opens, and the rewrite is retried once on a later idle status read.
+func (s *Service) finishConfirmation(ctx context.Context) error {
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	repair := false
+	if err != nil {
+		if !errors.Is(err, appliance.ErrBootTicketRewrite) {
+			return err
+		}
+		confirmed, confirmErr := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		if !confirmed {
+			return err
+		}
+		repair = true
+	}
+	s.mu.Lock()
+	s.trial = false
+	s.blocked = false
+	s.ticketRepair = repair
+	s.coordinator.SetUpdateBlocked(false)
+	s.mu.Unlock()
+	if repair {
+		s.logBootTicket(err)
+	}
 	return nil
+}
+
+// retryBootTicket makes the single follow-up rewrite. The repair is consumed
+// only once ConfirmContext attempts the boot.json rewrite. Context
+// cancellation or a timeout before that attempt, including a store-lock wait,
+// leaves the repair pending. A rewrite failure still spends the one retry.
+func (s *Service) retryBootTicket(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	if err != nil && !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		return err
+	}
+	s.mu.Lock()
+	s.ticketRepair = false
+	s.mu.Unlock()
+	if err != nil {
+		s.logBootTicket(err)
+	}
+	return nil
+}
+
+func (s *Service) logBootTicket(err error) {
+	slog.Warn("appliance boot ticket rewrite failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
 }
 
 // repairSplash publishes the running image's verified idle core when FAT does
@@ -204,14 +272,6 @@ func splashRepairMessage(err error) string {
 		return pathErr.Op + " " + path + ": " + pathErr.Err.Error()
 	}
 	return err.Error()
-}
-
-func (s *Service) releaseTrialGate() {
-	s.mu.Lock()
-	s.trial = false
-	s.blocked = false
-	s.coordinator.SetUpdateBlocked(false)
-	s.mu.Unlock()
 }
 
 // BeginOperation fences HTTP launch, development, input and cast operations.
@@ -375,11 +435,7 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 		return errors.New("native runtime is not idle")
 	}
 	if s.splash == nil {
-		if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
-			return err
-		}
-		s.releaseTrialGate()
-		return nil
+		return s.finishConfirmation(ctx)
 	}
 	// Stage and accept before replacing FAT. A digest mismatch must not accept
 	// the trial, and a failed trial must still boot the previous splash.
@@ -403,8 +459,7 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	if err := s.store.CompleteSplashContext(ctx, bootID, hash); err != nil {
 		return err
 	}
-	s.releaseTrialGate()
-	return nil
+	return s.finishConfirmation(ctx)
 }
 
 func (s *Service) installSplash(ctx context.Context, hash string) error {

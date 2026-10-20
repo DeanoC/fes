@@ -848,9 +848,8 @@ def read_holder(directory, gpu_id):
 
 
 def held_by_owner(directory, ids, owner, skip):
-    # GPU_LEASE_IDS can be narrowed to one physical device by a per-route
-    # caller. Owner limits still apply across every GPU leased through this
-    # shared directory, so include lock files created by other inventories.
+    # Owner limits apply across every GPU leased through this shared
+    # directory, including lock files created under other inventories.
     inventory = set(ids)
     for path in Path(directory).glob('gpu-*.lock'):
         gpu_id = path.name[len('gpu-'):-len('.lock')]

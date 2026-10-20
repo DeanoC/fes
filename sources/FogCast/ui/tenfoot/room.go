@@ -712,32 +712,6 @@ func (a *App) roomParentIDsLocked() []string {
 	return ids
 }
 
-func (a *App) roomHintLocked() string {
-	kind := a.affinity.current.Kind
-	if a.room != nil && a.room.Err() != nil {
-		return backWord(kind) + " home"
-	}
-	if a.roomChoiceOpen {
-		return roomChoiceHint(kind)
-	}
-	if a.firmwarePickerOpen {
-		return firmwarePickerHint(kind)
-	}
-	if a.detailOpen {
-		dest := a.roomDestinationLocked()
-		if dest.Confirm() == rooms.ConfirmImportFirmware {
-			return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
-		}
-		return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
-	}
-	dest := a.roomDestinationLocked()
-	action := strings.TrimSpace(dest.Action)
-	if action == "" {
-		action = "confirm"
-	}
-	return selectWord(kind) + " " + strings.ToLower(action) + "  " + detailsWord(kind) + " details  " + backWord(kind) + " back  " + homeWord(kind) + " home  " + settingsWord(kind) + " settings"
-}
-
 func homeWord(kind InputKind) string {
 	switch kind {
 	case InputKeyboard, InputMouse:

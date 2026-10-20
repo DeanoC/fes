@@ -508,13 +508,6 @@ func runtimeStopReady(runtime Runtime) bool {
 	return runtime.Health("").Ready
 }
 
-func validActiveDevelopment(status protocol.Status) bool {
-	return status.State == protocol.StateActive && status.Development &&
-		status.GameID == nil && status.System == nil && status.ExpectedCore == nil &&
-		(status.ObservedCore == nil || *status.ObservedCore != "") &&
-		status.LastError == nil && status.Recovery == ""
-}
-
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
 	if !c.begin() {

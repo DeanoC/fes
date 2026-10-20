@@ -6,15 +6,12 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/testsock"
 )
-
-var sockSeq atomic.Uint32
 
 func shortSock(t *testing.T) string {
 	t.Helper()

@@ -94,15 +94,27 @@ is preserved. Module relocation alone does not enter the functional projection.
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
 loader, Yosys and GPU overrides. It preserves only the GPU routing variables
-set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+set by an outer `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
 `GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
-functional input digest. It records one explicit GPU device (default 0),
+functional input digest when that outer lease is already active. Producers run
+outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
+record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
+free GPU while nextpnr routes, after the record is sealed. The requested
+`--gpu-device` index is not that device and is not part of the digest.
+`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
+record would change placement and RBF bytes whenever a different GPU was free.
+HIP and CUDA routes match each other and the CPU reference, so the bitstream
+does not depend on which physical GPU was granted. The route log line
+`FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`
+copies that grant, and the requested index, onto `route`; slot-card summaries
+copy them onto `gpu`. Neither copy enters `BUILD_ID`. The record also includes
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
 Only a single routing device is supported in this lane; use
 `--identity-version 2 --gpu-devices 0` for Coleco/ZX81, optionally with
-`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Execution
+`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Those
+flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
 paths remain part of this conservative identity, so tool relocation does not
@@ -166,13 +178,16 @@ qualification or hardware acceptance; those remain separate evidence gates.
 
 Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
 repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
-outside that lease. A producer's requested physical GPU id, from its
-`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
-dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
-visibility mask. The dispatcher is `scripts/nextpnr_lease.py`, run with
+outside that lease. The producer does not set `GPU_LEASE_IDS` or a vendor
+visibility mask. gpu-run picks a free GPU from the host inventory, or from a
+box-level `GPU_LEASE_IDS` override, and passes it through `FES_GPU_IDS` and
+`GPU_RUN_DEVICE`. The dispatcher is `scripts/nextpnr_lease.py`, run with
 `python -I`. It imports only the standard library, so an audited route reads
 only that file from the source tree, and every audited source closure lists
-it. Producers must run outside an outer
+it. For a whole-route lease the dispatcher passes `GPU_RUN_DEVICE` to nextpnr
+after gpu-run applies its visibility mask, and prints `FES-GPU-GRANT` with
+the physical id from `FES_GPU_IDS`. A phase-lease dispatcher prints the same
+line for each broker `GRANT`. That line is the device that routed. Producers must run outside an outer
 gpu-run so a lease cannot span synthesis or multiple routes. The dispatcher
 starts its route timer after the lease is granted, while the producer's audited
 deadline bounds queue wait plus route time and cancels the full process group
@@ -181,10 +196,11 @@ each worker releases its GPU before starting another route.
 
 When the selected `nextpnr-mistral` binary reads `GPU_LEASE_FD` (the
 DeanoC/nextpnr#224 client), the producer runs it under `gpu-run --phase-lease`
-instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for its
-requested physical GPU only for each GPU routing phase; packing, placement,
+instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for
+one GPU, whichever is free, only for each GPU routing phase; packing, placement,
 timing analysis and bitstream writing hold no GPU. There is no visibility mask,
-so `--gpu-device` keeps the physical id. The dispatcher relays the lease socket
+so `--gpu-device` keeps the physical id from the broker grant, which the
+`FES-GPU-GRANT` line records. The dispatcher relays the lease socket
 and pauses the route budget while a GPU request waits, and the producer sets no
 outer deadline, so queue time never counts toward the route timeout. Any other
 nextpnr binary keeps the per-invocation lease above.
@@ -1855,9 +1871,16 @@ dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. It takes the same `--gpu-router` and `--toolchain-root` as the
-shell: HIP masks the selected device, and CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`
-and passes `--gpu-device`. The card route must prove that backend, and the
-backend must be the one recorded on the frozen shell. The producer chooses
+shell. HIP is the default. CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` and passes
+`--gpu-device` as the requested index. The card recipe records
+`gpu_selection` `lease` and, for CUDA, `gpu_device_requested`. It does not
+record that request as `gpu_device`, the device that routed. The summary field
+`gpu.gpu_device_granted` is the physical id from the route log's
+`FES-GPU-GRANT` line, and it is not part of the recipe hash. gpu-run leases
+any free GPU; the producer does not set `GPU_LEASE_IDS` or a device visibility
+mask. The card route must
+prove that backend, and the backend must be the one recorded on the frozen
+shell. The producer chooses
 probe mode from the socket and validates
 both legacy and physical PLL output maps. Frozen clocks are constrained by
 net; admission requires final analogue setup and hold on all three clocks
