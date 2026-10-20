@@ -82,7 +82,12 @@ _SOURCE_OPTION_SET_SCHEMAS: Mapping[frozenset[str], Mapping[str, object]] = Mapp
     frozenset(_SCHEMA_96_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_96_OPTIONS,
     frozenset(_SCHEMA_105_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_105_OPTIONS,
 })
-_RUNTIME_SCHEMAS: dict[tuple[str, str, str], Mapping[str, object]] = {}
+_RUNTIME_SCHEMAS: dict[
+    tuple[str, str, str, tuple[str, int, int, int, int] | None], Mapping[str, object]
+] = {}
+_ACTIVE_RUNTIME_SCHEMA_IDENTITIES: dict[
+    tuple[str, str, str], tuple[str, int, int, int, int] | None
+] = {}
 _HELP_OPTION = re.compile(r"^\s*(?:-[A-Za-z0-9]\s+\[\s*)?--([A-Za-z][A-Za-z0-9_-]*)\b")
 
 RECIPE_FIELDS = frozenset({
@@ -268,13 +273,26 @@ def _effective_flags(core_id: str, recipe: Mapping[str, object],
     return effective
 
 
-def validate_option_names(core_id: str, option_names: Sequence[str] | set[str] | frozenset[str]
-                          ) -> Mapping[str, object]:
-    """Select and validate a recipe schema from the complete compiler option set."""
+def _runtime_schema_registry_key(core_id: str, pin: str) -> tuple[str, str, str]:
+    return str(REGISTRY.resolve()), core_id, pin
+
+
+def _validated_option_schema(
+    core_id: str, option_names: Sequence[str] | set[str] | frozenset[str]
+) -> tuple[Mapping[str, object], str]:
     recipe, pin = _selected(core_id)
     schema = _schema_for_option_set(option_names)
     _effective_flags(core_id, recipe, schema)
-    _RUNTIME_SCHEMAS[(str(REGISTRY.resolve()), core_id, pin)] = schema
+    return schema, pin
+
+
+def validate_option_names(core_id: str, option_names: Sequence[str] | set[str] | frozenset[str]
+                          ) -> Mapping[str, object]:
+    """Select and validate a recipe schema from a supplied compiler option set."""
+    schema, pin = _validated_option_schema(core_id, option_names)
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    _RUNTIME_SCHEMAS[(*registry_key, None)] = schema
+    _ACTIVE_RUNTIME_SCHEMA_IDENTITIES[registry_key] = None
     return schema
 
 
@@ -298,8 +316,7 @@ def _help_option_names(path: str, device: int, inode: int, size: int, mtime_ns: 
     return options
 
 
-def validate_nextpnr_tool(core_id: str, binary: str | Path) -> Mapping[str, object]:
-    """Read the authenticated binary's --help and validate its full option set."""
+def _nextpnr_tool_identity(binary: str | Path) -> tuple[Path, tuple[str, int, int, int, int]]:
     path = Path(binary).resolve()
     try:
         info = path.stat()
@@ -307,9 +324,20 @@ def validate_nextpnr_tool(core_id: str, binary: str | Path) -> Mapping[str, obje
         raise RecipeError(f"cannot inspect nextpnr CLI options for {path}: {exc}") from exc
     if not path.is_file() or not os.access(path, os.X_OK):
         raise RecipeError(f"nextpnr CLI option source is not executable: {path}")
-    return validate_option_names(
-        core_id, _help_option_names(str(path), info.st_dev, info.st_ino,
-                                    info.st_size, info.st_mtime_ns))
+    identity = (str(path), info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+    return path, identity
+
+
+def validate_nextpnr_tool(core_id: str, binary: str | Path) -> Mapping[str, object]:
+    """Read this executable's --help and validate its full option set."""
+    path, identity = _nextpnr_tool_identity(binary)
+    _, device, inode, size, mtime_ns = identity
+    schema, pin = _validated_option_schema(
+        core_id, _help_option_names(str(path), device, inode, size, mtime_ns))
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    _RUNTIME_SCHEMAS[(*registry_key, identity)] = schema
+    _ACTIVE_RUNTIME_SCHEMA_IDENTITIES[registry_key] = identity
+    return schema
 
 
 def core_for_lock(root: str | Path, lock_path: str | Path) -> str | None:
@@ -427,10 +455,22 @@ def _selected(core_id: str) -> tuple[dict, str]:
         raise RecipeError(f"unknown P&R recipe {core_id!r}") from exc
 
 
-def recipe_for(core_id: str) -> dict:
-    """Return one validated P&R table from config/core-recipes.toml."""
+def recipe_for(core_id: str, binary: str | Path | None = None) -> dict:
+    """Return the P&R table with the schema validated for the selected binary."""
     recipe, pin = _selected(core_id)
-    schema = _RUNTIME_SCHEMAS.get((str(REGISTRY.resolve()), core_id, pin))
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    if binary is None:
+        identity = _ACTIVE_RUNTIME_SCHEMA_IDENTITIES.get(registry_key)
+    elif Path(binary).is_file():
+        _, identity = _nextpnr_tool_identity(binary)
+        schema_key = (*registry_key, identity)
+        if schema_key not in _RUNTIME_SCHEMAS:
+            validate_nextpnr_tool(core_id, binary)
+    else:
+        # Recipe-only unit tests and preflight callers may have a placeholder
+        # tool path. Real producers authenticate and validate their tool first.
+        identity = _ACTIVE_RUNTIME_SCHEMA_IDENTITIES.get(registry_key)
+    schema = _RUNTIME_SCHEMAS.get((*registry_key, identity))
     if schema is not None:
         recipe["flags"] = _effective_flags(core_id, recipe, schema)
     return recipe
@@ -441,8 +481,8 @@ def nextpnr_pin(core_id: str) -> str:
     return _selected(core_id)[1]
 
 
-def recipe_digest(core_id: str) -> str:
-    payload = json.dumps(recipe_for(core_id), sort_keys=True, separators=(",", ":"))
+def recipe_digest(core_id: str, binary: str | Path | None = None) -> str:
+    payload = json.dumps(recipe_for(core_id, binary), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -534,12 +574,19 @@ def argv(
 ) -> tuple[str, ...]:
     """Build the complete nextpnr command for a registered FES producer."""
     pin = nextpnr_pin(core_id)
-    schema_key = (str(REGISTRY.resolve()), core_id, pin)
-    if schema_key not in _RUNTIME_SCHEMAS and Path(slot).is_file():
+    # Revalidate the exact executable supplied to this argv build. The help
+    # probe is cached by that executable's file identity, not by the recipe pin.
+    tool_exists = Path(slot).is_file()
+    if tool_exists:
         validate_nextpnr_tool(core_id, slot)
-    recipe = recipe_for(core_id)
+    recipe = recipe_for(core_id, slot if tool_exists else None)
     flags = recipe["flags"]
-    defaults = _RUNTIME_SCHEMAS.get(schema_key) or _schema_for_flag_names(flags)
+    if tool_exists:
+        _, tool_identity = _nextpnr_tool_identity(slot)
+        schema_key = (*_runtime_schema_registry_key(core_id, pin), tool_identity)
+        defaults = _RUNTIME_SCHEMAS.get(schema_key) or _schema_for_flag_names(flags)
+    else:
+        defaults = _schema_for_flag_names(flags)
     if set(flags) != set(defaults):
         raise RecipeError(f"{core_id}: the flags do not classify the nextpnr option set")
     if device != "5CSEBA6U23I7":
@@ -630,7 +677,9 @@ def build(
 ) -> tuple[tuple[str, ...], dict[str, str]]:
     """Build nextpnr argv and validate its complete controlled environment."""
     command = argv(core_id, slot, synth, seed, gpu, output=output, **options)
-    return nextpnr_gpu_command(command, env), environment(core_id, env, gpu=gpu)
+    return nextpnr_gpu_command(command, env), environment(
+        core_id, env, gpu=gpu, binary=slot if Path(slot).is_file() else None
+    )
 
 
 def _gpu_run_environment(
@@ -707,9 +756,10 @@ def environment(
     source: Mapping[str, str],
     *,
     gpu: int | None = None,
+    binary: str | Path | None = None,
 ) -> dict[str, str]:
     """Validate and return only recipe values and a coherent active gpu-run lease."""
-    recipe = recipe_for(core_id)
+    recipe = recipe_for(core_id, binary)
     required = recipe["env"]
     optional = recipe["optional_env"]
     lease_names = _gpu_run_environment(core_id, recipe, source, gpu)

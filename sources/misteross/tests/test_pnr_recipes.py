@@ -256,6 +256,49 @@ class PnrRecipeTests(unittest.TestCase):
                                         seed=recipe["seeds"][0])
                 self.assertEqual(list(command), expected)
 
+    def test_runtime_recipe_schema_is_selected_by_binary_identity(self):
+        pin = pnr_recipe.nextpnr_pin("fes.menu")
+        with tempfile.TemporaryDirectory() as directory, _core_on_nextpnr(
+                directory, "fes.menu", pin):
+            first = Path(directory) / "first-nextpnr"
+            second = Path(directory) / "second-nextpnr"
+            _fake_nextpnr_help(first, SOURCE_OPTION_SETS[96])
+            _fake_nextpnr_help(second, SOURCE_OPTION_SETS[105])
+
+            pnr_recipe.validate_nextpnr_tool("fes.menu", first)
+            pnr_recipe.validate_nextpnr_tool("fes.menu", second)
+
+            self.assertEqual(len(pnr_recipe.recipe_for("fes.menu", first)["flags"]), 56)
+            self.assertEqual(len(pnr_recipe.recipe_for("fes.menu", second)["flags"]), 65)
+            first_digest = pnr_recipe.recipe_digest("fes.menu", first)
+            second_digest = pnr_recipe.recipe_digest("fes.menu", second)
+            self.assertNotEqual(first_digest, second_digest)
+            self.assertEqual(pnr_recipe.recipe_digest("fes.menu", first), first_digest)
+
+    def test_argv_revalidates_a_second_binary_and_reports_option_set_difference(self):
+        pin = pnr_recipe.nextpnr_pin("fes.menu")
+        with tempfile.TemporaryDirectory() as directory, _core_on_nextpnr(
+                directory, "fes.menu", pin):
+            first = Path(directory) / "first-nextpnr"
+            second = Path(directory) / "second-nextpnr"
+            options = SOURCE_OPTION_SETS[96]
+            mismatched = (set(options) - {"randomize_seed"}) | {"unclassified_option"}
+            _fake_nextpnr_help(first, options)
+            _fake_nextpnr_help(second, mismatched)
+            seed = pnr_recipe.recipe_for("fes.menu")["seeds"][0]
+
+            with patch.object(pnr_recipe.subprocess, "run",
+                              wraps=pnr_recipe.subprocess.run) as inspect_help:
+                pnr_recipe.argv("fes.menu", first, SYNTH, seed, 0, output=OUTPUT)
+                with self.assertRaises(pnr_recipe.RecipeError) as raised:
+                    pnr_recipe.argv("fes.menu", second, SYNTH, seed, 0, output=OUTPUT)
+
+            message = str(raised.exception)
+            self.assertIn("missing ['randomize_seed']", message)
+            self.assertIn("extra ['unclassified_option']", message)
+            inspected = [Path(call.args[0][0]) for call in inspect_help.call_args_list]
+            self.assertEqual(inspected, [first.resolve(), second.resolve()])
+
     def test_authenticated_core_lock_validates_its_compiler_option_set(self):
         from scripts import fes_build_common
 
