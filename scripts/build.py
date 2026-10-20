@@ -526,7 +526,15 @@ def bootstrap_fingerprint(fingerprint, info, artifacts):
     for name in ('fogcast', 'runtime'):
         if not re.fullmatch('[0-9a-f]{40}', artifacts['provenance'][name]):
             raise ValueError('invalid bootstrap artifact provenance')
-    enriched = dict(info, bootstrap_artifacts=artifacts)
+    # Artifact assembly consumes the selected FogCast validator and OS recipe,
+    # plus the explicit binary/package manifest. Other component revisions do
+    # not affect this image because their producers are not run in this mode.
+    assembly = dict(info)
+    sources = assembly.get('sources')
+    if isinstance(sources, dict):
+        assembly['sources'] = {name: sources[name] for name in ('FogCast',) if name in sources}
+    assembly.pop('development_snapshot', None)
+    enriched = dict(assembly, bootstrap_artifacts=artifacts)
     return hashlib.sha256(json.dumps(enriched, sort_keys=True).encode()).hexdigest(), enriched
 
 

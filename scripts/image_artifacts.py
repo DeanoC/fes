@@ -64,6 +64,12 @@ def load(root):
             header = stream.read(20)
         if header[:6] != b'\x7fELF\x01\x01' or header[18:20] != b'\x28\x00':
             raise ValueError('bootstrap artifact must be a little-endian ARM ELF: ' + name)
+    from appliance import validate_static_arm
+    for name in ('fes-kit-data', 'fes-kit-software'):
+        try:
+            validate_static_arm(root / 'bin' / name)
+        except ValueError as error:
+            raise ValueError('bootstrap helper must be a static ARM ELF: ' + name) from error
     packages = packages_at(root, manifest['packages'])
     verify_package_outputs(root, packages)
     return manifest, packages

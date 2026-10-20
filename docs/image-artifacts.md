@@ -37,16 +37,19 @@ python3 scripts/image_artifacts.py pack \
 The binary directory contains the six names listed below, without platform
 suffixes. To try a different binary, prepare a new input directory with that
 binary and the other selected files, then pack a new artifact set. Packing runs
-no producer. Full package admission and ELF library compatibility are checked
-again during image assembly.
+no producer. The two base helpers must be static ARM EABI5 executables; other
+package ELF library compatibility is checked again during image assembly.
 
 The manifest records each ARM executable's digest and its original software
 provenance, plus the existing MENU package selection and member digests. Assembly
 copies binaries into its private source snapshot, checks them again, and includes
-the manifest in the image fingerprint. Runtime source does not need to match the
-OS checkout and is not mounted or compiled in this path. The existing rootfs
-checks validate the binaries against the new base's ELF libraries before sealing
-the factory software bundle. This is interface validation, not kit acceptance.
+the manifest in the image fingerprint. Its cache key binds the OS recipe,
+profile, selected FogCast bundle validator and artifact manifest; changing runtime
+source alone does not invalidate an otherwise identical artifact assembly.
+Runtime source does not need to match the OS checkout and is not mounted or
+compiled in this path. The existing rootfs checks validate software-bundle
+binaries against the new base's ELF libraries before sealing the factory bundle.
+This is interface validation, not kit acceptance.
 
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
 `fogcast-tenfoot`, `fes-kit-data` and `fes-kit-software`. The last two implement

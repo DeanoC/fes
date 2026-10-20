@@ -349,8 +349,6 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     output=Path(output); binary_sha=validate_static_arm(bootstrap_binary)
     factory=load_manifest(factory_manifest)
     if digest(regular(kernel))!=factory['kernel_sha256']: raise ValueError('factory and bootstrap kernel differ')
-    if binary_source_revision is not None and binary_source_revision!=factory['fogcast_revision']:
-        raise ValueError('bootstrap source revision differs from factory FogCast revision')
     if assembly_revision is not None and not re.fullmatch('[0-9a-f]{40}',assembly_revision):
         raise ValueError('invalid bootstrap assembly revision')
     if platform_build is not None:
@@ -478,7 +476,7 @@ def main():
                     identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build)
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
                     result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
-                        binary_source_revision=p.fogcast_revision,assembly_revision=assembly_revision,platform_build=platform_build)
+                        binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build)
         print(result.directory)
         print('Host-only artifact; hardware acceptance not run.')
     except (OSError,ValueError,subprocess.CalledProcessError) as error:

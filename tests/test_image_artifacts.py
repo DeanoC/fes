@@ -6,6 +6,7 @@ import tempfile
 import os
 import shutil
 import subprocess
+import struct
 import unittest
 from unittest.mock import patch
 
@@ -14,15 +15,26 @@ import image_artifacts as artifacts
 import build
 
 
+def static_arm_elf():
+    data = bytearray(256)
+    data[:16] = b'\x7fELF\x01\x01\x01' + bytes(9)
+    struct.pack_into('<HHIIIIIHHHHHH', data, 16, 2, 40, 1, 0x10054, 52, 0,
+                     0x05000000, 52, 32, 1, 0, 0, 0)
+    struct.pack_into('<IIIIIIII', data, 52, 1, 0, 0x10000, 0x10000,
+                     len(data), len(data), 5, 4096)
+    return data
+
+
 class ImageArtifactsTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         (self.root / 'bin').mkdir()
-        elf = b'\x7fELF\x01\x01' + b'\0' * 12 + b'\x28\0'
         for name in artifacts.BINARIES:
-            (self.root / 'bin' / name).write_bytes(elf + name.encode())
+            binary = (static_arm_elf() if name in ('fes-kit-data', 'fes-kit-software')
+                      else b'\x7fELF\x01\x01' + b'\0' * 12 + b'\x28\0' + name.encode())
+            (self.root / 'bin' / name).write_bytes(binary)
         identity = 'a' * 64
         core = self.root / 'core-packages' / identity
         core.mkdir(parents=True)
@@ -78,6 +90,16 @@ class ImageArtifactsTests(unittest.TestCase):
         self.manifest['binaries']['mister-agent'] = artifacts.sha(binary)
         self.write_manifest()
         with self.assertRaisesRegex(ValueError, 'ARM ELF'):
+            artifacts.load(self.root)
+
+    def test_dynamic_bootstrap_helper_is_rejected_even_with_matching_hash(self):
+        binary = self.root / 'bin/fes-kit-data'
+        data = bytearray(binary.read_bytes())
+        struct.pack_into('<I', data, 52, 3)  # PT_INTERP
+        binary.write_bytes(data)
+        self.manifest['binaries']['fes-kit-data'] = artifacts.sha(binary)
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, 'static ARM ELF: fes-kit-data'):
             artifacts.load(self.root)
 
     def test_missing_input_stops_before_tools_or_sources(self):
@@ -163,6 +185,24 @@ class ImageArtifactsTests(unittest.TestCase):
         fp = hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
         result, enriched = build.image_fingerprint(fp, info, packages)
         self.assertEqual(build.recorded_image_fingerprint(enriched), result)
+
+    def test_artifact_cache_ignores_unconsumed_runtime_source_revision(self):
+        revisions = {'FogCast': '1' * 40, 'libmister-runtime': '2' * 40,
+                     'mister-packages': '3' * 40, 'misteross': '4' * 40}
+        profile = {'version': '0.1.0', 'native_image_mode': 'package-only'}
+        first_base, first_info = build.build_fingerprint(revisions, profile, 'go test')
+        first, first_inputs = build.bootstrap_fingerprint(first_base, first_info, self.manifest)
+        changed = dict(revisions, **{'libmister-runtime': '5' * 40})
+        second_base, second_info = build.build_fingerprint(changed, profile, 'go test')
+        second, second_inputs = build.bootstrap_fingerprint(second_base, second_info, self.manifest)
+        self.assertEqual(first, second)
+        self.assertEqual(first_inputs['sources'], {'FogCast': revisions['FogCast']})
+        self.assertEqual(second_inputs['sources'], first_inputs['sources'])
+
+        changed_artifacts = json.loads(json.dumps(self.manifest))
+        changed_artifacts['binaries']['mister-runtime'] = 'f' * 64
+        changed_key, _ = build.bootstrap_fingerprint(second_base, second_info, changed_artifacts)
+        self.assertNotEqual(first, changed_key)
 
 
 if __name__ == '__main__':
