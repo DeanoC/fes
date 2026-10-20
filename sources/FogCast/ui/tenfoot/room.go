@@ -290,7 +290,17 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	}
 	if pack.Revision != "" {
 		a.openInstalledRoomLocked(pack, true)
-		return a.room != nil
+		if a.room != nil && a.room.ID() == id && a.room.Revision() == pack.Revision {
+			return true
+		}
+		// A failed update may have rolled selection back to a working home
+		// room that is still below the current nested room in the stack.
+		// Reclaim that restored revision instead of treating the child as a
+		// successful Home transition.
+		if fallback, _, ok := a.resolveHomeRoomLocked(id); ok {
+			return a.reclaimHomeRoomLocked(id, fallback.Revision)
+		}
+		return false
 	}
 	prevStatus := a.status
 	a.closeAllRoomsLocked()

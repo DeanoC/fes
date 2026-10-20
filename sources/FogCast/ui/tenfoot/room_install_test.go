@@ -113,6 +113,7 @@ func TestInstalledRoomStartupFailureRestoresPreviousWithoutRestart(t *testing.T)
 func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing.T) {
 	root := t.TempDir()
 	first := installedTestRoom(t, root, "home-update", "First", "function draw() end")
+	installedTestRoom(t, root, "home-child", "Child", "function draw() end")
 	packs, err := rooms.LoadDir(root)
 	if err != nil {
 		t.Fatal(err)
@@ -135,13 +136,23 @@ func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing
 		t.Fatalf("home did not load the changed selection: %s", app.status)
 	}
 	working := app.room
+	app.openNestedRoomLocked("home-child")
+	if app.room == nil || app.room.ID() != "home-child" || len(app.roomStack) != 1 || app.roomStack[0] != working {
+		t.Fatalf("nested room did not keep the current home: %s", app.status)
+	}
 
 	installedTestRoom(t, root, "home-update", "Broken", "function load() error('broken home update') end")
-	if !app.openHomeRoomAsRootLocked() || app.room != working || !strings.Contains(app.status, "Room update failed") {
+	if !app.openHomeRoomAsRootLocked() || app.room != working || len(app.roomStack) != 0 || !strings.Contains(app.status, "Room update failed") {
 		t.Fatalf("failed home trial disturbed the working room: %s", app.status)
 	}
 	packs, err = rooms.LoadDir(root)
-	if err != nil || len(packs) != 1 || packs[0].Revision != second.Revision {
+	restored := false
+	for _, pack := range packs {
+		if pack.ID == "home-update" && pack.Revision == second.Revision {
+			restored = true
+		}
+	}
+	if err != nil || !restored {
 		t.Fatalf("failed home trial did not restore previous selection: %v %v", packs, err)
 	}
 }
