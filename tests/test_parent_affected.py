@@ -90,6 +90,16 @@ class ParentAffectedTests(unittest.TestCase):
         self.assertEqual(len(result.errors), 1)
         self.assertIn('broken suite', result.errors[0][1])
 
+    def test_unassigned_discovered_suite_runs_even_outside_root_file_inventory(self):
+        suite = unittest.TestSuite([case('nested.test_new_integration')])
+        kept, selected, omitted = parent_tests.filter_suite(
+            suite, video=False, media=False, modules=policy.GROUPS['policy'])
+        self.assertEqual(omitted, [])
+        result = unittest.TestResult()
+        kept.run(result)
+        self.assertTrue(result.wasSuccessful())
+        self.assertEqual(result.testsRun, 1)
+
     def test_modes_and_groups_are_both_applied(self):
         suite = unittest.TestSuite([
             case('test_factory_video_parts', 'RealProducerEvidenceTests', fail=True),

@@ -49,6 +49,7 @@ def filter_suite(suite, video=True, media=True, modules=None):
     if not media:
         omitted_keys |= MEDIA_CLASSES
     selected_ids, omitted_ids = [], []
+    assigned = set().union(*parent_affected.GROUPS.values())
 
     def walk(source):
         kept = unittest.TestSuite()
@@ -58,8 +59,8 @@ def filter_suite(suite, video=True, media=True, modules=None):
             else:
                 key = (entry.__class__.__module__.rsplit('.', 1)[-1],
                        entry.__class__.__name__)
-                if key in omitted_keys or (modules is not None and key[0] not in modules
-                                            and key[0] != 'loader'):
+                if key in omitted_keys or (modules is not None and key[0] in assigned
+                                            and key[0] not in modules):
                     omitted_ids.append(entry.id())
                 else:
                     selected_ids.append(entry.id())
