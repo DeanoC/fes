@@ -18,7 +18,9 @@ YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 @unittest.skipUnless(YOSYS, 'requires Yosys; set YOSYS to the locked executable')
 class ResetMetadataTest(unittest.TestCase):
     def test_async_intent_reaches_ffs_without_logic_changes(self):
-        fixture = '''module top(input clk, pixel_clk, locked, output rst, prst);
+        fixture = '''module top(input clk, pixel_clk, locked, output rst, prst,
+                                input [1:0] addr, input [7:0] din, input we,
+                                output [7:0] dout);
           (* async_reg="true" *) reg [1:0] sys_reset=2'b11;
           (* async_reg="true" *) reg [1:0] pixel_reset=2'b11;
           always @(posedge clk or negedge locked)
@@ -26,6 +28,9 @@ class ResetMetadataTest(unittest.TestCase):
           always @(posedge pixel_clk or negedge locked)
             if (!locked) pixel_reset<=2'b11; else pixel_reset<={pixel_reset[0],1'b0};
           assign rst=sys_reset[1]; assign prst=pixel_reset[1];
+          reg [7:0] mem [0:3];
+          always @(posedge clk) if (we) mem[addr]<=din;
+          assign dout=mem[addr];
         endmodule'''
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
@@ -43,9 +48,8 @@ class ResetMetadataTest(unittest.TestCase):
                   if cell['attributes'].get('async_reg') == 'true'}
         self.assertEqual(len(marked), 4)
         self.assertTrue(all(cell['type'] == 'MISTRAL_FF' for cell in marked.values()))
-        self.assertEqual(set(marked),
-                         {name for name, cell in after['cells'].items()
-                          if cell['type'] == 'MISTRAL_FF'})
+        self.assertGreater(sum(cell['type'] == 'MISTRAL_FF'
+                               for cell in after['cells'].values()), 4)
         for module in results:
             for cell in module['cells'].values():
                 cell['attributes'].pop('async_reg', None)

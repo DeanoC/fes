@@ -39,7 +39,9 @@ def synthesis_command():
     # Transfer register intent before dff_map introduces polarity inverters.
     # After full mapping attrmvcp would annotate those inverters, not the FFs.
     base = 'synth_intel_alm -nolutram -nodsp -top top'
-    return (base + ' -run begin:map_ffram; attrmvcp -copy -attr async_reg; ' +
+    # The end label is exclusive: stop at map_ffs so memory_map and its final
+    # optimization still run before the attribute transfer.
+    return (base + ' -run begin:map_ffs; attrmvcp -copy -attr async_reg; ' +
             base + ' -run map_ffs:')
 
 
