@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Diagnostic HIP of the QS cart onto the already-routed ZX81 bus shell.
 
-Reuses build/fes-zx81-socket-bus. Does not reseal fes.zx81. GPU 0 only.
+Reuses build/fes-zx81-socket-bus. Does not reseal fes.zx81. gpu-run leases any free GPU.
 A two-bit leak outside the library CRAM rect uses the same diagnostic x1=3356
 as the 16K pack; that is not a library map bump.
 """
@@ -22,7 +22,7 @@ from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
     FES_GPU_BACKEND, _require_gpu_backend, _run_command,
-    gpu_visibility_environment, nextpnr_gpu_command,
+    nextpnr_gpu_command,
     reject_async_m10k_reads,
 )
 from scripts.hip_zx81_bus_socket import validate_overlay_timing
@@ -136,8 +136,7 @@ def main() -> int:
             raise SystemExit(f"unknown cart {name}")
     if not (SHELL_OUT / "routed.json").is_file() or not (SHELL_OUT / "core.rbf").is_file():
         raise SystemExit(f"missing routed ZX81 bus shell in {SHELL_OUT}")
-    env = gpu_visibility_environment(os.environ, 0, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = "0"
+    env = dict(os.environ)
     env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     env.pop("CACHE_ROOT", None)
     for name in names:

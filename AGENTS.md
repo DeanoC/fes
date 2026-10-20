@@ -100,6 +100,10 @@ never infer persistence from a display name, package path or raw RBF.
   justification. Keeping legacy code does. [#871](https://github.com/DeanoC/fes/issues/871)
   tracks the current list.
 
+## Toolchain pin bump checklist
+
+- A toolchain pin bump must build every core it touches before merging.
+
 ## Hardware, media and releases
 
 - Managed kits install immutable userspace bundles and queue activation at the next

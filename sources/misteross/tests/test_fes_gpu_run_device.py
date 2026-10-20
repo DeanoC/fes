@@ -9,8 +9,10 @@ from unittest.mock import patch
 from scripts.fes_build_common import (
     BuildError,
     gpu_device_index,
+    gpu_route_evidence,
     gpu_run_environment,
     gpu_visibility_environment,
+    granted_gpu_ids,
     nextpnr_gpu_command,
 )
 from scripts.search_placer_qor import _run_nextpnr
@@ -63,6 +65,23 @@ class GpuRunDeviceTests(unittest.TestCase):
             ),
             {"ROCR_VISIBLE_DEVICES": "9", "HIP_VISIBLE_DEVICES": "1"},
         )
+
+    def test_route_evidence_records_the_grant_and_not_the_request(self):
+        text = "FES-GPU-GRANT 8\nInfo: Program finished normally.\nFES-GPU-GRANT 8\n"
+        self.assertEqual(granted_gpu_ids(text), ["8"])
+        self.assertEqual(gpu_route_evidence(text, 0), {
+            "gpu_selection": "lease",
+            "gpu_device_requested": 0,
+            "gpu_device_granted": ["8"],
+        })
+        self.assertEqual(granted_gpu_ids("backend hip: ready\n"), [])
+        self.assertEqual(
+            granted_gpu_ids("FES-GPU-GRANT 1\nFES-GPU-GRANT 4\nFES-GPU-GRANT 1\n"),
+            ["1", "4"],
+        )
+        self.assertEqual(granted_gpu_ids("FES-GPU-GRANT .\nnot a grant\n"), [])
+        with self.assertRaisesRegex(BuildError, "nonnegative"):
+            gpu_route_evidence("FES-GPU-GRANT 1\n", True)
 
     def test_invalid_wrapper_device_fails_closed(self):
         with self.assertRaisesRegex(BuildError, "GPU_RUN_DEVICE"):
