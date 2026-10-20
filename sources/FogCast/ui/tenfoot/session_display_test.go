@@ -543,12 +543,19 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 
 func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	var displays, stops atomic.Int32
+	var mu sync.Mutex
+	var stopBody string
+	prior := kitDisplaySession()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session/display":
 			displays.Add(1)
 			writeKitDisplaySession(w, kitDisplaySession())
 		case "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			stopBody = string(raw)
+			mu.Unlock()
 			stops.Add(1)
 			io.WriteString(w, `{"state":"idle"}`)
 		default:
@@ -564,6 +571,16 @@ func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	waitFor(t, app, "chord Stop", func(s Snapshot) bool { return s.Session.State == "idle" })
 	if stops.Load() != 1 || displays.Load() != 0 || feed.saw(remoteinput.ButtonSelect, remoteinput.ActionPress) || feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
 		t.Fatal("Select/View opened controls or reached core ahead of Stop chord")
+	}
+	mu.Lock()
+	body := stopBody
+	mu.Unlock()
+	assertStopReleasesCapturedPlay(t, body, prior)
+	app.mu.Lock()
+	held := app.retainedIdleLease
+	app.mu.Unlock()
+	if held {
+		t.Fatal("released Select+Start still tracked a retained idle lease")
 	}
 }
 

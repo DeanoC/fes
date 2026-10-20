@@ -153,6 +153,58 @@ func TestSoftStopRetainsKitLeaseAfterIdleCleanup(t *testing.T) {
 	}
 }
 
+// TestBoundExplicitStopReleasesKitLeaseAndSoftStopKeepsRenewal is the host
+// half of a library Select+Start. retain_lease false with the captured play
+// calls ReleaseKitLease after idle cleanup, which drops the renewing grant.
+// The same identity with retain_lease true is sofa Soft-stop and keeps it.
+// A stale identity does not stop or release the replacement.
+func TestBoundExplicitStopReleasesKitLeaseAndSoftStopKeepsRenewal(t *testing.T) {
+	game := "core-zx81"
+	pkg := strings.Repeat("ab", 32)
+	post := func(t *testing.T, retain bool, generation int) (int, int) {
+		t.Helper()
+		base := &fakeService{
+			status:  protocol.Status{State: protocol.StateActive, GameID: &game, CorePackage: &protocol.CorePackageStatus{PackageID: pkg, Generation: 9}},
+			stopped: protocol.Status{State: protocol.StateIdle}, sessionTarget: "kit", sessionTargetID: "kit-id",
+			reconstructedExecution: fogcast.ExecutionFPGANative,
+		}
+		service := &leasedService{fakeService: base}
+		input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+		handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+		before := serve(t, handler, http.MethodGet, "/api/v1/session")
+		var actual struct {
+			ID       string `json:"id"`
+			FlightID string `json:"flight_id"`
+		}
+		if err := json.Unmarshal(before.Body.Bytes(), &actual); err != nil || actual.ID == "" {
+			t.Fatalf("session %d %s: %v", before.Code, before.Body.String(), err)
+		}
+		expected := map[string]any{
+			"id": actual.ID, "flight_id": actual.FlightID, "game_id": game,
+			"target": "kit", "target_id": "kit-id", "package_id": pkg, "generation": generation,
+		}
+		raw, err := json.Marshal(map[string]any{"retain_lease": retain, "expected_session": expected})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(string(raw)))
+		request.Host = "127.0.0.1"
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		return response.Code, service.releases
+	}
+	if code, releases := post(t, false, 9); code != http.StatusOK || releases != 1 {
+		t.Fatalf("explicit bound stop = %d releases=%d, want idle release so renewal stops", code, releases)
+	}
+	if code, releases := post(t, true, 9); code != http.StatusOK || releases != 0 {
+		t.Fatalf("soft-stop = %d releases=%d, want the grant kept", code, releases)
+	}
+	if code, releases := post(t, false, 10); code != http.StatusConflict || releases != 0 {
+		t.Fatalf("stale stop = %d releases=%d, want no release of the replacement", code, releases)
+	}
+}
+
 func TestSoftStopRecordsIdleThenExplicitStopReleases(t *testing.T) {
 	order := []string{}
 	base := &fakeService{status: protocol.Status{State: protocol.StateIdle}, stopped: protocol.Status{State: protocol.StateIdle}, order: &order}

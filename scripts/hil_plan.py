@@ -43,6 +43,39 @@ RULES = [
     # The immutable bundle producer and stable base supervisor share this code;
     # replacing the Go kit services cannot validate or replace those consumers.
     ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),
+    # Release confirm and the boot-ticket rewrite. On a trial boot the image's
+    # mister-agent runs these; fes-kit-software does not open the bundle store.
+    ('sources/FogCast/appliance/store/**', 'full', 'appliance-trial'),
+    # The agent's confirm reconcile and boot-ticket repair, linked into that
+    # same image agent (and into /usr/sbin/fes-kit-data for the ticket read).
+    ('sources/FogCast/internal/applianceupdate/**', 'full', 'appliance-trial'),
+    # FAT splash publish. On an fes-update trial boot the image's mister-agent
+    # refreshes idle.rbf when the trial is confirmed and writes the restored
+    # image's splash when a rollback is confirmed. The store prunes that staged
+    # splash with the image. fes-kit-software does not start the bundle agent
+    # for that boot, so a bundle install cannot exercise this package.
+    ('sources/FogCast/internal/appliancesplash/**', 'full', 'appliance-trial'),
+    # The fes-kit-data storage gate. It runs as the image's /usr/sbin/fes-kit-data,
+    # which refuses the bundle store while the boot is still a trial.
+    ('sources/FogCast/internal/appliancedata/**', 'full', 'storage-gate'),
+    # Appliance packages linked into an image-only binary. A bundle cannot
+    # replace fes-boot (platform/cmd/fes-boot), fes-kit-data
+    # (sources/FogCast/cmd/fes-kit-data), or the image's trial-startup
+    # supervisor (platform/cmd/fes-kit-software). go list -deps on those three
+    # reports the imports below. store and software are already full above.
+    # Overlay code also imports these packages; missing the image binary is
+    # worse than retesting an overlay edit on a full image. *_test.go is none.
+    #   github.com/DeanoC/FogCast/appliance            fes-boot, fes-kit-data
+    #     (sources/FogCast/appliance/*.go; release.go is the only non-test file)
+    #   github.com/DeanoC/FogCast/appliance/blockprobe fes-boot, fes-kit-data,
+    #                                                  fes-kit-software
+    #   github.com/DeanoC/FogCast/appliance/softwarecontrol
+    #                                                  fes-kit-software, and
+    #                                                  fes-kit-data via
+    #                                                  applianceupdate -> agent -> protocol
+    ('sources/FogCast/appliance/*.go', 'full', 'appliance-trial'),
+    ('sources/FogCast/appliance/blockprobe/**', 'full', 'appliance-trial'),
+    ('sources/FogCast/appliance/softwarecontrol/**', 'full', 'kit-software'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
     ('sources/misteross/toolchain.lock', 'overlay', 'core:ALL'),
     ('sources/misteross/toolchains/*.lock', 'overlay', 'core:{lock}'),

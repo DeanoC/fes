@@ -1576,8 +1576,21 @@ that fails leaves that grant retained so the next explicit Stop can retry it. Re
 Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
 do not revoke the live session. A failed explicit Stop of that surviving play
-still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
-the retain request and keeps the grant while the shell stays up. Guide settings
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop (now-playing B, Esc, Backspace, or s) is
+the retain request and keeps the grant while the shell stays up. Kit Select+Start
+is the library session's completed exit on that same route: `retain_lease` false
+with the captured play. A package play sends that package generation. A play
+without a package sends the session id, launch flight, game, and target; a
+missing flight is not posted as an empty body, because an unbound stop would
+release whatever play is foreground at admission. Idle cleanup releases that
+play's grant. A bound stop releases only its target, and a host-only stop
+releases no kit grant, so a grant retained by an earlier Soft-stop of another
+target stays tracked until shell exit or Release kit. A Select+Start queued
+while input is in flight keeps the play captured at chord time and does not
+stop a replacement observed before the reply. A release that fails after the
+play is already idle retries the idle-grant release; a failure that leaves the
+original play running retries the bound stop. Unpaired sofa Soft-stop
+still retains. Guide settings
 includes **Release kit**. Confirm posts that same idle release and leaves the
 menu open, so the host stops renewal and does not claim the kit again while
 the menu remains up. The shell does not start a game while that release is
@@ -2581,7 +2594,11 @@ feed, without Select+Start stop, until status is idle with an empty generation.
 That hold has no timeout. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 Packages declaring firmware stay in that class: the local socket does not
-link firmware ROMs. A cartridge for an installed core is linked by
+link firmware ROMs. A cartridge launch posts `library_root` and `relative_path`.
+The agent pins the library root and opens each relative component from that
+directory handle, refusing a symlink under the root, so a parent directory
+swapped for a symlink cannot name a file outside the library. A cartridge for
+an installed core is linked by
 LoadCartridge, which rebuilds the canonical archive from the extracted
 directory, verifies the exact archived identity with the runtime and programs
 the core through the existing staging path. A held, busy, blocked, or recovery lease returns 409 and does not
@@ -2663,8 +2680,15 @@ Closing the local socket releases the local source
 only. Tenfoot writes physical pad and USB keyboard events to this socket
 through `ui/localfeed` while a kit-local core it launched is running. That feed does not use the host
 session's input.ready, launcher.json reachability, or which host holds the
-lease. Select+Start held for one second posts `POST /api/v1/session/stop`
-for this host's active or failed session. For a kit-local run it goes to local
+lease. Select+Start held for one second posts an explicit `POST /api/v1/session/stop`
+for this host's active or failed session: `retain_lease` false with the captured
+play. Package plays send that generation. Package-free plays send the session
+id, launch flight, game, and target, and are not posted unbound. A queued chord
+keeps the play from chord time. Idle cleanup releases that play's grant and
+renewal of that grant stops; grants retained on other targets stay until shell
+exit or Release kit. A release that fails after idle retries the idle-grant
+release rather than the captured play. Rooms B/Back stays the retain
+request. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, with the exact launch generation. A
 foreign-owned core accepts local play controls, but this launcher cannot stop
 it. Stop and kit menu actions stay on the kit. If the
