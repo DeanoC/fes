@@ -416,6 +416,20 @@ if "$repo/scripts/scan-target-image-secrets.sh" "$target" >"$fixture/stale-scan.
 fi
 
 cp "$old_notice" "$fixture/old-source"
+# Warm preparation may refresh only the exact known older template. An
+# arbitrary edit must fail before replacing the retained sealed notice.
+printf '%s\n' 'tampered source notice' >"$fixture/tampered-source"
+chmod u+w "$old_notice"
+cp "$fixture/tampered-source" "$old_notice"
+chmod 0444 "$old_notice"
+stale_launchers
+prepare_reject 'an arbitrarily changed retained source notice'
+grep -Fq 'RAM Tester notice missing, changed or unsealed: SOURCE.md' "$fixture/prepare-reject.log"
+cmp "$fixture/tampered-source" "$old_notice"
+chmod u+w "$old_notice"
+cp "$fixture/old-source" "$old_notice"
+chmod 0444 "$old_notice"
+
 # Recreate the pre-pin notice that predates the current lock detail. Preparation
 # must regenerate it instead of admitting the old template in the verifier.
 python3 - "$repo" "$target/usr/share/mister-runtime/core-packages/$old_ramtest_id" \

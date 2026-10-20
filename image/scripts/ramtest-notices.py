@@ -112,6 +112,16 @@ def retained_source_notice_matches(package, source):
         return False
 
 
+def _known_stale_source_notice_matches(package, source):
+    """Recognize only the exact pre-pin notice for warm-tree refresh."""
+    identity = package_identity(package)
+    stale_details = ''' The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit:
+sources/misteross/toolchain.lock for packages built after RAM test moved to
+the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
+    return source == _format_source_notice(identity, stale_details)
+
+
 def process(action, target, package=None):
     root = target / 'usr/share/mister-runtime/core-notices/fes.ramtest'
     reject_target_symlinks(target, root)
@@ -193,12 +203,15 @@ def verify_retained(target):
 
 
 def refresh_retained(target):
-    """Regenerate stale source text from the retained package, then verify it."""
+    """Refresh the exact older notice format; reject every other mismatch."""
     retained = _retained_notice_context(target)
     if retained is None:
         return None
     _, package, source_path = retained
-    if not retained_source_notice_matches(package, source_path.read_bytes()):
+    source = source_path.read_bytes()
+    if not retained_source_notice_matches(package, source):
+        if not _known_stale_source_notice_matches(package, source):
+            raise ValueError('RAM Tester notice missing, changed or unsealed: SOURCE.md')
         process('install', target, package)
     return verify_retained(target)
 

@@ -166,6 +166,18 @@ the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
         self.assertEqual(source.read_bytes(), notices.source_notice(package))
         self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
 
+    def test_refresh_retained_rejects_arbitrary_changes_without_replacing_them(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        tampered = b'wrong notice\n'
+        source.chmod(0o644)
+        source.write_bytes(tampered)
+        source.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'SOURCE.md'):
+            notices.refresh_retained(self.target)
+        self.assertEqual(source.read_bytes(), tampered)
+
     def test_retained_notice_accepts_a_notice_from_an_earlier_nextpnr_pin(self):
         package = self.retained_package()
         notices.process('install', self.target, package)
