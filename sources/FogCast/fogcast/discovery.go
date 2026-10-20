@@ -235,9 +235,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	hadGrant := concrete.HasKitGrant()
 	if reboot {
 		s.invalidateTargetSession(concrete)
-		if current {
-			s.resetTargetInputsOutsideTargetMu()
-		}
+		s.resetTargetInputsOutsideTargetMu(name)
 	}
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
 	if err != nil {
@@ -251,9 +249,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
 	if !reboot && leaseChanged {
 		s.invalidateTargetSession(concrete)
-		if current {
-			s.resetTargetInputsOutsideTargetMu()
-		}
+		s.resetTargetInputsOutsideTargetMu(name)
 		// Invalidation discards the stale grant, but also marks the lease lost.
 		// Reconcile once more after that reset so readiness includes a clean
 		// lease state from which an explicit launch can claim immediately.
@@ -262,9 +258,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 		}
 	} else if !reboot && previous.Address != address {
-		if current {
-			s.resetTargetInputsOutsideTargetMu()
-		}
+		s.resetTargetInputsOutsideTargetMu(name)
 	}
 	status, err := concrete.Status(lookupCtx)
 	if err != nil {
@@ -500,8 +494,8 @@ func (s *Service) incompatibleSessionTargetError(ctx context.Context) error {
 	return s.incompatibleTargetError()
 }
 
-// SetTargetReset registers local input teardown at composition time.
-func (s *Service) SetTargetReset(reset func()) {
+// SetTargetReset registers target-specific input teardown at composition time.
+func (s *Service) SetTargetReset(reset func(string)) {
 	s.targetMu.Lock()
 	s.targetReset = reset
 	s.targetMu.Unlock()
@@ -511,11 +505,11 @@ func (s *Service) SetTargetReset(reset func()) {
 // external hooks: bridge Dial holds RemoteInput.mu and reads targetMu.
 // The caller holds targetMu and lifecycle admission while temporarily dropping
 // targetMu for the callback, then resumes reconciliation under the lock.
-func (s *Service) resetTargetInputsOutsideTargetMu() {
+func (s *Service) resetTargetInputsOutsideTargetMu(name string) {
 	reset := s.targetReset
 	s.targetMu.Unlock()
 	if reset != nil {
-		reset()
+		reset(name)
 	}
 	s.targetMu.Lock()
 }
@@ -604,10 +598,11 @@ func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string
 			base, _ := url.Parse(address)
 			s.targetMu.Lock()
 			s.invalidateTargetSession(concrete)
+			targetName := selected.Name
 			reset := s.targetReset
 			s.targetMu.Unlock()
 			if reset != nil {
-				reset()
+				reset(targetName)
 			}
 			if _, err := concrete.AdoptEndpoint(ctx, base, true); err != nil {
 				return protocol.Health{}, err

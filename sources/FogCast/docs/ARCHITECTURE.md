@@ -2060,9 +2060,11 @@ does not grant ownership for them, and it invalidates a stale local grant.
 The shared host lease object moves game requests, lease renewal, input
 attach and input CONNECT to the validated endpoint. On an unchanged boot, a
 locally held grant is retained only when its live generation still matches the
-agent. An address change closes the old local input stream without replaying held
-input; the user can attach input again through the existing session action.
-On a changed boot the host forgets its old grant and session and closes local input handles without remote Stop, release, or input cleanup. A new user
+agent. An address change closes that target's old local input stream without
+replaying held input; the user can attach input again through the existing
+session action. On a changed boot or lost grant the host forgets that target's
+old grant and session and closes its local input handle without remote Stop,
+release, or input cleanup. Sibling target input attachments stay intact. A new user
 launch may claim a free lease; discovery never claims or takes over a kit, and
 never replays a launch, upload, Stop, reboot, or input operation.
 
@@ -2075,6 +2077,11 @@ Named session reads, launches, Stops and lease checks resolve the configured
 target by name. Each configured target keeps its own client, connection
 observation and lookup backoff. An unavailable target reports its own configured
 address and target ID; it never reuses another target's observation.
+Settings edits clear the affected target's cached connection and lookup backoff
+when its name, identity, enabled state, address or credential changes. An
+explicit named Stop runs the same identity-checked discovery and ownership
+admission for a sibling target, ignoring only the retry backoff; it does not
+retry the Stop mutation.
 Busy means another session holds the kit lease, or the kit is reserved for
 software maintenance. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "In use" /

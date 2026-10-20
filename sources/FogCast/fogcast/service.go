@@ -183,7 +183,7 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset       func()
+	targetReset       func(string)
 	connectionMu      sync.Mutex
 	connection        TargetConnection
 	targetConnections map[string]targetConnectionState
@@ -2733,7 +2733,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		admit := s.refreshStopAdmission
 		admitCtx := ctx
 		if scopedOtherKit {
-			admit = s.refreshTargetAdmission
+			admit = s.refreshStopAdmission
 			admitCtx = WithSessionTarget(ctx, scopedTarget)
 		}
 		if _, err := admit(admitCtx); err != nil {
