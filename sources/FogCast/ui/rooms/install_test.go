@@ -169,7 +169,13 @@ func TestInstalledArtworkUsesNewSnapshotWithoutChangingLiveOldRoom(t *testing.T)
 	}
 	red, blue := color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}
 	old := newRoom(t, create(red), Options{})
+	if err := old.Load(); err != nil {
+		t.Fatal(err)
+	}
 	fresh := newRoom(t, create(blue), Options{})
+	if err := fresh.Load(); err != nil {
+		t.Fatal(err)
+	}
 	for _, check := range []struct {
 		room *Instance
 		want color.RGBA
