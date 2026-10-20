@@ -115,16 +115,6 @@ func (c *CoverCache) Image(handle string) *image.RGBA {
 	return c.images[handle]
 }
 
-// Generation changes when a fetch finishes so a renderer can repaint.
-func (c *CoverCache) Generation() uint64 {
-	if c == nil {
-		return 0
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.gen
-}
-
 // SetStore attaches a durable artwork blob store. Request reads it before
 // HTTP. A nil store returns CoverCache to RAM-only fetches.
 func (c *CoverCache) SetStore(store ArtworkStore) {

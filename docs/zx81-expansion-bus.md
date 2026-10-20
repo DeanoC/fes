@@ -42,22 +42,24 @@ diagnostic builds of the pre-expansion shell.
 
 Build the scoped compiler with `make -C sources/misteross toolchain-fes-zx81`.
 Build the standard shell with `python3 scripts/build_fes_zx81_oss.py --gpu-devices N`
-from `sources/misteross`. Keep its sealed package and `build/fes-zx81-oss`
-frozen routing evidence together. A shell is built once for any number of
-independently built compatible carts.
+from `sources/misteross`. `--gpu-devices` sizes the search workers. gpu-run
+leases any free GPU; it is not a device pin. Keep its sealed package and
+`build/fes-zx81-oss` frozen routing evidence together. A shell is built once
+for any number of independently built compatible carts.
 
 Build the RAM validation cart with:
 
 ```
 python3 scripts/build_zx81_bus_validation_cart.py \
-  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu N
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID
 ```
 
-Build the Zon X AY cart with the same shell and checks:
+Build the Zon X AY cart with the same shell and checks. gpu-run leases any
+free GPU. `--gpu` does not select a device.
 
 ```sh
 python3 scripts/build_zx81_bus_validation_cart.py --cart zonx \
-  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu 0
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID
 ```
 
 Generate the open AY diagnostic firmware without a private BASIC ROM:

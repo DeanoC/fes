@@ -175,10 +175,3 @@ func cstring(value string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return `"` + replacer.Replace(value) + `"`
 }
-
-func boolLit(value bool) string {
-	if value {
-		return "true"
-	}
-	return "false"
-}

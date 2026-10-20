@@ -445,7 +445,6 @@ func supervise(ctx context.Context, output io.Writer) error {
 		}
 	}
 }
-func readOptional(path string) string { b, _ := os.ReadFile(path); return string(b) }
 func operationID(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])

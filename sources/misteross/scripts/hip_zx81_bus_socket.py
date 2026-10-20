@@ -2,7 +2,7 @@
 """Diagnostic HIP of the socketed ZX81 Z80-like edge plus validation cart.
 
 Does not authenticate source identity and does not seal a package. Use the
-locked zx81-expansion compiler (nextpnr c2bb4363). GPU 0 only.
+locked zx81-expansion compiler (nextpnr c2bb4363). gpu-run leases any free GPU.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
-    FES_GPU_BACKEND, _require_gpu_backend, _run_command, gpu_visibility_environment,
+    FES_GPU_BACKEND, _require_gpu_backend, _run_command,
 )
 from scripts.search_placer_qor import route_after_synth
 from scripts import zx81_expansion as expansion
@@ -186,8 +186,7 @@ def main() -> int:
         "yosys": Path(sys.argv[1]),
         "nextpnr": Path(sys.argv[2]),
     }
-    env = gpu_visibility_environment(os.environ, 0, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = "0"
+    env = dict(os.environ)
     env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     env.pop("CACHE_ROOT", None)
     synthesize_shell(tools, env)

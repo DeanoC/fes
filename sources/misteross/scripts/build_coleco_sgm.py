@@ -23,7 +23,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_coleco_socket_v2 as shell_recipe
 from scripts import build_fes_coleco_oss as factory, coleco_expansion
 from scripts.core_package import read_package
-from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool, gpu_visibility_environment
+from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool
 from scripts.cyclonev_rbf import (
     rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect,
 )
@@ -210,8 +210,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     qsf = cart_qsf((shell / "socket.qsf").read_bytes())
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold(shell / "routed.json", output / "scaffold.json")
-    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = str(gpu)
+    # gpu-run grants any free GPU and passes it as FES_GPU_IDS / GPU_RUN_DEVICE.
+    env = dict(os.environ)
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-coleco/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",

@@ -111,7 +111,8 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         result = self.run_gpu_route()
         self.assertEqual(result.returncode, 0, result.stdout)
         lease = json.loads((self.directory / "lease.txt").read_text(encoding="utf-8"))
-        self.assertEqual(lease["gpu_ids"], "7")
+        # --gpu-device does not narrow the lease. This run sets no box inventory.
+        self.assertEqual(lease["gpu_ids"], "")
         # This nextpnr has no GPU_LEASE_FD client, so it keeps the whole-route lease.
         self.assertNotIn("--phase-lease", lease["argv"])
         self.assertIn("--gpus", lease["argv"])
@@ -120,6 +121,7 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         device = captured["argv"].index("--gpu-device")
         self.assertEqual(captured["argv"][device + 1], "0")
+        self.assertIn(b"FES-GPU-GRANT 7", result.stdout)
         self.assertEqual(captured["env"]["FES_GPU_IDS"], "7")
         self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "7")
         self.assertEqual(captured["env"]["NEXTPNR_REQUIRE_GPU"], "1")
@@ -215,7 +217,8 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.assertEqual(fallback.returncode, 70, fallback.stdout)
         self.assertIn(b"CPU reference backend", fallback.stdout)
 
-    def test_pinned_route_lease_backfills_a_disjoint_gpu(self):
+    def test_route_lease_uses_a_free_gpu_instead_of_the_argv_device(self):
+        """A --gpu-device argument must not pin the lease while another GPU is free."""
         gpu_run = board._gpu_run_path()
         gpu_status = gpu_run.with_name("gpu-status")
         lease_env = self.environment(
@@ -263,7 +266,7 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
                     timeout=8,
                     stdout=board.subprocess.PIPE,
                     stderr=board.subprocess.STDOUT,
-                    gpu_label="per-invocation-pinned-route",
+                    gpu_label="per-invocation-free-gpu",
                 )
             except BaseException as error:
                 route_result["error"] = error
@@ -274,44 +277,31 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
                 lambda payload: payload["gpus"][0]["state"] == "held",
                 "the GPU 7 blocker did not acquire its lease",
             )
+            self.assertEqual(held["gpus"][0]["id"], "7")
             self.assertEqual(held["gpus"][0]["owner"], "blocker")
+            self.assertEqual(held["gpus"][1]["state"], "free")
 
             route_thread = threading.Thread(target=run_route)
             route_thread.start()
-            queued = wait_for(
-                lambda payload: any(
-                    item["label"] == "per-invocation-pinned-route"
-                    for item in payload["queue"]
-                ),
-                "the pinned nextpnr invocation did not enter the queue",
-            )
-            route_ticket = next(
-                item for item in queued["queue"]
-                if item["label"] == "per-invocation-pinned-route"
-            )
-            self.assertEqual(route_ticket["eligible_ids"], ["7"])
-
-            later = subprocess.run(
-                [str(gpu_run), "--wait", "--timeout", "5", "--owner", "backfill",
-                 "--label", "disjoint-backfill", "--", sys.executable, "-c",
-                 "import os; print(os.environ['FES_GPU_IDS'])"],
-                env=lease_env, check=False, capture_output=True, text=True, timeout=7,
-            )
-            self.assertEqual(later.returncode, 0, later.stderr)
-            self.assertEqual(later.stdout.strip(), "8")
-            remaining = status()
-            self.assertTrue(any(
-                item["label"] == "per-invocation-pinned-route"
-                for item in remaining["queue"]
-            ))
-
-            release_holder.write_text("release", encoding="utf-8")
-            holder.wait(timeout=5)
             route_thread.join(timeout=9)
-            self.assertFalse(route_thread.is_alive(), "the per-invocation route did not finish")
+            self.assertFalse(route_thread.is_alive(), "the route waited on the argv GPU")
+            self.assertIsNone(holder.poll(), "the GPU 7 holder exited before the route finished")
+            still = status()
+            self.assertEqual(still["gpus"][0]["state"], "held")
+            self.assertEqual(still["gpus"][0]["owner"], "blocker")
+            self.assertFalse(any(
+                item["label"] == "per-invocation-free-gpu" for item in still["queue"]
+            ))
             self.assertNotIn("error", route_result)
-            self.assertEqual(route_result["result"].returncode, 0, route_result["result"].stdout)
-            self.assertIn(b"backend cuda:fixture ready", route_result["result"].stdout)
+            result = route_result["result"]
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertIn(b"backend cuda:fixture ready", result.stdout)
+            captured = json.loads(self.capture.read_text(encoding="utf-8"))
+            self.assertEqual(captured["env"]["FES_GPU_IDS"], "8")
+            self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "8")
+            self.assertIn(b"FES-GPU-GRANT 8", result.stdout)
+            self.assertNotIn(b"FES-GPU-GRANT 7", result.stdout)
+            self.assertEqual(captured["argv"][captured["argv"].index("--gpu-device") + 1], "0")
         finally:
             release_holder.write_text("release", encoding="utf-8")
             if holder.poll() is None:
@@ -333,14 +323,13 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.assertNotIn("GPU_RUN_DEVICE", captured["env"])
         self.assertNotIn("--gpu-device", captured["argv"])
 
-    def test_requested_gpu_must_be_in_the_configured_inventory(self):
-        with patch.object(board, "_gpu_run_path", side_effect=AssertionError("must not queue")):
-            with self.assertRaisesRegex(board.BuildError, "outside GPU_LEASE_IDS"):
-                board._run_command(
-                    (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
-                    cwd=ROOT,
-                    env=self.environment(GPU_LEASE_IDS="8"),
-                )
+    def test_gpu_device_argument_does_not_narrow_inventory(self):
+        result = self.run_gpu_route(GPU_LEASE_IDS="8")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        lease = json.loads((self.directory / "lease.txt").read_text(encoding="utf-8"))
+        self.assertEqual(lease["gpu_ids"], "8")
+        captured = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual(captured["argv"][captured["argv"].index("--gpu-device") + 1], "0")
 
     def test_producer_rejects_an_outer_whole_script_lease(self):
         with patch.dict(os.environ, {"GPU_RUN_DEVICE": "0"}):
@@ -493,6 +482,7 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         result = self.route(timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn(b"GPU lease: GRANT 7", result.stdout)
+        self.assertIn(b"FES-GPU-GRANT 7", result.stdout)
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         self.assertEqual((captured["grant"], captured["release"]), ("GRANT 7", "OK"))
         # No mask: nextpnr keeps the physical id that gpu-run granted.

@@ -93,8 +93,14 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
     normalized_env = dict(env, HOME="<private-build-home>")
     # Authenticated installation paths are deliberately retained for now. This
     # prevents unsafe cross-install reuse until relocation is qualified.
+    # gpu_device is the unbound lease selection, not the requested index.
+    # gpu-run grants a physical GPU only while nextpnr routes, after this
+    # record is sealed into BUILD_ID. Naming the request or the grant here
+    # would change placement and RBF bytes whenever a different GPU was free.
+    # The request stays on FunctionalInvocation.gpu_device for the route
+    # command. The route log's FES-GPU-GRANT line is the physical id.
     return {"version": 1, "system": platform.system(), "machine": platform.machine(),
-            "kernel": platform.release(), "gpu_device": gpu_device,
+            "kernel": platform.release(), "gpu_selection": "lease", "gpu_device": "lease",
             "environment": normalized_env, "files": dict(sorted(files.items()))}
 
 
@@ -149,9 +155,10 @@ class FunctionalInvocation:
         self.env.update(gpu_run_environment())
         if extra_env:
             self.env.update(extra_env)
-        # Keep the lease-selected GPU visible through the controlled build env.
-        # These values identify the physical device behind logical --gpu-device
-        # indices and participate in the functional input digest below.
+        # Keep an already-active lease visible through the controlled build env.
+        # These values identify that outer lease and participate in the digest.
+        # Producers run outside gpu-run, so a normal seal does not see them;
+        # the physical grant is recorded later, in the route log.
         if (os.environ.get("FES_GPU_IDS") and os.environ.get("GPU_RUN_DEVICE") is not None
                 and os.environ.get("NEXTPNR_REQUIRE_GPU") == "1"):
             self.env.update({key: os.environ[key] for key in _GPU_LEASE_ENVIRONMENT

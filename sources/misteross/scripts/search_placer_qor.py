@@ -34,11 +34,12 @@ each seed, then sweeps the remaining weights. Both stop at the first candidate
 that meets every constraint. An accept callback may still reject that
 candidate; the search records it as failing and continues.
 
-GPU: ``--gpu-devices 0,1`` assigns staged/grid candidates to the requested
-physical devices and allows up to two concurrent route workers. Each nextpnr
-call leases its assigned device. First-pass stays sequential so the first
-closing seed is deterministic. Packing several seeds into one kernel is later;
-occupancy is per placement.
+GPU: ``--gpu-devices 0,1`` sizes the staged/grid worker pool. Each worker
+still passes its list entry as ``--gpu-device``, but gpu-run leases any free
+GPU and the dispatcher replaces that argument with the granted logical
+device. First-pass stays sequential so the first closing seed is
+deterministic. Packing several seeds into one kernel is later; occupancy is
+per placement.
 """
 
 from __future__ import annotations

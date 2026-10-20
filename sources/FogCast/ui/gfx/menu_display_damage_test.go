@@ -112,7 +112,7 @@ func (h *damageHarness) frame(x, y int, c Color) MenuPresentTrace {
 func (h *damageHarness) submit(x, y int, c Color) MenuPresentTrace {
 	h.t.Helper()
 	h.mu.Lock()
-	before := len(h.traces)
+	wantTrace := len(h.traces) + 1
 	h.mu.Unlock()
 	h.d.FillRect(Rect{X: float32(x), Y: float32(y), W: 20, H: 10}, c)
 	h.d.Present()
@@ -121,19 +121,17 @@ func (h *damageHarness) submit(x, y int, c Color) MenuPresentTrace {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		h.mu.Lock()
-		ready := len(h.traces) > before
-		h.mu.Unlock()
-		if ready {
-			break
+		if len(h.traces) >= wantTrace {
+			trace := h.traces[wantTrace-1]
+			h.mu.Unlock()
+			return trace
 		}
+		h.mu.Unlock()
 		if time.Now().After(deadline) {
 			h.t.Fatalf("present did not finish: %v", h.d.LastError())
 		}
 		time.Sleep(time.Millisecond)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.traces[len(h.traces)-1]
 }
 
 func TestMenuDisplayDamagedPresentsSkipStatus(t *testing.T) {
