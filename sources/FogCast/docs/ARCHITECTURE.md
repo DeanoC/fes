@@ -2738,9 +2738,11 @@ unavailable observations and reboot-required states remain errors; cleanup never
 zeros a replacement core. New generations begin with empty host and target state.
 
 The host package store validates and atomically publishes immutable archives by
-package ID. Catalog schema v8 associates each stable game entry with an
-explicit package ID and optional media role/digest. Multiple titles can use
-the same core. Importing a package or media object does not select or activate it.
+package ID. Serialized publication checks request cancellation after acquiring
+its lock and before linking an archive. Catalog schema v8 associates each
+stable game entry with an explicit package ID and optional media role/digest.
+Multiple titles can use the same core. Importing a package or media object does
+not select or activate it.
 The `fpga` browse platform is not a cartridge/runtime system. Library scans
 exclude its logical root. See [package library API and operations](core-package-library.md).
 
