@@ -280,7 +280,7 @@ func loadInstalled(root string) ([]Pack, error) {
 
 // Rollback restores the previous installed version. expected, when nonempty,
 // prevents a failed live trial from undoing a newer concurrently installed pack.
-// A failed first installation is deselected so embedded/loose rooms can recover.
+// A first installation is deselected so embedded/loose rooms can recover.
 func Rollback(root, id, expected string) error {
 	unlock, err := lockInstall(root)
 	if err != nil {
@@ -299,9 +299,8 @@ func Rollback(root, id, expected string) error {
 		return errors.New("room selection changed; refresh before rollback")
 	}
 	if s.Previous == "" {
-		if expected == "" {
-			return errors.New("room has no previous installed version")
-		}
+		// The selection before a first install was the loose/embedded room,
+		// or no room at all. Deselecting restores exactly that state.
 		delete(selections, id)
 	} else {
 		p := installedPack(root, id, s.Previous)

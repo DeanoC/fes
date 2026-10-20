@@ -160,6 +160,9 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 	if a.roomsIndex != nil {
 		for _, p := range a.roomsIndex.Packs {
 			row := a.packToHomeRow(p)
+			if a.room != nil && a.room.ID() == p.ID && a.room.Revision() != p.Revision {
+				row.Detail = "Update ready. Select to reload."
+			}
 			row.Kind = HomeKindRoom
 			if _, pinned := pinnedSeen[p.ID]; pinned {
 				row.Pinned = true

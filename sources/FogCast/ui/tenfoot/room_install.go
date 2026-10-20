@@ -7,7 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
-// Refresh only at a navigation boundary, never while rendering or playing.
+// Refresh discovery at a navigation boundary, rather than polling while rendering.
 // Existing loose development packs remain supported by the same loader.
 func (a *App) refreshInstalledRoomsLocked() {
 	if a.roomsDir == "" {

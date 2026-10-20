@@ -41,6 +41,12 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 		t.Fatalf("first load: %s", app.status)
 	}
 	second := installedTestRoom(t, root, "live", "Second", "function load() assert(store.get('keep') == 'v1'); store.set('keep', 'v2') end; function draw() gfx.text('new', 1, 1) end")
+	app.session.State = "active"
+	app.openInstalledRoomLocked(second, true)
+	if app.room != original {
+		t.Fatal("room replacement disturbed active play")
+	}
+	app.session.State = "idle"
 	app.openRoomPickerLocked()
 	app.activateHomeRowLocked(RoomPickerRow{ID: "live", Kind: HomeKindRoom})
 	if app.room == original || app.room.Revision() != second.Revision {

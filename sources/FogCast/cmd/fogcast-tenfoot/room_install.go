@@ -29,7 +29,7 @@ func roomCommand(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		fmt.Fprintln(stdout, "Room rolled back. Reopen Rooms and select it to load the previous version.")
+		fmt.Fprintln(stdout, "Room selection rolled back. Reopen Rooms to use the previous or default version.")
 		return 0
 	}
 	pack, err := rooms.Install(*root, flags.Arg(0))

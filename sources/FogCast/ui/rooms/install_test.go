@@ -110,7 +110,7 @@ func TestInstallLockAndFirstFailurePreserveLoosePack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = Rollback(root, p.ID, p.Revision); err != nil {
+	if err = Rollback(root, p.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 	packs, err := LoadDir(root)

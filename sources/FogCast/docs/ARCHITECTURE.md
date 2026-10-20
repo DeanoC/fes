@@ -3338,7 +3338,9 @@ Nested rooms retain their parents and persistent state stays outside the pack.
 
 Errors in later callbacks retain the normal room error handling. Explicit
 `fogcast-tenfoot room-rollback [--rooms DIRECTORY] ROOM_ID` selects the previous
-installed snapshot; reopen Rooms and select it to apply. Snapshot files are
+installed snapshot; when there is no earlier installed snapshot, it deselects the
+pack and restores the loose/embedded default (or removes that room from the
+list). Reopen Rooms and select it to apply. Snapshot files are
 retained; no installed versions or user state are garbage-collected. These
 commands require a launcher containing the installer once; subsequent Lua/art
 updates use that same executable. Embedded rooms remain the offline defaults.
