@@ -19,6 +19,7 @@ FES_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = FES_ROOT / "config/core-recipes.toml"
 NEXTPNR_9128800F = "9128800fa6e77c4138088a7107a95376ba47ff15"
 NEXTPNR_552BA246 = "552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b"
+NEXTPNR_0A253257 = "0a253257eadd8a7877b881ab1f940cbd9739c1be"
 
 # nextpnr's own default for every option a 9128800f recipe lists. The
 # Mistral/FES fork switches are fes_*, mistral_*, replicate_enables, remap_*
@@ -70,6 +71,10 @@ _ADDED_552BA246 = {
 NEXTPNR_PINS: Mapping[str, Mapping[str, object]] = MappingProxyType({
     NEXTPNR_9128800F: MappingProxyType(_DEFAULTS_9128800F),
     NEXTPNR_552BA246: MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246}),
+    # The reviewed 552ba246..0a253257 source diff changes router and timing
+    # behavior, but not the nextpnr option declarations or their defaults.
+    # Reuse the exact schema; this does not qualify routes from the newer pin.
+    NEXTPNR_0A253257: MappingProxyType({**_DEFAULTS_9128800F, **_ADDED_552BA246}),
 })
 
 RECIPE_FIELDS = frozenset({

@@ -127,12 +127,38 @@ claimed by these host-side identity and exporter tests.
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
 table and a `cores/<core>/toolchain.lock`, and each lock pins its own
 nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
-(`NEXTPNR_PINS`: `9128800f` and `552ba246`). A recipe's
+(`NEXTPNR_PINS`: `9128800f`, `552ba246` and `0a253257`). The reviewed
+`552ba246..0a253257` source diff adds no option declarations or changes to
+their defaults, so both pins use the same explicit schema; the newer pin's
+route changes still need their own qualification. A recipe's
 `[recipes.pnr.flags]` must list exactly the options of its own lock's
 nextpnr, including options left at their default, and only values that
 differ from that nextpnr's defaults reach argv. A lock on an unclassified
 nextpnr fails validation, so moving a lock to a newer nextpnr starts by
-classifying the options it adds. Each distinct lock selects its own cached
+classifying the options it adds.
+
+To register a nextpnr pin, compare the exact candidate commit with a classified
+ancestor. Compare `--help` from the candidate binary and audit option
+declarations in `common/kernel/command.cc` and `mistral/main.cc`, following
+settings into the architecture sources where needed. Do not infer the schema
+from a lock rationale or a pull-request title. Reuse a schema only when that
+audit confirms the option set and defaults are unchanged. Otherwise add a
+complete defaults entry in `NEXTPNR_PINS`, update the option type groups and any
+value constraints for new options, and make the recipe list every option
+explicitly. In `tests/test_pnr_recipes.py`, record the canonical
+JSON SHA256 in `FLAGS_SHA256` and add a temporary-lock regression showing that
+the candidate pin accepts exactly that schema and that defaults do not change
+the effective argv. Keep the unknown-pin rejection test. From
+`sources/misteross`, run:
+
+```sh
+python3 -m unittest discover -s tests -p test_pnr_recipes.py
+```
+
+The current `0a253257` schema review is recorded in the
+[upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
+
+Each distinct lock selects its own cached
 toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
 nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the

@@ -45,6 +45,7 @@ LOCK_SHA256 = {
 FLAGS_SHA256 = {
     pnr_recipe.NEXTPNR_9128800F: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
     pnr_recipe.NEXTPNR_552BA246: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    pnr_recipe.NEXTPNR_0A253257: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
 }
 # The options nextpnr 552ba246 adds over 9128800f, from a diff of the two
 # binaries' --help option lists.
@@ -137,18 +138,17 @@ def _toml(value):
     return json.dumps(value)
 
 
-def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
-    """Copy the registry and every lock to a temporary FES tree and pin only
-    Pong's lock to nextpnr *pin*. Pong's flags table becomes the defaults of
-    *schema* (default *pin*) less *omit*, with *values* applied, so the result
-    does not depend on Pong's current lock or recipe."""
+def _core_on_nextpnr(directory, core_id, pin, *, schema=None, omit=(), values=None):
+    """Copy the registry and every lock to a temporary FES tree and pin one
+    core's lock to nextpnr *pin*. Its flags table becomes the defaults of
+    *schema* (default *pin*) less *omit*, with *values* applied."""
     root = Path(directory)
     registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
     for entry in registry["recipes"]:
         lock = root / "sources/misteross" / entry["lock_path"]
         lock.parent.mkdir(parents=True, exist_ok=True)
         lock.write_bytes((ROOT / "sources/misteross" / entry["lock_path"]).read_bytes())
-    lock = root / "sources/misteross/cores/fes-pong/toolchain.lock"
+    lock = root / "sources/misteross/cores" / f"{core_id.replace('.', '-')}/toolchain.lock"
     text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
                           rf'\g<1>{pin}"', lock.read_text())
     assert count == 1
@@ -156,7 +156,7 @@ def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
     flags = dict(pnr_recipe.NEXTPNR_PINS[schema or pin], **(values or {}))
     table = "".join(f"{name} = {_toml(value)}\n" for name, value in flags.items() if name not in omit)
     source = (ROOT / "config/core-recipes.toml").read_text(encoding="utf-8")
-    start = source.index('core_id = "fes.pong"')
+    start = source.index(f'core_id = "{core_id}"')
     end = source.index("[[recipes]]", start + 1)
     header = "[recipes.pnr.flags]\n"
     first = source.index(header, start, end) + len(header)
@@ -165,6 +165,11 @@ def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
     registry_path = root / "config/core-recipes.toml"
     registry_path.write_text(source[:first] + table + "\n" + source[end:], encoding="utf-8")
     return patch.multiple(pnr_recipe, FES_ROOT=root, REGISTRY=registry_path)
+
+
+def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
+    return _core_on_nextpnr(directory, "fes.pong", pin, schema=schema,
+                            omit=omit, values=values)
 
 
 class PnrRecipeTests(unittest.TestCase):
@@ -194,6 +199,23 @@ class PnrRecipeTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(json.dumps(
                 dict(defaults), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
                 FLAGS_SHA256[pin])
+
+    def test_0a253257_uses_the_reviewed_552ba246_schema_for_menu(self):
+        pin = pnr_recipe.NEXTPNR_0A253257
+        defaults = pnr_recipe.NEXTPNR_PINS[pin]
+        self.assertEqual(dict(defaults), dict(pnr_recipe.NEXTPNR_PINS[
+            pnr_recipe.NEXTPNR_552BA246]))
+        with tempfile.TemporaryDirectory() as directory, _core_on_nextpnr(
+                directory, "fes.menu", pin):
+            recipe = pnr_recipe.recipe_for("fes.menu")
+            self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), pin)
+            self.assertEqual(recipe["flags"], dict(defaults))
+            command = pnr_recipe.argv("fes.menu", SLOT, SYNTH, recipe["seeds"][0], 0,
+                                      output=OUTPUT)
+        # Registering the schema makes validation possible while default-valued
+        # flags still leave the producer's effective argv unchanged.
+        self.assertEqual(command, tuple(_legacy_argv(
+            "fes.menu", recipe, seed=recipe["seeds"][0])))
 
     def test_a_552ba246_recipe_must_set_every_added_option(self):
         pin = pnr_recipe.NEXTPNR_552BA246
