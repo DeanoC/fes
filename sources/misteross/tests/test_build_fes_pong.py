@@ -12,7 +12,7 @@ from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInv
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts import build_fes_pong
+from scripts import build_fes_pong, pnr_recipe
 from scripts import toolchain_cache
 from scripts.build_fes_pong import (
     AuthenticatedTool,
@@ -47,6 +47,20 @@ def _write_fake_tool(
     mutation_target: Path | None = None,
 ) -> None:
     target_output = "5CSEBA6U23I7 fake database" if include_target else "other device database"
+    nextpnr_help = ""
+    if tool_name == "nextpnr":
+        option_names = next(
+            names for names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS if len(names) == 96
+        )
+        help_lines = ["  -h [ --help ]"] + [
+            f"  --{name.replace('_', '-')} arg" for name in sorted(option_names - {"help"})
+        ]
+        nextpnr_help = (
+            "if [ \"${1:-}\" = '--help' ]; then\n"
+            "  printf '%s\\n' "
+            + " ".join(f"'{line}'" for line in help_lines)
+            + "\n  exit 0\nfi\n"
+        )
     mutation = ""
     if mutation_target is not None:
         chmod_command = shutil.which("chmod") or "/bin/chmod"
@@ -61,6 +75,7 @@ def _write_fake_tool(
         )
     path.write_text(
         "#!/bin/sh\n"
+        + nextpnr_help
         + mutation
         + "case \"${1:-}\" in\n"
         f"  models) printf '%s\\n' '{target_output}' ;;\n"

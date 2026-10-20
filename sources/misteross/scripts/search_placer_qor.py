@@ -219,7 +219,7 @@ def _run_nextpnr(
             core_id, nextpnr, fixture, seed, gpu, output=run_dir, device=device,
             qsf=qsf, sdc=sdc, weight=weight, critexp=critexp, extra=extra,
             env=env or {})
-        recipe_sha = pnr_recipe.recipe_digest(core_id)
+        recipe_sha = pnr_recipe.recipe_digest(core_id, nextpnr)
         if expected_recipe_digest is not None and recipe_sha != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed during placement search"
@@ -444,8 +444,8 @@ def search(
 ) -> list[Candidate]:
     if core_id is not None:
         if expected_recipe_digest is None:
-            expected_recipe_digest = pnr_recipe.recipe_digest(core_id)
-        elif pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            expected_recipe_digest = pnr_recipe.recipe_digest(core_id, nextpnr)
+        elif pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed before placement search"
             )
@@ -461,7 +461,7 @@ def search(
 
     def verify_recipe(candidate: Candidate) -> Candidate:
         if core_id is not None and (
-                pnr_recipe.recipe_digest(core_id) != expected_recipe_digest
+                pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest
                 or (candidate.recipe_sha256
                     and candidate.recipe_sha256 != expected_recipe_digest)):
             raise pnr_recipe.RecipeError(
@@ -619,11 +619,11 @@ def route_after_synth(
     """Place-and-route candidates after synth.json exists; promote the winner."""
     route_extra = tuple(extra)
     expected_recipe_digest = (
-        pnr_recipe.recipe_digest(core_id) if core_id is not None else None
+        pnr_recipe.recipe_digest(core_id, nextpnr) if core_id is not None else None
     )
     if core_id is not None:
-        recipe = pnr_recipe.recipe_for(core_id)
-        if pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+        recipe = pnr_recipe.recipe_for(core_id, nextpnr)
+        if pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed before placement search"
             )
@@ -676,7 +676,7 @@ def route_after_synth(
         expected_recipe_digest=expected_recipe_digest,
     )
     if (core_id is not None
-            and pnr_recipe.recipe_digest(core_id) != expected_recipe_digest):
+            and pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest):
         raise pnr_recipe.RecipeError(
             f"{core_id}: P&R recipe changed during placement search"
         )

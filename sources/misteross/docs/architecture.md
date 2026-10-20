@@ -138,13 +138,49 @@ claimed by these host-side identity and exporter tests.
 
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
 table and a `cores/<core>/toolchain.lock`, and each lock pins its own
-nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
-(`NEXTPNR_PINS`: `9128800f` and `552ba246`). A recipe's
-`[recipes.pnr.flags]` must list exactly the options of its own lock's
-nextpnr, including options left at their default, and only values that
-differ from that nextpnr's defaults reach argv. A lock on an unclassified
-nextpnr fails validation, so moving a lock to a newer nextpnr starts by
-classifying the options it adds. Each distinct lock selects its own cached
+nextpnr. Before a producer records its recipe or routes, `scripts/pnr_recipe.py`
+reads the authenticated binary's `--help` and matches the complete sorted CLI
+option-name set to a reviewed schema. The 96-option set has 56 recipe flags;
+the 105-option set has 65. Their source declarations are in
+`common/kernel/command.cc` and `mistral/main.cc`. Schema lookup uses the option
+set, so a moving PR head remains eligible when its option set is unchanged.
+The no-Python/no-GUI build also accepts each classified set with exactly these
+eight options absent: `gui`, `gui_no_aa`, `on_failure`, `post_route`, `pre_pack`,
+`pre_place`, `pre_route` and `run`. Any other added or missing CLI option,
+including a partial omission of those eight, fails closed with the difference
+listed.
+
+The nine options added after `9128800f` are classified once in the shared
+recipe defaults: placement and signed-DSP packing switches default off,
+`gpu-required` is a guard switch, the critical-cohort repair budget defaults
+to zero, its report and generic settings are inputs, and its calibration and
+router profile paths are outputs. Per-core flags may override these defaults;
+only values that differ from the selected compiler defaults reach argv. These
+schema matches permit recipe validation; they do not qualify route results
+from a newer pin.
+
+To register a nextpnr pin, compare the exact candidate commit with a classified
+ancestor. Compare `--help` from the candidate binary and audit option
+declarations in `common/kernel/command.cc` and `mistral/main.cc`, following
+settings into the architecture sources where needed. Do not infer the schema
+from a lock rationale or a pull-request title. Reuse a schema only when that
+audit confirms the option set and defaults are unchanged. Otherwise add a
+source-option-set schema and shared defaults, update the option type groups and
+any value constraints, and add per-core overrides only when a producer needs
+nondefault values. In `tests/test_pnr_recipes.py`, record the canonical JSON
+SHA256 in `FLAGS_SHA256` and add a temporary-lock regression showing that a
+candidate with the same option set accepts the schema and defaults do not
+change effective argv. Keep the extra/missing-option rejection tests. From
+`sources/misteross`, run:
+
+```sh
+python3 -m unittest discover -s tests -p test_pnr_recipes.py
+```
+
+The `0a253257` schema review is recorded in the
+[upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
+
+Each distinct lock selects its own cached
 toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
 nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
