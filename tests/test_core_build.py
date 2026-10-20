@@ -472,6 +472,12 @@ class CoreBuildTest(unittest.TestCase):
             self.assertNotEqual(before, build.digest(policy))
 
     def test_clean_package_only_image_fetch_passes_complete_package_tuple(self):
+        self.check_clean_fetch(False)
+
+    def test_artifact_assembly_never_invokes_component_producers(self):
+        self.check_clean_fetch(True)
+
+    def check_clean_fetch(self, artifacts):
         packages = tuple({
             'directory': Path('/packages') / core_id,
             'selection_path': Path('/records') / (core_id.replace('.', '-') + '.package-selection.toml'),
@@ -482,6 +488,8 @@ class CoreBuildTest(unittest.TestCase):
             ('fes.coleco', 'c' * 64),
         ))
         captured = {}
+        artifact_manifest = {'provenance': {'runtime': '5' * 40},
+                             'binaries': {'mister-runtime': 'a' * 64}}
 
         class StopAfterFetch(Exception):
             pass
@@ -517,6 +525,9 @@ class CoreBuildTest(unittest.TestCase):
                 return parsed
 
             def fake_run(args, **kwargs):
+                if artifacts:
+                    self.assertNotIn('build-agent', args)
+                    self.assertNotIn('build-fogcast-kit', args)
                 if (len(args) >= 3 and
                         Path(args[0]).name == 'target-image-container.sh' and
                         args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh']):
@@ -546,7 +557,10 @@ class CoreBuildTest(unittest.TestCase):
                         'FES_SMS_PACKAGE_SELECTION': '/ambient/sms-selection',
                     }),
                     patch.object(build.sys, 'argv',
-                                 ['build.py', 'image', '--profile', 'native-integration-dev']),
+                                 ['build.py', 'image' if artifacts else 'build', '--profile', 'native-integration-dev'] +
+                                 (['--artifacts', '/explicit-artifacts'] if artifacts else [])),
+                    patch('image_artifacts.load', return_value=(artifact_manifest, packages)),
+                    patch('image_artifacts.stage', return_value=(artifact_manifest, packages)),
                     patch.object(build, 'validate', return_value=revisions),
                     patch.object(build, 'source_checkout', side_effect=fake_checkout),
                     patch.object(build, 'git', side_effect=lambda root, *args:
@@ -560,14 +574,18 @@ class CoreBuildTest(unittest.TestCase):
                                  else 'go version go1.26.5 linux/amd64\n'),
                     patch.object(build.platform, 'system', return_value='Linux'),
                     patch.object(build.platform, 'machine', return_value='x86_64'),
-                    patch.object(build.platform, 'build_kit_software'),
+                    patch.object(build.platform, 'build_kit_software',
+                                 side_effect=AssertionError('must not compile') if artifacts else None),
+                    patch.object(build, 'write_receipt'),
+                    patch.object(build, 'publish_host_inputs'),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
                     patch.object(build.subprocess, 'run',
                                  return_value=subprocess.CompletedProcess([], 1)),
                     patch.object(build, 'run', side_effect=fake_run),
                     patch.object(build, 'locked_diagnostics', no_diagnostics),
                     patch.object(build, 'resolve_packages_for_action',
-                                 return_value=(packages, ())),
+                                 return_value=(packages, ()),
+                                 side_effect=AssertionError('must not resolve producers') if artifacts else None),
                     patch.object(build, 'build_fingerprint',
                                  return_value=('base-fingerprint', {'sources': {}})),
                     patch.object(build, 'host_fingerprint',
@@ -581,7 +599,7 @@ class CoreBuildTest(unittest.TestCase):
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
-        self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], '2' * 40)
+        self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], ('5' if artifacts else '2') * 40)
         self.assertEqual(captured['assembly_lock']['idle_rbf'],
                          tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])
         self.assertEqual(captured['assembly_lock']['splash_rbf'],

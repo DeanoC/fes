@@ -1702,7 +1702,23 @@ def main():
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
     parser.add_argument("--profile", default="native-integration-dev",
                         choices=["native-integration-dev"])
+    parser.add_argument('--artifacts', type=Path,
+                        help='explicit bootstrap artifact directory; required for image assembly')
     args = parser.parse_args()
+    artifacts = None
+    if args.action == 'image' or args.artifacts:
+        if not args.artifacts:
+            raise ValueError('image assembly requires --artifacts; use make image '
+                             'IMAGE_ARTIFACTS=/absolute/artifact-directory. '
+                             'See docs/image-artifacts.md for export and explicit source builds.')
+        if args.action not in ('image', 'verify'):
+            raise ValueError('--artifacts is supported by image and verify only')
+        import image_artifacts
+        artifacts, artifact_packages = image_artifacts.load(args.artifacts)
+    elif args.action == 'verify':
+        prior = ROOT / 'out' / args.profile / 'inputs.json'
+        if prior.is_file() and 'bootstrap_artifacts' in json.loads(prior.read_text()):
+            raise ValueError('verify this assembled image with IMAGE_ARTIFACTS set to its input directory')
     image_passes = validate_image_passes()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     if args.action in ('host', 'dev', 'doctor'):
@@ -1750,15 +1766,21 @@ def main():
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text(selected_runtime_lock(
             (IMAGE / "build/native-inputs.toml").read_text(),
-            revisions["libmister-runtime"]))
+            artifacts["provenance"]["runtime"] if artifacts else revisions["libmister-runtime"]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
         host_fp, host_info = host_fingerprint(revisions, profile, toolchain)
+        if artifacts:
+            info['bootstrap_artifacts'] = artifacts
+            fp = hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
         packages = ()
         unavailable = ()
         image_fp, image_info = fp, info
         if package_ids and args.action in ("build", "image", "verify", "rebuild", "dev"):
-            packages, unavailable = resolve_packages_for_action(
-                revisions, output, env, args.action, package_ids)
+            if artifacts:
+                packages = artifact_packages
+            else:
+                packages, unavailable = resolve_packages_for_action(
+                    revisions, output, env, args.action, package_ids)
             image_fp, image_info = image_fingerprint(fp, info, packages, unavailable)
             if unavailable:
                 optional_cores.warn(unavailable)
@@ -1821,22 +1843,30 @@ def main():
                 verify_package_only_outputs(output, packages, unavailable)
             else:
                 diagnostics.cache("image", "forced" if args.action == "rebuild" else "miss", image_reason)
-                runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
+                runtime = None if artifacts else source_checkout("libmister-runtime", revisions["libmister-runtime"])
                 source_lock = tomllib.loads((IMAGE / "build/target-image.sources.lock.toml").read_text())
                 base = source_lock["container"]
                 ref = base["image"] + "@" + base["digest"]
                 present = subprocess.run([container, "image", "inspect", ref], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if present.returncode:
                     run_stage(diagnostics, "image subprocess", [container, "pull", "--platform", base["platform"], ref], env=env)
-                run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
-                platform.build_kit_software(ROOT, fogcast, env)
+                if artifacts:
+                    # These are assembly validators, not target software producers.
+                    run_stage(diagnostics, "image subprocess", fogcast_make + ["build-fes-kit-bundle-container"], env=env)
+                    staged, _ = image_artifacts.stage(args.artifacts, fogcast)
+                    if staged != artifacts:
+                        raise ValueError('bootstrap artifacts changed before staging')
+                    env['FES_PREBUILT_RUNTIME_SHA256'] = artifacts['binaries']['mister-runtime']
+                else:
+                    run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
+                    platform.build_kit_software(ROOT, fogcast, env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
                 fetch_env.update(dict(argument.split("=", 1) for argument in package_args))
                 run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
-                    "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_args], env=env)
+                    "LIBMISTER_RUNTIME_DIR=" + (str(runtime) if runtime else ""), *package_args], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
                 verify_env = dict(env, NATIVE_RUNTIME_MODE=mode,
                                   **dict(argument.split("=", 1) for argument in package_args))

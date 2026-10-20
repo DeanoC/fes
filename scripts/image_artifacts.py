@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Export and select bootstrap artifacts without running component producers."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot',
+            'fes-kit-data', 'fes-kit-software')
+
+
+def sha(path):
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def packages_at(root, records):
+    from recipes import recipe_for
+    result = []
+    for inputs in records:
+        selection = inputs['selection']
+        identity = selection['package_id']
+        if not re.fullmatch('[0-9a-f]{64}', identity):
+            raise ValueError('invalid artifact package identity')
+        recipe = recipe_for(selection['core_id'])
+        if recipe.video_profiles:
+            raise ValueError('bootstrap artifacts accept display firmware only; install playable cores separately')
+        result.append({'directory': root / 'core-packages' / identity,
+                       'selection_path': root / recipe.selection_filename, 'inputs': inputs})
+    if [p['inputs']['selection']['core_id'] for p in result] != ['fes.menu']:
+        raise ValueError('bootstrap artifacts require exactly fes.menu; install playable cores separately')
+    return tuple(result)
+
+
+def load(root):
+    from build import verify_package_outputs
+    root = Path(root).resolve()
+    manifest_path = root / 'artifacts.json'
+    if not manifest_path.is_file():
+        raise ValueError('bootstrap artifacts missing; run scripts/image_artifacts.py export --help, '
+                         'then make image IMAGE_ARTIFACTS=/absolute/artifact-directory')
+    if manifest_path.is_symlink() or manifest_path.stat().st_size > 1024 * 1024:
+        raise ValueError('invalid bootstrap artifact manifest')
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get('format') != 1:
+        raise ValueError('unsupported bootstrap artifact format')
+    for component in ('fogcast', 'runtime'):
+        if not re.fullmatch('[0-9a-f]{40}', manifest['provenance'][component]):
+            raise ValueError('invalid bootstrap source provenance')
+    if set(manifest['binaries']) != set(BINARIES):
+        raise ValueError('bootstrap artifact binary set differs')
+    if (root / 'bin').is_symlink():
+        raise ValueError('bootstrap bin directory must not be a symlink')
+    for name in BINARIES:
+        path = root / 'bin' / name
+        if path.is_symlink() or not path.is_file() or sha(path) != manifest['binaries'][name]:
+            raise ValueError('bootstrap artifact changed: ' + name)
+        with path.open('rb') as stream:
+            header = stream.read(20)
+        if header[:6] != b'\x7fELF\x01\x01' or header[18:20] != b'\x28\x00':
+            raise ValueError('bootstrap artifact must be a little-endian ARM ELF: ' + name)
+    packages = packages_at(root, manifest['packages'])
+    verify_package_outputs(root, packages)
+    return manifest, packages
+
+
+def stage(root, fogcast):
+    """Copy validated inputs into the private assembly snapshot, then recheck."""
+    manifest, packages = load(root)
+    destination = fogcast / 'bin'
+    destination.mkdir(exist_ok=True)
+    for name in BINARIES:
+        path = destination / (name + '-linux-armv7')
+        shutil.copyfile(Path(root) / 'bin' / name, path)
+        path.chmod(0o555)
+        if sha(path) != manifest['binaries'][name]:
+            raise ValueError('bootstrap artifact changed while staging: ' + name)
+    (destination / 'kit-software.revision').write_text(manifest['provenance']['fogcast'] + '\n')
+    return manifest, packages
+
+
+def export(image_output, output):
+    """Seed a portable input set from a retained, receipt-checked bootstrap image."""
+    from build import recorded_image_fingerprint, reusable, verify_package_outputs
+    image_output, output = Path(image_output).resolve(), Path(output).absolute()
+    if output.exists() or output.is_symlink():
+        raise ValueError('artifact output already exists; choose a new directory')
+    info = json.loads((image_output / 'inputs.json').read_text())
+    fingerprint = recorded_image_fingerprint(info)
+    if not reusable(image_output, 'image', fingerprint):
+        raise ValueError('source image receipt does not match retained files')
+    records = [p for p in info['fpga_packages'] if p['selection']['core_id'] == 'fes.menu']
+    packages = packages_at(image_output, records)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.image-artifacts-', dir=output.parent) as temporary:
+        root = Path(temporary) / 'artifacts'
+        (root / 'bin').mkdir(parents=True)
+        # debugfs has its own command parser. Use fixed, quoted destination paths
+        # in a private working directory, never interpolate user paths into -R.
+        def dump(source, destination):
+            subprocess.run(['debugfs', '-R', 'dump ' + source + ' ' + destination,
+                            str(image_output / 'linux.img')], cwd=root, check=True,
+                           stdout=subprocess.DEVNULL)
+            if not (root / destination).is_file():
+                raise ValueError('source image lacks ' + source)
+        dump('/usr/share/fes/software/manifest.json', 'factory.json')
+        factory = json.loads((root / 'factory.json').read_text())
+        for name in BINARIES:
+            source = ('/usr/sbin/' if name.startswith('fes-') else '/usr/share/fes/software/bin/') + name
+            dump(source, 'bin/' + name)
+            (root / 'bin' / name).chmod(0o555)
+        for package in packages:
+            shutil.copytree(package['directory'], root / 'core-packages' / package['directory'].name)
+            shutil.copyfile(package['selection_path'], root / package['selection_path'].name)
+        manifest = {'format': 1, 'provenance': factory['provenance'],
+                    'source_image_sha256': sha(image_output / 'linux.img'),
+                    'binaries': {name: sha(root / 'bin' / name) for name in BINARIES},
+                    'packages': records}
+        (root / 'factory.json').unlink()
+        (root / 'artifacts.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        load(root)
+        # Check the retained source again after extracting its bytes.
+        if not reusable(image_output, 'image', fingerprint):
+            raise ValueError('source image changed during artifact export')
+        root.rename(output)
+    return manifest
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='action', required=True)
+    command = sub.add_parser('export', help='export from a retained bootstrap image; requires debugfs')
+    command.add_argument('--image-output', required=True, type=Path)
+    command.add_argument('--output', required=True, type=Path)
+    command = sub.add_parser('check')
+    command.add_argument('directory', type=Path)
+    args = parser.parse_args()
+    if args.action == 'export':
+        export(args.image_output, args.output)
+    else:
+        load(args.directory)
+
+
+if __name__ == '__main__':
+    main()

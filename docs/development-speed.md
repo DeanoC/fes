@@ -100,10 +100,12 @@ requests wherever they do not protect the operation being performed.
    a full scheduled run and validate the selector against representative diffs.
    Target: ordinary room/host PR feedback within five minutes; measure p50/p95
    before claiming that target is met.
-2. **Make OS building consume installed artifacts.** The bootstrap still builds
-   MENU and fallback userspace from source on a cache miss. Assemble from named
-   artifacts instead, with explicit local overrides for the artifact under test.
-   First boot must work offline; an empty playable-core inventory must be usable.
+2. **Make OS building consume installed artifacts.** `make image` now consumes
+   an explicit prebuilt bootstrap artifact set; see [assembly inputs](image-artifacts.md).
+   Source integration remains explicit in `make build`/`make dev`. Publishing
+   individual updated artifacts directly into a new set is a follow-up; this
+   first path exports a retained image's MENU and userspace without rebuilding them.
+   Offline first boot and an empty playable-core inventory still need kit evidence.
 3. **Separate UI engine and room delivery.** Kit software currently bundles the
    engine with agent/runtime; first-party room examples are embedded in Go.
    Promote the existing external room loader into an install/update/select
