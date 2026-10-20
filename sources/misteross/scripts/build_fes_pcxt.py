@@ -35,6 +35,14 @@ PLACER_TIMING_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
 
 
+def synthesis_command():
+    # Transfer register intent before dff_map introduces polarity inverters.
+    # After full mapping attrmvcp would annotate those inverters, not the FFs.
+    base = 'synth_intel_alm -nolutram -nodsp -top top'
+    return (base + ' -run begin:map_ffram; attrmvcp -copy -attr async_reg; ' +
+            base + ' -run map_ffs:')
+
+
 def gpu_choice(gpu_router):
     backend = gpu_backend_for_router(gpu_router)
     if gpu_router == 'HIP':
@@ -105,7 +113,7 @@ def main():
                    ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
                    ' '.join(str(ROOT / s) for s in RTL) + '; ' +
                    f'chparam -set MDA {int(args.mda)} -set SCANLINES {int(args.scanlines)} top; ' +
-                   'synth_intel_alm -nolutram -nodsp -top top; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
+                   synthesis_command() + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
                    '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
         with (output / 'yosys.log').open('w') as log:
             subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,

@@ -21,6 +21,12 @@ model requires this shell's clock-route arrival and matching board/pad bounds,
 not the RAM Tester example's unmeasured flight intervals. The two-stage reset
 release chains also do not by themselves supply asynchronous recovery/removal
 timing or metastability qualification.
+The board synthesis recipe copies `async_reg` intent to registers before Intel
+FF mapping, preserving the metadata on the mapped FFs instead of their polarity
+inverters. This does not add timing exceptions or change reset behavior.
+A scoped reset exception would additionally require validation of the complete
+chain, its synchronous consumers and timed interstage paths; the attribute alone
+is not a timing waiver.
 
 ## SDRAM storage
 
