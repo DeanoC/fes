@@ -303,10 +303,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 				writeSessionError(w, err)
 				return
 			}
-			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service, target)})
 			return
 		}
-		result.Connection = targetConnection(service)
+		result.Connection = targetConnection(service, target)
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
@@ -573,10 +573,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		status, err := service.Status(ctx)
 		if err != nil {
-			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service, r.URL.Query().Get("target"))})
 			return
 		}
-		connection := targetConnection(service)
+		connection := targetConnection(service, r.URL.Query().Get("target"))
 		if targetID := fogcast.PairedTargetFromContext(r.Context()); targetID != "" {
 			state := "connected"
 			if status.State == "" {
@@ -1179,7 +1179,15 @@ func writeSessionError(w http.ResponseWriter, err error) {
 	}})
 }
 
-func targetConnection(service Service) *fogcast.TargetConnection {
+func targetConnection(service Service, targetName ...string) *fogcast.TargetConnection {
+	if len(targetName) > 0 && strings.TrimSpace(targetName[0]) != "" {
+		if provider, ok := service.(interface {
+			TargetConnectionForName(string) fogcast.TargetConnection
+		}); ok {
+			connection := provider.TargetConnectionForName(targetName[0])
+			return &connection
+		}
+	}
 	if provider, ok := service.(interface {
 		TargetConnection() fogcast.TargetConnection
 	}); ok {

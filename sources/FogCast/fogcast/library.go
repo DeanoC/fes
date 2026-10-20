@@ -844,9 +844,59 @@ func sameLibraryRoots(left, right []catalog.Root) bool {
 	return true
 }
 
+func sameTargetConnectionConfig(left, right TargetConfig) bool {
+	return left.Name != "" && right.Name != "" &&
+		left.Name == right.Name && left.TargetID == right.TargetID &&
+		left.Enabled == right.Enabled && left.Address == right.Address && left.Agent == right.Agent
+}
+
+func changedTargetConnectionNames(previous, next []TargetConfig) []string {
+	var changed []string
+	seen := make(map[string]struct{}, len(previous)+len(next))
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		changed = append(changed, name)
+	}
+	for _, target := range previous {
+		if !sameTargetConnectionConfig(target, targetByName(next, target.Name)) {
+			add(target.Name)
+		}
+	}
+	for _, target := range next {
+		if !sameTargetConnectionConfig(targetByName(previous, target.Name), target) {
+			add(target.Name)
+		}
+	}
+	return changed
+}
+
+func (s *Service) invalidateChangedTargetConnections(previous, next []TargetConfig, currentName string, clearCurrent bool) {
+	s.connectionMu.Lock()
+	defer s.connectionMu.Unlock()
+	for name := range s.targetConnections {
+		if !sameTargetConnectionConfig(targetByName(previous, name), targetByName(next, name)) {
+			delete(s.targetConnections, name)
+		}
+	}
+	if clearCurrent || !sameTargetConnectionConfig(targetByName(previous, currentName), targetByName(next, currentName)) {
+		s.connection = TargetConnection{}
+		s.nextLookup = time.Time{}
+		s.lookupFailures = 0
+	}
+}
+
 func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfig, selectedClient serviceClient, selectedIdentityChanged bool) error {
 	s.configWriteMu.Lock()
 	defer s.configWriteMu.Unlock()
+	previousTargets := append([]TargetConfig(nil), s.targets...)
+	previousCurrentTarget := s.sessionTargetNameLocked()
+	resetTargets := changedTargetConnectionNames(previousTargets, normalized.Targets)
 	var previousOverlay []byte
 	previousOverlayExists := false
 	var previousConfig []byte
@@ -890,6 +940,7 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 	}
 	s.targets = append([]TargetConfig(nil), normalized.Targets...)
 	s.selectedTarget = normalized.SelectedTarget
+	s.invalidateChangedTargetConnections(previousTargets, s.targets, previousCurrentTarget, selectedIdentityChanged)
 	previousClients := s.targetClients
 	s.targetClients = make(map[string]serviceClient)
 	if selectedClient != nil {
@@ -918,24 +969,31 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 		s.pairedTargetClients[name] = client
 	}
 	s.pairedTargetMu.Unlock()
+	s.settingsTargetHook = nil
 	if selectedIdentityChanged {
-		s.connectionMu.Lock()
-		s.connection = TargetConnection{}
-		s.nextLookup = time.Time{}
-		s.lookupFailures = 0
-		s.connectionMu.Unlock()
 		s.executionMu.Lock()
 		s.selectedTargetReconciled = !targetByName(s.targets, s.selectedTarget).Enabled
 		s.selectedTargetRepairAllowed = false
 		s.executionMu.Unlock()
+		currentTargetIncluded := false
+		for _, name := range resetTargets {
+			currentTargetIncluded = currentTargetIncluded || name == previousCurrentTarget
+		}
+		if previousCurrentTarget != "" && !currentTargetIncluded {
+			resetTargets = append(resetTargets, previousCurrentTarget)
+		}
+	}
+	if len(resetTargets) != 0 || selectedIdentityChanged {
 		reset, origin := s.targetReset, s.targetOrigin
 		cfg := targetByName(s.targets, s.selectedTarget)
 		lease := kitLeaseOf(s.targetClients[s.selectedTarget])
 		s.settingsTargetHook = func() {
 			if reset != nil {
-				reset()
+				for _, name := range resetTargets {
+					reset(name)
+				}
 			}
-			if origin != nil {
+			if selectedIdentityChanged && origin != nil {
 				origin(cfg, lease)
 			}
 		}

@@ -2962,7 +2962,11 @@ func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing
 	)
 	var origins []string
 	resets := 0
-	service.SetTargetReset(func() { resets++ })
+	var resetTargets []string
+	service.SetTargetReset(func(target string) {
+		resets++
+		resetTargets = append(resetTargets, target)
+	})
 	service.SetTargetOrigin(func(target TargetConfig, _ *targetclient.KitLease) {
 		origins = append(origins, target.Name+":"+target.Address)
 	})
@@ -2983,8 +2987,59 @@ func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing
 	if resets != 1 {
 		t.Fatalf("target resets = %d", resets)
 	}
+	if len(resetTargets) != 1 || resetTargets[0] != "dev" {
+		t.Fatalf("reset target names = %v, want [dev]", resetTargets)
+	}
 	if len(origins) != 1 || origins[0] != "spare:http://192.0.2.11:8182" {
 		t.Fatalf("origins = %#v", origins)
+	}
+}
+
+func TestEditedNamedTargetClearsOnlyItsConnectionObservation(t *testing.T) {
+	const devID = "4a6fb044-1fca-40ef-93ee-e6a9bb4ce56b"
+	const kit2ID = "3aa1b84f-17b5-41f7-9fc7-f91bc4e8814a"
+	devAddress := "http://192.0.2.10:8182"
+	oldKit2Address := "http://192.0.2.20:8182"
+	newKit2Address := "http://192.0.2.21:8182"
+	service := newService(Config{
+		Targets: []TargetConfig{
+			{Name: "dev", TargetID: devID, Enabled: true, Address: devAddress, Agent: "dev-secret"},
+			{Name: "kit2", TargetID: kit2ID, Enabled: true, Address: oldKit2Address, Agent: "kit2-secret"},
+		},
+		SelectedTarget: "dev", RequestTimeout: time.Second,
+	}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	future := time.Now().Add(time.Minute)
+	service.connection = TargetConnection{State: "ready", Address: devAddress, TargetID: devID, BootID: "dev-boot"}
+	service.targetConnections = map[string]targetConnectionState{
+		"dev": {connection: service.connection, nextLookup: future, lookupFailures: 2},
+		"kit2": {
+			connection: TargetConnection{State: "ready", Address: oldKit2Address, TargetID: kit2ID, BootID: "kit2-old-boot"},
+			nextLookup: future, lookupFailures: 4,
+		},
+	}
+	var resetTargets []string
+	service.SetTargetReset(func(name string) { resetTargets = append(resetTargets, name) })
+	settings := service.LibrarySettings()
+	settings.Targets[1].Address = newKit2Address
+	if err := service.SetLibrarySettings(context.Background(), settings); err != nil {
+		t.Fatalf("edit kit2 target: %v", err)
+	}
+	connection := service.TargetConnectionForName("kit2")
+	if connection.State != "disconnected" || connection.Address != newKit2Address || connection.TargetID != kit2ID || connection.BootID != "" {
+		t.Fatalf("edited kit2 connection = %+v", connection)
+	}
+	if got := service.TargetConnectionForName("dev"); got.State != "ready" || got.Address != devAddress || got.BootID != "dev-boot" {
+		t.Fatalf("unchanged dev connection = %+v", got)
+	}
+	service.connectionMu.Lock()
+	_, staleKit2 := service.targetConnections["kit2"]
+	devState := service.targetConnections["dev"]
+	service.connectionMu.Unlock()
+	if staleKit2 || devState.lookupFailures != 2 || !devState.nextLookup.Equal(future) {
+		t.Fatalf("target observations after settings edit: kit2 cached=%v dev=%+v", staleKit2, devState)
+	}
+	if len(resetTargets) != 1 || resetTargets[0] != "kit2" {
+		t.Fatalf("input resets after target edit = %v, want [kit2]", resetTargets)
 	}
 }
 
