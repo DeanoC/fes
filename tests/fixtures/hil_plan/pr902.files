@@ -1,0 +1,17 @@
+docs/appliance-releases.md
+docs/bootable-media.md
+docs/hps-ddr.md
+sources/FogCast/README.md
+sources/FogCast/appliance/store/store.go
+sources/FogCast/appliance/store/store_test.go
+sources/FogCast/cmd/mister-agent/appliance.go
+sources/FogCast/docs/ARCHITECTURE.md
+sources/FogCast/docs/appliance-updates.md
+sources/FogCast/docs/kit-resource-limits.md
+sources/FogCast/internal/appliancesplash/splash.go
+sources/FogCast/internal/appliancesplash/splash_test.go
+sources/FogCast/internal/applianceupdate/service.go
+sources/FogCast/internal/applianceupdate/service_test.go
+sources/FogCast/scripts/kit-diagnostics.sh
+sources/FogCast/scripts/tests/kit-diagnostics_test.sh
+sources/FogCast/targetclient/appliance_update.go

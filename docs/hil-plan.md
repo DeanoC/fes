@@ -62,6 +62,46 @@ Each changed path gets a class and a component:
 - `full`: image, boot media, platform, profile, splash, video-part or kit
   software-format changes. The decision is `FULL_IMAGE`: stop and build a
   full image. A full image swap or reimage still needs Deano's explicit OK.
+  Trial, confirm, boot-ticket and storage-gate code is full too. On a trial
+  boot `fes-kit-software` starts only the image's built-in software (it does
+  not open the bundle store) and the storage gate runs as the image's
+  `/usr/sbin/fes-kit-data`, so a bundle install cannot exercise that code.
+  The paths are `sources/FogCast/appliance/store/**` (release confirm,
+  boot-ticket rewrite, and splash prune), `sources/FogCast/internal/applianceupdate/**`
+  (the agent's reconcile and repair), `sources/FogCast/internal/appliancesplash/**`
+  (FAT `idle.rbf` refresh on confirm, and the restored image's splash on
+  rollback confirm) and `sources/FogCast/internal/appliancedata/**` (the
+  fes-kit-data gate). Packages under `appliance/` that an image-only binary
+  imports are full too, even when overlay code also imports them. A bundle
+  cannot replace those binaries, so an overlay install cannot exercise the
+  changed code. The set comes from `go list -deps`, not a guess. fes-boot
+  (`platform/cmd/fes-boot`) and the trial-startup supervisor
+  (`platform/cmd/fes-kit-software`) are listed from a workspace that replaces
+  `github.com/DeanoC/FogCast/appliance` with `sources/FogCast/appliance`.
+  fes-kit-data (`sources/FogCast/cmd/fes-kit-data`) is listed from the FogCast
+  module. Those three commands import:
+
+  - `github.com/DeanoC/FogCast/appliance` (`sources/FogCast/appliance/*.go`,
+    the release manifest; `release.go` is the only non-test file), from
+    fes-boot and fes-kit-data.
+  - `github.com/DeanoC/FogCast/appliance/blockprobe`, from all three.
+  - `github.com/DeanoC/FogCast/appliance/softwarecontrol`, from
+    fes-kit-software and from fes-kit-data through `internal/applianceupdate`
+    → `internal/agent` → `protocol`.
+  - `github.com/DeanoC/FogCast/appliance/store`, from fes-boot and fes-kit-data
+    (already `appliance/store/**`).
+  - `github.com/DeanoC/FogCast/appliance/software`, from fes-kit-software
+    (already `appliance/software/**`).
+
+  The first three are `sources/FogCast/appliance/*.go` and
+  `sources/FogCast/appliance/blockprobe/**` (`appliance-trial`) and
+  `sources/FogCast/appliance/softwarecontrol/**` (`kit-software`). `*_test.go`
+  stays `none`. Importers outside those packages, including `cmd/mister-agent`,
+  `internal/httpapi`, `catalog` and `protocol`, stay on their own rules.
+  Trial startup (`platform/cmd/fes-kit-software`,
+  `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
+  `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
+  commands are already full through the platform and unmapped-command rules.
 
 A changed file under `cores/<name>/` also requires every `build_fes_*`
 producer that names the file or one of its directories, either in its own
