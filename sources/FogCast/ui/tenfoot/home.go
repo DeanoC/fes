@@ -212,6 +212,7 @@ func (a *App) restoreHomeFocusLocked(key string) {
 }
 
 func (a *App) openRoomPickerLocked() {
+	a.refreshInstalledRoomsLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
@@ -272,6 +273,12 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 	case HomeKindPinned, HomeKindRoom:
 		a.roomPickerOpen = false
 		if a.room != nil && a.room.ID() == row.ID {
+			if pack, ok := a.roomsIndex.Find(row.ID); ok && pack.Revision == a.room.Revision() {
+				return
+			}
+		}
+		if pack, ok := a.roomsIndex.Find(row.ID); ok && pack.Revision != "" {
+			a.openInstalledRoomLocked(pack, true)
 			return
 		}
 		a.closeAllRoomsLocked()

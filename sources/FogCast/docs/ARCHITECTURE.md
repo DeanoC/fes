@@ -3309,3 +3309,48 @@ only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
 and package-generation checks.
+
+
+### Independently installed rooms
+
+`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
+room's `room.toml`, Lua and artwork into the local launcher's room directory.
+The default resolves the same preferences, environment and persistent config
+location as the launcher. Use `--rooms` when the running launcher uses a custom
+room directory. This is local installation, not a host-to-kit transfer API.
+
+Installation checks the manifest, main script, icon presence and syntax of all
+Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
+2048 entries and 16 MiB per file (Lua sources retain the 2 MiB engine limit);
+symlinks and nonregular files are rejected, hidden entries are ignored. Managed
+snapshots live below `.installed`, separate from loose development packs and
+`<room-id>.state.json`. Each running instance reads its original snapshot, so an
+update cannot mix old Lua with new artwork. The previous selection is retained.
+
+Reopen **Rooms** and select the room again to load the selected version without
+restarting the launcher or rebuilding Go, the OS or any core. The launcher trials
+load and the first update/draw before replacing the working instance. If either
+fails, it preserves the working instance and restores the previous selection;
+a failed first installation is deselected, allowing the embedded room of that ID
+to remain available. A concurrent newer install is not undone by an older
+failure. Room replacement is refused while a game is running or launching.
+Nested rooms retain their parents and persistent state stays outside the pack.
+
+Errors in later callbacks retain the normal room error handling. Explicit
+`fogcast-tenfoot room-rollback [--rooms DIRECTORY] ROOM_ID` selects the previous
+installed snapshot; reopen Rooms and select it to apply. Snapshot files are
+retained; no installed versions or user state are garbage-collected. These
+commands require a launcher containing the installer once; subsequent Lua/art
+updates use that same executable. Embedded rooms remain the offline defaults.
+To replace an embedded example, use its launcher ID (for example
+`example.fes-cores`) in the external pack's manifest.
+
+A development loop on the client is:
+
+```sh
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
+# Reopen Rooms and select the room; then edit the source Lua/artwork.
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
+# To recover an update that fails only during a later interaction:
+fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
+```

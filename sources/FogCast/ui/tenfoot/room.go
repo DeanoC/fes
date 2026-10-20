@@ -215,6 +215,10 @@ func (a *App) openRoomLocked(id string) {
 		a.status = a.roomErr
 		return
 	}
+	if pack.Revision != "" {
+		a.openInstalledRoomLocked(pack, false)
+		return
+	}
 	a.openValidRoomLocked(pack)
 }
 
@@ -228,18 +232,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
-	w, h := a.roomContentSizeLocked(pack.ID)
-	inst, err := rooms.New(pack, rooms.Options{
-		Width:                  w,
-		Height:                 h,
-		Services:               roomServices{client: a.client},
-		Index:                  a.roomsIndex,
-		Theme:                  a.theme,
-		ReducedMotion:          a.reducedMotion,
-		SessionDisplayRequired: a.needsSessionDisplayLocked(),
-		StorePath:              a.roomStorePathLocked(pack.ID),
-		Local:                  a.localCores,
-	})
+	inst, err := a.newRoomInstanceLocked(pack)
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
@@ -291,6 +284,10 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 			a.applyRoomActionsLocked()
 		}
 		return true
+	}
+	if pack.Revision != "" {
+		a.openInstalledRoomLocked(pack, true)
+		return a.room != nil
 	}
 	prevStatus := a.status
 	a.closeAllRoomsLocked()
@@ -732,4 +729,19 @@ func settingsWord(kind InputKind) string {
 
 func roomPickerHint(kind InputKind) string {
 	return selectWord(kind) + " open  " + detailsWord(kind) + " pin  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+}
+
+func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
+	w, h := a.roomContentSizeLocked(pack.ID)
+	return rooms.New(pack, rooms.Options{
+		Width:                  w,
+		Height:                 h,
+		Services:               roomServices{client: a.client},
+		Index:                  a.roomsIndex,
+		Theme:                  a.theme,
+		ReducedMotion:          a.reducedMotion,
+		SessionDisplayRequired: a.needsSessionDisplayLocked(),
+		StorePath:              a.roomStorePathLocked(pack.ID),
+		Local:                  a.localCores,
+	})
 }
