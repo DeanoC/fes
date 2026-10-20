@@ -270,8 +270,9 @@ release it tests the SDRAM addon and all three HPS DDR ports at the memory clock
 100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
-OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
-because the pinned OSS packer cannot put DDR input registers on those pads.
+OSS rates select `RAM_OSS_HIGH_SPEED` and sample the bidirectional DQ pads
+with phase-shifted fabric registers. The compiler's later bidirectional DDR
+input support does not change that selected RTL path.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
 `build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
@@ -286,6 +287,39 @@ compares a baseline route with report-guided LUT remapping on the same
 synthesis. It retains the remap only when final memory timing improves without
 regressing the other clocks or reporting hold violations. Both routes remain
 host-only diagnostics; neither RBF is sealed or exported as a package.
+
+### SDRAM external timing model
+
+RAM Tester's external timing work lives in the nextpnr fork and is reusable
+by other FES cores. Start with the
+[IO-delay model and supported boundaries](https://github.com/DeanoC/nextpnr/blob/main/docs/mistral-io-delay.md),
+[GPIO characterization](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/gpio-timing/README.md)
+and [SDRAM board-budget fixture](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/ramtest-io/README.md).
+[nextpnr #153](https://github.com/DeanoC/nextpnr/pull/153) merged the compiler
+support and controlled hardware investigation;
+[#155](https://github.com/DeanoC/nextpnr/pull/155) records the subsequent
+placement study and incomplete external constraint coverage.
+
+The model has distinct boundaries. `set_input_delay` and `set_output_delay`
+provide external min/max requirements, reference edges and related-clock
+phases. The opt-in `QUARTUS_17_0_2_RAMTEST` profile supplies fitted pad
+envelopes for its documented device, pins, electrical settings and registered
+IO configurations. Unregistered fabric IO uses a routing-ingress/egress
+boundary and does not inherit that complete pad model or a characterized
+fast-corner hold bound.
+
+The existing `mistral/tests/ramtest-io/budget.py` combines the actual routed
+forwarded-clock arrival with Etron EM63B165 -6 timing and explicitly supplied
+board flight intervals and margin. Its example flight intervals are
+unmeasured assumptions. For the inverted SDRAM clock, the chip's rising edge
+corresponds to the controller clock's falling edge; the capture PLL phase
+must remain related. A changed clock route requires a fresh clock-arrival
+budget. Chip clock pulse width, load, turnaround and board/PVT qualification
+remain separate checks. Reuse this machinery with a core's actual primitive
+configuration and evidenced board inputs; neither internal Fmax nor a
+historical RAM Tester hardware pass supplies another core's external timing.
+
+### HPS DDR ports
 
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two

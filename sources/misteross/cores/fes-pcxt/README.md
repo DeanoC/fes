@@ -12,6 +12,15 @@ command interface in host simulation. The CGA Direct board diagnostic has no
 accepted timing result: the earlier native signoff was rejected by the
 [Quartus cross-check](https://github.com/DeanoC/fes/issues/840).
 SDRAM pad timing and hardware remain unqualified.
+The existing RAM Tester
+[external timing model](../../docs/architecture.md#sdram-external-timing-model)
+is the starting point for pad qualification. PC/XT's current board shell uses
+fabric capture registers and an inverted forwarded SDRAM clock; its frozen
+timing fixture has no external input-delay constraints. Applying the existing
+model requires this shell's clock-route arrival and matching board/pad bounds,
+not the RAM Tester example's unmeasured flight intervals. The two-stage reset
+release chains also do not by themselves supply asynchronous recovery/removal
+timing or metastability qualification.
 
 ## SDRAM storage
 
