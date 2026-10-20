@@ -39,7 +39,7 @@ def ramtest_nextpnr_pin():
     return commit
 
 
-def source_notice(package):
+def package_identity(package):
     if package.is_symlink() or not package.is_dir():
         raise ValueError('RAM Tester package must be a regular directory')
     for name in ('manifest.toml', 'core.rbf'):
@@ -56,17 +56,20 @@ def source_notice(package):
     payload_sha = hashlib.sha256((package / 'core.rbf').read_bytes()).hexdigest()
     if payload_sha != manifest['payload']['sha256']:
         raise ValueError('RAM Tester notice payload differs from manifest')
+    return {'id': package.name, 'payload_sha': payload_sha, 'revision': revision}
+
+
+def _format_source_notice(identity, tool_lock_details):
     repository = REPOSITORY.removesuffix('.git')
-    pin = ramtest_nextpnr_pin()
     return f'''# RAM Tester corresponding source
 
 Core: fes.ramtest
 License: GPL-2.0-or-later (full GPL version 2 text: COPYING)
-Package: {package.name}
-RBF SHA-256: {payload_sha}
+Package: {identity['id']}
+RBF SHA-256: {identity['payload_sha']}
 Source repository: {repository}
-Exact producing commit: {revision}
-Source download: {repository}/archive/{revision}.tar.gz
+Exact producing commit: {identity['revision']}
+Source download: {repository}/archive/{identity['revision']}.tar.gz
 
 Obtain the complete corresponding source by downloading that archive, or by
 cloning the repository and checking out the exact producing commit above.
@@ -74,17 +77,49 @@ The archive includes the RTL, shared definitions, build scripts and tool locks.
 From sources/misteross, run make toolchain-fes-ramtest followed by
 make build-fes-ramtest-100 for the shipped OSS 100 MHz variant.
 See cores/fes-ramtest/README.md and scripts/build_fes_ramtest.py at the
-producing commit for the build instructions. The tool lock is the one named by
-the fes.ramtest lock_path in config/core-recipes.toml at that commit.
-Current packages use sources/misteross/cores/fes-ramtest/toolchain.lock
-(nextpnr pin {pin}). Packages from the shared-lock period used
-sources/misteross/toolchain.lock. Earlier packages used
-sources/misteross/toolchains/ramtest.lock.
+producing commit for the build instructions.{tool_lock_details}
 
 This notice identifies the source of the sealed RBF, including when an image
 built from a later FES commit reuses that package. The RBF is installed at
-../../../core-packages/{package.name}/core.rbf relative to this directory.
+../../../core-packages/{identity['id']}/core.rbf relative to this directory.
 '''.encode()
+
+
+def _current_tool_lock_details(pin):
+    return f''' The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit. Current
+packages use sources/misteross/cores/fes-ramtest/toolchain.lock
+(nextpnr pin {pin}). Packages from the shared-lock period used
+sources/misteross/toolchain.lock. Earlier packages used
+sources/misteross/toolchains/ramtest.lock.'''
+
+
+def _previous_tool_lock_details():
+    return ''' The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit:
+sources/misteross/toolchain.lock for packages built after RAM test moved to
+the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
+
+
+def source_notice(package):
+    identity = package_identity(package)
+    return _format_source_notice(identity, _current_tool_lock_details(ramtest_nextpnr_pin()))
+
+
+def retained_source_notice_matches(package, source):
+    """Accept the prior notice format and any pin in the current format."""
+    identity = package_identity(package)
+    if source == _format_source_notice(identity, _previous_tool_lock_details()):
+        return True
+
+    pin = ramtest_nextpnr_pin()
+    current = _format_source_notice(identity, _current_tool_lock_details(pin)).decode()
+    dynamic_pin = re.escape(f'nextpnr pin {pin}')
+    pattern = re.escape(current).replace(dynamic_pin, r'nextpnr pin [0-9a-f]{40}', 1)
+    try:
+        return re.fullmatch(pattern, source.decode()) is not None
+    except UnicodeDecodeError:
+        return False
 
 
 def process(action, target, package=None):
@@ -142,7 +177,20 @@ def verify_retained(target):
     package = target / 'usr/share/mister-runtime/core-packages' / members[0].name
     reject_target_symlinks(target, package)
     reject_target_symlinks(target, target / 'usr/share/mister-runtime/selections/fes-ramtest.package.toml')
-    process('verify', target, package)
+    destination = members[0]
+    if (destination.is_symlink() or not destination.is_dir()
+            or destination.stat().st_mode & 0o777 != 0o755
+            or {p.name for p in destination.iterdir()} != {'COPYING', 'SOURCE.md'}):
+        raise ValueError('RAM Tester notices members differ')
+    license_path = destination / 'COPYING'
+    source_path = destination / 'SOURCE.md'
+    for path in (license_path, source_path):
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o777 != 0o444:
+            raise ValueError('RAM Tester notice missing, changed or unsealed: ' + path.name)
+    if license_path.read_bytes() != LICENSE.read_bytes():
+        raise ValueError('RAM Tester notice missing, changed or unsealed: COPYING')
+    if not retained_source_notice_matches(package, source_path.read_bytes()):
+        raise ValueError('RAM Tester notice missing, changed or unsealed: SOURCE.md')
     return members[0] / 'SOURCE.md'
 
 

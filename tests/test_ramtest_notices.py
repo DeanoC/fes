@@ -134,6 +134,40 @@ class RamtestNoticesTest(unittest.TestCase):
         self.assertIn('Exact producing commit: ' + '1' * 40,
                       (self.destination / 'SOURCE.md').read_text())
 
+    def test_retained_notice_accepts_pre_pin_format_for_unchanged_package(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        text = source.read_text()
+        current_details = f'''The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit. Current
+packages use sources/misteross/cores/fes-ramtest/toolchain.lock
+(nextpnr pin {notices.ramtest_nextpnr_pin()}). Packages from the shared-lock period used
+sources/misteross/toolchain.lock. Earlier packages used
+sources/misteross/toolchains/ramtest.lock.'''
+        previous_details = '''The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit:
+sources/misteross/toolchain.lock for packages built after RAM test moved to
+the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
+        self.assertIn(current_details, text)
+        source.chmod(0o644)
+        source.write_text(text.replace(current_details, previous_details))
+        source.chmod(0o444)
+        self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
+
+    def test_retained_notice_accepts_a_notice_from_an_earlier_nextpnr_pin(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        text = source.read_text()
+        current_pin = notices.ramtest_nextpnr_pin()
+        previous_pin = '0' * 40 if current_pin != '0' * 40 else '1' * 40
+        source.chmod(0o644)
+        source.write_text(text.replace('nextpnr pin ' + current_pin,
+                                       'nextpnr pin ' + previous_pin))
+        source.chmod(0o444)
+        self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
+
     def test_retained_notice_rejects_missing_package_and_changed_notice(self):
         notices.process('install', self.target, self.package)
         with self.assertRaises(ValueError):
