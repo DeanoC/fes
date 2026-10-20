@@ -5,31 +5,8 @@ version = "0.1.0"
 native_image_mode = "package-only"
 check_packages = true
 
-# Current component revisions are selected by the FES commit; this profile integrates
-# the ordered package set.
+# Bootstrap the installer and local UI. Playable cores are installed separately
+# through the core catalog; an OS build must not wait for their FPGA builds.
+# MENU is display firmware required by the kit UI, not a playable core.
 [[fpga_packages]]
 core_id = "fes.menu"
-
-[[fpga_packages]]
-core_id = "fes.pong"
-
-[[fpga_packages]]
-core_id = "fes.zx81"
-
-[[fpga_packages]]
-core_id = "fes.coleco"
-
-[[fpga_packages]]
-core_id = "fes.sms"
-
-[[fpga_packages]]
-core_id = "fes.sg1000"
-
-[[fpga_packages]]
-core_id = "fes.spectrum"
-
-[[fpga_packages]]
-core_id = "fes.ramtest"
-
-[[fpga_packages]]
-core_id = "fes.atari-st"

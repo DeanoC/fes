@@ -105,6 +105,35 @@ never infer persistence from a display name, package path or raw RBF.
 
 - A toolchain pin bump must build every core it touches before merging.
 
+## Pre-release development and review
+
+FES has not made a release. Optimize routine work for a short edit/test/play
+cycle. Use the affected checks and the changed artifact's hardware path;
+do not run a full host/image/core campaign for every ready PR.
+
+- The default OS image contains MENU display firmware and the locked idle
+  RBF. Install playable cores independently through the catalog. A software
+  or OS change does not require rebuilding or qualifying every playable core.
+- Host changes use a private host. Kit agent/runtime/UI changes use
+  `make kit-software` and the existing install/test/restore procedure on the
+  running image. Core changes prepare and test the affected package.
+- Docs, tests and CI tooling need no kit deployment. Image/boot changes
+  still need a boot test; use `scripts/hil_plan.py` to identify deployed
+  consumers rather than treating a build-tool edit as deployed software.
+- Start with focused tests, then `make test-changed` and relevant parent
+  checks. Full regression campaigns, exhaustive instrumentation and
+  reproducibility checks belong to scheduled runs or explicit integration
+  milestones. Do not repeat successful checks without a changed input,
+  failure or unresolved concern. Reuse passing CI software evidence for the
+  tested inputs; a kit smoke test does not require rerunning the full host
+  suite on Powerboat.
+- Review is still required to merge. A ready PR carries its changed artifact,
+  completed checks and the specific remaining hardware check so Grokbot can
+  run the appropriate path. Do not substitute an all-core build for that plan.
+
+See [the development-speed redesign](docs/development-speed.md) for the
+remaining OS, software and room installer separation.
+
 ## Hardware, media and releases
 
 - Managed kits install immutable userspace bundles and queue activation at the next

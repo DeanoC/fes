@@ -95,8 +95,8 @@ jobs:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
         run: |
-          make platform-provision
           if [ "$TEST_MEDIA" = true ]; then
+            make platform-provision
             # Registry resolution of the pinned base image flakes; the build is digest-locked.
             for attempt in 1 2 3; do
               make media-test-provision && break
@@ -105,8 +105,10 @@ jobs:
             done
           fi
           python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA"
-          make platform-test
-          make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
+          if [ "$TEST_MEDIA" = true ]; then
+            make platform-test
+            make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
+          fi
   consistency:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent

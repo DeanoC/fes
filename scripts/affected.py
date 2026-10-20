@@ -21,17 +21,14 @@ EXPANSION_ROOT = 'sources/misteross/expansion'
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
 PARENT_ROOTS = ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers')
-# CI selection/compiler and shared generator policy stay fail-broad: changing
-# the planner, gate, simulation matrix, Verilator pin, generator or their
-# regression suites must still exercise every lane and core.
+# Actual simulation infrastructure changes exercise every simulation. Planner
+# regressions and software runners are software: they do not change RTL.
 CI_BROAD_INPUTS = frozenset({
-    'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
-    'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
-    'scripts/consistency.py',
-    'tests/test_affected.py', 'tests/test_test_changed.py', 'tests/test_ci_gate.py',
-    'tests/test_generate.py', 'tests/test_consistency.py',
-    'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
-    'tests/test_test_policy.py',
+    'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
+})
+SOFTWARE_CI_INPUTS = frozenset({
+    'Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+    'scripts/test_policy.py',
 })
 
 
@@ -40,6 +37,7 @@ CI_BROAD_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
+    'bootstrap.sh',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -190,7 +188,7 @@ def changed_paths(root, base, head='HEAD'):
 
 def documentation(path):
     parts = Path(path).parts
-    return ('docs' in parts or path.endswith('.md')) and Path(path).name != 'AGENTS.md'
+    return 'docs' in parts or path.endswith('.md')
 
 
 def plan(paths):
@@ -199,6 +197,23 @@ def plan(paths):
     reasons = []
     for path in sorted(set(paths)):
         if documentation(path):
+            continue
+        if path in CI_BROAD_INPUTS:
+            selected.update(('parent', 'fpga'))
+            cores.update(CORES)
+            reasons.append(f'{path}: simulation infrastructure; all core simulations')
+            continue
+        if path in SOFTWARE_CI_INPUTS:
+            selected.update(LANES)
+            reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
+            continue
+        if path == 'scripts/host_tests.py':
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: host test runner and its regressions')
+            continue
+        if path == 'config/core-recipes.toml':
+            selected.update(('parent', 'fpga'))
+            reasons.append(f'{path}: core recipe and producer tests; RTL unchanged')
             continue
         if path in ('scripts/host_affected.py', 'tests/test_host_affected.py'):
             selected.update(('parent', 'host'))
@@ -215,6 +230,9 @@ def plan(paths):
                     for prefix in PARENT_ROOTS)):
             selected.add('parent')
             reasons.append(f'{path}: parent orchestration/tests/assembly; component sources unchanged')
+        elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
+            selected.update(LANES)
+            reasons.append(f'{path}: contract tooling software; generated RTL unchanged')
         elif owner is None or owner == 'contracts':
             selected.update(LANES)
             cores.update(CORES)
