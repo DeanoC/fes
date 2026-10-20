@@ -184,6 +184,84 @@ func TestStoreCancellationDuringReadLeavesNoPublication(t *testing.T) {
 	}
 }
 
+func TestStoreImportCanceledWhileWaitingToPublishLeavesNoPublication(t *testing.T) {
+	archive, _ := storeArchive(t)
+	root := filepath.Join(t.TempDir(), "core-packages")
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.publishMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			store.publishMu.Unlock()
+		}
+	}()
+
+	baseContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	publishCheck := make(chan struct{})
+	ctx := &storePublishCheckContext{Context: baseContext, root: root, publishCheck: publishCheck}
+	type result struct {
+		inspection Inspection
+		created    bool
+		err        error
+	}
+	results := make(chan result, 1)
+	go func() {
+		inspection, created, err := store.Import(ctx, int64(len(archive)), bytes.NewReader(archive))
+		results <- result{inspection, created, err}
+	}()
+	select {
+	case <-publishCheck:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Import did not reach its final pre-publication context check")
+	}
+
+	// The final pre-publication check observed a live context. Cancel while the
+	// mutex is still held so publication must observe cancellation after locking.
+	cancel()
+	store.publishMu.Unlock()
+	locked = false
+
+	got := <-results
+	if !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("Import error = %v, want context.Canceled", got.err)
+	}
+	if got.created {
+		t.Fatal("canceled Import reported a published package")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("store entries = %v, %v", entries, err)
+	}
+}
+
+type storePublishCheckContext struct {
+	context.Context
+	root         string
+	publishCheck chan struct{}
+	once         sync.Once
+}
+
+func (ctx *storePublishCheckContext) Err() error {
+	if err := ctx.Context.Err(); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(ctx.root)
+	if err == nil {
+		for _, entry := range entries {
+			if storeTemporaryRE.MatchString(entry.Name()) {
+				ctx.once.Do(func() { close(ctx.publishCheck) })
+				break
+			}
+		}
+	}
+	return nil
+}
+
 func TestStoreRejectsCorruptExistingAndSymlinkInventory(t *testing.T) {
 	archive, expected := storeArchive(t)
 	root := filepath.Join(t.TempDir(), "core-packages")

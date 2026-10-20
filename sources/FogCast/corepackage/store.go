@@ -161,6 +161,9 @@ func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Ins
 func (s *Store) publishImported(ctx context.Context, root *os.Root, temporary string, data []byte, inspection Inspection) (Inspection, bool, error) {
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Inspection{}, false, err
+	}
 	installed := inspection.PackageID + ".fcore"
 	if err := root.Link(temporary, installed); err != nil {
 		if !errors.Is(err, os.ErrExist) {
