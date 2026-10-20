@@ -28,6 +28,38 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
+### Physical timing inputs
+
+The diagnostic's synthetic IO constraints exercise compiler coverage. They
+cannot serve as the board's acceptance constraints. Prepare the following
+inputs for the selected kit before generating physical budgets:
+
+| Interface | Required evidence |
+| --- | --- |
+| SDRAM | Addon revision, actual memory part/speed grade, clock/write/read flight-time intervals, any chip-select inversion delay, output loads and uncertainty. Use the current routed forwarded-clock arrival and the actual capture-clock phase. |
+| HDMI video | Board clock/data skew and loads, ADV7513 capture configuration, and the complete clock/data pad models. Bind the budget to the runtime register recipe actually used by the diagnostic. |
+| HPS I²C | HPS peripheral-clock and controller configuration, characterized hard-IP launch/capture bounds, fabric/pad delays, pull-ups and bus capacitance. Constant-zero output data does not qualify the separately controlled output enables or feedback inputs. |
+| Reset | Validated chain topology and intent, timed interstage/consumer paths, reset pulse and PLL lock/relock behavior, and metastability qualification. A structural chain proof does not supply the physical requirements. |
+
+The [ADV7513 Rev. B datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf)
+lists video setup/hold requirements of 1.8/1.3 ns and a programmable clock/data
+relationship. These receiver requirements alone do not include board skew or
+FPGA pad delays. The runtime's
+[`adv7513.hpp`](../../../libmister-runtime/src/native/adv7513.hpp) owns the
+register recipe; a source default is not readback of the selected kit.
+The [Cyclone V HPS I²C signal definition](https://www.intel.com/content/www/us/en/docs/programmable/683126/21-2/i2c-controller-signal-description.html)
+places the open-drain output enables in the HPS peripheral-clock domain.
+Neither the 100 MHz system clock nor the 74.25 MHz pixel clock supplies their
+launch timing.
+
+The RAM Tester budget generator is specific to its EM63B165 -6 reference and
+registered-pad timing boundary. PC/XT retains fabric DQ capture and unregistered
+DQ data/OE paths, so those directions need matching pad bounds before reusing
+its formulas. Recompute the forwarded-clock-dependent budgets after routing
+changes, and check both setup/hold and the chip's pulse-width and turnaround
+requirements. Missing board inputs remain unknown; do not substitute the
+example flight intervals or the 30 pF reference load as measurements.
+
 ## SDRAM storage
 
 `rtl/pcxt_memory.sv` implements the motherboard's byte VALID/READY/DONE port
