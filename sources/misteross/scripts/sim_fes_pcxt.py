@@ -165,6 +165,16 @@ def main():
         sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
         if suite == 'memory':
             sources = MEMORY_SOURCES + ('cores/fes-pcxt/sim/memory_tb.cpp',)
+            model_test = build / 'memory_model_test'
+            subprocess.run(['c++', '-std=c++17', '-O2',
+                            str(ROOT / 'cores/fes-pcxt/sim/memory_model_tb.cpp'),
+                            '-o', str(model_test)], check=True)
+            subprocess.run([str(model_test), 'clean'], check=True)
+            for overlap in ('nop', 'deselected'):
+                result = subprocess.run([str(model_test), overlap], capture_output=True, text=True)
+                if result.returncode != 1 or 'READ return has output data contention' not in result.stderr:
+                    raise RuntimeError(f'CAS-2 overlap was not rejected: {overlap}: {result}')
+            print('PASS memory model: two late-driver overlaps rejected', flush=True)
         if suite in ('video', 'video-mda'):
             sources = VIDEO_SOURCES + ('cores/fes-pcxt/sim/video_tb.cpp',)
         if suite == 'display':

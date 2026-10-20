@@ -115,6 +115,10 @@ boots the 8088 from `FFFF0`, programs CGA/MDA through ISA, verifies complete
 raw frames and repeats a warm boot without reloading firmware. It checks new
 guest success writes on each boot. Both suites run with zero-, one- and two-cycle model DQM delays in the default
 matrix, checking neighbour preservation and boot behavior with delayed masks.
+The memory suite also injects an FPGA driver on the CAS-2 return cycle after a
+legal READ. The model rejects this overlap during NOP and deselection, as well
+as checking OE at READ admission. These are sampled digital
+checks; they do not bound the chip's tLZ/tHZ or the FPGA's enable/disable tails.
 The SDRAM model checks digital command timing at 100 MHz, not analog setup/hold,
 refresh retention or board routing. Other suites retain independent variable-
 latency testbench storage. The `system` and `system-mda` suites below integrate CPU/DMA storage and
