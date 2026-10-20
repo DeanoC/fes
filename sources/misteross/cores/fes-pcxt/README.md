@@ -34,6 +34,14 @@ The diagnostic's synthetic IO constraints exercise compiler coverage. They
 cannot serve as the board's acceptance constraints. Prepare the following
 inputs for the selected kit before generating physical budgets:
 
+The operator identified Kit A as MiSTer Pi and Kit B as SuperStation One,
+both using standard MiSTer SDRAM (2026-10-20). Target Kit A first and retain
+separate qualification for Kit B. This identifies the platform family, not
+the fitted memory speed grade or measured board delays. The
+[MiSTer XSDS reference design](https://github.com/MiSTer-devel/Hardware_MiSTer/tree/master/Addons/SDRAM_xsds)
+provides board design files; equivalence to either fitted board still needs
+establishing before deriving board-specific bounds.
+
 | Interface | Required evidence |
 | --- | --- |
 | SDRAM | Addon revision, actual memory part/speed grade, clock/write/read flight-time intervals, any chip-select inversion delay, output loads and uncertainty. Use the current routed forwarded-clock arrival and the actual capture-clock phase. |
