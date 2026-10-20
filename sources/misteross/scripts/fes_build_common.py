@@ -578,6 +578,20 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
 
+def _validate_registered_pnr_options(
+    root: Path, lock_path: Path, tools: Mapping[str, AuthenticatedTool]
+) -> None:
+    """Bind a registered producer recipe to its authenticated nextpnr CLI."""
+    from scripts import pnr_recipe
+
+    try:
+        core_id = pnr_recipe.core_for_lock(root, lock_path)
+        if core_id is not None:
+            pnr_recipe.validate_nextpnr_tool(core_id, tools["nextpnr-mistral"].path)
+    except (KeyError, pnr_recipe.RecipeError) as exc:
+        raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -617,7 +631,7 @@ def _authenticate_tools(
         ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
     )
     if cache_root is not None:
-        return _authenticate_shared_tools(
+        authenticated = _authenticate_shared_tools(
             root,
             lock_path=lock_path,
             expected_commits=expected_commits,
@@ -626,6 +640,8 @@ def _authenticate_tools(
             hip_architectures=hip_architectures,
             cache_root=Path(cache_root),
         )
+        _validate_registered_pnr_options(root, lock_path, authenticated)
+        return authenticated
     install = toolchain_root / "install/bin"
     build_root = toolchain_root / "build"
     authenticated: dict[str, AuthenticatedTool] = {}
@@ -667,6 +683,7 @@ def _authenticate_tools(
             path=path,
             identity=identity,
         )
+    _validate_registered_pnr_options(root, lock_path, authenticated)
     return authenticated
 
 

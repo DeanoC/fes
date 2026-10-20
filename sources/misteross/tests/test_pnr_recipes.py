@@ -40,29 +40,26 @@ LOCK_SHA256 = {
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
 }
-# sha256 of each classified nextpnr pin's option defaults. No recipe records a
-# nondefault option yet, so each flags table hashes to its own lock's entry.
+# Source-derived hashes of the complete CLI option-name sets from nextpnr's
+# add_options() declarations. Schemas are indexed by the set itself, not pins.
+SOURCE_OPTION_SET_SHA256 = {
+    96: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
+    105: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
+}
+SOURCE_OPTION_SETS = {
+    len(option_names): option_names
+    for option_names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS
+}
+SCHEMAS_BY_OPTION_COUNT = {
+    len(option_names): schema
+    for option_names, schema in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS.items()
+}
 FLAGS_SHA256 = {
-    pnr_recipe.NEXTPNR_9128800F: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
-    pnr_recipe.NEXTPNR_552BA246: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
-    pnr_recipe.NEXTPNR_0A253257: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
-    pnr_recipe.NEXTPNR_A728C955: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
-    pnr_recipe.NEXTPNR_112B92FE: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
-    pnr_recipe.NEXTPNR_966F8499: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
+    56: "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f",
+    65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
 }
-# Source-derived hashes of the exact option-name sets from the add_options()
-# declarations in common/kernel/command.cc and mistral/main.cc. The 0a253257
-# set has 105 options; its nine additions over 9128800f are listed below.
-UPSTREAM_OPTION_SET_SHA256 = {
-    pnr_recipe.NEXTPNR_9128800F: "e23f3850fe127f9694053f5d0c8700fff655ec1b9e3504cb3f9da779d0446432",
-    pnr_recipe.NEXTPNR_552BA246: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
-    pnr_recipe.NEXTPNR_0A253257: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
-    pnr_recipe.NEXTPNR_A728C955: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
-    pnr_recipe.NEXTPNR_112B92FE: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
-    pnr_recipe.NEXTPNR_966F8499: "45926822f5e796342c3b60958db24c586273432fe6f07b9c319b4031745d784d",
-}
-# nextpnr 0a253257 adds these over 9128800f; independently checked from the
-# pinned source declarations, not generated from NEXTPNR_PINS.
+# The source-declared additions to the 105-option set, independently checked
+# against the pinned nextpnr declarations.
 ADDED_0A253257 = {
     "arrival_pin_assignment", "isolated_lut_placement", "critical_cohort_budget",
     "critical_cohort_report", "critical_cohort_model_out", "gpu_required",
@@ -152,10 +149,8 @@ def _toml(value):
     return json.dumps(value)
 
 
-def _core_on_nextpnr(directory, core_id, pin, *, schema=None, omit=(), values=None):
-    """Copy the registry and every lock to a temporary FES tree and pin one
-    core's lock to nextpnr *pin*. Its flags table becomes the defaults of
-    *schema* (default *pin*) less *omit*, with *values* applied."""
+def _core_on_nextpnr(directory, core_id, pin, *, omit=(), values=None):
+    """Copy the registry and locks, then give one core the supplied nextpnr pin."""
     root = Path(directory)
     registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
     for entry in registry["recipes"]:
@@ -167,9 +162,13 @@ def _core_on_nextpnr(directory, core_id, pin, *, schema=None, omit=(), values=No
                           rf'\g<1>{pin}"', lock.read_text())
     assert count == 1
     lock.write_text(text)
-    flags = dict(pnr_recipe.NEXTPNR_PINS[schema or pin], **(values or {}))
-    table = "".join(f"{name} = {_toml(value)}\n" for name, value in flags.items() if name not in omit)
     source = (ROOT / "config/core-recipes.toml").read_text(encoding="utf-8")
+    document = tomllib.loads(source)
+    flags = dict(next(entry["pnr"]["flags"] for entry in document["recipes"]
+                      if entry["core_id"] == core_id))
+    flags.update(values or {})
+    flags = {name: value for name, value in flags.items() if name not in omit}
+    table = "".join(f"{name} = {_toml(value)}\n" for name, value in flags.items())
     start = source.index(f'core_id = "{core_id}"')
     end = source.index("[[recipes]]", start + 1)
     header = "[recipes.pnr.flags]\n"
@@ -181,13 +180,25 @@ def _core_on_nextpnr(directory, core_id, pin, *, schema=None, omit=(), values=No
     return patch.multiple(pnr_recipe, FES_ROOT=root, REGISTRY=registry_path)
 
 
-def _pong_on_nextpnr(directory, pin, *, schema=None, omit=(), values=None):
-    return _core_on_nextpnr(directory, "fes.pong", pin, schema=schema,
-                            omit=omit, values=values)
+def _pong_on_nextpnr(directory, pin, *, omit=(), values=None):
+    return _core_on_nextpnr(directory, "fes.pong", pin, omit=omit, values=values)
+
+
+def _fake_nextpnr_help(path, option_names):
+    lines = ["  -h [ --help ]" if name == "help"
+             else f"  --{name.replace('_', '-')} arg"
+             for name in sorted(option_names)]
+    text = "nextpnr option listing\n" + "\n".join(lines) + "\n"
+    path.write_text(
+        "#!/usr/bin/env python3\nimport sys\n"
+        f"print({json.dumps(text)}, end='')\n"
+        "if sys.argv[1:] != ['--help']:\n    raise SystemExit(2)\n",
+        encoding="utf-8")
+    path.chmod(0o755)
 
 
 class PnrRecipeTests(unittest.TestCase):
-    def test_every_registered_lock_pins_its_recipes_classified_nextpnr(self):
+    def test_every_registered_lock_pins_a_recipe_with_the_old_option_schema(self):
         from scripts.lockfile import load_lock
         registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
         self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"]})
@@ -201,90 +212,92 @@ class PnrRecipeTests(unittest.TestCase):
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
-                                 set(pnr_recipe.NEXTPNR_PINS[pin]))
+                                 set(SCHEMAS_BY_OPTION_COUNT[96]))
 
-    def test_0a253257_classifies_its_exact_source_option_set(self):
-        old = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_9128800F]
-        new = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_0A253257]
+    def test_source_option_sets_select_exact_schemas_and_shared_defaults(self):
+        self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105})
+        self.assertEqual(set(SCHEMAS_BY_OPTION_COUNT), {96, 105})
+        for count, option_names in SOURCE_OPTION_SETS.items():
+            digest = hashlib.sha256(json.dumps(
+                sorted(option_names), separators=(",", ":")).encode()).hexdigest()
+            self.assertEqual(digest, SOURCE_OPTION_SET_SHA256[count])
+        old = SCHEMAS_BY_OPTION_COUNT[96]
+        new = SCHEMAS_BY_OPTION_COUNT[105]
         self.assertEqual(set(new) - set(old), ADDED_0A253257)
         self.assertEqual({name: new[name] for name in old}, dict(old))
-        self.assertEqual(dict(new), dict(pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_552BA246]))
-        self.assertEqual(set(pnr_recipe.NEXTPNR_PINS), set(FLAGS_SHA256))
-        self.assertEqual(dict(pnr_recipe.NEXTPNR_PIN_OPTION_SET_SHA256),
-                         UPSTREAM_OPTION_SET_SHA256)
-        for pin, defaults in pnr_recipe.NEXTPNR_PINS.items():
-            self.assertEqual(len(defaults), 56 if pin == pnr_recipe.NEXTPNR_9128800F else 65)
+        self.assertEqual(len(old), 56)
+        self.assertEqual(len(new), 65)
+        for schema in (old, new):
             self.assertEqual(hashlib.sha256(json.dumps(
-                dict(defaults), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
-                FLAGS_SHA256[pin])
+                dict(schema), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                FLAGS_SHA256[len(schema)])
 
-    def test_0a253257_menu_recipe_and_argv_accept_the_source_schema(self):
-        pin = pnr_recipe.NEXTPNR_0A253257
-        defaults = pnr_recipe.NEXTPNR_PINS[pin]
-        self.assertEqual(dict(defaults), dict(pnr_recipe.NEXTPNR_PINS[
-            pnr_recipe.NEXTPNR_552BA246]))
-        with tempfile.TemporaryDirectory() as directory, _core_on_nextpnr(
-                directory, "fes.menu", pin):
-            recipe = pnr_recipe.recipe_for("fes.menu")
-            self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), pin)
-            self.assertEqual(recipe["flags"], dict(defaults))
-            command = pnr_recipe.argv("fes.menu", SLOT, SYNTH, recipe["seeds"][0], 0,
-                                      output=OUTPUT)
-        # Registering the schema makes validation possible while default-valued
-        # flags still leave the producer's effective argv unchanged.
-        self.assertEqual(command, tuple(_legacy_argv(
-            "fes.menu", recipe, seed=recipe["seeds"][0])))
-
-    def test_pr_head_pins_with_the_same_source_option_set_resolve_to_that_schema(self):
+    def test_menu_pnr_step_accepts_0a253257_and_moving_f485_head(self):
         pins = (
-            pnr_recipe.NEXTPNR_A728C955,
-            pnr_recipe.NEXTPNR_112B92FE,
-            pnr_recipe.NEXTPNR_966F8499,
+            "0a253257eadd8a7877b881ab1f940cbd9739c1be",
+            "f485b5857affc377199af1b5bfcd63d31330b50b",
         )
-        defaults = pnr_recipe.NEXTPNR_PINS[pnr_recipe.NEXTPNR_0A253257]
+        source_options = SOURCE_OPTION_SETS[105]
         for pin in pins:
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as directory, \
                     _core_on_nextpnr(directory, "fes.menu", pin):
+                binary = Path(directory) / "nextpnr-mistral"
+                _fake_nextpnr_help(binary, source_options)
+                schema = pnr_recipe.validate_nextpnr_tool("fes.menu", binary)
                 recipe = pnr_recipe.recipe_for("fes.menu")
                 self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), pin)
-                self.assertEqual(recipe["flags"], dict(defaults))
-                command = pnr_recipe.argv("fes.menu", SLOT, SYNTH,
+                self.assertEqual(dict(recipe["flags"]), dict(schema))
+                self.assertEqual({name: recipe["flags"][name] for name in ADDED_0A253257},
+                                 {name: pnr_recipe._ADDED_105_OPTIONS[name]
+                                  for name in ADDED_0A253257})
+                command = pnr_recipe.argv("fes.menu", binary, SYNTH,
                                           recipe["seeds"][0], 0, output=OUTPUT)
-            self.assertEqual(command, tuple(_legacy_argv(
-                "fes.menu", recipe, seed=recipe["seeds"][0])))
+                expected = _legacy_argv("fes.menu", recipe, slot=str(binary),
+                                        seed=recipe["seeds"][0])
+                self.assertEqual(list(command), expected)
 
-    def test_a_552ba246_recipe_must_set_every_added_option(self):
-        pin = pnr_recipe.NEXTPNR_552BA246
-        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
-                directory, pin, schema=pnr_recipe.NEXTPNR_9128800F):
-            with self.assertRaisesRegex(pnr_recipe.RecipeError, "missing .*arrival_pin_assignment"):
-                pnr_recipe.recipe_for("fes.pong")
-        for name in sorted(ADDED_0A253257):
-            with self.subTest(omitted=name), tempfile.TemporaryDirectory() as directory, \
-                    _pong_on_nextpnr(directory, pin, omit=(name,)):
-                with self.assertRaisesRegex(pnr_recipe.RecipeError, f"missing \\['{name}'\\]"):
-                    pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)
-        menu = pnr_recipe.nextpnr_pin("fes.menu")
-        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(directory, pin):
-            self.assertEqual(pnr_recipe.nextpnr_pin("fes.pong"), pin)
-            self.assertEqual(pnr_recipe.nextpnr_pin("fes.menu"), menu)
-            recipe = pnr_recipe.recipe_for("fes.pong")
-            # Defaults reach no argv, so the added options leave it unchanged.
-            self.assertEqual(list(pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)),
-                             _legacy_argv("fes.pong", recipe, seed=1))
+    def test_authenticated_core_lock_validates_its_compiler_option_set(self):
+        from scripts import fes_build_common
 
-    def test_9128800f_recipes_reject_options_their_nextpnr_lacks(self):
-        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
-                directory, pnr_recipe.NEXTPNR_9128800F, values={"arrival_pin_assignment": False}):
-            with self.assertRaisesRegex(pnr_recipe.RecipeError, r"unknown \['arrival_pin_assignment'\]"):
-                pnr_recipe.recipe_for("fes.pong")
+        with tempfile.TemporaryDirectory() as directory, _core_on_nextpnr(
+                directory, "fes.menu", "f485b5857affc377199af1b5bfcd63d31330b50b"):
+            binary = Path(directory) / "nextpnr-mistral"
+            _fake_nextpnr_help(binary, SOURCE_OPTION_SETS[105])
+            root = Path(directory) / "sources/misteross"
+            lock = root / "cores/fes-menu/toolchain.lock"
+            tools = {"nextpnr-mistral": fes_build_common.AuthenticatedTool(
+                path=binary, identity="commit=f485b585; sha256=fixture")}
+            fes_build_common._validate_registered_pnr_options(root, lock, tools)
+            self.assertEqual(len(pnr_recipe.recipe_for("fes.menu")["flags"]), 65)
 
-    def test_a_lock_on_an_unclassified_nextpnr_is_rejected(self):
-        unclassified = "e2f1e02943f9292f68a8a551a6a934d5fb0f52c7"
+    def test_option_set_differences_report_missing_and_extra_names(self):
+        expected = SOURCE_OPTION_SETS[105]
+        cases = (
+            (set(expected) | {"unexpected_option"}, "extra ['unexpected_option']"),
+            (set(expected) - {"router2_profile"}, "missing ['router2_profile']"),
+        )
+        for options, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory, \
+                    _core_on_nextpnr(directory, "fes.menu",
+                                     "f485b5857affc377199af1b5bfcd63d31330b50b"):
+                with self.assertRaises(pnr_recipe.RecipeError) as raised:
+                    pnr_recipe.validate_option_names("fes.menu", options)
+                self.assertIn(message, str(raised.exception))
+
+    def test_old_compiler_rejects_recipe_flags_it_cannot_accept(self):
+        pin = "9128800fa6e77c4138088a7107a95376ba47ff15"
         with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
-                directory, unclassified, schema=pnr_recipe.NEXTPNR_552BA246):
-            with self.assertRaisesRegex(pnr_recipe.RecipeError, "no classified option schema"):
-                pnr_recipe.recipe_digest("fes.menu")
+                directory, pin, values={"arrival_pin_assignment": False}):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError,
+                                        "extra .*arrival_pin_assignment"):
+                pnr_recipe.validate_option_names("fes.pong", SOURCE_OPTION_SETS[96])
+
+    def test_new_schema_fails_when_a_per_core_option_is_missing(self):
+        pin = "f485b5857affc377199af1b5bfcd63d31330b50b"
+        with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
+                directory, pin, omit=("placer",)):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "missing .*placer"):
+                pnr_recipe.validate_option_names("fes.pong", SOURCE_OPTION_SETS[105])
 
     def test_552ba246_options_reach_argv_when_set(self):
         values = {
@@ -294,8 +307,10 @@ class PnrRecipeTests(unittest.TestCase):
             "router2_profile": "profile.json",
             "set": ["gpurouter/repairBbExpand=4", "placerHeap/netShareWeight=0.5"],
         }
+        pin = "0a253257eadd8a7877b881ab1f940cbd9739c1be"
         with tempfile.TemporaryDirectory() as directory, \
-                _pong_on_nextpnr(directory, pnr_recipe.NEXTPNR_552BA246, values=values):
+                _pong_on_nextpnr(directory, pin, values=values):
+            pnr_recipe.validate_option_names("fes.pong", SOURCE_OPTION_SETS[105])
             recipe = pnr_recipe.recipe_for("fes.pong")
             command = list(pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT))
         legacy = _legacy_argv("fes.pong", recipe, seed=1)
@@ -323,12 +338,14 @@ class PnrRecipeTests(unittest.TestCase):
         )
         for values in rejected:
             with self.subTest(values=values), tempfile.TemporaryDirectory() as directory, \
-                    _pong_on_nextpnr(directory, pnr_recipe.NEXTPNR_552BA246, values=values):
+                    _pong_on_nextpnr(directory, "0a253257eadd8a7877b881ab1f940cbd9739c1be",
+                                    values=values):
                 with self.assertRaisesRegex(pnr_recipe.RecipeError, "invalid nextpnr option value"):
                     pnr_recipe.recipe_for("fes.pong")
-        # The unrepaired baseline may export its calibration model.
         with tempfile.TemporaryDirectory() as directory, _pong_on_nextpnr(
-                directory, pnr_recipe.NEXTPNR_552BA246, values={"critical_cohort_model_out": "model.json"}):
+                directory, "0a253257eadd8a7877b881ab1f940cbd9739c1be",
+                values={"critical_cohort_model_out": "model.json"}):
+            pnr_recipe.validate_option_names("fes.pong", SOURCE_OPTION_SETS[105])
             command = pnr_recipe.argv("fes.pong", SLOT, SYNTH, 1, 0, output=OUTPUT)
         self.assertEqual(command[-2:], ("--critical-cohort-model-out", "model.json"))
 
@@ -339,7 +356,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                self.assertEqual(flags_sha, FLAGS_SHA256[pnr_recipe.nextpnr_pin(core_id)])
+                self.assertEqual(flags_sha, FLAGS_SHA256[len(recipe["flags"])])
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)

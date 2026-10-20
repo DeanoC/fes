@@ -183,7 +183,7 @@ class FesHipLaneTests(unittest.TestCase):
         # The image build authenticates every selected core against one cache
         # root. A core whose lock moves to another nextpnr gets that lock's
         # slot; a core on the old lock keeps the old slot.
-        from scripts import build_fes_catch, pnr_recipe
+        from scripts import build_fes_catch
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             root = base / "misteross"
@@ -191,8 +191,13 @@ class FesHipLaneTests(unittest.TestCase):
                              build_fes_pong.TOOLCHAIN_LOCK, build_fes_catch.TOOLCHAIN_LOCK):
                 (root / relative).parent.mkdir(parents=True, exist_ok=True)
                 (root / relative).write_bytes((ROOT / relative).read_bytes())
-            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_552BA246),
-                                  (build_fes_catch.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_9128800F)):
+            # Keep the two cache requests distinct even when current locks
+            # happen to pin the same nextpnr commit. The synthetic pin also
+            # confirms recipe lookup is independent of a commit allowlist.
+            pong_pin = "a" * 40
+            catch_pin = load_lock(ROOT / build_fes_catch.TOOLCHAIN_LOCK)["nextpnr"].commit
+            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pong_pin),
+                                  (build_fes_catch.TOOLCHAIN_LOCK, catch_pin)):
                 text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
                                       rf'\g<1>{pin}"', (root / relative).read_text())
                 self.assertEqual(count, 1)
@@ -214,8 +219,8 @@ class FesHipLaneTests(unittest.TestCase):
                 catch = build_fes_catch._authenticate_tools(root, cache_root=catch_request.cache_root)
             self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
             self.assertEqual(catch["nextpnr-mistral"].path, catch_manifest.install / "bin/nextpnr-mistral")
-            self.assertIn(f"commit={pnr_recipe.NEXTPNR_552BA246};", pong["nextpnr-mistral"].identity)
-            self.assertIn(f"commit={pnr_recipe.NEXTPNR_9128800F};", catch["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={pong_pin};", pong["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={catch_pin};", catch["nextpnr-mistral"].identity)
 
     def test_ambient_cache_root_does_not_select_shared_lane(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
