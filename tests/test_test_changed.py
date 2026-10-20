@@ -125,7 +125,8 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(result["impact"]["test_modes"],
                          {"video": False, "media": True, "full_race": False})
         self.assertIn([sys.executable, "scripts/parent_tests.py",
-                       "--video", "false", "--media", "true"],
+                       "--video", "false", "--media", "true",
+                       "--paths-json", json.dumps(result["impact"]["paths"])],
                       [c["argv"] for c in result["commands"]])
 
     def test_mode_relevant_changes_set_parent_runner_flags(self):
@@ -134,7 +135,8 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(result["impact"]["test_modes"],
                          {"video": True, "media": False, "full_race": False})
         self.assertIn([sys.executable, "scripts/parent_tests.py",
-                       "--video", "true", "--media", "false"],
+                       "--video", "true", "--media", "false",
+                       "--paths-json", json.dumps(result["impact"]["paths"])],
                       [c["argv"] for c in result["commands"]])
 
     def test_full_opt_in_sets_modes_for_selected_lanes_only(self):
@@ -149,7 +151,7 @@ class TestChangedTest(unittest.TestCase):
         self.assertIn([sys.executable, "scripts/host_tests.py", "--full"],
                       [c["argv"] for c in result["commands"]])
         self.assertIn([sys.executable, "scripts/parent_tests.py",
-                       "--video", "true", "--media", "true"],
+                       "--video", "true", "--media", "true", "--full"],
                       [c["argv"] for c in result["commands"]])
 
     def test_runtime_changes_include_host_protocol_consumers(self):

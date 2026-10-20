@@ -58,7 +58,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         modes = impact["test_modes"]
         add("parent", "parent Python regressions", ".",
             [sys.executable, "scripts/parent_tests.py",
-             "--video", str(modes["video"]).lower(), "--media", str(modes["media"]).lower()],
+             "--video", str(modes["video"]).lower(), "--media", str(modes["media"]).lower(),
+             *(["--full"] if full else ["--paths-json", json.dumps(impact["paths"])])],
             tools=["sh"] + (["docker"] if modes["media"] else []),
             files=["scripts/parent_tests.py", "tests"])
         add("parent", "working-tree generated consumer consistency", ".",

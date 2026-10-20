@@ -11,6 +11,7 @@ import sys
 
 
 RULES = [
+    ('scripts/parent_affected.py', 'none', None),
     # Development/checking tools produce no deployed bytes. Keep this list
     # explicit: build, image and package producers below still need their
     # artifact-specific hardware plan.

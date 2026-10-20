@@ -90,6 +90,41 @@ This is native Go import coverage; it does not infer runtime file reads or
 cross-platform behavior. Host builds, browser checks, parent regressions and
 other component lanes retain their own selection rules.
 
+## Affected parent regression groups
+
+Routine component-only changes select parent integration groups before test setup:
+
+| Change | Parent groups |
+| --- | --- |
+| FogCast UI and resources | Policy and build orchestration |
+| Host/package/protocol consumers, runtime, or FPGA sources | Policy, build, packages and acceptance tooling |
+| Appliance module or target-image selector | All groups, including media |
+| Parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
+
+Policy includes planner, generated-consumer and image-boundary checks. Build
+includes source snapshots, receipts and kit software assembly. Package checks
+include admission, publication and video-part regressions. Media owns OS/card
+assembly. Acceptance tooling contains host-side diagnostic-runner regressions;
+selecting it does not contact a kit.
+
+Mixed changes union their groups; any full-coverage input restores all groups.
+The existing video/media modes can add their owning groups and still control
+extended classes. New unassigned test modules always run until reviewed and
+assigned. Import failures remain failures even when groups are filtered.
+
+CI and the local affected runner pass the same changed-path list. The parent
+JSON report includes groups and selected/omitted test IDs. For example:
+
+```sh
+python3 scripts/parent_tests.py --video false --media false --plan-only \
+  --paths-json '["sources/FogCast/ui/rooms/examples/fes-cores/main.lua"]'
+```
+
+No path list, scheduled/manual runs, and `--full` retain every group. `--full`
+also enables both extended modes. This policy narrows component integration
+regressions; parent implementation changes deliberately retain full regression
+coverage because imports alone do not describe their subprocess and file inputs.
+
 ## Routine and extended test modes
 
 Beyond lanes, each plan reports `test_modes` (`video`, `media`, `full_race`)

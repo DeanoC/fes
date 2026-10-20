@@ -94,6 +94,7 @@ jobs:
       - env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
           if [ "$TEST_MEDIA" = true ]; then
             make platform-provision
@@ -104,7 +105,7 @@ jobs:
               sleep $((attempt * 20))
             done
           fi
-          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA"
+          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --paths-json "$CHANGED_PATHS"
           if [ "$TEST_MEDIA" = true ]; then
             make platform-test
             make -C image test FOGCAST_DIR="$PWD/sources/FogCast"

@@ -1,5 +1,6 @@
 """Exercise the workflow's parent shell with representative affected plans."""
 import os
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -31,14 +32,15 @@ class ParentWorkflowTests(unittest.TestCase):
                     stub.chmod(0o755)
                 modes = plan([path])['test_modes']
                 environment = {
-                    **os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                    **os.environ, 'CHANGED_PATHS': json.dumps([path]), 'PATH': str(root) + os.pathsep + os.environ['PATH'],
                     'COMMAND_LOG': str(root / 'commands'),
                     'TEST_MEDIA': str(modes['media']).lower(),
                     'TEST_VIDEO': str(modes['video']).lower(),
                 }
                 subprocess.run(['bash', '-e', '-c', script], env=environment, check=True)
                 commands = (root / 'commands').read_text().splitlines()
-                self.assertTrue(any(c.startswith('python3 scripts/parent_tests.py ') for c in commands))
+                runner = next(c for c in commands if c.startswith('python3 scripts/parent_tests.py '))
+                self.assertIn('--paths-json ' + json.dumps([path]), runner)
                 self.assertEqual('make platform-provision' in commands, media)
                 self.assertEqual('make media-test-provision' in commands, media)
                 self.assertEqual('make platform-test' in commands, media)
