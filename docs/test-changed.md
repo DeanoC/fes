@@ -36,7 +36,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | Unknown or root inputs | All software lanes |
 | Documentation only | Planner regression tests and whitespace checks |
 
-`AGENTS.md` changes count as behavioral inputs. Renames select both old and new
+`AGENTS.md` changes are documentation and select no executable lane. Renames select both old and new
 owners. Shared Coleco VDP, RAM and TV80 changes select Coleco, SG-1000 and SMS.
 The shared 6502, `fes.computer` mailbox and the Apple II socket generator and
 card producer select Apple II; the shared I2S audio units also select it.
@@ -52,14 +52,19 @@ its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
 
 Parent-owned matching is the exact directory or any descendant, so sibling
-names such as `scripts-other/` or `test-other/` stay unknown. The CI
-selection/compiler and shared generator policy files — `scripts/affected.py`,
-`scripts/test_changed.py`, `scripts/ci_gate.py`, `scripts/ci_simulations.py`,
-`scripts/ci_verilator.sh`, `scripts/generate.py`, `scripts/consistency.py`
-(the generated/copied/fixture mapping owner) and their regression suites
-under `tests/` — remain fail-broad and select every lane and core. Root files
-such as the top-level `Makefile`, `config/` and `.github/` also stay on the
-all-lanes path.
+names such as `scripts-other/` or `test-other/` stay unknown. Planner and
+generator regression changes select parent tests and generated-consumer checks;
+they do not simulate unchanged RTL. Changed generated outputs still select their
+actual consumers. Simulation matrix/compiler changes select the FPGA lane and
+all core simulations. The workflow and shared software test runner select all
+software lanes without RTL simulations. Host runner changes select parent and
+host checks. Contract Go tooling and core recipe/provisioning changes also skip
+unchanged RTL; contract definitions retain consumer coverage.
+
+Platform provisioning, platform Go tests and image shell tests run only when
+`media` is selected, including scheduled/manual runs. A room, host or core edit
+does not provision an OS test container just because it selects parent regressions.
+Unknown/root inputs still select all lanes and cores.
 
 ## Routine and extended test modes
 
@@ -73,7 +78,7 @@ omits tests and is not exhaustive green.
 | --- | --- | --- |
 | `video` | Parent suite omits the full-device video classes `RealProducerEvidenceTests`, `NativeProducerEvidenceTests`, `STProducerEvidenceTests` (`test_factory_video_parts.py`) and `FactoryVideoPublicationTests`, `RasterFactoryVideoPublicationTests` (`test_factory_video_publication.py`); lightweight classes in the same files still run | Video producer/admission inputs (`scripts/factory_video_parts.py`, `core_catalog.py`, `core_dev_accept.py`, `core_dev.py`, `package_acceptance_isolated.py`, `recipes.py`, `bundle.py`, `artifact_cache.py`, `core-recipes.toml`), `sources/misteross`, `sources/FogCast/corepackage`, `corecatalog`, and non-test `.go` under `catalog`/`fogcast` |
 | `media` | Parent suite omits the container drivers `ContainerImageTests`, `RealImageTests` (`test_media_image.py`), `ContainerTests`, `RealBootstrapTests` (`test_appliance.py`), `ContainerTests`, `RealCardTests` (`test_appliance_media.py`) | Image/platform/containers/profiles roots, `scripts/media*.py`, `scripts/appliance*.py`, `platform.py`, `image_toolchain.py`, `boot-media.lock.toml`, the three media test files, `sources/FogCast/appliance`, `cmd/target-image-lock` |
-| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), `AGENTS.md`, unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
+| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
 
 Shared `scripts/build.py`, `inputs.py`, `native_dev.py`, `environment.py` and
 FogCast `go.mod`/`go.sum` select both video and media. CI validates

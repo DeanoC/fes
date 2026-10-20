@@ -198,15 +198,12 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set
-from [the default profile](../profiles/native-integration-dev.toml); use the
-media command above for the complete flashable layout. The selector also supports
-`fes.c64`. Its shared-pin retirement is complete, and it stays out of the
-factory image until it has image acceptance; see [core status](core-status.md). The image has no legacy
-bundle lane.
-The `make build`, `make dev`, `make verify` and `make media` paths use the
-same closed package set.
+RBF and `fes.menu` display firmware from [the default profile](../profiles/native-integration-dev.toml).
+Install playable systems such as `fes.pong`, `fes.zx81` and `fes.coleco`
+separately through the core catalog. Their builds do not block OS work.
+Use the media command above for the complete flashable layout. The image has
+no legacy bundle lane. The build, dev, verify and media paths use the
+same closed package set containing MENU only.
 
 Build commands do not deploy. Use the exact kit and deployment instructions in
 the selected FogCast [working policy](../sources/FogCast/AGENTS.md) and

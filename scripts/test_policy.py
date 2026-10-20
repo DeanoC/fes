@@ -53,7 +53,7 @@ DEPENDENCY_FILES = frozenset({'sources/FogCast/go.mod', 'sources/FogCast/go.sum'
 
 # Everything beneath these roots is recognized even when not relevant, so new
 # helper files do not silently classify as unknown. Root-level Make/docs are
-# recognized as well; any AGENTS.md is behavioral guidance and stays broad.
+# recognized as well. Agent guidance is documentation, not executable input.
 RECOGNIZED_ROOTS = ('scripts', 'tests', 'config', '.github',
                     'sources/FogCast', 'sources/misteross',
                     'sources/mister-packages', 'sources/libmister-runtime')
@@ -78,13 +78,13 @@ def _under(path, root):
 
 
 def _documentation(path):
-    # Same semantics as scripts.affected.documentation; AGENTS.md is behavioral.
+    # Same semantics as scripts.affected.documentation.
     parts = Path(path).parts
-    return ('docs' in parts or path.endswith('.md')) and Path(path).name != 'AGENTS.md'
+    return 'docs' in parts or path.endswith('.md')
 
 
 def _classify(path):
-    if path == '<new-branch>' or Path(path).name == 'AGENTS.md':
+    if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
     if _under(path, 'sources/mister-packages'):
         # Shared contracts touch every consumer, including full race coverage.

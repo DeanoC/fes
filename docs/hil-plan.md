@@ -53,7 +53,8 @@ of a git range, and `--json` prints the plan as JSON.
 
 Each changed path gets a class and a component:
 
-- `none`: docs, tests and simulation inputs. No hardware run is needed.
+- `none`: docs, tests, simulation inputs and explicitly listed CI/checking
+  tools (including `scripts/check_deadcode.py`). No hardware run is needed.
 - `overlay`: the change ships without a new image, as a PR
   [kit software bundle](kit-software-releases.md) (`mister-runtime`,
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary

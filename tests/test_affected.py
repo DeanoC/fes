@@ -18,7 +18,7 @@ class AffectedTests(unittest.TestCase):
 
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
-                     '.github/workflows/check.yml', 'unknown/new.bin'):
+                     'unknown/new.bin'):
             with self.subTest(path=path):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
@@ -46,16 +46,7 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
 
-    def test_ci_selection_and_generator_inputs_stay_fail_broad(self):
-        self.assertEqual(CI_BROAD_INPUTS, {
-            'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
-            'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
-            'scripts/consistency.py',
-            'tests/test_affected.py', 'tests/test_test_changed.py',
-            'tests/test_ci_gate.py', 'tests/test_generate.py', 'tests/test_consistency.py',
-            'scripts/test_policy.py', 'scripts/parent_tests.py',
-            'scripts/host_tests.py', 'tests/test_test_policy.py',
-        })
+    def test_simulation_infrastructure_exercises_simulations_without_host(self):
         for path in CI_BROAD_INPUTS:
             with self.subTest(path=path):
                 self.assertEqual(plan([path])['test_modes'],
@@ -63,8 +54,39 @@ class AffectedTests(unittest.TestCase):
         for path in CI_BROAD_INPUTS:
             with self.subTest(path=path):
                 result = plan([path])
-                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'fpga'})
                 self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_ci_and_generator_regressions_do_not_run_unchanged_rtl(self):
+        for path in ('scripts/affected.py', 'scripts/ci_gate.py',
+                     'scripts/generate.py', 'scripts/consistency.py',
+                     'tests/test_affected.py', 'tests/test_test_changed.py',
+                     'tests/test_ci_gate.py', 'tests/test_generate.py',
+                     'tests/test_consistency.py', 'tests/test_test_policy.py'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent'})
+                self.assertEqual(result['cores'], [])
+        for path in ('.github/workflows/check.yml', 'scripts/test_changed.py',
+                     'scripts/test_policy.py',
+                     'sources/mister-packages/internal/emitcpp/emitcpp.go'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        # Real generated outputs still select their hardware consumers, even
+        # when mixed with a generator or planner edit.
+        result = plan(['scripts/generate.py',
+                       'sources/misteross/cores/fes-common/generated/fes_pcxt_isa.vh'])
+        self.assertEqual(result['cores'], ['pcxt'])
+
+    def test_recipe_and_compiler_provisioning_changes_do_not_simulate_rtl(self):
+        for path in ('config/core-recipes.toml', 'sources/misteross/scripts/bootstrap.sh'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'fpga'})
+                self.assertEqual(result['cores'], [])
 
     def test_parent_owned_changes_union_with_component_lanes(self):
         result = plan(['image/Makefile', 'sources/FogCast/catalog/query.go'])
@@ -187,7 +209,7 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
 
     def test_unclassified_fpga_inputs_fail_broad(self):
-        for path in ('', 'Makefile', 'AGENTS.md', 'toolchain.lock',
+        for path in ('', 'Makefile', 'toolchain.lock',
                      'toolchains/zx81-expansion.lock', 'scripts/new_helper.py',
                      'scripts/build_fes_new_core.py', 'scripts/build_fes_z80.py',
                      'cores/fes-new/rtl/top.v', 'cores/fes-common/rtl/new_unit.sv',
@@ -254,9 +276,9 @@ class AffectedTests(unittest.TestCase):
                          {'video': False, 'media': False, 'full_race': False})
         self.assertTrue(result['always'])
         self.assertIn('hardware acceptance', result['not_run'])
-        self.assertTrue(all(plan(['AGENTS.md'])['lanes'].values()))
+        self.assertFalse(any(plan(['AGENTS.md'])['lanes'].values()))
         self.assertEqual(plan(['AGENTS.md'])['test_modes'],
-                         {'video': True, 'media': True, 'full_race': True})
+                         {'video': False, 'media': False, 'full_race': False})
 
     def test_go_expansion_module_selects_software_consumers_only(self):
         for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):

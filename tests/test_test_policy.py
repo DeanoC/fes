@@ -90,14 +90,15 @@ class SelectTestModesTests(unittest.TestCase):
                 self.assertEqual(test_policy.select_test_modes([path]),
                                  {'video': False, 'media': True, 'full_race': False})
 
-    def test_contracts_agents_and_unknown_inputs_select_everything(self):
+    def test_contracts_and_unknown_inputs_select_everything(self):
         for path in ('sources/mister-packages/packages/abi/new.yaml',
-                     'AGENTS.md', 'unknown/new.bin', '<new-branch>'):
+                     'unknown/new.bin', '<new-branch>'):
             with self.subTest(path=path):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_TRUE)
 
     def test_documentation_is_ignored_and_prefix_siblings_stay_conservative(self):
         self.assertEqual(test_policy.select_test_modes(['docs/guide.md']), ALL_FALSE)
+        self.assertEqual(test_policy.select_test_modes(['AGENTS.md', 'sources/FogCast/AGENTS.md']), ALL_FALSE)
         for path in ('scripts-other/new.py', 'sources/FogCast-catalog/x.go'):
             with self.subTest(path=path):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_TRUE)

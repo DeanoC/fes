@@ -124,19 +124,15 @@ mapping does not assert that cutover has been published or hardware-qualified.
 | `make media` | Assemble a flashable disk image from verified cold outputs |
 | `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
 
-The default and only FES integration profile is `native-integration-dev`.
-Build and verify do not deploy. The profile authenticates the pinned open-source
-misteross HIP/nextpnr tools before selecting the ordered
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set in
-[the default profile](../profiles/native-integration-dev.toml). The image selector
-also supports `fes.c64`. C64 remains package-only. Its shared-pin retirement
-is complete; see [core alignment](core-alignment.md).
-See [described FPGA core
-packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
-workflow. Host-only builds do not require those tools.
-The clean, development, verification and media paths are package-only and all
-reuse the same closed package set.
+The default FES integration profile is `native-integration-dev`. It selects only
+`fes.menu` display firmware and the locked idle RBF; playable core builds do not
+run as part of this image. The clean, development, verification and media paths
+reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
+and other systems independently through the [core catalog](core-packages.md).
+Individual packages use HIP/nextpnr; Quartus remains an explicit oracle where
+specified. Host builds and [kit software updates](kit-software-releases.md) do
+not build FPGA packages. Build and verify do not deploy.
+
 FES selects placement seed 5 for both Atari ST video parts. The selected seed
 is part of their canonical cache identity and archive verification; it does not
 change the sealed shell, clocks or socket containment requirements. Standalone

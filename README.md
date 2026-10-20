@@ -75,24 +75,14 @@ make build
 make verify
 ```
 
-The default `native-integration-dev` selects component revisions through the
-FES commit, retains the locked idle RBF, and installs the ordered,
-closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`. SMS, SG-1000, Spectrum and Atari ST are
-sealed and included. ST firmware remains separately selected by the user; no ROM
-is bundled in the image. Coleco and ST each include independently sealed Direct
-and Scanlines video parts. C64's shared-pin retirement is complete on the
-recorded CUDA seal. It remains package-only without factory-image acceptance;
-the [6 Oct diagnostic](docs/validation/2026-10-06-c64-functional-closure.md)
-does not accept those bytes. See [core status](docs/core-status.md). The 192 MiB rootfs
-holds the selected set.
-Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
-package is independently resolved, cached, installed and recorded; this is the
-closed package set for the default image, and package-only verification rejects
-a missing required package, an extra package, or a misidentified package. Atari
-ST is optional. A timing miss is recorded in `unavailable-cores.json` and that
-core is left out of the package set. `FES_REQUIRE_ALL_CORES=1` keeps a release
-build strict. The FES image has no legacy bundle lane.
+The default `native-integration-dev` builds a bootstrap image with the locked
+idle RBF and a closed package set containing only `fes.menu`, the display firmware
+needed by the kit UI. It does not build playable cores. Install `fes.pong`,
+`fes.zx81`, `fes.coleco` and other systems through the core catalog when wanted;
+see [modular updates](docs/modular-updates.md) and [core packages](docs/core-packages.md).
+Software bundles update the agent, runtime and UI without rebuilding this OS.
+The image has no legacy bundle lane and still verifies the packages it actually selects. Core timing, video
+parts and firmware remain requirements of the individual core installation.
 
 The Coleco factory recipe selects its native 256×192 indexed-pixel shell and
 builds matching Direct and Scanlines parts, which own frame capture and 720p
@@ -144,17 +134,11 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image installs the ordered playable package set: Pong, Sinclair ZX81, ColecoVision, Sega Master System,
-Sega SG-1000, ZX Spectrum 48K, RAM Tester (OSS 100 MHz) and Atari ST. Menu supplies the idle display and is not
-a playable library entry. These packages use the package/library lifecycle. The image
-does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
-remains a component build, not a parent output. `linux.img` is the target root
-filesystem; run `make media` after a verified cold build to publish the
-flashable disk image. Build, media assembly and verification do not deploy or
-contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate; see [bootable media](docs/bootable-media.md). Older
-kit notes live under [docs/validation](docs/validation/) and apply only to the
-artifacts they name.
+The native image starts the UI with no playable cores installed. Core installation
+uses the package/library lifecycle. `linux.img` is the target root filesystem;
+run `make media` after a verified build to publish flashable media. Build and
+verification do not deploy or contact a kit. QEMU checks packaging; physical
+boot and play checks remain separate. See [bootable media](docs/bootable-media.md).
 
 ## Commands and profiles
 
@@ -181,7 +165,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered nine-package FES set (menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, RAM Tester, Atari ST) |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and MENU display firmware; install playable cores separately |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
@@ -212,6 +196,6 @@ The normal repository token
 is sufficient; first-party checkout needs no sibling-repository secret.
 Quartus, full image builds and physical checks run on the development machine.
 
-The normal profile installs the locked idle RBF and the ordered FES package set.
+The normal profile installs the locked idle RBF and MENU display firmware.
 Older multi-system validation records remain historical evidence and do not
 change the package-only default.

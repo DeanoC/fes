@@ -11,6 +11,16 @@ import sys
 
 
 RULES = [
+    # Development/checking tools produce no deployed bytes. Keep this list
+    # explicit: build, image and package producers below still need their
+    # artifact-specific hardware plan.
+    *[(path, 'none', None) for path in (
+        'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
+        'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
+        'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
+        'scripts/check_deadcode.py', 'scripts/check_diff.py',
+        'scripts/check_doc_links.py', 'scripts/coordination.py',
+    )],
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
     ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
     ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
