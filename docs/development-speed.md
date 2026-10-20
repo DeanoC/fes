@@ -18,7 +18,7 @@ The audit started at FES `e307c466e35e03b2acf345eefc7ee8e1ae6e291d` on
 | --- | --- | --- |
 | Default profile selected nine FPGA packages | An OS build could wait for eight playable/diagnostic cores and their video parts | Bootstrap selects MENU only; playable packages remain catalog installations |
 | Planner/gate tests and agent instructions selected every core | Non-RTL edits launched up to 38 simulation jobs | Planner tests run as parent software; agent instructions are docs |
-| Workflow/shared software-runner edits selected RTL | Software CI maintenance waited on all simulations | Software checks run; actual simulation infrastructure still exercises simulations |
+| Parent Makefile/workflow/shared software-runner edits selected RTL | Software CI maintenance waited on all simulations | Software checks run; actual simulation infrastructure still exercises simulations |
 | Compiler bootstrap and contract Go tooling selected all RTL | Build-tool fixes consumed simulation capacity without changing simulated inputs | Software tests and generated-consumer checks cover them; changed generated RTL still selects consumers |
 | Every parent lane provisioned platform and ran platform/image tests | A room or host edit paid OS test setup costs | Those steps follow the media mode |
 | Unlisted CI tools became `FULL_IMAGE` in the HIL classifier | A dead-code checker could request a kit image | Explicit tool-only paths return `NO_DEPLOY_CHANGE` |

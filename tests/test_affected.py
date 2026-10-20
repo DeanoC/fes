@@ -40,7 +40,7 @@ class AffectedTests(unittest.TestCase):
 
     def test_parent_root_boundaries_do_not_swallow_sibling_names(self):
         for path in ('scripts-other/new.py', 'test-other/new.py', 'images/x',
-                     'config/source-imports.toml', 'Makefile', 'boot-media.lock.toml'):
+                     'config/source-imports.toml', 'boot-media.lock.toml'):
             with self.subTest(path=path):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
@@ -68,7 +68,7 @@ class AffectedTests(unittest.TestCase):
                 result = plan([path])
                 self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent'})
                 self.assertEqual(result['cores'], [])
-        for path in ('.github/workflows/check.yml', 'scripts/test_changed.py',
+        for path in ('Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
                      'scripts/test_policy.py',
                      'sources/mister-packages/internal/emitcpp/emitcpp.go'):
             with self.subTest(path=path):

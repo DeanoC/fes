@@ -30,6 +30,8 @@ class SelectTestModesTests(unittest.TestCase):
                      'sources/FogCast/catalog/query_test.go',
                      'sources/FogCast/cmd/fogcast/main.go',
                      'scripts/test_policy.py', 'scripts/ci_gate.py',
+                     'sources/mister-packages/internal/emitcpp/emitcpp.go',
+                     'sources/mister-packages/go.mod',
                      'sources/libmister-runtime/src/protocol.cpp',
                      '.github/workflows/check.yml', 'Makefile'):
             with self.subTest(path=path):

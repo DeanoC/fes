@@ -87,6 +87,10 @@ def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
     if _under(path, 'sources/mister-packages'):
+        if path.endswith(('.go', '/go.mod', '/go.sum')):
+            # Generator/tooling code is checked against committed consumers;
+            # actual definition/generated-output changes select their modes.
+            return dict.fromkeys(TEST_MODE_KEYS, False)
         # Shared contracts touch every consumer, including full race coverage.
         return dict.fromkeys(TEST_MODE_KEYS, True)
     video = (path in VIDEO_FILES or

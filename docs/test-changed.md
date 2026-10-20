@@ -56,7 +56,7 @@ names such as `scripts-other/` or `test-other/` stay unknown. Planner and
 generator regression changes select parent tests and generated-consumer checks;
 they do not simulate unchanged RTL. Changed generated outputs still select their
 actual consumers. Simulation matrix/compiler changes select the FPGA lane and
-all core simulations. The workflow and shared software test runner select all
+all core simulations. The parent Makefile, workflow and shared software test runner select all
 software lanes without RTL simulations. Host runner changes select parent and
 host checks. Contract Go tooling and core recipe/provisioning changes also skip
 unchanged RTL; contract definitions retain consumer coverage.
@@ -64,7 +64,7 @@ unchanged RTL; contract definitions retain consumer coverage.
 Platform provisioning, platform Go tests and image shell tests run only when
 `media` is selected, including scheduled/manual runs. A room, host or core edit
 does not provision an OS test container just because it selects parent regressions.
-Unknown/root inputs still select all lanes and cores.
+Unknown inputs still select all lanes and cores.
 
 ## Routine and extended test modes
 
