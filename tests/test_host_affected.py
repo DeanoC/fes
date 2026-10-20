@@ -105,14 +105,20 @@ class SelectionTests(unittest.TestCase):
             host = root / modules[0]
             with (host / 'go.mod').open('a') as out:
                 out.write('\nrequire example.com/appliance v0.0.0\n'
-                          'replace example.com/appliance => ./appliance\n')
+                          'replace example.com/appliance => ./appliance\n'
+                          'require example.com/expansion v0.0.0\n'
+                          'replace example.com/expansion => ../misteross/expansion\n')
             (host / 'host_test.go').write_text('package host_test\nimport _ "example.com/appliance"\n')
+            (host / 'host_race.go').write_text(
+                '//go:build race\n\npackage host\nimport _ "example.com/expansion"\n')
             env = dict(os.environ, GOWORK='off', GOTOOLCHAIN='local')
             for name in ('GOOS', 'GOARCH', 'GOARM', 'GOFLAGS'):
                 env.pop(name, None)
             records = host_affected.listing(root, env)
             selected = host_affected.select([modules[1] + '/appliance.go'], records, root)
             self.assertEqual(selected, {'example.com/appliance', 'example.com/host'})
+            selected = host_affected.select([modules[2] + '/expansion.go'], records, root)
+            self.assertEqual(selected, {'example.com/expansion', 'example.com/host'})
 
 
 if __name__ == '__main__':
