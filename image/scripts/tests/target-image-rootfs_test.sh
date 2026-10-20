@@ -268,7 +268,9 @@ package_fixture sg1000 1
 package_fixture spectrum 2
 package_fixture ramtest e
 package_fixture atari-st 4
-FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
+# This fixture exercises an explicitly expanded image and asserts Pong/ZX81
+# receipts below. The bootstrap profile is covered separately.
+FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.spectrum,fes.ramtest,fes.atari-st
 export FES_PACKAGE_IDS
 export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
 export FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
