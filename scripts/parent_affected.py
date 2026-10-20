@@ -57,9 +57,10 @@ def select_groups(paths, video=False, media=False):
             if (PurePosixPath(path).name in ('Makefile', 'go.mod', 'go.sum') or
                     under(path, 'sources/FogCast/scripts')):
                 return None
-            # Parent media tools consume the appliance module and selector.
+            # Parent media tools consume the appliance module and image selector.
             if (under(path, 'sources/FogCast/appliance') or
-                    under(path, 'sources/FogCast/cmd/target-image-lock')):
+                    under(path, 'sources/FogCast/cmd/target-image-lock') or
+                    under(path, 'sources/FogCast/internal/targetimage')):
                 groups.update(('media', 'packages', 'acceptance'))
             # Package admission and launch consumers are exercised by the
             # publication and acceptance suites as well as the Go tests.

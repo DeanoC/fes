@@ -45,7 +45,8 @@ MEDIA_FILES = frozenset({
     'tests/test_appliance_media.py',
 })
 MEDIA_ROOTS = ('image', 'platform', 'containers', 'profiles',
-               'sources/FogCast/appliance', 'sources/FogCast/cmd/target-image-lock')
+               'sources/FogCast/appliance', 'sources/FogCast/cmd/target-image-lock',
+               'sources/FogCast/internal/targetimage')
 MEDIA_SCRIPT_PATTERNS = ('scripts/media*.py', 'scripts/appliance*.py')
 
 # Dependency changes can alter both consumer and assembly behavior.

@@ -43,6 +43,13 @@ class ParentAffectedTests(unittest.TestCase):
                 self.assertEqual(policy.select_groups([path]),
                                  {'policy', 'build', 'packages', 'acceptance'})
 
+    def test_target_image_selector_library_keeps_media_regressions(self):
+        path = 'sources/FogCast/internal/targetimage/lock.go'
+        groups = policy.select_groups([path])
+        self.assertEqual(groups, {'policy', 'build', 'media', 'packages', 'acceptance'})
+        modules = policy.selected_modules(groups, [])
+        self.assertIn('test_media', modules)
+
     def test_boot_consumers_and_extended_modes_restore_their_groups(self):
         self.assertEqual(policy.select_groups(['sources/FogCast/appliance/release.go']),
                          set(policy.GROUPS))

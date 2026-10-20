@@ -87,7 +87,8 @@ class SelectTestModesTests(unittest.TestCase):
                      'tests/test_media_image.py', 'tests/test_appliance.py',
                      'tests/test_appliance_media.py',
                      'sources/FogCast/appliance/update.go',
-                     'sources/FogCast/cmd/target-image-lock/main.go'):
+                     'sources/FogCast/cmd/target-image-lock/main.go',
+                     'sources/FogCast/internal/targetimage/lock.go'):
             with self.subTest(path=path):
                 self.assertEqual(test_policy.select_test_modes([path]),
                                  {'video': False, 'media': True, 'full_race': False})
