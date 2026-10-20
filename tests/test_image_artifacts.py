@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import os
+import shutil
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -80,6 +83,39 @@ class ImageArtifactsTests(unittest.TestCase):
              patch.object(build, 'validate', side_effect=AssertionError('must stop first')):
             with self.assertRaisesRegex(ValueError, 'requires --artifacts'):
                 build.main()
+
+    def test_export_real_ext4_image(self):
+        tools = os.defpath + ':/usr/sbin:/sbin'
+        mke2fs = shutil.which('mke2fs', path=tools)
+        debugfs = shutil.which('debugfs', path=tools)
+        if not mke2fs or not debugfs:
+            self.skipTest('e2fsprogs required for ext4 export integration')
+        target = self.root / 'target'
+        software = target / 'usr/share/fes/software'
+        (software / 'bin').mkdir(parents=True)
+        (target / 'usr/sbin').mkdir(parents=True)
+        (software / 'manifest.json').write_text(json.dumps({'provenance': self.manifest['provenance']}))
+        for name in artifacts.BINARIES:
+            destination = target / 'usr/sbin' if name.startswith('fes-') else software / 'bin'
+            shutil.copyfile(self.root / 'bin' / name, destination / name)
+        subprocess.run([mke2fs, '-q', '-t', 'ext4', '-F', '-d', str(target),
+                        str(self.root / 'linux.img'), '8M'], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _, packages = artifacts.load(self.root)
+        fp, info = build.image_fingerprint('base', {}, packages)
+        (self.root / 'inputs.json').write_text(json.dumps(info))
+        (self.root / 'image.json').write_text(json.dumps({'fes_revision': '1' * 40,
+            'inputs': fp, 'files': {name: artifacts.sha(self.root / name)
+                                   for name in ('linux.img', 'inputs.json')}}))
+        output = self.root / 'exported'
+        with patch.dict(os.environ, {'PATH': tools}):
+            artifacts.export(self.root, output)
+        exported, _ = artifacts.load(output)
+        self.assertEqual(exported['binaries'], self.manifest['binaries'])
+        self.assertEqual(exported['packages'], self.manifest['packages'])
+        self.assertEqual(exported['provenance'], self.manifest['provenance'])
+        with self.assertRaisesRegex(ValueError, 'already exists'):
+            artifacts.export(self.root, output)
 
     def test_artifact_identity_survives_receipt_roundtrip(self):
         manifest, packages = artifacts.load(self.root)

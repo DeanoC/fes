@@ -91,6 +91,9 @@ def export(image_output, output):
         raise ValueError('artifact output already exists; choose a new directory')
     info = json.loads((image_output / 'inputs.json').read_text())
     fingerprint = recorded_image_fingerprint(info)
+    receipt = json.loads((image_output / 'image.json').read_text())
+    if not {'linux.img', 'inputs.json'} <= receipt.get('files', {}).keys():
+        raise ValueError('source image receipt must bind linux.img and inputs.json')
     if not reusable(image_output, 'image', fingerprint):
         raise ValueError('source image receipt does not match retained files')
     records = [p for p in info['fpga_packages'] if p['selection']['core_id'] == 'fes.menu']

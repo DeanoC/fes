@@ -390,3 +390,37 @@ for prefix in . sources/libmister-runtime; do
   site=$(FES_RUNTIME_SOURCE_PATH="$prefix" make --no-print-directory -s -f "$fixture/site.mk" print-site)
   test "$site" = "/runtime-source/$prefix" || fail 'Buildroot SITE differs from mounted module'
 done
+
+# Artifact assembly verifies the selected bytes without requiring a runtime
+# checkout. The wrapper forwards only the digest and never mounts source.
+mkdir -p "$selected_fogcast/bin"
+printf '%s\n' 'prebuilt runtime fixture' > "$selected_fogcast/bin/mister-runtime-linux-armv7"
+prebuilt_sha=$(sha256sum "$selected_fogcast/bin/mister-runtime-linux-armv7" | awk '{print $1}')
+FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null
+FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" LIBMISTER_RUNTIME_DIR= \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" \
+  sh "$repo/scripts/target-image-container.sh" run /bin/true
+grep -Fxq "FES_PREBUILT_RUNTIME_SHA256=$prebuilt_sha" "$CONTAINER_ARGS" || fail 'prebuilt digest not forwarded'
+if grep -q '/runtime-source' "$CONTAINER_ARGS"; then fail 'artifact assembly mounted runtime source'; fi
+printf '%s\n' 'changed runtime' > "$selected_fogcast/bin/mister-runtime-linux-armv7"
+if FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null 2>&1; then
+  fail 'changed prebuilt runtime accepted'
+fi
+prebuilt_sha=$(sha256sum "$selected_fogcast/bin/mister-runtime-linux-armv7" | awk '{print $1}')
+cat > "$fixture/prebuilt.mk" <<EOF
+include $repo/buildroot/package/mister-runtime/mister-runtime.mk
+all: $selected_fogcast/bin
+$selected_fogcast/bin:
+	\$(MISTER_RUNTIME_BUILD_CMDS)
+	\$(MISTER_RUNTIME_INSTALL_TARGET_CMDS)
+.PHONY: all $selected_fogcast/bin
+EOF
+FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
+  make --no-print-directory -s -f "$fixture/prebuilt.mk" \
+  TARGET_DIR="$fixture/prebuilt-target" INSTALL=install
+cmp "$selected_fogcast/bin/mister-runtime-linux-armv7" "$fixture/prebuilt-target/usr/sbin/mister-runtime" || fail 'prebuilt runtime installation differs'
+printf '%s\n' 'prebuilt runtime verification and installation passed'
