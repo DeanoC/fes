@@ -61,6 +61,30 @@ under `tests/` — remain fail-broad and select every lane and core. Root files
 such as the top-level `Makefile`, `config/` and `.github/` also stay on the
 all-lanes path.
 
+## Affected host Go packages
+
+For a change set containing only Go source/test files in FogCast, its appliance
+module or the shared expansion module, routine host checks run the changed
+packages and their transitive import consumers. Test and external-test imports
+also count as dependencies. The selector reads both native and race build
+variants with `go list`; selection happens before the existing three-way sharding.
+Each selected package retains its existing functional/race policy.
+
+Both CI and `test-changed` pass the same changed-path list, including both sides
+of renames and local edits for local runs. The host runner reports the selected
+package identities. To inspect a specific change without executing tests:
+
+```sh
+python3 scripts/host_tests.py --plan-only --paths-json '["sources/FogCast/cmd/fogcast/main.go"]'
+```
+
+A mixed/non-Go change set, dependency lock change, missing/deleted whole package
+or omitted path list keeps the complete routine host suite. A Go listing error
+fails the check. `--full` and scheduled/manual coverage never narrow packages.
+This is native Go import coverage; it does not infer runtime file reads or
+cross-platform behavior. Host builds, browser checks, parent regressions and
+other component lanes retain their own selection rules.
+
 ## Routine and extended test modes
 
 Beyond lanes, each plan reports `test_modes` (`video`, `media`, `full_race`)

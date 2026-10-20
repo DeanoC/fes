@@ -20,6 +20,7 @@ jobs:
       cores: ${{ steps.plan.outputs.cores }}
       simulations: ${{ steps.plan.outputs.simulations }}
       test_modes: ${{ steps.plan.outputs.test_modes }}
+      paths: ${{ steps.plan.outputs.paths }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -46,6 +47,7 @@ jobs:
               output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
               output.write('cores=' + json.dumps(plan['cores']) + '\n')
               output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'])) + '\n')
+              output.write('paths=' + json.dumps(plan['paths']) + '\n')
               output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
@@ -148,9 +150,10 @@ jobs:
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
           SHARD: ${{ matrix.shard }}
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
           if [ "$SHARD" = 1 ]; then make host; fi
-          flags=(--shard "$SHARD/3")
+          flags=(--shard "$SHARD/3" --paths-json "$CHANGED_PATHS")
           if [ "$TEST_FULL_RACE" = true ]; then flags+=(--full); fi
           python3 scripts/host_tests.py "${flags[@]}"
           if [ "$SHARD" = 3 ]; then make -C sources/FogCast test-ui; fi
