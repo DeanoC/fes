@@ -23,6 +23,23 @@ and verification do not deploy. The exported directory is portable; keep it
 with the image inputs or copy it to another build host. Do not edit a published
 set in place. Export a new directory when selecting a new integration build.
 
+You can also select independently produced artifacts without a prior image:
+
+```sh
+python3 scripts/image_artifacts.py pack \
+  --bin-dir /absolute/selected-binaries \
+  --menu-package /absolute/menu-package \
+  --menu-selection /absolute/fes-menu.package-selection.toml \
+  --fogcast-revision FULL_SOURCE_COMMIT --runtime-revision FULL_SOURCE_COMMIT \
+  --output /absolute/artifacts/bootstrap-v2
+```
+
+The binary directory contains the six names listed below, without platform
+suffixes. To try a different binary, prepare a new input directory with that
+binary and the other selected files, then pack a new artifact set. Packing runs
+no producer. Full package admission and ELF library compatibility are checked
+again during image assembly.
+
 The manifest records each ARM executable's digest and its original software
 provenance, plus the existing MENU package selection and member digests. Assembly
 copies binaries into its private source snapshot, checks them again, and includes

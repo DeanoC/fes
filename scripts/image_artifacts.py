@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import tomllib
 
 BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot',
             'fes-kit-data', 'fes-kit-software')
@@ -84,6 +85,41 @@ def stage(root, fogcast):
     return manifest, packages
 
 
+def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revision, output):
+    """Select independently produced binaries and MENU; never compile or deploy."""
+    bin_dir, menu_package, menu_selection = map(Path, (bin_dir, menu_package, menu_selection))
+    output = Path(output).absolute()
+    if output.exists() or output.is_symlink():
+        raise ValueError('artifact output already exists; choose a new directory')
+    selection = tomllib.loads(menu_selection.read_text())
+    identity = selection.get('package_id', '')
+    if selection.get('core_id') != 'fes.menu' or not re.fullmatch('[0-9a-f]{64}', identity):
+        raise ValueError('MENU selection is required')
+    inputs = {'selection': selection, 'selection_sha256': sha(menu_selection),
+              'manifest_sha256': sha(menu_package / 'manifest.toml'),
+              'core_rbf_sha256': sha(menu_package / 'core.rbf')}
+    if (menu_package / 'rom-map.json').exists():
+        inputs['rom_map_sha256'] = sha(menu_package / 'rom-map.json')
+    manifest = {'format': 1, 'provenance': {'fogcast': fogcast_revision, 'runtime': runtime_revision},
+                'binaries': {name: sha(bin_dir / name) for name in BINARIES}, 'packages': [inputs]}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.image-artifacts-', dir=output.parent) as temporary:
+        root = Path(temporary) / 'artifacts'
+        (root / 'bin').mkdir(parents=True)
+        for name in BINARIES:
+            source = bin_dir / name
+            if source.is_symlink():
+                raise ValueError('binary input must not be a symlink: ' + name)
+            shutil.copyfile(source, root / 'bin' / name)
+            (root / 'bin' / name).chmod(0o555)
+        shutil.copytree(menu_package, root / 'core-packages' / identity, symlinks=True)
+        shutil.copyfile(menu_selection, root / 'fes-menu.package-selection.toml')
+        (root / 'artifacts.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        load(root)
+        root.rename(output)
+    return manifest
+
+
 def export(image_output, output):
     """Seed a portable input set from a retained, receipt-checked bootstrap image."""
     from build import recorded_image_fingerprint, reusable, verify_package_outputs
@@ -140,11 +176,21 @@ def main():
     command = sub.add_parser('export', help='export from a retained bootstrap image; requires debugfs')
     command.add_argument('--image-output', required=True, type=Path)
     command.add_argument('--output', required=True, type=Path)
+    command = sub.add_parser('pack', help='select separately produced ARM binaries and MENU')
+    command.add_argument('--bin-dir', required=True, type=Path)
+    command.add_argument('--menu-package', required=True, type=Path)
+    command.add_argument('--menu-selection', required=True, type=Path)
+    command.add_argument('--fogcast-revision', required=True)
+    command.add_argument('--runtime-revision', required=True)
+    command.add_argument('--output', required=True, type=Path)
     command = sub.add_parser('check')
     command.add_argument('directory', type=Path)
     args = parser.parse_args()
     if args.action == 'export':
         export(args.image_output, args.output)
+    elif args.action == 'pack':
+        pack(args.bin_dir, args.menu_package, args.menu_selection,
+             args.fogcast_revision, args.runtime_revision, args.output)
     else:
         load(args.directory)
 

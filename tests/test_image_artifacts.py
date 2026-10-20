@@ -86,6 +86,17 @@ class ImageArtifactsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'requires --artifacts'):
                 build.main()
 
+    def test_pack_independent_binaries_without_source_or_image(self):
+        selection = self.root / 'menu.toml'
+        selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a' * 64 + '"\n')
+        output = self.root / 'packed'
+        with patch('subprocess.run', side_effect=AssertionError('must not compile')):
+            artifacts.pack(self.root / 'bin', self.root / 'core-packages' / ('a' * 64),
+                           selection, '3' * 40, '4' * 40, output)
+        manifest, _ = artifacts.load(output)
+        self.assertEqual(manifest['binaries'], self.manifest['binaries'])
+        self.assertEqual(manifest['provenance'], {'fogcast': '3' * 40, 'runtime': '4' * 40})
+
     def test_export_real_ext4_image(self):
         tools = os.defpath + ':/usr/sbin:/sbin'
         mke2fs = shutil.which('mke2fs', path=tools)

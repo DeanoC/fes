@@ -102,9 +102,9 @@ requests wherever they do not protect the operation being performed.
    before claiming that target is met.
 2. **Make OS building consume installed artifacts.** `make image` now consumes
    an explicit prebuilt bootstrap artifact set; see [assembly inputs](image-artifacts.md).
-   Source integration remains explicit in `make build`/`make dev`. Publishing
-   individual updated artifacts directly into a new set is a follow-up; this
-   first path exports a retained image's MENU and userspace without rebuilding them.
+   Source integration remains explicit in `make build`/`make dev`. Select
+   independently produced binaries and MENU with `pack`, or export a retained
+   image's MENU and userspace without rebuilding them.
    Offline first boot and an empty playable-core inventory still need kit evidence.
 3. **Separate UI engine and room delivery.** Kit software currently bundles the
    engine with agent/runtime; first-party room examples are embedded in Go.
