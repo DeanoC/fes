@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
+from scripts import pnr_recipe
 from scripts.search_placer_qor import (
     Candidate,
     SearchError,
@@ -36,6 +39,86 @@ def _candidate(seed: int, weight: int, sys_mhz: float) -> Candidate:
 
 
 class SearchPlacerQorTests(unittest.TestCase):
+    def test_recipe_change_during_search_is_rejected_before_promotion(self) -> None:
+        source = (pnr_recipe.FES_ROOT / "config/core-recipes.toml").read_text(
+            encoding="utf-8"
+        )
+        start = source.index('core_id = "fes.pong"')
+        end = source.index("[[recipes]]", start + 1)
+        pong = source[start:end]
+        old_seeds = "seeds = [1, 2, 3, 4, 5, 6, 7, 8]"
+        self.assertIn(old_seeds, pong)
+        changed = source[:start] + pong.replace(
+            old_seeds, "seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9]", 1
+        ) + source[end:]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registry = root / "core-recipes.toml"
+            registry.write_text(source, encoding="utf-8")
+            with patch.object(pnr_recipe, "REGISTRY", registry):
+                digest = pnr_recipe.recipe_digest("fes.pong")
+                candidate = replace(
+                    _candidate(1, 10, 57.45), recipe_sha256=digest
+                )
+
+                def route(_seed: int, _weight: int) -> Candidate:
+                    registry.write_text(changed, encoding="utf-8")
+                    return candidate
+
+                with patch("scripts.search_placer_qor.promote_candidate") as promote:
+                    with self.assertRaisesRegex(
+                        pnr_recipe.RecipeError, "changed during placement search"
+                    ):
+                        search(
+                            nextpnr=Path("nextpnr"),
+                            fixture=Path("synth.json"),
+                            output=root / "qor-search",
+                            device="5CSEBA6U23I7",
+                            qsf=Path("constraints.qsf"),
+                            sdc=None,
+                            freq=None,
+                            seeds=(1,),
+                            weights=(10,),
+                            critexp=5,
+                            budget=1,
+                            mode="first-pass",
+                            extra=(),
+                            timeout=1,
+                            run_one=route,
+                            core_id="fes.pong",
+                            expected_recipe_digest=digest,
+                        )
+                    promote.assert_not_called()
+
+    def test_registered_recipe_extra_reaches_search_when_producer_passes_empty(self) -> None:
+        recipe = pnr_recipe.recipe_for("fes.pong")
+        recipe["extra"] = ["--router2-alt-weights"]
+        candidate = _candidate(recipe["seeds"][0], recipe["timing_weights"][0], 57.45)
+        observed = {}
+
+        def run_search(**kwargs):
+            observed.update(kwargs)
+            return [candidate]
+
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory)
+            with (
+                patch.object(pnr_recipe, "recipe_for", return_value=recipe),
+                patch("scripts.search_placer_qor.search", side_effect=run_search),
+                patch("scripts.search_placer_qor.promote_candidate"),
+            ):
+                winner = route_after_synth(
+                    nextpnr=Path("nextpnr"), fixture=dest / "synth.json", dest=dest,
+                    device="5CSEBA6U23I7", qsf=Path("cores/fes-pong/constraints.qsf"),
+                    sdc=None, freq=recipe["freq"], seeds=(recipe["seeds"][0],),
+                    weights=(recipe["timing_weights"][0],), critexp=recipe["critexp"],
+                    budget=1, mode="first-pass", extra=(),
+                    timeout=recipe["timeout_s"], gpu_devices=(0,), core_id="fes.pong",
+                )
+        self.assertIs(winner, candidate)
+        self.assertEqual(observed["extra"], ("--router2-alt-weights",))
+
     def test_evaluate_pairs_uses_multiple_workers(self) -> None:
         import threading
         import time
@@ -514,7 +597,7 @@ print("Info: Program finished normally.")
             with self.assertRaisesRegex(
                 SearchError,
                 r"^no placement met timing \(best seed=4 weight=10 worst_ratio=0\.7692\)$",
-            ):
+            ) as caught:
                 route_after_synth(
                     nextpnr=Path("nextpnr"),
                     fixture=dest / "synth.json",
@@ -531,6 +614,49 @@ print("Info: Program finished normally.")
                     extra=(),
                     run_one=run,
                 )
+            error = caught.exception
+            self.assertEqual(error.reason, "timing-not-met")
+            self.assertEqual(error.seeds, (4,))
+            self.assertEqual(error.figures[0]["clocks"]["clk_sys"],
+                             {"achieved_mhz": 40.0, "constraint_mhz": 52.0})
+            self.assertEqual(error.figures[0]["clocks"]["pixel_clk"]["constraint_mhz"], 74.25)
+
+    def test_route_after_synth_does_not_call_a_router_crash_a_timing_miss(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory)
+
+            def run(seed: int, weight: int) -> Candidate:
+                base = _candidate(seed, weight, 0.0)
+                return Candidate(**{
+                    **base.__dict__,
+                    "passing": False,
+                    "worst_ratio": 0.0,
+                    "sum_ratio": 0.0,
+                    "fmax": {},
+                })
+
+            with self.assertRaisesRegex(
+                SearchError,
+                r"^placer QoR search produced no timing report \(best seed=4 weight=10\)$",
+            ) as caught:
+                route_after_synth(
+                    nextpnr=Path("nextpnr"),
+                    fixture=dest / "synth.json",
+                    dest=dest,
+                    device="5CSEBA6U23I7",
+                    qsf=Path("x.qsf"),
+                    sdc=None,
+                    freq=None,
+                    seeds=(4,),
+                    weights=(10,),
+                    critexp=5,
+                    budget=1,
+                    mode="first-pass",
+                    extra=(),
+                    run_one=run,
+                )
+            self.assertIsNone(caught.exception.reason)
+            self.assertEqual(caught.exception.figures, ())
 
 
 if __name__ == "__main__":

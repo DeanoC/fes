@@ -68,7 +68,7 @@ func TestHardwareStopPreservesOrdinaryPackageFreeAndDevelopmentStop(t *testing.T
 			defer server.Close()
 			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 			app.session, app.stopPhase = session, "stopping"
-			app.doStop(context.Background(), ClientStampNow(), session)
+			app.doStop(context.Background(), ClientStampNow(), session, false)
 			if calls != 1 || app.session.State != "idle" || app.retryStopLock {
 				t.Fatalf("ordinary Stop failed: calls=%d session=%+v retry=%v", calls, app.session, app.retryStopLock)
 			}
@@ -102,12 +102,12 @@ func TestHardwareBoundStopSaveFailureKeepsPlayUntilRetry(t *testing.T) {
 	defer server.Close()
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
 	app.session, app.stopPhase = prior, "stopping"
-	app.doStop(context.Background(), ClientStampNow(), prior)
+	app.doStop(context.Background(), ClientStampNow(), prior, false)
 	if !app.retryStopLock || !app.gpuParked || !samePlayHIDSession(prior, app.session) || app.retryStopCode != "SAVE_FAILED" {
 		t.Fatalf("failed Stop lost active play or lock: %+v", app.Snapshot().Session)
 	}
 	app.stopPhase = "stopping"
-	app.doStop(context.Background(), ClientStampNow(), prior)
+	app.doStop(context.Background(), ClientStampNow(), prior, false)
 	if calls != 2 || app.retryStopLock || app.gpuParked || app.session.State != "idle" {
 		t.Fatal("successful retry did not restore idle navigation")
 	}
@@ -150,7 +150,7 @@ func TestHardwareStopSessionChangedAllowsFreshExplicitStop(t *testing.T) {
 	app.session, app.stopExpected, app.stopPhase = prior, prior, "stopping"
 	app.retryStopLock = true
 	app.sessionKick = make(chan struct{}, 1)
-	app.doStop(context.Background(), ClientStampNow(), prior)
+	app.doStop(context.Background(), ClientStampNow(), prior, false)
 	if app.retryStopLock || app.stopExpected.ID != "" || calls != 1 || !strings.Contains(app.status, "changed") {
 		t.Fatal("rejected Stop kept stale retry lock or replayed")
 	}

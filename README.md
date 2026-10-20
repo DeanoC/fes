@@ -37,7 +37,8 @@ systems.
 ## Start
 
 Use Linux amd64 with Git, GNU Make, Python 3.11+, Go and Docker. Go selects the
-version in the selected FogCast `go.mod` (currently 1.26.5). First-party sources
+version in the selected FogCast `go.mod` (currently 1.26.5). The affected-test
+command also needs Node.js 18+ and ripgrep for the host UI lane. First-party sources
 are included here; external build dependencies retain their own locks.
 
 ```sh
@@ -89,8 +90,10 @@ holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
-missing, extra or misidentified packages. The FES image has no legacy bundle
-lane.
+a missing required package, an extra package, or a misidentified package. Atari
+ST is optional. A timing miss is recorded in `unavailable-cores.json` and that
+core is left out of the package set. `FES_REQUIRE_ALL_CORES=1` keeps a release
+build strict. The FES image has no legacy bundle lane.
 
 The Coleco factory recipe selects its native 256×192 indexed-pixel shell and
 builds matching Direct and Scanlines parts, which own frame capture and 720p
@@ -107,8 +110,9 @@ their shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's registered producer.
-Menu and both RAM Tester rates use the current shared `sources/misteross/toolchain.lock`
-HIP lane; RAM Tester timing experiments retain their separate opt-in lock.
+The menu uses its per-core HIP lock. Both RAM Tester rates and the RAM Tester
+timing diagnostic use `sources/misteross/cores/fes-ramtest/toolchain.lock`;
+these per-core locks currently select the same compiler pins.
 Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
 where a recipe documents one. It is not run by the default FES path, and a
 failed HIP route never falls back to Quartus.

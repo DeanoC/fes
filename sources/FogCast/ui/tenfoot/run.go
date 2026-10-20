@@ -327,7 +327,7 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetReducedMotion(opts.ReducedMotion)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
-	// menu-display is the kit_ui=tenfoot entry. Host SDL, software, and
+	// menu-display is the kit entry. Host SDL, software, and
 	// linuxfb leave the local-control client unset. A resolved catalog
 	// config replaces the remote API with the loopback catalog only when
 	// the kit has its own playable shelf (see useLocalCatalog). Otherwise,

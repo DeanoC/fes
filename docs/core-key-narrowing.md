@@ -68,8 +68,13 @@ private artifact cache. Audit mode keeps the narrowed roots, so the record and
 the build ID every producer embeds in its bitstream are unchanged, but it
 records reads instead of enforcing them. (A broad-key rebuild cannot be
 compared: its record, and so its embedded build ID, always differs.) The check
-fails if the functional key or the RBF/payload SHA256 differs, or the rebuild
-reads outside the narrowed roots. The JSON report records keys, hashes, durations
+fails if the functional key, the RBF/payload SHA256, the sealed ROM-map SHA256
+(format 3) or the sealed manifest differs, or the rebuild reads outside the
+narrowed roots. The manifest comparison drops `build.repository` and
+`build.revision`, which the functional key also excludes: a narrowed package
+reused from an earlier commit keeps that commit's provenance, so its manifest
+SHA256 and package ID legitimately differ from the rebuild's. Both are still
+recorded. The JSON report records keys, hashes, durations
 and uncovered paths. A plan can be printed without a GPU:
 
 Audit mode is only for that private rebuild. `scripts/recipes.py` refuses `FES_SOURCE_CLOSURE_AUDIT=1`, both when launching producers and when resolving or publishing a package, unless `FES_ARTIFACT_CACHE_ROOT` is a private cache that contains the `.fes-closure-audit-private-cache` marker the nightly creates. A normal build that inherits the variable fails fast instead of publishing an unenforced package to the shared cache.

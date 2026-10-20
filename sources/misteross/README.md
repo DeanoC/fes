@@ -72,6 +72,22 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
+The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
+through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
+The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
+and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
+and services PIT1 refresh with CPU LOCK/INTA arbitration; the storage lane loads its
+firmware through a reset-only byte loader and boots the ISA display diagnostic
+through the existing physical SDRAM controller in host simulation. Board
+capture/pads and routed memory timing remain unqualified. Separate ISA CGA and MDA cards
+produce independently timed RGBI guest rasters in host simulation; fonts and
+board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
+existing shared RGB888 Direct/Scanlines effects in host simulation; the board
+producer, routed shell and exact-shell parts are still unimplemented.
+`make sim-fes-pcxt` checks it on the host; see the
+[core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
+linkable PC/XT sockets remain unimplemented.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
@@ -86,12 +102,12 @@ runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
+Cyclone V timing diagnostic. SG-1000, ZX81 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
+Coleco and SMS still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
 schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
-not landed for those three packages.
+not landed for those two packages.
 
 ### OSS experiments
 
@@ -165,18 +181,16 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the shared HIP lane for FES Pong, menu, RAM Tester and
-freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
-`toolchain.lock` HIP compiler slot (also provisioned by
-`make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
-`toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
-against `toolchain.lock`. SMS uses
-`make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
-`make toolchain-fes-zx81` against `toolchain.lock`. Atari ST uses
-`make toolchain-fes-atari-st` against `toolchain.lock`. The factory recipe
-stays HIP. The October kit notes do not accept a shared-pin seal. Those
-install under their own prefixes unless `CACHE_ROOT` selects the shared
-cache. See [Cores](docs/cores.md).
+`make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
+lane for consumers that still select that lock. Every registered core has a
+matching `toolchain-fes-<core>` target that provisions its
+`cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
+SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
+cache, each producer reads the local install that its own target writes. The
+locks currently share identical compiler pins except Coleco's Yosys
+`5391eeb1`, so a shared `CACHE_ROOT` reuses one cached slot for every other
+core and a separate slot for Coleco. The factory recipe stays HIP. The October kit notes do not accept
+a shared-pin seal. See [Cores](docs/cores.md).
 
 ## Freeze-scaffold cartridges
 
@@ -210,7 +224,8 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe |
+| `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` pin. That lock has its own HIP cache slot. |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

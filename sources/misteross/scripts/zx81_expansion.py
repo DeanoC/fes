@@ -5,6 +5,16 @@ Response 20 bits: Drd[7:0], peek_d[7:0], DSEL, ROMCS, WAIT, RAM_PRESENT.
 Vacant response FFs hold 0, so cart-to-CPU controls are active-high.
 CRAM map `fes.zx81-bus.socket/2` is the reserved rectangle for any compatible
 ZX81 bus cart. It is not the old pre-decoded 14-bit RAM window.
+
+The cart interior stays columns 25–27. The request and response flip-flops
+live on columns 24 and 28, outside that interior, and each request flip-flop
+has one fabric exit (``GIN.24.{row}.{index}``). Sealed cores such as C64 and
+Spectrum reserve the whole column span, including those boundary LABs, so the
+shell placer cannot share them. ZX81 keeps the interior as the unnamed
+``cart`` region (the cart merge's default) and reserves the two plug columns
+for the socket height as separate regions. Unconstrained shell cells are
+rejected there; BEL-locked socket flip-flops still place, and cart cells stay
+in the interior. The CRAM fence is unchanged.
 """
 
 from __future__ import annotations
@@ -15,7 +25,16 @@ from pathlib import Path
 
 
 SOCKET_CLOCK = "clk_sys"
+# Unnamed, so nextpnr calls this region "cart". Cart merge uses that default
+# and must not gain the plug columns: frozen boundary LABs reject cart cells,
+# and the CRAM fence is the interior.
 SOCKET_RECT = "25 1 27 32"
+# Plug columns for the full socket height. Separate region names, so they are
+# keep-outs for the shell and not extra cart placement space.
+BOUNDARY_RECTS = (
+    "plug_addr 24 1 24 32",
+    "plug_rdata 28 1 28 32",
+)
 SOCKET_PREFIX = "expansion.socket."
 REQUEST_BITS = 46
 RESPONSE_BITS = 20
@@ -88,7 +107,115 @@ def prepare_shell_netlist(path: Path) -> None:
 
 
 def shell_qsf(base: str) -> str:
-    return base.rstrip() + f'\nset_global_assignment -name FES_RESERVED_RECT "{SOCKET_RECT}"\n'
+    lines = [base.rstrip(), f'set_global_assignment -name FES_RESERVED_RECT "{SOCKET_RECT}"']
+    lines.extend(
+        f'set_global_assignment -name FES_RESERVED_RECT "{rect}"' for rect in BOUNDARY_RECTS)
+    return "\n".join(lines) + "\n"
+
+
+def _parse_rect(spec: str) -> tuple[str, int, int, int, int]:
+    parts = spec.split()
+    if len(parts) == 4 and parts[0].isdigit():
+        name, numbers = "cart", parts
+    elif len(parts) == 5 and not parts[0][:1].isdigit():
+        name, numbers = parts[0], parts[1:]
+    else:
+        raise ValueError(f"ZX81 reserved rect is malformed: {spec}")
+    try:
+        x0, y0, x1, y1 = (int(number) for number in numbers)
+    except ValueError as exc:
+        raise ValueError(f"ZX81 reserved rect is malformed: {spec}") from exc
+    return name, x0, y0, x1, y1
+
+
+def _in_rect(rect: tuple[str, int, int, int, int], x: int, y: int) -> bool:
+    _, x0, y0, x1, y1 = rect
+    return x0 <= x <= x1 and y0 <= y <= y1
+
+
+def _bel_xy(bel: str) -> tuple[int, int] | None:
+    parts = bel.split(".")
+    if len(parts) != 4 or not all(part.isdigit() for part in parts[1:]):
+        return None
+    return int(parts[1]), int(parts[2])
+
+
+def paired_route_through_bels(ff_bel: str) -> set[str]:
+    """The combinational half paired with one pinned socket flip-flop."""
+    parts = ff_bel.split(".")
+    if len(parts) != 4 or parts[0] != "MISTRAL_FF" or not all(part.isdigit() for part in parts[1:]):
+        return set()
+    z = int(parts[3])
+    if z % 6 not in (2, 4):
+        return set()
+    half = 0 if z % 6 == 2 else 1
+    paired = f"{parts[1]}.{parts[2]}.{(z // 6) * 6 + half}"
+    return {f"MISTRAL_COMB.{paired}", f"MISTRAL_MCOMB.{paired}", f"MISTRAL_BUF.{paired}"}
+
+
+def _pinned_socket_cell(name: str, cell: dict, bel: str, expected: dict[str, str]) -> bool:
+    if name in expected:
+        return cell.get("type") == "MISTRAL_FF" and bel == expected[name]
+    if not name.endswith("$ROUTETHRU"):
+        return False
+    stem = name.removesuffix("$ROUTETHRU")
+    return (
+        stem in expected
+        and cell.get("type") in {"MISTRAL_COMB", "MISTRAL_MCOMB", "MISTRAL_BUF"}
+        and bel in paired_route_through_bels(expected[stem])
+    )
+
+
+def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
+    """Shell cells placed in the cart interior or on the plug columns.
+
+    A socket flip-flop may sit on its plug column only as ``MISTRAL_FF`` at
+    the BEL from ``socket_bels``. Its ``$ROUTETHRU`` buffer may sit only on
+    that flip-flop's paired combinational half, as ``MISTRAL_COMB``,
+    ``MISTRAL_MCOMB``, or ``MISTRAL_BUF``. A matching name elsewhere is still
+    shell logic. Nothing else may occupy the plug columns, and the cart
+    interior stays empty in the shell.
+    """
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    if not isinstance(cells, dict):
+        return []
+    cart = _parse_rect(SOCKET_RECT)
+    boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
+    expected = socket_bels()
+    intruders: list[tuple[str, str]] = []
+    for name, cell in cells.items():
+        if not isinstance(name, str) or not isinstance(cell, dict):
+            continue
+        attributes = cell.get("attributes")
+        bel = ""
+        if isinstance(attributes, dict):
+            raw = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+            if isinstance(raw, str):
+                bel = raw
+        stem = name.removesuffix("$ROUTETHRU") if name.endswith("$ROUTETHRU") else ""
+        if name in expected or stem in expected:
+            if _pinned_socket_cell(name, cell, bel, expected):
+                continue
+            intruders.append((name, bel or "<unplaced>"))
+            continue
+        xy = _bel_xy(bel)
+        if xy is None:
+            continue
+        if _in_rect(cart, *xy) or any(_in_rect(rect, *xy) for rect in boundary):
+            intruders.append((name, bel))
+    intruders.sort()
+    return intruders
+
+
+def socket_occupancy_message(intruders: list[tuple[str, str]]) -> str:
+    shown = intruders[:4]
+    details = "; ".join(f"{name} at {bel}" for name, bel in shown)
+    extra = len(intruders) - len(shown)
+    if extra:
+        details += f"; and {extra} more"
+    return f"socket boundary contains shell logic: {details}"
 
 
 def plug_addr_fabric_exit(bit: int) -> str:
@@ -153,6 +280,62 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
+def _cell_bel(cell: dict) -> str:
+    attributes = cell.get("attributes")
+    if not isinstance(attributes, dict):
+        return ""
+    bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+    return bel if isinstance(bel, str) else ""
+
+
+def missing_socket_flip_flops(design: object) -> list[str]:
+    """Socket flip-flops absent from the route or not at their frozen BEL.
+
+    ``prepare_shell_netlist`` requires them before routing. Signoff reads the
+    routed design, so a dropped cell still fails the socket.
+    """
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    if not isinstance(cells, dict):
+        cells = {}
+    missing = []
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
+            missing.append(name)
+    return missing
+
+
+def socket_missing_message(missing: list[str]) -> str:
+    shown = missing[:4]
+    details = ", ".join(shown)
+    extra = len(missing) - len(shown)
+    if extra:
+        details += f", and {extra} more"
+    return f"socket boundary flip-flop is missing: {details}"
+
+
+def socket_design_reason(design: object) -> str | None:
+    """Reject a routed shell whose connector or socket floorplan is wrong.
+
+    Every socket flip-flop must be present as ``MISTRAL_FF`` at its pinned
+    BEL. A ``$ROUTETHRU`` is legal only on that flip-flop's paired half. Any
+    other cell in the cart interior or on the plug columns is shell logic,
+    and a foreign net on a request exit still makes that bit unroutable.
+    """
+    intruders = shell_cells_in_socket(design)
+    if intruders:
+        return socket_occupancy_message(intruders)
+    missing = missing_socket_flip_flops(design)
+    if missing:
+        return socket_missing_message(missing)
+    blocked = blocked_plug_addr_exits(design)
+    if not blocked:
+        return None
+    return blocked_plug_addr_message(blocked)
+
+
 def socket_route_reason(routed: Path) -> str | None:
     if not routed.is_file():
         return "routed design is missing"
@@ -160,10 +343,7 @@ def socket_route_reason(routed: Path) -> str | None:
         design = json.loads(routed.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return f"routed design is unreadable: {exc}"
-    blocked = blocked_plug_addr_exits(design)
-    if not blocked:
-        return None
-    return blocked_plug_addr_message(blocked)
+    return socket_design_reason(design)
 
 
 def accept_socket_route(candidate: object) -> str | None:

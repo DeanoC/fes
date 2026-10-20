@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -765,73 +764,6 @@ type fakeServiceScanner struct {
 	once       sync.Once
 }
 
-type serviceRoundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f serviceRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
-}
-
-type delayedUploadResult struct {
-	data     []byte
-	readErr  error
-	closeErr error
-}
-
-type delayedFailingUploadTransport struct {
-	failure error
-	started chan struct{}
-	result  chan delayedUploadResult
-}
-
-func (t *delayedFailingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if request.URL.Path == "/v1/health" {
-		return serviceJSONResponse(request, protocol.Health{APIVersion: "v1", Ready: true})
-	}
-	switch request.Method {
-	case http.MethodGet:
-		return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
-	case http.MethodPut:
-		go func() {
-			data := make([]byte, 0, request.ContentLength)
-			buffer := make([]byte, 1)
-			started := false
-			for {
-				n, readErr := request.Body.Read(buffer)
-				if n > 0 {
-					data = append(data, buffer[:n]...)
-				}
-				if !started {
-					close(t.started)
-					started = true
-				}
-				if readErr != nil {
-					t.result <- delayedUploadResult{data: data, readErr: readErr, closeErr: request.Body.Close()}
-					return
-				}
-				runtime.Gosched()
-			}
-		}()
-		<-t.started
-		return nil, t.failure
-	default:
-		return nil, fmt.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
-	}
-}
-
-func serviceJSONResponse(request *http.Request, payload any) (*http.Response, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Status:     "200 OK",
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(string(body))),
-		Request:    request,
-	}, nil
-}
-
 func (f *fakeServiceScanner) SetAdmissionGate(admit func(context.Context) (func(), error)) {
 	f.admit = admit
 }
@@ -894,11 +826,9 @@ type fakeServiceClient struct {
 	coreCalls           int
 	developmentReboots  int
 	developmentSize     int64
-	developmentBody     []byte
 	healthCalls         int
 	statusCalls         int
 	stopCalls           int
-	activeGame          string
 	healthResult        protocol.Health
 	healthFn            func(context.Context) (protocol.Health, error)
 	statusResult        protocol.Status
@@ -968,6 +898,87 @@ func TestServiceFailedKitStatusDropsStalePlayWithoutChangingHost(t *testing.T) {
 	if len(s.PlaySessions()) != 0 || s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "host-game" || host.stopCalls != 0 {
 		t.Fatalf("plays=%+v host=%q/%q/%q stops=%d", s.PlaySessions(), s.activeExecution, s.activeTarget, s.activeGameID, host.stopCalls)
 	}
+}
+
+func TestServiceFailedDevelopmentKitStatusDropsGameIdentity(t *testing.T) {
+	game, system := "stale", protocol.SystemSNES
+	core := "DEVCORE"
+	pkg := &protocol.CorePackageStatus{PackageID: serviceDigest, Generation: 4}
+	reported := protocol.Status{
+		State: protocol.StateFailed, Development: true, GameID: &game, System: &system,
+		ExpectedCore: &core, ObservedCore: &core, Recovery: protocol.RecoveryRebootRequired,
+		LastError:   &protocol.APIError{Code: protocol.CodeInternal, Phase: "recovery"},
+		CorePackage: pkg,
+	}
+	assertDropped := func(t *testing.T, status protocol.Status) {
+		t.Helper()
+		// GET /api/v1/status copies these fields and omits a nil game and system.
+		if status.State != protocol.StateFailed || !status.Development || status.GameID != nil || status.System != nil {
+			t.Fatalf("public status = %+v", status)
+		}
+		if status.Recovery != reported.Recovery || status.ExpectedCore == nil || *status.ExpectedCore != core ||
+			status.ObservedCore == nil || *status.ObservedCore != core || status.CorePackage == nil ||
+			status.CorePackage.PackageID != pkg.PackageID || status.CorePackage.Generation != pkg.Generation ||
+			status.LastError == nil || status.LastError.Code != protocol.CodeInternal || status.LastError.Phase != "recovery" {
+			t.Fatalf("package or recovery evidence changed: %+v", status)
+		}
+	}
+	assertPlay := func(t *testing.T, s *Service) {
+		t.Helper()
+		plays := s.PlaySessions()
+		if len(plays) != 1 || plays[0].Target != "kit" || plays[0].Execution != ExecutionFPGADevelopment || plays[0].GameID != "" || plays[0].System != "" {
+			t.Fatalf("plays=%+v", plays)
+		}
+	}
+
+	t.Run("named target", func(t *testing.T) {
+		client := &fakeServiceClient{statusResult: reported}
+		s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+			targetClients: map[string]serviceClient{"kit": client},
+			plays:         map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale", system: protocol.SystemSNES}}}
+		status, err := s.StatusTarget(context.Background(), "kit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, status)
+		public, err := s.Status(WithSessionTarget(context.Background(), "kit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, public)
+		assertPlay(t, s)
+	})
+
+	t.Run("paired target", func(t *testing.T) {
+		client := &fakeServiceClient{statusResult: reported}
+		s := &Service{
+			pairedTargetConfigs: []TargetConfig{{Name: "kit", TargetID: "paired-kit", Enabled: true}},
+			pairedTargetClients: map[string]serviceClient{"kit": client},
+			plays:               map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale", system: protocol.SystemSNES}},
+		}
+		status, err := s.Status(WithPairedTarget(context.Background(), "paired-kit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertDropped(t, status)
+		assertPlay(t, s)
+	})
+
+	t.Run("active development keeps game", func(t *testing.T) {
+		activeGame, activeSystem := "live", protocol.SystemSNES
+		client := &fakeServiceClient{statusResult: protocol.Status{
+			State: protocol.StateActive, Development: true, GameID: &activeGame, System: &activeSystem,
+			CorePackage: pkg,
+		}}
+		s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+			targetClients: map[string]serviceClient{"kit": client},
+			plays:         map[string]targetPlay{"kit": {execution: ExecutionFPGADevelopment, gameID: "live", system: protocol.SystemSNES, packageID: pkg.PackageID, packageGeneration: pkg.Generation}}}
+		status, err := s.StatusTarget(context.Background(), "kit")
+		if err != nil || status.GameID == nil || *status.GameID != "live" || status.System == nil || *status.System != protocol.SystemSNES ||
+			status.CorePackage == nil || status.CorePackage.PackageID != pkg.PackageID {
+			t.Fatalf("active status = %+v err=%v", status, err)
+		}
+	})
 }
 
 func TestServiceStopRejectedNamedKitKeepsHostAndOtherKit(t *testing.T) {
@@ -3183,14 +3194,6 @@ func serviceGame(content catalog.Content) catalog.Game {
 	}
 }
 
-func contentIdentity(content catalog.Content) protocol.ContentIdentity {
-	return protocol.ContentIdentity{SHA256: content.SHA256, Size: content.Size, Extension: content.Extension}
-}
-
-func absentProbe(_ context.Context, _ protocol.System, _ protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-	return protocol.CacheProbeResponse{Present: false}, nil
-}
-
 func TestCanonicalRemoteErrorPreservesUnsupportedOperation(t *testing.T) {
 	t.Parallel()
 	private := errors.New("private target detail")
@@ -3457,36 +3460,6 @@ func preparedServiceFixture(t *testing.T, body []byte, identity protocol.Content
 	}
 	prepared.Content = identity
 	return prepared
-}
-
-func assertPreparedRemoved(t *testing.T, prepared *romsource.Prepared) {
-	t.Helper()
-	if file, err := prepared.Open(); err == nil {
-		_ = file.Close()
-		t.Fatal("prepared content remained openable after service cleanup")
-	}
-	if prepared.Path != "" {
-		if _, err := os.Lstat(prepared.Path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("staging path still exists or cannot be inspected: %v", err)
-		}
-	}
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("second Remove = %v, want idempotent success", err)
-	}
-}
-
-func assertProgressStages(t *testing.T, progress []Progress, want []string) {
-	t.Helper()
-	stages := make([]string, len(progress))
-	for index, event := range progress {
-		stages[index] = event.Stage
-		if event.Message == "" {
-			t.Fatalf("progress %d has empty message", index)
-		}
-	}
-	if !reflect.DeepEqual(stages, want) {
-		t.Fatalf("progress stages = %v, want %v", stages, want)
-	}
 }
 
 func writeServiceConfig(t *testing.T, path, baseURL, token, root string) {

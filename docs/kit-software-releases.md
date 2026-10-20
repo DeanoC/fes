@@ -18,8 +18,10 @@ to compile and package the complete software release from committed sources.
 
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
-Its payload includes `bin/mister-agent`, `bin/mister-runtime`, `bin/fogcast-kit`,
-`bin/fogcast-tenfoot` and the required assets beneath `share/`. The pack command
+Its payload includes `bin/mister-agent`, `bin/mister-runtime`,
+`bin/fogcast-tenfoot` and the required assets beneath `share/`. It also carries
+the `bin/fogcast-kit` stub, which answers `--print-kit-ui` with `tenfoot` for
+bases whose supervisor still probes it. The pack command
 fills the closed file inventory with sizes, executable modes and SHA-256 digests.
 A deterministic tar retains `manifest.json` and those exact members. Release
 identity covers the complete canonical manifest, including its file digests.
@@ -70,7 +72,13 @@ Only a pending queued operation can be cancelled. A service replacement already
 underway retains its maintenance ownership through completion or recovery.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
-outcome; a newer generation rejects stale changes.
+outcome; a newer generation rejects stale changes. The client dials with a
+10 second connect timeout and keeps `--timeout` (15 minutes by default) as
+the whole-operation deadline. After the request body is written it waits at
+most five minutes for response headers. Health, status, and list retry a
+network failure up to three times, and each of those reads fails within
+30 seconds. Install, activate, and cancel are not retried. A kit that still
+does not answer reports that it is not ready.
 
 ## Activation and recovery
 
@@ -91,7 +99,21 @@ The supervisor appends its own log and the stdout and stderr of the runtime,
 agent and launcher to `/run/fogcast/software/supervisor.log`. The file rotates
 once, at 2 MiB, to `supervisor.log.1`. The directory is root-only tmpfs, so a
 stalled data disk cannot block the log or drop it. The same bytes are copied to
-the supervisor's original stderr. An accepted launcher that exits is restarted
+the supervisor process stderr. `start` puts that process in a new session and
+points stdin, stdout and stderr at `/dev/null`, so a closed caller pipe cannot
+deliver SIGPIPE. `run` ignores SIGPIPE for the same reason when stderr is a
+pipe that closes.
+
+Each service in the group receives `XDG_CONFIG_HOME=/media/fat/fogcast/state`
+and `XDG_STATE_HOME=/media/fat/fogcast/state`. The supervisor creates that
+directory when `/media/fat/fogcast` is already present. `launcher.json`,
+`agent.toml` and `target-id` stay beside it. Tenfoot stores
+`FogCast/tenfoot.json` and `FogCast/rooms/<id>.state.json` underneath it.
+Home's last selected package is `package_id` in
+`FogCast/rooms/example.fes-cores.state.json`. A state directory that cannot
+be written is logged once; the launcher keeps running.
+
+An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
 the whole group automatically, including when an execution lease was active:
@@ -218,8 +240,18 @@ The supervisor owns the entire group lifecycle. Managed diagnostics use a privat
 bundle. File-swap, baseline and restore commands refuse managed images before
 staging files, taking maintenance or stopping services. Returning to an earlier
 installed bundle is another explicit activation with the current generation;
-there is no automatic stock restoration after a successful update. Temporary
-configuration-only overlays are not supported on managed images. [Kit sharing](kit-sharing.md) describes execution ownership;
+there is no automatic stock restoration after a successful update. On a shared
+kit, when the task installs a bundle, install the PR bundle on the running
+image. After use, if the booted image is not the baseline named in the
+Powerboat status file, restore that image through the appliance update or
+rollback path and verify the boot before activating software. Then explicitly
+activate the designated baseline bundle against the current generation, as
+[kit sharing](kit-sharing.md) requires. That activation does not change the
+booted image and leaves the successful selection installed. Verify the active
+bundle before logging the kit restored. A core-only run that does not
+change the bundle does not install one. Do not cancel another owner's pending activation to
+clean up. Kits take no file or configuration overlays.
+[Kit sharing](kit-sharing.md) describes execution ownership;
 [appliance releases](appliance-releases.md) cover OS changes and boot identity.
 Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit

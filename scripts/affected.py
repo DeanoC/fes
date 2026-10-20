@@ -14,8 +14,8 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 # Simulation families include the standalone CPU; it has no play-package recipe.
-CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv')
-SIMULATION_ONLY_CORES = frozenset({'z80'})
+CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt')
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
@@ -40,12 +40,12 @@ CI_BROAD_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'synth_fes_native_video.py', 'build_fes_coleco_socket_v2.py',
+    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
-    'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
+    'core_package.py', 'export_core_package.py', 'search_placer_qor.py', 'pnr_recipe.py',
 }
 # Directory ownership includes cross-core consumers: demo and RISC-V import Pong
 # board models/constraints/PLL; SG-1000 and SMS still include Coleco generated headers.
@@ -56,7 +56,7 @@ CORE_DIRECTORIES = {
     'fes-zx81': ('zx81',), 'fes-coleco': COLECO_CONSUMERS,
     'fes-menu': ('menu',), 'fes-sg1000': ('sg1000',), 'fes-sms': ('sms',), 'fes-apple2': ('apple2',),
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
-    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',),
+    'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',),
 }
 # ZX81's in-session plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
@@ -77,7 +77,7 @@ SHARED_RTL = {
     'fes_native_video_cart.v': ('coleco',),
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
-    'coleco_video_dpram.v': COLECO_CONSUMERS,
+    'coleco_video_dpram.v': (*COLECO_CONSUMERS, 'pcxt'),
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
@@ -87,10 +87,10 @@ SHARED_RTL = {
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
     't80pa.v': ('coleco', 'sms'),
-    'fes_video_part_direct.v': ('coleco', 'atari-st'),
-    'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
+    'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
+    'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -114,9 +114,13 @@ def fpga_cores(path):
     parts = relative.parts
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
+        return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
+    if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
+        return ('pcxt',), 'PC/XT ISA fabric consumer'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -126,7 +130,7 @@ def fpga_cores(path):
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
             if parts[2] == 'rtl':
-                return ('z80', 'sg1000', 'spectrum'), 'shared original Z80 RTL consumers'
+                return ('z80', 'sg1000', 'spectrum', 'zx81'), 'shared original Z80 RTL consumers'
             return ('z80',), 'standalone Z80 simulation fixtures'
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
@@ -152,7 +156,7 @@ def fpga_cores(path):
                        for suffix in ('', '_oss'))
         if producer or parts[1] in FPGA_PRODUCER_HELPERS:
             return (), 'FPGA producer/package software tests; RTL unchanged'
-        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py'):
+        if parts[1] in ('sim_fes_demo.py', 'sim_fes_menu.py', 'sim_fes_z80.py', 'sim_fes_riscv.py', 'sim_fes_pcxt.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):

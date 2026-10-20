@@ -67,9 +67,11 @@ bool HasMenu(const CoreDescriptor& descriptor) {
  return false;
 }
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
- if(descriptor.abi.id!=generated::FesSimpleComputerABIID)return false;
+ if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
+  descriptor.abi.id!=generated::FesComputerABIID)return false;
  for(const auto& interface:descriptor.interfaces)
-  if(interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&
+  if((interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
+   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID)&&
    interface.required&&interface.major==1&&interface.minor==0)return true;
  return false;
 }
@@ -90,7 +92,8 @@ Error CheckMenu(const CoreDescriptor& descriptor) {
 bool RequiresHpsDdr(const CoreDescriptor& descriptor)
 {
 	if (descriptor.abi.id != generated::FesApplicationABIID &&
-		descriptor.abi.id != generated::FesSimpleComputerABIID) return false;
+		descriptor.abi.id != generated::FesSimpleComputerABIID &&
+		descriptor.abi.id != generated::FesComputerABIID) return false;
 	for (const CoreInterface& interface : descriptor.interfaces)
 		if (interface.id == generated::FesApplicationInterfaceMemoryHpsDdrID &&
 			interface.required &&
@@ -746,10 +749,21 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaSpectrumTapeID,
 				generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 				generated::FesComputerInterfaceMediaSpectrumTapeMinor},
+			{generated::FesComputerInterfaceMediaZx81TapeID,
+				generated::FesComputerInterfaceMediaZx81TapeMajor,
+				generated::FesComputerInterfaceMediaZx81TapeMinor},
 			{kSpectrumExpansionBusID, 1, 0},
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
+		// DDR follows the latched boot layout. Session display also needs both
+		// presentation adapters, matching admission of each interface.
+		if (fpga_.BootHpsDdrLayout())
+			computer_io.interfaces.push_back(
+				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+			computer_io.interfaces.push_back(
+				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
@@ -1422,14 +1436,14 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
-   menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
-   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,
@@ -1463,7 +1477,9 @@ Error NativeHardware::SetSessionDisplay(bool visible)
   if(menu_status_.available)return {};
   // Neutralize held machine keys before handing navigation to the UI. There
   // is no execution hold here: BASIC, RAM and expansions keep running.
-  Error error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+  const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
+  Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+  if(home&&error.code==ErrorCode::unsupported_interface)error={};
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
   session_display_focused_=true;
@@ -1601,6 +1617,11 @@ Error NativeHardware::FailMenuPresent(const Error& error)
  if(!menu_directory_.empty()&&MenuReactivationAllowed()){++menu_reactivations_;return error;}
  menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
 }
+bool NativeHardware::AcceptsMenuDamage(std::uint32_t base_sequence) const
+{
+ return menu_status_.available&&!menu_unsafe_&&menu_memory_&&base_sequence!=0&&
+  base_sequence==menu_status_.displayed_sequence&&menu_memory_->HasShadow(base_sequence);
+}
 Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* output)
 {
  if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_memory_)
@@ -1616,8 +1637,14 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
   error={ErrorCode::io_failed,"menu sequence exhausted","menu"};
  const auto slot=std::uint8_t(menu_slot_^1);
  const auto sequence=info.displayed_sequence+1;
- if(error.ok())error=menu_memory_->CopyRgba(slot,frame);
+ using Steady=std::chrono::steady_clock;
+ const auto micros=[](Steady::time_point from,Steady::time_point to){
+  return std::uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(to-from).count());};
+ const auto copy_start=Steady::now();
+ if(error.ok())error=menu_memory_->CopyRgba(slot,frame,sequence);
+ const auto submit_start=Steady::now();
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
+ const auto wait_start=Steady::now();
  while(error.ok()) {
   error=menu_display_->ReadInfo(deadline,&info);if(!error.ok())break;
   if(!info.enabled||!info.configured||info.quiesced||info.faulted||
@@ -1629,7 +1656,10 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
    if(delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
-   menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;*output=info;return {};
+   menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
+   info.copy_us=micros(copy_start,submit_start);info.submit_us=micros(submit_start,wait_start);info.scanout_wait_us=micros(wait_start,Steady::now());
+   info.stored_pixels=std::uint32_t(menu_memory_->last_stored_pixels());
+   *output=info;return {};
   }
   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}
   std::this_thread::sleep_for(std::chrono::milliseconds(1));

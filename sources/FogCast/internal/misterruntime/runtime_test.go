@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -114,17 +115,6 @@ func (c *recordingControl) developmentCalls() (int, []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.developmentN, append([]string(nil), c.developmentPaths...)
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	copy := make(map[string]string, len(values))
-	for key, value := range values {
-		copy[key] = value
-	}
-	return copy
 }
 
 func runtimeResponse(state, execution string) misterruntime.Protocol2Response {
@@ -1182,7 +1172,7 @@ func TestRecoverIdleMapsMissingOperationToUnsupported(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "runtime.sock")
+			path := testsock.Path(t, "runtime.sock")
 			listener, err := net.Listen("unix", path)
 			if err != nil {
 				t.Fatal(err)
@@ -1416,15 +1406,6 @@ func assertUnavailableStatus(t *testing.T, status protocol.Status) {
 	}
 }
 
-func writeNativeROM(t *testing.T, extension string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "sonic2"+extension)
-	if err := os.WriteFile(path, []byte("native Mega Drive ROM fixture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 var _ io.Reader = (*failOnRead)(nil)
 
 type lostResponseSocketServer struct {
@@ -1441,7 +1422,7 @@ type lostResponseSocketServer struct {
 
 func newLostResponseSocketServer(t *testing.T, cancel context.CancelFunc, statuses ...string) *lostResponseSocketServer {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "mister-runtime.sock")
+	path := testsock.Path(t, "mister-runtime.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

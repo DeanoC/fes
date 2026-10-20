@@ -17,6 +17,41 @@ import (
 	"time"
 )
 
+func TestOverlayEnvReplacesInheritedStateDir(t *testing.T) {
+	got := overlayEnv(
+		[]string{"HOME=/", "XDG_CONFIG_HOME=/.config", "PATH=/bin"},
+		"FES_SOFTWARE_MANAGED=1",
+		"XDG_CONFIG_HOME="+PersistentStateDir,
+		"XDG_STATE_HOME="+PersistentStateDir,
+	)
+	want := map[string]string{
+		"HOME":                 "/",
+		"PATH":                 "/bin",
+		"FES_SOFTWARE_MANAGED": "1",
+		"XDG_CONFIG_HOME":      PersistentStateDir,
+		"XDG_STATE_HOME":       PersistentStateDir,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("env = %#v", got)
+	}
+	seen := map[string]int{}
+	for _, kv := range got {
+		key, value, ok := strings.Cut(kv, "=")
+		if !ok {
+			t.Fatalf("env entry %q", kv)
+		}
+		seen[key]++
+		if want[key] != value {
+			t.Fatalf("%s=%s, want %s", key, value, want[key])
+		}
+	}
+	for key := range want {
+		if seen[key] != 1 {
+			t.Fatalf("%s seen %d times in %#v", key, seen[key], got)
+		}
+	}
+}
+
 func TestTermIgnoringProcessFixture(t *testing.T) {
 	ready := os.Getenv("FES_TEST_IGNORE_TERM_READY")
 	if ready == "" {
@@ -117,24 +152,6 @@ func TestAgentConfigWaitAppearsAndExpires(t *testing.T) {
 	}
 	if err := waitForAgentConfig(ctx, filepath.Join(dir, "missing.toml"), 30*time.Millisecond); err == nil {
 		t.Fatal("missing configuration succeeded")
-	}
-}
-
-func TestLauncherProbeTimeoutDoesNotFollowParentContext(t *testing.T) {
-	dir := t.TempDir()
-	kit := filepath.Join(dir, "fogcast-kit")
-	// Sleep in this process. A shell waiting on a child would keep the output
-	// pipe open after the shell itself was killed.
-	if err := os.WriteFile(kit, []byte("#!/usr/bin/python3\nimport time\ntime.sleep(30)\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	started := time.Now()
-	_, err := probeLauncherUI(context.Background(), kit, 200*time.Millisecond)
-	if err == nil || !strings.Contains(err.Error(), "timed out") {
-		t.Fatal(err)
-	}
-	if time.Since(started) > 2*time.Second {
-		t.Fatal("probe followed an unbounded parent context", time.Since(started))
 	}
 }
 

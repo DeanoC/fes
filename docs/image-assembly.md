@@ -65,7 +65,7 @@ legacy `/fogcast` layout.
 
 The tracked `sources/FogCast` module owns:
 
-- `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
+- `cmd/mister-agent`, `cmd/fogcast-tenfoot` and the `cmd/fogcast-kit` stub (installed ARM binaries)
 - `cmd/target-image-lock` (extra-core selector / lock verifier)
 - public `appliance` schema/store module consumed by FES `platform/`
 
@@ -92,7 +92,9 @@ target-image container, exports its relocatable SDK with `make sdk`, and stores
 a deterministic `host.tar` under
 `image/build/cache/target-image/toolchains/<key>/`. The key hashes the pinned
 Buildroot commit, the shared toolchain fragment bytes, the target-image
-container package-lock SHA-256, and `SOURCE_DATE_EPOCH`. The cache receipt
+container package-lock SHA-256, `SOURCE_DATE_EPOCH`, and the builder context:
+the lock's `[container]` image, platform and digest, plus the
+`containers/target-image/Dockerfile` and `create-builder-user.sh` bytes. The cache receipt
 records the archive SHA-256; both are checked before reuse. A missing or changed
 archive triggers a cold toolchain build. `TOOLCHAIN_REBUILD=1 make build` forces
 that rebuild and also bypasses the parent image receipt reuse.

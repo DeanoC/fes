@@ -53,7 +53,7 @@ class FunctionalColecoTests(unittest.TestCase):
             self.assertEqual(build_identity(before), build_identity(record()))
             for relative in ("scripts/fes_build_common.py", "cores/fes-common/rtl/fes_application_gp.v",
                              "cores/fes-coleco/rtl/top.v", "cores/fes-coleco/clocks-oss.sdc",
-                             "toolchain.lock"):
+                             "cores/fes-coleco/toolchain.lock"):
                 with self.subTest(relative=relative):
                     path = root / relative
                     original = path.read_bytes()
@@ -110,13 +110,13 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(producer._require_clean_source(module), (repository, revision))
                     if producer is build_fes_sms_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-sms/toolchain.lock")
                     elif producer is build_fes_sg1000_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-sg1000/toolchain.lock")
                     elif producer is coleco:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-coleco/toolchain.lock")
                     else:
                         relatives = ("scripts/fes_build_common.py",)
                     for relative in relatives:
@@ -193,6 +193,68 @@ class FunctionalColecoTests(unittest.TestCase):
         self.assertNotIn("LD_PRELOAD", env)
         self.assertNotIn("YOSYS_DATDIR", env)
         self.assertNotEqual(execution_digest({"gpu_device": 0}), execution_digest({"gpu_device": 1}))
+
+    def test_sealed_execution_does_not_name_the_requested_gpu(self):
+        from scripts.functional_execution import execution_inputs
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "nextpnr-mistral"
+            binary.write_bytes(b"router")
+            binary.chmod(0o755)
+            tools = {"nextpnr-mistral": binary}
+            env = execution_environment(Path(temporary), tools)
+            with patch("scripts.functional_execution._machine_input_files", return_value=[]), \
+                 patch("scripts.functional_execution.subprocess.run",
+                       return_value=SimpleNamespace(returncode=0, stdout="", stderr="")):
+                requested_zero = execution_inputs(tools, env, 0)
+                requested_one = execution_inputs(tools, env, 1)
+            self.assertEqual(requested_zero["gpu_device"], "lease")
+            self.assertEqual(requested_zero["gpu_selection"], "lease")
+            self.assertNotIn("gpu_device_requested", requested_zero)
+            self.assertEqual(requested_zero, requested_one)
+            self.assertEqual(execution_digest(requested_zero), execution_digest(requested_one))
+            with self.assertRaisesRegex(ValueError, "nonnegative"):
+                execution_inputs(tools, env, -1)
+            with self.assertRaisesRegex(ValueError, "nonnegative"):
+                execution_inputs(tools, env, True)
+
+    def test_functional_invocation_preserves_gpu_lease_routing_environment(self):
+        from scripts.functional_execution import FunctionalInvocation
+        lease_env = {
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+            "LD_PRELOAD": "ambient-loader",
+            "YOSYS_DATDIR": "ambient-yosys",
+        }
+        tools = {"nextpnr-mistral": SimpleNamespace(
+            path=Path("/qualified/install/bin/nextpnr-mistral"))}
+        with patch.dict("os.environ", lease_env, clear=True), \
+             patch("scripts.functional_execution.execution_inputs",
+                   return_value={"environment": "captured"}) as inputs:
+            invocation = FunctionalInvocation(
+                tools, gpu_device=0,
+                extra_env={"NEXTPNR_REQUIRE_GPU": "0", "RECIPE_VALUE": "kept"})
+            self.addCleanup(invocation.close)
+            self.assertEqual(invocation.env["FES_GPU_IDS"], "1,2")
+            self.assertEqual(invocation.env["GPU_RUN_DEVICE"], "0")
+            self.assertEqual(invocation.env["GPU_RUN_EXPECTED_DEVICE"], "amd:1")
+            self.assertEqual(invocation.env["NEXTPNR_REQUIRE_GPU"], "1")
+            self.assertEqual(invocation.env["ROCR_VISIBLE_DEVICES"], "1,2")
+            self.assertNotIn("HIP_VISIBLE_DEVICES", invocation.env)
+            self.assertNotIn("CUDA_VISIBLE_DEVICES", invocation.env)
+            self.assertEqual(invocation.env["RECIPE_VALUE"], "kept")
+            self.assertNotIn("LD_PRELOAD", invocation.env)
+            self.assertNotIn("YOSYS_DATDIR", invocation.env)
+            self.assertEqual(inputs.call_args.args[1], invocation.env)
+
+        with patch.dict("os.environ", {"CUDA_VISIBLE_DEVICES": "ambient"}, clear=True), \
+             patch("scripts.functional_execution.execution_inputs",
+                   return_value={"environment": "captured"}):
+            invocation = FunctionalInvocation(tools, gpu_device=0)
+            self.addCleanup(invocation.close)
+            self.assertNotIn("CUDA_VISIBLE_DEVICES", invocation.env)
 
     def test_mixed_gpu_host_records_kfd_and_nvidia(self):
         with tempfile.TemporaryDirectory() as temporary:

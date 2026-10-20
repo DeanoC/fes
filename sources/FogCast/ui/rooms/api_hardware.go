@@ -114,11 +114,19 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	}
 	out.RawSetString("machines", machines)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
+	// Save support is separate from a machine's content readiness. An omitted
+	// field stays absent so an older unpaired host keeps its existing save.
+	if v.ExpansionSelection != nil {
+		out.RawSetString("expansion_selection", lua.LBool(*v.ExpansionSelection))
+	}
 	if s := v.Session; s != nil {
 		session := L.NewTable()
-		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		session.RawSetString("tape_available", lua.LBool(tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))))
+		// Menu-display kits show the room only when the running package reports
+		// the session-display plane. That includes fes.computer ZX81.
+		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {

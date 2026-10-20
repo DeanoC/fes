@@ -28,22 +28,25 @@ from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
 )
 from scripts.fes_build_common import (
+    cuda_toolchain_configuration,
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    reject_async_m10k_reads, validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources, write_core_unavailable_report,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.atari-st")
+ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_atari_st_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-atari-st-oss")
 DIAGNOSTIC_OUTPUT = Path("build/fes-atari-st-oss-diagnostic")
-ST_TOOLCHAIN_LOCK = "toolchain.lock"
+ST_TOOLCHAIN_LOCK = "cores/fes-atari-st/toolchain.lock"
 ST_TOOLCHAIN_ROOT = "build/toolchain/fes-atari-st"
 ST_GPU_BACKEND = "hip"
 ST_GPU_ROUTER = "HIP"
@@ -51,20 +54,15 @@ ST_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 ST_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={ST_GPU_ROUTER}; hip-architectures={ST_GPU_ARCHITECTURES}"
 )
-ST_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
-}
 # First passing route wins; the order is part of the build identity. Seed 4
 # completed the initial diagnostic route; seed 5 exceeded its old placement bound.
-PLACER_SEEDS = (4, 5, 2, 1, 3, 6, 7, 8, 9, 10)
-PLACER_WEIGHT = 2000
-PLACER_CRITICALITY_EXPONENT = 5
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
 # The initial 22.5k-cell route takes about nine minutes before timing repair.
 # Bound each Atari attempt separately from smaller cores' shared search default.
-PLACER_TIMEOUT_SECONDS = 1800
-PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
+PLACER_TIMEOUT_SECONDS = PNR["timeout_s"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.atari-st")
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
@@ -94,7 +92,7 @@ RTL_SOURCES = (
     f"{CPU_VENDOR}/fx68k.sv", f"{CPU_VENDOR}/fx68kAlu.sv", f"{CPU_VENDOR}/uaddrPla.sv",
     "cores/fes-atari-st/rtl/fes_atari_st_top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
-    "cores/fes-common/rtl/fes_computer_mailbox.v",
+    "cores/fes-common/rtl/fes_computer_mailbox_direct.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_video_part_direct.v",
@@ -112,7 +110,7 @@ PINNED_INPUTS = (
     "scripts/generate_st_ym_mix_rom.py",
     "cores/fes-atari-st/data/ym2149_fixed_vol.h", "cores/fes-atari-st/data/source.json",
     "cores/fes-atari-st/data/GPL-2.0.txt",
-    ABI_DEFINITION, ST_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    ABI_DEFINITION, ST_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
     *(f"{CPU_VENDOR}/{name}" for name in ("source.json", "microrom.mem", "nanorom.mem", "fx68k.txt", "LICENSE")),
 )
 BUILD_OUTPUTS = (
@@ -142,7 +140,7 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == "HIP":
         return ST_GPU_BACKEND, ST_GPU_ARCHITECTURES, ST_TOOLCHAIN_CONFIGURATION
     if gpu_router == "CUDA":
-        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+        return "cuda", "unused", cuda_toolchain_configuration()
     raise BuildError(f"unsupported Atari ST GPU router {gpu_router}")
 
 
@@ -163,7 +161,6 @@ def _authenticate_atari_st_tools(root: Path, cache_root: Path | None = None,
         root,
         lock_path=root / ST_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=ST_TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
@@ -338,7 +335,7 @@ def build_commands(root: Path, output: Path, build_id: str,
     verilog_sources = {
         "cores/fes-atari-st/rtl/fes_atari_st_top.v",
         "cores/fes-c64/rtl/c64_system_pll.v",
-        "cores/fes-common/rtl/fes_computer_mailbox.v",
+        "cores/fes-common/rtl/fes_computer_mailbox_direct.v",
         "cores/fes-common/rtl/fes_audio_output.v", "cores/fes-common/rtl/fes_audio_i2s.v",
         "cores/fes-common/rtl/fes_video_part_direct.v",
         "cores/fes-common/rtl/fes_video_part_scanlines.v",
@@ -828,12 +825,20 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=("--router", ROUTER),
+                mode="first-pass", extra=(),
                 timeout=PLACER_TIMEOUT_SECONDS,
                 required=PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root,
+                env=invocation.env, audit_source_root=root, core_id="fes.atari-st",
             )
         except SearchError as exc:
+            if exc.reason == "timing-not-met":
+                write_core_unavailable_report(root, {
+                    "version": 1,
+                    "core_id": "fes.atari-st",
+                    "reason": "timing-not-met",
+                    "seeds": list(exc.seeds),
+                    "figures": [dict(figure) for figure in exc.figures],
+                })
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, ram_database=database, gpu_backend=backend)
         evidence["cpu_rom_clock_repairs"] = repaired

@@ -268,6 +268,82 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 	}
 }
 
+func TestSuspendedRoomRefreshesFirmwareBeforeResume(t *testing.T) {
+	dir := t.TempDir()
+	bios := filepath.Join(dir, "coleco.bios")
+	payload := bytes.Repeat([]byte{0x55, 0xaa}, int(protocol.FirmwareBytes/2))
+	if err := os.WriteFile(bios, payload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := newFirmwareHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "coleco", `
+function load()
+  library.query({ q = "Frogger" }, function(games, err)
+    held = games
+    destination.set{ kind = "game", label = "Frogger", query = "Frogger", platform = "fpga", matches = games }
+  end)
+end
+function on_resume()
+  if held then
+    destination.set{ kind = "game", label = "Frogger", query = "Frogger", platform = "fpga", matches = held }
+  end
+end
+function draw() gfx.rect(0,0,10,10,'#fff') end
+`),
+	})
+	app := newRoomApp(t, h.asRoomHost(), index, true)
+	app.mu.Lock()
+	app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "usb", System: "coleco", Root: dir}}
+	app.mu.Unlock()
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	focusHomeRow(t, app, HomeKindRoom, "coleco")
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "frogger unavailable", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Confirm() == rooms.ConfirmImportFirmware
+	})
+
+	app.mu.Lock()
+	app.suspendRoomsForLibraryLocked()
+	app.mu.Unlock()
+	if app.Snapshot().Room.Open {
+		t.Fatal("Library did not suspend the room")
+	}
+
+	waitFor(t, app, "library catalog after room suspend", func(s Snapshot) bool {
+		return !s.Loading && len(s.Games) == 1
+	})
+	app.HandleCommand(CmdSelect, now)
+	if !app.Snapshot().FirmwarePicker.Open {
+		t.Fatal("selecting the focused library title did not open the BIOS picker")
+	}
+	selectLibraryRoot(t, app, dir)
+	selectNamedRow(t, app, "coleco.bios")
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "bios imported", func(s Snapshot) bool {
+		return !s.FirmwarePicker.Open && len(s.Games) == 1 && s.Games[0].FirmwareReady
+	})
+	app.mu.Lock()
+	suspended := app.libraryReturn
+	var before rooms.Destination
+	if suspended != nil && suspended.room != nil {
+		before = suspended.room.Destination()
+	}
+	app.mu.Unlock()
+	if suspended == nil || before.Availability != rooms.AvailReady || before.Confirm() != rooms.ConfirmLaunch {
+		t.Fatalf("suspended room was not refreshed: origin=%v dest=%+v", suspended != nil, before)
+	}
+
+	app.HandleCommand(CmdBack, now)
+	snap := waitFor(t, app, "resumed ready", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+	if snap.Room.Destination.Confirm() != rooms.ConfirmLaunch || snap.Room.Destination.Label != "Frogger" {
+		t.Fatalf("resume republished the stale BIOS block: %+v", snap.Room.Destination)
+	}
+}
+
 func TestDismissedFirmwarePickerStillRefreshes(t *testing.T) {
 	dir := t.TempDir()
 	bios := filepath.Join(dir, "coleco.bios")

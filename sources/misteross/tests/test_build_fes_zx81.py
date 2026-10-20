@@ -39,9 +39,14 @@ class BuildFesZx81Tests(unittest.TestCase):
             f'python3 scripts/build_fes_zx81.py --root "{ROOT}"',
         )
 
-    def test_project_pins_vhdl_t80_dual_pll_and_hdmi_i2c_site(self) -> None:
+    def test_project_pins_nmos_z80_dual_pll_and_hdmi_i2c_site(self) -> None:
         qsf = project_qsf(ROOT, ROOT / "build/fes-zx81-quartus/project", "00112233445566778899aabbccddeeff")
-        self.assertIn("T80pa.vhd", qsf)
+        self.assertIn("fes_z80_nmos.sv", qsf)
+        self.assertIn("fes_z80_alu.sv", qsf)
+        self.assertIn("fes_z80_engine.sv", qsf)
+        self.assertIn("fes_z80_bus.sv", qsf)
+        self.assertNotIn("T80pa.vhd", qsf)
+        self.assertNotIn("VHDL_FILE", qsf)
         self.assertIn("zx81_machine.sv", qsf)
         self.assertIn("sys_pll.v", qsf)
         self.assertIn("pixel_pll.v", qsf)

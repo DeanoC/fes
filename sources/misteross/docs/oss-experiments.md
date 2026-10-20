@@ -1542,6 +1542,29 @@ still passed. `stop` completed development reboot recovery and left the
 lease free. The current nextpnr pin `d22eaef1` with Yosys `da6373c0`
 reproduces those same RBF bytes.
 
+`755_dsp_signed` exposes four products of the same two full-width 9-bit
+operands on HPS GP, so a set bit 8 reads as negative in the signed products and
+as 256..511 in the unsigned one. GPO `[8:0]` is left, `[17:9]` is right, bit
+18 selects the high half of a 32-bit view and `[20:19]` selects the product:
+`0` signed 9x9, `1` unsigned 9x9, `2` signed 18x18 of `{left, right}` by
+`{right, left}`, `3` signed 27x27 of `{left, right, left}` by
+`{right, left, right}` (low 32 bits). GPI signature `0xD61A`. Yosys emits two
+`MISTRAL_MUL9X9` (one signed, one unsigned), one `MISTRAL_MUL18X18` and one
+`MISTRAL_MUL27X27`, each carrying `A_SIGNED`/`B_SIGNED`; nextpnr-mistral
+configures the signedness the way Quartus does (sign-extended lane 0 for the
+signed 9x9, all four sign bits for 9x9 and 27x27, `BY_SIGNED` plus the
+nineteenth Y bit for 18x18), so the signed and unsigned 9x9 occupy two DSP
+sites. `0x1FF * 0x1FF` reads `0x00001` signed and `0x3FC01` unsigned. Memory
+and PLL remain forbidden. This rung needs the Yosys `dsp_map.v` signedness fix
+and the matching nextpnr; the pinned tools configure every product as signed
+and fail the unsigned 9x9 and every wide product. The OSS policy checks the
+expected `A_SIGNED`/`B_SIGNED` pattern in `synth.json` before routing, so the
+current lock fails before publishing an RBF. Simulation is supported; a valid
+OSS artifact and kit diagnostic still require the paired toolchain fixes.
+Quartus comparison uses decompiled DSP configuration only
+(`nextpnr/mistral/tests/fixtures/dsp-signedness`).
+See `experiments/755_dsp_signed/expected.md`.
+
 `760_pll_52` measures PIN_V11 50 MHz → 52 MHz through one `altera_pll`.
 GPI signature `0xD752`. The 520 MHz feedback profile supplies that rate
 as C6=10. Simulation uses a digital toggling stand-in. Memory and DSP

@@ -11,8 +11,17 @@ library is empty. The Amiga-themed `example.workbench` remains a separate room.
 
 ## Use the workbench
 
+The room follows the Retro Workshop direction in [the UX brief](ux/README.md).
+The setup column shows **Running**, **Next start** and, while an unsaved card is
+inspected, **Previewing … (not saved)** together. The machine illustration draws a ready saved card solid and keeps it there while a
+ready inspected card is outlined beside it with a **Preview** label. A saved
+card the host marks unavailable keeps its **Next start** label and is drawn in
+the shelf's unavailable colour, not as a fitted card. An unavailable preview
+stays in the text column and is not drawn on the connector.
+Without a session reading, **Running** says unknown rather than not running. The restart and memory consequences sit beside **Fit & save setup**.
+
 Choose a card on the shelf to inspect its description, then **Fit & save
-setup**. **Remove & save setup** clears the connector. Both actions save the
+setup**. **Remove & save** clears the connector. Both actions save the
 core entry on the host, so another LAN client reads the same choice. **Next
 setup** cycles existing ZX81 entries. These are saved hardware selections for
 the next start, not snapshots of running memory.
@@ -25,8 +34,13 @@ cards is outside this change. The selected family supplies household presentatio
 text, while the immutable archive and host admission decide compatibility.
 
 **Choose cassette** saves a `.p` import, an embedded starter tape, or no tape for
-the next launch. Selection compares both the package and previous media ID;
-another client's change requires a refresh. Opening the shelf imports nothing.
+the next launch. The host's cassette label is shown on its own row above the
+machine controls. A starter uses its display name. An import is labelled
+"Imported cassette" plus the first eight characters of its digest; the admitted
+filename is not stored on the machine record
+([#801](https://github.com/DeanoC/fes/issues/801)). A label that does not fit
+keeps its start and its end. Selection compares both the package and previous
+media ID; another client's change requires a refresh. Opening the shelf imports nothing.
 The three attributed starter tapes are Guess the Number (MIT, 1 KiB), Aritm
 (GPL-3.0-or-later, 16 KiB recommended), and Character Display (MIT, 16 KiB
 recommended). Their sources, licences, provenance and checksums are retained in
@@ -88,6 +102,10 @@ not optimistically stopped or ejected.
 operation. It requires the exact `package_id`, `expected_expansion_id` and new
 `expansion_id` (empty removes). The host verifies the immutable expansion
 against the selected shell and compares the old selection before writing.
+`GET /api/v1/library/hardware` advertises that write as `expansion_selection`.
+The paired launcher admits this one PUT after the bearer and paired-target
+checks and forwards the body unchanged. It does not admit slot writes,
+presentation edits, other library writes, or a different foreground target.
 Stale clients refresh instead of overwriting another client's setup. A failed
 or ambiguous save is not replayed by the room.
 
@@ -113,7 +131,12 @@ path.
 
 The sandbox exposes `hardware.read(callback)` and
 `hardware.select_expansion(selection, callback)` through optional typed
-services. `hardware.setup()`, `hardware.open_tapes(selection)` and
+services. The snapshot's `expansion_selection` is save permission and is
+separate from socket or card readiness. An explicit false keeps the shelf
+inspectable and tells the operator to save Next start on the host computer's
+ZX81 Workshop. An omitted field means an older host: a paired kit treats it
+as read-only, and an unpaired host keeps the existing save.
+`hardware.setup()`, `hardware.open_tapes(selection)` and
 `hardware.import_expansion(selection)` dispatch typed launcher actions. Lua has
 no network API. `GET /api/v1/library/zx81-tapes` lists starter metadata;
 `POST /api/v1/library/zx81-tapes/{tape_id}/import` imports only that exact embedded
@@ -129,8 +152,9 @@ the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace
 the running core. Paired launchers have access to hardware/starter reads, exact
-starter imports, tape imports of 1..16384 bytes and captured live operations;
-next-start library writes and host filesystem settings remain host operations.
+starter imports, tape imports of 1..16384 bytes, captured live operations, and
+the single-entry next-start expansion PUT. Other library writes and host
+filesystem settings remain host operations.
 
 ## Design provenance and next families
 

@@ -387,7 +387,9 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 		socket=interface.id;
 		socket_major=interface.major;
 	}
-	const std::string abi=socket=="fes.expansion.coleco-bus" ? "fes.application" : "fes.simple-computer";
+	std::string abi = socket=="fes.expansion.coleco-bus" ? "fes.application" : "fes.simple-computer";
+	// Installed ZX81 packages stay on fes.simple-computer. The current shell is fes.computer.
+	if (socket=="fes.expansion.zx81-bus" && descriptor.abi.id=="fes.computer") abi="fes.computer";
 	if (socket.empty() || descriptor.abi.id!=abi || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
 		return Invalid("base package does not declare a matching optional expansion bus");
 	const auto& info=request.composition;

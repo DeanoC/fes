@@ -146,6 +146,26 @@ bool BoundedInteger(const json::Value* value, std::int64_t minimum, std::int64_t
 		value->integer_value >= minimum && value->integer_value <= maximum;
 }
 
+// {"base_sequence":N,"rects":[[x,y,w,h],...]}: 1..16 rects inside the frame.
+Error ReadMenuDamage(const json::Value& value,MenuDamage* output)
+{
+ Error error;const char* const fields[]={"base_sequence","rects"};
+ if(value.type!=json::Type::object||!HasOnly(value,fields,2,&error))return Invalid("invalid menu damage");
+ const auto* base=Find(value,"base_sequence");const auto* rects=Find(value,"rects");
+ if(!BoundedInteger(base,1,0xffffffffLL)||!rects||rects->type!=json::Type::array||rects->array.empty()||
+  rects->array.size()>kMenuDamageMaxRects)return Invalid("menu damage needs a base sequence and 1 to 16 rects");
+ MenuDamage damage;damage.base_sequence=std::uint32_t(base->integer_value);
+ const std::int64_t width=native::generated::FesApplicationMenuWidth,height=native::generated::FesApplicationMenuHeight;
+ for(const auto& rect:rects->array) {
+  if(rect.type!=json::Type::array||rect.array.size()!=4)return Invalid("menu damage rect is [x,y,w,h]");
+  std::int64_t v[4];
+  for(int i=0;i<4;++i){if(rect.array[i].type!=json::Type::integer)return Invalid("menu damage rect is [x,y,w,h]");v[i]=rect.array[i].integer_value;}
+  if(v[0]<0||v[1]<0||v[2]<1||v[3]<1||v[0]+v[2]>width||v[1]+v[3]>height)return Invalid("menu damage rect is outside the frame");
+  damage.rects.push_back({std::uint16_t(v[0]),std::uint16_t(v[1]),std::uint16_t(v[2]),std::uint16_t(v[3])});
+ }
+ *output=std::move(damage);return {};
+}
+
 // Closed video/CPU role list, shared by parts inspection and ROM activation.
 Error ReadPartsComposition(const json::Value& root, const std::string& package_id,
     CoreCompositionRequest* result)
@@ -679,6 +699,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"slot_bytes\":");output.Append(std::to_string(geometry.slot_bytes));
   output.Append(",\"staging_format\":\"rgba8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
   output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
+  if(menu.damage)output.Append(",\"damage\":true");
   output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
  }
  if(menu_frame) {
@@ -686,7 +707,14 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"byte_count\":");output.Append(std::to_string(native::generated::FesApplicationMenuFrameBytes));
   output.Append(",\"staging_format\":\"rgba8888\",\"displayed_sequence\":");
   if(menu_frame->prepared)output.Append("null");else output.Append(std::to_string(menu_frame->displayed_sequence));
-  output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));output.Append("}");
+  output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));
+  if(!menu_frame->prepared) {
+   output.Append(",\"timing\":{\"copy_us\":");output.Append(std::to_string(menu_frame->copy_us));
+   output.Append(",\"submit_us\":");output.Append(std::to_string(menu_frame->submit_us));
+   output.Append(",\"scanout_wait_us\":");output.Append(std::to_string(menu_frame->scanout_wait_us));
+   output.Append(",\"stored_pixels\":");output.Append(std::to_string(menu_frame->stored_pixels));output.Append("}");
+  }
+  output.Append("}");
  }
 	output.Append(",\"generation\":");
 	if (status.generation == 0) output.Append("null");
@@ -775,8 +803,12 @@ Error ParseRequest(const std::string& line, Request* request)
    parsed.operation=Operation::session_display;parsed.expected_package_id=*id;parsed.visible=visible->boolean_value;
   } else if(operation->string_value=="menu_frame_begin"||operation->string_value=="menu_frame_commit") {
    const bool begin=operation->string_value=="menu_frame_begin";
-   const char* const fields[]={"protocol","operation",begin?"expected_generation":"generation","byte_count"};
-   if(!HasOnly(root,fields,4,&error))return error;
+   const char* const fields[]={"protocol","operation",begin?"expected_generation":"generation","byte_count","damage"};
+   if(!HasOnly(root,fields,begin?4:5,&error))return error;
+   if(const auto* damage=Find(root,"damage")) {
+    error=ReadMenuDamage(*damage,&parsed.menu_damage);if(!error.ok())return error;
+    parsed.has_menu_damage=true;
+   }
    const auto bytes=Find(root,"byte_count");
    if(!Generation(Find(root,fields[2]),&parsed.expected_generation)||
     !BoundedInteger(bytes,native::generated::FesApplicationMenuFrameBytes,native::generated::FesApplicationMenuFrameBytes))

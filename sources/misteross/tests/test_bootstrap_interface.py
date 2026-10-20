@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.sh"
 ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
@@ -56,7 +56,7 @@ case "$1" in
     status|submodule) exit 0 ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) commit="5391eeb1e91b38a3d0e96d04f24cf921743c9c78" ;;
+            yosys) commit="3a5accbd78c526ab7bae32640044a2e062a3cfc9" ;;
             mistral) commit="8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f" ;;
             nextpnr) commit="9128800fa6e77c4138088a7107a95376ba47ff15" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
@@ -78,11 +78,13 @@ original_args="$*"
 build_dir=
 gpu_router=OFF
 hip_architectures=
+cuda_architectures=
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -B) build_dir="$2"; shift 2; continue ;;
         -DGPU_ROUTER=*) gpu_router="${1#-DGPU_ROUTER=}" ;;
         -DCMAKE_HIP_ARCHITECTURES=*) hip_architectures="${1#-DCMAKE_HIP_ARCHITECTURES=}" ;;
+        -DCMAKE_CUDA_ARCHITECTURES=*) cuda_architectures="${1#-DCMAKE_CUDA_ARCHITECTURES=}" ;;
     esac
     shift
 done
@@ -102,6 +104,9 @@ if [ -n "$build_dir" ]; then
             printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__HIP_PLATFORM_AMD__=1\\n' > "$build_dir/build.ninja"
         fi
     elif [ "$gpu_router" = CUDA ]; then
+        if [ -n "$cuda_architectures" ]; then
+            printf 'CMAKE_CUDA_ARCHITECTURES:STRING=%s\\n' "$cuda_architectures" >> "$build_dir/CMakeCache.txt"
+        fi
         printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__CUDACC__=1\\n' > "$build_dir/build.ninja"
     else
         printf 'DEFINES = -DCPU_REFERENCE_BACKEND=1\\n' > "$build_dir/build.ninja"
@@ -200,7 +205,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
                 env=environment,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("5391eeb1e91b38a3d0e96d04f24cf921743c9c78", result.stdout)
+        self.assertIn("3a5accbd78c526ab7bae32640044a2e062a3cfc9", result.stdout)
         self.assertIn(f"source: {toolchain_root}/src/yosys", result.stdout)
         self.assertIn(f"lock: {lock_path}", result.stdout)
         self.assertIn("gpu-router: HIP", result.stdout)
@@ -334,7 +339,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
             fake_bin, toolchain = _prepare_isolated_bootstrap(root)
             commit = LOCK_COMMITS["nextpnr"]
             config = toolchain / "build" / "nextpnr" / f".config-{commit}.txt"
-            config.write_text("gpu-router=CUDA; hip-architectures=unused\n")
+            config.write_text("gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86\n")
             environment = os.environ.copy()
             environment.update(
                 {
@@ -408,6 +413,63 @@ class BootstrapInterfaceTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("CMake configuration or compiled backend", result.stderr)
+
+    def _run_cuda_bootstrap(self, root, fake_bin, cmake_log, **overrides):
+        environment = os.environ.copy()
+        environment.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
+        environment.update(
+            {"FES_TOOLCHAIN_GPU_ROUTER": "CUDA", "FAKE_CMAKE_LOG": str(cmake_log), **overrides}
+        )
+        return subprocess.run(
+            [str(root / "scripts" / "bootstrap.sh")],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            env={"PATH": f"{fake_bin}:{environment['PATH']}", **{
+                key: value for key, value in environment.items()
+                if key != "PATH"
+            }},
+        )
+
+    def test_nextpnr_cuda_lane_selects_native_architectures(self):
+        for requested, expected in ((None, "86"), ("75;86", "75;86")):
+            with self.subTest(requested=requested), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fake_bin, toolchain = _prepare_isolated_bootstrap(root)
+                cmake_log = root / "cmake.log"
+                overrides = {} if requested is None else {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": requested}
+                result = self._run_cuda_bootstrap(root, fake_bin, cmake_log, **overrides)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(
+                    any(
+                        "-DGPU_ROUTER=CUDA" in line
+                        and f"-DCMAKE_CUDA_ARCHITECTURES={expected}" in line
+                        for line in cmake_log.read_text().splitlines()
+                    )
+                )
+                config = toolchain / "build" / "nextpnr" / f".config-{LOCK_COMMITS['nextpnr']}.txt"
+                self.assertEqual(
+                    config.read_text(),
+                    f"gpu-router=CUDA; hip-architectures=unused; cuda-architectures={expected}\n",
+                )
+
+    def test_nextpnr_cuda_attestation_rebuilds_for_other_architectures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin, toolchain = _prepare_isolated_bootstrap(root)
+            cmake_log = root / "cmake.log"
+            first = self._run_cuda_bootstrap(root, fake_bin, cmake_log)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = self._run_cuda_bootstrap(
+                root, fake_bin, cmake_log, FES_TOOLCHAIN_CUDA_ARCHITECTURES="89"
+            )
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("==> building nextpnr", second.stdout)
+            config = toolchain / "build" / "nextpnr" / f".config-{LOCK_COMMITS['nextpnr']}.txt"
+            self.assertEqual(
+                config.read_text(),
+                "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=89\n",
+            )
 
     def test_nextpnr_off_configuration_is_explicit(self):
         with tempfile.TemporaryDirectory() as directory:

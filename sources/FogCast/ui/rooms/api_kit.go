@@ -42,7 +42,7 @@ func (r *Instance) installKit() *lua.LTable {
 }
 
 // kit.cores(function(rows, err) end) lists installed cores. rows are
-// {package_id, core_id, name, needs, launchable, block}.
+// {package_id, core_id, name, needs, launchable, block, inputs}.
 func (r *Instance) kitCores(L *lua.LState) int {
 	cb := L.CheckFunction(1)
 	client := r.opts.Local
@@ -102,6 +102,11 @@ func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
 		row.RawSetString("needs", lua.LString(c.Needs))
 		row.RawSetString("launchable", lua.LBool(c.Launchable))
 		row.RawSetString("block", lua.LString(c.Block))
+		inputs := r.L.NewTable()
+		for _, name := range c.Inputs {
+			inputs.Append(lua.LString(name))
+		}
+		row.RawSetString("inputs", inputs)
 		t.Append(row)
 	}
 	return t

@@ -26,20 +26,20 @@ A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
-| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
-| `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
-| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sms` | yes |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sg1000` | yes |
-| `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
-| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
-| `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
-| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
+| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `cores/fes-menu/toolchain.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
+| `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `cores/fes-pong/toolchain.lock` | `make build-fes-pong` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx81` | yes |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
+| `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | yes |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | yes |
+| `fes.catch` | `cores/fes-demo` | `fes.application` | `cores/fes-catch/toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
+| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
+| `fes.c64` | `cores/fes-c64` | `fes.computer` | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
+| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
-| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchain.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
-| `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
+| `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -160,6 +160,34 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
+## PC/XT CPU and ISA fabric development
+
+`make sim-fes-pcxt` runs the [PC/XT transaction fabric](../cores/fes-pcxt/README.md)
+through eight portable registered slot boundaries with diagnostic cards in slots
+1 and 8. It tests wait-state side effects, memory and I/O decode, interrupt and
+DMA wiring, conflict rejection, a lost commit acknowledgement, and reset during
+transfers including a commit already pending at the card. It also executes an
+original diagnostic ROM on the pinned MCL86 8088 through the fabric with variable
+memory waits, interrupts, word I/O and fault recovery. GNU x86 `as` and `ld` are
+required alongside Verilator. The motherboard lane tests PIC/PIT/PPI, XT
+keyboard transport and speaker PCM; a second ROM receives real timer, ISA and
+keyboard interrupts. The DMA lane checks 8237 register behavior, real ISA/RAM
+transfers, refresh and LOCK/INTA arbitration; the ROM also programs both DMA
+directions while refresh runs. Separate ISA CGA and MDA cards own VRAM,
+register decode and independently timed RGBI guest rasters. The display
+suite checks those rasters in host simulation; the display-machine suite
+boots a diagnostic ROM that programs both cards through the motherboard.
+The memory and memory-machine suites exercise the existing addon SDRAM
+controller at 100 MHz, reset-only firmware loading, byte preservation, reset
+cancellation, physical refresh and two 8088 ISA display boots without a second
+firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
+emits a diagnostic backend/controller netlist; capture/pads are external and
+its DDR clock primitive remains unmapped.
+This is a simulation family, not a package producer.
+Media, HID keyboard translation, production video output, physical socket
+routing and kit hardware acceptance remain open; no `build-fes-pcxt` target
+exists.
+
 ## Original RV32I
 
 `make sim-fes-riscv` validates the original machine-mode RV32I CPU in
@@ -177,7 +205,7 @@ editing `firmware.S`, because the producer rejects stale images.
 `cores/fes-common/rtl/z80`. This is a shared CPU development lane, not a play
 package. The [CPU contract](../cores/fes-common/rtl/z80/README.md) lists the
 interfaces, published behavior sources, tests and contained Cyclone V timing
-diagnostic. SG-1000 and the default Spectrum producer select the NMOS CPU.
+diagnostic. SG-1000, ZX81 and the default Spectrum producer select the NMOS CPU.
 `make build-fes-spectrum-fast` selects the documented-only 56 MHz development
 shell, with separate native peripheral timing. Each full shell must pass its
 clock constraints before sealing; CPU-only timing does not establish that.
@@ -220,10 +248,15 @@ and `build-fes-sg1000`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not how you
 select that cache. If both variables are set they must be the same absolute
 path.
 
-Pong, Catch, the demos, the menu and RISC-V authenticate `toolchain.lock`. ZX81 authenticates
-`toolchain.lock` and does not keep a private slot. Coleco uses `toolchain.lock`.
-SG-1000 authenticates `toolchain.lock`. SMS authenticates
-`toolchain.lock` and does not keep a private slot. The old Coleco producer selects the same shared lock.
+Each registered package authenticates the lock named by its `lock_path` in
+`config/core-recipes.toml`; the per-core lock files currently contain the same
+bytes as `toolchain.lock` and share one cached compiler slot, except Coleco,
+which pins Yosys `5391eeb1` and has its own slot. A lock
+can move to another nextpnr that `scripts/pnr_recipe.py` classifies; that core
+then gets its own slot. Use the
+matching `make toolchain-fes-<core>` target to provision a local toolchain.
+The unregistered demos and splash continue to select the repository-level
+`toolchain.lock`.
 
 For those HIP play-package producers, the route log must name a live HIP
 backend. A command line that merely contains `--router gpu` is not enough.
@@ -258,10 +291,11 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
-The Atari ST producer now selects the shared `toolchain.lock`
-(Yosys `5391eeb1`, nextpnr `9128800f`). The factory recipe stays HIP.
-A CUDA route is a separate package. RAM test and menu use that same lock
-and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
+The Atari ST producer selects `cores/fes-atari-st/toolchain.lock`
+(Yosys `3a5accbd`, nextpnr `9128800f`). The factory recipe stays HIP.
+A CUDA route is a separate package. RAM Tester and menu use their own
+per-core lock files, which currently select the same HIP compiler slot. The
+130 MHz timing comparison uses the RAM Tester lock.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell. It does not
 qualify this shared-pin seal. The October kit notes do not accept these bytes.

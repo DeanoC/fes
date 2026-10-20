@@ -227,7 +227,7 @@ func (s *Service) captureTwoROMSources(gameID string) (*twoROMSourceSnapshot, er
 	if entry.CoreID != "fes.coleco" {
 		return nil, nil
 	}
-	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
 	if err != nil {
 		return nil, err
 	}

@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -40,12 +41,7 @@ func gamepad(player uint8, code remoteinput.Code, action remoteinput.Action, val
 
 func localSocketPath(t *testing.T, name string) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "li")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return filepath.Join(dir, name)
+	return testsock.Path(t, name)
 }
 
 func keyboardFrameFor(code remoteinput.Code, action remoteinput.Action) protocol.InputFrame {
@@ -636,6 +632,30 @@ func TestKeyboardSourcesMerge(t *testing.T) {
 	}
 	if matrix != held {
 		t.Fatalf("remote release cleared local key: %#x want %#x", matrix, held)
+	}
+}
+
+func TestListenLocalInputRestoresUmask(t *testing.T) {
+	before := syscall.Umask(0)
+	syscall.Umask(before)
+	t.Cleanup(func() { syscall.Umask(before) })
+	path := localSocketPath(t, "umask.sock")
+	listener, err := listenLocalInput(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("socket mode = %o, want 600", info.Mode().Perm())
+	}
+	after := syscall.Umask(0)
+	syscall.Umask(after)
+	if after != before {
+		t.Fatalf("umask = %#o, want %#o", after, before)
 	}
 }
 

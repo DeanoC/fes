@@ -1,7 +1,10 @@
 #!/bin/sh
 # Read-only diagnostics for a BusyBox DE10-Nano kit.
 # Prints schema fogcast.kit-diagnostics.v1 as key=value on stdout.
-# Reads /proc, a few identity files, and `df -P -k`. Does not create files,
+# Reads /proc, a few identity files, and `df -P -k` of /, /media/fat and /tmp.
+# Those three mounts are skipped when sysfs says the backing disk is optical
+# or has no usable media (size missing, unreadable or zero, or SCSI state
+# not ready). Does not create files,
 # restart services, or write /media/fat or u-boot.txt.
 #
 # The output contract is sources/FogCast/docs/kit-resource-limits.md.
@@ -239,6 +242,57 @@ json_hex() {
   printf '%s\n' "$found"
 }
 
+json_quoted() {
+  flat=$1
+  key=$2
+  found=$(printf '%s\n' "$flat" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p") || return 0
+  found=${found%%"$nl"*}
+  printf '%s\n' "$found"
+}
+
+read_flat() {
+  flat=
+  while IFS= read -r line || [ -n "$line" ]; do
+    flat=$flat$line' '
+  done < "$1"
+}
+
+# Kernel boot id for this boot, with the surrounding whitespace removed.
+# ReadBootIdentity compares the ticket against the same proc file.
+current_boot_id() {
+  file=$(kit_path /proc/sys/kernel/random/boot_id)
+  [ -f "$file" ] || return 1
+  line=
+  IFS= read -r line < "$file" || [ -n "$line" ] || return 1
+  line=$(trim "$line") || return 1
+  [ -n "$line" ] || return 1
+  printf '%s\n' "$line"
+}
+
+# The appliance store's boot ticket names the image this boot selected. On a
+# kit with A/B updates that is the running image; the factory files are not.
+# A direct-root boot does not rewrite the ticket, so an older one can remain
+# on FAT. Accept it only when its boot_id is this kernel boot.
+read_boot_ticket() {
+  logical=$1
+  file=$2
+  [ -n "$image_id" ] && return 0
+  [ -f "$file" ] || return 0
+  sed_path=$(command -v sed || true)
+  [ -n "$sed_path" ] || return 0
+  kernel_boot=$(current_boot_id) || return 0
+  read_flat "$file"
+  ticket_boot=$(json_quoted "$flat" boot_id)
+  [ -n "$ticket_boot" ] || return 0
+  [ "$ticket_boot" = "$kernel_boot" ] || return 0
+  found=$(json_hex "$flat" image_sha256 64)
+  case $found in
+    ''|*[!0-9a-f]*) return 0 ;;
+  esac
+  image_id=$found
+  image_id_source=$logical
+}
+
 read_factory() {
   logical=$1
   file=$2
@@ -248,16 +302,18 @@ read_factory() {
   [ -f "$file" ] || return 0
   sed_path=$(command -v sed || true)
   [ -n "$sed_path" ] || return 0
-  flat=
-  while IFS= read -r line || [ -n "$line" ]; do
-    flat=$flat$line' '
-  done < "$file"
+  read_flat "$file"
+  factory_image=$(json_hex "$flat" image_sha256 64)
   if [ -z "$image_id" ]; then
-    found=$(json_hex "$flat" image_sha256 64)
-    if valid_token "$found"; then
-      image_id=$found
+    if valid_token "$factory_image"; then
+      image_id=$factory_image
       image_id_source=$logical
     fi
+  fi
+  # A factory revision describes the factory image. Beside a boot-ticket
+  # image it is reported only when both name the same image.
+  if [ "$image_id_source" = "$boot_ticket" ] && [ "$factory_image" != "$image_id" ]; then
+    return 0
   fi
   if [ -z "$source_revision" ]; then
     found=$(json_hex "$flat" fes_revision '7,40')
@@ -666,6 +722,8 @@ fi
 image_id=
 image_id_source=none
 source_revision=
+boot_ticket=/media/fat/fogcast/releases/boot.json
+read_boot_ticket "$boot_ticket" "$(kit_path "$boot_ticket")"
 take_id /etc/fes-image-id "$(kit_path /etc/fes-image-id)"
 take_id /etc/fogcast-image-id "$(kit_path /etc/fogcast-image-id)"
 take_id /usr/share/mister-runtime/image-id "$(kit_path /usr/share/mister-runtime/image-id)"
@@ -813,6 +871,134 @@ fs_tmp_used=
 fs_tmp_free=
 fs_tmp_pct=
 
+# Same cheap sysfs decision as fes-block-admit: size, device/type and state.
+# A missing or unreadable size is no-media. sr* and SCSI type 5 are optical.
+kit_attr() {
+  if [ -f "$1" ]; then
+    tr -d ' \t\r\n' < "$1"
+  fi
+}
+
+kit_mount_source() {
+  want=$1
+  [ -r /proc/self/mountinfo ] || return 1
+  best_src=
+  best_len=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    set -f
+    # shellcheck disable=SC2086
+    set -- $line
+    set +f
+    [ "$#" -ge 10 ] || continue
+    point=$5
+    src=
+    shift 6
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "-" ]; then
+        shift
+        [ "$#" -ge 2 ] || break
+        src=$2
+        break
+      fi
+      shift
+    done
+    # "/" covers every absolute path. "$point"/ would be "//" and match nothing.
+    if [ "$want" = "$point" ] || [ "$point" = / ] || [ "${want#"$point"/}" != "$want" ]; then
+      n=${#point}
+      if [ "$n" -gt "$best_len" ]; then
+        best_len=$n
+        best_src=$src
+      fi
+    fi
+  done < /proc/self/mountinfo
+  [ -n "$best_src" ] || return 1
+  printf '%s\n' "$best_src"
+}
+
+kit_parent() {
+  name=$1
+  case $name in
+    mmcblk*p[0-9]*|nvme*p[0-9]*)
+      printf '%s\n' "${name%p[0-9]*}"
+      ;;
+    *[0-9])
+      base=$name
+      while :; do
+        case $base in
+          *[0-9]) base=${base%?} ;;
+          *) break ;;
+        esac
+      done
+      case $base in
+        ''|sd|sr|hd|vd|xvd|loop) ;;
+        *) printf '%s\n' "$base" ;;
+      esac
+      ;;
+  esac
+}
+
+kit_block_skipped() {
+  name=$1
+  case $name in
+    sr[0-9]|sr[0-9][0-9]|sr[0-9][0-9][0-9]) return 0 ;;
+  esac
+  dir=/sys/class/block/$name
+  [ -d "$dir" ] || dir=/sys/block/$name
+  [ -d "$dir" ] || return 1
+  type=$(kit_attr "$dir/device/type")
+  if [ -z "$type" ]; then
+    parent=$(kit_parent "$name")
+    if [ -n "$parent" ]; then
+      parent_dir=/sys/class/block/$parent
+      [ -d "$parent_dir" ] || parent_dir=/sys/block/$parent
+      type=$(kit_attr "$parent_dir/device/type")
+    fi
+  fi
+  [ "$type" = 5 ] && return 0
+  kit_state_bad "$(kit_attr "$dir/device/state")" && return 0
+  kit_access_bad "$(kit_attr "$dir/device/access_state")" && return 0
+  parent=$(kit_parent "$name")
+  if [ -n "$parent" ]; then
+    parent_dir=/sys/class/block/$parent
+    [ -d "$parent_dir" ] || parent_dir=/sys/block/$parent
+    if [ -d "$parent_dir" ]; then
+      kit_state_bad "$(kit_attr "$parent_dir/device/state")" && return 0
+      kit_access_bad "$(kit_attr "$parent_dir/device/access_state")" && return 0
+    fi
+  fi
+  [ -f "$dir/size" ] || return 0
+  size=$(kit_attr "$dir/size")
+  case $size in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  [ "$size" = 0 ] && return 0
+  return 1
+}
+
+kit_state_bad() {
+  case $1 in
+    offline|transport-offline|blocked|created-blocked|cancel|deleted|quiesce) return 0 ;;
+  esac
+  return 1
+}
+
+kit_access_bad() {
+  case $1 in
+    offline|unavailable|standby) return 0 ;;
+  esac
+  return 1
+}
+
+kit_mount_skipped() {
+  src=$(kit_mount_source "$1") || return 1
+  case $src in
+    /dev/*) ;;
+    *) return 1 ;;
+  esac
+  kit_block_skipped "${src##*/}"
+}
+
 if [ -n "$root" ]; then
   df_file=$(kit_path df.txt)
   [ -f "$df_file" ] || die 'fixture df.txt is missing'
@@ -822,7 +1008,15 @@ if [ -n "$root" ]; then
 else
   df_path=$(command -v df || true)
   [ -n "$df_path" ] || die 'df is missing'
-  df_text=$(df -P -k) || die 'df failed'
+  df_text=
+  for df_target in / /media/fat /tmp; do
+    if kit_mount_skipped "$df_target"; then
+      continue
+    fi
+    [ -e "$df_target" ] || continue
+    df_part=$(df -P -k "$df_target") || die 'df failed'
+    df_text=$df_text$df_part$nl
+  done
 fi
 parse_df_text "$df_text"
 

@@ -36,7 +36,6 @@ from scripts.build_fes_sg1000_oss import (
     SG1000_GPU_BACKEND,
     SG1000_TOOLCHAIN_LOCK,
     SG1000_TOOLCHAIN_ROOT,
-    SG1000_TOOL_COMMITS,
     build_commands,
     create_build_record,
     _manifest as _oss_manifest,
@@ -160,21 +159,16 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("cores/fes-sg1000/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-sg1000/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-sg1000/clocks.sdc", joined)
-        self.assertEqual(SG1000_TOOLCHAIN_LOCK, "toolchain.lock")
+        self.assertEqual(SG1000_TOOLCHAIN_LOCK, "cores/fes-sg1000/toolchain.lock")
         self.assertEqual(SG1000_TOOLCHAIN_ROOT, "build/toolchain/fes-sg1000")
         self.assertIn(SG1000_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertIn("scripts/search_placer_qor.py", OSS_PINNED_INPUTS)
-        self.assertEqual(SG1000_TOOL_COMMITS["yosys"], "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SG1000_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
-        self.assertEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
-        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
-        self.assertEqual(pins["yosys"].commit, SG1000_TOOL_COMMITS["yosys"])
-        self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
-        global_pins = load_lock(ROOT / "toolchain.lock")
-        self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(global_pins["nextpnr"].commit, "9128800fa6e77c4138088a7107a95376ba47ff15")
+        from scripts import pnr_recipe
+        self.assertNotEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.sg1000"), ROOT / SG1000_TOOLCHAIN_LOCK)
+        self.assertEqual(pins["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.sg1000"))
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
@@ -206,7 +200,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(options['required'], (("system_clock.clocks[0]", 52.224), (None, 74.25), ("system_clock.clocks[1]", 12.288)))
         self.assertEqual(options['budget'], 20)
         self.assertEqual(options['timeout'], 1800)
-        self.assertEqual(options['extra'], ('--router', 'gpu'))
+        self.assertEqual(options['extra'], ())
+        self.assertEqual(options['core_id'], 'fes.sg1000')
         self.assertEqual(options['gpu_devices'], (1,))
         self.assertEqual(options['env'], invocation.env)
         self.assertEqual(options['audit_source_root'], ROOT)

@@ -131,8 +131,14 @@ staging bytes, validation requires the same device/inode, 3,686,400-byte size
 and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
 sealing. The runtime reads sealed staging through a private, read-only mapping;
 the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
-`MenuMemory` converts RGBA to B,G,R,0 in a cached row buffer, then writes
-either fixed 4 MiB slot with naturally aligned word stores. Host builds use
+`MenuMemory` keeps an XRGB8888 shadow of the last copied frame and converts
+RGBA to B,G,R,0 into that shadow. A full copy converts every pixel and stores
+the whole slot. A damaged copy converts only the changed rectangles, then
+stores those rectangles plus the pixels that slot still lacks, widened to
+8-pixel groups, so the slot matches a full present. The other slot records
+the rectangles it missed. The shadow is trusted only for the displayed
+sequence it was copied for; a failed or cancelled copy, black fill, or
+reconfiguration discards it. Stores are naturally aligned words. Host builds use
 volatile words. ARMv7 uses `ldmia`/`stmia` of eight words, which stays inside
 one 4KB page because a row and the slot are 32-byte aligned. The mapping
 stays `O_SYNC` (strongly ordered on the qualified kernel); it is not
@@ -269,14 +275,19 @@ Physical controller acceptance remains pending.
 
 `fes.computer` 1.0 uses the same lifecycle and GP transport with identity
 tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
-`fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum and Atari ST
-media interfaces are independent and must be required when declared. A shell
-declares at most one unit-0 medium. Recognized expansion buses must be
+`fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum, ZX81 tape and
+Atari ST media interfaces are independent and must be required when declared.
+Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
+core latched the port layout, including a kit without presentation adapters.
+Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is
+rejected without DDR, and a kit admits and advertises it only when that layout
+and both presentation adapters are present. A shell declares at most one
+unit-0 medium. Recognized expansion buses must be
 optional, unknown optional declarations are ignored and `core.system`
 is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked
 cartridges and format 4 are not, because nothing holds execution for them.
 
-Identity requires registered live capability bits 0 through 7 to equal the declared set,
+Identity requires the registered live capability mask, including HPS DDR and session display, to equal the declared set,
 then discovery reads MediaInfo for each declared unit, which must be present
 and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev

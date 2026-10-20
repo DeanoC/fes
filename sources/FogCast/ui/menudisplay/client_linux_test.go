@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"golang.org/x/sys/unix"
 )
 
 func TestStatusAndSealedPresentation(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := testsock.Path(t, "runtime.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +108,7 @@ func TestStatusAndSealedPresentation(t *testing.T) {
 			done <- errUnexpected
 			return
 		}
-		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":0}}`+"\n"), nil, nil)
+		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":0,"timing":{"copy_us":41000,"submit_us":12,"scanout_wait_us":9000}}}`+"\n"), nil, nil)
 		done <- err
 	}()
 	client := New(path)
@@ -122,6 +123,10 @@ func TestStatusAndSealedPresentation(t *testing.T) {
 	result, err := client.Present(ctx, status.Generation, pix)
 	if err != nil || result.DisplayedSequence != 4 {
 		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	// The runtime's timing is passed through; the client's phases are measured.
+	if tm := result.Timing; tm.RuntimeCopyUS != 41000 || tm.RuntimeSubmitUS != 12 || tm.RuntimeScanoutWaitUS != 9000 || tm.BeginUS <= 0 || tm.StageUS <= 0 || tm.CommitUS <= 0 {
+		t.Fatalf("timing=%+v", tm)
 	}
 	if err = <-done; err != nil {
 		t.Fatal(err)
@@ -138,7 +143,7 @@ func TestPresentUnderflowCap(t *testing.T) {
 		{TransientUnderflowCap + 1, false},
 	} {
 		t.Run(u64(tc.underflows), func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "runtime.sock")
+			path := testsock.Path(t, "runtime.sock")
 			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 			if err != nil {
 				t.Fatal(err)
@@ -247,5 +252,101 @@ func readLine(conn *net.UnixConn) ([]byte, []int, error) {
 		if len(line) > 65536 {
 			return nil, nil, &unexpected{}
 		}
+	}
+}
+
+func TestPresentDamageStagesOnlyRects(t *testing.T) {
+	path := testsock.Path(t, "runtime.sock")
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	type seen struct {
+		commit  map[string]any
+		staging []byte
+	}
+	got := make(chan seen, 1)
+	done := make(chan error, 1)
+	go func() {
+		conn, err := listener.AcceptUnix()
+		if err != nil {
+			done <- err
+			return
+		}
+		defer conn.Close()
+		if _, _, err = readLine(conn); err != nil {
+			done <- err
+			return
+		}
+		fd, err := unix.MemfdCreate("test-menu", unix.MFD_ALLOW_SEALING)
+		if err != nil {
+			done <- err
+			return
+		}
+		file := os.NewFile(uintptr(fd), "test-menu")
+		defer file.Close()
+		if err = file.Truncate(FrameBytes); err != nil {
+			done <- err
+			return
+		}
+		staging := `{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"staging_format":"rgba8888","displayed_sequence":null,"underflows":0}}` + "\n"
+		if _, _, err = conn.WriteMsgUnix([]byte(staging), unix.UnixRights(fd), nil); err != nil {
+			done <- err
+			return
+		}
+		line, fds, err := readLine(conn)
+		if err != nil || len(fds) != 1 {
+			done <- errUnexpected
+			return
+		}
+		unix.Close(fds[0])
+		var request map[string]any
+		if err = json.Unmarshal(line, &request); err != nil {
+			done <- err
+			return
+		}
+		pixels := make([]byte, FrameBytes)
+		if _, err = file.ReadAt(pixels, 0); err != nil {
+			done <- err
+			return
+		}
+		got <- seen{request, pixels}
+		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":5,"underflows":0,"timing":{"copy_us":900,"submit_us":12,"scanout_wait_us":9000,"stored_pixels":320}}}`+"\n"), nil, nil)
+		done <- err
+	}()
+	pix := make([]byte, FrameBytes)
+	for i := range pix {
+		pix[i] = 0xee
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	client := New(path)
+	if _, err := client.PresentDamage(ctx, 7, pix, Damage{BaseSequence: 4}); err == nil {
+		t.Fatal("empty damage accepted")
+	}
+	damage := Damage{BaseSequence: 4, Rects: []Rect{{X: 96, Y: 50, W: 32, H: 10}}}
+	result, err := client.PresentDamage(ctx, 7, pix, damage)
+	if err != nil || result.DisplayedSequence != 5 {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if tm := result.Timing; tm.StagedPixels != 320 || tm.RuntimeStoredPixels != 320 {
+		t.Fatalf("timing=%+v", tm)
+	}
+	s := <-got
+	body, _ := json.Marshal(s.commit["damage"])
+	if string(body) != `{"base_sequence":4,"rects":[[96,50,32,10]]}` {
+		t.Fatalf("damage %s", body)
+	}
+	for y := 0; y < Height; y++ {
+		for x := 0; x < Width; x++ {
+			inside := x >= 96 && x < 128 && y >= 50 && y < 60
+			if v := s.staging[y*Stride+x*4]; (v == 0xee) != inside {
+				t.Fatalf("staging pixel %d,%d = %#x", x, y, v)
+			}
+		}
+	}
+	if err = <-done; err != nil {
+		t.Fatal(err)
 	}
 }

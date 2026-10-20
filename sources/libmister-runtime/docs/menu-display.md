@@ -43,6 +43,41 @@ Commit returns its own `menu_frame` generation, displayed sequence and
 underflow count. Those completion fields remain bound to this frame even if
 current status changes concurrently. Begin's displayed sequence is null.
 `underflows` is the per-present delta, not the cumulative hardware counter.
+Commit also returns `menu_frame.timing` with `copy_us` (converting and writing
+the frame into its DDR slot), `submit_us` (submitting the slot) and
+`scanout_wait_us` (waiting until scanout shows it). These are diagnostics for
+frame-time measurement; clients must not depend on them, and older runtimes
+omit them. `timing.stored_pixels` is how many pixels the copy wrote to DDR.
+
+### Damaged presents
+
+When status `menu_display` carries `"damage":true`, a commit may name only the
+rectangles that changed since the frame the runtime is showing:
+
+```json
+{"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,
+ "damage":{"base_sequence":41,"rects":[[96,50,32,10],[600,500,8,8]]}}
+```
+
+`base_sequence` (1..2³²−1) must be the displayed sequence of that frame, and
+`rects` holds 1–16 `[x,y,w,h]` rectangles inside 1280×720. The staging file
+keeps its full size, but only pixels inside the rectangles are read; the rest
+comes from the runtime's own copy of the base frame. Begin never takes
+`damage`.
+
+The runtime keeps an XRGB shadow of the last frame it copied, and records
+which pixels each DDR slot still lacks. A damaged copy converts the
+rectangles into the shadow, then stores to the target slot the rectangles plus
+whatever that slot missed from the previous frame, widened to 8-pixel (32-byte)
+store groups. A slot that has never held the base frame is stored whole.
+Either way the slot ends identical to a full present of the same frame.
+
+The shadow is trusted only for exactly the displayed sequence it was copied
+for. A failed or cancelled copy, black initialisation, a menu or session
+reconfiguration, or a game load discards it. A commit whose base is not the
+displayed frame with a valid shadow is rejected with `stale_revision` before
+any copy, without failing the display; the client then sends a complete frame.
+Older runtimes do not advertise `damage` and reject the field.
 A healthy present, including one whose counter was already nonzero before
 the copy, reports 0. A tolerated glitch reports the pixels missed during
 that present, at most one 720p scanline (1280). The counter increments once

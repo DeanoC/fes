@@ -172,7 +172,14 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
         self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
         self.assertIn("build/fes-zx81-oss/socket.qsf", route)
-        self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
+        qsf = expansion.shell_qsf("existing pins\n")
+        self.assertEqual(qsf.count("FES_RESERVED_RECT"), 3)
+        self.assertIn('FES_RESERVED_RECT "25 1 27 32"', qsf)
+        self.assertIn('FES_RESERVED_RECT "plug_addr 24 1 24 32"', qsf)
+        self.assertIn('FES_RESERVED_RECT "plug_rdata 28 1 28 32"', qsf)
+        # The interior stays unnamed so cart merge's default region remains "cart".
+        self.assertLess(qsf.index('FES_RESERVED_RECT "25 1 27 32"'),
+                        qsf.index('FES_RESERVED_RECT "plug_addr'))
 
     def test_standard_build_defaults_to_socketed_shell(self):
         root = ROOT
@@ -279,15 +286,17 @@ class ZX81CartPublicationTests(unittest.TestCase):
                             ("overlay_cram", object()), ("rbf_save", b"linked")):
             self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
         self.stack.enter_context(patch.object(cart_producer, 'prepare_scaffold', return_value=b'scaffold'))
-        self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
+        self.stack.enter_context(patch.object(cart_producer, "_run_tool", side_effect=self.run_tool))
         self.mode = "valid"
         self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.224},
                                 "display.control.clk": {"achieved": 100, "constraint": 74.250068664550781},
                                 "audio_clk": {"achieved": 20, "constraint": 12.288}}}
         self.calls = []
+        self.commands = []
         self.output = None
 
-    def run_tool(self, command, **kwargs):
+    def run_tool(self, command, cwd, log, **kwargs):
+        self.commands.append(command)
         synthesis = Path(command[0]).name == "yosys"
         name = "synthesis" if synthesis else "route"
         self.calls.append(name)
@@ -322,11 +331,10 @@ class ZX81CartPublicationTests(unittest.TestCase):
             (self.output / "timing.json").write_text(json.dumps(self.timing))
             if self.mode == 'scaffold_mutation':
                 (self.output / 'scaffold.json').write_bytes(b'changed')
-        log = kwargs["stdout"]
         if self.mode == name + "_error":
-            log.write("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
+            log.write_text("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
         else:
-            log.write("Info: 0 errors, 1 warning\nInfo: Program finished normally.\n")
+            log.write_text("Info: 0 errors, 1 warning\nInfo: Program finished normally.\n")
         if self.mode == "nonzero_route" and not synthesis:
             raise subprocess.CalledProcessError(1, command)
         return subprocess.CompletedProcess(command, 0)
@@ -367,7 +375,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual(recipe['cart_kind'], 'zonx')
         self.assertIn('cores/fes-zx81/expansions/zonx.v', recipe['inputs'])
         self.assertNotIn('cores/fes-zx81/expansions/ram16k.v', recipe['inputs'])
-        self.assertIn('-DSYNTHESIS=1', cart_producer.subprocess.run.call_args_list[0].args[0][-1])
+        self.assertIn('-DSYNTHESIS=1', self.commands[0][-1])
         cart_producer.classify_cram_diff.return_value = {'bits_outside_slot': 2}
         with self.assertRaisesRegex(ValueError, 'outside reserved slot'):
             cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='zonx')
@@ -410,11 +418,11 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.build()
         self.assertEqual(self.calls, [])
         path.write_bytes(self.package.rom_map_bytes)
-        def mutate_during_compile(command, **kwargs):
-            result = self.run_tool(command, **kwargs)
+        def mutate_during_compile(command, cwd, log, **kwargs):
+            result = self.run_tool(command, cwd, log, **kwargs)
             path.write_bytes(b"changed map")
             return result
-        with patch.object(cart_producer.subprocess, "run", side_effect=mutate_during_compile):
+        with patch.object(cart_producer, "_run_tool", side_effect=mutate_during_compile):
             with self.assertRaisesRegex(ValueError, "frozen shell changed"):
                 self.build()
         self.assertFalse(list(self.output.glob("*.tar")))
@@ -515,6 +523,23 @@ def _routed(routes: dict[str, str]) -> dict:
     }}}}
 
 
+def legal_socket_design(extra_cells: dict | None = None, routes: dict[str, str] | None = None) -> dict:
+    """A routed shell whose boundary flip-flops sit on their pinned BELs."""
+    cells = {}
+    for name, bel in expansion.socket_bels().items():
+        cells[name] = {
+            "type": "MISTRAL_FF",
+            "attributes": {"NEXTPNR_BEL": bel},
+            "connections": {},
+        }
+    cells.update(extra_cells or {})
+    top: dict = {"cells": cells}
+    if routes is not None:
+        top["netnames"] = {
+            name: {"attributes": {"ROUTING": routing}} for name, routing in routes.items()}
+    return {"modules": {"top": top}}
+
+
 class ZX81PlugAddrExitTests(unittest.TestCase):
     def test_fabric_exit_follows_the_socket_row(self) -> None:
         self.assertEqual(expansion.plug_addr_fabric_exit(0), "GIN.24.1.0")
@@ -558,16 +583,106 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
         self.assertNotIn("plug_addr[4]", message)
         self.assertIn("and 1 more", message)
 
+    def test_shell_logic_on_the_plug_columns_is_rejected(self) -> None:
+        def placed(name: str, bel: str, cell_type: str = "MISTRAL_COMB") -> dict:
+            return {"modules": {"top": {"cells": {
+                name: {"type": cell_type, "attributes": {"NEXTPNR_BEL": bel}},
+            }}}}
+
+        intruders = expansion.shell_cells_in_socket(placed("video.vsync", "MISTRAL_COMB.24.2.0"))
+        self.assertEqual(intruders, [("video.vsync", "MISTRAL_COMB.24.2.0")])
+        self.assertIn("video.vsync at MISTRAL_COMB.24.2.0",
+                      expansion.socket_occupancy_message(intruders))
+        interior = expansion.shell_cells_in_socket(placed("cpu.alu", "MISTRAL_COMB.26.4.0"))
+        self.assertEqual(interior, [("cpu.alu", "MISTRAL_COMB.26.4.0")])
+        response = expansion.shell_cells_in_socket(placed("cpu.reg", "MISTRAL_FF.28.20.4"))
+        self.assertEqual(response, [("cpu.reg", "MISTRAL_FF.28.20.4")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2", "MISTRAL_FF")), [])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")),
+            [("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.2.2", "MISTRAL_FF")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.2.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2", "MISTRAL_COMB")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.1.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")), [])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(placed("rom.lane0", "MISTRAL_M10K.5.73.0")), [])
+
+    def test_paired_half_route_through_needs_no_pin_map(self) -> None:
+        companion = {"modules": {"top": {"cells": {
+            "plug_addr_ff_0$ROUTETHRU": {
+                "type": "MISTRAL_COMB",
+                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0"},
+            },
+        }}}}
+        self.assertEqual(expansion.shell_cells_in_socket(companion), [])
+        self.assertIn("plug_addr_ff_0", expansion.socket_design_reason(companion) or "")
+        self.assertIn("missing", expansion.socket_design_reason(companion) or "")
+        seated = legal_socket_design(extra_cells=companion["modules"]["top"]["cells"])
+        self.assertIsNone(expansion.socket_design_reason(seated))
+        for cell_type, bel in (
+                ("MISTRAL_MCOMB", "MISTRAL_MCOMB.24.1.0"),
+                ("MISTRAL_BUF", "MISTRAL_COMB.24.1.0")):
+            cell = companion["modules"]["top"]["cells"]["plug_addr_ff_0$ROUTETHRU"]
+            cell["type"] = cell_type
+            cell["attributes"]["NEXTPNR_BEL"] = bel
+            self.assertEqual(expansion.shell_cells_in_socket(companion), [])
+        moved = legal_socket_design()
+        moved["modules"]["top"]["cells"]["plug_addr_ff_0"] = {
+            "type": "MISTRAL_COMB",
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.2.0"},
+        }
+        reason = expansion.socket_design_reason(moved)
+        self.assertIn("plug_addr_ff_0 at MISTRAL_COMB.24.2.0", reason or "")
+        companion["modules"]["top"]["cells"]["plug_addr_ff_0$ROUTETHRU"]["type"] = "MISTRAL_ALUT2"
+        self.assertEqual(
+            expansion.shell_cells_in_socket(companion),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")])
+
+    def test_accept_hook_rejects_shell_logic_before_a_free_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            candidate = SimpleNamespace(run_dir=str(run_dir))
+            design = legal_socket_design(extra_cells={
+                "video.vsync": {"type": "MISTRAL_COMB",
+                                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0"}},
+            })
+            (run_dir / "routed.json").write_text(json.dumps(design))
+            reason = expansion.accept_socket_route(candidate)
+            self.assertIn("socket boundary contains shell logic", reason or "")
+            self.assertIn("video.vsync at MISTRAL_COMB.24.1.0", reason or "")
+
     def test_accept_hook_reads_the_candidate_routed_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
             missing = SimpleNamespace(run_dir=str(run_dir))
             self.assertEqual(expansion.accept_socket_route(missing), "routed design is missing")
             wire = expansion.plug_addr_fabric_exit(39)
-            (run_dir / "routed.json").write_text(json.dumps(_routed({"video.vsync": wire})))
+            (run_dir / "routed.json").write_text(json.dumps(
+                legal_socket_design(routes={"video.vsync": wire})))
             reason = expansion.accept_socket_route(missing)
             self.assertIn("plug_addr[39] exit used by video.vsync", reason or "")
             (run_dir / "routed.json").write_text(json.dumps(_routed({})))
+            self.assertIn("socket boundary flip-flop is missing", expansion.accept_socket_route(missing) or "")
+            (run_dir / "routed.json").write_text(json.dumps(legal_socket_design()))
             self.assertIsNone(expansion.accept_socket_route(missing))
 
 

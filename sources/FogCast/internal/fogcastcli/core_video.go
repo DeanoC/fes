@@ -34,7 +34,7 @@ func snapshotVideoPart(path string) ([]byte, expansion.Asset, error) {
 		return invalid()
 	}
 	asset, err := expansion.ReadAsset(bytes.NewReader(data))
-	if err != nil || asset.Manifest.Slot != expansion.VideoSlot {
+	if err != nil || (asset.Manifest.Slot != expansion.VideoSlot && asset.Manifest.Slot != expansion.NativeVideoSlot) {
 		return invalid()
 	}
 	return data, asset, nil

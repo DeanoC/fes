@@ -21,7 +21,7 @@ table.
 
 ## Method
 
-Toolchain slot matching `toolchain.lock`: Yosys `5391eeb1`, Mistral `8fcc4cb4`,
+Toolchain used for this historical measurement: Yosys `5391eeb1`, Mistral `8fcc4cb4`,
 nextpnr `1656e473`. Synthesis was `synth_intel_alm` with lutram and DSP
 allowed, so each core could infer a register file. None used a DSP or an
 MLAB. The sealed producer still passes `-nolutram -nodsp`; that flag was not

@@ -22,19 +22,24 @@ import (
 // Keep three worst-case sequential service stops below the appliance watchdog's
 // shutdown budget, including init's other service teardown.
 const (
-	StopTermGrace        = 5 * time.Second
-	StopKillGrace        = 2 * time.Second
-	StopGroupTimeout     = 22 * time.Second
-	StopCommandTimeout   = 24 * time.Second
-	AgentConfigPath      = "/media/fat/fogcast/agent.toml"
-	AgentConfigWait      = 30 * time.Second
-	LauncherProbeTimeout = 10 * time.Second
-	roleRuntime          = "runtime"
-	roleAgent            = "agent"
-	roleLauncher         = "launcher"
-	launcherRestartMin   = time.Second
-	launcherRestartMax   = 30 * time.Second
-	launcherStableLife   = 2 * time.Second
+	StopTermGrace      = 5 * time.Second
+	StopKillGrace      = 2 * time.Second
+	StopGroupTimeout   = 22 * time.Second
+	StopCommandTimeout = 24 * time.Second
+	AgentConfigPath    = "/media/fat/fogcast/agent.toml"
+	AgentConfigWait    = 30 * time.Second
+	// PersistentStateDir is the writable FAT directory for kit userspace
+	// state. launcher.json, agent.toml and target-id stay beside it. The
+	// supervisor publishes this path as XDG_CONFIG_HOME and XDG_STATE_HOME.
+	// Tenfoot stores FogCast/tenfoot.json and FogCast/rooms/<id>.state.json
+	// underneath it. It is not one of the FESDATA3 bind mounts.
+	PersistentStateDir = "/media/fat/fogcast/state"
+	roleRuntime        = "runtime"
+	roleAgent          = "agent"
+	roleLauncher       = "launcher"
+	launcherRestartMin = time.Second
+	launcherRestartMax = 30 * time.Second
+	launcherStableLife = 2 * time.Second
 	// groupRestartTimeout bounds one accepted-group start. Native initialization
 	// shares this deadline; the supervisor tick retries with backoff after it.
 	groupRestartTimeout = 60 * time.Second
@@ -78,9 +83,8 @@ type ProcessController struct {
 	RunDir              string
 	// AgentConfigPath and AgentConfigWait override the FAT configuration wait.
 	// Zero values use AgentConfigPath and AgentConfigWait.
-	AgentConfig          string
-	AgentConfigWait      time.Duration
-	LauncherProbeTimeout time.Duration
+	AgentConfig     string
+	AgentConfigWait time.Duration
 	// Output receives child stdout and stderr. Nil uses the supervisor stdout.
 	Output          io.Writer
 	mu              sync.Mutex
@@ -236,9 +240,34 @@ func (c *ProcessController) stopLocked(ctx context.Context) error {
 	c.active = ""
 	return os.RemoveAll(filepath.Join(c.RunDir, "launcher-ready.json"))
 }
+
+// overlayEnv returns base plus overlay, with overlay keys replacing the
+// same names from base. Explicit supervisor settings such as
+// XDG_CONFIG_HOME then win over the inherited HOME=/ environment.
+func overlayEnv(base []string, overlay ...string) []string {
+	drop := make(map[string]struct{}, len(overlay))
+	for _, kv := range overlay {
+		key, _, ok := strings.Cut(kv, "=")
+		if ok {
+			drop[key] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(base)+len(overlay))
+	for _, kv := range base {
+		key, _, ok := strings.Cut(kv, "=")
+		if ok {
+			if _, skip := drop[key]; skip {
+				continue
+			}
+		}
+		out = append(out, kv)
+	}
+	return append(out, overlay...)
+}
+
 func (c *ProcessController) start(path string, args []string, env []string, role string) error {
 	cmd := exec.Command(path, args...)
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = overlayEnv(os.Environ(), env...)
 	output := c.Output
 	if output == nil {
 		output = os.Stdout
@@ -350,6 +379,20 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	if err := waitForAgentConfig(ctx, configPath, configWait); err != nil {
 		return err
 	}
+	// Create the state directory only when its FAT parent already exists.
+	// MkdirAll would otherwise create /media/fat on a host that reached
+	// this line. A failure is logged and the group still starts; tenfoot
+	// keeps running and logs its own write failure once.
+	stateParent := filepath.Dir(PersistentStateDir)
+	if st, err := os.Stat(stateParent); err != nil || !st.IsDir() {
+		if err == nil {
+			err = fmt.Errorf("%s is not a directory", stateParent)
+		}
+		log.Printf("software state directory %s: parent unavailable: %v", PersistentStateDir, err)
+	} else if err := os.MkdirAll(PersistentStateDir, 0o755); err != nil {
+		log.Printf("software state directory %s: %v", PersistentStateDir, err)
+	}
+	env = append(env, "XDG_CONFIG_HOME="+PersistentStateDir, "XDG_STATE_HOME="+PersistentStateDir)
 	if err := c.start(filepath.Join(root, "bin/mister-runtime"), []string{"--menu-package", "/usr/share/mister-runtime/core-packages/" + menuID, menuID}, env, roleRuntime); err != nil {
 		return err
 	}
@@ -370,22 +413,7 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 		}
 	}
 	catalog := filepath.Join(root, "share/fogcast/config.toml")
-	kit := filepath.Join(root, "bin/fogcast-kit")
-	probeTimeout := c.LauncherProbeTimeout
-	if probeTimeout <= 0 {
-		probeTimeout = LauncherProbeTimeout
-	}
-	output, err := probeLauncherUI(ctx, kit, probeTimeout)
-	if err != nil {
-		_ = c.stopLocked(ctx)
-		return err
-	}
-	if output == "tenfoot" {
-		err = c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher)
-	} else {
-		err = c.start(kit, []string{"--config", "/media/fat/fogcast/launcher.json", "--catalog-config", catalog, "--menu-display"}, env, roleLauncher)
-	}
-	if err != nil {
+	if err := c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
@@ -480,22 +508,6 @@ func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) er
 		case <-timer.C:
 		}
 	}
-}
-func probeLauncherUI(ctx context.Context, kit string, timeout time.Duration) (string, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	probe := exec.CommandContext(probeCtx, kit, "--config", "/media/fat/fogcast/launcher.json", "--print-kit-ui")
-	// A descendant that inherits the output pipe must not extend the probe
-	// past this deadline after the launcher process itself is killed.
-	probe.WaitDelay = timeout
-	output, err := probe.Output()
-	if err != nil {
-		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
-			return "", fmt.Errorf("read launcher selection: timed out after %s", timeout)
-		}
-		return "", fmt.Errorf("read launcher selection: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()

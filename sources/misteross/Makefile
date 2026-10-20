@@ -45,9 +45,18 @@ help:
 		"" \
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
-		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong" \
+		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
+		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
+		"  toolchain-fes-catch  Provision the FES Catch HIP toolchain (per-core lock)" \
+		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
 		"  toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket" \
 		"  toolchain-fes-coleco  Build the Coleco v2 SGM toolchain" \
+		"  toolchain-fes-sms  Provision the FES SMS HIP toolchain (per-core lock)" \
+		"  toolchain-fes-sg1000  Provision the FES SG-1000 HIP toolchain (per-core lock)" \
+		"  toolchain-fes-apple2  Provision the FES Apple II HIP toolchain (per-core lock)" \
+		"  toolchain-fes-c64  Provision the FES C64 HIP toolchain (per-core lock)" \
+		"  toolchain-fes-spectrum  Provision the FES Spectrum HIP toolchain (per-core lock)" \
+		"  toolchain-fes-riscv  Provision the FES RISC-V HIP toolchain (per-core lock)" \
 		"  doctor     Report host, toolchain, optional Quartus, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
@@ -60,9 +69,8 @@ help:
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
-		"  toolchain-fes-ramtest  Provision the shared FES HIP toolchain (toolchain.lock)" \
-		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (toolchain.lock)" \
-		"  toolchain-fes-ramtest-timing  Provision the shared FES HIP toolchain for the timing diagnostic" \
+		"  toolchain-fes-ramtest  Provision the FES RAM Tester HIP toolchain (per-core lock)" \
+		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (per-core lock)" \
 		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
@@ -121,6 +129,7 @@ help:
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
+		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -175,7 +184,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-menu toolchain-fes-catch toolchain-fes-pong toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-fes-apple2 toolchain-fes-c64 toolchain-fes-spectrum toolchain-fes-riscv toolchain-fes-ramtest toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-c64 c64-diagnostic sim-fes-spectrum spectrum-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong build-fes-c64 build-fes-spectrum oss export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -307,21 +316,20 @@ sim-fes-zx81-expansion: sim-fes-zx81-bus
 	@for cart in 0 1; do \
 		mkdir -p build/sim/fes-zx81-expansion-$$cart; \
 		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
-		-GCART_PRESENT=$$cart -DTV80_REFRESH=1 \
+		-GCART_PRESENT=$$cart \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_SIMILARNAME) $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/rtl -Icores/fes-zx81/rtl/tv80 \
+		-Icores/fes-zx81/rtl -Icores/fes-common/rtl/z80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$cart" \
 		cores/fes-zx81/sim/expansion_machine.v \
 		cores/fes-zx81/expansions/ram16k.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
 		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_expansion_socket.v \
-		cores/fes-zx81/rtl/zx81_ram_pack.v cores/fes-zx81/rtl/tv80/tv80_core.v \
-		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
-		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		cores/fes-zx81/rtl/zx81_ram_pack.v \
 		"$(CURDIR)/cores/fes-zx81/sim/expansion_tb.cpp" || exit $$?; \
 		if [ $$cart = 0 ]; then ramtop=0x4400; else ramtop=0x8000; fi; \
 		build/sim/fes-zx81-expansion-$$cart/Vexpansion_machine $$ramtop || exit $$?; \
@@ -340,37 +348,19 @@ sim-fes-zx81-rom:
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-zx81-session
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-zx81-gp
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-Wno-PINCONNECTEMPTY \
-		-Icores/fes-zx81/generated \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp" \
-		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
-	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
-	@mkdir -p build/sim/fes-zx81-gp-audio
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-GENABLE_AUDIO=1 -CFLAGS -DZX81_AUDIO_TEST -Wno-PINCONNECTEMPTY \
-		-Icores/fes-zx81/generated \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp-audio" \
-		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
-	@build/sim/fes-zx81-gp-audio/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
-		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
-		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/tv80/tv80_core.v \
-		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
-		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
 	@build/sim/fes-zx81-machine/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
@@ -1696,26 +1686,38 @@ toolchain-fes:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
+toolchain-fes-menu:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-menu/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-menu") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-catch:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-catch/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-catch") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-pong:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pong/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pong") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
 .PHONY: toolchain-fes-atari-st
 toolchain-fes-atari-st:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-atari-st") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-atari-st/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-atari-st") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 .PHONY: toolchain-fes-ramtest
 toolchain-fes-ramtest:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-ramtest/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-ramtest") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
-
-.PHONY: toolchain-fes-ramtest-timing
-toolchain-fes-ramtest-timing: toolchain-fes-ramtest
 
 toolchain-fes-zx81: toolchain-zx81-expansion
 
 .PHONY: toolchain-zx81-expansion
 toolchain-zx81-expansion:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/zx81-expansion") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-zx81/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/zx81-expansion") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
@@ -1723,29 +1725,37 @@ toolchain-fes-coleco: toolchain-fes-coleco-sgm
 
 .PHONY: toolchain-fes-coleco-sgm
 toolchain-fes-coleco-sgm:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco-socket-v2") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco-socket-v2") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-sg1000:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-sg1000/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-apple2:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-apple2") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-apple2/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-apple2") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
-toolchain-fes-c64: toolchain-fes
+toolchain-fes-c64:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-c64/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-c64") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-spectrum:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-spectrum") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-spectrum/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-spectrum") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-sms:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sms") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-sms/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sms") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-riscv:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-riscv/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-riscv") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
@@ -1890,7 +1900,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-mfp-iack-timing sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-psg-wait sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-mfp-iack-timing sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-psg-wait sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-mailbox-direct sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1937,7 +1947,7 @@ sim-fes-atari-st-floppy:
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-floppy/Vst_floppy
 
-.PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
+.PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-mailbox-direct sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
 sim-fes-atari-st-floppy-write:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-floppy-write
@@ -1951,10 +1961,21 @@ sim-fes-computer-interaction:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/computer-interaction" \
-		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_acia.sv \
 		"$(CURDIR)/cores/fes-common/sim/computer_interaction_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/computer-interaction/Vcomputer_interaction_sim_top
+
+sim-fes-atari-st-mailbox-direct:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-mailbox-direct
+	$(VERILATOR) --cc --exe --build --top-module mailbox_direct_compare_top -Wall -Wno-DECLFILENAME \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mailbox-direct" \
+		cores/fes-common/sim/mailbox_direct_compare_top.sv \
+		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_computer_mailbox_direct.v \
+		"$(CURDIR)/cores/fes-common/sim/mailbox_direct_compare_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-mailbox-direct/Vmailbox_direct_compare_top \
+		"$(CURDIR)/cores/fes-common/generated/computer-exchanges.json"
 
 sim-fes-atari-st-media-port:
 	$(require_local_sim)
@@ -1967,7 +1988,7 @@ sim-fes-atari-st-media-lifecycle:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-lifecycle" \
-		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_floppy_writer.sv $(ST_CORE)/rtl/st_media_writer.sv $(ST_CORE)/rtl/st_media_port.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/media_lifecycle_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-lifecycle/Vst_media_lifecycle_sim_top
@@ -2076,7 +2097,7 @@ sim-fes-atari-st-media:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media/Vst_media_sim_top
 
 sim-fes-atari-st-media-geometry:
@@ -2085,7 +2106,7 @@ sim-fes-atari-st-media-geometry:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-geometry" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-geometry/Vst_media_sim_top geometry
 
 .PHONY: fetch-fes-atari-st-emutos sim-fes-atari-st-io sim-fes-atari-st-emutos-memory build-fes-atari-st
@@ -2508,3 +2529,13 @@ sim-fes-c64-sprite-pal:
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-pal" cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels
+
+.PHONY: sim-fes-pcxt
+sim-fes-pcxt:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+.PHONY: synth-fes-pcxt-isa
+synth-fes-pcxt-isa:
+	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"

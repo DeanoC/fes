@@ -24,21 +24,6 @@ Transport is never inferred from a core ID or descriptive system field.
 Beyond that guarantee, larger media and new roles need additional support; this is not a retail-media
 compatibility claim. Original catalog Pong and standalone FES Pong remain separate.
 
-## Native launcher status
-
-The native fogcast-kit launcher performs a read-only join of the library
-entries and installed package inventory. For the selected fes.pong,
-fes.zx81, and fes.coleco packages it shows the core ID, selected package
-version and a compact state (installed, missing, mismatch, or
-incompatible) in the catalog and detail metadata. A failed read clears the
-previous status and leaves ordinary catalog browsing available.
-
-This UI status does not claim target compatibility when inventory reports
-compatibility:"unknown"; hardware acceptance still requires the explicit
-target inspection path described below. The native launcher does not install
-packages or change the selected package. Package replacement remains the
-explicit core-select/API operation and is outside this read-only UI slice.
-
 ## Browser management
 
 Open **Manage FPGA library** on the normal host browser listener. Import a
@@ -515,7 +500,10 @@ package version 0.4.0: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB, then
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
 (16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536
-bytes, `.tap`, media unit 0. Persist that selection with role `cassette`:
+bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
+unit 0. A previously saved `blob` selection for that package still launches.
+Persist a Spectrum or ZX81 selection with role `cassette`:
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID cassette

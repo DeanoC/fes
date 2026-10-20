@@ -42,22 +42,24 @@ diagnostic builds of the pre-expansion shell.
 
 Build the scoped compiler with `make -C sources/misteross toolchain-fes-zx81`.
 Build the standard shell with `python3 scripts/build_fes_zx81_oss.py --gpu-devices N`
-from `sources/misteross`. Keep its sealed package and `build/fes-zx81-oss`
-frozen routing evidence together. A shell is built once for any number of
-independently built compatible carts.
+from `sources/misteross`. `--gpu-devices` sizes the search workers. gpu-run
+leases any free GPU; it is not a device pin. Keep its sealed package and
+`build/fes-zx81-oss` frozen routing evidence together. A shell is built once
+for any number of independently built compatible carts.
 
 Build the RAM validation cart with:
 
 ```
 python3 scripts/build_zx81_bus_validation_cart.py \
-  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu N
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID
 ```
 
-Build the Zon X AY cart with the same shell and checks:
+Build the Zon X AY cart with the same shell and checks. gpu-run leases any
+free GPU. `--gpu` does not select a device.
 
 ```sh
 python3 scripts/build_zx81_bus_validation_cart.py --cart zonx \
-  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu 0
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID
 ```
 
 Generate the open AY diagnostic firmware without a private BASIC ROM:
@@ -110,8 +112,13 @@ the same deterministic recipe. It rejects logged compiler errors even when
 the process exits zero, and clears old outputs before each attempt.
 It checks timing and rejects any non-CRC change outside the
 fixed socket. The timing check names the pixel clock `display.control.clk`,
-the net nextpnr reports. The shell search rejects a seed when another net
-occupies a plug_addr request flip-flop's only fabric exit. The host and target use the Go linker rather than trusting a
+the net nextpnr reports. The shell search rejects a seed when a socket flip-flop is missing or is not a `MISTRAL_FF`
+at its pinned BEL, when a `$ROUTETHRU` is not a `MISTRAL_COMB`, `MISTRAL_MCOMB`,
+or `MISTRAL_BUF` on that flip-flop's paired half, when any other shell logic
+is placed in the cart interior or on the plug columns, and when another net
+occupies a plug_addr request flip-flop's only fabric exit. The cart interior stays
+`25 1 27 32` (region `cart`, CRAM unchanged). Columns 24 and 28, rows 1–32,
+are separate keep-outs so the shell placer cannot fill the connector LABs. The host and target use the Go linker rather than trusting a
 producer-generated replacement RBF. Compiler and Python are build tools only.
 
 ## Library API

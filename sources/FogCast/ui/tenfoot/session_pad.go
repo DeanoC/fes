@@ -83,7 +83,7 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 			return true, nil
 		}
 		if e.Code == remoteinput.ButtonSelect {
-			if !a.sessionDisplayOfferedLocked() {
+			if !a.liveControlsOfferedLocked() {
 				if a.playPadSuppressed[e.Code] {
 					if !down {
 						delete(a.playPadSuppressed, e.Code)
@@ -132,5 +132,7 @@ func (a *App) tickSessionPadLocked(now time.Time) {
 		return
 	}
 	a.playPadChordFired = true
-	a.startStopLocked()
+	// Select+Start ends the library session. It is not the rooms Soft-stop:
+	// idle cleanup must release this kit's grant and stop renewal.
+	a.startReleaseStopLocked()
 }

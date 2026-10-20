@@ -132,21 +132,34 @@ type Instance struct {
 	modules map[string]lua.LValue
 	loading map[string]bool
 
-	frame    Frame
-	building *Frame
-	inDraw   bool
-	actions  []Action
-	games    map[string]hostclient.Game
-	images   map[string]*Image
-	store    *store
-	logs     []string
+	frame         Frame
+	building      *Frame
+	inDraw        bool
+	frameReady    bool
+	reuseFrame    bool
+	keepSlowFrame bool
+	// extendCopied is set once gfx.extend has copied the presented frame
+	// into this draw. A later extend appends without copying it again.
+	extendCopied bool
+	actions      []Action
+	games        map[string]hostclient.Game
+	images       map[string]*Image
+	store        *store
+	logs         []string
 
-	started         time.Time
-	last            time.Time
-	elapsed         float64
-	fatal           error
-	frameOverruns   int
-	inputOverruns   int
+	started       time.Time
+	last          time.Time
+	elapsed       float64
+	fatal         error
+	frameOverruns int
+	inputOverruns int
+	// lastStep is the Lua time of the most recent Step, for frame traces.
+	lastStep StepTiming
+	// frameStreak and inputStreak describe the current run of consecutive
+	// soft overruns, reported when that run retires the room.
+	frameStreak     overrunStreak
+	inputStreak     overrunStreak
+	measures        int
 	loaded          bool
 	sessionState    string
 	roomTable       *lua.LTable
@@ -200,7 +213,7 @@ func New(pack Pack, opts Options) (*Instance, error) {
 		loading: map[string]bool{},
 		games:   map[string]hostclient.Game{},
 		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath),
+		store:   newStore(opts.StorePath, opts.Stderr),
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
@@ -298,6 +311,7 @@ func (r *Instance) Load() error {
 // new frame. Steps after a fatal error return an empty frame.
 func (r *Instance) Step(now time.Time) Frame {
 	if r.fatal != nil || !r.loaded {
+		r.lastStep = StepTiming{}
 		return Frame{}
 	}
 	dt := now.Sub(r.last).Seconds()
@@ -310,11 +324,18 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.last = now
 	r.elapsed += dt
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
+	r.lastStep = StepTiming{}
+	asyncStart := time.Now()
 	r.drainResults()
+	updateStart := time.Now()
+	r.lastStep.Async = updateStart.Sub(asyncStart)
+	defer func() { r.lastStep.Total = time.Since(asyncStart) }()
 	if r.fatal != nil {
 		return Frame{}
 	}
-	if err := r.callGlobalSoft("update", r.budget.Frame, lua.LNumber(dt)); err != nil {
+	err := r.callGlobalSoft("update", r.budget.Frame, lua.LNumber(dt))
+	r.lastStep.Update = time.Since(updateStart)
+	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			return r.overrunFrame(err)
 		}
@@ -324,20 +345,68 @@ func (r *Instance) Step(now time.Time) Frame {
 	frame := Frame{Clear: r.opts.Theme.SofaBackground}
 	r.building = &frame
 	r.inDraw = true
-	err := r.callGlobalSoft("draw", r.budget.Frame)
+	r.reuseFrame = false
+	r.keepSlowFrame = false
+	r.extendCopied = false
+	drawStart := time.Now()
+	err = r.callGlobalSoft("draw", r.budget.Frame)
+	r.lastStep.Draw = time.Since(drawStart)
 	r.inDraw = false
+	built := r.building
 	r.building = nil
+	// gfx.reuse() asks to keep the frame already presented. A slow check
+	// still counts, and the next unchanged draw can try again.
+	if r.reuseFrame {
+		r.reuseFrame = false
+		r.keepSlowFrame = false
+		if err != nil && !errors.Is(err, errSoftOverrun) {
+			r.fail(err)
+			return Frame{}
+		}
+		r.presentFrame(true)
+		if err != nil {
+			return r.overrunFrame(err)
+		}
+		r.frameOverruns = 0
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	// A finished gfx.paint is the picture the script built. Present it
+	// even when it missed the soft budget, so the next unchanged draw can
+	// reuse it instead of painting the same scene until the room is retired.
+	if err != nil && errors.Is(err, errSoftOverrun) && r.keepSlowFrame && built != nil && built.HasClear {
+		r.keepSlowFrame = false
+		r.frame = *built
+		r.frameReady = true
+		r.presentFrame(true)
+		r.recordFrameOverrun(err)
+		if r.fatal != nil {
+			return Frame{}
+		}
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	r.keepSlowFrame = false
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
+			r.presentFrame(false)
 			return r.overrunFrame(err)
 		}
 		r.fail(err)
 		return Frame{}
 	}
 	r.frame = frame
+	r.frameReady = true
 	r.frameOverruns = 0
+	r.presentFrame(true)
 	r.store.maybeFlush(now)
 	return frame
+}
+
+func (r *Instance) presentFrame(ok bool) {
+	if r.roomTable != nil {
+		r.roomTable.RawSetString("presented", lua.LBool(ok))
+	}
 }
 
 // reservedRoomCommand is owned by FES. Scripts may style prompts; they must
@@ -364,6 +433,7 @@ func (r *Instance) Input(cmd string) bool {
 	if !ok {
 		return false
 	}
+	r.noteInputBaseline()
 	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
@@ -380,26 +450,40 @@ func (r *Instance) Input(cmd string) bool {
 
 var errSoftOverrun = errors.New("script exceeded soft callback budget")
 
+// softOverrun is a callback that finished inside its hard deadline but
+// over its soft budget. It is errSoftOverrun and also carries the timing.
+type softOverrun struct {
+	budget, elapsed time.Duration
+}
+
+func (e softOverrun) Error() string {
+	return fmt.Sprintf("script exceeded %s soft callback budget (elapsed %s)", e.budget, e.elapsed.Round(10*time.Microsecond))
+}
+
+func (e softOverrun) Is(target error) bool { return target == errSoftOverrun }
+
 func (r *Instance) overrun(err error) {
 	r.recordFrameOverrun(err)
 }
 
 func (r *Instance) recordFrameOverrun(err error) {
 	r.frameOverruns++
-	r.retireAfterOverruns(err, r.frameOverruns)
+	r.frameStreak.add(r, err, r.frameOverruns)
+	r.retireAfterOverruns(err, r.frameOverruns, &r.frameStreak)
 }
 
 func (r *Instance) overrunInput(err error) {
 	r.inputOverruns++
-	r.retireAfterOverruns(err, r.inputOverruns)
+	r.inputStreak.add(r, err, r.inputOverruns)
+	r.retireAfterOverruns(err, r.inputOverruns, &r.inputStreak)
 }
 
-func (r *Instance) retireAfterOverruns(err error, count int) {
+func (r *Instance) retireAfterOverruns(err error, count int, streak *overrunStreak) {
 	// Cortex-A9 GC and scheduler pauses can produce occasional slow frames;
 	// tolerate several consecutive soft misses while the 4x deadline still
 	// terminates genuinely runaway callbacks.
 	if count >= maxConsecutiveOverruns {
-		r.fail(fmt.Errorf("%w (after %d consecutive overruns)", err, count))
+		r.fail(fmt.Errorf("%w (after %d consecutive overruns; %s)", err, count, streak.summary(r)))
 	}
 }
 
@@ -421,7 +505,11 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
-	return r.callSoft(fn, budget, 0, args...)
+	r.noteFrameBaseline()
+	if err := r.callSoft(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -436,10 +524,10 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 	r.L.Pop(1)
 	elapsed := time.Since(start)
 	if elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget", hardBudget)
+		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
 	}
 	if elapsed > budget {
-		return v, errSoftOverrun
+		return v, softOverrun{budget: budget, elapsed: elapsed}
 	}
 	return v, nil
 }
@@ -451,10 +539,10 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 	}
 	elapsed := time.Since(start)
 	if elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget", budget*callbackHardLimitFactor)
+		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
 	}
 	if elapsed > budget {
-		return errSoftOverrun
+		return softOverrun{budget: budget, elapsed: elapsed}
 	}
 	return nil
 }
@@ -466,6 +554,7 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 	if !ok {
 		return
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
@@ -510,6 +599,7 @@ func (r *Instance) Resize(width, height int) {
 	r.opts.Width, r.opts.Height = width, height
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
+	r.setHeroTable()
 	if r.fatal != nil || !r.loaded {
 		return
 	}
@@ -654,7 +744,10 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
-	return r.call(fn, budget, 0, args...)
+	if err := r.call(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -669,6 +762,7 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 }
 
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+	start := time.Now()
 	L := r.L
 	top := L.GetTop()
 	ctx, cancel := context.WithTimeout(r.ctx, budget)
@@ -682,7 +776,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	if err := L.PCall(len(args), nret, nil); err != nil {
 		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("script exceeded %s budget", budget)
+			return fmt.Errorf("script exceeded %s budget (elapsed %s)", budget, time.Since(start))
 		}
 		return errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -742,7 +836,9 @@ func (r *Instance) applyResult(res asyncResult) {
 	if res.err != nil {
 		errVal = lua.LString(res.err.Error())
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {
@@ -850,4 +946,18 @@ func (r *Instance) resolveModule(name string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("module not found in stdlib or room (%v)", err)
 	}
 	return data, r.pack.ID + "/" + rel, nil
+}
+
+// StepTiming is where one Step's time went: async result callbacks,
+// update, draw, and the whole Step including frame bookkeeping.
+type StepTiming struct {
+	Async, Update, Draw, Total time.Duration
+}
+
+// LastStep reports the most recent Step's timing.
+func (r *Instance) LastStep() StepTiming {
+	if r == nil {
+		return StepTiming{}
+	}
+	return r.lastStep
 }

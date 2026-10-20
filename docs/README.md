@@ -7,12 +7,13 @@ a dated record. A dated record is not the schedule.
 
 | You want to… | Read |
 | --- | --- |
+| Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
-| Plan PR hardware-test overlays and record hashes | [Overlay HIL](hil-overlay.md) |
+| Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
@@ -42,7 +43,6 @@ Use these when the start-here page names the job and you need the steps.
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
 | Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
-| Change files on a dev kit, or see who changed them | [Kit runtime manifest](kit-manifest.md) |
 | Independent host, kit software and core updates | [Modular updates](modular-updates.md) |
 | Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
@@ -65,6 +65,11 @@ records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
 it does not promote C64 into a factory image or add disk writes.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
 either as the way to build or accept the tree you have open.
+
+The approved [cores-as-apps plan](cores-as-apps-plan.md) and its
+[per-core recipe option audit](recipe-option-audit.md) are design context for
+issue #843. This delivery covers migration steps 1–2; later steps remain
+proposals, not current build instructions.
 
 The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
 binds its sealed shell, linked Direct/Scanlines parts and capture evidence.

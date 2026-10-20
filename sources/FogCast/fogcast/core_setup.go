@@ -56,7 +56,7 @@ func (s *Service) CoreSetup(ctx context.Context, sourceID, coreID, packageID str
 	if !found {
 		return CoreSetup{}, canonicalError(protocol.CodeStaleRevision, nil)
 	}
-	p, _, err := s.readInstalledCore(ctx, packageID)
+	p, err := s.installedCoreInspection(ctx, packageID)
 	if err != nil {
 		return CoreSetup{}, err
 	}

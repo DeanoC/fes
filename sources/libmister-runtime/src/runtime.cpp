@@ -246,6 +246,13 @@ public:
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
    error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
+   // A stale damage base is an ordinary refusal: the client resends a full
+   // frame. It must not reach the hardware path, where a failed present
+   // retires the display.
+   if(const auto* damage=frame.damage()) {
+    if(!hardware_.AcceptsMenuDamage(damage->base_sequence))
+     return {ErrorCode::stale_revision,"menu damage base is not the displayed frame","menu"};
+   }
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
@@ -291,7 +298,9 @@ public:
     return Invalid("session display package or generation changed");
    bool capable=false;
    for(const auto& interface:status_.capabilities.active_interfaces)
-    if(interface.id==native::generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&interface.major==1&&interface.minor==0)
+    if((interface.id==native::generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
+     interface.id==native::generated::FesComputerInterfaceVideoSessionDisplayID)&&
+     interface.major==1&&interface.minor==0)
      capable=true;
    if(!capable)return {ErrorCode::unsupported_interface,"session display is unavailable","menu"};
    if(visible&&status_.menu_display.available)return {};
@@ -914,6 +923,9 @@ public:
 				FesComputerInterfaceKeyboardHidID))
 				return {ErrorCode::unsupported_interface,
 					"keyboard HID requires fes.computer with fes.keyboard.hid", "compatibility"};
+			bool neutral = true;
+			for (const std::uint16_t row : rows) if (row != 0) neutral = false;
+			if (session_display_focused_ && !neutral) return {};
 			busy_ = true;
 		}
 		const Error error = hardware_.SetKeyboardHid(rows);

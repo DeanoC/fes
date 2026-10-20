@@ -30,10 +30,16 @@ _REQUIRED_YOSYS_SUPPORT = (
     "intel_alm/common/mem_sim.v", "intel_alm/common/misc_sim.v",
     "intel_alm/common/megafunction_bb.v", "intel_alm/common/arith_alm_map.v",
 )
+_GPU_LEASE_ENVIRONMENT = (
+    "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_RUN_EXPECTED_DEVICE",
+    "NEXTPNR_REQUIRE_GPU", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES",
+    "CUDA_VISIBLE_DEVICES",
+)
 
 def execution_environment(home: Path, tools: dict[str, Path]) -> dict[str, str]:
-    # No ambient LD_PRELOAD, YOSYS_DATDIR, ROCm device masking, Python paths or
-    # user rc/cache settings enter synthesis/placement. Executables are absolute.
+    # No ambient loader, Yosys, GPU, Python-path or user rc/cache settings enter
+    # synthesis/placement. FunctionalInvocation separately restores gpu-run's
+    # lease marker and visibility mask when one is active. Executables are absolute.
     bins = sorted({str(path.parent) for path in tools.values()})
     return {"PATH": ":".join([*bins, "/usr/bin", "/bin"]),
             "HOME": str(home), "LANG": "C", "LC_ALL": "C", "TZ": "UTC"}
@@ -87,8 +93,14 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
     normalized_env = dict(env, HOME="<private-build-home>")
     # Authenticated installation paths are deliberately retained for now. This
     # prevents unsafe cross-install reuse until relocation is qualified.
+    # gpu_device is the unbound lease selection, not the requested index.
+    # gpu-run grants a physical GPU only while nextpnr routes, after this
+    # record is sealed into BUILD_ID. Naming the request or the grant here
+    # would change placement and RBF bytes whenever a different GPU was free.
+    # The request stays on FunctionalInvocation.gpu_device for the route
+    # command. The route log's FES-GPU-GRANT line is the physical id.
     return {"version": 1, "system": platform.system(), "machine": platform.machine(),
-            "kernel": platform.release(), "gpu_device": gpu_device,
+            "kernel": platform.release(), "gpu_selection": "lease", "gpu_device": "lease",
             "environment": normalized_env, "files": dict(sorted(files.items()))}
 
 
@@ -139,8 +151,18 @@ class FunctionalInvocation:
         self.gpu_device = gpu_device
         self.home = tempfile.TemporaryDirectory(prefix="fes-tool-home-")
         self.env = execution_environment(Path(self.home.name), self.tools)
+        from scripts.fes_build_common import gpu_run_environment
+        self.env.update(gpu_run_environment())
         if extra_env:
             self.env.update(extra_env)
+        # Keep an already-active lease visible through the controlled build env.
+        # These values identify that outer lease and participate in the digest.
+        # Producers run outside gpu-run, so a normal seal does not see them;
+        # the physical grant is recorded later, in the route log.
+        if (os.environ.get("FES_GPU_IDS") and os.environ.get("GPU_RUN_DEVICE") is not None
+                and os.environ.get("NEXTPNR_REQUIRE_GPU") == "1"):
+            self.env.update({key: os.environ[key] for key in _GPU_LEASE_ENVIRONMENT
+                             if key in os.environ})
         try:
             self.inputs = execution_inputs(self.tools, self.env, gpu_device)
         except Exception:

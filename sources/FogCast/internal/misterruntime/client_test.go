@@ -7,13 +7,14 @@ import (
 
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/internal/testsock"
 )
 
 const idleResponse = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`
@@ -395,12 +396,7 @@ func waitSignal(t *testing.T, signal <-chan struct{}) {
 
 func temporarySocketPath(t *testing.T) string {
 	t.Helper()
-	directory, err := os.MkdirTemp(os.TempDir(), "fc-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(directory) })
-	return filepath.Join(directory, "runtime.sock")
+	return testsock.Path(t, "runtime.sock")
 }
 
 func readNewline(connection net.Conn) (string, error) {

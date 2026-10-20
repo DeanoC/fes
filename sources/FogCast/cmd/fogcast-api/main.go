@@ -195,12 +195,6 @@ func defaultAudioSource(config remotemedia.AudioSourceConfig) (remotemedia.Audio
 	return remotemedia.OpenNativeAudioSource(config)
 }
 
-// newMediaSources is the default launch-time source seam. Composition tests
-// replace it through makeMediaSourcesFactory without opening either source.
-func newMediaSources(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
-	return makeMediaSourcesFactory(defaultCaptureSource, defaultAudioSource)(config)
-}
-
 func makeMediaSourcesFactory(newCapture captureSourceFactory, newAudio audioSourceFactory) mediaSourcesFactory {
 	return func(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
 		if newCapture == nil {
@@ -1168,9 +1162,17 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
 	previewCaptureDevice := flags.String("preview-capture-device", "", "local capture device shown in the FPGA Play surface")
 	headless := flags.Bool("headless", false, "API-only: do not start local capture or session preview")
+	cpuProfile := flags.String("cpu-profile", "", "write CPU pprof to this file until exit")
+	heapProfile := flags.String("heap-profile", "", "write heap/allocation pprof on SIGUSR1 and at exit")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
+	stopProfiles, err := startProfiles(ctx, *cpuProfile, *heapProfile, stderr)
+	if err != nil {
+		fmt.Fprintf(stderr, "fogcast-api: profile: %v\n", err)
+		return 1
+	}
+	defer stopProfiles()
 	var launcherConfig *launcherListenerConfig
 	if *launcherPath != "" {
 		parsed, err := loadLauncherConfig(*launcherPath)

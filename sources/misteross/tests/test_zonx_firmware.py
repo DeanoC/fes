@@ -28,16 +28,17 @@ class ZonXFirmwareSimulationTest(unittest.TestCase):
                        CORE / "expansions" / "zonx.v", CORE / "expansions" / "zonx_ay.v",
                        ROOT / "experiments" / "901_plugged_base" / "sim" / "mistral_ff_model.v"]
             sources += [CORE / "rtl" / name for name in
-                        ("zx81_machine_clock.v", "zx81_machine.sv", "t80pa.v", "zx81_dpram.v",
-                         "zx81_expansion_socket.v", "zx81_ram_pack.v", "tv80/tv80_core.v",
-                         "tv80/tv80_alu.v", "tv80/tv80_mcode.v", "tv80/tv80_reg.v")]
+                        ("zx81_machine_clock.v", "zx81_machine.sv", "zx81_dpram.v",
+                         "zx81_expansion_socket.v", "zx81_ram_pack.v")]
+            sources += [ROOT / "cores/fes-common/rtl/z80" / name for name in
+                        ("fes_z80_alu.sv", "fes_z80_engine.sv", "fes_z80_bus.sv", "fes_z80_nmos.sv")]
             warnings = ("UNUSEDSIGNAL", "UNOPTFLAT", "CASEINCOMPLETE", "WIDTHTRUNC", "WIDTHEXPAND",
                         "SYNCASYNCNET", "PINCONNECTEMPTY", "DECLFILENAME", "IMPLICITSTATIC",
                         "VARHIDDEN", "UNUSEDPARAM", "CASEX", "BLKSEQ")
             command = [verilator, "--cc", "--exe", "--build", "--top-module", "expansion_machine",
-                       "-GCART_PRESENT=1", f'-GFIRMWARE_INIT="{firmware}"', "-DTV80_REFRESH=1", "-Wall",
+                       "-GCART_PRESENT=1", f'-GFIRMWARE_INIT="{firmware}"', "-Wall",
                        *[f"-Wno-{warning}" for warning in warnings],
-                       f"-I{CORE / 'rtl'}", f"-I{CORE / 'rtl' / 'tv80'}",
+                       f"-I{CORE / 'rtl'}",
                        "--Mdir", str(directory / "build"), *map(str,sources),
                        str(CORE / "sim" / "zonx_firmware_tb.cpp")]
             built = subprocess.run(command, capture_output=True, text=True)

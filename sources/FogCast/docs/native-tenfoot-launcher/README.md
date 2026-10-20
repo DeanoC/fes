@@ -57,10 +57,10 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
 | Software | `gfx.NewSoftware` (`software.go`) | CGO-free RGBA8 rasterizer with portable Go and an optional ARM NEON alpha-fill kernel (no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode, not in Draw. |
-| FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `ui/anim`. |
+| FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `ui/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
-| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The image starts this client only when `kit_ui` is `tenfoot`; otherwise the kit runs `fogcast-kit`. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Used by `fogcast-tenfoot -gfx linuxfb` with its native evdev input. |
+| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The base-image supervisor starts this client as the kit UI. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", and pauses presents after that loading frame is presented so the core owns HDMI. A failed or unpresented frame aborts the launch. Late adoption drains outstanding menu work and pauses without a loading frame; an older menu failure does not block that pause. Presents resume after a Stop (F12, Guide or the Select+Start hold), or when that kit-local session is no longer running. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
@@ -68,8 +68,7 @@ Device inside the SDL window shell; unset keeps WrapSDLRenderer. `fpga` is
 software-replay of the FC2D stream, not a programmed 2D core. `linuxfb` and
 `menu-display` are not opened from that shell. `tenfoot.Run` dispatches
 `-gfx menu-display` to `gfx.MenuDisplay` (change-driven presents,
-`-menu-socket`). `linuxfb` on the kit can still use `cmd/tenfoot-linuxfb-spike`
-or `cmd/tenfoot-linuxfb-grid`.
+`-menu-socket`) and `-gfx linuxfb` to the framebuffer shell.
 
 For an active library ZX81 package that reports `fes.video.session-display` 1.0
 and `fes.memory.hps-ddr` 1.0, **Home** on a keyboard or **Select/View** on a pad
@@ -88,9 +87,13 @@ start** cassette. Menu frames also pin that captured package and core generation
 and reject changed display generations. A lost open response keeps Back/Esc/B
 available for a guarded return and Home/Select for retry. A failed return retains
 room input until another return succeeds. Shell exit attempts that return without
-stopping the machine. Packages without the observed display contracts retain
-pre-launch cassette selection; the independent host window keeps its live tape
-controls.
+stopping the machine. A `fes.computer` generation that reports `fes.media.zx81-tape` 1.0
+uses the same display request when it also reports the session-display plane
+and HPS DDR. Opening binds launcher frames to that package generation; closing
+quiesces the plane and restores ZX81 video. Without those interfaces the kit
+routes stay closed. Other packages without the observed display
+contracts retain pre-launch cassette selection. The independent host window
+keeps its live tape controls.
 
 ## CPU profiling and optimization
 
@@ -147,23 +150,19 @@ client wall + monotonic clocks on the existing host session path and to
 (`ui.home_room_fallback`) use that same debug ingest. The fallback
 carries the room id and reason for the host only; the TV does not.
 
-Look tokens (`ui/theme`) are shared with the kit grid. `-theme`
+Look tokens live in `ui/theme`. `-theme`
 selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
 `night`/`sofa-dim`) or a JSON/TOML file;
 `tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
-`default` / Classic keeps the sofa and attract clear colours. This slice applies the
-loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
-token set, including typography roles (`title_px` / `body_px` / `caption_px` /
-`status_px`, with `*_scale` fallback) and title/header Bold (`title_bold`,
-default true on built-ins). Packs also select a kit scene overlay
-(`transition`: Classic curtain, Neon glitch, Sofa Dim wipe). On the kit, X (West) cycles the three packs at
-runtime and writes the last pack to `launcher.json`.
+`default` / Classic keeps the sofa and attract clear colours. Tenfoot applies the
+loaded theme to those `Clear` sites.
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
 (clamped 0–20%) and persist to `tenfoot.json` under the user config dir
 (`~/Library/Application Support/FogCast/` on Mac;
-`$XDG_CONFIG_HOME/FogCast/` or `~/.config/FogCast/` on Linux). Inner cover
+`$XDG_CONFIG_HOME/FogCast/` or `~/.config/FogCast/` on Linux). A kit uses
+`/media/fat/fogcast/state/FogCast/`. Inner cover
 padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override
@@ -193,35 +192,7 @@ queued open results), and resets the idle timer. South/A on a launchable
 attract item dismisses and launches. A South/North hold that began before
 attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
-stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
-`fogcast-kit` adapter arms the same host idle and paints stills, or a kit-safe
-screenshot/poster motion preview when the staged title has a video handle
-(no H.264 decode; full clip playback is a follow-up). Four or more stills-backed
-titles with a video handle paint a 2×2 attract wall. Any pad input returns to
-the platform wheel or catalog grid. The kit
-opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
-(default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
-Coverflow → Wall → Split → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
-without stealing Y or D-pad; the last pack is stored in `launcher.json`.
-Detail, attract, wheel, layout, and pack cuts play that pack's short overlay
-(curtain, wipe, or glitch) without holding pad input; `transition` `none`
-disables it. Kit attract can paint a theme-highlight edge pulse when
-`-audio-chrome` / `audio_chrome` is on. Without a measured 0..1 level file
-that pulse is an attract-only `idle pulse` (the kit Dummy ALSA device is not
-FPGA HDMI audio). Built-in packs leave it off.
-A Recent / Favorites strip paints under the grid when those host collections
-return titles, and hides when they are empty. Last-row Down enters the
-strip; A opens the title pane; B or Up return to the grid. The kit title pane is a
-sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
-Down opens it when the strip is hidden, East/B and Up return, and A still launches. The pane
-shows admitted genre/year/players/region/studio plus wrapped `summary`
-description when those fields exist; it omits empty copy. Compact chips
-paint on kit tiles and the pane for players, rating, completion, and
-portable when presentation (or a handheld catalog system) already carries
-them. Play-count and last-played stay off the pane body; the platform
-wheel rolls them up from host games when those fields are admitted. A presentation `video_id`
-paints a VIDEO badge and cycles screenshot/poster stills as an honest
-motion preview (no H.264 decode on the CGO-free kit).
+stills fallback. GUI video smoke on a Linux display is NEED.
 
 USB keyboard is first-class browse/nav on the SDL path (no gamepad required):
 arrows move focus, Enter launches or confirms, Esc backs out, Tab opens search
@@ -502,9 +473,18 @@ make tenfoot-smoke
   `fes.keyboard.hid` sessions post each SDL scancode as its HID usage
   (code `0x1000 + usage`), including Esc, Backspace and `/`.
 - `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
-  keeps the kit lease (rooms Soft-stop). Offered while the session is
-  active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). Shell exit (Start, Q, or window close) waits for
+  keeps the kit lease (rooms Soft-stop: East/B, Esc/Backspace, or `s`).
+  Kit Select+Start held for one second is the library session's completed
+  exit, not that Soft-stop. It posts `retain_lease` false with the captured
+  play: package generation when the play has one, otherwise the session id,
+  launch flight, game, and target. A missing flight is not posted unbound.
+  A chord queued during input keeps that captured play and does not stop a
+  replacement. Idle cleanup releases that play's grant. A grant retained on
+  another target, and a host-only stop that releases no kit grant, stays
+  tracked until shell exit or Release kit. A release that fails after the
+  play is idle retries the idle-grant release; a failure that leaves the
+  play running retries the bound stop. Offered while the session is
+  active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a
   failed release. An empty body is not sent while a promoted play remains.

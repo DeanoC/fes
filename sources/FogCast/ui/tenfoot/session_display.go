@@ -19,12 +19,34 @@ func (a *App) SetMenuDisplay(display *gfx.MenuDisplay) {
 	a.menuDisplay = display
 }
 
+// Transition copy for the kit HDMI plane. It describes a pending open or
+// return of one session and is cleared when that session ends.
+const (
+	sessionDisplayOpeningStatus   = "Opening HDMI controls…"
+	sessionDisplayReturningStatus = "Returning to play…"
+)
+
 func (a *App) needsSessionDisplayLocked() bool {
 	return a.menuDisplay != nil || a.localCores != nil
 }
 
 func (a *App) sessionDisplayOfferedLocked() bool {
 	return !a.needsSessionDisplayLocked() || hostclient.SessionDisplayCapable(a.session.CorePackage)
+}
+
+// liveControlsOfferedLocked is the kit gate for the hardware room and tape
+// picker. On a menu-display kit the running package must report the
+// session-display plane, including fes.computer ZX81. A host window draws
+// those controls on its own display.
+func (a *App) liveControlsOfferedLocked() bool {
+	return a.sessionDisplayOfferedLocked()
+}
+
+// kitSessionDisplayPlaneLocked is the POST /api/v1/session/display transition.
+// Opening it makes menu presentation available and binds launcher frames.
+// Closing it restores the core's HDMI pixels.
+func (a *App) kitSessionDisplayPlaneLocked() bool {
+	return a.needsSessionDisplayLocked()
 }
 
 func (a *App) suppressHeldPlayKeysLocked() {
@@ -90,9 +112,9 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 		parent = context.Background()
 	}
 	if visible {
-		a.status = "Opening HDMI controls…"
+		a.status = sessionDisplayOpeningStatus
 	} else {
-		a.status = "Returning to play…"
+		a.status = sessionDisplayReturningStatus
 	}
 	a.bumpSessionGenLocked()
 	go func() {
@@ -168,6 +190,9 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 				a.openTapePickerLocked()
 			}
 		} else {
+			if a.status == sessionDisplayReturningStatus {
+				a.status = ""
+			}
 			a.finishRoomSessionResumeLocked()
 		}
 		a.kickSessionPollLocked()
@@ -185,6 +210,12 @@ func (a *App) invalidateSessionDisplayLocked() {
 	a.playPadChordFired = false
 	a.suppressHeldPlayKeysLocked()
 	a.suppressHeldSessionPadLocked()
+	// The epoch bump drops any pending open or return, including one ended
+	// by a host-side stop, so its copy must not outlive the session.
+	switch a.status {
+	case sessionDisplayOpeningStatus, sessionDisplayReturningStatus, playingHardwareRoomStatus:
+		a.status = ""
+	}
 	if a.menuDisplay != nil {
 		a.menuDisplay.ClearSessionBinding()
 		a.menuDisplay.Resume()

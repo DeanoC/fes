@@ -3,35 +3,19 @@ package localcores
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
-)
 
-var sockSeq atomic.Uint32
+	"github.com/DeanoC/FogCast/internal/testsock"
+)
 
 func shortSock(t *testing.T) string {
 	t.Helper()
-	n := sockSeq.Add(1)
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("fc%d.sock", n))
-	if len(path) >= 104 {
-		path = fmt.Sprintf("/tmp/fc%d.sock", n)
-	}
-	if len(path) >= 104 {
-		if runtime.GOOS == "darwin" {
-			t.Skipf("unix socket path is %d bytes", len(path))
-		}
-		t.Fatalf("unix socket path is %d bytes", len(path))
-	}
-	t.Cleanup(func() { _ = os.Remove(path) })
-	return path
+	return testsock.Path(t, "fc.sock")
 }
 
 func TestLocalControlSocketMode(t *testing.T) {

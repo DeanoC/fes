@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -46,6 +47,66 @@ func candidate(t *testing.T, s *Store, b []byte) release.Manifest {
 	}
 	return m
 }
+func TestConfirmClearsMatchingBootTicketOnly(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	write := func(bootID, image string, trial bool) {
+		t.Helper()
+		body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":%t}\n", bootID, image, trial)
+		if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() bootTicket {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(s.root, "boot.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ticket bootTicket
+		if err := json.Unmarshal(raw, &ticket); err != nil {
+			t.Fatal(err)
+		}
+		return ticket
+	}
+	other := strings.Repeat("ab", 32)
+	write("other-boot", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "other-boot" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("unrelated ticket changed: %+v", got)
+	}
+	// State is already confirmed. A later matching ticket, such as one left
+	// behind by an interrupted rewrite, is cleared by the idempotent confirm.
+	write("boot-a", other, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != other {
+		t.Fatalf("other image ticket changed: %+v", got)
+	}
+	write("boot-a", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("confirmed ticket = %+v", got)
+	}
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial {
+		t.Fatal("retry restored trial")
+	}
+}
+
 func TestTrialConsumptionAndConfirmation(t *testing.T) {
 	s, f, b := fixture(t)
 	m := candidate(t, s, b)
@@ -103,7 +164,7 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	// A directory-fsync failure happens AFTER rename made confirmed state
 	// visible. The reader must establish durability itself before disarming.
 	s.syncDirectory = func(string) error { return unix.EIO }
-	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) {
+	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) || errors.Is(err, ErrBootTicketRewrite) {
 		t.Fatalf("missing injected fsync failure: %v", err)
 	}
 	st, err := s.Status()
@@ -122,6 +183,69 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	}
 	if err := s.Confirm("trial-boot", m.ImageSHA256); err != nil {
 		t.Fatalf("durable retry failed: %v", err)
+	}
+}
+
+func TestBootTicketRewriteFailurePreservesDurableConfirmation(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":true}\n", "boot-a", m.ImageSHA256)
+	ticketPath := filepath.Join(s.root, "boot.json")
+	if err := os.WriteFile(ticketPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// The state temp file syncs once. Later boot.json temp files fail the way
+	// a full FAT fails CreateTemp's successor: the rename never happens.
+	tempWrites := 0
+	s.syncFile = func(f *os.File) error {
+		if strings.Contains(f.Name(), ".write-") {
+			tempWrites++
+			if tempWrites > 1 {
+				return unix.ENOSPC
+			}
+		}
+		return f.Sync()
+	}
+	err := s.Confirm("boot-a", m.ImageSHA256)
+	if !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("confirm error = %v", err)
+	}
+	raw, err := os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("ticket changed: %q %v", raw, err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != m.ImageSHA256 || st.ConfirmedImage != m.ImageSHA256 || st.TrialImage != "" || st.ConfirmedBootID != "boot-a" {
+		t.Fatalf("status %+v %v", st, err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-a", m.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog boundary = %v %v", ok, err)
+	}
+	if err = s.Confirm("boot-a", m.ImageSHA256); !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("second rewrite error = %v", err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("second rewrite changed ticket: %q %v", raw, err)
+	}
+	s.syncFile = (*os.File).Sync
+	if err = s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticket bootTicket
+	if err = json.Unmarshal(raw, &ticket); err != nil || ticket.Trial || ticket.BootID != "boot-a" || ticket.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("repaired ticket = %s %v", raw, err)
 	}
 }
 
@@ -983,6 +1107,74 @@ func TestSpillUsableRejectsReleaseVolume(t *testing.T) {
 	}
 	if s.spillUsable(t.TempDir(), 4096) {
 		t.Fatal("same-device directory usable as spill")
+	}
+}
+
+func TestLoopBackingSkipsEmptyOptical(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"sda", "sdb", "mmcblk0", "loop0"} {
+		if e := os.MkdirAll(filepath.Join(root, name, "device"), 0o700); e != nil {
+			t.Fatal(e)
+		}
+	}
+	write := func(name, size, removable, scsi string) {
+		t.Helper()
+		base := filepath.Join(root, name)
+		if e := os.WriteFile(filepath.Join(base, "size"), []byte(size+"\n"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+		if e := os.WriteFile(filepath.Join(base, "removable"), []byte(removable+"\n"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+		if scsi != "" {
+			if e := os.WriteFile(filepath.Join(base, "device", "type"), []byte(scsi+"\n"), 0o600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	write("sda", "0", "1", "5")
+	write("sdb", "15633408", "1", "0")
+	write("mmcblk0", "62333952", "1", "")
+	write("loop0", "2048", "0", "")
+	if e := syscall.Mkfifo(filepath.Join(root, "sda", "loop", "backing_file"), 0o600); e != nil {
+		// loop/ does not exist yet.
+		if e = os.MkdirAll(filepath.Join(root, "sda", "loop"), 0o700); e != nil {
+			t.Fatal(e)
+		}
+		if e = syscall.Mkfifo(filepath.Join(root, "sda", "loop", "backing_file"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e := os.MkdirAll(filepath.Join(root, "loop0", "loop"), 0o700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(root, "loop0", "loop", "backing_file"), []byte("/media/fat/fogcast/releases/images/abc.img\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	// FESDATA partition is not a loop and must not be opened.
+	if e := os.MkdirAll(filepath.Join(root, "mmcblk0", "mmcblk0p3"), 0o700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(root, "mmcblk0", "mmcblk0p3", "size"), []byte("41943040\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	done := make(chan struct{})
+	var paths []string
+	var err error
+	go func() {
+		defer close(done)
+		paths, err = loopBackingFilesFrom(root)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("loop scan blocked on the empty optical device")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "/media/fat/fogcast/releases/images/abc.img" {
+		t.Fatalf("backing = %v", paths)
 	}
 }
 

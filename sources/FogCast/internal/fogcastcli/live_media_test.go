@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -74,6 +75,66 @@ func TestChangeTapeAndEjectTapeCommands(t *testing.T) {
 		t.Fatalf("posts=%v", posts)
 	}
 }
+
+func TestChangeTapeAdmitsNativeComputerZx81Tape(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	mediaID := strings.Repeat("b", 64)
+	posts := 0
+	session := map[string]any{
+		"id": "host-one", "target": "dev", "state": "active", "execution": "fpga_native",
+		"core_package": map[string]any{
+			"package_id": pkg, "generation": 4,
+			"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
+			"active_interfaces": []map[string]any{{"id": "fes.media.zx81-tape", "major": 1, "minor": 0}},
+			"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": "fes.media.zx81-tape", "major": 1, "minor": 0},
+				"min_bytes": 1, "max_bytes": 16384, "chunk_bytes": 512, "state": "empty"}},
+		},
+	}
+	prev := mutationHTTPClient
+	t.Cleanup(func() { mutationHTTPClient = prev })
+	mutationHTTPClient = func() *http.Client {
+		return &http.Client{CheckRedirect: refuseRedirect, Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			req.Header.Set("X-Test-Mutation", "1")
+			return http.DefaultTransport.RoundTrip(req)
+		})}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			if r.Header.Get("X-Test-Mutation") != "" {
+				t.Error("session read used the mutation client")
+			}
+			_ = json.NewEncoder(w).Encode(session)
+		case r.Method == http.MethodPost && (r.URL.Path == "/api/v1/session/live-media" || r.URL.Path == "/api/v1/session/live-media/clear"):
+			posts++
+			if r.Header.Get("X-Test-Mutation") != "1" {
+				t.Error("tape mutation used the 30s session client")
+			}
+			if r.Header.Get("X-FogCast-Package-ID") != pkg || r.Header.Get("X-FogCast-Core-Generation") != "4" {
+				t.Fatalf("headers=%v", r.Header)
+			}
+			_ = json.NewEncoder(w).Encode(session)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	result := runLiveMediaCommand(context.Background(), server.URL, []string{"change-tape", mediaID})
+	if result.err != nil || result.exit != 0 || posts != 1 {
+		t.Fatalf("change-tape posts=%d err=%v", posts, result.err)
+	}
+	result = runLiveMediaCommand(context.Background(), server.URL, []string{"eject-tape"})
+	if result.err != nil || result.exit != 0 || posts != 2 {
+		t.Fatalf("eject-tape posts=%d err=%v", posts, result.err)
+	}
+	if hostJSONClient().Timeout != 30*time.Second || prev().Timeout != 0 {
+		t.Fatal("tape session reads stay on the 30s client; mutations match the host insertion budget")
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestChangeTapePathRequiresPExtension(t *testing.T) {
 	dir := t.TempDir()

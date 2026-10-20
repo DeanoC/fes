@@ -32,7 +32,10 @@ from scripts import c64_slots
 from scripts import build_fes_c64_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend
+from scripts.fes_build_common import (
+    _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool,
+    gpu_route_evidence, gpu_run_active, nextpnr_gpu_command,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -307,8 +310,14 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "slot_clock": SLOT_CLOCK, "probe_mode": slot - 1, "placer_seed": PLACER_SEED,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
     extra = shell_recipe.execution_extra(gpu_router)
+    # The recipe is hashed before the route, so it cannot name the GPU
+    # gpu-run will grant. "lease" is that unbound selection. CUDA still
+    # passes the requested index to nextpnr; record it as a request, not
+    # as the device that routed. The grant is copied from the route log
+    # into the summary after the route, outside this hash.
+    recipe["gpu_selection"] = "lease"
     if gpu_router == "CUDA":
-        recipe["gpu_device"] = gpu
+        recipe["gpu_device_requested"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/c64-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -321,15 +330,14 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ)
-    # HIP remaps the selected device to index 0. CUDA keeps PCI bus order and
-    # selects that index with nextpnr --gpu-device, as the shell producer does.
-    # An inherited visibility mask would renumber that index.
+    # gpu-run grants any free GPU. Do not set GPU_LEASE_IDS or a vendor mask.
+    # An outer gpu-run, which the route runner rejects, keeps its own mask.
+    if not gpu_run_active(env):
+        for name in ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
+                     "GPU_DEVICE_ORDINAL"):
+            env.pop(name, None)
     if extra:
-        env.pop("HIP_VISIBLE_DEVICES", None)
-        env.pop("CUDA_VISIBLE_DEVICES", None)
         env.update(extra)
-    else:
-        env["HIP_VISIBLE_DEVICES"] = str(gpu)
     commands = [
         [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
@@ -338,21 +346,16 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
          "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu",
-         *(["--gpu-device", str(gpu)] if extra else []),
+         *( ["--gpu-device", str(gpu)] if extra else [] ),
          "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
+    commands[1] = nextpnr_gpu_command(commands[1], env)
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            try:
-                subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=900)
-            except subprocess.TimeoutExpired as exc:
-                raise ValueError(f"{name} timed out; see {log_path}") from exc
-            except subprocess.CalledProcessError as exc:
-                raise ValueError(f"{name} failed; see {log_path}") from exc
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root),
+                  env=env, timeout=900)
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
             raise ValueError(f"{name} reported an error; see {log_path}")
         required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")
@@ -404,7 +407,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             archive.addfile(info, io.BytesIO(data))
     (output / "build-summary.json").write_text(json.dumps(
         {"recipe": recipe, "expansion_id": expansion_id, "manifest": json.loads(encoded),
-         "timing_mhz": achieved, "cram_diff": changes}, sort_keys=True, indent=2) + "\n")
+         "timing_mhz": achieved, "cram_diff": changes,
+         "gpu": gpu_route_evidence(route_text, gpu)}, sort_keys=True, indent=2) + "\n")
     return destination
 
 

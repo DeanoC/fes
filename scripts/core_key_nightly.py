@@ -17,6 +17,24 @@ AUDIT_PRIVATE_CACHE_MARKER = '.fes-closure-audit-private-cache'
 ROOT = Path(__file__).resolve().parents[1]
 
 
+# Manifest fields that name the commit a package was built from. They are outside the
+# functional key (export_core_package.build_identity), so a narrowed cache hit from an
+# earlier commit legitimately differs from the rebuild here, and so does its package ID.
+PROVENANCE_FIELDS = ('repository', 'revision')
+
+
+def functional_manifest_sha256(text):
+    """Hash a sealed manifest with its build provenance removed."""
+    manifest = tomllib.loads(text)
+    build = manifest.get('build')
+    if not isinstance(build, dict) or any(field not in build for field in PROVENANCE_FIELDS):
+        raise ValueError('sealed manifest has no build provenance')
+    for field in PROVENANCE_FIELDS:
+        del build[field]
+    encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':'), default=str)
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
 def decide(narrow, rebuild, reads, closure):
     from pathlib import PurePosixPath
     def covered(path):
@@ -27,6 +45,10 @@ def decide(narrow, rebuild, reads, closure):
         reasons.append('functional key differs')
     if narrow['sha256'] != rebuild['sha256']:
         reasons.append('payload/RBF SHA256 differs')
+    if narrow['manifest_functional_sha256'] != rebuild['manifest_functional_sha256']:
+        reasons.append('sealed manifest differs outside build provenance')
+    if narrow.get('rom_map_sha256') != rebuild.get('rom_map_sha256'):
+        reasons.append('sealed ROM map SHA256 differs')
     if uncovered:
         reasons.append('rebuild read outside narrowed closure')
     return {'pass': not reasons, 'reasons': reasons, 'uncovered_paths': uncovered}
@@ -47,16 +69,22 @@ import os; sys.stdout.flush(); result_fd=os.dup(1); os.dup2(2,1)
 with tempfile.TemporaryDirectory(prefix='nightly-core-',dir=work) as temporary:
  source=module_sources.materialize(repo,'misteross',revision,Path(temporary)/'snapshot')
  result=bundle.resolve_core_package(source,revision,sys.argv[3],force=sys.argv[4]=='1',recipe=recipe_for(sys.argv[2]))
+ manifest=(Path(result['directory'])/'manifest.toml').read_text()
  sys.stdout.flush(); os.dup2(result_fd,1)
- print(json.dumps({'sha256':result['inputs']['core_rbf_sha256'],
-  'key':result['inputs']['source_selection']['functional_inputs_sha256']}))
+ inputs=result['inputs']
+ print(json.dumps({'sha256':inputs['core_rbf_sha256'],
+  'key':inputs['source_selection']['functional_inputs_sha256'],
+  'package_id':inputs['selection']['package_id'],'manifest_sha256':inputs['manifest_sha256'],
+  'rom_map_sha256':inputs.get('rom_map_sha256'),'manifest':manifest}))
 '''
     result = subprocess.run([sys.executable, '-c', program, str(repo), core, str(selection),
                              '1' if force else '0'], cwd=repo, env=env, text=True,
                             capture_output=True)
     if result.returncode:
         raise ValueError(f'{core} resolver failed: {result.stderr.strip()}')
-    return json.loads(result.stdout)
+    resolved = json.loads(result.stdout)
+    resolved['manifest_functional_sha256'] = functional_manifest_sha256(resolved.pop('manifest'))
+    return resolved
 
 
 def _read_log(path):

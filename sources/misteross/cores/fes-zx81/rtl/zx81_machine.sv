@@ -67,26 +67,39 @@ module zx81_machine #(
         .ce_cpu_p(ce_cpu_p), .ce_cpu_n(ce_cpu_n), .cpu_clock(bus_cpu_clock)
     );
 
-    T80pa cpu (
-        .RESET_n(~reset),
-        .CLK(clk_sys),
-        .CEN_p(ce_cpu_p),
-        .CEN_n(ce_cpu_n),
-        .WAIT_n(nWAIT),
-        .INT_n(nINT),
-        .NMI_n(nNMI),
-        .BUSRQ_n(1'b1),
-        .M1_n(nM1),
-        .MREQ_n(nMREQ),
-        .IORQ_n(nIORQ),
-        .RD_n(nRD),
-        .WR_n(nWR),
-        .RFSH_n(nRFSH),
-        .HALT_n(nHALT),
-        .BUSAK_n(),
-        .A(addr),
-        .DO(cpu_dout),
-        .DI(cpu_din)
+    fes_z80_nmos cpu (
+        .reset(reset),
+        .clk(clk_sys),
+        .ce_p(ce_cpu_p),
+        .ce_n(ce_cpu_n),
+        .wait_n(nWAIT),
+        .int_n(nINT),
+        .nmi_n(nNMI),
+        .busrq_n(1'b1),
+        .m1_n(nM1),
+        .mreq_n(nMREQ),
+        .iorq_n(nIORQ),
+        .rd_n(nRD),
+        .wr_n(nWR),
+        .rfsh_n(nRFSH),
+        .halt_n(nHALT),
+        .busak_n(),
+        .a(addr),
+        .dout(cpu_dout),
+        .din(cpu_din),
+        .illegal(),
+        .retired(),
+        .retire_pc(),
+        .debug_pc(),
+        .debug_sp(),
+        .debug_af(),
+        .debug_bc(),
+        .debug_de(),
+        .debug_hl(),
+        .debug_ix(),
+        .debug_iy(),
+        .debug_ir(),
+        .debug_iff()
     );
 
     always_comb begin
@@ -115,8 +128,7 @@ module zx81_machine #(
     logic [7:0] mem_out;
     always_comb begin
         // CPU window reads use DSEL. Do not fold /RFSH into this mux:
-        // nRFSH -> mem_out -> cpu_din -> T80 is a combinational loop and
-        // the FES GP mailbox stops acknowledging.
+        // nRFSH -> mem_out -> cpu_din is a combinational loop.
         if (bus_dsel)
             mem_out = bus_rdata;
         else casex ({tapeloader, rom_e, ram_e})

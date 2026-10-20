@@ -267,3 +267,29 @@ func TestLaunchCoreEntryMarksRecoveryWhenSelectedMediaCleanupFails(t *testing.T)
 		t.Fatalf("recovery retry: %+v %v rejection=%v", status, err, s.plays[s.selectedTarget].packageRejection)
 	}
 }
+
+func TestSavedZx81BlobRoleUsesTheCassetteUnit(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	body := []byte("saved-zx81")
+	media, _, err := store.ImportCoreMediaStream(ctx, int64(len(body)), bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1},
+		Interfaces: []corepackage.Interface{{ID: "fes.media.zx81-tape", Major: 1, Required: true}}}
+	s := &Service{catalog: store}
+	for _, role := range []string{"blob", protocol.CassetteRole} {
+		opened, err := s.readCoreEntryMedia(ctx, descriptor, role, media.MediaID)
+		if err != nil || opened == nil || opened.unit == nil || *opened.unit != protocol.Zx81TapeUnit || opened.size != int64(len(body)) {
+			t.Fatalf("role %s: %+v %v", role, opened, err)
+		}
+		if err := opened.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

@@ -25,7 +25,9 @@ DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-common/rtl/fes_hps_ddr_guard.v',
                'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
-INPUTS = (RECIPE, CONTRACT, QSF, evidence.SDC, 'toolchain.lock',
+TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
+TOOLCHAIN_ROOT = 'build/toolchain/fes-menu'
+INPUTS = (RECIPE, CONTRACT, QSF, evidence.SDC, TOOLCHAIN_LOCK, 'scripts/pnr_recipe.py',
           'scripts/fes_build_common.py', 'scripts/fes_de10nano_evidence.py',
           'scripts/functional_execution.py', 'scripts/compiler_read_audit.py', *SOURCES)
 OUTPUTS = ('synth.json', 'routed.json', 'timing.json', 'core.rbf', 'yosys.log',
@@ -48,14 +50,14 @@ def inputs_for(mode):
     output_for(mode)
     if mode == 'test-pattern':
         return INPUTS
-    return tuple(p for p in INPUTS if p not in (CONTRACT, 'toolchain.lock')) + (
-        'cores/fes-menu/ddr-contract.toml', 'toolchain.lock', DDR_GENERATED, *DDR_SOURCES)
+    return tuple(p for p in INPUTS if p != CONTRACT) + (
+        'cores/fes-menu/ddr-contract.toml', DDR_GENERATED, *DDR_SOURCES)
 
 
 def authenticate(root, cache_root, mode):
-    if mode == 'test-pattern':
-        return board._authenticate_tools(root, cache_root=cache_root)
-    return board._authenticate_tools(root, cache_root=cache_root)
+    output_for(mode)
+    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK,
+                                     toolchain_root=root / TOOLCHAIN_ROOT, cache_root=cache_root)
 
 
 def seed_for(mode, seed):

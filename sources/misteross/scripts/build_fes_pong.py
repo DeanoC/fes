@@ -21,7 +21,6 @@ from scripts.export_core_package import build_identity, encode_build_record, exp
 from scripts.fes_build_common import (
     AuthenticatedTool,
     BuildError,
-    EXPECTED_TOOL_COMMITS,
     FES_GPU_ARCHITECTURES,
     FES_GPU_BACKEND,
     FES_GPU_ROUTER,
@@ -32,7 +31,7 @@ from scripts.fes_build_common import (
     TARGET,
     TOP,
     _authenticate_shared_tools,
-    _authenticate_tools,
+    _authenticate_tools as _authenticate_default,
     _cell_counts,
     _contains_symlink,
     _fes_hip_local_provision_hint,
@@ -53,14 +52,18 @@ from scripts.fes_build_common import (
 from scripts.fes_de10nano_evidence import SDC, PLL_PARAMETERS, REFERENCE_SDC_BYTES, REFERENCE_CONSTRAINT_LOG, PLL_ROUTE_LOG
 from scripts.fes_de10nano_evidence import validate_build_evidence as validate_board_evidence
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
-PLACER_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
-PLACER_TIMING_WEIGHT = 10
-PLACER_CRITICALITY_EXPONENT = 2
-ROUTE_TIMEOUT_SECONDS = 1800
-PLACER_QOR_CLOCKS = ((None, 74.25),)
+PNR = pnr_recipe.recipe_for("fes.pong")
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_TIMING_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.pong")
 OUTPUT_RELATIVE = Path("build/fes-pong")
+TOOLCHAIN_LOCK = "cores/fes-pong/toolchain.lock"
+TOOLCHAIN_ROOT = "build/toolchain/fes-pong"
 QSF = "cores/fes-pong/constraints.qsf"
 RECIPE = "scripts/build_fes_pong.py"
 ABI_DEFINITION = "cores/fes-pong/generated/fes_gp.vh"
@@ -76,7 +79,8 @@ PINNED_INPUTS = (
     "scripts/fes_build_common.py",
     "scripts/fes_de10nano_evidence.py",
     ABI_DEFINITION,
-    "toolchain.lock",
+    TOOLCHAIN_LOCK,
+    "scripts/pnr_recipe.py",
     QSF,
     SDC,
     *RTL_SOURCES,
@@ -92,6 +96,12 @@ BUILD_OUTPUTS = (
     "build-summary.json",
     "manifest.toml",
 )
+
+
+def _authenticate_tools(root: Path, *, cache_root: Path | None = None):
+    return _authenticate_default(
+        root, lock_path=root / TOOLCHAIN_LOCK, toolchain_root=root / TOOLCHAIN_ROOT,
+        cache_root=cache_root)
 ORDINARY_RESOURCES = frozenset(
     {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
 )
@@ -247,9 +257,10 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, invocation):
         device=TARGET, qsf=root / QSF, sdc=root / SDC, freq="74.25",
         seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,),
         critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-        mode="first-pass", extra=("--router", "gpu"),
+        mode="first-pass", extra=(),
         required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
         gpu_devices=(invocation.gpu_device,), env=invocation.env, audit_source_root=root,
+        core_id="fes.pong",
     )
 
 

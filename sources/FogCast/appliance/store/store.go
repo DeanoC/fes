@@ -19,6 +19,7 @@ import (
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"golang.org/x/sys/unix"
 )
 
@@ -32,6 +33,12 @@ var ErrBusy = errors.New("release trial or pending activation already exists")
 // make room is to prune and no filesystem outside the release volume can hold
 // the upload long enough to verify it.
 var ErrInsufficientStorage = errors.New("insufficient release storage")
+
+// ErrBootTicketRewrite means this boot's release confirmation is already
+// durable and the matching boot.json trial flag could not be cleared. The
+// leftover trial ticket stays acceptable for this boot and image. Callers
+// retry the rewrite; the confirmation itself has succeeded.
+var ErrBootTicketRewrite = errors.New("boot ticket rewrite failed after durable confirmation")
 
 var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
 
@@ -934,36 +941,78 @@ func (s *Store) protectedImages() (map[string]struct{}, error) {
 	return keep, nil
 }
 
+type bootTicket struct {
+	BootID      string `json:"boot_id"`
+	ImageSHA256 string `json:"image_sha256"`
+	Trial       bool   `json:"trial"`
+}
+
 func (s *Store) bootImage() (string, error) {
-	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	ticket, err := s.readBootTicket()
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
+	return ticket.ImageSHA256, nil
+}
+
+func (s *Store) readBootTicket() (bootTicket, error) {
+	var ticket bootTicket
+	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	if err != nil {
+		return ticket, err
+	}
 	defer f.Close()
 	b, err := io.ReadAll(io.LimitReader(f, 4097))
 	if err != nil {
-		return "", err
+		return ticket, err
 	}
 	if len(b) > 4096 {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
-	var ticket struct {
-		BootID      string `json:"boot_id"`
-		ImageSHA256 string `json:"image_sha256"`
-		Trial       bool   `json:"trial"`
-	}
 	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
 	if err = dec.Decode(&struct{}{}); err != io.EOF {
-		return "", errUnreadableBootTicket
+		return ticket, errUnreadableBootTicket
 	}
-	return ticket.ImageSHA256, nil
+	return ticket, nil
+}
+
+// clearBootTrial rewrites a matching trial ticket to trial:false. The boot id
+// and image stay as the bootstrap recorded them. A missing ticket, or a ticket
+// for another boot or image, is left untouched. The caller holds the store lock.
+func (s *Store) clearBootTrial(bootID, imageSHA string) error {
+	ticket, err := s.readBootTicket()
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if ticket.BootID != bootID || ticket.ImageSHA256 != imageSHA || !ticket.Trial {
+		return nil
+	}
+	ticket.Trial = false
+	body, err := json.Marshal(ticket)
+	if err != nil {
+		return err
+	}
+	return atomicWriteWithSync(filepath.Join(s.root, "boot.json"), append(body, '\n'), s.syncFile, s.syncDirectory)
+}
+
+// clearConfirmedBootTicket clears a durable confirmation's trial ticket.
+// It is only called after the release record and its directory are synced.
+// A rewrite error is ErrBootTicketRewrite and does not undo that record.
+func (s *Store) clearConfirmedBootTicket(bootID, imageSHA string) error {
+	if err := s.clearBootTrial(bootID, imageSHA); err != nil {
+		return fmt.Errorf("%w: %w", ErrBootTicketRewrite, err)
+	}
+	return nil
 }
 
 func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error) {
@@ -1057,7 +1106,11 @@ func imageHashFromBacking(imagesDir, backing string) (string, bool) {
 }
 
 func loopBackingFiles() ([]string, error) {
-	entries, err := os.ReadDir("/sys/block")
+	return loopBackingFilesFrom("/sys/block")
+}
+
+func loopBackingFilesFrom(blockDir string) ([]string, error) {
+	entries, err := os.ReadDir(blockDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -1066,10 +1119,15 @@ func loopBackingFiles() ([]string, error) {
 	}
 	var paths []string
 	for _, entry := range entries {
+		// Optical devices and disks with no usable media are ignored before any
+		// further sysfs read. Loop backing files are read only for the rest.
+		if decision, ok := blockprobe.Decide(blockDir, entry.Name()); ok && !decision.Allow {
+			continue
+		}
 		if !loopDeviceName(entry.Name()) {
 			continue
 		}
-		backing, err := os.ReadFile(filepath.Join("/sys/block", entry.Name(), "loop", "backing_file"))
+		backing, err := os.ReadFile(filepath.Join(blockDir, entry.Name(), "loop", "backing_file"))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -1236,7 +1294,14 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 		return errors.New("confirmation boot does not match")
 	}
 	if st.ConfirmedImage == imageSHA && st.Good == imageSHA {
-		return s.syncState(ctx)
+		if e = s.syncState(ctx); e != nil {
+			return e
+		}
+		// The release is already durable. Still clear a trial ticket left by an
+		// interrupted confirm or an older writer, so this boot does not keep
+		// reporting trial until the next reboot. A rewrite failure leaves the
+		// durable record in place.
+		return s.clearConfirmedBootTicket(bootID, imageSHA)
 	}
 	if st.TrialImage != imageSHA {
 		return errors.New("confirmation image is not this boot's trial")
@@ -1251,5 +1316,8 @@ func (s *Store) ConfirmContext(ctx context.Context, bootID, imageSHA string) err
 	st.Good = imageSHA
 	st.TrialImage = ""
 	st.ConfirmedImage = imageSHA
-	return s.writeState(st)
+	if e = s.writeState(st); e != nil {
+		return e
+	}
+	return s.clearConfirmedBootTicket(bootID, imageSHA)
 }

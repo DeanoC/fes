@@ -1,9 +1,10 @@
 # Kit software bundles
 
 This package defines immutable kit userspace artifacts, independent of appliance
-images and FPGA core packages. A release contains `bin/mister-agent`,
-`bin/mister-runtime`, `bin/fogcast-kit`, `bin/fogcast-tenfoot` and any application
-assets beneath `share/`. It does not contain kernel, drivers, system libraries,
+images and FPGA core packages. A release requires `bin/mister-agent`,
+`bin/mister-runtime` and `bin/fogcast-tenfoot`, and may hold application assets
+beneath `share/`. Releases also carry the `bin/fogcast-kit` stub for bases whose
+supervisor still runs `fogcast-kit --print-kit-ui`. It does not contain kernel, drivers, system libraries,
 mutable configuration or user data.
 
 The canonical manifest includes board, ARM architecture, base ABI contract,

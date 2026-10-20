@@ -15,15 +15,22 @@ from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_catch.py"
 OUTPUT = Path("build/fes-catch")
 GAME_SOURCES = tuple("cores/fes-demo/rtl/" + name for name in
     ("fes_catch_game.v", "fes_catch_core.v", "fes_catch_audio.v"))
-PINNED_INPUTS = (*demo.PINNED_INPUTS, demo.AUDIO_QSF, *demo.AUDIO_SOURCES,
-    *GAME_SOURCES, RECIPE, "scripts/functional_execution.py")
-_authenticate_tools = board._authenticate_tools
+TOOLCHAIN_LOCK = "cores/fes-catch/toolchain.lock"
+TOOLCHAIN_ROOT = "build/toolchain/fes-catch"
+PINNED_INPUTS = (*(p for p in demo.PINNED_INPUTS if p != "toolchain.lock"),
+    demo.AUDIO_QSF, *demo.AUDIO_SOURCES, *GAME_SOURCES, RECIPE,
+    "scripts/functional_execution.py", "scripts/pnr_recipe.py", TOOLCHAIN_LOCK)
+
+def _authenticate_tools(root, *, cache_root=None):
+    return board._authenticate_tools(root, lock_path=root / TOOLCHAIN_LOCK,
+                                     toolchain_root=root / TOOLCHAIN_ROOT, cache_root=cache_root)
 
 def _require_clean_source(root, *, identity_version=2):
     return board._require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
@@ -64,11 +71,11 @@ def build(root=ROOT, package_store=None, *, cache_root=None, identity_version=2,
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=demo.BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
         commands = demo.build_commands(root, build_identity(record),
-            {name: tools[name].path for name in ("yosys", "nextpnr-mistral")}, audio=True, catch=True)
+            {name: tools[name].path for name in ("yosys", "nextpnr-mistral")},
+            audio=True, catch=True, gpu_device=gpu_device, env=invocation.env)
         options = {"env": invocation.env, "audit_source_root": root}
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT, **options)
-        route = commands[1] + (("--gpu-device", str(gpu_device)))
-        board._run_tool(route, root, output / "nextpnr.log", output_relative=OUTPUT, **options)
+        board._run_tool(commands[1], root, output / "nextpnr.log", output_relative=OUTPUT, **options)
         evidence = demo.board_evidence.validate_build_evidence(output, root, audio=True,
             ordinary_resources=demo.ORDINARY_RESOURCES, required_resources=demo.REQUIRED_RESOURCES,
             forbidden_resources=demo.FORBIDDEN_RESOURCES, required_zero_resources=demo.REQUIRED_ZERO_RESOURCES)

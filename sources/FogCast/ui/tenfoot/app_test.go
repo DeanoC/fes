@@ -268,19 +268,27 @@ func TestAppRejectsUnavailableTitlesWithoutHostLaunch(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
+			// Confirm is ignored while the catalog load is still in progress,
+			// even after the first page is visible. A settled blocked title
+			// records the refusal, opens Details, and does not post a host launch.
 			deadline := time.Now().Add(2 * time.Second)
+			var ready Snapshot
 			for time.Now().Before(deadline) {
 				app.Tick(time.Now())
-				if len(app.Snapshot().Games) == 1 {
+				ready = app.Snapshot()
+				if !ready.Loading && len(ready.Games) == 1 && ready.Games[0].ID == tc.game.ID {
 					break
 				}
 				time.Sleep(5 * time.Millisecond)
 			}
+			if ready.Loading || len(ready.Games) != 1 || ready.Games[0].ID != tc.game.ID {
+				t.Fatalf("library not ready: loading=%v games=%d", ready.Loading, len(ready.Games))
+			}
 			app.Press(CmdSelect, time.Now())
 			app.Tick(time.Now())
 			snap := app.Snapshot()
-			if snap.Launch.Phase != "error" || snap.Launch.Message != tc.want || snap.Launch.HTTPStatus != 0 {
-				t.Fatalf("launch = %#v", snap.Launch)
+			if snap.Launch.Phase != "error" || snap.Launch.Message != tc.want || snap.Launch.HTTPStatus != 0 || snap.Launch.GameID != tc.game.ID || !snap.Detail.Open {
+				t.Fatalf("launch = %#v detailOpen=%v", snap.Launch, snap.Detail.Open)
 			}
 			if launches != 0 {
 				t.Fatalf("host launch called %d times", launches)
@@ -1542,18 +1550,19 @@ func TestApplyCatalogPageRetainsNavDirtyAfterReturnToRestoredIndex(t *testing.T)
 	app.keepFocusIndex = 2
 	pinned := true
 	lastFocus := -1
-	app.applyCatalogPageLocked(page1, "c", 2, &pinned, &lastFocus)
+	navID := ""
+	app.applyCatalogPageLocked(page1, "c", 2, &pinned, &lastFocus, &navID)
 	if !pinned || lastFocus != 0 || app.grid.Focus != 0 {
 		t.Fatalf("page1 restore pinned=%v last=%d focus=%d", pinned, lastFocus, app.grid.Focus)
 	}
-	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus)
+	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus, &navID)
 	if !pinned || lastFocus != 1 || app.grid.Focus != 1 {
 		t.Fatalf("page2 clamp pinned=%v last=%d focus=%d", pinned, lastFocus, app.grid.Focus)
 	}
 	app.grid.Focus = 0
 	app.navDirty = true
 	app.grid.Focus = lastFocus
-	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus)
+	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus, &navID)
 	if pinned {
 		t.Fatal("returning to restored index must unpin pagination focus")
 	}

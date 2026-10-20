@@ -213,6 +213,16 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 			return PointerHit{Kind: PointerBackdrop}
 		}
 		if pane, ok := roomDestGeom(snap); ok && pane.contains(x, y) {
+			if snap.Room.Hero {
+				// Hero buttons do what they say; the rest of the column is Details.
+				primary, secondary := heroButtonRects(snap, pane)
+				if primary.contains(x, y) {
+					return PointerHit{Kind: PointerRoomDestination, KeyID: heroPrimaryKey}
+				}
+				if secondary.contains(x, y) {
+					return PointerHit{Kind: PointerRoomDestination, KeyID: heroSecondaryKey}
+				}
+			}
 			return PointerHit{Kind: PointerRoomDestination}
 		}
 		if hit, ok := snap.Room.Frame.HitAt(float32(x-snap.Room.OffsetX), float32(y-snap.Room.OffsetY)); ok {
@@ -409,6 +419,10 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 			a.applyRoomDestinationConfirmLocked()
 			return
 		}
+		if a.detailOpen && hit.Kind == PointerDetail {
+			a.confirmOpenDetailLocked()
+			return
+		}
 		if a.detailOpen && hit.Kind == PointerCatalog {
 			a.closeDetailLocked()
 		}
@@ -457,6 +471,10 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 			}
 		}
 	case PointerRoomDestination:
+		if hit.KeyID == heroPrimaryKey {
+			a.applyRoomDestinationConfirmLocked()
+			return
+		}
 		a.openRoomDetailsLocked()
 	case PointerBackdrop:
 		a.pointerBackdropLocked(now)

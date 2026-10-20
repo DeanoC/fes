@@ -104,9 +104,6 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 	return handle, nil
 }
 
-func (s *HTTPBridgeStarter) doJSON(ctx context.Context, method, path string, body any, result any) error {
-	return s.doJSONWithToken(ctx, method, path, body, result, "")
-}
 func (s *HTTPBridgeStarter) doJSONWithToken(ctx context.Context, method, path string, body any, result any, kitToken string) error {
 	return s.doJSONRequest(ctx, method, path, body, result, kitToken, nil)
 }

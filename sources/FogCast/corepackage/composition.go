@@ -343,6 +343,9 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 	abi := "fes.simple-computer"
 	if slot == expansion.ColecoSlot {
 		abi = "fes.application"
+	} else if slot == expansion.Slot && d.ABI.ID == "fes.computer" {
+		// Current ZX81 shells use fes.computer. Installed packages stay on fes.simple-computer.
+		abi = "fes.computer"
 	}
 	if d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
 		return expansion.Shell{}, errors.New("composition bus does not match package ABI 1.0")

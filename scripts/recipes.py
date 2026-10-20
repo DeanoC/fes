@@ -65,6 +65,7 @@ _STRIP_NAMES = frozenset({
     "TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD",
     "FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_ROOT",
     "CUDA_HOME", "CUDACXX", "CUDA_PATH",
+    "CUDAARCHS", "HIPARCHS", "FES_TOOLCHAIN_CUDA_ARCHITECTURES",
 })
 _STRIP_PREFIXES = ("GIT_CONFIG_", "CCACHE_", "DISTCC_", "CMAKE_")
 _HIP_IDENTITY_NAMES = frozenset({"ROCM_PATH", "HIPCC"})
@@ -85,15 +86,18 @@ class Format2Recipe:
     package_dir_env: str
     package_selection_env: str
     quartus_role: str
+    pnr: dict
     cache_root: Path = TOOLCHAIN_CACHE_ROOT
     identity_version: int = 2
     producer_arguments: tuple[str, ...] = ()
     producer_options: tuple[tuple[str, object], ...] = ()
     video_profiles: tuple[str, ...] = ()
+    optional: bool = False
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
-_OPTIONAL_RECIPE_FIELDS = frozenset({"producer_arguments", "producer_options", "video_profiles"})
+_OPTIONAL_RECIPE_FIELDS = frozenset({
+    "producer_arguments", "producer_options", "video_profiles", "optional"})
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -152,9 +156,61 @@ def load_recipes(path=REGISTRY_PATH):
             raise ValueError("identity_version must be explicitly 2")
         if any(not isinstance(value, str) or not value.strip()
                or any(ord(char) < 32 or ord(char) == 127 for char in value)
-               for key, value in entry.items() if key != "identity_version" and key not in _OPTIONAL_RECIPE_FIELDS):
+               for key, value in entry.items()
+               if key not in {"identity_version", "pnr"} and key not in _OPTIONAL_RECIPE_FIELDS):
             raise ValueError("recipe fields must be nonempty strings without control characters")
         entry = dict(entry)
+        pnr = entry.get("pnr")
+        if not isinstance(pnr, dict):
+            raise ValueError("every recipe requires a complete pnr table")
+        pnr_fields = {
+            "seeds", "timing_weights", "search_weights", "critexp", "clocks",
+            "freq", "qsf", "sdc", "router", "backend", "gpu_device",
+            "timeout_s", "threads", "timing_allow_fail", "argv_style", "extra",
+            "env", "optional_env", "unset_env", "compress_rbf",
+            "detailed_timing_report", "flags",
+        }
+        if set(pnr) != pnr_fields:
+            raise ValueError("P&R recipe fields are incomplete")
+        # Which options a recipe must list depends on the nextpnr its own lock
+        # pins; sources/misteross/scripts/pnr_recipe.py owns each classified
+        # pin's closed option schema and validates every recipe against it.
+        flags = pnr["flags"]
+        if (not isinstance(flags, dict) or not flags
+                or any(not re.fullmatch(r"[a-z][a-z0-9_]*", name) for name in flags)
+                or any(type(value) not in (bool, int, float, str, list)
+                       or (type(value) is list and any(not isinstance(item, str) for item in value))
+                       for value in flags.values())):
+            raise ValueError("invalid nextpnr option table")
+        if (not all(isinstance(pnr[key], list) and pnr[key]
+                    for key in ("seeds", "timing_weights", "search_weights", "clocks"))
+                or any(type(value) is not int or value < 0 for value in pnr["seeds"])
+                or any(type(value) is not int or value <= 0
+                       for key in ("timing_weights", "search_weights") for value in pnr[key])
+                or type(pnr["critexp"]) is not int or pnr["critexp"] <= 0
+                or type(pnr["timeout_s"]) is not int or pnr["timeout_s"] < 0
+                or type(pnr["threads"]) is not int or pnr["threads"] <= 0
+                or type(pnr["timing_allow_fail"]) is not bool
+                or type(pnr["compress_rbf"]) is not bool
+                or type(pnr["detailed_timing_report"]) is not bool
+                or pnr["router"] != "gpu" or pnr["backend"] != "HIP"
+                or pnr["gpu_device"] not in ("lease", "default")
+                or pnr["argv_style"] not in ("search", "direct")
+                or not isinstance(pnr["extra"], list)
+                or not isinstance(pnr["env"], dict) or not isinstance(pnr["optional_env"], dict)
+                or not isinstance(pnr["unset_env"], list)):
+            raise ValueError("invalid P&R recipe values")
+        if any(not isinstance(clock, dict) or set(clock) != {"name", "mhz"}
+               or not isinstance(clock["name"], str)
+               or type(clock["mhz"]) not in (int, float) or clock["mhz"] <= 0
+               for clock in pnr["clocks"]):
+            raise ValueError("invalid P&R clock entry")
+        if any(not isinstance(name, str) or not isinstance(value, str)
+               for env_table in (pnr["env"], pnr["optional_env"])
+               for name, value in env_table.items()):
+            raise ValueError("invalid P&R environment allowlist")
+        if any(not isinstance(name, str) for name in pnr["unset_env"]):
+            raise ValueError("invalid P&R unset environment list")
         arguments = entry.get("producer_arguments", [])
         options = entry.get("producer_options", {})
         profiles = entry.get("video_profiles", [])
@@ -208,6 +264,8 @@ def load_recipes(path=REGISTRY_PATH):
         if core_id in result or selection in selections or any(
                 name in environment_names for name in names) or names[0] == names[1]:
             raise ValueError("duplicate core ID, selection filename or environment variable")
+        if "optional" in entry and type(entry["optional"]) is not bool:
+            raise ValueError("optional must be a boolean")
         result[core_id] = Format2Recipe(**entry)
         selections.add(selection)
         environment_names.update(names)

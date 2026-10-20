@@ -81,7 +81,7 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertIsInstance(roots, AuditedRoots)
         self.assertIn("scripts", broad)
         self.assertNotIn("scripts", roots)
-        self.assertIn("toolchain.lock", roots)
+        self.assertIn(st.ST_TOOLCHAIN_LOCK, roots)
         self.assertNotIn("scripts/build_fes_pong.py", roots)
         for path in st.PINNED_INPUTS:
             self.assertTrue(any(path == root or path.startswith(root + "/") for root in roots), path)
@@ -90,9 +90,9 @@ class AtariSTProducerTests(unittest.TestCase):
             ROOT, "https://example.invalid/fes", "a" * 40, {"yosys": "test"},
             execution={"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}))
         self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
-        self.assertEqual(record["parameters"]["toolchain_lock"], "toolchain.lock")
+        self.assertEqual(record["parameters"]["toolchain_lock"], st.ST_TOOLCHAIN_LOCK)
         self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
-        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertIn(st.ST_TOOLCHAIN_LOCK, record["source_inputs"])
 
     def test_synth_only_forwards_gpu_router_and_toolchain_root(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
@@ -151,10 +151,11 @@ class AtariSTProducerTests(unittest.TestCase):
                 st.adapted_cpu_source(root)
 
     def test_build_uses_locked_slang_single_unit_and_selected_video(self):
+        from scripts import pnr_recipe
         with (ROOT / st.ST_TOOLCHAIN_LOCK).open('rb') as source:
             lock = tomllib.load(source)
-        for name, digest in st.ST_TOOL_COMMITS.items():
-            self.assertEqual(lock['tool'][name]['commit'], digest)
+        self.assertEqual(pnr_recipe.lock_path(ROOT, 'fes.atari-st'), ROOT / st.ST_TOOLCHAIN_LOCK)
+        self.assertEqual(lock['tool']['nextpnr']['commit'], pnr_recipe.nextpnr_pin('fes.atari-st'))
         for relative in st.PINNED_INPUTS:
             self.assertTrue((ROOT / relative).is_file(), relative)
         tools = {'yosys': Path('/authenticated/install/bin/yosys'),
@@ -568,10 +569,54 @@ class AtariSTProducerTests(unittest.TestCase):
                 self.assertEqual(route.call_args.kwargs['seeds'], (4, 5, 2, 1, 3, 6, 7, 8, 9, 10))
                 self.assertEqual(route.call_args.kwargs['required'],
                                  ((None, 52.224), (None, 74.25), (None, 12.288)))
-                self.assertEqual(route.call_args.kwargs['extra'], ('--router', 'gpu'))
+                self.assertEqual(route.call_args.kwargs['extra'], ())
+                self.assertEqual(route.call_args.kwargs['core_id'], 'fes.atari-st')
                 export.assert_not_called()
             invocation.close.assert_called_once()
             self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
+            self.assertFalse((root / 'build' / 'fes-core-unavailable.json').exists())
+
+    def test_timing_miss_records_unavailable_report_and_withdraws_rbf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / st.QSF).parent.mkdir(parents=True)
+            (root / st.QSF).write_text('# board pins\n')
+            authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                             for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+            invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+
+            def synth(*args, **kwargs):
+                (root / st.OUTPUT_RELATIVE / 'synth.json').write_text('{}')
+
+            def fail_timing(**kwargs):
+                (root / st.OUTPUT_RELATIVE / 'core.rbf').write_bytes(b'unqualified')
+                raise st.SearchError(
+                    'no placement met timing (best seed=4 weight=10 worst_ratio=0.7692)',
+                    reason='timing-not-met', seeds=(4, 5),
+                    figures=({'seed': 4, 'weight': 10, 'passing': False, 'worst_ratio': 0.7692,
+                              'clocks': {'clk_sys': {'achieved_mhz': 40.0, 'constraint_mhz': 52.0}}},))
+
+            with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                 patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                 patch.object(st.rom_map, 'read_database', return_value={}), \
+                 patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                 patch.object(st, 'create_build_record', return_value=b'{}'), \
+                 patch.object(st, 'prepare_cpu_inputs'), \
+                 patch.object(st, 'build_identity', return_value='0'*32), \
+                 patch.object(st, '_run_tool', side_effect=synth), \
+                 patch.object(st, 'clock_read_only_memories', return_value=[]), \
+                 patch.object(st, 'validate_synth_evidence'), \
+                 patch.object(st, 'route_after_synth', side_effect=fail_timing), \
+                 patch.object(st, 'export_package') as export:
+                with self.assertRaisesRegex(BuildError, 'no placement met timing'):
+                    st.build(root)
+                export.assert_not_called()
+            self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
+            report = json.loads((root / 'build' / 'fes-core-unavailable.json').read_text())
+            self.assertEqual(report['reason'], 'timing-not-met')
+            self.assertEqual(report['core_id'], 'fes.atari-st')
+            self.assertEqual(report['seeds'], [4, 5])
+            self.assertEqual(report['figures'][0]['clocks']['clk_sys']['achieved_mhz'], 40.0)
 
     def test_ram_overlap_rejects_seal_even_after_a_timing_winner(self):
         database = ram_database()

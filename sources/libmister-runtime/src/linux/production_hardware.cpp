@@ -100,6 +100,7 @@ public:
  MenuDisplayStatus menu_display() const override {return hardware_.menu_display();}
  Error SetSessionDisplay(bool visible) override {return hardware_.SetSessionDisplay(visible);}
  Error PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* info) override {return hardware_.PresentMenuFrame(frame,info);}
+ bool AcceptsMenuDamage(std::uint32_t base) const override {return hardware_.AcceptsMenuDamage(base);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
 	Error FlushFaultSave() override { return hardware_.FlushFaultSave(); }
 	Error RestoreInput(std::uint64_t generation) override

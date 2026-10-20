@@ -3,9 +3,10 @@ package fogcast
 import (
 	"bytes"
 	"context"
-	"github.com/DeanoC/FogCast/corepackage"
 	"io"
 	"time"
+
+	"github.com/DeanoC/FogCast/corepackage"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -129,44 +130,6 @@ func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, bo
 	return status, nil
 }
 
-// ejectMediaUnitLocked empties one unit of the active generation. Caller
-// holds lifecycle admission.
-func (s *Service) ejectMediaUnitLocked(ctx context.Context, b protocol.MediaUnitBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" {
-		return protocol.Status{}, protocol.MediaUnitRequestError()
-	}
-	ctx = WithSessionTarget(ctx, b.Target)
-	if err := s.prepareMediaUnitClient(ctx, b); err != nil {
-		return protocol.Status{}, err
-	}
-	s.targetMu.RLock()
-	defer s.targetMu.RUnlock()
-	client, loader, err := s.mediaUnitTargetLocked(b)
-	if err != nil {
-		return protocol.Status{}, err
-	}
-	prior, err := client.Status(ctx)
-	if err != nil {
-		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if !b.Matches(prior) {
-		return prior, protocol.MediaUnitIdentityError()
-	}
-	var status protocol.Status
-	if bound, ok := client.(savedMediaUnitClient); ok && protocol.MediaDataBound(prior.CorePackage) {
-		status, err = bound.EjectMediaWithSave(ctx, b)
-	} else {
-		status, err = loader.EjectMedia(ctx, b)
-	}
-	if err != nil {
-		return status, preserveCorePackageError(err)
-	}
-	if unit, ok := protocol.MediaUnit(status.CorePackage, b.Unit); !b.Matches(status) || !ok || unit.State != protocol.MediaUnitEmpty {
-		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	return status, nil
-}
-
 // retainMediaUnitSessionIdentity restores the host library association the
 // target status cannot carry.
 func (s *Service) retainMediaUnitSessionIdentity(status protocol.Status, b protocol.MediaUnitBinding) protocol.Status {
@@ -207,6 +170,10 @@ func cassetteUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitB
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.SpectrumTapeUnit, Target: b.Target, TargetID: b.TargetID}
 }
 
+func zx81TapeUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitBinding {
+	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: protocol.Zx81TapeUnit, Target: b.Target, TargetID: b.TargetID}
+}
+
 // replaceLiveDisk inserts a household disk image into the running machine.
 func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	size, named := diskImageBytes(name)
@@ -241,6 +208,57 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 	}
 	unit := diskUnitBinding(name, b)
 	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, unit, nil, parent)
+	if err != nil {
+		return status, err
+	}
+	return s.retainMediaUnitSessionIdentity(status, unit), nil
+}
+
+// zx81TapeUnitActive reports an active fes.media.zx81-tape unit. Other .p
+// sessions stay on the legacy blob mailbox.
+func (s *Service) zx81TapeUnitActive(ctx context.Context, b protocol.DevelopmentMediaBinding) (bool, error) {
+	ctx = WithSessionTarget(ctx, b.Target)
+	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
+		return false, err
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, ok := s.clientForSessionContextLocked(ctx)
+	if !ok {
+		return false, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	prior, err := client.Status(ctx)
+	if err != nil {
+		return false, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	unit, ok := protocol.MediaUnit(prior.CorePackage, protocol.Zx81TapeUnit)
+	return ok && unit.Interface == protocol.Zx81TapeInterface(), nil
+}
+
+// replaceLiveZx81TapeLocked inserts a .p image into the running ZX81 unit.
+// Caller holds lifecycle admission.
+func (s *Service) replaceLiveZx81TapeLocked(ctx context.Context, mediaID string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	store, ok := s.catalog.(coreMediaCatalog)
+	if !ok {
+		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	info, err := store.CoreMediaInfo(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	if !protocol.AdmitZx81TapeSize(info.Size) {
+		return protocol.Status{}, protocol.LiveMediaRequestError()
+	}
+	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)
+	if err != nil {
+		return protocol.Status{}, mapCoreMediaError(err)
+	}
+	defer reader.Close()
+	if opened != info {
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	unit := zx81TapeUnitBinding(b)
+	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
 	if err != nil {
 		return status, err
 	}

@@ -37,6 +37,9 @@ INSTALL_ROOT="$TOOLCHAIN_ROOT/install"
 JOBS="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || printf '2')}"
 GPU_ROUTER="${FES_TOOLCHAIN_GPU_ROUTER:-OFF}"
 HIP_ARCHITECTURES="${FES_TOOLCHAIN_HIP_ARCHITECTURES:-gfx1100;gfx1201}"
+# Native sm_86 code avoids PTX JIT, which fails when the NVIDIA driver is
+# older than the CUDA toolkit.
+CUDA_ARCHITECTURES="${FES_TOOLCHAIN_CUDA_ARCHITECTURES:-86}"
 CACHE_HELPER="$SCRIPT_DIR/toolchain_cache.py"
 CACHE_ENABLED=0
 CACHE_ROOT_REQUEST="${FES_TOOLCHAIN_CACHE_ROOT:-}"
@@ -64,6 +67,7 @@ if [[ -n "$CACHE_ROOT_REQUEST" && "${1:-}" != "--check-prereqs" ]]; then
         --cache "$CACHE_ROOT_REQUEST" \
         --gpu-router "$GPU_ROUTER" \
         --hip-architectures "$HIP_ARCHITECTURES" \
+        --cuda-architectures "$CUDA_ARCHITECTURES" \
         plan --format lines)" || die "cannot derive shared toolchain cache identity"
     while IFS=$'\t' read -r cache_field cache_value; do
         case "$cache_field" in
@@ -86,7 +90,7 @@ if [[ -n "$CACHE_ROOT_REQUEST" && "${1:-}" != "--check-prereqs" ]]; then
     CACHE_ENABLED=1
 fi
 
-readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS GPU_ROUTER HIP_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_KEY CACHE_SLOT CACHE_LOCK_PATH INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
+readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS GPU_ROUTER HIP_ARCHITECTURES CUDA_ARCHITECTURES CACHE_HELPER CACHE_ENABLED CACHE_ROOT_REQUEST CACHE_KEY CACHE_SLOT CACHE_LOCK_PATH INHERITED_TOOLCHAIN_ROOT INHERITED_TOOLCHAIN_INSTALL INHERITED_TOOLCHAIN_BUILD INHERITED_ROCM_PATH INHERITED_HIPCC INHERITED_CUDA_HOME INHERITED_CUDACXX INHERITED_CUDA_PATH
 
 TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
 declare -A REPO COMMIT ORDER
@@ -126,6 +130,8 @@ print_plan() {
     printf 'gpu-router: %s\n' "$GPU_ROUTER"
     if [[ "$GPU_ROUTER" == "HIP" ]]; then
         printf 'hip-architectures: %s\n' "$HIP_ARCHITECTURES"
+    elif [[ "$GPU_ROUTER" == "CUDA" ]]; then
+        printf 'cuda-architectures: %s\n' "$CUDA_ARCHITECTURES"
     fi
 }
 
@@ -389,6 +395,8 @@ tool_configuration() {
         nextpnr)
             if [[ "$GPU_ROUTER" == "HIP" ]]; then
                 printf 'gpu-router=%s; hip-architectures=%s\n' "$GPU_ROUTER" "$HIP_ARCHITECTURES"
+            elif [[ "$GPU_ROUTER" == "CUDA" ]]; then
+                printf 'gpu-router=%s; hip-architectures=unused; cuda-architectures=%s\n' "$GPU_ROUTER" "$CUDA_ARCHITECTURES"
             else
                 printf 'gpu-router=%s; hip-architectures=unused\n' "$GPU_ROUTER"
             fi
@@ -423,8 +431,11 @@ actual_tool_configuration() {
                     printf 'gpu-router=%s; hip-architectures=%s\n' "$router" "$architectures"
                     ;;
                 CUDA)
+                    local cuda_architectures
+                    cuda_architectures="$(cmake_cache_value "$build_dir" CMAKE_CUDA_ARCHITECTURES)" || return 1
+                    [[ -n "$cuda_architectures" ]] || return 1
                     grep -Fq 'NPNR_GPU_ROUTER_DEVICE=1' "$build_ninja" || return 1
-                    printf 'gpu-router=%s; hip-architectures=unused\n' "$router"
+                    printf 'gpu-router=%s; hip-architectures=unused; cuda-architectures=%s\n' "$router" "$cuda_architectures"
                     ;;
                 OFF)
                     if grep -Eq 'NPNR_GPU_ROUTER_DEVICE=1|__HIP_PLATFORM_AMD__=1|__CUDACC__' "$build_ninja"; then
@@ -535,7 +546,7 @@ build_nextpnr() {
             gpu_options+=("-DGPU_ROUTER=HIP" "-DCMAKE_HIP_ARCHITECTURES=$HIP_ARCHITECTURES")
             ;;
         CUDA)
-            gpu_options+=("-DGPU_ROUTER=CUDA")
+            gpu_options+=("-DGPU_ROUTER=CUDA" "-DCMAKE_CUDA_ARCHITECTURES=$CUDA_ARCHITECTURES")
             ;;
         *)
             die "FES_TOOLCHAIN_GPU_ROUTER must be OFF, HIP or CUDA (got '$GPU_ROUTER')"
@@ -620,7 +631,7 @@ prepare_shared_build_environment() {
     while IFS= read -r name; do
         case "$name" in
             PATH|HOME|USER|LOGNAME|TMPDIR|SHELL|TERM|LANG|LC_ALL|TZ) ;;
-            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_KEY|CACHE_SLOT|CACHE_LOCK_PATH|CACHE_LOCK_FD|CACHE_SOURCE_ROOT|CACHE_BUILD_ROOT|CACHE_INSTALL_ROOT|CACHE_EVIDENCE_ROOT|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
+            SCRIPT_DIR|OPEN_MISTER_ROOT|LOCKFILE|PYTHON|TOOLCHAIN_ROOT|TOOLCHAIN_LOCK_PATH|SRC_ROOT|BUILD_ROOT|INSTALL_ROOT|JOBS|GPU_ROUTER|HIP_ARCHITECTURES|CUDA_ARCHITECTURES|CACHE_HELPER|CACHE_ENABLED|CACHE_ROOT_REQUEST|CACHE_KEY|CACHE_SLOT|CACHE_LOCK_PATH|CACHE_LOCK_FD|CACHE_SOURCE_ROOT|CACHE_BUILD_ROOT|CACHE_INSTALL_ROOT|CACHE_EVIDENCE_ROOT|INHERITED_TOOLCHAIN_ROOT|INHERITED_TOOLCHAIN_INSTALL|INHERITED_TOOLCHAIN_BUILD)
                 # These are shell-only bootstrap state.  Keep their values for
                 # the functions above, but remove any inherited export bit.
                 export -n "$name"
@@ -668,7 +679,8 @@ shared_cache_build() {
     run_cache_helper \
         --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
         --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" --expect-key "$CACHE_KEY" init >/dev/null \
+        --hip-architectures "$HIP_ARCHITECTURES" \
+        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" init >/dev/null \
         || die "cannot initialize shared toolchain cache root"
     shared_cache_lock
     trap 'if [[ -n "${CACHE_LOCK_FD:-}" ]]; then flock -u "$CACHE_LOCK_FD" 2>/dev/null || true; exec {CACHE_LOCK_FD}>&- 2>/dev/null || true; fi' EXIT
@@ -677,7 +689,8 @@ shared_cache_build() {
         run_cache_helper \
             --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
             --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-            --hip-architectures "$HIP_ARCHITECTURES" --expect-key "$CACHE_KEY" verify >/dev/null \
+            --hip-architectures "$HIP_ARCHITECTURES" \
+            --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" verify >/dev/null \
             || die "shared cache ready manifest is invalid: $CACHE_SLOT/ready.json"
         printf '==> shared toolchain cache hit: %s\n' "$CACHE_KEY"
         return 0
@@ -693,13 +706,15 @@ shared_cache_build() {
     run_cache_helper \
         --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
         --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" --expect-key "$CACHE_KEY" stage-evidence \
+        --hip-architectures "$HIP_ARCHITECTURES" \
+        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" stage-evidence \
         --build-root "$BUILD_ROOT" >/dev/null \
         || die "cannot stage shared toolchain authentication evidence"
     run_cache_helper \
         --root "$OPEN_MISTER_ROOT" --lock "$TOOLCHAIN_LOCK_PATH" \
         --cache "$CACHE_ROOT_REQUEST" --gpu-router "$GPU_ROUTER" \
-        --hip-architectures "$HIP_ARCHITECTURES" --expect-key "$CACHE_KEY" publish --lock-fd "$CACHE_LOCK_FD" >/dev/null \
+        --hip-architectures "$HIP_ARCHITECTURES" \
+        --cuda-architectures "$CUDA_ARCHITECTURES" --expect-key "$CACHE_KEY" publish --lock-fd "$CACHE_LOCK_FD" >/dev/null \
         || die "cannot publish shared toolchain ready manifest"
     printf '==> shared toolchain cache published: %s\n' "$CACHE_KEY"
 }

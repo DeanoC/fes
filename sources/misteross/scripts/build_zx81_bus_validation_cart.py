@@ -22,7 +22,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
-from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source, reject_async_m10k_reads
+from scripts.fes_build_common import (
+    _authenticate_tools, _prepare_output, _require_clean_source, _run_tool,
+    reject_async_m10k_reads,
+)
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,7 +130,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if not (shell / name).is_file():
             raise ValueError(f"shell producer directory requires {name}")
     tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -148,7 +151,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
                     build_outputs=BUILD_OUTPUTS + publications)
     (output / "clocks.sdc").write_bytes(clock_constraints)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    # gpu-run grants any free GPU and passes it as FES_GPU_IDS / GPU_RUN_DEVICE.
+    env = dict(os.environ)
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
@@ -160,8 +164,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     ]
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root), env=env)
         # Some nextpnr failures return zero. Exit status alone cannot admit an
         # artifact; keep the failing log but never publish its output.
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
@@ -201,7 +204,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if digest((shell / name).read_bytes()) != closure["shell/" + name]:
             raise ValueError("frozen shell changed during cart build")
     final_tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise ValueError("authenticated compiler changed during cart build")
     destination = output / (expansion_id + ".tar")

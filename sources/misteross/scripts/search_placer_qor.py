@@ -34,29 +34,40 @@ each seed, then sweeps the remaining weights. Both stop at the first candidate
 that meets every constraint. An accept callback may still reject that
 candidate; the search records it as failing and continues.
 
-GPU: ``--gpu-devices 0,1`` runs staged/grid candidates as separate nextpnr
-processes, one HIP device each (7900 XTX + R9700). First-pass stays
-sequential so the first closing seed is deterministic. Packing several
-seeds into one kernel is later; occupancy is per placement.
+GPU: ``--gpu-devices 0,1`` sizes the staged/grid worker pool. Each worker
+still passes its list entry as ``--gpu-device``, but gpu-run leases any free
+GPU and the dispatcher replaces that argument with the granted logical
+device. First-pass stays sequential so the first closing seed is
+deterministic. Packing several seeds into one kernel is later; occupancy is
+per placement.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import contextvars
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from queue import Queue
 from typing import Callable, Mapping, Sequence
+from scripts import pnr_recipe
+from scripts.fes_build_common import gpu_device_index, gpu_run_active, nextpnr_gpu_command
 
 
 class SearchError(Exception):
     """No evaluated placement met every clock constraint."""
+
+    def __init__(self, message, *, reason=None, seeds=(), figures=()):
+        super().__init__(message)
+        self.reason = reason
+        self.seeds = tuple(seeds)
+        self.figures = tuple(figures)
 
 
 @dataclass(frozen=True)
@@ -70,6 +81,10 @@ class Candidate:
     fmax: dict[str, tuple[float, float]]
     log: str
     run_dir: str = ""
+    argv: tuple[str, ...] = ()
+    environment: dict[str, str] = field(default_factory=dict)
+    recipe_sha256: str = ""
+    slot: str = ""
 
     def key(self) -> tuple:
         return (self.passing, self.worst_ratio, self.sum_ratio, -self.weight, -self.seed)
@@ -172,6 +187,9 @@ def _run_nextpnr(
     required: Sequence[tuple[str | None, float]] | None = None,
     env=None,
     audit_source_root=None,
+    core_id: str | None = None,
+    gpu: int | None = None,
+    expected_recipe_digest: str | None = None,
 ) -> Candidate:
     run_dir = output / f"s{seed}-w{weight}-c{critexp}"
     if run_dir.exists():
@@ -179,38 +197,55 @@ def _run_nextpnr(
     run_dir.mkdir(parents=True)
     report = run_dir / "timing.json"
     log_path = run_dir / "route.log"
-    command = [
-        str(nextpnr),
-        "--json", str(fixture),
-        "--device", device,
-        "--qsf", str(qsf),
-        "--seed", str(seed),
-        "--placer-heap-timingweight", str(weight),
-        "--placer-heap-critexp", str(critexp),
-        "--report", str(report),
-        "--write", str(run_dir / "routed.json"),
-        "--rbf", str(run_dir / "core.rbf"),
-        "--compress-rbf",
-        "--detailed-timing-report",
-        "--timing-allow-fail",
-        *extra,
-    ]
-    if sdc is not None:
-        command += ["--sdc", str(sdc)]
-    if freq is not None:
-        command += ["--freq", freq]
+    if core_id is None:
+        command = [
+            str(nextpnr), "--json", str(fixture), "--device", device,
+            "--qsf", str(qsf), "--seed", str(seed),
+            "--placer-heap-timingweight", str(weight),
+            "--placer-heap-critexp", str(critexp),
+            "--report", str(report), "--write", str(run_dir / "routed.json"),
+            "--rbf", str(run_dir / "core.rbf"), "--compress-rbf",
+            "--detailed-timing-report", "--timing-allow-fail", *extra,
+        ]
+        if sdc is not None:
+            command += ["--sdc", str(sdc)]
+        if freq is not None:
+            command += ["--freq", freq]
+        run_env = env
+        recipe_sha = ""
+        slot = ""
+    else:
+        command, run_env = pnr_recipe.build(
+            core_id, nextpnr, fixture, seed, gpu, output=run_dir, device=device,
+            qsf=qsf, sdc=sdc, weight=weight, critexp=critexp, extra=extra,
+            env=env or {})
+        recipe_sha = pnr_recipe.recipe_digest(core_id)
+        if expected_recipe_digest is not None and recipe_sha != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed during placement search"
+            )
+        resolved = Path(nextpnr).resolve()
+        slot = resolved.parents[2].name if len(resolved.parents) > 2 else "unknown"
+
+    command = nextpnr_gpu_command(command, run_env)
+
+    run_metadata = {
+        "argv": tuple(command), "environment": dict(run_env or {}),
+        "recipe_sha256": recipe_sha, "slot": slot,
+    }
     try:
         with log_path.open("w") as log:
-            from scripts.compiler_read_audit import audited_run
-            runner = subprocess.run if audit_source_root is None else audited_run
-            result = runner(
+            from scripts import fes_build_common
+            result = fes_build_common._run_command(
                 command,
-                **({"source_root": audit_source_root} if audit_source_root is not None else {}),
-                env=env,
+                cwd=Path.cwd(),
+                env=run_env,
+                timeout=timeout,
+                audit_source_root=audit_source_root,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 check=False,
-                timeout=timeout,
+                gpu_label=f"search-{output.name}-s{seed}-w{weight}",
             )
     except (OSError, subprocess.TimeoutExpired) as exc:
         extra_text = f"search_placer_qor: {exc}\n"
@@ -226,10 +261,13 @@ def _run_nextpnr(
             fmax={},
             log=str(log_path),
             run_dir=str(run_dir),
+            **run_metadata,
         )
     text = log_path.read_text() if log_path.exists() else ""
     rbf = run_dir / "core.rbf"
     finished = (
+        result.returncode in (0, 1)
+        and
         "Info: Program finished normally." in text
         and not has_failed_route_arc(text)
         and report.is_file()
@@ -252,6 +290,7 @@ def _run_nextpnr(
             fmax={},
             log=str(log_path),
             run_dir=str(run_dir),
+            **run_metadata,
         )
     try:
         passing, worst, total, fmax = _score_report(json.loads(report.read_text()), required)
@@ -268,6 +307,7 @@ def _run_nextpnr(
             fmax={},
             log=str(log_path),
             run_dir=str(run_dir),
+            **run_metadata,
         )
     return Candidate(
         seed=seed,
@@ -279,6 +319,7 @@ def _run_nextpnr(
         fmax=fmax,
         log=str(log_path),
         run_dir=str(run_dir),
+        **run_metadata,
     )
 
 
@@ -398,21 +439,45 @@ def search(
     env=None,
     audit_source_root=None,
     accept: Callable[[Candidate], str | None] | None = None,
+    core_id: str | None = None,
+    expected_recipe_digest: str | None = None,
 ) -> list[Candidate]:
+    if core_id is not None:
+        if expected_recipe_digest is None:
+            expected_recipe_digest = pnr_recipe.recipe_digest(core_id)
+        elif pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed before placement search"
+            )
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
+    device_env = os.environ if env is None else env
+    if gpu_devices and gpu_run_active(device_env):
+        # A gpu-run lease exposes one device to the child. A multi-device
+        # offline search therefore becomes one worker on the leased index.
+        assigned = [gpu_device_index(gpu_devices[0], device_env)]
     for gpu in assigned:
         gpu_pool.put(gpu)
 
+    def verify_recipe(candidate: Candidate) -> Candidate:
+        if core_id is not None and (
+                pnr_recipe.recipe_digest(core_id) != expected_recipe_digest
+                or (candidate.recipe_sha256
+                    and candidate.recipe_sha256 != expected_recipe_digest)):
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed during placement search"
+            )
+        return candidate
+
     def run(seed: int, weight: int) -> Candidate:
         if run_one is not None:
-            return run_one(seed, weight)
+            return verify_recipe(run_one(seed, weight))
         gpu = gpu_pool.get()
         try:
             extra_run = list(extra)
-            if gpu is not None:
+            if gpu is not None and core_id is None:
                 extra_run += ["--gpu-device", str(gpu)]
-            return _run_nextpnr(
+            candidate = _run_nextpnr(
                 nextpnr,
                 fixture,
                 output,
@@ -428,7 +493,11 @@ def search(
                 required=required,
                 env=env,
                 audit_source_root=audit_source_root,
+                core_id=core_id,
+                gpu=gpu,
+                expected_recipe_digest=expected_recipe_digest,
             )
+            return verify_recipe(candidate)
         finally:
             gpu_pool.put(gpu)
 
@@ -492,6 +561,20 @@ def ranking_document(
     }
 
 
+def _timing_figure(item: Candidate) -> dict:
+    """One seed's clocks, capped so a miss report stays a small manifest row."""
+    clocks = {}
+    for name, (achieved, constraint) in list(item.fmax.items())[:16]:
+        clocks[str(name)] = {"achieved_mhz": achieved, "constraint_mhz": constraint}
+    return {
+        "seed": item.seed,
+        "weight": item.weight,
+        "passing": item.passing,
+        "worst_ratio": item.worst_ratio,
+        "clocks": clocks,
+    }
+
+
 def promote_candidate(candidate: Candidate, dest: Path) -> None:
     src = Path(candidate.run_dir)
     mapping = {
@@ -531,8 +614,39 @@ def route_after_synth(
     env=None,
     audit_source_root=None,
     accept: Callable[[Candidate], str | None] | None = None,
+    core_id: str | None = None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
+    route_extra = tuple(extra)
+    expected_recipe_digest = (
+        pnr_recipe.recipe_digest(core_id) if core_id is not None else None
+    )
+    if core_id is not None:
+        recipe = pnr_recipe.recipe_for(core_id)
+        if pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed before placement search"
+            )
+        if not set(seeds) <= set(recipe["seeds"]):
+            raise pnr_recipe.RecipeError(f"{core_id}: producer seed is not recorded in its recipe")
+        allowed_weights = set(recipe["timing_weights"]) | set(recipe["search_weights"])
+        if not set(weights) <= allowed_weights:
+            raise pnr_recipe.RecipeError(f"{core_id}: producer timing weight is not recorded in its recipe")
+        if critexp != recipe["critexp"]:
+            raise pnr_recipe.RecipeError(f"{core_id}: producer critexp differs from its recipe")
+        if freq is not None and str(freq) != str(recipe["freq"]):
+            raise pnr_recipe.RecipeError(f"{core_id}: producer frequency differs from its recipe")
+        if timeout != recipe["timeout_s"]:
+            raise pnr_recipe.RecipeError(f"{core_id}: producer timeout differs from its recipe")
+        if (required is not None
+                and not set(required) <= set(pnr_recipe.required_clocks(core_id))):
+            raise pnr_recipe.RecipeError(f"{core_id}: producer clocks differ from its recipe")
+        recipe_extra = tuple(recipe["extra"])
+        if route_extra and route_extra != recipe_extra:
+            raise pnr_recipe.RecipeError(f"{core_id}: producer supplied an unrecorded nextpnr extra")
+        route_extra = recipe_extra
+        if not gpu_devices and recipe["gpu_device"] == "lease":
+            raise pnr_recipe.RecipeError(f"{core_id}: producer did not bind the leased GPU device")
     search_dir = dest / "qor-search"
     if search_dir.exists():
         shutil.rmtree(search_dir)
@@ -550,7 +664,7 @@ def route_after_synth(
         critexp=critexp,
         budget=budget,
         mode=mode,
-        extra=extra,
+        extra=route_extra,
         timeout=timeout,
         required=required,
         gpu_devices=gpu_devices,
@@ -558,7 +672,14 @@ def route_after_synth(
         env=env,
         audit_source_root=audit_source_root,
         accept=accept,
+        core_id=core_id,
+        expected_recipe_digest=expected_recipe_digest,
     )
+    if (core_id is not None
+            and pnr_recipe.recipe_digest(core_id) != expected_recipe_digest):
+        raise pnr_recipe.RecipeError(
+            f"{core_id}: P&R recipe changed during placement search"
+        )
     (dest / "qor-ranking.json").write_text(
         json.dumps(
             ranking_document(
@@ -578,9 +699,21 @@ def route_after_synth(
         raise SearchError("placer QoR search produced no candidates")
     winner = ranked[0]
     if not winner.passing:
+        # A crash or timeout is a candidate with no clock report. That is a
+        # build failure. timing-not-met is only a finished route that missed.
+        measured = [item for item in ranked if item.fmax]
+        if not measured:
+            raise SearchError(
+                "placer QoR search produced no timing report "
+                f"(best seed={winner.seed} weight={winner.weight})"
+            )
+        best = max(measured, key=lambda item: item.key())
         raise SearchError(
-            f"no placement met timing (best seed={winner.seed} weight={winner.weight} "
-            f"worst_ratio={winner.worst_ratio:.4f}){_rejection_note(winner)}"
+            f"no placement met timing (best seed={best.seed} weight={best.weight} "
+            f"worst_ratio={best.worst_ratio:.4f}){_rejection_note(best)}",
+            reason="timing-not-met",
+            seeds=tuple(seeds),
+            figures=tuple(_timing_figure(item) for item in measured[:32]),
         )
     promote_candidate(winner, dest)
     return winner

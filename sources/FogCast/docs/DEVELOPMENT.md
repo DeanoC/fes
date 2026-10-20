@@ -199,7 +199,7 @@ The Powerboat kit host (`192.168.10.202:8789`, `fogcast-api-sofa` plus
 `launcher-host.json`) uses the same private `config.toml`. Run that binary
 with `--headless` so the kit listener stays up without DISPLAY, DRM, or
 V4L2/FFmpeg preview. On Powerboat the API binds `127.0.0.1:8787` and the
-launcher binds `*:8789`. `fogcast-kit` reconnects to
+launcher binds `*:8789`. Kit tenfoot reconnects to
 `http://192.168.10.202:8789` with the existing `launcher.json` API URL.
 Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
@@ -232,14 +232,9 @@ recorded attempt to recover the prior bundle; a failed recovery stays blocked.
 Do not restart individual runtime, agent or launcher processes, kill them as a
 routine update, or invoke retired per-service init scripts. The supervisor must
 verify that the old processes exited before any replacement can control hardware.
-Temporary binary and configuration overlays are refused on managed images.
 Branch diagnostics use a private host and an explicitly installed bundle;
-returning to a prior bundle is another generation-checked activation.
-
-An unmanaged maintenance-aware image retains the [file-overlay adoption
-workflow](../../../docs/kit-manifest.md) only until it is moved to the supporting
-base image. Its temporary swaps require target maintenance and explicit cleanup.
-They are not a second update path for managed images.
+returning to a prior bundle is another generation-checked activation. There is
+no file-overlay path.
 
 A software update does not reboot the board. `/sbin/reboot` and
 `POST /v1/development/reboot` are not service-restart operations. If physical
@@ -288,9 +283,7 @@ agent or launcher change. Use the [durable core library](../../../docs/kit-core-
 for compatible core installation and future selection. Neither operation requires
 rebuilding the base OS, and core installation does not restart services. Retain
 the operator's shared host; branch diagnostics use private configurations, ports,
-catalogs and evidence. Configuration-only temporary kit overlays are currently
-unsupported on managed images. The file-overlay commands remain restricted to
-unmanaged bootstrap adoption as described above.
+catalogs and evidence.
 
 ## Deploy and exercise the kit
 

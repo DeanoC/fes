@@ -18,7 +18,15 @@ slices, #280 Codex findings) are marked where they change a decision.
 for setup and pairing; §2.4, §2.7 and §3 carry Foggy's copy
 (2026-09-28); *[tech fix]* marks Caster's corrections to it. Bob
 coordinates and reviews. Deano approves and merges.
-Kit HIL needs Deano present. An unattended agent does not start it.
+Agents may run kit HIL on kit A or B without Deano present. Claim the
+kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob. The full rules are in [kit sharing](kit-sharing.md).
 Audience: FogCast host and agent, FES image, rooms UX. See
 [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md),
 [kit sharing](kit-sharing.md), [bootable media](bootable-media.md),
@@ -183,8 +191,10 @@ is ever added without its pairing code, including the first kit on a
 new computer. Explicit-add under Advanced (multicast-blocked networks)
 is address **plus the TV's code**, the same PAKE run at a typed
 address; raw token entry is not a product path once pairing ships.
-**Locked (Q16):** one computer per machine; a paired kit refuses
-pairing with a second host (Q8).
+**Revised (Q16):** each kit runs its own FogCast host and is its own
+owner. Other computers are library and content sources, not owners;
+a paired kit still refuses a second owning host (Q8). See
+[#863](https://github.com/DeanoC/fes/issues/863).
 
 **UX (Foggy).** The TV says "machine", never "kit", "node", "target"
 or "executor". The main line shows no UUIDs, IPs, tokens, owner strings
@@ -311,7 +321,7 @@ state for clone checks. Adding TXT keys is not a byte freeze.
 | Stale address (#259) | Read ABIs and health at the reconciled endpoint; check token and id. | Nothing when reconcile works. Else: "Can't reach {name} at its last address. Looking for it…" |
 | Both hostnames `mister` | Never key off hostname; use `target_id` and MAC. | No copy. Label is the user's name, or "MiSTer …{MAC tail}". |
 | Config write fails | Fail closed; kit stays unpaired; no half-written token. | Host: "Couldn't save {name}. Nothing was changed. Try again." TV: "Pairing didn't finish." |
-| Paired to another host | Refuse (Q8; one computer per machine, Q16). Never take its token. | Host, greyed row: "Already paired with another computer." |
+| Paired to another host | Refuse ownership (Q8, Q16). Never take its token. The computer can still be added as a library source (#863). | Host, greyed row: "Already paired with another computer." |
 | Duplicate id or MAC | Refuse pair and place (§2.6). | Host: "Two machines are claiming to be the same one. This usually means an SD card was copied. Set one of them up fresh before playing." |
 | CID witness mismatch | Kit regenerates id, token, derived MAC and deletes `launcher.json` (§2.6); old row and its launcher bearer 401. | TV: "This card was copied from another machine, so it's being set up fresh." Then a code. Host's old row shows the reimage sentence. |
 
@@ -414,7 +424,16 @@ lease via the lease API (#281); #163 inside the Q11 budget; pairing shipped; clo
 dependency), #175 (`mesh_content = false` must not open and register
 an empty mesh store the host can dial), #178 (dial the explicit `LaunchOn`
 target when the selected target is offline), and a separate ensure
-HIL with Deano. HIL2 leaves `ensure` unset, so it does not count.
+HIL. Agents may run that HIL on kit A or B without Deano present.
+Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). HIL2 leaves `ensure` unset, so it
+does not count.
 #174 is not a gate: pass the `LaunchOn` context into
 `activateMeshExecutor` (callers use `context.Background()`; the nearby
 probe timeout is 5 seconds).
@@ -423,12 +442,20 @@ probe timeout is 5 seconds).
 
 ## 4. Implementation slices (ordered)
 
-One small PR each. No PR flips a default or writes media. Kit HIL
-waits for Deano.
+One small PR each. No PR flips a default or writes media. Agents may
+run kit HIL on kit A or B without Deano present. Claim the kit in
+Powerboat `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`.
+If the HIL changes kit software, install the PR bundle on the running
+image; after use, activate and verify the baseline bundle named in the
+status file. A core-only HIL that leaves the bundle unchanged does not
+install one. Log the result and release the kit. Reimaging a kit,
+changing a kit image or boot config, killing other agents' processes,
+and closing PRs need Deano's OK via Bob
+([kit sharing](kit-sharing.md)).
 
 | # | Slice | Scope | Depends on | Tests / acceptance |
 | --- | --- | --- | --- | --- |
-| P1 | Kit identity and code (image + agent + `fogcast-kit`) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates and deletes `launcher.json`; token absent from logs. |
+| P1 | Kit identity and code (image + agent + kit UI) | First-boot token under `/media/fat/fogcast/` with the mount check; CID witness; clone recovery incl. derived `ethaddr` (§2.6); unprovisioned kit shows the pairing code on its idle screen; local "Pair with a computer". | IMG-2/IMG-3 can land alongside. | Image test: never overwrite token or hand-set `ethaddr`; clone fixture regenerates and deletes `launcher.json`; token absent from logs. |
 | P2 | Pairing handshake (kit endpoint + host API) | Kit pairing endpoint live only in pairing mode; PAKE; TTL, tries, lockout/backoff per §2.4; host writes the row via the private settings path; duplicate id/MAC refused; staged rotation (§2.5). | P1. | Unit: wrong code, expiry, lockout doubling, duplicate refusal, crash-at-each-rotation-step recovers; no token in logs or GET. |
 | P3 | Settings UI hookup (Foggy/Luna) | Machines list, Add machine, code entry, name, status words, §2.7 copy. Hand-edited TOML stays developer-only. | P2. | UI tests per state; copy review by Foggy. |
 | P4a | Multi-kit launcher listener (**pulled forward; landed in #287**) | Optional `pairings` list in `launcher-host.json`. One bearer per kit: a token shared across target ids, or equal to any target's agent token, is refused at startup (credentials below). *[#282 Codex P1, adopted; aligned with #287 as built]* The host still has ONE foreground session (`sources/FogCast/docs/ARCHITECTURE.md:70-75`). The launcher serves the game list, platforms, health, attract and cache reads to any enabled paired kit, whatever target is selected. A kit-menu launch explicitly targets the kit that asked and never goes through placement. `GET /api/v1/session` shows the real session only to the kit that owns it; every other kit sees its own idle view. Stop, status and input are OWNER-ONLY: a non-owner gets exactly `403 TARGET_MISMATCH` today (a distinct `NOT_SESSION_OWNER` code is a parked nit). A launch from kit X while another kit's session is active returns 409 `SESSION_BUSY_OTHER_KIT` and does not preempt; browser and API launches that name a target still preempt, as today. **Not in P4a:** per-kit concurrent sessions and per-kit Stop (#288). Launcher health, `rom_cached` and the library cache still describe the selected target (#289). Independent of the PAKE slices; interim credentials come from the operator step below (Q14 covers only agent tokens). Fixes kit B "Offline". | None (interim credentials below). | Two kits' menus both browse the host and each launches on its own TV. Stop and status are owner-only: a non-owner gets `403 TARGET_MISMATCH` and the owner's session is untouched. A kit launch while another kit's session is active gets 409 `SESSION_BUSY_OTHER_KIT` and the other session keeps running. A non-owner's `GET /api/v1/session` returns its own idle view. Single form unchanged; shared token refused; bearer equal to any target's agent token refused. Wrong token 401; no token in logs. |
@@ -502,7 +529,7 @@ interim window, not a way to add machines in the product.
 
 **Known issue (#294, kit-side; found in HIL3).** When the host goes
 away or returns errors, the kit menu keeps a stale "active" session,
-so HDMI stays black until `fogcast-kit` restarts.
+so HDMI stays black until the kit launcher restarts.
 
 ---
 
@@ -533,7 +560,7 @@ Slice 6 acceptance.
 | C0 | Host up. Labelling launch names kit A. | Yes |
 | C1b | Foreign claim on B fails closed. No-target launch returns 403 `KIT_LEASE_DENIED`. | Yes |
 | C1 | No-target launch rebinds to B. B held by `fogcast@powerboat`, renewing. A free. | Yes |
-| C1-pad | Deano moves kit B's own pad. | Optional, chosen |
+| C1-pad | A person moves kit B's own pad in an attended session. | Optional; deferred from unattended HIL |
 | C2 | Second claim on B is 409 `KIT_LEASE_BUSY`. | Yes |
 | C3 | Soft-stop `{"retain_lease":true}`. B stays held. | Yes |
 | C3b | Relaunch reuses the lease. | Optional |
@@ -572,8 +599,16 @@ designated, so this does not accept P4a on hardware.
 
 ### P-pair, after pairing exists
 
-Deano present. Scratch host config, mode `0600`, outside the repo.
-Remove `kit2` only from that file. Do not print tokens.
+Agents may run this HIL on kit A or B without Deano present. Claim the
+kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). Scratch host config, mode `0600`,
+outside the repo. Remove `kit2` only from that file. Do not print tokens.
 
 1. Pair kit B with the new flow.
 2. The row's id and token are kit B's, not kit A's.
@@ -581,7 +616,8 @@ Remove `kit2` only from that file. Do not print tokens.
 4. A second scratch row that repeats B's `target_id` is refused.
 5. Re-run C1 on the paired row, not the hand-written token.
 6. Kit B's menu leaves "Offline" and browses the host (P4a, then P4b).
-7. Run the deferred C1-pad in the same session.
+7. C1-pad is deferred from this unattended HIL; run it when someone is
+   present to move kit B's pad.
 
 HIL2 without P-pair does not close §2.
 
@@ -638,14 +674,15 @@ DECIDED items change only by editing this file.
 | Q13 | DECIDED (moot) | HIL2 ran GREEN on `.85` configs; #259 stays slice L1 with optional C0-stale. | Done. |
 | Q14 | DECIDED (Deano) | Interim onboarding: a host `[[targets]]` row with the card's **own** token via the settings UI or PATCH, not hand-edited TOML. Never clone tokens across cards; never log them. | Uses the private write path and redaction until pairing lands. |
 | Q15 | LOCKED (Deano, 2026-09-28) | Never add a machine without its pairing code, including the first kit on a new computer; explicit-add is address plus code. | No silent trust on the LAN. |
-| Q16 | LOCKED (Deano, 2026-09-28) | One computer per machine; no multi-host pairing. | One owner per kit; moving is the Q8 local re-pair. |
+| Q16 | REVISED (Deano, 2026-10-18; locked 2026-09-28 as "one computer per machine; no multi-host pairing") | Each kit runs its own FogCast host and is its own owner. Other computers are library and content sources, not owners; a remote launch goes through the kit's host. A second owning host is still refused. | One owner per kit still holds, and the kit-local vs host split goes away ([#863](https://github.com/DeanoC/fes/issues/863)). FES is a local-LAN game machine; this adds no security work. |
 | Q17 | LOCKED (Deano, 2026-09-28) | "Always play here" is household-wide: the single host `display_preference`. | Matches today's config; no per-seat state. |
 
 No questions are open.
 
 ### Sequence
 
-Relative weeks, not dates. Kit steps wait for Deano. IMG-2/IMG-3
+Relative weeks, not dates. Agents run kit HIL on kit A or B without
+Deano present, under [kit sharing](kit-sharing.md). IMG-2/IMG-3
 and the first-boot script land before P-pair. #278 does not block HIL2.
 
 | When | What | Does not include |
@@ -654,5 +691,5 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 | Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
 | Done | P4a multi-kit launcher listener (#287); kit B bearer migration (§4) pending. | Pairing. |
 | Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
-| Week 3–4 | P-pair HIL with Deano (incl. deferred C1-pad). | Ensure default. |
+| Week 3–4 | P-pair HIL on kit A or B without Deano present. Claim `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md` on Powerboat. If the HIL changes kit software, install the PR bundle on the running image and then activate and verify the status-file baseline bundle; a core-only HIL with no bundle change does not install one. Log the result and release the kit ([kit sharing](kit-sharing.md)). Reimage, image or boot-config changes, killing other agents' processes, and closing PRs need Deano's OK via Bob. C1-pad is excluded until someone can move kit B's pad in an attended session. | Ensure default. |
 | Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |

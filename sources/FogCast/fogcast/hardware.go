@@ -138,7 +138,8 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 }
 
 func zx81RearSocket(descriptor corepackage.Descriptor) bool {
-	if descriptor.ABI.ID != "fes.simple-computer" || descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
+	if descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 ||
+		(descriptor.ABI.ID != "fes.simple-computer" && descriptor.ABI.ID != "fes.computer") {
 		return false
 	}
 	for _, contract := range descriptor.Interfaces {

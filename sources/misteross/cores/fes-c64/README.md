@@ -181,9 +181,10 @@ The producer selects probe mode 0 for socket 1 and mode 1 for socket 2;
 it authenticates both the legacy PLL output aliases and current physical
 C6/C7 pin layout, preserving an already-correct physical layout.
 `--gpu-router` and `--toolchain-root` select the shell's GPU lane. HIP is
-the default and masks the selected device. CUDA sets
-`CUDA_DEVICE_ORDER=PCI_BUS_ID` and passes `--gpu-device`. The route must
-prove that backend, and it must match the backend recorded on the frozen shell.
+the default. CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`. gpu-run leases any
+free GPU; the producer does not set `GPU_LEASE_IDS` or a device visibility
+mask. The route must prove that backend, and it must match the backend
+recorded on the frozen shell.
 Each synthesized response is lowered to an independent identity ALUT2 before
 the frozen merge: constants and aliased output signals must not be lost by the
 pinned cart merger. Clock-pin checks, final analogue setup/hold on all required
@@ -587,9 +588,13 @@ includes this replay, the directed CIA register/port regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
+`build-fes-c64` authenticates `cores/fes-c64/toolchain.lock` (Yosys `3a5accbd`,
 Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
-static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
+static closure in `scripts/source_closures.json`. The seal also requires both
+achieved system-PLL outputs within 1 Hz of 52,224,000 Hz and 12,288,000 Hz.
+The [C64 build contract](../../docs/architecture.md#fes-commodore-64) states
+the packed M/N/K coefficients that fix those frequencies before the placer
+seed runs. `--gpu-router CUDA` with
 `--toolchain-root` is a separate package; slot cards take those same flags.
 The 6 Oct kit diagnostic used
 nextpnr `0c5ed400` and does not accept this pin. Supporting evidence from a

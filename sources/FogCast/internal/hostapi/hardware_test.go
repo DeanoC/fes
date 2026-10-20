@@ -58,6 +58,9 @@ func TestHardwareHostClientKeepsDraftSeparateFromActiveReceipt(t *testing.T) {
 	if view.Machines[0].DraftExpansionID != "" || view.Session.GameID != gameID || view.Session.State != "active" || view.Session.CorePackage.Composition == nil || view.Session.CorePackage.Composition.ExpansionID != cardID || view.Session.CorePackage.Generation != 9 {
 		t.Fatalf("lost draft/active distinction: %+v session=%+v", view.Machines[0], view.Session)
 	}
+	if view.ExpansionSelection == nil || !*view.ExpansionSelection {
+		t.Fatal("host listener did not advertise expansion selection")
+	}
 	if value, err := client.SelectCoreEntryExpansion(ctx, gameID, packageID, "", cardID); err != nil || value.ExpansionID != cardID {
 		t.Fatalf("fit %+v %v", value, err)
 	}
@@ -76,6 +79,22 @@ func TestHardwareHostClientKeepsDraftSeparateFromActiveReceipt(t *testing.T) {
 	}
 	if s.launchCalls != 0 || s.coreCalls != 0 || len(s.stopCtxErrs) != 0 {
 		t.Fatal("hardware read or draft write changed the running session")
+	}
+}
+
+type hardwareReadOnlyService struct{ fakeService }
+
+func (s *hardwareReadOnlyService) Hardware(context.Context) ([]fogcast.HardwareMachine, error) {
+	return []fogcast.HardwareMachine{{GameID: "my-zx81", Title: "My ZX81"}}, nil
+}
+
+func TestHardwareWithoutSelectionServiceAdvertisesReadOnly(t *testing.T) {
+	s := &hardwareReadOnlyService{fakeService: fakeService{status: protocol.Status{State: protocol.StateIdle}}}
+	server := httptest.NewServer(hostapi.New(s))
+	defer server.Close()
+	view, err := hostclient.NewClient(server.URL, server.Client()).Hardware(context.Background())
+	if err != nil || view.ExpansionSelection == nil || *view.ExpansionSelection {
+		t.Fatalf("unsupported listener advertised a save: %+v %v", view.ExpansionSelection, err)
 	}
 }
 

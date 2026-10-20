@@ -45,7 +45,7 @@ func (s *Service) CoreMedia(ctx context.Context, id string) (catalog.CoreMedia, 
 // CoreMediaCapabilities is an offline declaration projection. The running
 // target remains the authority for actual active capability and delivery.
 func (s *Service) CoreMediaCapabilities(ctx context.Context, id string) (protocol.CoreMediaCapabilities, error) {
-	inspection, _, err := s.readInstalledCore(ctx, id)
+	inspection, err := s.installedCoreInspection(ctx, id)
 	if err != nil {
 		return protocol.CoreMediaCapabilities{}, err
 	}
@@ -82,7 +82,7 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 	if entry.PackageID != expectedPackage || entry.MediaID != expectedMedia {
 		return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 	}
-	inspection, _, err := s.readInstalledCore(ctx, entry.PackageID)
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
@@ -123,10 +123,26 @@ func (s *Service) validateCoreEntryMedia(ctx context.Context, descriptor corepac
 	return media.Close()
 }
 
+// savedZx81TapeRole keeps setups saved as blob launchable after the ZX81
+// package moved to the cassette unit. A descriptor that still declares blob
+// keeps that role.
+func savedZx81TapeRole(descriptor corepackage.Descriptor, role string) string {
+	if role != "blob" || !protocol.DeclaresZx81Tape(descriptor) {
+		return role
+	}
+	for _, declared := range protocol.DeclaredCoreMediaCapabilities(descriptor) {
+		if declared.Role == "blob" {
+			return role
+		}
+	}
+	return protocol.CassetteRole
+}
+
 func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) (*coreEntryMedia, error) {
 	if role == "" && id == "" {
 		return nil, nil
 	}
+	role = savedZx81TapeRole(descriptor, role)
 	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}

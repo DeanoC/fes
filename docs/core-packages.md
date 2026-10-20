@@ -17,6 +17,12 @@ producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
 SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
+Atari ST is the optional recipe. A timing miss or `FES_SKIP_OPTIONAL_CORES=1`
+omits its package and records the core in `unavailable-cores.json` on the
+image output and at `/usr/share/mister-runtime/unavailable-cores.json` in the
+rootfs. The omission is part of the image fingerprint. Set
+`FES_REQUIRE_ALL_CORES=1` when the image must contain every selected core,
+including a release build. Leave it unset for development and fast HIL images.
 Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
 rootfs holds them. `fes.apple2`,
 `fes.catch` and `fes.riscv` remain package-only. `fes.c64` shared-pin
@@ -28,13 +34,13 @@ files, including `fes-sms.package-selection.toml`,
 A successful package-only C64 preparation would use
 `fes-c64.package-selection.toml`.
 The selected FPGA sources are the tracked
-`sources/misteross` module at the selected FES commit. Its repository-default
-compiler lock serves factory Pong; the standard ZX81 socket uses
-`toolchain.lock`; Coleco v2 uses `toolchain.lock`,
-SG-1000 and SMS use `toolchain.lock`,
-Apple II uses `toolchain.lock`, Commodore 64 uses `toolchain.lock`,
-and ZX Spectrum 48K uses `toolchain.lock`. Inspect `config/core-recipes.toml` for each
-registered producer's current lock and HIP settings. Freeze-scaffold
+`sources/misteross` module at the selected FES commit. Each registered
+producer selects the per-core lock in its `config/core-recipes.toml` entry.
+The locks currently contain the same nextpnr and Mistral commits. Coleco's
+Yosys pin is `5391eeb1` and uses its own slot. Use the matching
+`make toolchain-fes-<core>` target when provisioning a selected core. Inspect
+`config/core-recipes.toml` for each registered producer's current lock and HIP
+settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
@@ -161,8 +167,8 @@ prepare and check the shared slot with:
 
 ```sh
 make dev
-# If this reports missing authenticated FES package build inputs:
-# Run from the FES root with clean selected module sources.
+# If this reports missing authenticated FES package build inputs, provision
+# the selected registered core with its matching toolchain-fes-<core> target.
 work="$PWD/sources/misteross"
 cache=$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from recipes import TOOLCHAIN_CACHE_ROOT; print(TOOLCHAIN_CACHE_ROOT)')
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
@@ -175,7 +181,7 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-zx81
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
-  FES_TOOLCHAIN_LOCKFILE=toolchain.lock \
+  FES_TOOLCHAIN_LOCKFILE=cores/fes-zx81/toolchain.lock \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict
@@ -183,7 +189,7 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-coleco
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
-  FES_TOOLCHAIN_LOCKFILE=toolchain.lock \
+  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict
@@ -191,11 +197,18 @@ make dev
 ```
 
 `FES_TOOLCHAIN_CACHE_ROOT` selects the parent shared-cache root; `CACHE_ROOT`
-is not a substitute for it. The `toolchain-fes`, `toolchain-fes-zx81` and
-`toolchain-fes-coleco` targets compile the authenticated HIP/nextpnr tools into
-their respective slots. `make toolchain` may compile the pinned tools into
+is not a substitute for it. The generic `toolchain-fes` target selects the
+repository-level lock; registered package builds use their corresponding
+`toolchain-fes-<core>` target. The image build authenticates every selected
+core against its own lock's slot, and its error names the lock whose slot is
+missing. Cores whose locks have the same bytes share one slot, so after a
+core's lock moves, provision that core's target as well. The ZX81 and Coleco examples above compile the
+authenticated HIP/nextpnr tools into their per-core slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
+CUDA slots (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on
+`FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`, native sm_86 code that needs
+no PTX JIT); see `sources/misteross/docs/architecture.md`.
 `make check` validates
 the shared ABI and programming definitions, their three real generated
 consumers, and all shared fixture copies without running synthesis.

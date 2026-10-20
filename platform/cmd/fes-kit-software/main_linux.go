@@ -41,10 +41,12 @@ func main() {
 	switch action {
 	case "start":
 		cmd := exec.Command(os.Args[0], "run")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-		err = cmd.Start()
+		var null io.Closer
+		null, err = detachDaemon(cmd)
+		if err == nil {
+			err = cmd.Start()
+			_ = null.Close()
+		}
 	case "stop":
 		err = stop()
 	case "status":
@@ -114,7 +116,34 @@ func helperCommand(ctx context.Context, command string) error {
 	}
 	return nil
 }
+
+// detachDaemon starts the supervisor away from the caller's stdio. Setsid
+// drops the controlling terminal. /dev/null replaces stdin, stdout and
+// stderr so a closed SSH pipe cannot raise SIGPIPE on the next log mirror.
+func detachDaemon(cmd *exec.Cmd) (io.Closer, error) {
+	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Stdin = null
+	cmd.Stdout = null
+	cmd.Stderr = null
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setsid = true
+	return null, nil
+}
+
+// ignoreClosedPipe keeps a broken stderr from killing the supervisor. Go
+// turns SIGPIPE on fd 2 into process death unless it is ignored; the tmpfs
+// log is the record, and a closed mirror must not take the group down.
+func ignoreClosedPipe() {
+	signal.Ignore(syscall.SIGPIPE)
+}
+
 func run() error {
+	ignoreClosedPipe()
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return err
 	}
@@ -416,7 +445,6 @@ func supervise(ctx context.Context, output io.Writer) error {
 		}
 	}
 }
-func readOptional(path string) string { b, _ := os.ReadFile(path); return string(b) }
 func operationID(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])

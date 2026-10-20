@@ -27,6 +27,7 @@ from scripts.lockfile import load_lock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = ROOT
 PLL_PARAMETERS = {
     "duty_cycle0": "00000000000000000000000000110010",
     "fractional_vco_multiplier": "true",
@@ -76,13 +77,17 @@ def publish_shared_toolchain(
     lock_path: Path | None = None,
     gpu_router: str = "OFF",
     hip_architectures: str = toolchain_cache.DEFAULT_HIP_ARCHITECTURES,
+    cuda_architectures: str | None = None,
     mistral_target: bool = True,
     mutate_after_probe: bool = False,
 ) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
-    """Publish a complete five-tool lane through the real cache API."""
+    """Publish a complete five-tool lane through the real cache API.
+
+    The slot is keyed by the selected lock, so it defaults to Pong's own lock;
+    pass the lock of any other producer under test."""
 
     cache = base / "shared-cache"
-    selected_lock = ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
+    selected_lock = SOURCE_ROOT / build_fes_pong.TOOLCHAIN_LOCK if lock_path is None else Path(lock_path)
     host = {"system": "Linux", "release": "test", "machine": "x86_64"}
     compiler = {"commands": {"cc": {"path": "/test/cc"}}}
     environment = {
@@ -91,17 +96,20 @@ def publish_shared_toolchain(
         "FES_TOOLCHAIN_GPU_ROUTER": gpu_router,
         "FES_TOOLCHAIN_HIP_ARCHITECTURES": hip_architectures,
     }
+    if cuda_architectures is not None:
+        environment["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = cuda_architectures
     with patch.dict(os.environ, environment, clear=True), patch.object(
         toolchain_cache, "host_identity", return_value=host
     ), patch.object(toolchain_cache, "compiler_inventory", return_value=compiler):
         request = toolchain_cache.request_from_environment(
-            ROOT,
+            SOURCE_ROOT,
             selected_lock,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
+            cuda_architectures=cuda_architectures,
         )
 
-    cache.mkdir(mode=0o700)
+    cache.mkdir(mode=0o700, exist_ok=True)
     cache.chmod(0o700)
     slot = toolchain_cache.slot_path(request)
     for directory in (slot / "src", slot / "build", slot / "install" / "bin", slot / "evidence"):
@@ -128,9 +136,11 @@ def publish_shared_toolchain(
             f"fake {lock_name} identity\n", encoding="utf-8"
         )
         if lock_name == "nextpnr":
-            lane_architectures = hip_architectures if gpu_router.upper() == "HIP" else "unused"
+            lane_configuration = toolchain_cache.configuration_text(
+                toolchain_cache._normalise_configuration(request)
+            )
             (tool_evidence / f".config-{commit}.txt").write_text(
-                f"gpu-router={gpu_router.upper()}; hip-architectures={lane_architectures}\n",
+                f"{lane_configuration}\n",
                 encoding="utf-8",
             )
         tools[lock_name] = {
@@ -281,7 +291,9 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
         self.assertEqual(fields["tools"], identities)
         self.assertEqual(
-            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy", "source_closure_mode")},
+            {k: v for k, v in fields["parameters"].items() if k not in (
+                "execution_sha256", "gpu_device", "source_closure_policy",
+                "source_closure_mode", "pnr_recipe_sha256")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",
@@ -295,6 +307,9 @@ class BuildFesPongTests(unittest.TestCase):
                 "top": "top",
             },
         )
+        from scripts import pnr_recipe
+        self.assertEqual(fields["parameters"]["pnr_recipe_sha256"],
+                         pnr_recipe.recipe_digest("fes.pong"))
 
     def test_shared_lane_uses_verified_direct_tools_without_local_or_path_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -452,19 +467,21 @@ class BuildFesPongTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
                     build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
-    def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
+    def test_local_lane_uses_its_own_core_root_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
-            install = root / "build/toolchain/install/bin"
-            build_root = root / "build/toolchain/build"
+            lock_path = root / build_fes_pong.TOOLCHAIN_LOCK
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            lock_path.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
+            install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
+            build_root = root / build_fes_pong.TOOLCHAIN_ROOT / "build"
             install.mkdir(parents=True)
             definitions = {
                 "yosys": ("yosys", "--version"),
                 "mistral": ("mistral-cv", "models"),
                 "nextpnr": ("nextpnr-mistral", "--version"),
             }
-            pins = load_lock(root / "toolchain.lock")
+            pins = load_lock(lock_path)
             for lock_name, (binary_name, _) in definitions.items():
                 binary = install / binary_name
                 _write_fake_tool(binary, lock_name)
@@ -858,15 +875,12 @@ class BuildFesPongTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildError, "unknown resources in use: .*fpga2sdram"):
                 validate_build_evidence(output)
 
-    def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:
-        self.assertEqual(
-            build_fes_pong.EXPECTED_TOOL_COMMITS,
-            {
-                "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-                "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-                "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
-            },
-        )
+    def test_recipe_pins_the_toolchain_of_its_own_lock(self) -> None:
+        from scripts import pnr_recipe
+
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.pong"), ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        pins = load_lock(ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        self.assertEqual(pins["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.pong"))
 
     def test_record_exists_before_synthesis_and_export_waits_for_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
