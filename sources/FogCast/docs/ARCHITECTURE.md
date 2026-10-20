@@ -2071,6 +2071,10 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
+Named session reads, launches, Stops and lease checks resolve the configured
+target by name. Each configured target keeps its own client, connection
+observation and lookup backoff. An unavailable target reports its own configured
+address and target ID; it never reuses another target's observation.
 Busy means another session holds the kit lease, or the kit is reserved for
 software maintenance. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "In use" /

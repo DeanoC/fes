@@ -52,6 +52,12 @@ type TargetConnection struct {
 	mediaDataBound bool
 }
 
+type targetConnectionState struct {
+	connection     TargetConnection
+	nextLookup     time.Time
+	lookupFailures uint
+}
+
 func (s *Service) TargetConnection() TargetConnection {
 	s.connectionMu.Lock()
 	defer s.connectionMu.Unlock()
@@ -60,6 +66,54 @@ func (s *Service) TargetConnection() TargetConnection {
 		c.State = "disconnected"
 	}
 	return c
+}
+
+// TargetConnectionForName returns only the connection cached for the named
+// configured target. A target without an observation reports its own
+// configured address and identity as disconnected.
+func (s *Service) TargetConnectionForName(name string) TargetConnection {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return s.TargetConnection()
+	}
+	s.targetMu.RLock()
+	target := targetByName(s.targets, name)
+	current := s.sessionTargetNameLocked()
+	s.connectionMu.Lock()
+	state := s.targetConnections[name]
+	connection := state.connection
+	if name == current && targetConnectionMatchesTarget(s.connection, target) {
+		connection = s.connection
+	}
+	if target.Name == "" || !target.Enabled || !targetConnectionMatchesTarget(connection, target) {
+		connection = connectionForTarget(target)
+	}
+	s.connectionMu.Unlock()
+	s.targetMu.RUnlock()
+	if connection.State == "" {
+		connection.State = "disconnected"
+	}
+	if connection.Address == "" {
+		connection.Address = target.Address
+	}
+	if connection.TargetID == "" {
+		connection.TargetID = target.TargetID
+	}
+	return connection
+}
+
+func connectionForTarget(target TargetConfig) TargetConnection {
+	return TargetConnection{State: "disconnected", Address: target.Address, TargetID: target.TargetID}
+}
+
+func targetConnectionMatchesTarget(connection TargetConnection, target TargetConfig) bool {
+	if target.Name == "" {
+		return false
+	}
+	if target.TargetID != "" {
+		return connection.TargetID == target.TargetID
+	}
+	return connection.Address == target.Address
 }
 
 func (s *Service) cancelTargetLookup() {
@@ -79,39 +133,71 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respectBackoff bool) (result protocol.Health, resultErr error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
-	name := s.sessionTargetNameLocked()
+	currentName := s.sessionTargetNameLocked()
+	name := SessionTargetFromContext(ctx)
+	scoped := name != ""
+	if name == "" {
+		name = currentName
+	}
 	selected := targetByName(s.targets, name)
-	client, ok := s.selectedClientLocked()
+	var client serviceClient
+	var ok bool
+	if !scoped {
+		client, ok = s.selectedClientLocked()
+	} else {
+		client, ok = s.targetClientLocked(name)
+	}
 	concrete, realClient := client.(*targetclient.Client)
 	if !ok {
-		s.publishConnection(TargetConnection{State: "disconnected", Message: "Enable and configure a target address."})
+		connection := connectionForTarget(selected)
+		connection.Message = "Enable and configure a target address."
+		if name == "" {
+			s.publishConnection(connection)
+		} else {
+			s.publishTargetConnection(name, connection, name == currentName)
+		}
 		return protocol.Health{}, errors.New("target unavailable")
 	}
 	// Test adapters and legacy application integrations keep their original surface.
 	if !realClient {
 		return client.Health(ctx)
 	}
+	current := name == currentName
 	s.connectionMu.Lock()
-	previous := s.connection
-	if previous.TargetID != selected.TargetID || previous.Address == "" {
-		previous = TargetConnection{Address: selected.Address, TargetID: selected.TargetID}
+	state, cached := s.targetConnections[name]
+	if !cached && current {
+		state = targetConnectionState{connection: s.connection, nextLookup: s.nextLookup, lookupFailures: s.lookupFailures}
 	}
-	if respectBackoff && time.Now().Before(s.nextLookup) && s.connection.State == "disconnected" {
+	if !targetConnectionMatchesTarget(state.connection, selected) {
+		state = targetConnectionState{connection: connectionForTarget(selected)}
+	}
+	previous := state.connection
+	if previous.State == "" {
+		previous = connectionForTarget(selected)
+	}
+	if respectBackoff && time.Now().Before(state.nextLookup) && previous.State == "disconnected" {
 		s.connectionMu.Unlock()
 		return protocol.Health{}, &targetObservationError{"admission_backoff", errors.New("target lookup backoff")}
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	s.lookupCancel = cancel
-	s.connection = previous
-	s.connection.State = "connecting"
+	state.connection = previous
+	state.connection.State = "connecting"
+	if s.targetConnections == nil {
+		s.targetConnections = make(map[string]targetConnectionState)
+	}
+	s.targetConnections[name] = state
+	if current {
+		s.connection = state.connection
+	}
 	s.connectionMu.Unlock()
 	defer cancel()
 	health, address, err := s.probeTarget(lookupCtx, concrete, selected)
 	if err != nil {
-		return s.connectionFailed(previous, &targetObservationError{"admission_health", err})
+		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
 	if err := lookupCtx.Err(); err != nil {
-		return s.connectionFailed(previous, &targetObservationError{"admission_health", err})
+		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_health", err}, current)
 	}
 	// Authenticated explicit address may bind an existing agent identity once.
 	if selected.TargetID == "" && discovery.ValidID(health.TargetID) && s.configPath != "" {
@@ -125,7 +211,7 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 		err := writeCanonicalConfig(s.configPath, s.roots, targets, s.selectedTarget)
 		s.libraryMu.RUnlock()
 		if err != nil {
-			return s.connectionFailed(previous, errors.New("Cannot save the target identity in private settings."))
+			return s.connectionFailedForTarget(name, previous, errors.New("Cannot save the target identity in private settings."), current)
 		}
 		s.targets = targets
 		selected.TargetID = health.TargetID
@@ -134,14 +220,14 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	if selected.TargetID == "" {
 		status, err := concrete.Status(lookupCtx)
 		if err != nil {
-			return s.connectionFailed(previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")})
+			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 		}
 		base, _ := url.Parse(address)
 		// Old peers may omit the lease extension. Its absence does not disable
 		// explicit-address health/status inspection.
 		ownership, _ := concrete.AdoptEndpoint(lookupCtx, base, false)
 		connection := connectionFromStatus(health, status, ownership, address, "")
-		s.publishConnected(connection)
+		s.publishTargetConnected(name, connection, current)
 		return health, nil
 	}
 	base, _ := url.Parse(address)
@@ -149,11 +235,13 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	hadGrant := concrete.HasKitGrant()
 	if reboot {
 		s.invalidateTargetSession(concrete)
-		s.resetTargetInputsOutsideTargetMu()
+		if current {
+			s.resetTargetInputsOutsideTargetMu()
+		}
 	}
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
 	if err != nil {
-		return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
+		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 	}
 	// Agent restarts preserve the kernel boot_id. A grant seen in the last
 	// snapshot or acquired since then disappearing
@@ -163,28 +251,95 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	leaseChanged := (previous.leaseOwned || hadGrant) && !ownership.Owned
 	if !reboot && leaseChanged {
 		s.invalidateTargetSession(concrete)
-		s.resetTargetInputsOutsideTargetMu()
+		if current {
+			s.resetTargetInputsOutsideTargetMu()
+		}
 		// Invalidation discards the stale grant, but also marks the lease lost.
 		// Reconcile once more after that reset so readiness includes a clean
 		// lease state from which an explicit launch can claim immediately.
 		ownership, err = concrete.AdoptEndpoint(lookupCtx, base, false)
 		if err != nil {
-			return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
+			return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")}, current)
 		}
 	} else if !reboot && previous.Address != address {
-		s.resetTargetInputsOutsideTargetMu()
+		if current {
+			s.resetTargetInputsOutsideTargetMu()
+		}
 	}
 	status, err := concrete.Status(lookupCtx)
 	if err != nil {
-		return s.connectionFailed(previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")})
+		return s.connectionFailedForTarget(name, previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")}, current)
 	}
 	connection := connectionFromStatus(health, status, ownership, address, selected.TargetID)
-	s.executionMu.Lock()
-	s.selectedTargetReconciled = status.State == protocol.StateIdle
-	s.selectedTargetRepairAllowed = false
-	s.executionMu.Unlock()
-	s.publishConnected(connection)
+	if current {
+		s.executionMu.Lock()
+		s.selectedTargetReconciled = status.State == protocol.StateIdle
+		s.selectedTargetRepairAllowed = false
+		s.executionMu.Unlock()
+	}
+	s.publishTargetConnected(name, connection, current)
 	return health, nil
+}
+
+func (s *Service) publishTargetConnection(name string, connection TargetConnection, current bool) {
+	s.connectionMu.Lock()
+	defer s.connectionMu.Unlock()
+	if s.targetConnections == nil {
+		s.targetConnections = make(map[string]targetConnectionState)
+	}
+	state := s.targetConnections[name]
+	state.connection = connection
+	s.targetConnections[name] = state
+	if current {
+		s.connection = connection
+	}
+}
+
+func (s *Service) publishTargetConnected(name string, connection TargetConnection, current bool) {
+	s.connectionMu.Lock()
+	defer s.connectionMu.Unlock()
+	if s.targetConnections == nil {
+		s.targetConnections = make(map[string]targetConnectionState)
+	}
+	state := s.targetConnections[name]
+	state.connection = connection
+	state.nextLookup = time.Time{}
+	state.lookupFailures = 0
+	s.targetConnections[name] = state
+	if current {
+		s.connection = connection
+		s.nextLookup = time.Time{}
+		s.lookupFailures = 0
+	}
+}
+
+func (s *Service) connectionFailedForTarget(name string, previous TargetConnection, err error, current bool) (protocol.Health, error) {
+	s.connectionMu.Lock()
+	defer s.connectionMu.Unlock()
+	previous.State = "disconnected"
+	previous.Message = err.Error()
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeVersionMismatch {
+		previous.State = "version_mismatch"
+	}
+	if s.targetConnections == nil {
+		s.targetConnections = make(map[string]targetConnectionState)
+	}
+	state := s.targetConnections[name]
+	state.connection = previous
+	delay := time.Second << min(state.lookupFailures, 4)
+	if delay > 15*time.Second {
+		delay = 15 * time.Second
+	}
+	state.lookupFailures++
+	state.nextLookup = time.Now().Add(delay)
+	s.targetConnections[name] = state
+	if current {
+		s.connection = previous
+		s.lookupFailures = state.lookupFailures
+		s.nextLookup = state.nextLookup
+	}
+	return protocol.Health{}, err
 }
 
 func (s *Service) publishConnection(connection TargetConnection) {
@@ -242,9 +397,19 @@ func (s *Service) startTargetMonitor() {
 }
 
 func (s *Service) discoveryEnabled() bool {
+	return s.discoveryEnabledForTarget("")
+}
+
+func (s *Service) discoveryEnabledForContext(ctx context.Context) bool {
+	return s.discoveryEnabledForTarget(SessionTargetFromContext(ctx))
+}
+
+func (s *Service) discoveryEnabledForTarget(name string) bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	name := s.sessionTargetNameLocked()
+	if name == "" {
+		name = s.sessionTargetNameLocked()
+	}
 	_, real := s.targetClients[name].(*targetclient.Client)
 	return real && targetByName(s.targets, name).TargetID != ""
 }
@@ -262,7 +427,7 @@ func (s *Service) protocolAdmissionEnabled() bool {
 // the lookup timer; retain the same fresh protocol, identity, ownership and status
 // checks and their existing deadlines. This never retries a mutation.
 func (s *Service) refreshStopAdmission(ctx context.Context) (protocol.Health, error) {
-	if s.discoveryEnabled() {
+	if s.discoveryEnabledForContext(ctx) {
 		return s.refreshTargetConnectionWithBackoff(ctx, false)
 	}
 	return s.refreshTargetAdmission(ctx)
@@ -272,19 +437,18 @@ func (s *Service) refreshStopAdmission(ctx context.Context) (protocol.Health, er
 // status, or lease reconciliation to the existing execution path.
 func (s *Service) refreshTargetAdmission(ctx context.Context) (result protocol.Health, resultErr error) {
 	target := SessionTargetFromContext(ctx)
-	if target == "" && s.discoveryEnabled() {
+	if target == "" && s.discoveryEnabledForContext(ctx) {
 		return s.refreshTargetConnection(ctx)
 	}
-	s.targetMu.RLock()
+	s.targetMu.Lock()
 	var client serviceClient
 	var ok bool
 	if target == "" {
 		client, ok = s.selectedClientLocked()
 	} else {
-		client = s.targetClients[target]
-		ok = client != nil
+		client, ok = s.targetClientLocked(target)
 	}
-	s.targetMu.RUnlock()
+	s.targetMu.Unlock()
 	if !ok {
 		return protocol.Health{}, errors.New("target unavailable")
 	}
@@ -459,6 +623,7 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	invalidatedSelected := false
+	invalidatedActive := false
 	for name, candidate := range s.targetClients {
 		if candidate == client {
 			invalidatedSelected = invalidatedSelected || name == s.selectedTarget
@@ -466,12 +631,10 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 			if s.boundKitTarget == name {
 				s.boundKitTarget = ""
 			}
-			if s.activeExecution != ExecutionHostOnly && s.activeTarget == name {
-				s.activeTarget = ""
-			}
+			invalidatedActive = invalidatedActive || s.activeExecution != ExecutionHostOnly && s.activeTarget == name
 		}
 	}
-	if s.activeExecution != ExecutionHostOnly {
+	if invalidatedActive {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
 	}
 	// Forget this client's grant only. Another target's Soft-stop lease
@@ -622,11 +785,4 @@ func connectionFromStatus(health protocol.Health, status protocol.Status, owners
 		connection.State = "connecting"
 	}
 	return connection
-}
-func (s *Service) publishConnected(connection TargetConnection) {
-	s.connectionMu.Lock()
-	defer s.connectionMu.Unlock()
-	s.connection = connection
-	s.nextLookup = time.Time{}
-	s.lookupFailures = 0
 }

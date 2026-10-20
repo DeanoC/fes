@@ -612,3 +612,45 @@ func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 		})
 	}
 }
+
+func TestTargetInvalidationPreservesOtherForegroundSession(t *testing.T) {
+	devURL, _ := url.Parse("http://127.0.0.1:8182")
+	kit2URL, _ := url.Parse("http://127.0.0.1:8282")
+	devClient := targetclient.NewClient(devURL, "dev", nil)
+	kit2Client := targetclient.NewClient(kit2URL, "kit2", nil)
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: devURL.String()},
+				{Name: "kit2", Enabled: true, Address: kit2URL.String()},
+			},
+			SelectedTarget: "dev",
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, devClient,
+	)
+	service.targetMu.Lock()
+	service.targetClients["kit2"] = kit2Client
+	service.targetMu.Unlock()
+	service.executionMu.Lock()
+	service.activeTarget = "dev"
+	service.activeExecution = ExecutionFPGANative
+	service.activeGameID = "dev-game"
+	service.plays["dev"] = targetPlay{execution: ExecutionFPGANative, gameID: "dev-game"}
+	service.plays["kit2"] = targetPlay{execution: ExecutionFPGANative, gameID: "kit2-game"}
+	service.executionMu.Unlock()
+
+	service.invalidateTargetSession(kit2Client)
+
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	if service.activeTarget != "dev" || service.activeExecution != ExecutionFPGANative || service.activeGameID != "dev-game" {
+		t.Fatalf("sibling invalidation cleared foreground session: target=%q execution=%q game=%q",
+			service.activeTarget, service.activeExecution, service.activeGameID)
+	}
+	if _, ok := service.plays["dev"]; !ok {
+		t.Fatal("sibling invalidation discarded foreground play")
+	}
+	if _, ok := service.plays["kit2"]; ok {
+		t.Fatal("invalidated target play survived")
+	}
+}
