@@ -334,6 +334,10 @@ class C64CardGpuLaneTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             fixture = CardBuildFixture(Path(directory), backend="cuda")
             toolchain = Path("/tmp/c64-cuda")
+            fixture.route_text = (
+                "FES-GPU-GRANT 8\n"
+                "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            )
             with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "0", "CUDA_VISIBLE_DEVICES": "0",
                                           "CUDA_DEVICE_ORDER": "FASTEST_FIRST"}):
                 result = fixture.build(gpu=1, gpu_router="CUDA", toolchain_root=toolchain)
@@ -343,11 +347,19 @@ class C64CardGpuLaneTests(unittest.TestCase):
                 self.assertEqual(call.kwargs, {"toolchain_root": toolchain, "gpu_router": "CUDA"})
             for env in fixture.envs:
                 self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
-                self.assertEqual(env["GPU_LEASE_IDS"], "1")
+                self.assertNotIn("GPU_LEASE_IDS", env)
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
             route = fixture.commands[1]
             self.assertEqual(route[route.index("--gpu-device") + 1], "1")
-            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
-            self.assertEqual(recipe["gpu_device"], 1)
+            summary = json.loads((result.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
+            self.assertNotIn("gpu_device", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(recipe["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"], {
+                "gpu_selection": "lease", "gpu_device_requested": 1, "gpu_device_granted": ["8"],
+            })
 
     def test_cuda_route_preserves_gpu_run_mask_and_uses_logical_device(self) -> None:
         for gpu in (0, 1):
@@ -366,19 +378,34 @@ class C64CardGpuLaneTests(unittest.TestCase):
                     self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
                     self.assertNotIn("HIP_VISIBLE_DEVICES", env)
 
-    def test_hip_route_leases_and_masks_requested_gpu_without_nextpnr_device_flag(self) -> None:
+    def test_hip_route_does_not_pin_a_gpu_or_pass_a_nextpnr_device_flag(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = CardBuildFixture(Path(directory))
-            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "9", "CUDA_VISIBLE_DEVICES": "3"}):
+            with patch.dict(os.environ, {
+                "HIP_VISIBLE_DEVICES": "9",
+                "ROCR_VISIBLE_DEVICES": "9",
+                "CUDA_VISIBLE_DEVICES": "3",
+                "GPU_DEVICE_ORDINAL": "3",
+                "GPU_LEASE_IDS": "8",
+            }):
                 os.environ.pop("GPU_RUN_DEVICE", None)
                 result = fixture.build(gpu=1)
             route = fixture.commands[1]
             self.assertNotIn("--gpu-device", route)
             for env in fixture.envs:
-                self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
-                self.assertEqual(env["GPU_LEASE_IDS"], "1")
-            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("ROCR_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
+                self.assertNotIn("GPU_DEVICE_ORDINAL", env)
+                # A box inventory override is inherited. The requested GPU must not replace it.
+                self.assertEqual(env["GPU_LEASE_IDS"], "8")
+            summary = json.loads((result.parent / "build-summary.json").read_text())
+            recipe = summary["recipe"]
             self.assertNotIn("gpu_device", recipe)
+            self.assertNotIn("gpu_device_requested", recipe)
+            self.assertEqual(recipe["gpu_selection"], "lease")
+            self.assertEqual(summary["gpu"]["gpu_device_requested"], 1)
+            self.assertEqual(summary["gpu"]["gpu_selection"], "lease")
             self.assertEqual(fixture.authenticate.call_args.kwargs["gpu_router"], "HIP")
 
     def test_route_backend_must_match_the_selected_lane(self) -> None:
