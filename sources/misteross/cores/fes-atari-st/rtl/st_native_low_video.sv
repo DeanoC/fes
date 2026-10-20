@@ -389,16 +389,27 @@ module st_native_low_video (
 
     wire [23:0] selected_base = base_valid ? frame_base : {screen_base[23:8], 8'd0};
     wire next_prefetch_lines = native_line >= frame_top - 9'd2 && native_line < frame_top + maximum_height - 9'd1;
-    wire [8:0] next_desired_row = native_line < frame_top ? 9'd0 : row + 9'd1;
+    // Keep top-1 alongside frame_top so desired_row uses one subtraction
+    // instead of a row subtraction followed by a serial increment.
+    reg [8:0] frame_top_minus_one;
+    wire [8:0] next_desired_row = native_line < frame_top ? 9'd0 : native_line - frame_top_minus_one;
     wire next_margin = next_desired_row != 9'd0;
+    // Fold the leading-margin adjustment into the word-loss subtraction.
+    wire [9:0] next_word_offset = {1'b0, native_word_loss} + {9'd0, next_margin};
     wire [23:0] next_start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(next_desired_row) * 24'd80 -
-        {15'd0, native_word_loss} - {23'd0, next_margin};
+        {14'd0, next_word_offset};
     // Compare constant limits directly rather than adding another24-bit
     // carry chain after the row/base/loss calculation. Retain the original
     // 24-bit addition's wrap cases too; all start/margin combinations match.
+    wire [5:0] next_start_high = next_start_word[23:18];
+    wire [17:0] next_start_low = next_start_word[17:0];
+    wire start_positive = next_start_high == 6'd0;
+    wire start_wrapped_negative = &next_start_high;
     wire next_address_valid = next_margin ?
-        (next_start_word <= 24'h03ffaf || next_start_word >= 24'hffffaf) :
-        (next_start_word <= 24'h03ffb0 || next_start_word >= 24'hffffb0);
+        ((start_positive && next_start_low <= 18'h3ffaf) ||
+         (start_wrapped_negative && next_start_low >= 18'h3ffaf)) :
+        ((start_positive && next_start_low <= 18'h3ffb0) ||
+         (start_wrapped_negative && next_start_low >= 18'h3ffb0));
     // Register the row and address with the line, top, mode, base and loss
     // they came from. A prefetch starts only once those inputs have held for
     // an edge, so the registered values always match the live ones and the
@@ -451,7 +462,7 @@ module st_native_low_video (
             owned <= 1'b0; enabled <= 1'b0; base_valid <= 1'b0;
             good_frame <= 1'b0; previous_display <= 1'b0; line_valid <= 1'b0;
             frame_pal <= 1'b1; bottom_seen <= 1'b0; border_enabled <= 1'b0; border_overflow_reported <= 1'b0; pal_banks <= 3'b111;
-            write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
+            write_bank <= 2'd0; frame_top <= 9'd63; frame_top_minus_one <= 9'd62; expected_row <= 9'd0;
             fetched_words <= 7'd0; line_word_margin <= 1'b0; fetch_start_cycle <= 9'd511;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
             pixels <= 17'd0;
@@ -499,6 +510,7 @@ module st_native_low_video (
                 owned <= bank_free && !hold;
                 write_bank <= free_bank;
                 frame_top <= sync_mode[1] ? 9'd63 : 9'd34;
+                frame_top_minus_one <= sync_mode[1] ? 9'd62 : 9'd33;
                 frame_pal <= sync_mode[1]; bottom_seen <= 1'b0; border_enabled <= resolution == 2'd0;
                 enabled <= 1'b0; base_valid <= 1'b0;
                 expected_row <= 9'd0; good_frame <= 1'b1;

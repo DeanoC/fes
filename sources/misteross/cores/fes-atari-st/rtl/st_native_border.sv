@@ -81,7 +81,8 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
 
     reg [EVENT_BITS+8:0] desc0, desc1, desc2;
     reg [17:0] head0, head1, head2;
-    wire [EVENT_BITS+8:0] descriptor = output_bank == 2'd0 ? desc0 : output_bank == 2'd1 ? desc1 : desc2;
+    wire [8:0] descriptor_count = output_bank == 2'd0 ? desc0[EVENT_BITS+8:EVENT_BITS] :
+        output_bank == 2'd1 ? desc1[EVENT_BITS+8:EVENT_BITS] : desc2[EVENT_BITS+8:EVENT_BITS];
     reg [17:0] held0, held1, held2;
     reg held_valid;
     wire [17:0] current0 = held_valid ? held0 : head0;
@@ -96,8 +97,15 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
     wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
-    wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
-        output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
+    // Each RAM uses its own row descriptor on line start. The selected bank
+    // therefore reaches its event address without a cross-bank descriptor mux;
+    // the other banks' prefetched heads remain speculative.
+    wire [EVENT_BITS-1:0] read_pointer0 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc0[EVENT_BITS-1:0] : next_pointer;
+    wire [EVENT_BITS-1:0] read_pointer1 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc1[EVENT_BITS-1:0] : next_pointer;
+    wire [EVENT_BITS-1:0] read_pointer2 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc2[EVENT_BITS-1:0] : next_pointer;
     // Publication can select a bank on this same SOF edge. Increment each
     // descriptor independently so that late bank selection does not precede
     // an EVENT_BITS-wide carry chain. SOF retains its fixed event-zero origin.
@@ -115,14 +123,14 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // cross-domain bank selection and the descriptor/event immutability.
     always @(posedge clk_pixel) begin
         desc0 <= rows0[output_row]; desc1 <= rows1[output_row]; desc2 <= rows2[output_row];
-        head0 <= events0[read_pointer]; head1 <= events1[read_pointer]; head2 <= events2[read_pointer];
+        head0 <= events0[read_pointer0]; head1 <= events1[read_pointer1]; head2 <= events2[read_pointer2];
         if (reset_pixel) begin
             next_pointer <= 1; remaining <= 0; colour <= 0;
             held_valid <= 1'b0;
         end else if (output_sof || output_line_start) begin
             held_valid <= 1'b0;
             next_pointer <= line_successor;
-            remaining <= descriptor[EVENT_BITS+8:EVENT_BITS];
+            remaining <= descriptor_count;
             colour <= 0;
         end else if (consume_current) begin
             held_valid <= 1'b0;
