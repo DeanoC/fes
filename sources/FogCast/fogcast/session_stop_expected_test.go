@@ -66,6 +66,37 @@ func TestStopExpectedChecksAfterLifecycleAdmission(t *testing.T) {
 		t.Fatalf("err=%v stops=%d", err, c.stopCalls)
 	}
 }
+func TestStopExpectedPackageFreeRejectsReplacement(t *testing.T) {
+	s, c, _ := testBoundStop()
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "nes-pong"}
+	binding := SessionStopBinding{GameID: "nes-pong", Target: "kit", TargetID: "kit-id"}
+	st, err := s.StopExpected(context.Background(), binding)
+	if err != nil || st.State != protocol.StateIdle || c.stopCalls != 1 {
+		t.Fatalf("package-free stop status=%+v err=%v stops=%d", st, err, c.stopCalls)
+	}
+
+	s, c, _ = testBoundStop()
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "nes-pong"}
+	binding.GameID = "snes-other"
+	if _, err = s.StopExpected(context.Background(), binding); !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 {
+		t.Fatalf("replacement err=%v stops=%d", err, c.stopCalls)
+	}
+
+	s, c, _ = testBoundStop()
+	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "nes-pong", packageID: strings.Repeat("b", 64), packageGeneration: 4}
+	binding.GameID = "nes-pong"
+	if _, err = s.StopExpected(context.Background(), binding); !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 {
+		t.Fatalf("package replacement err=%v stops=%d", err, c.stopCalls)
+	}
+
+	s, c, _ = testBoundStop()
+	s.activeExecution = ExecutionHostOnly
+	s.activeGameID = "host-game"
+	if _, err = s.StopExpected(context.Background(), SessionStopBinding{GameID: "other-host"}); !errors.Is(err, ErrSessionChanged) || c.stopCalls != 0 {
+		t.Fatalf("host-only replacement err=%v stops=%d", err, c.stopCalls)
+	}
+}
+
 func TestStopExpectedKeepsOrdinaryStopSaveSemantics(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "save failure"}[fail], func(t *testing.T) {

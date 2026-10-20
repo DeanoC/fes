@@ -75,8 +75,9 @@ func Handler(service *Service) http.Handler {
 	return mux
 }
 
-// launchFromRequest keeps an empty body on the package launch. A JSON
-// rom_path reads that local file and launches the cartridge. It does not
+// launchFromRequest keeps an empty body on the package launch. JSON
+// library_root and relative_path names one file under that library.
+// The agent opens it from a directory handle on the root. It does not
 // open a network connection.
 func launchFromRequest(service *Service, r *http.Request) (LaunchResult, error) {
 	data, err := io.ReadAll(io.LimitReader(r.Body, 4096))
@@ -87,15 +88,22 @@ func launchFromRequest(service *Service, r *http.Request) (LaunchResult, error) 
 		return service.Launch(r.Context(), r.PathValue("package_id"))
 	}
 	var body struct {
-		ROMPath string `json:"rom_path"`
+		ROMPath      string `json:"rom_path"`
+		LibraryRoot  string `json:"library_root"`
+		RelativePath string `json:"relative_path"`
 	}
 	if json.Unmarshal(data, &body) != nil {
 		return LaunchResult{}, errUnavailable
 	}
-	if strings.TrimSpace(body.ROMPath) == "" {
+	// rom_path was the absolute path. It is not opened. A body that still
+	// sends it must not fall through to a bare-core launch.
+	if strings.TrimSpace(body.ROMPath) != "" {
+		return LaunchResult{}, errUnavailable
+	}
+	if strings.TrimSpace(body.LibraryRoot) == "" && strings.TrimSpace(body.RelativePath) == "" {
 		return service.Launch(r.Context(), r.PathValue("package_id"))
 	}
-	rom, err := readCartridgeFile(body.ROMPath)
+	rom, err := readCartridgeFile(body.LibraryRoot, body.RelativePath)
 	if err != nil {
 		return LaunchResult{}, err
 	}

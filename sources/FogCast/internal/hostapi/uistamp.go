@@ -126,19 +126,40 @@ type sessionStopExpectation struct {
 	FlightID string `json:"flight_id"`
 }
 
+func (e sessionStopExpectation) packageBound() bool {
+	return e.PackageID != "" || e.Generation != 0
+}
+
 func (e sessionStopExpectation) valid() bool {
-	return strings.TrimSpace(e.ID) == e.ID && e.ID != "" && len(e.ID) <= 128 &&
-		protocol.ValidateGameID(e.GameID) == nil && protocol.ValidateDigest(e.PackageID) == nil && e.Generation != 0 &&
-		strings.TrimSpace(e.Target) == e.Target && e.Target != "" && len(e.Target) <= 256 &&
-		strings.TrimSpace(e.TargetID) == e.TargetID && len(e.TargetID) <= 256 &&
-		(e.FlightID == "" || validHostFlightID(e.FlightID))
+	if strings.TrimSpace(e.ID) != e.ID || e.ID == "" || len(e.ID) > 128 ||
+		protocol.ValidateGameID(e.GameID) != nil ||
+		strings.TrimSpace(e.Target) != e.Target || len(e.Target) > 256 ||
+		strings.TrimSpace(e.TargetID) != e.TargetID || len(e.TargetID) > 256 ||
+		(e.FlightID != "" && !validHostFlightID(e.FlightID)) {
+		return false
+	}
+	if e.packageBound() {
+		return e.Target != "" && protocol.ValidateDigest(e.PackageID) == nil && e.Generation != 0
+	}
+	// A package-free play has no generation. The launch flight is required
+	// because the host session id persists across launches. Target may be
+	// empty for a host-only play.
+	return e.FlightID != ""
 }
 
 func (e sessionStopExpectation) matches(actual sessionResult) bool {
-	return actual.State != protocol.StateIdle && actual.CorePackage != nil && actual.GameID != nil &&
-		e.ID == actual.ID && e.FlightID == actual.FlightID && e.GameID == *actual.GameID &&
-		e.Target == actual.Target && e.TargetID == actual.TargetID &&
-		e.PackageID == actual.CorePackage.PackageID && e.Generation == actual.CorePackage.Generation
+	if actual.State == protocol.StateIdle || actual.GameID == nil || e.ID != actual.ID || e.FlightID != actual.FlightID ||
+		e.GameID != *actual.GameID || e.Target != actual.Target || e.TargetID != actual.TargetID {
+		return false
+	}
+	if e.packageBound() {
+		return actual.CorePackage != nil && e.PackageID == actual.CorePackage.PackageID && e.Generation == actual.CorePackage.Generation
+	}
+	if e.FlightID == "" {
+		return false
+	}
+	// The chord was for a play with no package. A described replacement must not match.
+	return actual.CorePackage == nil || (actual.CorePackage.PackageID == "" && actual.CorePackage.Generation == 0)
 }
 
 func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, bool, *sessionStopExpectation, string, error) {
@@ -167,7 +188,7 @@ func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientSt
 		return clientStamp{}, false, false, nil, "", errors.New("retain and release")
 	}
 	if parsed.Expected != nil && (!parsed.Expected.valid() || parsed.ReleaseIdle) {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "expected session must identify the displayed package play")
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "expected session must identify the displayed play")
 		return clientStamp{}, false, false, nil, "", errors.New("invalid expected session")
 	}
 	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, parsed.ReleaseIdle, parsed.Expected, parsed.Target, nil

@@ -258,6 +258,6 @@ a new wait. The next present after a wait is submitted. The menu-display backend
 runtime menu socket; the tenfoot app keeps its existing host session client
 and existing status reads (for example the kit-lease status read). The kit
 base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot
-opens the kit-local control socket, shows "Starting {title}…", pauses presents
-so the core owns HDMI, and resumes them after Select+Start stop, or when that kit-local session is no longer running. Host tests cover the backend without
+opens the kit-local control socket, shows "Starting {title}…", and pauses presents
+after that loading frame is presented so the core owns HDMI. A failed or unpresented frame aborts the launch. Late adoption drains outstanding menu work and pauses without a loading frame; an older menu failure does not block that pause. Presents resume after Select+Start stop, or when that kit-local session is no longer running. Host tests cover the backend without
 a runtime: `go test ./ui/gfx/ ./ui/tenfoot/ ./cmd/fogcast-tenfoot/`.

@@ -116,13 +116,9 @@ func (h *damageHarness) submit(x, y int, c Color) MenuPresentTrace {
 	h.mu.Unlock()
 	h.d.FillRect(Rect{X: float32(x), Y: float32(y), W: 20, H: 10}, c)
 	h.d.Present()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := h.d.WaitIdle(ctx); err != nil {
-		h.t.Fatal(err)
-	}
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
+	// Wait for the worker's trace, not WaitIdle. A generation change finishes
+	// without presenting, and WaitIdle reports that to the launch handoff.
+	deadline := time.Now().Add(5 * time.Second)
 	for {
 		h.mu.Lock()
 		if len(h.traces) >= wantTrace {
@@ -131,11 +127,10 @@ func (h *damageHarness) submit(x, y int, c Color) MenuPresentTrace {
 			return trace
 		}
 		h.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			h.t.Fatal("timed out waiting for menu-present trace")
-		case <-ticker.C:
+		if time.Now().After(deadline) {
+			h.t.Fatalf("present did not finish: %v", h.d.LastError())
 		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

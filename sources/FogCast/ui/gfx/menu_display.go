@@ -100,6 +100,11 @@ type menuSessionBinding struct {
 // runtime's display. Session presenters never follow a replacement machine.
 var ErrSessionDisplayChanged = errors.New("session display changed before presentation")
 
+// ErrMenuFrameNotPresented means the newest submission finished without a
+// successful Present and the runtime did not report a more specific error.
+// WaitIdle returns it so a launch handoff cannot treat that frame as shown.
+var ErrMenuFrameNotPresented = errors.New("menu frame was not presented")
+
 // submittedMenuFrame is the last frame queued for the runtime while
 // change-driven presents are on. pixels is immutable and may alias the
 // queued frame's buffer.
@@ -153,6 +158,9 @@ type MenuDisplay struct {
 	backoffUntil time.Time
 	hasPresented bool
 	presentedGen uint64
+	// presentedSeq is the submission sequence last shown on this binding.
+	// Zero means none. A status probe may acknowledge only this sequence.
+	presentedSeq uint64
 	binding      menuSessionBinding
 	bindingEpoch uint64
 	// Change-driven worker shortcuts. statusCache is the runtime status as of
@@ -167,6 +175,13 @@ type MenuDisplay struct {
 	baseSeq          uint64
 	baseGen          uint64
 	baseEpoch        uint64
+	// settled is the newest submission that finished on this binding.
+	// WaitIdle fails when it was not presented. False until the first
+	// completion, so an empty queue with no submission is idle. A status
+	// probe records a presented outcome only for presentedSeq.
+	settled          bool
+	settledPresented bool
+	settledErr       error
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -218,7 +233,9 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	d.known = false
 	d.generation = 0
 	d.hasPresented = false
+	d.presentedSeq = 0
 	d.lastErr = nil
+	d.clearSettledLocked()
 	d.forgetSubmissionLocked()
 	d.dropShortcutsLocked()
 	d.clearPaceLocked()
@@ -351,20 +368,48 @@ func (d *MenuDisplay) FramePending() bool {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.framePendingLocked()
+}
+
+func (d *MenuDisplay) framePendingLocked() bool {
 	return d.pending > 0 || d.flight != nil || d.probeQueued
 }
 
-// WaitIdle waits until every submitted menu frame has completed its runtime
-// transaction. Call before Pause when the final visible frame must survive.
+// WaitIdle waits until every submitted menu frame has finished its runtime
+// transaction. The newest finished submission must have been presented.
+// A failed Status or Present, or a frame that never reached the display, is
+// returned so a launch handoff cannot pause and dispatch on it. Call before
+// Pause when the final visible frame must survive. The caller retries or
+// abandons; WaitIdle does not. Late adoption submits no frame and uses
+// WaitPending so an older failure does not block that pause.
 func (d *MenuDisplay) WaitIdle(ctx context.Context) error {
+	return d.waitIdle(ctx, true)
+}
+
+// WaitPending waits until queued and in-flight menu work has finished.
+// It does not report that work's outcome. Late adoption uses it when this
+// handoff submitted no loading frame, so an older failure cannot block the
+// pause while a core already owns HDMI.
+func (d *MenuDisplay) WaitPending(ctx context.Context) error {
+	return d.waitIdle(ctx, false)
+}
+
+func (d *MenuDisplay) waitIdle(ctx context.Context, acknowledge bool) error {
 	if d == nil {
 		return nil
 	}
 	t := time.NewTicker(time.Millisecond)
 	defer t.Stop()
 	for {
-		if !d.FramePending() {
-			return nil
+		d.mu.Lock()
+		idle := !d.framePendingLocked()
+		var err error
+		if idle && acknowledge {
+			err = idleHandoffError(d.settled, d.settledPresented, d.settledErr)
+		}
+		d.mu.Unlock()
+		if idle {
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -374,6 +419,19 @@ func (d *MenuDisplay) WaitIdle(ctx context.Context) error {
 		case <-t.C:
 		}
 	}
+}
+
+// idleHandoffError is the result of an idle WaitIdle. Nothing finished yet is
+// success. A finished submission that was presented is success. Otherwise the
+// runtime error is returned, or ErrMenuFrameNotPresented when there is none.
+func idleHandoffError(settled, presented bool, err error) error {
+	if !settled || (presented && err == nil) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return ErrMenuFrameNotPresented
 }
 
 // Pause prevents new submissions, discards queued frames, forgets the last
@@ -528,6 +586,7 @@ func (d *MenuDisplay) run() {
 				continue
 			}
 			d.lastErr = err
+			d.noteSettledLocked(presented, err)
 			if !presented {
 				d.forgetLocked(frame.seq)
 				d.dropShortcutsLocked()
@@ -535,7 +594,7 @@ func (d *MenuDisplay) run() {
 				d.rememberShownLocked(frame, status, result, cached)
 			}
 			if d.changeDriven {
-				d.notePresentResultLocked(presented, genChanged, err, status)
+				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq)
 			}
 			d.releaseBufferLocked(frame.buffer)
 			d.pending--
@@ -567,11 +626,18 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	err = d.acceptStatusLocked(frame, status)
 	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
 		d.hasPresented && status.Generation == d.presentedGen {
-		// Validate the binding and clear recovered state under one lock: an
+		// Validate the binding and clear recovered pacing under one lock: an
 		// old probe must not clear an error after a new binding is installed.
+		// A healthy status at this generation only acknowledges the handoff
+		// when this probe's submission is the sequence that was presented.
+		// An older frame left on screen must not turn a newer failed frame
+		// into a successful launch.
 		d.clearProbeQueuedLocked(frame.epoch)
 		d.lastProbe = d.clock()
 		d.lastErr = nil
+		if frame.seq != 0 && frame.seq == d.presentedSeq {
+			d.noteSettledLocked(true, nil)
+		}
 		d.resetBackoffLocked()
 		d.reportSoftwareReadyLocked(status)
 		d.mu.Unlock()
@@ -628,15 +694,29 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.known = true
 	}
 	d.lastErr = err
+	d.noteSettledLocked(presented, err)
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
+		d.presentedSeq = frame.seq
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		d.noteGenerationLocked(frame.seq, status.Generation)
 		return
 	}
 	d.armBackoffLocked(d.clock(), menuWaitCap(err, status))
+}
+
+func (d *MenuDisplay) noteSettledLocked(presented bool, err error) {
+	d.settled = true
+	d.settledPresented = presented
+	d.settledErr = err
+}
+
+func (d *MenuDisplay) clearSettledLocked() {
+	d.settled = false
+	d.settledPresented = false
+	d.settledErr = nil
 }
 
 // forgetLocked drops the remembered frame when seq is still that frame.
@@ -660,11 +740,12 @@ func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
 	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
 }
 
-func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status) {
+func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq uint64) {
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
+		d.presentedSeq = seq
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		return

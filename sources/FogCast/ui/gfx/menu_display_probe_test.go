@@ -1,7 +1,9 @@
 package gfx
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -148,6 +150,45 @@ func TestMenuDisplayQueuedProbeClearsTransientPresentError(t *testing.T) {
 	}
 	if calls, _, _, _ := client.snapshot(); calls != 2 {
 		t.Fatalf("healthy probe re-presented an unchanged generation: calls=%d", calls)
+	}
+}
+
+func TestMenuDisplayQueuedProbeDoesNotAcknowledgeFailedFrame(t *testing.T) {
+	d, client := newChangeDrivenMenu(t, 3, true)
+	clock := newMenuClock()
+	d.now = clock.Now
+	d.Clear(RGB(1, 2, 3))
+	presentMenu(t, d, client)
+	waitMenuIdle(t, d, client, 1)
+
+	// Frame A is on screen. Frame B, the loading frame, fails while a probe
+	// for B is already queued. The probe reads A's generation and must not
+	// treat A's presentation as B having been shown.
+	gate := make(chan struct{})
+	client.mu.Lock()
+	client.fail = true
+	client.presentBlock = gate
+	client.mu.Unlock()
+	d.Clear(RGB(4, 5, 6))
+	presentMenu(t, d, client)
+	clock.Advance(menuProbeInterval)
+	d.Present()
+	d.mu.Lock()
+	queued := d.probeQueued
+	d.mu.Unlock()
+	close(gate)
+	if !queued {
+		t.Fatal("probe was not queued behind the failing frame")
+	}
+	waitMenuStatus(t, d, client, 3)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := d.WaitIdle(ctx)
+	if err == nil || !strings.Contains(err.Error(), "stale menu") {
+		t.Fatalf("WaitIdle after probed failure = %v, want present error", err)
+	}
+	if calls, _, _, _ := client.snapshot(); calls != 2 {
+		t.Fatalf("probe presented the failed frame: calls=%d", calls)
 	}
 }
 
