@@ -113,7 +113,10 @@ type SessionResult struct {
 	HPSFramebuffer *bool
 	ErrorCode      string
 	ErrorMessage   string
-	FlightID       string
+	// StopStage is the host stop_stage on an error. lease_release means
+	// cleanup reached idle and the kit grant is still renewing.
+	StopStage string
+	FlightID  string
 }
 
 // ReadResponseBody reads one bounded HTTP response body. It rejects a body
@@ -207,8 +210,9 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		CorePackage             *SessionCorePackage `json:"core_package"`
 		HPSFramebuffer          *bool               `json:"hps_framebuffer"`
 		Error                   *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+			StopStage string `json:"stop_stage"`
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &wire); err != nil {
@@ -263,6 +267,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
+		result.StopStage = strings.TrimSpace(wire.Error.StopStage)
 		return result, nil
 	}
 	if !validSessionState(wire.State) {

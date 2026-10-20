@@ -35,8 +35,9 @@ A successful package-only C64 preparation would use
 `fes-c64.package-selection.toml`.
 The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Each registered
-producer selects the per-core lock in its `config/core-recipes.toml` entry;
-the locks currently contain the same tool commits. Use the matching
+producer selects the per-core lock in its `config/core-recipes.toml` entry.
+The locks currently contain the same nextpnr and Mistral commits. Coleco's
+Yosys pin is `5391eeb1` and uses its own slot. Use the matching
 `make toolchain-fes-<core>` target when provisioning a selected core. Inspect
 `config/core-recipes.toml` for each registered producer's current lock and HIP
 settings. Freeze-scaffold

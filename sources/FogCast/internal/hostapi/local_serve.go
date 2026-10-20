@@ -103,10 +103,11 @@ func (l *LocalServe) Close() error {
 	return serviceErr
 }
 
-// ContentPath resolves one catalog id to a local file. It does not dial.
-func (l *LocalServe) ContentPath(ctx context.Context, gameID string) (string, error) {
+// ContentPath resolves one catalog id to its library root and relative
+// path. It does not dial.
+func (l *LocalServe) ContentPath(ctx context.Context, gameID string) (string, string, error) {
 	if l == nil || l.service == nil {
-		return "", errors.New("local catalog is unavailable")
+		return "", "", errors.New("local catalog is unavailable")
 	}
 	return l.service.LocalContentPath(ctx, gameID)
 }
