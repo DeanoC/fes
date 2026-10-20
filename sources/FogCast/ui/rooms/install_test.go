@@ -1,11 +1,16 @@
 package rooms
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func installSource(t *testing.T, title, script, art string) string {
@@ -140,5 +145,48 @@ func TestInstallIdempotentKeepsPreviousAndRejectsOversize(t *testing.T) {
 	}
 	if _, err = Install(root, source); err == nil {
 		t.Fatal("oversized file accepted")
+	}
+}
+
+func TestInstalledArtworkUsesNewSnapshotWithoutChangingLiveOldRoom(t *testing.T) {
+	root := t.TempDir()
+	create := func(c color.RGBA) Pack {
+		source := installSource(t, "Artwork", "local art; function load() art = image.load('art.png') end; function draw() end", "")
+		bitmap := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		bitmap.SetRGBA(0, 0, c)
+		var encoded bytes.Buffer
+		if err := png.Encode(&encoded, bitmap); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(source, "art.png"), encoded.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+		pack, err := Install(root, source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pack
+	}
+	red, blue := color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}
+	old := newRoom(t, create(red), Options{})
+	fresh := newRoom(t, create(blue), Options{})
+	for _, check := range []struct {
+		room *Instance
+		want color.RGBA
+	}{{old, red}, {fresh, blue}} {
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			check.room.Step(time.Now())
+			if bitmap := check.room.Images()["asset:art.png"]; bitmap != nil {
+				if got := bitmap.RGBAAt(0, 0); got != check.want {
+					t.Fatalf("artwork = %v want %v", got, check.want)
+				}
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
+		if check.room.Images()["asset:art.png"] == nil {
+			t.Fatal("artwork did not decode")
+		}
 	}
 }

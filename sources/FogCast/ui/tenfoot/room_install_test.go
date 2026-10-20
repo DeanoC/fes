@@ -27,7 +27,7 @@ func installedTestRoom(t *testing.T, root, id, title, script string) rooms.Pack 
 
 func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T) {
 	root := t.TempDir()
-	first := installedTestRoom(t, root, "live", "First", "function draw() gfx.text('old', 1, 1) end")
+	first := installedTestRoom(t, root, "live", "First", "function load() store.set('keep', 'v1') end; function draw() gfx.text('old', 1, 1) end")
 	h := newRoomHost(t)
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
@@ -40,11 +40,14 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 	if original == nil || original.Title() != "First" {
 		t.Fatalf("first load: %s", app.status)
 	}
-	second := installedTestRoom(t, root, "live", "Second", "function draw() gfx.text('new', 1, 1) end")
+	second := installedTestRoom(t, root, "live", "Second", "function load() assert(store.get('keep') == 'v1'); store.set('keep', 'v2') end; function draw() gfx.text('new', 1, 1) end")
 	app.openRoomPickerLocked()
 	app.activateHomeRowLocked(RoomPickerRow{ID: "live", Kind: HomeKindRoom})
 	if app.room == original || app.room.Revision() != second.Revision {
 		t.Fatalf("not reloaded: %s", app.status)
+	}
+	if frame := app.room.Frame(); len(frame.Ops) != 1 || frame.Ops[0].Text != "new" {
+		t.Fatal("updated Lua was not rendered")
 	}
 	working := app.room
 	for _, script := range []string{"function load() store.set('bad', true); error('broken load') end", "function draw() error('broken draw') end"} {
@@ -53,6 +56,10 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 		app.activateHomeRowLocked(RoomPickerRow{ID: "live", Kind: HomeKindRoom})
 		if app.room != working || !strings.Contains(app.status, "Room update failed") {
 			t.Fatalf("working instance lost: %s", app.status)
+		}
+		state, err := os.ReadFile(app.roomStorePathLocked("live"))
+		if err != nil || strings.Contains(string(state), "bad") || !strings.Contains(string(state), "v2") {
+			t.Fatalf("trial changed persistent state: %s %v", state, err)
 		}
 		packs, err := rooms.LoadDir(root)
 		if err != nil || packs[0].Revision != second.Revision {
