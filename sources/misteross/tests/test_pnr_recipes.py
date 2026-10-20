@@ -28,7 +28,7 @@ ENV = {
 LOCK_SHA256 = {
     "fes.menu": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.pong": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
     "fes.zx81": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.coleco": "ba411cc51b40cf31a606762253d5e121bf16486e293276d06c84ca5702693a7f",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
@@ -77,7 +77,7 @@ NO_PYTHON_GUI_OPTIONS = {
 GOLDENS = {
     "fes.menu": ("2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
     "fes.catch": ("2ca8900a129a4b954198e400c5939b8ff28ec3043302ce111f5fabfc9b5c5431", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
-    "fes.pong": ("aae5ea738224669955f178252e48606f44b6d46dceb0767bd53bab43ce4e208b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
+    "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.zx81": ("ede61b2a6cad88cd5d1b4fe75495914d91873d6072f52ddb03acf44e92c3606a", "1c0a67c9024ace96c56d7270c64a43b562745dd12696d5f8614723a4de083c70"),
     "fes.coleco": ("36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
     "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
@@ -202,7 +202,7 @@ def _fake_nextpnr_help(path, option_names):
 
 
 class PnrRecipeTests(unittest.TestCase):
-    def test_every_registered_lock_pins_a_recipe_with_the_old_option_schema(self):
+    def test_every_registered_lock_pins_a_recipe_with_its_option_schema(self):
         from scripts.lockfile import load_lock
         registry = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())
         self.assertEqual(set(GOLDENS), {entry["core_id"] for entry in registry["recipes"]})
@@ -215,8 +215,9 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
+                option_count = 105 if core_id == "fes.pong" else 96
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
-                                 set(SCHEMAS_BY_OPTION_COUNT[96]))
+                                 set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
     def test_source_option_sets_select_exact_schemas_and_shared_defaults(self):
         self.assertEqual(set(SOURCE_OPTION_SETS), {96, 105})

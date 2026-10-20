@@ -19,7 +19,11 @@ from scripts.build_fes_zx81_oss import OUTPUT_RELATIVE as ZX81_OUTPUT
 from scripts.build_fes_zx81_oss import build_commands as zx81_build_commands
 from scripts.build_fes_zx81_oss import create_build_record as zx81_create_build_record
 from scripts.lockfile import load_lock
-from tests.test_build_fes_pong import _write_fake_tool, publish_shared_toolchain
+from tests.test_build_fes_pong import (
+    _nextpnr_option_count_for_lock,
+    _write_fake_tool,
+    publish_shared_toolchain,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,7 +79,11 @@ def _write_local_pong_tools(
         ("nextpnr", "nextpnr-mistral"),
     ):
         binary = install / binary_name
-        _write_fake_tool(binary, lock_name)
+        _write_fake_tool(
+            binary,
+            lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+        )
         evidence = root / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
         evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
@@ -239,7 +247,11 @@ class FesHipLaneTests(unittest.TestCase):
             for lock_name, binary_name in (("yosys", "yosys"), ("mistral", "mistral-cv"),
                                            ("nextpnr", "nextpnr-mistral")):
                 binary = install / binary_name
-                _write_fake_tool(binary, lock_name)
+                _write_fake_tool(
+                    binary,
+                    lock_name,
+                    nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+                )
                 evidence = local / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit

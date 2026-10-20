@@ -32,13 +32,14 @@ These are the choices already in the tree at `6d9939c2`.
    says so. A failed HIP route does not fall back to Quartus. Quartus never
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Every lock except Coleco matches the
+   `config/core-recipes.toml`. Every lock except Pong's and Coleco's matches the
    repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
    Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172.
-   Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr commits, so
-   it has its own cache slot. HIP architectures are `gfx1100;gfx1201`. Future
-   pin changes stay scoped to the affected core. The repository-level lock
-   remains for unregistered consumers.
+   Pong's lock keeps that Yosys and Mistral and pins nextpnr `552ba246`
+   (fes#887). Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr
+   commits. Each of those two has its own cache slot. HIP architectures are
+   `gfx1100;gfx1201`. Pin changes stay scoped to the affected core. The
+   repository-level lock remains for unregistered consumers.
 3. Registered M10K is synchronous. No core under `sources/misteross/cores`
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is

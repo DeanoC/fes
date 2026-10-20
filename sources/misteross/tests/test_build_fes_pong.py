@@ -43,6 +43,7 @@ def _write_fake_tool(
     path: Path,
     tool_name: str,
     *,
+    nextpnr_option_count: int = 96,
     include_target: bool = True,
     mutation_target: Path | None = None,
 ) -> None:
@@ -50,7 +51,8 @@ def _write_fake_tool(
     nextpnr_help = ""
     if tool_name == "nextpnr":
         option_names = next(
-            names for names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS if len(names) == 96
+            names for names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS
+            if len(names) == nextpnr_option_count
         )
         help_lines = ["  -h [ --help ]"] + [
             f"  --{name.replace('_', '-')} arg" for name in sorted(option_names - {"help"})
@@ -84,6 +86,13 @@ def _write_fake_tool(
         encoding="utf-8",
     )
     path.chmod(0o755)
+
+
+def _nextpnr_option_count_for_lock(lock_path: Path) -> int:
+    """Return the CLI schema selected by this fixture's core-local lock."""
+    if lock_path.as_posix().endswith("cores/fes-pong/toolchain.lock"):
+        return 105
+    return 96
 
 
 def publish_shared_toolchain(
@@ -136,6 +145,7 @@ def publish_shared_toolchain(
         _write_fake_tool(
             binary,
             lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(selected_lock),
             include_target=mistral_target,
             mutation_target=slot / "install" / "bin/mistral-cv"
             if mutate_after_probe and lock_name == "yosys"
@@ -499,7 +509,11 @@ class BuildFesPongTests(unittest.TestCase):
             pins = load_lock(lock_path)
             for lock_name, (binary_name, _) in definitions.items():
                 binary = install / binary_name
-                _write_fake_tool(binary, lock_name)
+                _write_fake_tool(
+                    binary,
+                    lock_name,
+                    nextpnr_option_count=_nextpnr_option_count_for_lock(lock_path),
+                )
                 evidence = build_root / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit

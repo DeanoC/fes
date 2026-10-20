@@ -180,9 +180,11 @@ python3 -m unittest discover -s tests -p test_pnr_recipes.py
 The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
-Each distinct lock selects its own cached
-toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
-nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+Each distinct lock selects its own cached toolchain slot. Pong's lock pins
+nextpnr `552ba246` (fes#887), and Coleco's pins Yosys `5391eeb1`; each selects
+its own slot. The other per-core locks remain byte copies of `toolchain.lock`
+on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
+weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -363,7 +365,9 @@ the SDR mirror registers prove the layout.
 timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
-`CACHE_ROOT=/absolute/cache` selects the same root-lock HIP slot as Pong.
+`CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
+`toolchain.lock` (nextpnr `9128800f`). Pong's own lock pins nextpnr
+`552ba246`, so Pong uses a separate slot.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
