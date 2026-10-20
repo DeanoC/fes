@@ -46,7 +46,7 @@ func TestHomeRoomOpensAsRootAndHomeClearsStack(t *testing.T) {
 	})
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("main-menu")
 	app.Start(t.Context())
@@ -141,7 +141,7 @@ func TestHomeRoomLibraryIgnoresHomeRoom(t *testing.T) {
 	})
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(false)
 	app.SetHomeRoom("main-menu")
 	app.Start(t.Context())
@@ -191,7 +191,7 @@ func assertHomeRoomFallback(t *testing.T, id, reason string, index *rooms.Index)
 	h := newRoomHost(t)
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom(id)
 	app.Start(t.Context())
@@ -497,7 +497,7 @@ func startUnconfiguredLibraryHome(t *testing.T, gfxName, savedRoom string) (*App
 	if savedRoom != "" {
 		packs = append(append([]rooms.Pack{}, packs...), testRoomPack(t, savedRoom, homeRoomScript))
 	}
-	app.SetRooms(rooms.NewIndex(packs), t.TempDir())
+	app.SetRooms(rooms.NewIndex(packs), "")
 	if gfxName == "menu-display" {
 		app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{
 			PackageID: tenfootPongID, CoreID: "fes.pong", Name: "FES Pong", Launchable: true,

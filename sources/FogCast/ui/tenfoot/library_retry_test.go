@@ -195,7 +195,7 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
-	}), "/tmp/rooms")
+	}), "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
@@ -1009,7 +1009,7 @@ func TestRecentsRecoverAfterATruncatedResponse(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
-	}), "/tmp/rooms")
+	}), "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

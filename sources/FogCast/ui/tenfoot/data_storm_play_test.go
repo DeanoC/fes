@@ -127,7 +127,7 @@ root = %q
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "storm", dataStormPlayScript)})
 	app := NewApp(NewClient(hostServer.URL, hostServer.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("storm")
 	app.localContent = service.LocalContentPath

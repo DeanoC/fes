@@ -97,6 +97,9 @@ type Options struct {
 	ReducedMotionSet bool
 }
 
+// RoomInstallDirectory resolves the same room directory as the running launcher.
+func RoomInstallDirectory() string { return (Options{}).normalized().RoomsDir }
+
 func defaultRoomsDir(prefsPath string) string {
 	if strings.TrimSpace(prefsPath) == "" {
 		return ""
