@@ -90,6 +90,50 @@ def nextpnr_gpu_command(
     return tuple(result) if isinstance(command, tuple) else result
 
 
+# Printed by scripts/nextpnr_lease.py. That file cannot import this module:
+# an audited route reads only the dispatcher from the source tree.
+_GPU_GRANT_LINE = re.compile(
+    r"^FES-GPU-GRANT ([A-Za-z0-9._+-]+(?:,[A-Za-z0-9._+-]+)*)\s*$",
+    re.MULTILINE,
+)
+
+
+def granted_gpu_ids(route_text: str) -> list[str]:
+    """Physical GPU ids from FES-GPU-GRANT lines, in first-seen order.
+
+    Repeated grants of one id collapse. The requested --gpu-device index is
+    not a substitute when the log has no grant.
+    """
+
+    found: list[str] = []
+    for match in _GPU_GRANT_LINE.finditer(route_text):
+        for part in match.group(1).split(","):
+            if part in (".", "..") or part in found:
+                continue
+            found.append(part)
+    return found
+
+
+def gpu_route_evidence(route_text: str, requested: int | None = None) -> dict[str, object]:
+    """Route evidence for the GPU that actually routed.
+
+    This stays out of the sealed build record. BUILD_ID is a synthesis
+    parameter, so the grant cannot enter it without making RBF bytes depend
+    on which GPU was free. ``gpu_device_requested`` is the CLI index, not
+    the device that routed.
+    """
+
+    if requested is not None and (type(requested) is not int or requested < 0):
+        raise BuildError("requested GPU device must be a nonnegative integer")
+    evidence: dict[str, object] = {
+        "gpu_selection": "lease",
+        "gpu_device_granted": granted_gpu_ids(route_text),
+    }
+    if requested is not None:
+        evidence["gpu_device_requested"] = requested
+    return evidence
+
+
 def gpu_run_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Copy the wrapper's device index and visibility mask into a controlled env."""
     source = os.environ if env is None else env
@@ -219,31 +263,6 @@ def _resolved_tool(executable: str, cwd: Path, env: Mapping[str, str]) -> Path:
     return path if path.is_absolute() else Path(cwd) / path
 
 
-def _requested_gpu_id(command: Sequence[str]) -> str | None:
-    requested = None
-    args = list(command[1:])
-    index = 0
-    while index < len(args):
-        argument = args[index]
-        if argument == "--gpu-device":
-            if index + 1 >= len(args):
-                raise BuildError("nextpnr --gpu-device is missing its value")
-            value = args[index + 1]
-            index += 2
-        elif argument.startswith("--gpu-device="):
-            value = argument.split("=", 1)[1]
-            index += 1
-        else:
-            index += 1
-            continue
-        if not value.isdigit():
-            raise BuildError("nextpnr --gpu-device must name a numeric GPU id")
-        if requested is not None:
-            raise BuildError("nextpnr invocation selects more than one GPU")
-        requested = value
-    return requested
-
-
 def _nextpnr_supports_phase_lease(path: Path) -> bool:
     """Return whether this nextpnr binary asks gpu-run for each GPU phase."""
     try:
@@ -293,20 +312,15 @@ def _run_command(
                      else nextpnr_lease.GPU_LEASE_CONFIG_ENV):
             if name not in run_env and name in os.environ:
                 run_env[name] = os.environ[name]
-        requested_gpu = _requested_gpu_id(command)
-        if requested_gpu is not None:
-            configured_ids = run_env.get("GPU_LEASE_IDS", "").strip()
-            if configured_ids:
-                allowed_ids = {value.strip() for value in configured_ids.split(",") if value.strip()}
-                if requested_gpu not in allowed_ids:
-                    raise BuildError(
-                        f"requested GPU {requested_gpu} is outside GPU_LEASE_IDS"
-                    )
-            # gpu-run masks one physical device and nextpnr then selects its
-            # logical index 0. Restrict the lease inventory to the producer's
-            # requested physical id so the existing --gpu-device contract is
-            # preserved while the lease ends after this route.
-            run_env["GPU_LEASE_IDS"] = requested_gpu
+        # GPU_LEASE_IDS is a box inventory override. A --gpu-device argument
+        # must not narrow it: gpu-run grants any free device, then the
+        # whole-route dispatcher passes GPU_RUN_DEVICE and a phase-lease
+        # nextpnr uses the physical id from the grant. The sealed record
+        # says gpu_device "lease"; the dispatcher prints FES-GPU-GRANT with
+        # the physical id that routed. The request is not that id.
+        run_env.pop("HIP_VISIBLE_DEVICES", None)
+        run_env.pop("ROCR_VISIBLE_DEVICES", None)
+        run_env.pop("CUDA_VISIBLE_DEVICES", None)
         wrapper = _gpu_run_path()
         if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
             raise BuildError(f"gpu-run is unavailable: {wrapper}")
@@ -578,6 +592,20 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
 
+def _validate_registered_pnr_options(
+    root: Path, lock_path: Path, tools: Mapping[str, AuthenticatedTool]
+) -> None:
+    """Bind a registered producer recipe to its authenticated nextpnr CLI."""
+    from scripts import pnr_recipe
+
+    try:
+        core_id = pnr_recipe.core_for_lock(root, lock_path)
+        if core_id is not None:
+            pnr_recipe.validate_nextpnr_tool(core_id, tools["nextpnr-mistral"].path)
+    except (KeyError, pnr_recipe.RecipeError) as exc:
+        raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -617,7 +645,7 @@ def _authenticate_tools(
         ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
     )
     if cache_root is not None:
-        return _authenticate_shared_tools(
+        authenticated = _authenticate_shared_tools(
             root,
             lock_path=lock_path,
             expected_commits=expected_commits,
@@ -626,6 +654,8 @@ def _authenticate_tools(
             hip_architectures=hip_architectures,
             cache_root=Path(cache_root),
         )
+        _validate_registered_pnr_options(root, lock_path, authenticated)
+        return authenticated
     install = toolchain_root / "install/bin"
     build_root = toolchain_root / "build"
     authenticated: dict[str, AuthenticatedTool] = {}
@@ -667,6 +697,7 @@ def _authenticate_tools(
             path=path,
             identity=identity,
         )
+    _validate_registered_pnr_options(root, lock_path, authenticated)
     return authenticated
 
 

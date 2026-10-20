@@ -49,31 +49,6 @@ func (c *PresentationCache) Get(id string) Presentation {
 	return c.byID[id]
 }
 
-// Generation changes when a fetch finishes so a renderer can repaint.
-func (c *PresentationCache) Generation() uint64 {
-	if c == nil {
-		return 0
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.gen
-}
-
-// ClearFailed drops fetch failures so the next Request can retry after the
-// host becomes reachable again.
-func (c *PresentationCache) ClearFailed() {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.failed) == 0 {
-		return
-	}
-	c.failed = map[string]struct{}{}
-	c.gen++
-}
-
 // Request starts fetches for unknown IDs and returns immediately.
 func (c *PresentationCache) Request(ctx context.Context, client PresentationFetcher, ids []string) {
 	if c == nil || client == nil {

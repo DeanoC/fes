@@ -65,7 +65,7 @@ FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
 `/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
-execution identity. Traces are bounded to 64 MiB per process and 256 MiB
+execution identity. Traces are bounded to 128 MiB per process and 256 MiB
 per invocation, including child compilers; exceeding either bound cancels the
 private process group. Successful source Markdown opens for reading (including
 O_PATH) fail before sealing; output-only writes are distinguished. Trace size,
@@ -94,15 +94,27 @@ is preserved. Module relocation alone does not enter the functional projection.
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
 loader, Yosys and GPU overrides. It preserves only the GPU routing variables
-set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+set by an outer `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
 `GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
-functional input digest. It records one explicit GPU device (default 0),
+functional input digest when that outer lease is already active. Producers run
+outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
+record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
+free GPU while nextpnr routes, after the record is sealed. The requested
+`--gpu-device` index is not that device and is not part of the digest.
+`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
+record would change placement and RBF bytes whenever a different GPU was free.
+HIP and CUDA routes match each other and the CPU reference, so the bitstream
+does not depend on which physical GPU was granted. The route log line
+`FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`
+copies that grant, and the requested index, onto `route`; slot-card summaries
+copy them onto `gpu`. Neither copy enters `BUILD_ID`. The record also includes
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
 Only a single routing device is supported in this lane; use
 `--identity-version 2 --gpu-devices 0` for Coleco/ZX81, optionally with
-`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Execution
+`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Those
+flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
 paths remain part of this conservative identity, so tool relocation does not
@@ -126,16 +138,53 @@ claimed by these host-side identity and exporter tests.
 
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
 table and a `cores/<core>/toolchain.lock`, and each lock pins its own
-nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
-(`NEXTPNR_PINS`: `9128800f` and `552ba246`). A recipe's
-`[recipes.pnr.flags]` must list exactly the options of its own lock's
-nextpnr, including options left at their default, and only values that
-differ from that nextpnr's defaults reach argv. A lock on an unclassified
-nextpnr fails validation, so moving a lock to a newer nextpnr starts by
-classifying the options it adds. Each distinct lock selects its own cached
-toolchain slot. Pong's lock pins nextpnr `552ba246` (fes#887) and selects its
-own slot. Every other lock is still a byte copy of `toolchain.lock` on
-nextpnr `9128800f`, so those cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+nextpnr. Before a producer records its recipe or routes, `scripts/pnr_recipe.py`
+reads the authenticated binary's `--help` and matches the complete sorted CLI
+option-name set to a reviewed schema. The 96-option set has 56 recipe flags;
+the 105-option set has 65. Their source declarations are in
+`common/kernel/command.cc` and `mistral/main.cc`. Schema lookup uses the option
+set, so a moving PR head remains eligible when its option set is unchanged.
+The no-Python/no-GUI build also accepts each classified set with exactly these
+eight options absent: `gui`, `gui_no_aa`, `on_failure`, `post_route`, `pre_pack`,
+`pre_place`, `pre_route` and `run`. Any other added or missing CLI option,
+including a partial omission of those eight, fails closed with the difference
+listed.
+
+The nine options added after `9128800f` are classified once in the shared
+recipe defaults: placement and signed-DSP packing switches default off,
+`gpu-required` is a guard switch, the critical-cohort repair budget defaults
+to zero, its report and generic settings are inputs, and its calibration and
+router profile paths are outputs. Per-core flags may override these defaults;
+only values that differ from the selected compiler defaults reach argv. These
+schema matches permit recipe validation; they do not qualify route results
+from a newer pin.
+
+To register a nextpnr pin, compare the exact candidate commit with a classified
+ancestor. Compare `--help` from the candidate binary and audit option
+declarations in `common/kernel/command.cc` and `mistral/main.cc`, following
+settings into the architecture sources where needed. Do not infer the schema
+from a lock rationale or a pull-request title. Reuse a schema only when that
+audit confirms the option set and defaults are unchanged. Otherwise add a
+source-option-set schema and shared defaults, update the option type groups and
+any value constraints, and add per-core overrides only when a producer needs
+nondefault values. In `tests/test_pnr_recipes.py`, record the canonical JSON
+SHA256 in `FLAGS_SHA256` and add a temporary-lock regression showing that a
+candidate with the same option set accepts the schema and defaults do not
+change effective argv. Keep the extra/missing-option rejection tests. From
+`sources/misteross`, run:
+
+```sh
+python3 -m unittest discover -s tests -p test_pnr_recipes.py
+```
+
+The `0a253257` schema review is recorded in the
+[upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
+
+Each distinct lock selects its own cached toolchain slot. Pong's lock pins
+nextpnr `552ba246` (fes#887), and Coleco's pins Yosys `5391eeb1`; each selects
+its own slot. The other per-core locks remain byte copies of `toolchain.lock`
+on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
+weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -167,13 +216,16 @@ qualification or hardware acceptance; those remain separate evidence gates.
 
 Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
 repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
-outside that lease. A producer's requested physical GPU id, from its
-`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
-dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
-visibility mask. The dispatcher is `scripts/nextpnr_lease.py`, run with
+outside that lease. The producer does not set `GPU_LEASE_IDS` or a vendor
+visibility mask. gpu-run picks a free GPU from the host inventory, or from a
+box-level `GPU_LEASE_IDS` override, and passes it through `FES_GPU_IDS` and
+`GPU_RUN_DEVICE`. The dispatcher is `scripts/nextpnr_lease.py`, run with
 `python -I`. It imports only the standard library, so an audited route reads
 only that file from the source tree, and every audited source closure lists
-it. Producers must run outside an outer
+it. For a whole-route lease the dispatcher passes `GPU_RUN_DEVICE` to nextpnr
+after gpu-run applies its visibility mask, and prints `FES-GPU-GRANT` with
+the physical id from `FES_GPU_IDS`. A phase-lease dispatcher prints the same
+line for each broker `GRANT`. That line is the device that routed. Producers must run outside an outer
 gpu-run so a lease cannot span synthesis or multiple routes. The dispatcher
 starts its route timer after the lease is granted, while the producer's audited
 deadline bounds queue wait plus route time and cancels the full process group
@@ -182,10 +234,11 @@ each worker releases its GPU before starting another route.
 
 When the selected `nextpnr-mistral` binary reads `GPU_LEASE_FD` (the
 DeanoC/nextpnr#224 client), the producer runs it under `gpu-run --phase-lease`
-instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for its
-requested physical GPU only for each GPU routing phase; packing, placement,
+instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for
+one GPU, whichever is free, only for each GPU routing phase; packing, placement,
 timing analysis and bitstream writing hold no GPU. There is no visibility mask,
-so `--gpu-device` keeps the physical id. The dispatcher relays the lease socket
+so `--gpu-device` keeps the physical id from the broker grant, which the
+`FES-GPU-GRANT` line records. The dispatcher relays the lease socket
 and pauses the route budget while a GPU request waits, and the producer sets no
 outer deadline, so queue time never counts toward the route timeout. Any other
 nextpnr binary keeps the per-invocation lease above.
@@ -1858,9 +1911,16 @@ dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. It takes the same `--gpu-router` and `--toolchain-root` as the
-shell: HIP masks the selected device, and CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`
-and passes `--gpu-device`. The card route must prove that backend, and the
-backend must be the one recorded on the frozen shell. The producer chooses
+shell. HIP is the default. CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` and passes
+`--gpu-device` as the requested index. The card recipe records
+`gpu_selection` `lease` and, for CUDA, `gpu_device_requested`. It does not
+record that request as `gpu_device`, the device that routed. The summary field
+`gpu.gpu_device_granted` is the physical id from the route log's
+`FES-GPU-GRANT` line, and it is not part of the recipe hash. gpu-run leases
+any free GPU; the producer does not set `GPU_LEASE_IDS` or a device visibility
+mask. The card route must
+prove that backend, and the backend must be the one recorded on the frozen
+shell. The producer chooses
 probe mode from the socket and validates
 both legacy and physical PLL output maps. Frozen clocks are constrained by
 net; admission requires final analogue setup and hold on all three clocks

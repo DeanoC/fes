@@ -25,6 +25,26 @@ class BundleTest(unittest.TestCase):
         module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
+    def test_every_registered_producer_exposes_bundle_clean_source_check(self):
+        module = self.module()
+        source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        recipes = [
+            (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
+            for recipe in module.FORMAT2_RECIPES.values()
+        ]
+        probe = '''
+import importlib, inspect, json, sys
+from pathlib import Path
+for core_id, module_name, options in json.loads(sys.argv[1]):
+    producer = importlib.import_module(module_name)
+    source_check = getattr(producer, "_require_clean_source", None)
+    assert callable(source_check), f"{core_id}: {module_name} lacks _require_clean_source"
+    inspect.signature(source_check).bind(Path.cwd(), **options, identity_version=2)
+'''
+        subprocess.run(
+            [sys.executable, "-c", probe, json.dumps(recipes)],
+            cwd=source, check=True, capture_output=True, text=True, timeout=30)
+
     def test_missing_compiler_guidance_binds_recipe_and_quotes_paths(self):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:

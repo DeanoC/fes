@@ -3,7 +3,6 @@ package controller
 import (
 	"encoding/binary"
 	"errors"
-	"strings"
 )
 
 // eligible rejects the retained virtual pad (BUS_VIRTUAL) and non-gamepads.
@@ -34,7 +33,6 @@ func decode(b []byte) (uint16, uint16, int32, error) {
 	p := b[len(b)-8:]
 	return binary.LittleEndian.Uint16(p), binary.LittleEndian.Uint16(p[2:]), int32(binary.LittleEndian.Uint32(p[4:])), nil
 }
-func cstring(b []byte) string { return strings.TrimRight(string(b), "\x00") }
 
 // EligibleMouse shares the physical relative-device classifier with tenfoot.
 func EligibleMouse(bus uint16, name string, relative, buttons bool) bool {
