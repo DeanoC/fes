@@ -117,17 +117,6 @@ func (c *recordingControl) developmentCalls() (int, []string) {
 	return c.developmentN, append([]string(nil), c.developmentPaths...)
 }
 
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	copy := make(map[string]string, len(values))
-	for key, value := range values {
-		copy[key] = value
-	}
-	return copy
-}
-
 func runtimeResponse(state, execution string) misterruntime.Protocol2Response {
 	response := misterruntime.Protocol2Response{Capabilities: misterruntime.Protocol2Capabilities{ProgrammingProfiles: []string{}, ABIs: []misterruntime.Protocol2ABI{}, ActiveInterfaces: []misterruntime.Protocol2Interface{}}, Protocol: 2, OK: true, State: state, Execution: execution, Version: "test-runtime"}
 	switch state {
@@ -1415,15 +1404,6 @@ func assertUnavailableStatus(t *testing.T, status protocol.Status) {
 	if status.State != protocol.StateFailed || status.LastError == nil || status.LastError.Code != protocol.CodeMiSTerUnavailable || status.LastError.Message != "target runtime is unavailable" {
 		t.Fatalf("status = %#v", status)
 	}
-}
-
-func writeNativeROM(t *testing.T, extension string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "sonic2"+extension)
-	if err := os.WriteFile(path, []byte("native Mega Drive ROM fixture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
 }
 
 var _ io.Reader = (*failOnRead)(nil)

@@ -808,12 +808,6 @@ func (s *sessionCoordinator) rollbackPlacedIfCurrent(_ context.Context, placed p
 	}
 }
 
-func (s *sessionCoordinator) currentExecution() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.execution
-}
-
 // handoffLaunchState moves the just-started play to the coordinator for the
 // executor FogCast selected. Lock ordering is stable even when two launches
 // resolve in opposite directions.

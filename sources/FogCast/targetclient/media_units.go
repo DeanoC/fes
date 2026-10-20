@@ -55,12 +55,6 @@ func (c *Client) ejectMedia(ctx context.Context, b protocol.MediaUnitBinding, bu
 	return status, nil
 }
 
-func (c *Client) mediaUnitRequest(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
-	return c.mediaUnitBoundRequest(ctx, path, size, body, b, nil)
-}
-func (c *Client) mediaUnitBoundRequest(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding) (protocol.Status, error) {
-	return c.mediaUnitRequestBudget(ctx, path, size, body, b, library, 0)
-}
 func (c *Client) mediaUnitRequestBudget(ctx context.Context, path string, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, budget time.Duration) (protocol.Status, error) {
 	if c.kitLease == nil {
 		return protocol.Status{}, ErrKitLeaseLost

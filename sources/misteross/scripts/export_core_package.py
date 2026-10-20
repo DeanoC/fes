@@ -363,8 +363,14 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
     for path in (*pinned_inputs, fields["recipe"], fields["abi_definition"]):
         if path not in result["source_inputs"]:
             raise PackageExportError("explicit input excluded from source closure: " + path)
+    device = execution["gpu_device"]
+    # "lease" is the unbound selection gpu-run fills in at route time. An
+    # integer remains only for a caller that truly names the device it uses.
+    # A requested index must not be stored under this name.
+    if device != "lease" and (type(device) is not int or device < 0):
+        raise PackageExportError('gpu_device must be a nonnegative integer or "lease"')
     result["parameters"] = dict(parameters, execution_sha256=execution_digest(execution),
-                                gpu_device=execution["gpu_device"], source_closure_policy=POLICY)
+                                gpu_device=device, source_closure_policy=POLICY)
     if isinstance(roots, AuditedRoots):
         result["parameters"]["source_closure_mode"] = "audited-v1"
     return result

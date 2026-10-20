@@ -895,30 +895,6 @@ func alternateCoreArchive(t *testing.T) []byte {
 	return coreArchive(t, true)
 }
 
-func misterCoreArchive(t *testing.T) []byte {
-	t.Helper()
-	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
-	manifest, err := os.ReadFile(filepath.Join(base, "manifests", "valid-basic.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest = bytes.Replace(manifest, []byte(`version = "0.1.0"`), []byte("version = \"0.1.0\"\nsystem = \"pong\""), 1)
-	manifest = bytes.Replace(manifest, []byte(`programming_profile = "fes-gp-v1"`), []byte(`programming_profile = "mister-v1"`), 1)
-	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "mister"`), 1)
-	start := bytes.Index(manifest, []byte("[[interfaces]]"))
-	end := bytes.Index(manifest, []byte("[build]"))
-	if start < 0 || end < start {
-		t.Fatal("fixture interface section missing")
-	}
-	manifest = append(append([]byte(nil), manifest[:start]...), manifest[end:]...)
-	manifest = bytes.Replace(manifest, []byte("format = 2\n"), []byte("format = 2\ninterfaces = []\n"), 1)
-	payload, err := os.ReadFile(filepath.Join(base, "payloads", "fes-fixture.rbf"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tarCoreArchive(t, manifest, payload)
-}
-
 func coreArchive(t *testing.T, alternate bool, extras ...string) []byte {
 	t.Helper()
 	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")

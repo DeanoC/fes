@@ -250,7 +250,8 @@ path.
 
 Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`; the per-core lock files currently contain the same
-bytes as `toolchain.lock` and therefore share one cached compiler slot. A lock
+bytes as `toolchain.lock` and share one cached compiler slot, except Coleco,
+which pins Yosys `5391eeb1` and has its own slot. A lock
 can move to another nextpnr that `scripts/pnr_recipe.py` classifies; that core
 then gets its own slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.

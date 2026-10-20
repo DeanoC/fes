@@ -31,7 +31,7 @@ from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
     _prepare_output, _require_clean_source, _run_tool,
-    gpu_visibility_environment, reject_async_m10k_reads,
+    reject_async_m10k_reads,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -231,8 +231,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = str(gpu)
+    # gpu-run grants any free GPU and passes it as FES_GPU_IDS / GPU_RUN_DEVICE.
+    env = dict(os.environ)
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",

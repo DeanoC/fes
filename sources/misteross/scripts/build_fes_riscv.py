@@ -105,6 +105,9 @@ def require_clean_source(root, *, identity_version=2):
         raise board.BuildError(str(exc)) from exc
 
 
+_require_clean_source = require_clean_source
+
+
 def require_current_firmware(root: Path) -> None:
     """The checked-in lane images must be what firmware.S assembles to."""
     import importlib.util
