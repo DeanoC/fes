@@ -157,6 +157,27 @@ func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing
 	}
 }
 
+func TestInstalledHomeKeepsChildOpenedDuringLoad(t *testing.T) {
+	root := t.TempDir()
+	home := installedTestRoom(t, root, "home-nav", "Home", "function load() rooms.open('home-nav-child') end; function draw() end")
+	child := installedTestRoom(t, root, "home-nav-child", "Child", "function draw() end")
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{home, child}), root)
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("home-nav")
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+
+	if !app.openHomeRoomAsRootLocked() || app.room == nil || app.room.ID() != "home-nav-child" {
+		t.Fatalf("home child navigation was discarded: room=%v status=%s", app.room, app.status)
+	}
+	if len(app.roomStack) != 1 || app.roomStack[0].ID() != "home-nav" || app.roomStack[0].Revision() != home.Revision {
+		t.Fatalf("home parent stack was not preserved: %+v", app.roomStack)
+	}
+}
+
 func TestRollbackRevealsLooseRoomAndPlayGuardKeepsCurrentRoom(t *testing.T) {
 	root := t.TempDir()
 	looseTestRoom(t, root, "live", "Loose", "function draw() end")

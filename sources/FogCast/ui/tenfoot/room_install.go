@@ -24,10 +24,11 @@ func (a *App) refreshInstalledRoomsLocked() bool {
 
 // Trial the selected pack with actual launcher services before retiring the
 // working instance. No queued room/session actions are applied on failure.
-func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) {
+// The return value reports trial success even if an action navigates elsewhere.
+func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) bool {
 	if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
 		a.status = "Stop the running machine before updating a room."
-		return
+		return false
 	}
 	if a.room != nil {
 		a.room.FlushState()
@@ -58,7 +59,7 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) {
 		if rollbackErr != nil {
 			a.status = fmt.Sprintf("Room update failed: %v. Rollback: %v", err, rollbackErr)
 		}
-		return
+		return false
 	}
 	a.discardLibraryOriginLocked()
 	if root {
@@ -78,4 +79,5 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) {
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-update", "view": "room:" + pack.ID})
 	a.applyRoomActionsLocked()
 	a.status = pack.Title
+	return true
 }

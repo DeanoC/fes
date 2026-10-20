@@ -289,8 +289,9 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 		return true
 	}
 	if pack.Revision != "" {
-		a.openInstalledRoomLocked(pack, true)
-		if a.room != nil && a.room.ID() == id && a.room.Revision() == pack.Revision {
+		if a.openInstalledRoomLocked(pack, true) {
+			// The room may have opened a nested child during load. Its trial
+			// committed, so preserve that navigation and stack as-is.
 			return true
 		}
 		// A failed update may have rolled selection back to a working home
