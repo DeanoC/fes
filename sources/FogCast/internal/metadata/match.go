@@ -102,11 +102,6 @@ func MatchCandidates(input LookupInput, platformID string, candidates []Candidat
 	return MatchDecision{Outcome: outcome, Candidate: matches[0].candidate, Score: best}, nil
 }
 
-// Match is a concise alias for callers that already hold a resolved platform.
-func Match(input LookupInput, platformID string, candidates []Candidate) (MatchDecision, error) {
-	return MatchCandidates(input, platformID, candidates)
-}
-
 func deduplicateCandidates(candidates []Candidate) ([]Candidate, bool) {
 	byID := make(map[string]Candidate, len(candidates))
 	ids := make([]string, 0, len(candidates))

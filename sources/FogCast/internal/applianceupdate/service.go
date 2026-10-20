@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"sync"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
+	"github.com/DeanoC/FogCast/internal/agent"
 )
 
 var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this operation")
@@ -37,8 +38,14 @@ type Service struct {
 	mu          sync.Mutex
 	blocked     bool
 	trial       bool
-	operations  map[*operation]struct{}
-	drained     chan struct{}
+	// ticketRepair requests one later rewrite of a boot.json that stayed
+	// trial:true after a durable confirmation. It stays set until that
+	// rewrite is attempted, so a timed-out status read can try again. A
+	// failed rewrite still clears it, so a full volume cannot make every
+	// status read rewrite the ticket.
+	ticketRepair bool
+	operations   map[*operation]struct{}
+	drained      chan struct{}
 }
 type operation struct{ cancel context.CancelFunc }
 
@@ -70,6 +77,9 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 // A confirmation write can rename successfully and then report a sync failure.
 // Reconcile only after the store proves persistence for this exact trial; merely
 // seeing matching fields must not release the admission or watchdog gate.
+// A boot.json rewrite failure after that proof opens admission and is retried
+// once on a later idle status read. A cancellation or timeout before that
+// rewrite leaves the retry pending.
 func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error {
 	if !s.boot.Trial || !rawIdle || !s.mutation.TryLock() {
 		return nil
@@ -77,9 +87,13 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	defer s.mutation.Unlock()
 	s.mu.Lock()
 	trial := s.trial
+	repair := s.ticketRepair
 	s.mu.Unlock()
-	if !trial {
+	if !trial && !repair {
 		return nil
+	}
+	if !trial {
+		return s.retryBootTicket(ctx)
 	}
 	confirmed, err := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
 	if err != nil || !confirmed {
@@ -88,12 +102,63 @@ func (s *Service) reconcileConfirmation(ctx context.Context, rawIdle bool) error
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	return s.finishConfirmation(ctx)
+}
+
+// finishConfirmation opens admission once ConfirmContext has made this trial
+// durable. ErrBootTicketRewrite is that durable result with a failed ticket
+// rewrite: it is logged, admission opens, and the rewrite is retried once.
+func (s *Service) finishConfirmation(ctx context.Context) error {
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	repair := false
+	if err != nil {
+		if !errors.Is(err, appliance.ErrBootTicketRewrite) {
+			return err
+		}
+		confirmed, confirmErr := s.store.ConfirmedContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		if !confirmed {
+			return err
+		}
+		repair = true
+	}
 	s.mu.Lock()
 	s.trial = false
 	s.blocked = false
+	s.ticketRepair = repair
 	s.coordinator.SetUpdateBlocked(false)
 	s.mu.Unlock()
+	if repair {
+		s.logBootTicket(err)
+	}
 	return nil
+}
+
+// retryBootTicket makes the single follow-up rewrite. The repair is consumed
+// only once ConfirmContext attempts the boot.json rewrite. Context
+// cancellation or a timeout before that attempt, including a store-lock wait,
+// leaves the repair pending. A rewrite failure still spends the one retry.
+func (s *Service) retryBootTicket(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := s.store.ConfirmContext(ctx, s.boot.BootID, s.boot.ImageSHA256)
+	if err != nil && !errors.Is(err, appliance.ErrBootTicketRewrite) {
+		return err
+	}
+	s.mu.Lock()
+	s.ticketRepair = false
+	s.mu.Unlock()
+	if err != nil {
+		s.logBootTicket(err)
+	}
+	return nil
+}
+
+func (s *Service) logBootTicket(err error) {
+	slog.Warn("appliance boot ticket rewrite failed after durable confirmation", "boot_id", s.boot.BootID, "err", err)
 }
 
 // BeginOperation fences HTTP launch, development, input and cast operations.
@@ -256,13 +321,5 @@ func (s *Service) Confirm(ctx context.Context, bootID, hash string) error {
 	if !s.coordinator.RawIdleReady(ctx) {
 		return errors.New("native runtime is not idle")
 	}
-	if err := s.store.ConfirmContext(ctx, bootID, hash); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	s.trial = false
-	s.blocked = false
-	s.coordinator.SetUpdateBlocked(false)
-	s.mu.Unlock()
-	return nil
+	return s.finishConfirmation(ctx)
 }

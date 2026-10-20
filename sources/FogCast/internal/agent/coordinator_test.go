@@ -24,9 +24,7 @@ type fakeRuntime struct {
 	mu                   sync.Mutex
 	health               protocol.Health
 	reconciled           protocol.Status
-	prepareErr           *protocol.APIError
 	launchObserved       string
-	launchErr            *protocol.APIError
 	stopObserved         string
 	stopErr              *protocol.APIError
 	developmentObserved  string
@@ -39,13 +37,6 @@ type fakeRuntime struct {
 	launchCalls          int
 	stopCalls            int
 	developmentStopCalls int
-	preparePath          string
-}
-
-type ownedContextRuntime struct {
-	fakeRuntime
-	started      chan struct{}
-	operationErr chan error
 }
 
 type ownedStopContextRuntime struct {
@@ -763,9 +754,7 @@ func TestHealthConfirmedIdleRespectsUpdateBlock(t *testing.T) {
 
 type nativeIdleControl struct {
 	statusCalls int
-	launchCalls int
 	stopCalls   int
-	launch      misterruntime.Protocol2Response
 	statusError *misterruntime.Protocol2Error
 	stopResult  *misterruntime.Protocol2Response
 }
@@ -881,23 +870,6 @@ func TestCoordinatorPreservesLoadRecoveryAndRetriesStopWithoutHardwareStop(t *te
 	if runtime.ownedStopCalls != 0 || runtime.recoveryStopCalls != 0 {
 		t.Fatalf("pending recovery invoked hardware Stop = owned:%d recovery:%d", runtime.ownedStopCalls, runtime.recoveryStopCalls)
 	}
-}
-
-type nativeGameRecoveryRuntime struct {
-	fakeRuntime
-	stopCalls int
-}
-
-func (*nativeGameRecoveryRuntime) StopReady() bool { return true }
-
-func (r *nativeGameRecoveryRuntime) StopOwned(context.Context, context.Context) (string, *protocol.APIError) {
-	r.stopCalls++
-	return "", nil
-}
-
-func (r *nativeGameRecoveryRuntime) StopOwnedWithRecovery(context.Context, context.Context) (string, string, *protocol.APIError) {
-	r.stopCalls++
-	return "", protocol.RecoveryRebootRequired, nil
 }
 
 func TestCoordinatorStopWhileNativeIdleDoesNotCallRuntimeStop(t *testing.T) {

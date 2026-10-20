@@ -51,6 +51,9 @@ test:
 	$(MAKE) -C image test FOGCAST_DIR="$(abspath sources/FogCast)"
 check:
 	$(PYTHON) scripts/consistency.py
+.PHONY: deadcode
+deadcode:
+	$(PYTHON) scripts/check_deadcode.py
 .PHONY: media-test-provision
 media-test-provision:
 	$(PYTHON) -c 'import os; from pathlib import Path; from scripts.media_container import ensure_media_container; from scripts.media_inputs import MediaLock; ensure_media_container(Path("."), os.environ.get("CONTAINER_RUNTIME", "docker"), MediaLock.load(Path("boot-media.lock.toml")))'

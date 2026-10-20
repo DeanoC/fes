@@ -124,6 +124,8 @@ jobs:
             platform/go.sum
       - run: |
           make check
+      - name: Unused Go code
+        run: make deadcode
   host:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host

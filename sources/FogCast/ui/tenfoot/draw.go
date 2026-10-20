@@ -2,10 +2,11 @@ package tenfoot
 
 import (
 	"fmt"
-	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"os"
 	"strings"
+
+	"github.com/DeanoC/FogCast/ui/shared"
 
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/theme"
@@ -917,18 +918,6 @@ func drawDebugHUD(dev gfx.Device, snap Snapshot) {
 		dev.DrawText(x, y, line, size, th.Status)
 		y += size + 2
 	}
-}
-
-func fitText(text string, maxChars int) string {
-	text = strings.TrimSpace(text)
-	runes := []rune(text)
-	if maxChars < 1 || len(runes) <= maxChars {
-		return text
-	}
-	if maxChars <= 3 {
-		return string(runes[:maxChars])
-	}
-	return string(runes[:maxChars-3]) + "..."
 }
 
 func placeholderColor(title string) (uint8, uint8, uint8) {
