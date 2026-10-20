@@ -382,8 +382,8 @@ if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIV
   exit 1
 fi
 
-# The real bootstrap selection must install and verify with no playable
-# package inputs. A populated shared cache must not pull extra cores in.
+# The real bootstrap selection must stage, install and verify with no
+# playable package inputs.
 for core_id in $package_words; do
   if [ "$core_id" != fes.menu ]; then
     name=$(printf '%s' "${core_id#fes.}" | tr '[:lower:]-' '[:upper:]_')
@@ -394,9 +394,11 @@ FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathl
 export FES_PACKAGE_IDS
 test "$FES_PACKAGE_IDS" = fes.menu
 bootstrap_target=$fixture/bootstrap-target
-mkdir -p "$bootstrap_target"
+bootstrap_cache=$fixture/bootstrap-cache
+mkdir -p "$bootstrap_target" "$bootstrap_cache"
 "$repo/scripts/native-extra-cores.sh" validate
-"$repo/scripts/native-extra-cores.sh" install "$cache" "$bootstrap_target"
-"$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$bootstrap_target"
+"$repo/scripts/native-extra-cores.sh" fetch "$bootstrap_cache"
+"$repo/scripts/native-extra-cores.sh" install "$bootstrap_cache" "$bootstrap_target"
+"$repo/scripts/native-extra-cores.sh" verify-image "$bootstrap_cache" "$bootstrap_target"
 test "$(find "$bootstrap_target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
 test -f "$bootstrap_target/usr/share/mister-runtime/selections/fes-menu.package.toml"
