@@ -59,23 +59,37 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
                     event_count <= event_count + 1'b1;
                     row_count <= next_row_count; row_offset <= next_row_offset;
                     last_colour <= palette_zero;
-                    case (capture_bank)
-                        2'd0: begin
-                            events0[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows0[row] <= {next_row_count, next_row_offset};
-                        end
-                        2'd1: begin
-                            events1[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows1[row] <= {next_row_count, next_row_offset};
-                        end
-                        2'd2: begin
-                            events2[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows2[row] <= {next_row_count, next_row_offset};
-                        end
-                        default: capture_overflow <= 1'b1;
-                    endcase
+                    if (capture_bank == 2'd3) capture_overflow <= 1'b1;
                 end
             end
+        end
+    end
+    // Register each run write and commit it to its bank's RAMs one edge later,
+    // so reset, capture start and the run decision end at these registers
+    // instead of at the M10K enables. Output reads a bank only after the
+    // parent publishes it at frame end, long after its last run is written.
+    reg write_valid;
+    reg [1:0] write_bank;
+    reg [EVENT_BITS-1:0] write_event;
+    reg [17:0] write_run;
+    reg [8:0] write_row;
+    reg [EVENT_BITS+8:0] write_descriptor;
+    always @(posedge clk_sys) begin
+        write_valid <= !reset_sys && !capture_start && append && event_count != (EVENT_BITS+1)'(EVENTS) &&
+                       capture_bank != 2'd3;
+        write_bank <= capture_bank;
+        write_event <= event_count[EVENT_BITS-1:0];
+        write_run <= {x, palette_zero};
+        write_row <= row;
+        write_descriptor <= {next_row_count, next_row_offset};
+    end
+    always @(posedge clk_sys) begin
+        if (write_valid) begin
+            case (write_bank)
+                2'd0: begin events0[write_event] <= write_run; rows0[write_row] <= write_descriptor; end
+                2'd1: begin events1[write_event] <= write_run; rows1[write_row] <= write_descriptor; end
+                default: begin events2[write_event] <= write_run; rows2[write_row] <= write_descriptor; end
+            endcase
         end
     end
 
