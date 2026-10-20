@@ -488,7 +488,7 @@ class CoreBuildTest(unittest.TestCase):
             ('fes.coleco', 'c' * 64),
         ))
         captured = {}
-        artifact_manifest = {'provenance': {'runtime': '5' * 40},
+        artifact_manifest = {'provenance': {'runtime': '5' * 40, 'fogcast': '6' * 40},
                              'binaries': {'mister-runtime': 'a' * 64}}
 
         class StopAfterFetch(Exception):
