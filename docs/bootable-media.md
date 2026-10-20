@@ -80,13 +80,16 @@ the written U-Boot as `uboot.sha256` and the upstream as
 `uboot.upstream_sha256`. The FAT core keeps the `splash` manifest fields, with
 `splash.fat_destination = "/idle.rbf"`.
 
-U-Boot, the kernel and FAT `/idle.rbf` change only when a card is
-reprovisioned with new media. A network or appliance update replaces only the
-system image. It does not rewrite U-Boot or FAT boot files, and it does not
-delete them. A card provisioned before this change keeps U-Boot `core=menu.rbf`
-and FAT `/menu.rbf` until it is reprovisioned. It still boots, but the
-runtime offers `fes.memory.hps-ddr` only after a boot that latched the correct
-port layout (see [HPS DDR](hps-ddr.md#boot-requirement)).
+U-Boot and the kernel change only when a card is reprovisioned with new
+media. A confirmed appliance update refreshes FAT `/idle.rbf` from the
+confirmed image's sealed idle core. It does not rewrite U-Boot, the kernel, or
+other FAT boot files, and it does not delete them. The trial boot still
+programs the splash from the previous confirmation; the new splash applies on
+the next boot. Confirming a rollback restores that image's splash. A card
+provisioned before this change keeps U-Boot `core=menu.rbf` and FAT
+`/menu.rbf` until it is reprovisioned. It still boots, but the runtime offers
+`fes.memory.hps-ddr` only after a boot that latched the correct port layout
+(see [HPS DDR](hps-ddr.md#boot-requirement)).
 
 ## Select and reverify a previous generation
 
@@ -211,8 +214,9 @@ loop. That loop is what logs `timing out command, waited 180s`. Flag `u`
 stalls on the bulk-only command, and no other quirks letter skips the probe.
 Ignoring the id also hides a NVMe disk fitted in that bridge; the kits' slot
 is empty. Nothing in userspace rewrites this file. `S15fes-ethaddr` appends
-`ethaddr=` and leaves `v=` in place. `fes-update` must not rewrite FAT boot
-files, so a card keeps the `u-boot.txt` from the media it was flashed with.
+`ethaddr=` and leaves `v=` in place. `fes-update` refreshes FAT `/idle.rbf` on
+confirmation and does not rewrite `linux/u-boot.txt`, so a card keeps the
+`u-boot.txt` from the media it was flashed with.
 
 `/etc/init.d/S02fes-usb-quirk` writes the same id to
 `/sys/module/usb_storage/parameters/quirks` when that file already exists.

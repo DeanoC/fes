@@ -275,6 +275,55 @@ func TestConfirmedContextRequiresExactIdentityAndStateFileSync(t *testing.T) {
 	}
 }
 
+func TestSplashPublicationIsTheWatchdogBoundary(t *testing.T) {
+	s, f, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("trial-boot"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err == nil {
+		t.Fatal("splash completion accepted before the trial was known-good")
+	}
+	if err := s.AcceptTrialContext(context.Background(), "trial-boot", f.ImageSHA256); err == nil {
+		t.Fatal("wrong image accepted")
+	}
+	if err := s.AcceptTrialContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != m.ImageSHA256 || st.Previous != f.ImageSHA256 || st.TrialImage != "" || st.ConfirmedImage != "" {
+		t.Fatalf("accepted trial recorded watchdog confirmation: %+v %v", st, err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if ok || err != nil {
+		t.Fatalf("watchdog disarmed before splash publication: %v %v", ok, err)
+	}
+	pending, err := s.SplashPendingContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if !pending || err != nil {
+		t.Fatalf("accepted trial is not waiting for its splash: %v %v", pending, err)
+	}
+	if err = s.AcceptTrialContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	ok, err = s.ConfirmedContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog did not observe splash publication: %v %v", ok, err)
+	}
+	pending, err = s.SplashPendingContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if pending || err != nil {
+		t.Fatalf("splash still pending after publication: %v %v", pending, err)
+	}
+	if err = s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRejectedTrialDoesNotBlockNewUpdateOrReplayInSameBoot(t *testing.T) {
 	s, f, b := fixture(t)
 	m := candidate(t, s, b)
@@ -741,6 +790,24 @@ func mustAbsent(t *testing.T, path string) {
 	}
 }
 
+func writeReleaseSplash(t *testing.T, s *Store, hash string) (string, string) {
+	t.Helper()
+	rbf, digest, e := SplashPaths(s.root, hash)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.MkdirAll(filepath.Dir(rbf), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(rbf, []byte("splash-"+hash), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(digest, []byte(hash+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	return rbf, digest
+}
+
 func releasePaths(t *testing.T, s *Store, hash string) (string, string) {
 	t.Helper()
 	image, e := s.ImagePath(hash)
@@ -783,6 +850,8 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	if e := os.WriteFile(note, []byte("keep\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
+	oldSplash, oldDigest := writeReleaseSplash(t, s, staleOld.ImageSHA256)
+	goodSplash, goodDigest := writeReleaseSplash(t, s, good.ImageSHA256)
 	s.availableBytes = func(string) (uint64, error) {
 		if _, e := os.Lstat(oldImage); e == nil {
 			return 0, nil
@@ -800,7 +869,9 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	}
 	mustAbsent(t, oldImage)
 	mustAbsent(t, oldManifest)
-	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
+	mustAbsent(t, oldSplash)
+	mustAbsent(t, oldDigest)
+	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, goodSplash, goodDigest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
 		mustExist(t, path)
 	}
 	if b, e := os.ReadFile(bootloader); e != nil || string(b) != "keep\n" {
@@ -1046,6 +1117,30 @@ func TestStageLowSpaceWithoutSpillDoesNotPrune(t *testing.T) {
 	mustExist(t, manifestPath)
 	published, _ := releasePaths(t, s, staged.ImageSHA256)
 	mustAbsent(t, published)
+}
+
+func TestStageKeepsRoomForTheConfirmationSplash(t *testing.T) {
+	s, _, raw := fixture(t)
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	s.spillCandidates = func() []string { return nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	short := uint64(staged.ImageSize) + releaseHeadroom
+	if short >= releaseStorageNeed(staged.ImageSize) || SplashReserve != MaxStagedSplash+MaxSplashSidecar+MaxStagedSplash {
+		t.Fatal("splash reserve is not the temporary copy beyond the 1 MiB margin")
+	}
+	s.availableBytes = func(string) (uint64, error) { return short, nil }
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrInsufficientStorage) {
+		t.Fatalf("image plus 1 MiB margin accepted without splash reserve: %v", e)
+	}
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustAbsent(t, published)
+	s.availableBytes = func(string) (uint64, error) { return releaseStorageNeed(staged.ImageSize), nil }
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustExist(t, published)
 }
 
 func TestStageRejectsSpillInsideReleaseRoot(t *testing.T) {
