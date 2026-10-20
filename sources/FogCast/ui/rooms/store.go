@@ -20,6 +20,7 @@ type store struct {
 	path    string
 	values  map[string]any
 	written map[string]bool
+	staged  bool
 	dirty   bool
 	last    time.Time
 	stderr  io.Writer
@@ -79,6 +80,9 @@ func (s *store) maybeFlush(now time.Time) {
 }
 
 func (s *store) flush() {
+	if s.staged {
+		return
+	}
 	if !s.dirty || s.path == "" {
 		s.dirty = false
 		return

@@ -236,8 +236,15 @@ func (r *Instance) Revision() string { return r.pack.Revision }
 // FlushState saves current room state before a replacement reads it.
 func (r *Instance) FlushState() { r.store.flush() }
 
-// AdoptSavedState incorporates outgoing unload saves after replacement succeeds.
-func (r *Instance) AdoptSavedState() { r.store.adoptSaved() }
+// StageState prevents trial load/draw callbacks from publishing state.
+func (r *Instance) StageState() { r.store.staged = true }
+
+// AdoptSavedState incorporates outgoing unload saves and commits trial writes.
+func (r *Instance) AdoptSavedState() {
+	r.store.adoptSaved()
+	r.store.staged = false
+	r.store.flush()
+}
 
 // Discard closes an unsuccessful candidate without persisting trial state.
 func (r *Instance) Discard() { r.store.path = ""; r.Close() }

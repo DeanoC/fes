@@ -3317,7 +3317,8 @@ and package-generation checks.
 room's `room.toml`, Lua and artwork into the local launcher's room directory.
 The default resolves the same preferences, environment and persistent config
 location as the launcher. Use `--rooms` when the running launcher uses a custom
-room directory. This is local installation, not a host-to-kit transfer API.
+room directory. Installation uses POSIX file locking on Linux/macOS. This is local installation,
+not a host-to-kit transfer API.
 
 Installation checks the manifest, main script, icon presence and syntax of all
 Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,

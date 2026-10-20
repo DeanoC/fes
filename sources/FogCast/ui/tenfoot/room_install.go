@@ -44,6 +44,7 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) {
 	}
 	candidate, err := a.newRoomInstanceLocked(pack)
 	if err == nil {
+		candidate.StageState()
 		candidate.SetSessionState(a.session.State)
 		candidate.SetLiveControls(a.liveControlsOfferedLocked())
 		err = candidate.Load()
