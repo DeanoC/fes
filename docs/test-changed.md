@@ -92,14 +92,16 @@ other component lanes retain their own selection rules.
 
 ## Affected parent regression groups
 
-Routine component-only changes select parent integration groups before test setup:
+Routine reviewed changes select parent integration groups before test setup:
 
 | Change | Parent groups |
 | --- | --- |
 | FogCast UI and resources | Policy and build orchestration |
 | Host/package/protocol consumers, runtime, or FPGA sources | Policy, build, packages and acceptance tooling |
 | Appliance module or target-image selector | All groups, including media |
-| Parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
+| Recognized parent test modules outside the policy group | Policy, build and the owning group, plus cross-group fixture consumers |
+| `scripts/appliance.py`, `appliance_inside.py`, `appliance_media.py`, `appliance_media_inside.py`, `appliance_expand_dry_run.py` | Policy, build and media |
+| Selection-policy scripts/tests, other parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
 
 Policy includes planner, generated-consumer and image-boundary checks. Build
 includes source snapshots, receipts and kit software assembly. Package checks
@@ -122,8 +124,13 @@ python3 scripts/parent_tests.py --video false --media false --plan-only \
 
 No path list, scheduled/manual runs, and `--full` retain every group. `--full`
 also enables both extended modes. This policy narrows component integration
-regressions; parent implementation changes deliberately retain full regression
-coverage because imports alone do not describe their subprocess and file inputs.
+regressions and reviewed parent inputs. Shared build scripts and unreviewed parent
+implementation retain full regression coverage because imports alone do not
+describe their subprocess and file inputs. The explicit parent script allowlist
+lives in `scripts/parent_affected.py`; adding a script requires checking its
+consumers, including subprocess calls and recipe-file reads. Test fixture consumers
+across groups are retained explicitly. Extended video/media mode selection is
+unchanged and adds its owning group when required.
 
 ## Routine and extended test modes
 
