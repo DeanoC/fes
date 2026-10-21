@@ -246,7 +246,7 @@ func TestProtocol2StatusRequiresASuccessfulReadOnlyReply(t *testing.T) {
 
 func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
-	menu := `,"menu_display":{"available":false,"package_id":"` + strings.Repeat("a", 64) + `","generation":0,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":0,"underflows":0,"error":{"code":"io_failed","message":"map immutable menu staging: Operation not permitted","phase":"menu_memory"}}`
+	menu := `,"menu_display":{"available":false,"package_id":"` + strings.Repeat("a", 64) + `","generation":0,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":0,"underflows":0,"error":{"code":"io_failed","message":"open fes-window: No such file or directory","phase":"menu_window"}}`
 	withMenu := strings.Replace(valid, `"inspected_package":null`, `"inspected_package":null`+menu, 1)
 	fixture := newSequenceSocketFixture(t, []string{withMenu + "\n"})
 	status, err := NewClient(fixture.path).Protocol2Status(context.Background())
@@ -273,7 +273,7 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 
 func TestProtocol2StatusAcceptsPromotedMenuFailures(t *testing.T) {
 	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
-	for _, phase := range []string{"menu", "menu_memory"} {
+	for _, phase := range []string{"menu", "menu_window"} {
 		t.Run(phase, func(t *testing.T) {
 			withError := strings.Replace(valid, `"error":null`, `"error":{"code":"io_failed","message":"menu scanout failed","phase":"`+phase+`"}`, 1)
 			fixture := newSequenceSocketFixture(t, []string{withError + "\n"})

@@ -547,9 +547,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
-evidence, including a failed menu and optional `"damage":true`, so physical
-idle can still be confirmed for appliance maintenance. Any other `damage`
-shape is rejected. `underflows` on that object and on a frame completion
+evidence, including a failed menu, so physical idle can still be confirmed
+for appliance maintenance. A `menu_display` field it does not define is
+rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The runtime and this agent must ship in the same image because decoding is
