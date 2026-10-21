@@ -364,7 +364,9 @@ make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synt
 ```
 
 The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with per-pin
-nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Select
+nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Without
+`CACHE_ROOT`, the toolchain and build commands both use the repository-local
+`build/toolchain/fes-pcxt` install. Select
 `PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and
 CUDA routes have equal standing. Neither backend's timing pass substitutes for
 the separate Quartus cross-check.

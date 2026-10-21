@@ -64,7 +64,8 @@ def authenticate_tools(root, cache_root, gpu_router='HIP'):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--cache-root', required=True, type=Path)
+    # Omitted: authenticate the local toolchain-fes-pcxt install.
+    parser.add_argument('--cache-root', type=Path)
     parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP')
     parser.add_argument('--mda', action='store_true')
     parser.add_argument('--scanlines', action='store_true')

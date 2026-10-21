@@ -1,6 +1,8 @@
-"""The PC/XT producer selects its own lock and the requested GPU backend."""
+"""The PC/XT producer selects its own lock, toolchain lane and GPU backend."""
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -28,3 +30,35 @@ class PcxtToolchainTest(unittest.TestCase):
                 self.assertEqual(args['cache_root'], cache)
                 self.assertEqual(args['gpu_router'], router)
                 self.assertIn('gpu-router=' + router, args['expected_configuration']['nextpnr'])
+
+    def test_omitted_cache_root_authenticates_the_local_toolchain(self):
+        class Stop(Exception):
+            pass
+        for argv, cache in ((['build_fes_pcxt.py'], None),
+                            (['build_fes_pcxt.py', '--cache-root', '/cache'], Path('/cache'))):
+            with self.subTest(argv=argv), mock.patch.object(sys, 'argv', argv), \
+                    mock.patch.object(builder, 'authenticate_tools', side_effect=Stop) as authenticate:
+                with self.assertRaises(Stop):
+                    builder.main()
+                self.assertEqual(authenticate.call_args.args, (builder.ROOT, cache, 'HIP'))
+        # None selects the repository-local install, never a shared cache at '.'.
+        with mock.patch.object(builder, '_authenticate_tools') as authenticate:
+            builder.authenticate_tools(builder.ROOT, None)
+            self.assertIsNone(authenticate.call_args.kwargs['cache_root'])
+
+    def test_make_passes_cache_root_only_for_the_shared_lane(self):
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ('CACHE_ROOT', 'FES_TOOLCHAIN_CACHE_ROOT', 'MAKEFLAGS', 'MFLAGS', 'MAKELEVEL')}
+        def dry_run(target, *variables, **extra):
+            result = subprocess.run(['make', '-n', target, *variables], cwd=builder.ROOT,
+                                    env={**environment, **extra}, text=True, capture_output=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return result.stdout
+        # Without a cache root both recipes use the same repository-local lane.
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{builder.ROOT / "build/toolchain/fes-pcxt"}"',
+                      dry_run('toolchain-fes-pcxt'))
+        self.assertEqual(dry_run('build-fes-pcxt').split(),
+                         ['python3', 'scripts/build_fes_pcxt.py', '--gpu-router', '"HIP"'])
+        for variables, extra in ((('CACHE_ROOT=/cache',), {}), ((), {'FES_TOOLCHAIN_CACHE_ROOT': '/cache'})):
+            with self.subTest(variables=variables, extra=extra):
+                self.assertIn('--cache-root "/cache"', dry_run('build-fes-pcxt', *variables, **extra))
