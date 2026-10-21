@@ -106,14 +106,12 @@ def runtime_script(revision, driver):
     return '''set -eu
 export SOURCE_DATE_EPOCH=1751459412
 python3 /work/scripts/toolchain_cache.py extract /work/build/software/sdk
-/work/build/software/sdk/host/relocate-sdk.sh
 prefix=/work/build/software/sdk/host/bin/arm-buildroot-linux-gnueabihf
-make -C /work/build/software/runtime -j2 all \\
- CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm" CXXFILT="$prefix-c++filt" \\
- MISTER_RUNTIME_VERSION=git-''' + revision + '''
-"$prefix-strip" --strip-unneeded /work/build/software/runtime/build/mister-runtime
 # fes-window builds against the pinned kernel configuration. The -MiSTer
 # local version and identical config give the shipped kernel's vermagic.
+# It builds before relocation: relocate-sdk.sh rewrites the build path in
+# GCC's plugin configargs.h, and cc1 then refuses the kernel's per-task
+# stack protector plugin. The compiler wrapper needs no relocation.
 kbuild=/work/build/software/kernel-build
 mkdir -p "$kbuild"
 printf '%s\\n' -MiSTer > "$kbuild/localversion.mister"
@@ -125,6 +123,11 @@ test "$($kmake kernelrelease)" = ''' + driver['kernel_release'] + '''
 $kmake -j2 modules_prepare
 $kmake M=/work/build/software/fes-window FES_WINDOW_VERSION=''' + driver['version'] + ''' modules
 "$prefix-strip" --strip-debug /work/build/software/fes-window/fes_window.ko
+/work/build/software/sdk/host/relocate-sdk.sh
+make -C /work/build/software/runtime -j2 all \\
+ CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm" CXXFILT="$prefix-c++filt" \\
+ MISTER_RUNTIME_VERSION=git-''' + revision + '''
+"$prefix-strip" --strip-unneeded /work/build/software/runtime/build/mister-runtime
 mkdir -p /work/build/software/base/etc /work/build/software/base/usr/share/fes /work/build/software/base/usr
 # Only base ABI and immutable factory trees are required. Avoid device inodes.
 debugfs -R 'rdump /lib /work/build/software/base' /work/build/software/base.img

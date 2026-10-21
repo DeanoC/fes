@@ -159,6 +159,10 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertIn('test "$($kmake kernelrelease)" = 5.15.1-MiSTer', script)
         self.assertIn('$kmake -j2 modules_prepare', script)
         self.assertIn('M=/work/build/software/fes-window FES_WINDOW_VERSION=0123456789abcdef modules', script)
+        # Relocation rewrites GCC's plugin configargs.h, so the kernel plugins build first.
+        relocate = script.index('\n/work/build/software/sdk/host/relocate-sdk.sh\n')
+        self.assertLess(script.index('$kmake -j2 modules_prepare'), relocate)
+        self.assertLess(relocate, script.index('make -C /work/build/software/runtime'))
         for driver in ({'version': '$(touch x)', 'kernel_release': '5.15.1-MiSTer'},
                        {'version': '0123456789abcdef', 'kernel_release': '5.15; touch x'}):
             with self.assertRaises(ValueError):
