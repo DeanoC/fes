@@ -6,9 +6,10 @@
 //   word 2: source window offset [31:0] of the first pixel, stride [47:32]
 //   word 3: reserved, zero
 // Ops: 0 END, 1 FILL (replace), 2 FILL_BLEND (colour source-over), 3 COPY
-// (texture replace), 4 BLEND (texture source-over, straight alpha). Textures
-// are B, G, R, A bytes; slots are B, G, R, X with X written as 0. Blending
-// matches gfx.blendOver byte for byte.
+// (texture replace), 4 BLEND (texture source-over, straight alpha). END has
+// no colour, rectangle or source, so they are reserved: an END is all zero.
+// Textures are B, G, R, A bytes; slots are B, G, R, X with X written as 0.
+// Blending matches gfx.blendOver byte for byte.
 //
 // Two 64-bit Avalon-MM masters with word addresses (byte address / 8):
 // commands and sources are read on the source port; destinations are read
@@ -193,7 +194,9 @@ module fes_menu_blitter #(
         {1'b0, dx} + {1'b0, dw} <= {1'b0, WIDTH} && {1'b0, dy} + {1'b0, dh} <= {1'b0, HEIGHT};
     wire source_shape_ok = d_source[1:0] == 2'b00 && d_stride[1:0] == 2'b00 &&
         {5'd0, d_stride} >= {8'd0, dw, 2'b00} && d_source >= HEAP_OFFSET;
-    wire reserved_ok = word[0][31:8] == 24'd0 && word[2][63:48] == 16'd0 && word[3] == 64'd0;
+    wire end_zero = word[0][63:32] == 32'd0 && word[1] == 64'd0 && word[2][47:0] == 48'd0;
+    wire reserved_ok = word[0][31:8] == 24'd0 && word[2][63:48] == 16'd0 && word[3] == 64'd0 &&
+        (word[0][7:0] != 8'd0 || end_zero);
     wire [28:0] slot_word = WINDOW_BASE[31:3] + (slot ? SLOT_BYTES[31:3] : 29'd0);
     wire [10:0] last_beat = ({10'd0, dx[0]} + dw - 11'd1) >> 1;
     wire [33:0] source_end = {2'd0, source_byte} + {8'd0, span} + {21'd0, w, 2'b00};

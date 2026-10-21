@@ -230,6 +230,11 @@ int main(int argc, char** argv) {
 	std::vector<Case> cases = {
 		{"reserved word 3", reserved3, 5}, {"reserved op bits", reserved0, 5}, {"reserved source bits", reserved2, 5},
 		{"op 5", Command::make(5, 0, 0, 0, 1, 1), 2}, {"op 0x81", Command::make(0x81, 0, 0, 0, 1, 1), 2},
+		{"op 0x08 with a colour", Command::make(0x08, 0xff, 0, 0, 1, 1), 2},
+		// END has no colour, rectangle or source: any of them set is reserved.
+		{"END colour", Command::make(END, 0xff000000u, 0, 0, 0, 0), 5}, {"END rectangle outside", Command::make(END, 0, W, 0, 1, 1), 5},
+		{"END rectangle inside", Command::make(END, 0, 0, 0, 1, 1), 5}, {"END source", Command::make(END, 0, 0, 0, 0, 0, HEAP), 5},
+		{"END stride", Command::make(END, 0, 0, 0, 0, 0, 0, 4), 5},
 		{"zero width", Command::make(FILL, 0, 0, 0, 0, 1), 3}, {"zero height", Command::make(FILL, 0, 0, 0, 1, 0), 3},
 		{"right edge", Command::make(FILL, 0, 1200, 0, 81, 1), 3}, {"bottom edge", Command::make(FILL, 0, 0, 700, 1, 21), 3},
 		{"x high bits", Command::make(FILL, 0, 0x800, 0, 1, 1), 3}, {"y high bits", Command::make(FILL, 0, 0, 0x400, 1, 1), 3},

@@ -321,7 +321,9 @@ A command is four little-endian 64-bit words:
 
 Every other bit is zero. Ops: 0 END stops the run; 1 FILL replaces with the
 colour; 2 FILL_BLEND draws the colour source-over; 3 COPY replaces with the
-texture; 4 BLEND draws the texture source-over. Source-over is
+texture; 4 BLEND draws the texture source-over. END has no colour, rectangle
+or source, so those bits are reserved too and an END is all zero. Fills
+ignore word 2, and copies and blends ignore the colour. Source-over is
 `(s·a + d·(255−a)) / 255` per channel with integer division, keeping the
 destination at a=0 and taking the source at a=255, byte for byte as tenfoot's
 software raster. Every pixel the blitter writes has its unused byte 0.
@@ -341,12 +343,13 @@ clears them. Commands run in list order, and a command reads what the
 commands before it wrote. A run finishes at its count or at END; the
 completed count then advances and busy clears.
 
-A command whose rectangle leaves the frame, whose source leaves the heap,
-whose op is unknown or whose reserved bits are set faults the blitter with
-code 3, 4, 2 or 5; a list outside the region faults with code 1. The faulting
-command writes nothing, and the blitter writes nothing outside the target
-slot's rectangles. A fault holds until execution reset. Quiesce stops a run at
-the next row without counting it and ACKs once the blitter's ports drain.
+A command whose rectangle is empty or leaves the frame, whose source leaves
+the heap, whose op is unknown or whose reserved bits are set faults the
+blitter with code 3, 4, 2 or 5; a list outside the region faults with code 1.
+The faulting command writes nothing, and the blitter writes nothing outside
+the target slot's rectangles. A fault holds until execution reset. Quiesce
+stops a run at the next row without counting it and ACKs once the blitter's
+ports drain.
 The blitter never chooses slots: the runtime runs into the slot scanout is
 not showing, waits for completion, then submits it.
 
