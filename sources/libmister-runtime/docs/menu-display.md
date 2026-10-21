@@ -43,7 +43,10 @@ The response carries one `SCM_RIGHTS` descriptor, the grant file, and
 shared and read/write: slot *n* starts at *n* × `slot_bytes`. The mapping is
 cached. Every process's mapping of the grant ends when the runtime revokes it
 (see Lifecycle); a later access raises SIGBUS. A new generation needs a new
-grant.
+grant. Any socket peer may take the grant, as any peer may present, launch or
+Stop. The mapping covers both slots, so the slot rules below are the client's
+contract: the runtime checks a slot only when a commit names it, and refuses
+the displayed one.
 
 ### Frames
 

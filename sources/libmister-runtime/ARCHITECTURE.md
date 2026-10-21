@@ -141,16 +141,19 @@ slots at `0x30000000` per menu or session-plane activation. Activation revokes
 any earlier grant, grants the slots, fills both frames black through a cached
 mapping and writes them back for the fabric; a re-shown session plane is
 granted again without clearing, so its pixels survive. `ShareMenuWindow` hands
-clients a descriptor for the grant; `MenuBackSlot` names the slot scanout is
-not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
+any socket peer the grant's descriptor; `MenuBackSlot` names the slot scanout
+is not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
 regions the client wrote (`FES_WINDOW_CLEAN`, L1 by address then the PL310)
 and only then submits the slot, because fpga2sdram reads DDR past the caches.
 Revoke ends every process's mapping and writes back and invalidates the
 grant's lines. It runs before any lifecycle operation quiesces menu firmware
 or programs another core, when a session plane is hidden, and on any failed
 present, so nothing writes the window, and no dirty line is evicted into it,
-once a core owns it. Host tests inject the driver calls and cannot establish
-DDR visibility on hardware.
+once a core owns it. The grant does not isolate peers from one another: any
+peer can already present, launch or Stop, so the slot rules bind only
+cooperating clients. The runtime never reads the slots, so a write out of
+turn changes only the picture. Host tests inject the driver calls and cannot
+establish DDR visibility on hardware.
 
 Menu status carries its own nonzero generation, geometry and completion
 counters. `BeginMenuFrame` permits one preparation, naming the back slot,
