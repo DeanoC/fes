@@ -1111,7 +1111,7 @@ fi''')
         bare = self.work / 'build/cache/target-image/linux-kernel.git'
         self.git('clone', '-q', '--bare', self.source, bare)
         self.git('--git-dir=' + str(bare), 'update-ref', 'refs/target-image/pinned', self.head)
-        self.toolchain = self.volume / 'work-2-native-dev/host'
+        self.toolchain = self.volume / 'work-1-native-dev/host'
         (self.toolchain / 'bin').mkdir(parents=True)
         compiler = self.toolchain / 'bin/arm-buildroot-linux-gnueabihf-gcc'
         compiler.write_text('#!/bin/sh\nexit 99\n')
