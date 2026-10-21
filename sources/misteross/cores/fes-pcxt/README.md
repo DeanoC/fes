@@ -68,6 +68,14 @@ changes, and check both setup/hold and the chip's pulse-width and turnaround
 requirements. Missing board inputs remain unknown; do not substitute the
 example flight intervals or the 30 pF reference load as measurements.
 
+The [21 October budget preflight](../../../../docs/validation/2026-10-21-pcxt-interface-budget/summary.md)
+shows why this is also a compiler-model gap: independent SDRAM clock pad
+envelopes cannot prove the reference chip's 2 ns high/low pulse requirement
+at 100 MHz, even with ideal upstream clock and board assumptions. Nonzero
+minima pooled across 0/30 pF observations alone still do not close that gap.
+The preflight retains the arithmetic, HPS launch-source gap and dedicated
+mask-output coverage distinction; it supplies no physical SDC or timing waiver.
+
 ## SDRAM storage
 
 `rtl/pcxt_memory.sv` implements the motherboard's byte VALID/READY/DONE port
