@@ -21,8 +21,10 @@
 // the frame, a source outside the heap, a list outside the list region, an
 // unknown op or a nonzero reserved field faults the blitter before it writes
 // anything for that command; it stays faulted until reset. halt stops a run
-// at the next row boundary without counting it. idle means nothing is owed
-// on either port. completed counts finished runs.
+// at the next row boundary without counting it; halt during a run's last
+// row or at its END stops nothing, since every write was issued, so the run
+// finishes and counts. idle means nothing is owed on either port. completed
+// counts finished runs.
 module fes_menu_blitter #(
     parameter [31:0] WINDOW_BASE = 32'h30000000,
     parameter [31:0] SLOT_BYTES = 32'h00400000,

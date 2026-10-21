@@ -349,7 +349,8 @@ blitter with code 3, 4, 2 or 5; a list outside the region faults with code 1.
 The faulting command writes nothing, and the blitter writes nothing outside
 the target slot's rectangles. A fault holds until execution reset. Quiesce
 stops a run at the next row without counting it and ACKs once the blitter's
-ports drain.
+ports drain. A quiesce during a run's last row or at its END stops nothing:
+every write was issued, so the run finishes and counts.
 The blitter never chooses slots: the runtime runs into the slot scanout is
 not showing, waits for completion, then submits it.
 
