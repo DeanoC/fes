@@ -111,7 +111,9 @@ port release and video setup through the runtime. The diagnostic alone is not
 hardware-qualified by the earlier test-pattern captures.
 
 The shared wrapper's compile-time specialization disables port-0 writes and
-ports 1/2 at the hard-block command pins. Its default read/write behavior and
+ports 1/2 at the hard-block command pins for the diagnostic; the described
+package enables port 1 and port-2 reads for the blitter and keeps port-2
+writes disabled. Its default read/write behavior and
 boot layout remain unchanged for the RAM tester and other consumers. The
 producer recognizes routed constant-zero drivers as well as synthesized zeros.
 The DDR recipe defaults to seed 4; `--seed 1..8` selects a bounded alternate
@@ -143,7 +145,11 @@ port 1, so a blend reads what earlier commands wrote, and reads commands and
 textures on port 2. Each row is read, then blended through a two-clock
 pipeline into the write burst: 2 pixels a clock for fills, 1 for blends and
 copies. Quiesce stops a run at the next row and waits for both ports to drain.
-The diagnostic DDR wrapper leaves the blitter and ports 1/2 out.
+The diagnostic DDR wrapper leaves the blitter and ports 1/2 out. The package
+producer's netlist evidence allows exactly that: port 0 and port 2 commands
+must have their write bit tied low, write FIFOs 0, 1 and 3 and ports 3 to 5
+tied low, so only port 1 can write. The diagnostic still requires every write
+and ports 1 to 5 tied low.
 
 `python3 scripts/sim_fes_menu.py --case gp` replays the shared golden blitter
 wire fixture through actual GP/control/DDR/blitter RTL on a memory-backed

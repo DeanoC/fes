@@ -73,16 +73,28 @@ class MenuPackageProducerTest(unittest.TestCase):
             for name in ('synth.json','routed.json'):
                 path = output/name; data = json.loads(path.read_text())
                 data['modules']['top']['cells']['gp'] = {'type':'cyclonev_hps_interface_mpu_general_purpose'}
+                data['modules']['top']['cells']['ddr']['connections']['cmd_data_2'] = ['0']*60
                 path.write_text(json.dumps(data))
             path = output/'timing.json'; data = json.loads(path.read_text())
             data['utilization']['cyclonev_hps_interface_mpu_general_purpose']['used'] = 1
             path.write_text(json.dumps(data))
             menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
             with self.assertRaises(BuildError): menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr')
+            # The blitter may read and write port 1 and read port 2; nothing else.
             path = output/'routed.json'; data = json.loads(path.read_text())
-            data['modules']['top']['cells']['ddr']['connections']['wr_valid_0'] = ['1']
+            connections = data['modules']['top']['cells']['ddr']['connections']
+            connections.update(cmd_valid_1=['1'], wr_valid_2=['1'], cmd_valid_2=['1'],
+                               cmd_data_1=['1','1']+['0']*58, cmd_data_2=['1','0']+['0']*58)
             path.write_text(json.dumps(data))
-            with self.assertRaises(BuildError): menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+            menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
+            for port, value in (('wr_valid_0',['1']),('wr_valid_1',['1']),('wr_valid_3',['1']),('cmd_valid_3',['1']),
+                                ('cmd_data_2',['1','1']+['0']*58),('cmd_data_0',['1','1']+['0']*58)):
+                with self.subTest(port=port):
+                    changed = json.loads(json.dumps(data))
+                    changed['modules']['top']['cells']['ddr']['connections'][port] = value
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaisesRegex(BuildError,'tied low'):
+                        menu.validate_build_evidence(output,self.producer.ROOT,mode='ddr',menu_gp=True)
 
     def test_build_rejects_excluded_markdown_read(self):
         from scripts.compiler_read_audit import ReadAuditError

@@ -70,7 +70,7 @@ module fes_menu_ddr #(
         assign {p2_address, p2_burstcount, p2_read} = 38'd0;
         assign {blit_idle, blit_faulted, blit_fault_code, blit_completed} = {1'b1, 20'd0};
     end endgenerate
-    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(BLITTER), .P2_ENABLE(BLITTER)) memory (
+    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(BLITTER), .P2_ENABLE(BLITTER), .P2_WRITE_ENABLE(1'b0)) memory (
         .hold(reset_hold || faulted),
         .p0_drained(), .p0_clk(clk), .p0_reset(port_reset), .p0_address(address), .p0_burstcount(burstcount),
         .p0_waitrequest(waitrequest), .p0_readdata(readdata), .p0_readdatavalid(readdatavalid),
