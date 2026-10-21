@@ -375,9 +375,8 @@ NATIVE_RUNTIME_MODE=package-only \
   "$native_extra" verify-image "$cache" "$target"
 
 # Reuse the completed target while selecting a newer RAM Tester. Preparation
-# refreshes a superseded retained source notice from its sealed package, verifies
-# the old package/record, then replaces stale launchers before the secret scan.
-# Post-build installs the new package and notice after preparation.
+# verifies the retained notice, package and record, then replaces stale launchers
+# before the secret scan. Post-build installs the new package and notice afterward.
 old_ramtest_id=$(printf '%064d' 0 | tr 0 e)
 old_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$old_ramtest_id/SOURCE.md
 package_fixture ramtest 3
@@ -416,22 +415,21 @@ if "$repo/scripts/scan-target-image-secrets.sh" "$target" >"$fixture/stale-scan.
 fi
 
 cp "$old_notice" "$fixture/old-source"
-# Warm preparation may refresh only the exact known older template. An
-# arbitrary edit must fail before replacing the retained sealed notice.
+# A tampered retained notice must fail before any warm-rootfs changes occur.
 printf '%s\n' 'tampered source notice' >"$fixture/tampered-source"
 chmod u+w "$old_notice"
 cp "$fixture/tampered-source" "$old_notice"
 chmod 0444 "$old_notice"
 stale_launchers
 prepare_reject 'an arbitrarily changed retained source notice'
-grep -Fq 'RAM Tester notice missing, changed or unsealed: SOURCE.md' "$fixture/prepare-reject.log"
+grep -Fq 'RAM Tester retained notice is stale, changed or unsealed: SOURCE.md' \
+  "$fixture/prepare-reject.log"
 cmp "$fixture/tampered-source" "$old_notice"
 chmod u+w "$old_notice"
 cp "$fixture/old-source" "$old_notice"
 chmod 0444 "$old_notice"
 
-# Recreate the pre-pin notice that predates the current lock detail. Preparation
-# must regenerate it instead of admitting the old template in the verifier.
+# A pre-pin notice is stale and must fail closed without an in-place migration.
 python3 - "$repo" "$target/usr/share/mister-runtime/core-packages/$old_ramtest_id" \
   "$old_notice" <<'PY'
 import importlib.util
@@ -453,9 +451,15 @@ notice_path.chmod(0o644)
 notice_path.write_text(current.replace(current_details, previous_details))
 notice_path.chmod(0o444)
 PY
+cp "$old_notice" "$fixture/stale-source"
 stale_launchers
-TARGET_IMAGE_LOCK_BIN="$selector" "$prepare" "$target"
-cmp "$fixture/old-source" "$old_notice"
+prepare_reject 'a pre-pin retained source notice'
+grep -Fq 'RAM Tester retained notice is stale, changed or unsealed: SOURCE.md' \
+  "$fixture/prepare-reject.log"
+cmp "$fixture/stale-source" "$old_notice"
+chmod u+w "$old_notice"
+cp "$fixture/old-source" "$old_notice"
+chmod 0444 "$old_notice"
 
 printf '%s\n' extra >"$(dirname "$old_notice")/EXTRA.md"
 prepare_reject 'extra notice Markdown'

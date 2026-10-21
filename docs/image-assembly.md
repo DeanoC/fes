@@ -172,10 +172,11 @@ Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
 requires a fresh committed-source image build and separate hardware acceptance.
 
 Incremental native builds can retain the previous post-build rootfs. Preparation
-refreshes only the exact known pre-pin RAM Tester notice from its retained sealed
-package; any other changed source text fails closed. It then verifies the current
-notice format, exact license and installed selection record before allowing that
-one `SOURCE.md` through the generic payload scan. It installs
+requires a retained RAM Tester notice to match the current template exactly;
+stale or changed source text fails closed and is not rewritten in place. It also
+verifies the exact license and installed selection record before allowing that
+one `SOURCE.md` through the generic payload scan. The normal fresh package install
+generates notices from the selected package's sealed manifest. Preparation installs
 the selected agent, kit and tenfoot binaries before scanning the complete tree for
 secret assignments. The later native post-build step refreshes packages and
 notices to the current selection; other Markdown files remain forbidden.

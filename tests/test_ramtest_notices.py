@@ -144,29 +144,19 @@ the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
         self.assertIn(current_details, current)
         return current.replace(current_details, previous_details).encode()
 
-    def test_retained_verifier_rejects_pre_pin_format(self):
+    def test_stale_retained_notice_fails_without_rewriting_it(self):
         package = self.retained_package()
         notices.process('install', self.target, package)
         source = self.destination / 'SOURCE.md'
+        stale = self.previous_notice_source(package)
         source.chmod(0o644)
-        source.write_bytes(self.previous_notice_source(package))
+        source.write_bytes(stale)
         source.chmod(0o444)
-        self.assertFalse(notices.retained_source_notice_matches(package, source.read_bytes()))
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, 'retained notice is stale'):
             notices.verify_retained(self.target)
+        self.assertEqual(source.read_bytes(), stale)
 
-    def test_refresh_retained_rewrites_pre_pin_format_before_verification(self):
-        package = self.retained_package()
-        notices.process('install', self.target, package)
-        source = self.destination / 'SOURCE.md'
-        source.chmod(0o644)
-        source.write_bytes(self.previous_notice_source(package))
-        source.chmod(0o444)
-        self.assertEqual(notices.refresh_retained(self.target), self.destination / 'SOURCE.md')
-        self.assertEqual(source.read_bytes(), notices.source_notice(package))
-        self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
-
-    def test_refresh_retained_rejects_arbitrary_changes_without_replacing_them(self):
+    def test_tampered_retained_notice_fails_without_rewriting_it(self):
         package = self.retained_package()
         notices.process('install', self.target, package)
         source = self.destination / 'SOURCE.md'
@@ -175,10 +165,10 @@ the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
         source.write_bytes(tampered)
         source.chmod(0o444)
         with self.assertRaisesRegex(ValueError, 'SOURCE.md'):
-            notices.refresh_retained(self.target)
+            notices.verify_retained(self.target)
         self.assertEqual(source.read_bytes(), tampered)
 
-    def test_retained_notice_accepts_a_notice_from_an_earlier_nextpnr_pin(self):
+    def test_retained_notice_rejects_an_earlier_nextpnr_pin(self):
         package = self.retained_package()
         notices.process('install', self.target, package)
         source = self.destination / 'SOURCE.md'
@@ -189,7 +179,9 @@ the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
         source.write_text(text.replace('nextpnr pin ' + current_pin,
                                        'nextpnr pin ' + previous_pin))
         source.chmod(0o444)
-        self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
+        with self.assertRaisesRegex(ValueError, 'retained notice is stale'):
+            notices.verify_retained(self.target)
+        self.assertIn('nextpnr pin ' + previous_pin, source.read_text())
 
     def test_retained_notice_rejects_missing_package_and_changed_notice(self):
         notices.process('install', self.target, self.package)

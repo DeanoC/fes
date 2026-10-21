@@ -48,10 +48,9 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   exit 1
 }
 
-# A warm tree may carry source text from an older notice template. Regenerate it
-# from the retained sealed package before scanning, then admit only the current
-# notice format. The selected package and record are verified below.
-verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" refresh-retained "$target")
+# A retained notice must match the current template exactly. Fail closed on
+# stale or changed text; only the normal fresh package install generates notices.
+verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" verify-retained "$target")
 if [ -n "$verified_notice" ]; then
   selector=${TARGET_IMAGE_LOCK_BIN:-}
   if [ -z "$selector" ]; then
