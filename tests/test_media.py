@@ -84,8 +84,14 @@ class MediaTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.object(cold_build, 'git', return_value='f' * 40).start()
         (self.root / 'profiles').mkdir()
-        shutil.copyfile(ROOT / 'profiles/native-integration-dev.toml',
-                        self.root / 'profiles/native-integration-dev.toml')
+        # Exercise expanded selections independently of the bootstrap default.
+        # These tests deliberately mutate Pong and ZX81 payloads.
+        (self.root / 'profiles/native-integration-dev.toml').write_text(
+            'host_os = "linux"\nhost_arch = "amd64"\nimage_variant = "native-dev"\n'
+            'version = "0.1.0"\nnative_image_mode = "package-only"\ncheck_packages = true\n'
+            '[[fpga_packages]]\ncore_id = "fes.menu"\n'
+            '[[fpga_packages]]\ncore_id = "fes.pong"\n'
+            '[[fpga_packages]]\ncore_id = "fes.zx81"\n')
         self.output = self.root / 'out/native-integration-dev'
         self.output.mkdir(parents=True)
         self.fogcast = self.root / 'fogcast'
@@ -574,6 +580,26 @@ class MediaTests(unittest.TestCase):
             '[[fpga_packages]]\ncore_id = "fes.pong"\n')
         with self.assertRaisesRegex(ValueError, 'cold image receipt is missing or stale'):
             self.build()
+
+    def test_bootstrap_media_builds_and_verifies_without_playable_packages(self):
+        shutil.copyfile(ROOT / 'profiles/native-integration-dev.toml',
+                        self.root / 'profiles/native-integration-dev.toml')
+        menu = self.packages['fes.menu']
+        for core_id, package in self.packages.items():
+            if core_id != 'fes.menu':
+                shutil.rmtree(package['directory'])
+                package['selection_path'].unlink()
+        fingerprint, inputs = cold_build.image_fingerprint(
+            'cold-fp', {'sources': {}}, (menu,))
+        (self.output / 'inputs.json').write_text(json.dumps(inputs))
+        cold_build.write_receipt(self.output, 'image', fingerprint,
+                                 ['linux.img', 'manifest.tsv', 'inputs.json'])
+        result = self.build()
+        self.assertEqual(self.runner.asserted_env['FES_PACKAGE_IDS'], 'fes.menu')
+        self.assertNotIn('FES_PONG_PACKAGE_DIR', self.runner.asserted_env)
+        self.assertEqual(
+            media.verify(self.root, 'native-integration-dev', self.runner).generation,
+            result.generation)
 
     def test_private_snapshot_survives_original_mutation(self):
         config = self.root / 'config'

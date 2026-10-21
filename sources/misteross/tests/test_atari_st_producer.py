@@ -151,10 +151,11 @@ class AtariSTProducerTests(unittest.TestCase):
                 st.adapted_cpu_source(root)
 
     def test_build_uses_locked_slang_single_unit_and_selected_video(self):
+        from scripts import pnr_recipe
         with (ROOT / st.ST_TOOLCHAIN_LOCK).open('rb') as source:
             lock = tomllib.load(source)
-        for name, digest in st.ST_TOOL_COMMITS.items():
-            self.assertEqual(lock['tool'][name]['commit'], digest)
+        self.assertEqual(pnr_recipe.lock_path(ROOT, 'fes.atari-st'), ROOT / st.ST_TOOLCHAIN_LOCK)
+        self.assertEqual(lock['tool']['nextpnr']['commit'], pnr_recipe.nextpnr_pin('fes.atari-st'))
         for relative in st.PINNED_INPUTS:
             self.assertTrue((ROOT / relative).is_file(), relative)
         tools = {'yosys': Path('/authenticated/install/bin/yosys'),

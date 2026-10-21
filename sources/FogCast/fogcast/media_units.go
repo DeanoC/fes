@@ -3,9 +3,10 @@ package fogcast
 import (
 	"bytes"
 	"context"
-	"github.com/DeanoC/FogCast/corepackage"
 	"io"
 	"time"
+
+	"github.com/DeanoC/FogCast/corepackage"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -124,44 +125,6 @@ func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, bo
 		return status, preserveCorePackageError(err)
 	}
 	if unit, ok := protocol.MediaUnit(status.CorePackage, b.Unit); !b.Matches(status) || !ok || unit.State != protocol.MediaUnitReady {
-		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	return status, nil
-}
-
-// ejectMediaUnitLocked empties one unit of the active generation. Caller
-// holds lifecycle admission.
-func (s *Service) ejectMediaUnitLocked(ctx context.Context, b protocol.MediaUnitBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" {
-		return protocol.Status{}, protocol.MediaUnitRequestError()
-	}
-	ctx = WithSessionTarget(ctx, b.Target)
-	if err := s.prepareMediaUnitClient(ctx, b); err != nil {
-		return protocol.Status{}, err
-	}
-	s.targetMu.RLock()
-	defer s.targetMu.RUnlock()
-	client, loader, err := s.mediaUnitTargetLocked(b)
-	if err != nil {
-		return protocol.Status{}, err
-	}
-	prior, err := client.Status(ctx)
-	if err != nil {
-		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if !b.Matches(prior) {
-		return prior, protocol.MediaUnitIdentityError()
-	}
-	var status protocol.Status
-	if bound, ok := client.(savedMediaUnitClient); ok && protocol.MediaDataBound(prior.CorePackage) {
-		status, err = bound.EjectMediaWithSave(ctx, b)
-	} else {
-		status, err = loader.EjectMedia(ctx, b)
-	}
-	if err != nil {
-		return status, preserveCorePackageError(err)
-	}
-	if unit, ok := protocol.MediaUnit(status.CorePackage, b.Unit); !b.Matches(status) || !ok || unit.State != protocol.MediaUnitEmpty {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	return status, nil

@@ -24,7 +24,7 @@ from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.fes_build_common import (
     _authenticate_tools, _prepare_output, _require_clean_source, _run_tool,
-    gpu_visibility_environment, reject_async_m10k_reads,
+    reject_async_m10k_reads,
 )
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
@@ -130,7 +130,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if not (shell / name).is_file():
             raise ValueError(f"shell producer directory requires {name}")
     tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -151,8 +151,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
                     build_outputs=BUILD_OUTPUTS + publications)
     (output / "clocks.sdc").write_bytes(clock_constraints)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = str(gpu)
+    # gpu-run grants any free GPU and passes it as FES_GPU_IDS / GPU_RUN_DEVICE.
+    env = dict(os.environ)
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
@@ -204,7 +204,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         if digest((shell / name).read_bytes()) != closure["shell/" + name]:
             raise ValueError("frozen shell changed during cart build")
     final_tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
-        expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
+        toolchain_root=root / "build/toolchain/zx81-expansion")
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise ValueError("authenticated compiler changed during cart build")
     destination = output / (expansion_id + ".tar")

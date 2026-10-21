@@ -1,5 +1,5 @@
 # Plan: treat FES cores as apps (per-core toolchain pins, nightly bumps, app-style packaging)
-**Status: approved by Deano with changes on 2026-10-18 (revision 2, adding change 1: the recipe captures all nextpnr options). Issue #843 delivers migration steps 1–2; later steps remain proposals.** Option audit: [recipe-option-audit.md](recipe-option-audit.md).
+**Status: approved by Deano with changes on 2026-10-18 (revision 2, adding change 1: the recipe captures all nextpnr options). Issue #843 delivers migration steps 1–2. Issue #882 makes the nextpnr pin per lock: each recipe lists the options of its own lock's nextpnr (`9128800f` or `552ba246`), so a core can move its lock alone. No lock moves in #882. Later steps remain proposals.** Option audit, including the `552ba246` classification: [recipe-option-audit.md](recipe-option-audit.md).
 Lander, 2026-10-18 12:50 EEST. This plan-only assessment predates the #843 implementation. The gate proposal and the #213 revert are on hold, and fes stays pinned to nextpnr `9128800f`.
 Sources: fes main `9b463dce` tree, `config/core-recipes.toml`, `config/core-library.toml`, `docs/kit-core-library.md`, `check.yml`, `gh run list`, and `/workspace/lander/791-STATUS.md`.
 

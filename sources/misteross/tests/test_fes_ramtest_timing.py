@@ -1,7 +1,6 @@
 """The opt-in timing route must not overwrite the RAM-test package build."""
 from contextlib import contextmanager
 import json
-import tomllib
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,12 +13,22 @@ from tests.producer_fixture import FakeInvocation, init_source
 
 
 class RamtestTimingDiagnosticTest(unittest.TestCase):
-    def test_compiler_lock_matches_the_shared_pin(self):
-        lock = tomllib.loads((timing.ROOT / timing.LOCK).read_text())
-        self.assertEqual(lock["tool"]["yosys"]["commit"], timing.TOOL_COMMITS["yosys"])
-        self.assertEqual(lock["tool"]["nextpnr"]["commit"], timing.TOOL_COMMITS["nextpnr"])
+    def test_diagnostic_authenticates_the_ramtest_lock_commits(self):
         self.assertEqual(timing.LOCK, ramtest.TOOLCHAIN_LOCK)
         self.assertNotEqual(timing.OUTPUT, ramtest.OUTPUT_130)
+
+        class Stop(Exception):
+            pass
+
+        with patch.object(timing.Path, "cwd", return_value=timing.ROOT), \
+                patch.object(timing.board, "_require_clean_source", return_value=("repo", "a" * 40)), \
+                patch.object(timing.board, "_authenticate_tools", side_effect=Stop) as authenticate:
+            with self.assertRaises(Stop):
+                timing.run()
+        # The lock alone selects the commits, so a ramtest lock bump needs no
+        # diagnostic change.
+        self.assertEqual(authenticate.call_args.kwargs["lock_path"], timing.ROOT.resolve() / timing.LOCK)
+        self.assertNotIn("expected_commits", authenticate.call_args.kwargs)
 
     def test_synthesis_writes_diagnostic_fixture_without_changing_normal_path(self):
         tools = {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")}

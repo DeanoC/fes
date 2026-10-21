@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -141,7 +142,7 @@ func TestHostModeLeavesKitUnset(t *testing.T) {
 	}
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "home.json"))
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("example.fes-cores")
 	app.Start(t.Context())
@@ -342,7 +343,9 @@ func TestAmbiguousLocalLaunchDoesNotAdoptReplacement(t *testing.T) {
 			fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusSet: true, status: localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID, Generation: strings.Repeat("b", 64)}}
 			app := NewApp(nil, 1280, 720, 50)
 			app.localCores = fake
-			app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+			app.localContent = func(context.Context, string) (string, string, error) {
+				return "/tmp", "game.sms", nil
+			}
 			app.mu.Lock()
 			if cartridge {
 				app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
@@ -407,7 +410,7 @@ func TestAmbiguousLocalLaunchBlocksRelaunchUntilIdle(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusErr: errors.New("status unavailable")}
 	app := NewApp(nil, 1280, 720, 50)
 	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
 	app.mu.Lock()
 	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
 	app.mu.Unlock()
@@ -452,7 +455,7 @@ func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
 	fake := &fakeLocalCores{err: localcores.ErrUnavailable, cores: []localcores.Core{{CoreID: "fes.sms", PackageID: tenfootPongID}}, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "idle"}}}
 	app := NewApp(nil, 1280, 720, 50)
 	app.localCores = fake
-	app.localContent = func(context.Context, string) (string, error) { return "/tmp/game.sms", nil }
+	app.localContent = func(context.Context, string) (string, string, error) { return "/tmp", "game.sms", nil }
 	app.mu.Lock()
 	app.startLocalTitleLocked(hostclient.Game{ID: "game", Title: "Data Storm", System: "sms"})
 	app.mu.Unlock()
@@ -752,6 +755,59 @@ func TestPresentHoldLateAdoptionSkipsArmedFrame(t *testing.T) {
 	}
 }
 
+type staleFailMenu struct {
+	mu    sync.Mutex
+	fail  error
+	calls int
+}
+
+func (c *staleFailMenu) Status(context.Context) (menudisplay.Status, error) {
+	return menudisplay.Status{Available: true, Generation: 4, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes}, nil
+}
+
+func (c *staleFailMenu) Present(context.Context, uint64, []byte) (menudisplay.Result, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.fail != nil {
+		return menudisplay.Result{}, c.fail
+	}
+	return menudisplay.Result{Generation: 4, DisplayedSequence: uint64(c.calls)}, nil
+}
+
+func (c *staleFailMenu) snapshot() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
+}
+
+func TestPresentHoldLateAdoptionPausesAfterStaleFailure(t *testing.T) {
+	rec := &staleFailMenu{fail: errors.New("stale menu")}
+	dev, err := gfx.NewMenuDisplayWithPresenter(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dev.SetChangeDriven(true)
+	dev.Present()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := dev.WaitIdle(ctx); err == nil || !strings.Contains(err.Error(), "stale menu") {
+		t.Fatalf("failed frame WaitIdle = %v", err)
+	}
+	dev.Resume()
+	var hold presentHold
+	snap := Snapshot{LocalCorePresentsPaused: true, LocalCoreLateAdopt: true}
+	if skip, err := hold.skip(context.Background(), dev, snap); !skip || err != nil {
+		t.Fatalf("late adoption after a stale failure: skip=%v err=%v", skip, err)
+	}
+	before := rec.snapshot()
+	dev.Present()
+	if dev.FramePending() || rec.snapshot() != before {
+		t.Fatalf("late adoption left the menu presenting: pending=%v calls=%d", dev.FramePending(), rec.snapshot())
+	}
+}
+
 func TestMenuLaunchWaitsForFrameDrainAndPause(t *testing.T) {
 	gate := make(chan struct{})
 	rec := &recordingMenu{presentEntered: make(chan struct{}, 1), presentGate: gate}
@@ -905,7 +961,7 @@ func startCoreRoomWithHost(t *testing.T, cores rooms.LocalCores, feed localPadSe
 		app.client.paired = true
 	}
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("cores")
 	app.SetKitLocal(cores, feed)
@@ -1129,7 +1185,7 @@ func (f *fakeLocalCores) Launch(_ context.Context, id string) (localcores.Launch
 	return localcores.LaunchResult{Core: localcores.Core{PackageID: id}, Generation: strings.Repeat("a", 64)}, err
 }
 
-func (f *fakeLocalCores) LaunchROM(ctx context.Context, id, _ string) (localcores.LaunchResult, error) {
+func (f *fakeLocalCores) LaunchROM(ctx context.Context, id, _, _ string) (localcores.LaunchResult, error) {
 	return f.Launch(ctx, id)
 }
 

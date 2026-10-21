@@ -1,0 +1,47 @@
+"""Exercise the workflow's parent shell with representative affected plans."""
+import os
+import json
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import textwrap
+import unittest
+
+from scripts.affected import plan
+
+
+class ParentWorkflowTests(unittest.TestCase):
+    def test_platform_and_image_commands_follow_media_inputs(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    '.github/workflows/check.yml').read_text()
+        parent = workflow.split('  parent-tests:\n', 1)[1].split('  consistency:\n', 1)[0]
+        script = textwrap.dedent(re.search(r'        run: \|\n(.*)', parent, re.S).group(1))
+        for path, media in (
+            ('sources/FogCast/ui/rooms/examples/fes-cores/main.lua', False),
+            ('sources/FogCast/internal/hostapi/ui_app.js', False),
+            ('platform/internal/applianceboot/boot.go', True),
+            ('<new-branch>', True),
+        ):
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                for command in ('make', 'python3'):
+                    stub = root / command
+                    stub.write_text('#!/bin/sh\nprintf "%s\\n" "' + command +
+                                    ' $*" >> "$COMMAND_LOG"\n')
+                    stub.chmod(0o755)
+                modes = plan([path])['test_modes']
+                environment = {
+                    **os.environ, 'CHANGED_PATHS': json.dumps([path]), 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                    'COMMAND_LOG': str(root / 'commands'),
+                    'TEST_MEDIA': str(modes['media']).lower(),
+                    'TEST_VIDEO': str(modes['video']).lower(),
+                }
+                subprocess.run(['bash', '-e', '-c', script], env=environment, check=True)
+                commands = (root / 'commands').read_text().splitlines()
+                runner = next(c for c in commands if c.startswith('python3 scripts/parent_tests.py '))
+                self.assertIn('--paths-json ' + json.dumps([path]), runner)
+                self.assertEqual('make platform-provision' in commands, media)
+                self.assertEqual('make media-test-provision' in commands, media)
+                self.assertEqual('make platform-test' in commands, media)
+                self.assertEqual(any(c.startswith('make -C image test ') for c in commands), media)

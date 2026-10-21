@@ -196,7 +196,6 @@ renderer that already owns Play, Stop, and the Coleco BIOS import overlay).
 | Surface | v1 |
 | --- | --- |
 | Sofa rooms / tenfoot | **Yes** — in-session chrome that **arms a tape** while session is `active` and the package is ZX81 / `fes.media.blob`. Pad-friendly picker can mirror the Coleco BIOS import overlay’s file-browse and Confirm patterns, but it binds the **active** session, not the next launch. Chrome reports armed / ready; it does not assume every consumer is BASIC `LOAD ""`. |
-| Kit `fogcast-kit` grid | **No** — do not grow a second offline catalog or tape browser on kit HDMI ([idle lock](idle-menu-rooms.md)). |
 | Host API / CLI | **Required underneath** the sofa path. Once slice 2 exists, `fogcast` session media change is an **operator/diagnostics** path. Sofa remains the living-room surface (Decision 8). |
 | Kit-as-host | Same host/tenfoot process ⇒ same overlay. No distinct kit picker product. |
 

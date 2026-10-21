@@ -132,5 +132,7 @@ func (a *App) tickSessionPadLocked(now time.Time) {
 		return
 	}
 	a.playPadChordFired = true
-	a.startStopLocked()
+	// Select+Start ends the library session. It is not the rooms Soft-stop:
+	// idle cleanup must release this kit's grant and stop renewal.
+	a.startReleaseStopLocked()
 }

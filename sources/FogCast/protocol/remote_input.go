@@ -217,4 +217,3 @@ func (s *InputState) ApplySnapshot(x StateSnapshot) {
 		s.axes[c] = v
 	}
 }
-func (s *InputState) ReleaseAll() { s.pressed = map[uint16]bool{}; s.axes = map[uint16]int16{} }

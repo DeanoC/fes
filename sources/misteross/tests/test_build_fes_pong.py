@@ -12,7 +12,7 @@ from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInv
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts import build_fes_pong
+from scripts import build_fes_pong, pnr_recipe
 from scripts import toolchain_cache
 from scripts.build_fes_pong import (
     AuthenticatedTool,
@@ -43,10 +43,26 @@ def _write_fake_tool(
     path: Path,
     tool_name: str,
     *,
+    nextpnr_option_count: int = 96,
     include_target: bool = True,
     mutation_target: Path | None = None,
 ) -> None:
     target_output = "5CSEBA6U23I7 fake database" if include_target else "other device database"
+    nextpnr_help = ""
+    if tool_name == "nextpnr":
+        option_names = next(
+            names for names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS
+            if len(names) == nextpnr_option_count
+        )
+        help_lines = ["  -h [ --help ]"] + [
+            f"  --{name.replace('_', '-')} arg" for name in sorted(option_names - {"help"})
+        ]
+        nextpnr_help = (
+            "if [ \"${1:-}\" = '--help' ]; then\n"
+            "  printf '%s\\n' "
+            + " ".join(f"'{line}'" for line in help_lines)
+            + "\n  exit 0\nfi\n"
+        )
     mutation = ""
     if mutation_target is not None:
         chmod_command = shutil.which("chmod") or "/bin/chmod"
@@ -61,6 +77,7 @@ def _write_fake_tool(
         )
     path.write_text(
         "#!/bin/sh\n"
+        + nextpnr_help
         + mutation
         + "case \"${1:-}\" in\n"
         f"  models) printf '%s\\n' '{target_output}' ;;\n"
@@ -69,6 +86,13 @@ def _write_fake_tool(
         encoding="utf-8",
     )
     path.chmod(0o755)
+
+
+def _nextpnr_option_count_for_lock(lock_path: Path) -> int:
+    """Return the CLI schema selected by this fixture's core-local lock."""
+    if lock_path.as_posix().endswith(("cores/fes-pong/toolchain.lock", "cores/fes-riscv/toolchain.lock")):
+        return 105
+    return 96
 
 
 def publish_shared_toolchain(
@@ -81,10 +105,13 @@ def publish_shared_toolchain(
     mistral_target: bool = True,
     mutate_after_probe: bool = False,
 ) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
-    """Publish a complete five-tool lane through the real cache API."""
+    """Publish a complete five-tool lane through the real cache API.
+
+    The slot is keyed by the selected lock, so it defaults to Pong's own lock;
+    pass the lock of any other producer under test."""
 
     cache = base / "shared-cache"
-    selected_lock = SOURCE_ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
+    selected_lock = SOURCE_ROOT / build_fes_pong.TOOLCHAIN_LOCK if lock_path is None else Path(lock_path)
     host = {"system": "Linux", "release": "test", "machine": "x86_64"}
     compiler = {"commands": {"cc": {"path": "/test/cc"}}}
     environment = {
@@ -106,7 +133,7 @@ def publish_shared_toolchain(
             cuda_architectures=cuda_architectures,
         )
 
-    cache.mkdir(mode=0o700)
+    cache.mkdir(mode=0o700, exist_ok=True)
     cache.chmod(0o700)
     slot = toolchain_cache.slot_path(request)
     for directory in (slot / "src", slot / "build", slot / "install" / "bin", slot / "evidence"):
@@ -118,6 +145,7 @@ def publish_shared_toolchain(
         _write_fake_tool(
             binary,
             lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(selected_lock),
             include_target=mistral_target,
             mutation_target=slot / "install" / "bin/mistral-cv"
             if mutate_after_probe and lock_name == "yosys"
@@ -464,14 +492,14 @@ class BuildFesPongTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
                     build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
-    def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
+    def test_local_lane_uses_its_own_core_root_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             lock_path = root / build_fes_pong.TOOLCHAIN_LOCK
             lock_path.parent.mkdir(parents=True, exist_ok=True)
             lock_path.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
-            install = root / "build/toolchain/install/bin"
-            build_root = root / "build/toolchain/build"
+            install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
+            build_root = root / build_fes_pong.TOOLCHAIN_ROOT / "build"
             install.mkdir(parents=True)
             definitions = {
                 "yosys": ("yosys", "--version"),
@@ -481,7 +509,11 @@ class BuildFesPongTests(unittest.TestCase):
             pins = load_lock(lock_path)
             for lock_name, (binary_name, _) in definitions.items():
                 binary = install / binary_name
-                _write_fake_tool(binary, lock_name)
+                _write_fake_tool(
+                    binary,
+                    lock_name,
+                    nextpnr_option_count=_nextpnr_option_count_for_lock(lock_path),
+                )
                 evidence = build_root / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit
@@ -872,15 +904,12 @@ class BuildFesPongTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildError, "unknown resources in use: .*fpga2sdram"):
                 validate_build_evidence(output)
 
-    def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:
-        self.assertEqual(
-            build_fes_pong.EXPECTED_TOOL_COMMITS,
-            {
-                "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-                "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-                "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-            },
-        )
+    def test_recipe_pins_the_toolchain_of_its_own_lock(self) -> None:
+        from scripts import pnr_recipe
+
+        self.assertEqual(pnr_recipe.lock_path(ROOT, "fes.pong"), ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        pins = load_lock(ROOT / build_fes_pong.TOOLCHAIN_LOCK)
+        self.assertEqual(pins["nextpnr"].commit, pnr_recipe.nextpnr_pin("fes.pong"))
 
     def test_record_exists_before_synthesis_and_export_waits_for_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

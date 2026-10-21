@@ -30,7 +30,7 @@ from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
     _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool,
-    gpu_run_active, gpu_visibility_environment, nextpnr_gpu_command,
+    gpu_route_evidence, gpu_run_active, nextpnr_gpu_command,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,8 +222,11 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "region": socket.region, "cram_region": list(socket.cram), "map": atari_st_slot.LAYOUT,
               "slot_clock": SLOT_CLOCK, "placer_seed": seed,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
+    # Hashed before the route, so this cannot name the granted GPU. CUDA
+    # still passes the requested index; that field is the request only.
+    recipe["gpu_selection"] = "lease"
     if gpu_router == "CUDA":
-        recipe["gpu_device"] = gpu
+        recipe["gpu_device_requested"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/atari-st-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -236,18 +239,15 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ)
-    env["GPU_LEASE_IDS"] = str(gpu)
     extra = shell_recipe.execution_extra(gpu_router)
-    # gpu-run owns the mask and maps the leased physical device to its logical
-    # index. Outside that wrapper, retain the card producer's existing lane setup.
-    if gpu_run_active(env):
-        env.update(extra or {})
-    elif extra:
-        env.pop("HIP_VISIBLE_DEVICES", None)
-        env.pop("CUDA_VISIBLE_DEVICES", None)
+    # gpu-run grants any free GPU. Do not set GPU_LEASE_IDS or a vendor mask.
+    # An outer gpu-run, which the route runner rejects, keeps its own mask.
+    if not gpu_run_active(env):
+        for name in ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
+                     "GPU_DEVICE_ORDINAL"):
+            env.pop(name, None)
+    if extra:
         env.update(extra)
-    else:
-        env = gpu_visibility_environment(env, gpu, variable="HIP_VISIBLE_DEVICES")
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",
@@ -315,7 +315,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             archive.addfile(info, io.BytesIO(data))
     (output / "build-summary.json").write_text(json.dumps(
         {"recipe": recipe, "expansion_id": expansion_id, "manifest": json.loads(encoded),
-         "timing_mhz": achieved, "cram_diff": changes}, sort_keys=True, indent=2) + "\n")
+         "timing_mhz": achieved, "cram_diff": changes,
+         "gpu": gpu_route_evidence(route_text, gpu)}, sort_keys=True, indent=2) + "\n")
     return destination
 
 

@@ -386,23 +386,3 @@ func (g *launchBoxRequestGate) Do(request *http.Request) (*http.Response, error)
 	}
 	return client.Do(request)
 }
-
-func (g *launchBoxRequestGate) newArchiveRequest(ctx context.Context) (*http.Request, error) {
-	g.mu.RLock()
-	policy := g.policy
-	g.mu.RUnlock()
-	if policy == nil {
-		return nil, errors.New("LaunchBox request gate is not committed")
-	}
-	return policy.newArchiveRequest(ctx)
-}
-
-func (g *launchBoxRequestGate) newImageRequest(ctx context.Context, filename string) (*http.Request, error) {
-	g.mu.RLock()
-	policy := g.policy
-	g.mu.RUnlock()
-	if policy == nil {
-		return nil, errors.New("LaunchBox request gate is not committed")
-	}
-	return policy.newImageRequest(ctx, filename)
-}

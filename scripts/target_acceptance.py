@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Exercise the exact FES package set on a real target.
+"""Check bootstrap readiness or exercise selected FES packages on a real target.
 
-This is an operator-facing hardware lane.  It proves host/target readiness,
-the exact package identities selected by FES, persistent library launch,
-remote input delivery, optional development-media delivery, and clean Stop.
+Playable-package runs prove host/target readiness, exact package identities,
+persistent library launch, remote input delivery, optional development-media
+delivery, and clean Stop. MENU-only runs verify the image selection record,
+host/target readiness, and an idle session without claiming playable acceptance.
 When a capture directory is supplied it also records one HDMI frame and its
-digest per core.  The digest is evidence of the captured artifact; visual
+digest per core. The digest is evidence of the captured artifact; visual
 meaning remains an operator review rather than an automated equivalence claim.
 """
 
@@ -40,7 +41,9 @@ SELECTION_NAMES = {
     "fes.c64": "fes-c64.package-selection.toml",
     "fes.spectrum": "fes-spectrum.package-selection.toml",
 }
+MENU_SELECTION_NAME = "fes-menu.package-selection.toml"
 PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
+CORE_ID_RE = re.compile(r"^fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 HTTP_ERROR_BODY_LIMIT = 16 * 1024
 HTTP_ERROR_FIELD_LIMIT = 256
 CLI_NOTE_LIMIT = 1024
@@ -283,11 +286,61 @@ class Runner:
         self.records: list[dict[str, Any]] = []
         self.active = False
 
-    def selection_ids(self) -> dict[str, str]:
-        return {
-            core: package_id_from_selection(self.selection_dir / filename)
-            for core, filename in SELECTION_NAMES.items()
+    def declared_package_ids(self) -> dict[str, str]:
+        """Read the exact package set selected by the image build."""
+        path = self.selection_dir / "inputs.json"
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise AcceptanceError(f"image inputs {path} are missing") from exc
+        except OSError as exc:
+            raise AcceptanceError(f"cannot read image inputs {path}: {exc}") from exc
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise AcceptanceError(f"image inputs {path} are not valid JSON: {exc}") from exc
+        packages = value.get("fpga_packages") if isinstance(value, dict) else None
+        if not isinstance(packages, list) or not packages:
+            raise AcceptanceError(f"image inputs {path} have no selected FPGA packages")
+        result: dict[str, str] = {}
+        for package in packages:
+            selection = package.get("selection") if isinstance(package, dict) else None
+            core = selection.get("core_id") if isinstance(selection, dict) else None
+            package_id = selection.get("package_id") if isinstance(selection, dict) else None
+            if (not isinstance(core, str) or not CORE_ID_RE.fullmatch(core)
+                    or not isinstance(package_id, str) or not PACKAGE_ID_RE.fullmatch(package_id)):
+                raise AcceptanceError(f"image inputs {path} contain an invalid package selection")
+            if core in result:
+                raise AcceptanceError(f"image inputs {path} select {core} more than once")
+            result[core] = package_id
+        return result
+
+    def validate_declared_selections(self, declared: dict[str, str]) -> None:
+        selection_names = {**SELECTION_NAMES, "fes.menu": MENU_SELECTION_NAME}
+        unsupported = set(declared) - set(selection_names)
+        if unsupported:
+            raise AcceptanceError(
+                "image selects packages not supported by target acceptance: "
+                + ", ".join(sorted(unsupported))
+            )
+
+        expected_files = {selection_names[core] for core in declared}
+        selection_files = {
+            path.name for path in self.selection_dir.glob("*.package-selection.toml")
         }
+        if selection_files != expected_files:
+            raise AcceptanceError(
+                "published package selection files do not match image inputs"
+            )
+
+        for core, package_id in declared.items():
+            published_id = package_id_from_selection(
+                self.selection_dir / selection_names[core]
+            )
+            if published_id != package_id:
+                raise AcceptanceError(
+                    f"{core}: published selection differs from the image's selected package identity"
+                )
 
     def check_health(self) -> None:
         host = self.host.get("/api/v1/health")
@@ -309,6 +362,8 @@ class Runner:
         entries = self.host.get("/api/v1/library/core-entries").get("entries", [])
         games: dict[str, str] = {}
         for core in CORE_ORDER:
+            if core not in expected:
+                continue
             package_matches = [
                 package
                 for package in packages
@@ -336,6 +391,18 @@ class Runner:
                 )
             games[core] = entry_matches[0]["game_id"]
         return games
+
+    def run_bootstrap(self, expected_menu_id: str) -> None:
+        if self.entries or self.media or self.capture_dir is not None:
+            raise AcceptanceError(
+                "MENU-only bootstrap acceptance does not accept playable-core entry, media, or capture options"
+            )
+        self.check_health()
+        self.wait_session("idle")
+        print(
+            "target bootstrap readiness passed: "
+            f"fes.menu selected package={expected_menu_id}; host and target ready and idle"
+        )
 
     def wait_session(self, state: str, game_id: str | None = None, package_id: str | None = None) -> dict[str, Any]:
         last: dict[str, Any] = {}
@@ -465,11 +532,30 @@ class Runner:
             print(f"passed {spec.core_id}: package={package_id} game={game_id}")
 
     def run(self) -> None:
-        expected = self.selection_ids()
+        declared = self.declared_package_ids()
+        self.validate_declared_selections(declared)
+        if set(declared) == {"fes.menu"}:
+            self.run_bootstrap(declared["fes.menu"])
+            return
+
+        selected_cores = [core for core in CORE_ORDER if core in declared]
+        if not selected_cores:
+            raise AcceptanceError(
+                "image selects no playable core supported by target acceptance"
+            )
+        expected = {core: declared[core] for core in selected_cores}
+        requested_cores = set(self.entries) | set(self.media)
+        unselected_requests = requested_cores - set(expected)
+        if unselected_requests:
+            raise AcceptanceError(
+                "entry or media supplied for a core not selected by the image: "
+                + ", ".join(sorted(unselected_requests))
+            )
         self.check_health()
         games = self.inventory(expected)
         self.wait_session("idle")
-        for spec in CORE_SPECS:
+        specs = [spec for spec in CORE_SPECS if spec.core_id in expected]
+        for spec in specs:
             self.run_core(spec, expected[spec.core_id], games[spec.core_id])
         if self.capture_dir is not None:
             manifest = {
@@ -482,7 +568,16 @@ class Runner:
             (self.capture_dir / "acceptance.json").write_text(
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-        print("target acceptance passed: Pong, ZX81, Coleco, SMS, SG-1000, C64, Spectrum")
+        labels = {
+            "fes.pong": "Pong",
+            "fes.zx81": "ZX81",
+            "fes.coleco": "Coleco",
+            "fes.sms": "SMS",
+            "fes.sg1000": "SG-1000",
+            "fes.c64": "C64",
+            "fes.spectrum": "Spectrum",
+        }
+        print("target acceptance passed: " + ", ".join(labels[spec.core_id] for spec in specs))
 
 
 def parser() -> argparse.ArgumentParser:

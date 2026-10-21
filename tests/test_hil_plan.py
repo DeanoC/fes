@@ -78,6 +78,54 @@ class HilPlanTest(unittest.TestCase):
         # #567 rebuilt the Atari ST video part archive, which the overlay cannot attest.
         result = run('classify', '--paths-file', FIXTURES / 'pr567.files', '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        # #899's confirm, boot-ticket rewrite and storage gate run from the image
+        # on a trial boot, so a bundle overlay cannot exercise them.
+        result = run('classify', '--paths-file', FIXTURES / 'pr899.files', '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        for path in ('sources/FogCast/appliance/store/store.go',
+                     'sources/FogCast/internal/appliancedata/gate.go',
+                     'sources/FogCast/internal/applianceupdate/service.go'):
+            self.assertEqual(by_path[path]['class'], 'full', path)
+        for path in ('sources/FogCast/appliance/store/store_test.go',
+                     'sources/FogCast/docs/ARCHITECTURE.md',
+                     'sources/FogCast/internal/appliancedata/gate_test.go',
+                     'sources/FogCast/internal/applianceupdate/service_test.go'):
+            self.assertEqual(by_path[path]['class'], 'none', path)
+        # #902's FAT splash refresh, rollback-confirm publish and staged-splash
+        # prune run in the image's mister-agent during an fes-update trial boot.
+        result = run('classify', '--paths-file', FIXTURES / 'pr902.files', '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        for path in ('sources/FogCast/appliance/store/store.go',
+                     'sources/FogCast/internal/appliancesplash/splash.go',
+                     'sources/FogCast/internal/applianceupdate/service.go'):
+            self.assertEqual(by_path[path]['class'], 'full', path)
+            self.assertEqual(by_path[path]['component'], 'appliance-trial', path)
+        for path in ('docs/appliance-releases.md',
+                     'docs/bootable-media.md',
+                     'docs/hps-ddr.md',
+                     'sources/FogCast/README.md',
+                     'sources/FogCast/appliance/store/store_test.go',
+                     'sources/FogCast/docs/ARCHITECTURE.md',
+                     'sources/FogCast/docs/appliance-updates.md',
+                     'sources/FogCast/docs/kit-resource-limits.md',
+                     'sources/FogCast/internal/appliancesplash/splash_test.go',
+                     'sources/FogCast/internal/applianceupdate/service_test.go'):
+            self.assertEqual(by_path[path]['class'], 'none', path)
+        # The mister-agent command, host diagnostics and the host status client
+        # stay overlay. The splash package linked into the image agent is what
+        # forces the full image. The shell test stays on the FogCast overlay rule.
+        for path, kind in (('sources/FogCast/cmd/mister-agent/appliance.go', 'mister-agent'),
+                           ('sources/FogCast/scripts/kit-diagnostics.sh', 'kit-go+host'),
+                           ('sources/FogCast/scripts/tests/kit-diagnostics_test.sh', 'kit-go+host'),
+                           ('sources/FogCast/targetclient/appliance_update.go', 'kit-go+host')):
+            self.assertEqual(by_path[path]['class'], 'overlay', path)
+            self.assertEqual(by_path[path]['component'], kind, path)
         for filename, components in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
@@ -88,6 +136,98 @@ class HilPlanTest(unittest.TestCase):
                     self.assertIn(component, data['components'])
                 if filename == 'pr565.files':
                     self.assertNotIn('core:ramtest-quartus', data['components'])
+
+    def test_trial_image_paths_are_full_and_neighbours_stay_overlay(self):
+        plan = hil_module()
+        full = {
+            'sources/FogCast/appliance/store/store.go': 'appliance-trial',
+            'sources/FogCast/internal/applianceupdate/service.go': 'appliance-trial',
+            'sources/FogCast/internal/applianceupdate/identity.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancesplash/splash.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancesplash/publish.go': 'appliance-trial',
+            'sources/FogCast/internal/appliancedata/gate.go': 'storage-gate',
+            'sources/FogCast/internal/appliancedata/bind.go': 'storage-gate',
+            # Linked into fes-boot / fes-kit-data / the image trial supervisor.
+            # release.go used to be pinned overlay; that missed the image binary.
+            'sources/FogCast/appliance/release.go': 'appliance-trial',
+            'sources/FogCast/appliance/blockprobe/probe.go': 'appliance-trial',
+            'sources/FogCast/appliance/softwarecontrol/contract.go': 'kit-software',
+            # Trial startup and trial boot already ship in the image.
+            'platform/cmd/fes-kit-software/main_linux.go': 'platform',
+            'platform/internal/kitsoftware/engine.go': 'platform',
+            'platform/cmd/fes-boot/main_linux.go': 'platform',
+            'platform/internal/applianceboot/boot.go': 'platform',
+            'sources/FogCast/cmd/fes-update/main.go': 'fogcast-unmapped-command',
+            'sources/FogCast/cmd/fes-kit-data/main.go': 'fogcast-unmapped-command',
+        }
+        for path, component in full.items():
+            with self.subTest(path=path):
+                row = plan.classify_path(path)
+                self.assertEqual(row['class'], 'full')
+                self.assertEqual(row['component'], component)
+        # These rules do not pull neighbouring FogCast code out of the overlay.
+        # Importers of the image-linked packages stay on their own rules.
+        for path in ('sources/FogCast/cmd/mister-agent/appliance.go',
+                     'sources/FogCast/internal/httpapi/update.go',
+                     'sources/FogCast/fogcast/service.go',
+                     'sources/FogCast/internal/example.go',
+                     'sources/FogCast/catalog/scanner.go',
+                     'sources/FogCast/ui/tenfoot/tape.go',
+                     'sources/FogCast/protocol/types.go',
+                     'sources/FogCast/targetclient/kit_software.go'):
+            with self.subTest(path=path):
+                self.assertEqual(plan.classify_path(path)['class'], 'overlay')
+        for path in ('sources/FogCast/appliance/release_test.go',
+                     'sources/FogCast/appliance/blockprobe/probe_test.go'):
+            with self.subTest(path=path):
+                self.assertEqual(plan.classify_path(path)['class'], 'none')
+
+    def test_ci_selection_scripts_are_none(self):
+        plan = hil_module()
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed'):
+            path = f'scripts/{name}.py'
+            with self.subTest(path=path):
+                row = plan.classify_path(path)
+                self.assertEqual(row['class'], 'none', path)
+
+    def test_image_binary_appliance_fixtures_are_full(self):
+        expected = {
+            'release.files': ('sources/FogCast/appliance/release.go', 'appliance-trial'),
+            'blockprobe.files': ('sources/FogCast/appliance/blockprobe/probe.go', 'appliance-trial'),
+            'softwarecontrol.files': ('sources/FogCast/appliance/softwarecontrol/contract.go', 'kit-software'),
+        }
+        for filename, (path, component) in expected.items():
+            with self.subTest(filename=filename):
+                result = run('classify', '--paths-file', FIXTURES / filename, '--json')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads(result.stdout)
+                self.assertEqual(data['decision'], 'FULL_IMAGE')
+                by_path = {row['path']: row for row in data['rows']}
+                self.assertEqual(by_path[path]['class'], 'full')
+                self.assertEqual(by_path[path]['component'], component)
+                for row in data['rows']:
+                    if row['path'].endswith('_test.go'):
+                        self.assertEqual(row['class'], 'none', row['path'])
+        # A mixed diff is a full image. Overlay importers of the same packages stay overlay.
+        mixed = self.work / 'mixed-image-appliance.files'
+        mixed.write_text('\n'.join((
+            'sources/FogCast/appliance/release.go',
+            'sources/FogCast/appliance/blockprobe/probe.go',
+            'sources/FogCast/catalog/scanner.go',
+            'sources/FogCast/internal/httpapi/update.go',
+            'sources/FogCast/protocol/types.go',
+        )) + '\n')
+        result = run('classify', '--paths-file', mixed, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['decision'], 'FULL_IMAGE')
+        by_path = {row['path']: row for row in data['rows']}
+        self.assertEqual(by_path['sources/FogCast/appliance/release.go']['class'], 'full')
+        self.assertEqual(by_path['sources/FogCast/appliance/blockprobe/probe.go']['class'], 'full')
+        for path in ('sources/FogCast/catalog/scanner.go',
+                     'sources/FogCast/internal/httpapi/update.go',
+                     'sources/FogCast/protocol/types.go'):
+            self.assertEqual(by_path[path]['class'], 'overlay', path)
 
     def test_producer_script_suffixes_map_to_canonical_cores(self):
         path = self.work / 'producers.files'
@@ -365,6 +505,21 @@ class HilPlanTest(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout)['decision'], 'OVERLAY kit-go+host')
         result = run('classify', '--paths-file', self.path_file('docs/guide.md'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'NO_DEPLOY_CHANGE')
+
+    def test_ci_tooling_changes_do_not_request_an_image_or_kit(self):
+        for path in ('scripts/affected.py', 'scripts/test_changed.py',
+                     'scripts/check_deadcode.py', 'scripts/host_tests.py',
+                     'scripts/host_affected.py',
+                     'scripts/test_policy.py', 'scripts/ci_gate.py',
+                     'scripts/hil_plan.py', 'scripts/consistency.py',
+                     'scripts/generate.py'):
+            with self.subTest(path=path):
+                result = run('classify', '--paths-file', self.path_file(path), '--json')
+                self.assertEqual(json.loads(result.stdout)['decision'], 'NO_DEPLOY_CHANGE')
+        # Mixed changes retain the real deployment requirement.
+        result = run('classify', '--paths-file',
+                     self.path_file('scripts/check_deadcode.py\nimage/buildroot/config'), '--json')
+        self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
 
 
     def test_two_tree_drift_forces_full_and_rename_out_of_image(self):

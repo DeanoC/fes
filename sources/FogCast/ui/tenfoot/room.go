@@ -215,6 +215,10 @@ func (a *App) openRoomLocked(id string) {
 		a.status = a.roomErr
 		return
 	}
+	if pack.Revision != "" {
+		a.openInstalledRoomLocked(pack, false)
+		return
+	}
 	a.openValidRoomLocked(pack)
 }
 
@@ -228,18 +232,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
-	w, h := a.roomContentSizeLocked(pack.ID)
-	inst, err := rooms.New(pack, rooms.Options{
-		Width:                  w,
-		Height:                 h,
-		Services:               roomServices{client: a.client},
-		Index:                  a.roomsIndex,
-		Theme:                  a.theme,
-		ReducedMotion:          a.reducedMotion,
-		SessionDisplayRequired: a.needsSessionDisplayLocked(),
-		StorePath:              a.roomStorePathLocked(pack.ID),
-		Local:                  a.localCores,
-	})
+	inst, err := a.newRoomInstanceLocked(pack)
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
@@ -273,6 +266,9 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	if id == "" {
 		return false
 	}
+	if !a.refreshInstalledRoomsLocked() {
+		return false
+	}
 	pack, reason, ok := a.resolveHomeRoomLocked(id)
 	if !ok {
 		a.noteHomeRoomFallbackLocked(id, reason)
@@ -282,7 +278,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	// selection, rather than loading a new instance.
 	restored := a.restoreLibraryOriginLocked()
 	origin := a.room
-	if a.reclaimHomeRoomLocked(id) {
+	if a.reclaimHomeRoomLocked(id, pack.Revision) {
 		// Reclaim resumes a room it switches to. When the restored origin
 		// is itself the home room, resume it here so on_resume runs.
 		if restored && a.room == origin {
@@ -291,6 +287,21 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 			a.applyRoomActionsLocked()
 		}
 		return true
+	}
+	if pack.Revision != "" {
+		if a.openInstalledRoomLocked(pack, true) {
+			// The room may have opened a nested child during load. Its trial
+			// committed, so preserve that navigation and stack as-is.
+			return true
+		}
+		// A failed update may have rolled selection back to a working home
+		// room that is still below the current nested room in the stack.
+		// Reclaim that restored revision instead of treating the child as a
+		// successful Home transition.
+		if fallback, _, ok := a.resolveHomeRoomLocked(id); ok {
+			return a.reclaimHomeRoomLocked(id, fallback.Revision)
+		}
+		return false
 	}
 	prevStatus := a.status
 	a.closeAllRoomsLocked()
@@ -324,15 +335,15 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 
 // reclaimHomeRoomLocked makes an already-open home room the only room.
 // The root-most live instance is kept so Home does not reload it.
-func (a *App) reclaimHomeRoomLocked(id string) bool {
+func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	var home *rooms.Instance
 	for _, parent := range a.roomStack {
-		if parent != nil && parent.ID() == id && parent.Err() == nil {
+		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil {
 			home = parent
 			break
 		}
 	}
-	if home == nil && a.room != nil && a.room.ID() == id && a.room.Err() == nil {
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil {
 		home = a.room
 	}
 	if home == nil {
@@ -712,32 +723,6 @@ func (a *App) roomParentIDsLocked() []string {
 	return ids
 }
 
-func (a *App) roomHintLocked() string {
-	kind := a.affinity.current.Kind
-	if a.room != nil && a.room.Err() != nil {
-		return backWord(kind) + " home"
-	}
-	if a.roomChoiceOpen {
-		return roomChoiceHint(kind)
-	}
-	if a.firmwarePickerOpen {
-		return firmwarePickerHint(kind)
-	}
-	if a.detailOpen {
-		dest := a.roomDestinationLocked()
-		if dest.Confirm() == rooms.ConfirmImportFirmware {
-			return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
-		}
-		return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
-	}
-	dest := a.roomDestinationLocked()
-	action := strings.TrimSpace(dest.Action)
-	if action == "" {
-		action = "confirm"
-	}
-	return selectWord(kind) + " " + strings.ToLower(action) + "  " + detailsWord(kind) + " details  " + backWord(kind) + " back  " + homeWord(kind) + " home  " + settingsWord(kind) + " settings"
-}
-
 func homeWord(kind InputKind) string {
 	switch kind {
 	case InputKeyboard, InputMouse:
@@ -758,4 +743,19 @@ func settingsWord(kind InputKind) string {
 
 func roomPickerHint(kind InputKind) string {
 	return selectWord(kind) + " open  " + detailsWord(kind) + " pin  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+}
+
+func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
+	w, h := a.roomContentSizeLocked(pack.ID)
+	return rooms.New(pack, rooms.Options{
+		Width:                  w,
+		Height:                 h,
+		Services:               roomServices{client: a.client},
+		Index:                  a.roomsIndex,
+		Theme:                  a.theme,
+		ReducedMotion:          a.reducedMotion,
+		SessionDisplayRequired: a.needsSessionDisplayLocked(),
+		StorePath:              a.roomStorePathLocked(pack.ID),
+		Local:                  a.localCores,
+	})
 }

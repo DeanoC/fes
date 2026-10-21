@@ -310,15 +310,6 @@ func (b *launchBoxCatalogBatch) ensure(id string) *launchBoxIndexedGame {
 	return current
 }
 
-func (b *launchBoxCatalogBatch) beginLaunchBoxBatch() (launchBoxRecordBatch, error) {
-	return b, nil
-}
-func (b *launchBoxCatalogBatch) completeLaunchBoxMember(string) error { return nil }
-func (b *launchBoxCatalogBatch) validateLaunchBoxBatch() error        { return nil }
-func (b *launchBoxCatalogBatch) flushLaunchBoxBatch() error           { return nil }
-func (b *launchBoxCatalogBatch) commitLaunchBoxBatch() error          { return nil }
-func (b *launchBoxCatalogBatch) abortLaunchBoxBatch() error           { return nil }
-
 type launchBoxCatalogRuntime struct {
 	catalog *LaunchBoxCatalog
 	client  *http.Client

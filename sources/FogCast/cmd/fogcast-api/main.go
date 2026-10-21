@@ -195,12 +195,6 @@ func defaultAudioSource(config remotemedia.AudioSourceConfig) (remotemedia.Audio
 	return remotemedia.OpenNativeAudioSource(config)
 }
 
-// newMediaSources is the default launch-time source seam. Composition tests
-// replace it through makeMediaSourcesFactory without opening either source.
-func newMediaSources(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
-	return makeMediaSourcesFactory(defaultCaptureSource, defaultAudioSource)(config)
-}
-
 func makeMediaSourcesFactory(newCapture captureSourceFactory, newAudio audioSourceFactory) mediaSourcesFactory {
 	return func(config fogcast.MediaConfig) (remotemedia.CaptureSource, remotemedia.AudioSource, error) {
 		if newCapture == nil {
@@ -389,7 +383,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
 	var targetInputsMu sync.Mutex
-	var targetInputs []*host.RemoteInput
+	targetInputs := make(map[string][]*host.RemoteInput)
 	targetInputFactory := func(targetName string) host.RemoteInputController {
 		targetStarter, createErr := makeTargetBridgeStarter(config, targetName, service, makeStarter, starter)
 		if createErr != nil {
@@ -400,16 +394,15 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			return nil
 		}
 		targetInputsMu.Lock()
-		targetInputs = append(targetInputs, controller)
+		targetInputs[targetName] = append(targetInputs[targetName], controller)
 		targetInputsMu.Unlock()
 		return controller
 	}
-	if provider, ok := service.(interface{ SetTargetReset(func()) }); ok {
-		provider.SetTargetReset(func() {
-			remoteInput.Invalidate()
+	if provider, ok := service.(interface{ SetTargetReset(func(string)) }); ok {
+		provider.SetTargetReset(func(targetName string) {
 			targetInputsMu.Lock()
 			defer targetInputsMu.Unlock()
-			for _, controller := range targetInputs {
+			for _, controller := range targetInputs[targetName] {
 				controller.Invalidate()
 			}
 		})
@@ -421,8 +414,10 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 			targetInputsMu.Lock()
 			defer targetInputsMu.Unlock()
 			var closeErr error
-			for _, controller := range targetInputs {
-				closeErr = errors.Join(closeErr, controller.Close())
+			for _, controllers := range targetInputs {
+				for _, controller := range controllers {
+					closeErr = errors.Join(closeErr, controller.Close())
+				}
 			}
 			return errors.Join(closeErr, remoteInput.Close())
 		}, cleanup)

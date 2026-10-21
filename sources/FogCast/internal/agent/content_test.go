@@ -29,29 +29,14 @@ func (l *callLog) add(event string) {
 	l.mu.Unlock()
 }
 
-func (l *callLog) snapshot() []string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return append([]string(nil), l.events...)
-}
-
 type contentRuntime struct {
-	mu                   sync.Mutex
-	health               protocol.Health
-	reconciled           protocol.Status
-	prepareErr           *protocol.APIError
-	launchObserved       string
-	launchErr            *protocol.APIError
-	launchBeforeDispatch bool
-	stopObserved         string
-	stopErr              *protocol.APIError
-	launchGate           chan struct{}
-	waitForContext       bool
-	prepareCalls         int
-	launchCalls          int
-	stopCalls            int
-	preparePath          string
-	log                  *callLog
+	mu           sync.Mutex
+	health       protocol.Health
+	reconciled   protocol.Status
+	stopObserved string
+	stopErr      *protocol.APIError
+	stopCalls    int
+	log          *callLog
 }
 
 func (f *contentRuntime) Health(string) protocol.Health {

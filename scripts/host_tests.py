@@ -14,9 +14,10 @@ import subprocess
 import sys
 
 try:
-    from scripts import test_policy
+    from scripts import test_policy, host_affected
 except ImportError:
     import test_policy
+    import host_affected
 
 
 def main(argv=None):
@@ -24,9 +25,18 @@ def main(argv=None):
     parser.add_argument('--full', action='store_true',
                         help='exhaustive race run for weekly/manual selection')
     parser.add_argument('--plan-only', action='store_true')
+    parser.add_argument('--paths-json', help='JSON array of changed repository paths')
     parser.add_argument('--shard', metavar='I/N',
                         help='run shard I of N (1-based) for parallel CI jobs')
     args = parser.parse_args(argv)
+    paths = None
+    if args.paths_json is not None:
+        try:
+            paths = json.loads(args.paths_json)
+        except ValueError:
+            parser.error('--paths-json must be a JSON array of strings')
+        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+            parser.error('--paths-json must be a JSON array of strings')
     shard = None
     if args.shard:
         try:
@@ -48,10 +58,20 @@ def main(argv=None):
             ['go', 'list', './...'], cwd=root / test_policy.FOGCAST_MODULE,
             text=True, env=environment).split()
     commands = test_policy.host_test_commands(full=args.full, packages=packages)
+    selection = {'scope': 'all', 'reason': 'full mode or no Go-only change set'}
+    if not args.full and paths is not None and host_affected.go_only(paths):
+        records = host_affected.listing(root, environment)
+        selected = host_affected.select(paths, records, root)
+        if selected is not None:
+            commands = host_affected.filter_commands(commands, selected, records, root)
+            selection = {'scope': 'affected', 'packages': sorted(selected),
+                         'reason': 'changed Go packages and reverse import/test consumers'}
+        else:
+            selection['reason'] = 'changed package absent from current Go graph'
     if shard is not None:
         commands = test_policy.shard_host_commands(commands, *shard)
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',
-              'commands': commands}
+              'commands': commands, 'selection': selection}
     if shard is not None:
         report['shard'] = args.shard
     if args.plan_only:

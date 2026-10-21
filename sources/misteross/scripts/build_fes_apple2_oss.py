@@ -58,11 +58,6 @@ APPLE2_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 APPLE2_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={APPLE2_GPU_ROUTER}; hip-architectures={APPLE2_GPU_ARCHITECTURES}"
 )
-APPLE2_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-}
 # First passing route wins; the order is part of the build identity. The
 # exploratory synthesis closed all three clocks on seeds 5, 4, 2 and 1.
 PLACER_SEEDS = tuple(PNR["seeds"])

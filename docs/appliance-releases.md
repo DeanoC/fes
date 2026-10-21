@@ -100,8 +100,10 @@ configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
 The extra space holds factory, known-good, previous and a staged candidate.
-When the release volume already has room for the new image plus a 1 MiB
-margin, staging writes and verifies it there and does not delete anything.
+When the release volume already has room for the new image, a 1 MiB margin,
+and the splash staged at confirmation (an idle core up to 8 MiB, its sidecar,
+and a temporary copy), staging writes and verifies it there and does not
+delete anything.
 When it does not, staging first verifies the upload on a different filesystem
 that is not tmpfs or ramfs and has room for the image plus that margin. On
 the kit that filesystem is the mounted FESDATA3 volume or a FogCast directory
@@ -109,8 +111,9 @@ bind-mounted from it. A truncated or corrupt upload removes only that
 temporary file and leaves every release in place. A spill file left behind
 when that write is interrupted is removed on the next stage, before free
 space is measured. After verification, staging
-deletes other release images oldest first, and only until the new image plus
-the margin fits, then copies the verified file into the release store. It
+deletes other release images oldest first, and only until the new image, the
+margin, and the splash reserve fit, then copies the verified file into the
+release store. It
 keeps the factory image, known-good, previous, pending and trial selections,
 the image named by `boot.json`, and every release image in the store that
 currently backs a loop device. Staging does not change the boot selection and
@@ -154,12 +157,13 @@ rollback refer to the image actually booted.
 
 Rollback selects the previous confirmed release as a new protected trial.
 Corrupt/torn selection state chooses factory and preserves the corrupt record
-for repair. Updates never replace bootstrap, kernel, U-Boot, FAT boot files,
-credentials or saves. Recovery assumes those stable files and the card/watchdog
-hardware still work. A change to U-Boot or FAT `/idle.rbf` therefore needs new
-media ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)). A card
-provisioned with the earlier `core=menu.rbf` U-Boot keeps FAT `/menu.rbf` and
-that boot layout until it is reprovisioned; updates do not delete it.
+for repair. Updates never replace bootstrap, kernel, U-Boot, credentials or
+saves, and they do not rewrite `u-boot.txt`. Confirmation copies the confirmed
+image's sealed idle core to FAT `/idle.rbf`. Recovery assumes the stable boot
+files and the card/watchdog hardware still work. A change to U-Boot still needs
+new media ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)). A
+card provisioned with the earlier `core=menu.rbf` U-Boot keeps FAT `/menu.rbf`
+and that boot layout until it is reprovisioned; updates do not delete it.
 
 See the selected FogCast `docs/appliance-updates.md` for the target routes and
 `docs/ARCHITECTURE.md` for the bootstrap/store/coordinator source entry points.

@@ -101,6 +101,19 @@ lock_get() {
 
 load_lock() {
     local tool
+    # `declare -A REPO` keeps the export attribute of an inherited REPO
+    # (bash 5.2).  prepare_shared_build_environment then unsets every
+    # exported name outside its allowlist, which deletes that array.
+    # `REPO["yosys"]=...` on a missing array is an arithmetic subscript,
+    # and `set -u` exits with "yosys: unbound variable" before a fresh
+    # slot can be published.  The same collision applies to COMMIT, ORDER
+    # and TOOLS.  Rebind them as private globals here: a `declare` inside
+    # this function would be local and would not survive the assignment.
+    if [[ "$(declare -p TOOLS 2>/dev/null || true)" != declare\ -a* ]]; then
+        TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
+    fi
+    unset REPO COMMIT ORDER
+    declare -gA REPO COMMIT ORDER
     for tool in "${TOOLS[@]}"; do
         REPO["$tool"]="$(lock_get "$tool" repo)"
         COMMIT["$tool"]="$(lock_get "$tool" commit)"

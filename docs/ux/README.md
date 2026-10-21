@@ -65,8 +65,8 @@ for current owners, ordering and evidence.
    selected-title contrast first. Keep existing browsing, readiness, Details,
    import and session behavior. The [Library target](references/README.md#proposed-library-target)
    explains the intended hierarchy; it is a design reference, not a new catalog.
-3. **Make arrival reliable.** Complete the existing tenfoot-default task (#728)
-   and network-startup recovery (#730). An older launcher configuration,
+3. **Make arrival reliable.** Tenfoot is now the only kit UI (#728); complete
+   network-startup recovery (#730). An older launcher configuration,
    unpaired kit, empty library and temporarily unreachable host each need a
    usable, truthful first screen. These are separate implementation scopes.
 4. **Bring real games to the foreground.** Project existing playable title
@@ -345,11 +345,9 @@ See the [remaining acceptance cases](acceptance.md) and
 [current host renders](references/README.md), rather than treating those results
 as a blanket pass for the combined build.
 
-- **Entry path.** An explicitly tenfoot-configured kit opens rooms Home on
-  `menu-display`, whose default room is `example.fes-cores`. The Lounge applies
-  to that room; the retiring grid launcher (#728) is untouched. A
-  `launcher.json` without `kit_ui = "tenfoot"` still boots the grid until #728
-  lands.
+- **Entry path.** Every kit opens rooms Home on `menu-display`, whose default
+  room is `example.fes-cores`. The Lounge applies to that room. The grid
+  launcher and its `kit_ui` opt-in were removed (#728).
 - **Ownership split.** The room manifest selects
   `destination_panel = "hero"`. FES draws the selected item's title,
   required inputs, readiness name, consequence, destination and actions from

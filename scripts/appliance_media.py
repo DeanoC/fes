@@ -122,7 +122,7 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     binary=scratch/'fes-boot'
     binary_sha,platform_build=build_selected_binary(root,fogcast,binary,env)
     expected_bootstrap=appliance.assemble_bootstrap(scratch/'expected-bootstrap',binary,expected_release.manifest,kernel,
-        runner=runner,binary_source_revision=provenance.fogcast_revision,assembly_revision=assembly_revision,platform_build=platform_build)
+        runner=runner,binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build)
     compare_bundle(bootstrap_directory,expected_bootstrap.directory,('linux.img','evidence.json'))
     # Extract and compare the factory's idle bytes to the selected native lock.
     idle=scratch/'idle.rbf'

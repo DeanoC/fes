@@ -32,12 +32,14 @@ These are the choices already in the tree at `6d9939c2`.
    says so. A failed HIP route does not fall back to Quartus. Quartus never
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
-   `config/core-recipes.toml`. Their current bytes match the repository-level
-   `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
-   nextpnr `9128800f`, deliberately before nextpnr #172. HIP architectures
-   are `gfx1100;gfx1201`. The identical lock contents share one cache slot;
-   future pin changes are scoped to the affected core. The repository-level
-   lock remains for unregistered consumers.
+   `config/core-recipes.toml`. Every lock except Pong's and Coleco's matches the
+   repository-level `sources/misteross/toolchain.lock`: Yosys `3a5accbd`,
+   Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately before nextpnr #172.
+   Pong's lock keeps that Yosys and Mistral and pins nextpnr `552ba246`
+   (fes#887). Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr
+   commits. Each of those two has its own cache slot. HIP architectures are
+   `gfx1100;gfx1201`. Pin changes stay scoped to the affected core. The
+   repository-level lock remains for unregistered consumers.
 3. Registered M10K is synchronous. No core under `sources/misteross/cores`
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
@@ -125,31 +127,38 @@ older kit note does not accept the new bytes.
 
 ### 1. Per-core lock files
 
-Issue #843 adds one lock file for each registered core. These are currently
-byte-identical copies, not separate toolchain pins. Keep the files at the
-registered `cores/fes-<core>/toolchain.lock` paths and route future pin changes
-through that core's recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
+Issue #843 adds one lock file for each registered core. Since #882 each lock
+can pin its own nextpnr, provided `scripts/pnr_recipe.py` classifies that
+nextpnr's options and the core's recipe lists them. Coleco's Yosys pin is
+`5391eeb1`; the other registered locks are still byte-identical to each
+other and to the repository-level lock. Keep the files at the registered
+`cores/fes-<core>/toolchain.lock` paths and route future pin changes through
+that core's lock and recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
 new external ROM uses format 3. A new shell picks one of the two display
 contracts.
 
 ### 2. Current pins
 
-The registered lock files start at the same pin. The following historical
-seal records remain tied to the artifacts they name; current recipe lock
-paths are shown in `config/core-recipes.toml`.
+Coleco's registered lock pins Yosys `5391eeb1` and has its own toolchain
+cache slot. Every other registered lock matches the repository-level pin:
+Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`. The following
+historical seal records remain tied to the artifacts they name; current
+recipe lock paths are shown in `config/core-recipes.toml`.
 
 | Order | Core | Current lock / recorded pin | Why this order |
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `cores/fes-c64/toolchain.lock` (`9128800f`) | The recorded CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`) predates the per-core lock layout. Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the same commits (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `cores/fes-atari-st/toolchain.lock` | Factory. The October kit notes do not accept a shared-pin seal. |
-| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
+| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` | Same multi-region cart support. Both files start at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 The recipe `lock_path` selects each per-core file, and its producer
-authenticates that file. The current files resolve to the same tool commits
-and cached slot.
+authenticates that file. The current files resolve to the same nextpnr and
+Mistral commits. Coleco's Yosys commit is `5391eeb1`, so that core has its
+own cached slot. Every other registered lock still shares the
+repository-level slot.
 
 The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
 The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That

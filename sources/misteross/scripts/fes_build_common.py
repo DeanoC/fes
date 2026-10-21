@@ -7,19 +7,16 @@ import json
 import mmap
 import os
 import re
-import select
 import shutil
-import signal
-import socket
 import subprocess
 import sys
 import tempfile
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from scripts.source_repository import canonical_repository
 from typing import Mapping, Sequence
 from scripts.lockfile import LockfileError, load_lock
+from scripts import nextpnr_lease
 
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
@@ -40,11 +37,8 @@ FES_CUDA_TOOLCHAIN_CONFIGURATION = (
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
-EXPECTED_TOOL_COMMITS = {
-    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
-    "yosys": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
-}
+# Tools whose commits each producer authenticates against its selected lock.
+PINNED_TOOLS = ("mistral", "nextpnr", "yosys")
 
 GPU_VISIBILITY_ENV = (
     "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
@@ -94,6 +88,50 @@ def nextpnr_gpu_command(
             result[index] = f"--gpu-device={device}"
         index += 1
     return tuple(result) if isinstance(command, tuple) else result
+
+
+# Printed by scripts/nextpnr_lease.py. That file cannot import this module:
+# an audited route reads only the dispatcher from the source tree.
+_GPU_GRANT_LINE = re.compile(
+    r"^FES-GPU-GRANT ([A-Za-z0-9._+-]+(?:,[A-Za-z0-9._+-]+)*)\s*$",
+    re.MULTILINE,
+)
+
+
+def granted_gpu_ids(route_text: str) -> list[str]:
+    """Physical GPU ids from FES-GPU-GRANT lines, in first-seen order.
+
+    Repeated grants of one id collapse. The requested --gpu-device index is
+    not a substitute when the log has no grant.
+    """
+
+    found: list[str] = []
+    for match in _GPU_GRANT_LINE.finditer(route_text):
+        for part in match.group(1).split(","):
+            if part in (".", "..") or part in found:
+                continue
+            found.append(part)
+    return found
+
+
+def gpu_route_evidence(route_text: str, requested: int | None = None) -> dict[str, object]:
+    """Route evidence for the GPU that actually routed.
+
+    This stays out of the sealed build record. BUILD_ID is a synthesis
+    parameter, so the grant cannot enter it without making RBF bytes depend
+    on which GPU was free. ``gpu_device_requested`` is the CLI index, not
+    the device that routed.
+    """
+
+    if requested is not None and (type(requested) is not int or requested < 0):
+        raise BuildError("requested GPU device must be a nonnegative integer")
+    evidence: dict[str, object] = {
+        "gpu_selection": "lease",
+        "gpu_device_granted": granted_gpu_ids(route_text),
+    }
+    if requested is not None:
+        evidence["gpu_device_requested"] = requested
+    return evidence
 
 
 def gpu_run_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -193,26 +231,6 @@ class AuthenticatedTool:
     identity: str
 
 
-_GPU_LEASE_CONFIG_ENV = (
-    "GPU_LEASE_DIR",
-    "GPU_LEASE_IDS",
-    "GPU_LEASE_VENDOR",
-    "GPU_LEASE_MAX_PER_OWNER",
-    "FES_GPU_LEASE_OWNER",
-)
-_GPU_LEASE_DISPATCH = (
-    "import os,sys; sys.path.insert(0, os.environ.pop('FES_MISTEROSS_PYTHONPATH')); "
-    "from scripts.fes_build_common import _exec_leased_nextpnr; "
-    "raise SystemExit(_exec_leased_nextpnr(sys.argv[2:], "
-    "None if sys.argv[1] == '-' else float(sys.argv[1])))"
-)
-_GPU_PHASE_LEASE_CONFIG_ENV = (*_GPU_LEASE_CONFIG_ENV, "GPU_LEASE_MAX_JOBS_PER_OWNER")
-_GPU_PHASE_LEASE_DISPATCH = (
-    "import os,sys; sys.path.insert(0, os.environ.pop('FES_MISTEROSS_PYTHONPATH')); "
-    "from scripts.fes_build_common import _exec_phase_leased_nextpnr; "
-    "raise SystemExit(_exec_phase_leased_nextpnr(sys.argv[2:], "
-    "None if sys.argv[1] == '-' else float(sys.argv[1])))"
-)
 # A nextpnr with the GPU_LEASE_FD client from DeanoC/nextpnr#224 reads that
 # variable and sends the protocol's ACQUIRE request, so gpu-run can grant it a
 # GPU per GPU phase. gpu-run still fails a GPU route that never asks.
@@ -245,86 +263,6 @@ def _resolved_tool(executable: str, cwd: Path, env: Mapping[str, str]) -> Path:
     return path if path.is_absolute() else Path(cwd) / path
 
 
-def _requested_gpu_id(command: Sequence[str]) -> str | None:
-    requested = None
-    args = list(command[1:])
-    index = 0
-    while index < len(args):
-        argument = args[index]
-        if argument == "--gpu-device":
-            if index + 1 >= len(args):
-                raise BuildError("nextpnr --gpu-device is missing its value")
-            value = args[index + 1]
-            index += 2
-        elif argument.startswith("--gpu-device="):
-            value = argument.split("=", 1)[1]
-            index += 1
-        else:
-            index += 1
-            continue
-        if not value.isdigit():
-            raise BuildError("nextpnr --gpu-device must name a numeric GPU id")
-        if requested is not None:
-            raise BuildError("nextpnr invocation selects more than one GPU")
-        requested = value
-    return requested
-
-
-def _exec_leased_nextpnr(command: Sequence[str], timeout: float | None = None) -> int:
-    """Run nextpnr with the logical device and mask granted by gpu-run."""
-    command = list(command)
-    if not command or Path(command[0]).name != "nextpnr-mistral":
-        print("FES GPU lease runner requires nextpnr-mistral", file=sys.stderr)
-        return 2
-    device = os.environ.get("GPU_RUN_DEVICE", "")
-    if not device.isdigit():
-        print("FES GPU lease did not provide a logical GPU_RUN_DEVICE", file=sys.stderr)
-        return 2
-    if not os.environ.get("FES_GPU_IDS") or os.environ.get("NEXTPNR_REQUIRE_GPU") != "1":
-        print("FES GPU lease did not provide a strict leased-device environment", file=sys.stderr)
-        return 2
-    if not any(os.environ.get(name) for name in ("ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES")):
-        print("FES GPU lease did not provide a GPU visibility mask", file=sys.stderr)
-        return 2
-
-    # Producer recipes describe route options before a lease is acquired. Drop
-    # any legacy/default index here and use the logical index supplied by the
-    # one-device lease instead.
-    routed = [command[0]]
-    index = 1
-    while index < len(command):
-        argument = command[index]
-        if argument == "--gpu-device":
-            if index + 1 >= len(command):
-                print("nextpnr --gpu-device is missing its value", file=sys.stderr)
-                return 2
-            index += 2
-            continue
-        if argument.startswith("--gpu-device="):
-            index += 1
-            continue
-        if argument == "--gpu-devices" or argument.startswith("--gpu-devices="):
-            print("one nextpnr invocation may use only its single leased GPU", file=sys.stderr)
-            return 2
-        routed.append(argument)
-        index += 1
-    routed.extend(("--gpu-device", device))
-
-    tool_env = os.environ.copy()
-    for name in _GPU_LEASE_CONFIG_ENV:
-        tool_env.pop(name, None)
-    tool_env.pop("FES_MISTEROSS_PYTHONPATH", None)
-    try:
-        result = subprocess.run(routed, env=tool_env, timeout=timeout, check=False)
-    except subprocess.TimeoutExpired:
-        print(f"nextpnr route timed out after {timeout:g} seconds (GPU lease already granted)", file=sys.stderr)
-        return 124
-    except OSError as exc:
-        print(f"cannot execute leased nextpnr: {exc}", file=sys.stderr)
-        return 127
-    return result.returncode if result.returncode >= 0 else 128 - result.returncode
-
-
 def _nextpnr_supports_phase_lease(path: Path) -> bool:
     """Return whether this nextpnr binary asks gpu-run for each GPU phase."""
     try:
@@ -343,155 +281,6 @@ def _binary_contains(path: str, _device: int, _inode: int, _size: int, _mtime_ns
             return all(view.find(marker) >= 0 for marker in markers)
     except (OSError, ValueError):
         return False
-
-
-class _LeaseRelay:
-    """Relay GPU_LEASE_FD lines between nextpnr and gpu-run, timing the waits.
-
-    The protocol has one request in flight at a time. Time spent waiting for
-    gpu-run's reply is lease wait, which the route budget excludes.
-    """
-
-    def __init__(self, broker: socket.socket, client: socket.socket):
-        self.broker = broker
-        self.client = client
-        self.in_flight = 0
-        self.wait_started: float | None = None
-        self.waited = 0.0
-
-    def own_seconds(self, started: float) -> float:
-        now = time.monotonic()
-        waiting = 0.0 if self.wait_started is None else now - self.wait_started
-        return now - started - self.waited - waiting
-
-    def _settle(self) -> None:
-        if self.in_flight == 0 and self.wait_started is not None:
-            self.waited += time.monotonic() - self.wait_started
-            self.wait_started = None
-
-    def close(self) -> None:
-        # Closing gpu-run's descriptor releases any grant the route still holds.
-        for side in (self.client, self.broker):
-            if side is not None:
-                side.close()
-        self.client = self.broker = None
-        self.in_flight = 0
-        self._settle()
-
-    def pump(self, timeout: float) -> None:
-        sides = [side for side in (self.client, self.broker) if side is not None]
-        if not sides:
-            time.sleep(timeout)
-            return
-        try:
-            readable, _, _ = select.select(sides, [], [], timeout)
-        except InterruptedError:
-            return
-        for side in readable:
-            if side is not self.client and side is not self.broker:
-                continue
-            try:
-                data = side.recv(4096)
-            except InterruptedError:
-                continue
-            except OSError:
-                data = b""
-            if not data:
-                # Either end closing ends the relay: nextpnr exited or gave up
-                # its descriptor, or gpu-run is gone and nextpnr must see EOF.
-                self.close()
-                return
-            target = self.broker if side is self.client else self.client
-            try:
-                target.sendall(data)
-            except OSError:
-                self.close()
-                return
-            lines = data.count(b"\n")
-            if side is self.client:
-                if lines and self.in_flight == 0:
-                    self.wait_started = time.monotonic()
-                self.in_flight += lines
-            else:
-                self.in_flight = max(0, self.in_flight - lines)
-                self._settle()
-
-
-def _exec_phase_leased_nextpnr(command: Sequence[str], timeout: float | None = None) -> int:
-    """Run nextpnr under gpu-run --phase-lease, timing only its own work.
-
-    nextpnr starts without a GPU and asks gpu-run for one on GPU_LEASE_FD for
-    each GPU phase. This relays those requests and pauses the route budget
-    while one waits, so a queued route passes or fails exactly as an
-    unqueued one does. Without a grant there is no mask: nextpnr selects the
-    granted physical GPU itself, so --gpu-device stays the physical id.
-    """
-    command = list(command)
-    if not command or Path(command[0]).name != "nextpnr-mistral":
-        print("FES GPU lease runner requires nextpnr-mistral", file=sys.stderr)
-        return 2
-    raw_fd = os.environ.get("GPU_LEASE_FD", "")
-    if not raw_fd.isdigit() or os.environ.get("NEXTPNR_REQUIRE_GPU") != "1":
-        print("FES GPU phase lease did not provide GPU_LEASE_FD and strict GPU routing", file=sys.stderr)
-        return 2
-    if any(argument == "--gpu-devices" or argument.startswith("--gpu-devices=")
-           for argument in command[1:]):
-        print("one nextpnr invocation may use only its single leased GPU", file=sys.stderr)
-        return 2
-    try:
-        broker = socket.socket(fileno=int(raw_fd))
-    except OSError as exc:
-        print(f"FES GPU phase lease descriptor is unusable: {exc}", file=sys.stderr)
-        return 2
-    client, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-    relay = _LeaseRelay(broker, client)
-    tool_env = os.environ.copy()
-    for name in _GPU_PHASE_LEASE_CONFIG_ENV:
-        tool_env.pop(name, None)
-    tool_env.pop("FES_MISTEROSS_PYTHONPATH", None)
-    tool_env["GPU_LEASE_FD"] = str(theirs.fileno())
-    try:
-        # Its own process group, so expiry stops whatever nextpnr started too:
-        # with no outer deadline, audited_run no longer cancels the route group.
-        process = subprocess.Popen(command, env=tool_env, pass_fds=(theirs.fileno(),),
-                                   start_new_session=True)
-    except OSError as exc:
-        relay.close()
-        print(f"cannot execute leased nextpnr: {exc}", file=sys.stderr)
-        return 127
-    finally:
-        theirs.close()
-    started = time.monotonic()
-    try:
-        while True:
-            if timeout is not None and relay.own_seconds(started) >= timeout:
-                _stop_route_group(process)
-                print(f"nextpnr route timed out after {timeout:g} seconds of its own run time "
-                      f"({relay.waited:.1f} s of GPU lease wait excluded)", file=sys.stderr)
-                return 124
-            relay.pump(0.05)
-            returncode = process.poll()
-            if returncode is not None:
-                break
-    except BaseException:
-        _stop_route_group(process)
-        raise
-    finally:
-        relay.close()
-    return returncode if returncode >= 0 else 128 - returncode
-
-
-def _stop_route_group(process: subprocess.Popen) -> None:
-    """Kill the route's own process group, then reap nextpnr.
-
-    Until nextpnr is reaped its pid, which is the group id, cannot be reused.
-    """
-    if process.returncode is None:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    process.wait()
 
 
 def _run_command(
@@ -519,24 +308,19 @@ def _run_command(
         if run_env is None:
             run_env = os.environ.copy()
         phase_lease = _nextpnr_supports_phase_lease(_resolved_tool(command[0], cwd, run_env))
-        run_env["FES_MISTEROSS_PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
-        for name in (_GPU_PHASE_LEASE_CONFIG_ENV if phase_lease else _GPU_LEASE_CONFIG_ENV):
+        for name in (nextpnr_lease.GPU_PHASE_LEASE_CONFIG_ENV if phase_lease
+                     else nextpnr_lease.GPU_LEASE_CONFIG_ENV):
             if name not in run_env and name in os.environ:
                 run_env[name] = os.environ[name]
-        requested_gpu = _requested_gpu_id(command)
-        if requested_gpu is not None:
-            configured_ids = run_env.get("GPU_LEASE_IDS", "").strip()
-            if configured_ids:
-                allowed_ids = {value.strip() for value in configured_ids.split(",") if value.strip()}
-                if requested_gpu not in allowed_ids:
-                    raise BuildError(
-                        f"requested GPU {requested_gpu} is outside GPU_LEASE_IDS"
-                    )
-            # gpu-run masks one physical device and nextpnr then selects its
-            # logical index 0. Restrict the lease inventory to the producer's
-            # requested physical id so the existing --gpu-device contract is
-            # preserved while the lease ends after this route.
-            run_env["GPU_LEASE_IDS"] = requested_gpu
+        # GPU_LEASE_IDS is a box inventory override. A --gpu-device argument
+        # must not narrow it: gpu-run grants any free device, then the
+        # whole-route dispatcher passes GPU_RUN_DEVICE and a phase-lease
+        # nextpnr uses the physical id from the grant. The sealed record
+        # says gpu_device "lease"; the dispatcher prints FES-GPU-GRANT with
+        # the physical id that routed. The request is not that id.
+        run_env.pop("HIP_VISIBLE_DEVICES", None)
+        run_env.pop("ROCR_VISIBLE_DEVICES", None)
+        run_env.pop("CUDA_VISIBLE_DEVICES", None)
         wrapper = _gpu_run_path()
         if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
             raise BuildError(f"gpu-run is unavailable: {wrapper}")
@@ -546,8 +330,11 @@ def _run_command(
         invocation = [str(wrapper), *(("--phase-lease",) if phase_lease else ()), "--gpus", "1"]
         if owner:
             invocation.extend(("--owner", owner))
-        dispatch = _GPU_PHASE_LEASE_DISPATCH if phase_lease else _GPU_LEASE_DISPATCH
-        invocation.extend(("--label", label, "--", sys.executable, "-c", dispatch,
+        # The isolated dispatcher reads only its own file from the source tree,
+        # so an audited route stays inside a narrowed source closure (fes#881).
+        invocation.extend(("--label", label, "--", sys.executable, "-I",
+                           str(Path(nextpnr_lease.__file__).resolve()),
+                           "phase" if phase_lease else "lease",
                            "-" if timeout is None else str(float(timeout)), *command))
         command = tuple(invocation)
         if phase_lease:
@@ -805,6 +592,20 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
 
+def _validate_registered_pnr_options(
+    root: Path, lock_path: Path, tools: Mapping[str, AuthenticatedTool]
+) -> None:
+    """Bind a registered producer recipe to its authenticated nextpnr CLI."""
+    from scripts import pnr_recipe
+
+    try:
+        core_id = pnr_recipe.core_for_lock(root, lock_path)
+        if core_id is not None:
+            pnr_recipe.validate_nextpnr_tool(core_id, tools["nextpnr-mistral"].path)
+    except (KeyError, pnr_recipe.RecipeError) as exc:
+        raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -830,7 +631,7 @@ def _authenticate_tools(
     if expected_commits is None:
         # The selected lock is the pin authority. Per-core locks may diverge
         # independently; hard-coded global SHAs would silently defeat that.
-        expected_commits = {name: pins[name].commit for name in EXPECTED_TOOL_COMMITS}
+        expected_commits = {name: pins[name].commit for name in PINNED_TOOLS}
     gpu_router = FES_GPU_ROUTER if gpu_router is None else gpu_router
     hip_architectures = FES_GPU_ARCHITECTURES if hip_architectures is None else hip_architectures
     expected_configuration = (
@@ -844,7 +645,7 @@ def _authenticate_tools(
         ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
     )
     if cache_root is not None:
-        return _authenticate_shared_tools(
+        authenticated = _authenticate_shared_tools(
             root,
             lock_path=lock_path,
             expected_commits=expected_commits,
@@ -853,6 +654,8 @@ def _authenticate_tools(
             hip_architectures=hip_architectures,
             cache_root=Path(cache_root),
         )
+        _validate_registered_pnr_options(root, lock_path, authenticated)
+        return authenticated
     install = toolchain_root / "install/bin"
     build_root = toolchain_root / "build"
     authenticated: dict[str, AuthenticatedTool] = {}
@@ -894,6 +697,7 @@ def _authenticate_tools(
             path=path,
             identity=identity,
         )
+    _validate_registered_pnr_options(root, lock_path, authenticated)
     return authenticated
 
 

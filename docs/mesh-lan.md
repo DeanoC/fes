@@ -160,7 +160,7 @@ elsewhere. This draft does not redesign them
 
 [`idle-menu-rooms.md`](idle-menu-rooms.md) already locks kit-as-host: a kit
 may run the same FogCast host and tenfoot as a deployment mode. That is
-not a second catalog. `fogcast-kit`'s on-kit grid retires toward rooms.
+not a second catalog. The on-kit grid launcher has been removed (#728); tenfoot is the kit UI.
 This mesh draft inherits that lock.
 
 Nothing in the current product joins two hosts' libraries, places execute
@@ -1087,7 +1087,7 @@ intent, not a claim that mesh code exists.
 | **Soft-stop (B)** | Tenfoot now-playing stop posts `retain_lease: true` and keeps the lease. Empty-body session stop (CLI, browser, kit grid) still releases. Replacement Stop and development `stop` retain. | Same room. Defined idle. Observing shells clear "playing." Soft-stop retains the lease through the room stay. A separate explicit user Stop still releases after cleanup. |
 | **Renewer disappears** | The kit lease expires in about 90 seconds if renewal stops. The holder loses mutations. The kit is not taken early. | The sofa leaves the half-active session. Other shells see the executor free only after expiry and cleanup. |
 | **Another computer on the LAN** | Its own host and catalog, if someone started one. No shared rooms view. | The same rooms and games, subject to leases and version skew. |
-| **Kit alone** | `fogcast-kit` grid today. Locked direction: the same host binary (kit-as-host), not a second library. | Shell is just a capability on that node. Still one catalog: rooms. |
+| **Kit alone** | Tenfoot on the kit with its local catalog today. Locked direction: the same host binary (kit-as-host), not a second library. | Shell is just a capability on that node. Still one catalog: rooms. |
 | **Second shell, kit leased** | A client without the lease cannot take the kit to Stop someone else. | Phase 1: Unavailable, copy "in use." No silent steal. The lease frees only after expiry and cleanup. |
 | **Stop restore** | Stop returns the sofa to the same room, location, and parent stack. | That restore stays on the Shell that started play, even if the coordinator later moves. |
 

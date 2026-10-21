@@ -203,6 +203,41 @@ func (c *Client) StopExpectedStamped(ctx context.Context, expected hostclient.Se
 	return c.Client.StopRetainLeaseExpected(ctx, expected, hostStamp(stamp))
 }
 
+// StopReleaseIdentityStamped is Select+Start for a play with no package
+// generation. The session id and launch flight are the binding. An empty
+// body is not used: it would stop whichever play is foreground at admission.
+func (c *Client) StopReleaseIdentityStamped(ctx context.Context, expected hostclient.SessionResult, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	return c.Client.StopIdentityStamped(ctx, expected, hostStamp(stamp))
+}
+
+// StopReleaseStamped is the explicit user Stop with an empty body. Select+Start
+// uses it only from StopReleaseExpectedStamped when a package id was expected
+// and the session id is empty. A package-free play goes through
+// StopReleaseIdentityStamped instead, so a delayed chord cannot release a
+// replacement.
+func (c *Client) StopReleaseStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	return c.Client.StopStamped(ctx, hostStamp(stamp))
+}
+
+// StopReleaseExpectedStamped is that same exit bound to the captured play.
+// retain_lease false releases after idle cleanup. A delayed chord cannot
+// stop a replacement play. Rooms B/Back stays on StopExpectedStamped.
+func (c *Client) StopReleaseExpectedStamped(ctx context.Context, expected hostclient.SessionResult, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	if expected.ID == "" {
+		return c.StopReleaseStamped(ctx, stamp)
+	}
+	return c.Client.StopExpectedStamped(ctx, expected, hostStamp(stamp))
+}
+
 // ReleaseIdleLease is shell exit after that Soft-stop when the service is
 // idle. An empty body asks idle cleanup to release the retained kit lease.
 // B/Back stays on StopStamped.

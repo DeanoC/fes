@@ -7,11 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/gfx"
-	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
-	"golang.org/x/sys/unix"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +18,12 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/controller"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"golang.org/x/sys/unix"
 )
 
 func TestNativeEvdevBothABIs(t *testing.T) {
