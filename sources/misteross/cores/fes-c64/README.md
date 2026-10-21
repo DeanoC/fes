@@ -99,6 +99,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
+  Joystick switches pull CIA1 port pins low whatever their direction bits
+  select, as the wired-AND port does: port 2 reads through `$DC00` with the
+  KERNAL's DDRA `$FF`. Diagnostic stage 7 reads port 2 that way.
   VIC banking follows the effective PA0/PA1 pin levels, including pull-ups
   when their direction bits select inputs; it does not follow the output
   latch alone. The PASS-frame diagnostic checks this input-pin bank selection.
