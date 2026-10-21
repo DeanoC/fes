@@ -328,6 +328,9 @@ func readDirectoryManifest(ctx context.Context, dir string) (Release, error) {
 	if e != nil {
 		return out, e
 	}
+	if e = ctx.Err(); e != nil {
+		return out, e
+	}
 	return Release{id, m}, nil
 }
 

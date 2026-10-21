@@ -741,3 +741,39 @@ func TestInventoryAuthenticatesManifestWithoutReadingPayload(t *testing.T) {
 		t.Fatal("inventory accepted invalid manifest")
 	}
 }
+
+type cancelAfterContextChecks struct {
+	context.Context
+	cancel      context.CancelFunc
+	checks      int
+	cancelAfter int
+}
+
+func (c *cancelAfterContextChecks) Err() error {
+	c.checks++
+	if c.checks > c.cancelAfter {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestListCanceledDuringLastManifestRead(t *testing.T) {
+	m, archive := fixture(t)
+	store, err := New(privateRoot(t), compatibility(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Install(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// List checks the context twice before reading manifests; the manifest
+	// reader checks once before opening the last manifest. Expire it on the
+	// next check, after that manifest has been read and authenticated.
+	inventoryCtx := &cancelAfterContextChecks{Context: ctx, cancel: cancel, cancelAfter: 3}
+	if _, err := store.List(inventoryCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("List error = %v, want context.Canceled", err)
+	}
+}
