@@ -18,7 +18,7 @@
  * on the output pads if external memory is required.
  */
 
-module cpu6502( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY );
+module cpu6502 #(parameter ENABLE_SO = 0, parameter ENABLE_SO_CLV_INHIBIT = 0)( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY, SO );
 
 input clk;              // CPU clock
 input reset;            // reset signal
@@ -28,6 +28,7 @@ output [7:0] DO;        // data out, write bus
 output WE;              // write enable
 input IRQ;              // interrupt request
 input NMI;              // non-maskable interrupt request
+input SO;               // optional active-low set-overflow pin
 input RDY;              // Ready signal. Pauses CPU when RDY=0
 
 /*
@@ -107,6 +108,7 @@ reg [5:0] state;
 
 reg PC_inc;             // Increment PC
 reg [15:0] PC_temp;     // intermediate value of PC
+reg [7:0] jsr_low;      // target low byte retained across stack bus cycles
 
 reg [1:0] src_reg;      // source register index
 reg [1:0] dst_reg;      // destination register index
@@ -116,7 +118,9 @@ reg load_reg;           // loading a register (A, X, Y, S) in this instruction
 reg inc;                // increment
 reg write_back;         // set if memory is read/modified/written
 reg load_only;          // LDA/LDX/LDY instruction
-reg store;              // doing store (STA/STX/STY)
+reg store;              // doing store (STA/STX/STY/SAX)
+reg axs;                // stable NMOS (A & X) - immediate into X
+reg sax;                // stable undocumented NMOS A & X store
 reg adc_sbc;            // doing ADC/SBC
 reg compare;            // doing CMP/CPY/CPX
 reg shift;              // doing shift/rotate instruction
@@ -196,15 +200,15 @@ parameter
     JMP1   = 6'd23, // JMP     - fetch PCH
     JMPI0  = 6'd24, // JMP IND - fetch LSB and send to ALU for delay (+0)
     JMPI1  = 6'd25, // JMP IND - fetch MSB, proceed with JMP0 state
-    JSR0   = 6'd26, // JSR     - push PCH, save LSB, send S to ALU (-1)
-    JSR1   = 6'd27, // JSR     - push PCL, send S to ALU (-1)
-    JSR2   = 6'd28, // JSR     - write S
-    JSR3   = 6'd29, // JSR     - fetch MSB
+    JSR0   = 6'd26, // JSR     - dummy stack read, save LSB, calculate S-1
+    JSR1   = 6'd27, // JSR     - push PCH, calculate S-1
+    JSR2   = 6'd28, // JSR     - push PCL, calculate S-2
+    JSR3   = 6'd29, // JSR     - fetch MSB, write S
     PULL0  = 6'd30, // PLP/PLA - save next op in IRHOLD, send S to ALU (+1)
     PULL1  = 6'd31, // PLP/PLA - fetch data from stack, write S
     PULL2  = 6'd32, // PLP/PLA - prefetch op, but don't increment PC
-    PUSH0  = 6'd33, // PHP/PHA - send A to ALU (+0)
-    PUSH1  = 6'd34, // PHP/PHA - write A/P, send S to ALU (-1)
+    PUSH0  = 6'd33, // PHP/PHA - write A/P, calculate S-1
+    PUSH1  = 6'd34, // PHP/PHA - fetch next opcode, retain S-1
     READ   = 6'd35, // Read memory for read/modify/write (INC, DEC, shift)
     REG    = 6'd36, // Read register for reg-reg transfers
     RTI0   = 6'd37, // RTI     - send S to ALU (+1)
@@ -219,7 +223,8 @@ parameter
     WRITE  = 6'd46, // Write memory for read/modify/write
     ZP0    = 6'd47, // Z-page  - fetch ZP address
     ZPX0   = 6'd48, // ZP, X   - fetch ZP, and send to ALU (+X)
-    ZPX1   = 6'd49; // ZP, X   - load from memory
+    ZPX1   = 6'd49, // ZP, X   - load from memory
+    JSR4   = 6'd50; // JSR     - fetch target opcode after consuming MSB
 
 `ifdef SIM
 
@@ -260,6 +265,7 @@ always @*
             JSR1:   statename = "JSR1";
             JSR2:   statename = "JSR2";
             JSR3:   statename = "JSR3";
+            JSR4:   statename = "JSR4";
             RTI0:   statename = "RTI0";
             RTI1:   statename = "RTI1";
             RTI2:   statename = "RTI2";
@@ -289,13 +295,43 @@ always @*
 
 
 
+// The synchronous-memory pipeline decodes a prefetched opcode. Poll IRQ
+// two enabled cycles before that decision, using I at the polling point.
+// A taken branch without a page crossing polls one cycle earlier.
+reg irq_sampled = 0, irq_input = 0, irq_older = 0;
+reg branch_no_cross = 0, hardware_interrupt = 0;
+wire irq_take = branch_no_cross ? irq_older : irq_sampled;
+// NMI keeps an edge latch independent of RDY, then uses the same instruction
+// polling points as IRQ without I masking. A newly arriving edge joins the
+// pending latch here so enable gaps do not add an extra polling cycle.
+// NMI_edge remains pending for vector selection; nmi_take controls when
+// the instruction decoder enters the interrupt sequence.
+reg nmi_input = 0, nmi_sampled = 0, nmi_older = 0;
+wire nmi_take = branch_no_cross ? nmi_older : nmi_sampled;
+// PLP restores I after its poll, but the following instruction sees it.
+wire irq_mask = state == PULL2 && plp ? DIMUX[2] :
+                state == DECODE && plp ? ADD[2] : I;
+always @(posedge clk)
+    if (reset) begin
+        irq_sampled <= 0; irq_input <= 0; irq_older <= 0;
+        nmi_sampled <= 0; nmi_input <= 0; nmi_older <= 0;
+        branch_no_cross <= 0; hardware_interrupt <= 0;
+    end else if (RDY) begin
+        irq_input <= IRQ && !irq_mask;
+        irq_sampled <= irq_input; irq_older <= irq_sampled;
+        nmi_input <= NMI_edge || (NMI && !NMI_1);
+        nmi_sampled <= nmi_input; nmi_older <= nmi_sampled;
+        branch_no_cross <= state == BRA1 && !(CO ^ backwards);
+        if (state == DECODE) hardware_interrupt <= irq_take | nmi_take;
+    end
+
 /*
  * Program Counter Increment/Load. First calculate the base value in
  * PC_temp.
  */
 always @*
     case( state )
-        DECODE:         if( (~I & IRQ) | NMI_edge )
+        DECODE:         if( irq_take | nmi_take )
                             PC_temp = { ABH, ABL };
                         else
                             PC_temp = PC;
@@ -303,9 +339,10 @@ always @*
 
         JMP1,
         JMPI1,
-        JSR3,
         RTS3,
         RTI4:           PC_temp = { DIMUX, ADD };
+
+        JSR4:           PC_temp = { DIMUX, jsr_low };
 
         BRA1:           PC_temp = { ABH, ADD };
 
@@ -322,10 +359,12 @@ always @*
  */
 always @*
     case( state )
-        DECODE:         if( (~I & IRQ) | NMI_edge )
+        DECODE:         if( irq_take | nmi_take )
                             PC_inc = 0;
                         else
-                            PC_inc = 1;
+                            // Pushes fetch the following opcode after the
+                            // stack write, rather than retaining a prefetch.
+                            PC_inc = !(IR == 8'h08 || IR == 8'h48);
 
         ABS0,
         ABSX0,
@@ -335,6 +374,8 @@ always @*
         BRK3,
         JMPI1,
         JMP1,
+        JSR4,
+        PUSH1,
         RTI4,
         RTS3:           PC_inc = 1;
 
@@ -375,13 +416,14 @@ always @*
         BRA1:           AB = { ABH, ADD };
 
         JSR0,
-        PUSH1,
+        JSR1,
+        PUSH0,
         RTS0,
         RTI0,
         BRK0:           AB = { STACKPAGE, regfile };
 
         BRK1,
-        JSR1,
+        JSR2,
         PULL1,
         RTS1,
         RTS2,
@@ -401,6 +443,8 @@ always @*
         REG,
         READ,
         WRITE:          AB = { ABH, ABL };
+
+        JSR4:           AB = { DIMUX, jsr_low };
 
         default:        AB = PC;
     endcase
@@ -423,19 +467,20 @@ always @(posedge clk)
  */
 always @*
     case( state )
+        READ:    DO = DIMUX; // NMOS RMW writes the original operand first.
         WRITE:   DO = ADD;
 
-        JSR0,
+        JSR1,
         BRK0:    DO = PCH;
 
-        JSR1,
+        JSR2,
         BRK1:    DO = PCL;
 
-        PUSH1:   DO = php ? P : ADD;
+        PUSH0:   DO = php ? P : AXYS[SEL_A];
 
-        BRK2:    DO = (IRQ | NMI_edge) ? (P & 8'b1110_1111) : P;
+        BRK2:    DO = hardware_interrupt ? (P & 8'b1110_1111) : P;
 
-        default: DO = regfile;
+        default: DO = sax ? (AXYS[SEL_A] & AXYS[SEL_X]) : regfile;
     endcase
 
 /*
@@ -447,9 +492,10 @@ always @*
         BRK0,   // writing to stack or memory
         BRK1,
         BRK2,
-        JSR0,
         JSR1,
-        PUSH1,
+        JSR2,
+        PUSH0,
+        READ,    // NMOS read-modify-write dummy write
         WRITE:   WE = 1;
 
         INDX3,  // only if doing a STA, STX or STY
@@ -478,8 +524,7 @@ always @*
          RTS2,
          RTI3,
          BRK3,
-         JSR0,
-         JSR2 : write_register = 1;
+         JSR3 : write_register = 1;
 
        default: write_register = 0;
     endcase
@@ -523,14 +568,17 @@ always @* begin
 end
 
 /*
- * write to a register. Usually this is the (BCD corrected) output of the
- * ALU, but in case of the JSR0 we use the S register to temporarily store
- * the PCL. This is possible, because the S register itself is stored in
- * the ALU during those cycles.
+ * Write the (BCD corrected) ALU output to the selected register.
  */
 always @(posedge clk)
     if( write_register & RDY )
-        AXYS[regsel] <= (state == JSR0) ? DIMUX : { ADD[7:4] + ADJH, ADD[3:0] + ADJL };
+        AXYS[regsel] <= { ADD[7:4] + ADJH, ADD[3:0] + ADJL };
+
+// NMOS JSR reads the stack before either push, then reads the target high
+// byte after both pushes. Keeping the low byte outside S preserves that bus
+// order, including RDY stalls and operands overlapping the stack page.
+always @(posedge clk)
+    if (RDY && state == JSR0) jsr_low <= DIMUX;
 
 /*
  * register select logic. This determines which of the A, X, Y or
@@ -550,9 +598,12 @@ always @*
         BRK0,
         BRK3,
         JSR0,
+        JSR1,
         JSR2,
+        JSR3,
         PULL0,
         PULL1,
+        PUSH0,
         PUSH1,
         RTI0,
         RTI3,
@@ -597,12 +648,13 @@ always @*
         DECODE,
         ABS1:   alu_op = 1'bx;
 
-        PUSH1,
+        PUSH0,
         BRK0,
         BRK1,
         BRK2,
         JSR0,
-        JSR1:   alu_op = OP_SUB;
+        JSR1,
+        JSR2:   alu_op = OP_SUB;
 
      default:   alu_op = OP_ADD;
     endcase
@@ -631,7 +683,8 @@ always @(posedge clk)
 
 always @*
     case( state )
-        JSR1,
+        JSR2,
+        PUSH1,
         RTS1,
         RTI1,
         RTI2,
@@ -646,19 +699,18 @@ always @*
         RTI0,
         RTS0,
         JSR0,
-        JSR2,
+        JSR1,
         BRK0,
         PULL0,
         INDY1,
-        PUSH0,
-        PUSH1:  AI = regfile;
+        PUSH0:  AI = regfile;
 
         BRA0,
         READ:   AI = DIMUX;
 
         BRA1:   AI = ABH;       // don't use PCH in case we're
 
-        FETCH:  AI = load_only ? 0 : regfile;
+        FETCH:  AI = axs ? (AXYS[SEL_A] & AXYS[SEL_X]) : load_only ? 0 : regfile;
 
         DECODE,
         ABS1:   AI = 8'hxx;     // don't care
@@ -791,15 +843,17 @@ always @(posedge clk)
  */
 
 always @(posedge clk)
-    if( state == BRK3 )
-        I <= 1;
-    else if( state == RTI2 )
-        I <= DIMUX[2];
-    else if( state == REG ) begin
-        if( sei ) I <= 1;
-        if( cli ) I <= 0;
-    end else if( state == DECODE )
-        if( plp ) I <= ADD[2];
+    if( RDY ) begin
+        if( state == BRK3 )
+            I <= 1;
+        else if( state == RTI2 )
+            I <= DIMUX[2];
+        else if( state == REG ) begin
+            if( sei ) I <= 1;
+            if( cli ) I <= 0;
+        end else if( state == DECODE )
+            if( plp ) I <= ADD[2];
+    end
 
 /*
  * Update D flag
@@ -813,6 +867,27 @@ always @(posedge clk )
         if( plp ) D <= ADD[3];
     end
 
+generate if (ENABLE_SO) begin : so_pin
+    // A held decode state must not erase a pin event between CPU enables.
+    // Instruction writes retain priority when they coincide with an SO edge.
+    reg previous = 1;
+    // With a phase-qualified SO input, an edge sampled while CLV finishes
+    // can arrive after CLV's flag write. The NMOS input path discards that
+    // event rather than setting V again in the following instruction.
+    reg clv_inhibit = 0;
+    always @(posedge clk)
+        if (reset) clv_inhibit <= 0;
+        else if (RDY) clv_inhibit <= state == DECODE && clv;
+    always @(posedge clk) previous <= SO;
+    always @(posedge clk)
+        if (RDY && state == RTI2) V <= DIMUX[6];
+        else if (RDY && state == DECODE && (adc_sbc || clv || plp)) begin
+            if (adc_sbc) V <= AV;
+            if (clv) V <= 0;
+            if (plp) V <= ADD[6];
+        end else if (RDY && state == FETCH && bit_ins) V <= DIMUX[6];
+        else if (!reset && previous && !SO && !(ENABLE_SO_CLV_INHIBIT && clv_inhibit)) V <= 1;
+end else begin : legacy_v
 /*
  * Update V flag
  */
@@ -826,28 +901,30 @@ always @(posedge clk )
     end else if( state == FETCH && bit_ins )
         V <= DIMUX[6];
 
+end endgenerate
+
 /*
  * Instruction decoder
  */
 
 /*
- * IR register/mux. Hold previous DI value in IRHOLD in PULL0 and PUSH0
- * states. In these states, the IR has been prefetched, and there is no
- * time to read the IR again before the next decode.
+ * Pull instructions retain their prefetched opcode across stack reads.
+ * Pushes fetch it after the stack write, so BA cannot retire a prefetched
+ * instruction using the previous write's RDY exemption.
  */
 
 always @(posedge clk )
     if( reset )
         IRHOLD_valid <= 0;
     else if( RDY ) begin
-        if( state == PULL0 || state == PUSH0 ) begin
+        if( state == PULL0 ) begin
             IRHOLD <= DIMUX;
             IRHOLD_valid <= 1;
         end else if( state == DECODE )
             IRHOLD_valid <= 0;
     end
 
-assign IR = (IRQ & ~I) | NMI_edge ? 8'h00 :
+assign IR = irq_take | nmi_take ? 8'h00 :
                      IRHOLD_valid ? IRHOLD : DIMUX;
 
 always @(posedge clk )
@@ -865,6 +942,11 @@ always @(posedge clk or posedge reset)
     else if( RDY ) case( state )
         DECODE  :
             casex ( IR )
+                8'hcb:          state <= FETCH; // AXS/SBX immediate
+                8'h83:          state <= INDX0; // SAX (zp,X)
+                8'h87:          state <= ZP0;   // SAX zp
+                8'h8f:          state <= ABS0;  // SAX abs
+                8'h97:          state <= ZPX0;  // SAX zp,Y
                 8'b0000_0000:   state <= BRK0;
                 8'b0010_0000:   state <= JSR0;
                 8'b0010_1100:   state <= ABS0;  // BIT abs
@@ -929,7 +1011,8 @@ always @(posedge clk or posedge reset)
         JSR0    : state <= JSR1;
         JSR1    : state <= JSR2;
         JSR2    : state <= JSR3;
-        JSR3    : state <= FETCH;
+        JSR3    : state <= JSR4;
+        JSR4    : state <= DECODE;
 
         RTI0    : state <= RTI1;
         RTI1    : state <= RTI2;
@@ -972,6 +1055,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          load_reg <= 1; // AXS writes X
                 8'b0xx01010,    // ASLA, ROLA, LSRA, RORA
                 8'b0xxxxx01,    // ORA, AND, EOR, ADC
                 8'b100x10x0,    // DEY, TYA, TXA, TXS
@@ -989,6 +1073,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          dst_reg <= SEL_X;
                 8'b1110_1000,   // INX
                 8'b1100_1010,   // DEX
                 8'b101x_xx10:   // LDX, TAX, TSX
@@ -1030,6 +1115,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'h97,         // SAX zp,Y
                 8'bxxx1_0001,   // INDY
                 8'b10x1_x110,   // LDX/STX zpg/abs, Y
                 8'bxxxx_1001:   // abs, Y
@@ -1042,6 +1128,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'h83, 8'h87, 8'h8f, 8'h97, // SAX
                 8'b100x_x1x0,   // STX, STY
                 8'b100x_xx01:   // STA
                                 store <= 1;
@@ -1110,6 +1197,7 @@ always @(posedge clk )
 always @(posedge clk )
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          compare <= 1; // binary subtract, carry-in always1
                 8'b11x0_0x00,   // CPX, CPY (imm/zp)
                 8'b11x0_1100,   // CPX, CPY (abs)
                 8'b110x_xx01:   // CMP
@@ -1140,6 +1228,7 @@ always @(posedge clk )
 always @(posedge clk )
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          op <= OP_SUB;
                 8'b00xx_xx10:   // ROL, ASL
                                 op <= OP_ROL;
 
@@ -1177,6 +1266,8 @@ always @(posedge clk )
  */
 always @(posedge clk )
      if( state == DECODE && RDY ) begin
+        axs <= (IR == 8'hcb);
+        sax <= (IR == 8'h83 || IR == 8'h87 || IR == 8'h8f || IR == 8'h97);
         php <= (IR == 8'h08);
         clc <= (IR == 8'h18);
         plp <= (IR == 8'h28);
@@ -1212,7 +1303,9 @@ always @(posedge clk)
     NMI_1 <= NMI;
 
 always @(posedge clk )
-    if( NMI_edge && state == BRK3 )
+    if (reset)
+        NMI_edge <= 0;
+    else if( NMI_edge && state == BRK3 )
         NMI_edge <= 0;
     else if( NMI & ~NMI_1 )
         NMI_edge <= 1;
