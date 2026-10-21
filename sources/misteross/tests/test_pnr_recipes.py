@@ -38,7 +38,7 @@ LOCK_SHA256 = {
     "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.atari-st": "9fdccc4cf213fa74f991fdb30ce320937617b858a70b3c574e11d245150d3cfe",
 }
 # Source-derived hashes of the complete CLI option-name sets from nextpnr's
 # add_options() declarations. Schemas are indexed by the set itself, not pins.
@@ -89,7 +89,7 @@ GOLDENS = {
     "fes.spectrum": ("780de931801b08dcc4df525763a573165a6baf3a3241c6161fd8cdc6d312938a", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
-    "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
+    "fes.atari-st": ("024942708300607968eb887324d48912d50c96634fe7ea0cd1a74d16776dbfd0", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
 
 # Hashes of the frozen legacy producer argv matrix for every registered
@@ -219,7 +219,8 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                option_count = 105 if core_id in {"fes.pong", "fes.riscv", "fes.zx81"} else 96
+                option_count = 105 if core_id in {
+                    "fes.pong", "fes.riscv", "fes.zx81", "fes.atari-st"} else 96
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
