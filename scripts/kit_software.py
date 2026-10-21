@@ -59,14 +59,6 @@ def build_go(snapshot, version, revision, env):
             'target': 'linux/arm GOARM=7 CGO_ENABLED=0', 'helper': 'linux/amd64 CGO_ENABLED=0'}
 
 
-def window_driver_version(source):
-    """Digest of the fes-window driver sources, stamped into the module."""
-    digest = hashlib.sha256()
-    for path in sorted(Path(source).iterdir()):
-        digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
-    return digest.hexdigest()[:16]
-
-
 def pinned_kernel(tree):
     """The kernel source pin, bound to the kernel the boot media install."""
     lock = tomllib.loads((tree / 'image/build/target-image.sources.lock.toml').read_text())
@@ -83,7 +75,7 @@ def pinned_kernel(tree):
 
 
 def prepare_kernel_module(root, snapshot, env):
-    """Stage the pinned kernel tree and fes-window sources for the container build."""
+    """Stage the pinned kernel tree for the container's fes-window build."""
     image = snapshot / 'image'
     kernel = pinned_kernel(snapshot)
     commit = kernel['kernel_commit']
@@ -111,38 +103,24 @@ def prepare_kernel_module(root, snapshot, env):
     archive.stdout.close()
     if archive.wait() != 0 or extract.returncode != 0:
         raise ValueError('could not extract the pinned kernel source')
-    shutil.copytree(image / 'kernel/fes-window', image / 'build/software/fes-window')
-    return {**kernel, 'version': window_driver_version(image / 'kernel/fes-window')}
+    return kernel
 
 
 def runtime_script(revision, driver):
     # All paths are fixed inside the private snapshot. No shell input comes from
-    # user paths/version. Interpolated values are a validated Git SHA, the
-    # pinned kernel release and the hex driver digest.
+    # user paths/version. Interpolated values are a validated Git SHA and the
+    # pinned kernel release.
     if not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('invalid runtime revision')
-    if not re.fullmatch('[0-9a-f]{16}', driver['version']) or not re.fullmatch('[0-9A-Za-z.+-]+', driver['kernel_release']):
-        raise ValueError('invalid fes-window driver identity')
+    if not re.fullmatch('[0-9A-Za-z.+-]+', driver['kernel_release']):
+        raise ValueError('invalid pinned kernel release')
     return '''set -eu
 export SOURCE_DATE_EPOCH=1751459412
 python3 /work/scripts/toolchain_cache.py extract /work/build/software/sdk
 prefix=/work/build/software/sdk/host/bin/arm-buildroot-linux-gnueabihf
-# fes-window builds against the pinned kernel configuration. The -MiSTer
-# local version and identical config give the shipped kernel's vermagic.
-# It builds before relocation: relocate-sdk.sh rewrites the build path in
-# GCC's plugin configargs.h, and cc1 then refuses the kernel's per-task
-# stack protector plugin. The compiler wrapper needs no relocation.
-kbuild=/work/build/software/kernel-build
-mkdir -p "$kbuild"
-printf '%s\\n' -MiSTer > "$kbuild/localversion.mister"
-export KBUILD_BUILD_USER=fogcast KBUILD_BUILD_HOST=target-image KBUILD_BUILD_VERSION=1
-export HOSTCXXFLAGS="-I/work/build/software/sdk/host/include"
-kmake="make -s -C /work/build/software/kernel-source O=$kbuild ARCH=arm CROSS_COMPILE=$prefix-"
-$kmake MiSTer_defconfig
-test "$($kmake kernelrelease)" = ''' + driver['kernel_release'] + '''
-$kmake -j2 modules_prepare
-$kmake M=/work/build/software/fes-window FES_WINDOW_VERSION=''' + driver['version'] + ''' modules
-"$prefix-strip" --strip-debug /work/build/software/fes-window/fes_window.ko
+# fes-window builds before SDK relocation; see build-fes-window.sh.
+/work/scripts/build-fes-window.sh /work/build/software/kernel-source /work/build/software/fes-window-build \\
+ /work/build/software/fes-window "$prefix-" /work/build/software/sdk/host ''' + driver['kernel_release'] + '''
 /work/build/software/sdk/host/relocate-sdk.sh
 make -C /work/build/software/runtime -j2 all \\
  CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm" CXXFILT="$prefix-c++filt" \\
@@ -284,9 +262,10 @@ def publish(root, base, base_sha, version, output):
                         payload / 'share/fogcast')
         # The runtime loads its release's driver; see libmister-runtime window_driver.
         window = payload / 'share/fes-window'
-        window.mkdir()
-        shutil.copyfile(image / 'build/software/fes-window/fes_window.ko', window / 'fes_window.ko')
-        (window / 'version').write_text(driver['version'] + '\n')
+        shutil.copytree(image / 'build/software/fes-window', window)
+        driver['version'] = (window / 'version').read_text().strip()
+        if not re.fullmatch('[0-9a-f]{16}', driver['version']) or sorted(p.name for p in window.iterdir()) != ['fes_window.ko', 'version']:
+            raise ValueError('fes-window build produced an unexpected driver')
         for path in window.iterdir():
             path.chmod(0o444)
         driver['sha256'] = sha(window / 'fes_window.ko')

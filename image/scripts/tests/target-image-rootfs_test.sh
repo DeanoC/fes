@@ -282,6 +282,14 @@ export FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION
 export FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION
 export FES_ATARI_ST_PACKAGE_DIR FES_ATARI_ST_PACKAGE_SELECTION
 
+# The factory build compiles fes-window; this fixture supplies its output.
+window_driver=$fixture/fes-window
+mkdir "$window_driver"
+printf '%s\n' fixture-module >"$window_driver/fes_window.ko"
+printf '%s\n' 0123456789abcdef >"$window_driver/version"
+FES_WINDOW_DRIVER_DIR=$window_driver
+export FES_WINDOW_DRIVER_DIR
+
 cache=$fixture/cache
 mkdir "$cache"
 cp "$idle" "$cache/idle.rbf"
@@ -329,6 +337,8 @@ test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/share/fes/software/bin/fogcast-kit"
+cmp "$window_driver/fes_window.ko" "$target/usr/share/fes/software/share/fes-window/fes_window.ko"
+cmp "$window_driver/version" "$target/usr/share/fes/software/share/fes-window/version"
 test -x "$target/usr/share/fes/software/bin/fogcast-tenfoot"
 test -x "$target/etc/init.d/S40fes-kit-software"
 grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/share/fes/software/bin/fogcast-tenfoot" | awk '{print $1}')" \

@@ -21,6 +21,9 @@ type Software struct {
 	w, h, stride int
 	pix          []byte
 	fb           *image.RGBA
+	// previous is a presented frame swapped out by swapFramebuffer, still
+	// needed until this frame clears or first reads or draws on pix.
+	previous     []byte
 	blend        BlendMode
 	sampleX      []int // reusable source byte offsets for scaled draws
 	fillColor    Color
@@ -79,21 +82,49 @@ func NewSoftware(logicalW, logicalH int) (*Software, error) {
 func (s *Software) BackendName() string { return BackendSoftware }
 
 // Framebuffer returns the live RGBA8 buffer. Callers must not mutate Pix.
-func (s *Software) Framebuffer() *image.RGBA { return s.fb }
+func (s *Software) Framebuffer() *image.RGBA {
+	s.restorePrevious()
+	return s.fb
+}
 
 // frameSurface permits the package-owned frame cache to restore CPU pixels.
-func (s *Software) frameSurface() *image.RGBA { return s.fb }
+func (s *Software) frameSurface() *image.RGBA {
+	s.restorePrevious()
+	return s.fb
+}
 
 // Snapshot returns a copy of the current framebuffer for tests.
 func (s *Software) Snapshot() *image.RGBA {
+	s.restorePrevious()
 	out := image.NewRGBA(image.Rect(0, 0, s.w, s.h))
 	copy(out.Pix, s.pix)
 	return out
 }
 
+// swapFramebuffer draws from now on into next, which is as large as the
+// framebuffer, and returns the finished frame's pixels without copying them.
+// A frame that starts with Clear overwrites everything; anything else first
+// copies the returned pixels back, so incremental drawing still builds on the
+// previous frame. The caller keeps the returned pixels unchanged until the
+// following swap.
+func (s *Software) swapFramebuffer(next []byte) []byte {
+	s.restorePrevious()
+	done := s.pix
+	s.pix, s.fb.Pix, s.previous = next, next, done
+	return done
+}
+
+func (s *Software) restorePrevious() {
+	if s.previous != nil {
+		copy(s.pix, s.previous)
+		s.previous = nil
+	}
+}
+
 func (s *Software) BeginFrame() {}
 
 func (s *Software) Clear(c Color) {
+	s.previous = nil
 	fillRows(s.pix, s.stride, 0, 0, s.w, s.h, c.R, c.G, c.B, c.A)
 }
 
@@ -136,6 +167,7 @@ func (s *Software) Destroy(tex Texture) {
 }
 
 func (s *Software) FillRect(rect Rect, c Color) {
+	s.restorePrevious()
 	x0, y0, x1, y1, ok := clipRect(rect, s.w, s.h)
 	if !ok {
 		return
@@ -194,6 +226,7 @@ func (s *Software) FillRect(rect Rect, c Color) {
 }
 
 func (s *Software) Draw(tex Texture, src *Rect, dst Rect) {
+	s.restorePrevious()
 	bm := s.lookup(tex)
 	if bm == nil {
 		return
@@ -251,6 +284,7 @@ func (s *Software) Draw(tex Texture, src *Rect, dst Rect) {
 func (s *Software) SetBlend(mode BlendMode) { s.blend = mode }
 
 func (s *Software) DebugText(x, y int, text string, scale int) {
+	s.restorePrevious()
 	if text == "" {
 		return
 	}
@@ -281,6 +315,7 @@ func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	s.restorePrevious()
 	blitText(s, x, y, RasterizeTextWeight(text, sizePx, w, c, 0))
 }
 

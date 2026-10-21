@@ -13,12 +13,17 @@ Stages:
   tick_other the rest of Tick (host polling, state, non-Lua work)
   snapshot   building the render snapshot
   raster     CPU drawing into the framebuffer (render minus frame copy)
-  frame_copy copying the rendered frame for the display worker
+  frame_copy handing the rendered frame to the display worker: a buffer swap
+             now (older traces copied the whole frame); a frame that does not
+             start with Clear copies the previous one back inside raster
   queue      waiting for the display worker
   status     runtime status round trip before presenting
-  begin      dial + menu_frame_begin round trip
-  stage      mapping the staging memfd, copying the frame in, sealing it
-  rt_copy    runtime: converting and writing the frame into FPGA DDR
+  begin      dial + menu_frame_begin round trip (and a new generation's grant)
+  stage      writing the frame's pixels into the granted slot (before the
+             fes-window grants: mapping a staging memfd, copying, sealing)
+  rt_copy    runtime copying the frame into FPGA DDR (traces from before the
+             fes-window grants; zero once the client writes the slot)
+  rt_clean   runtime: writing back the client's lines for the FPGA
   rt_submit  runtime: submitting the slot
   rt_scanout runtime: waiting until scanout shows the new slot
   commit_io  commit round trip not accounted for by the runtime fields
@@ -49,7 +54,7 @@ import sys
 from collections import defaultdict
 
 STAGES = ["lua", "tick_other", "snapshot", "raster", "frame_copy", "queue", "status",
-          "begin", "stage", "rt_copy", "rt_submit", "rt_scanout", "commit_io"]
+          "begin", "stage", "rt_copy", "rt_clean", "rt_submit", "rt_scanout", "commit_io"]
 
 
 def load(path):
@@ -159,7 +164,8 @@ def _frame_row(tick, present):
     """One changed or failed frame, with each stage in milliseconds."""
     us = lambda record, key: record.get(key, 0) or 0
     lua = us(tick, "lua_step_us")
-    rt = us(present, "runtime_copy_us") + us(present, "runtime_submit_us") + us(present, "runtime_scanout_wait_us")
+    rt = (us(present, "runtime_copy_us") + us(present, "runtime_clean_us") + us(present, "runtime_submit_us") +
+          us(present, "runtime_scanout_wait_us"))
     row = {
         "view": tick.get("view", ""),
         "lua": lua,
@@ -172,6 +178,7 @@ def _frame_row(tick, present):
         "begin": us(present, "begin_us"),
         "stage": us(present, "stage_us"),
         "rt_copy": us(present, "runtime_copy_us"),
+        "rt_clean": us(present, "runtime_clean_us"),
         "rt_submit": us(present, "runtime_submit_us"),
         "rt_scanout": us(present, "runtime_scanout_wait_us"),
         "commit_io": max(0, us(present, "commit_us") - rt),
