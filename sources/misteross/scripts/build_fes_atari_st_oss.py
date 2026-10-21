@@ -86,10 +86,14 @@ RAM_GUARD_RESERVATION = "ram_guard 26 19 26 19"
 VIDEO_RAM_GUARD_RESERVATIONS = ("video_ram_low 26 40 26 40", "video_ram_high 26 59 26 59")
 # HeAP lets the native-capture frame buffer drift toward the CPU's snoop
 # nets (DeanoC/nextpnr#247). Fence it right of x=20; its output pipeline
-# feeds the HDMI side near x=6, so it keeps the whole device.
-CAPTURE_PLACE_REGIONS = (
+# feeds the HDMI side near x=6, so it keeps the whole device. The renderer
+# and the adapter's colour select drive the video socket plug at x=24,
+# y=41-43; unfenced they spread far enough to miss the pixel clock.
+VIDEO_PLACE_REGIONS = (
     ("X20 Y0 X89 Y81", "video.native_capture.capture"),
     ("X0 Y0 X89 Y81", '"video.native_capture.capture.output_pipe*"'),
+    ("X10 Y28 X38 Y56", "video.renderer"),
+    ("X10 Y28 X38 Y56", '"video_request*"'),
 )
 RAM_CONFIG_POLICY = "m10k-bmux-configuration-bounds-v1"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
@@ -331,7 +335,7 @@ def socket_qsf(base: str) -> str:
     lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{RAM_GUARD_RESERVATION}"')
     for rectangle in VIDEO_RAM_GUARD_RESERVATIONS:
         lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{rectangle}"')
-    for rectangle, target in CAPTURE_PLACE_REGIONS:
+    for rectangle, target in VIDEO_PLACE_REGIONS:
         lines.append(f'set_instance_assignment -name PLACE_REGION "{rectangle}" -to {target}')
     return atari_st_video_parts.shell_qsf("\n".join(lines) + "\n")
 
