@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import json
 import os
 import subprocess
@@ -11,6 +12,7 @@ from scripts import build_fes_pong as board
 from scripts import build_fes_splash as splash
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.export_core_package import build_identity
+from scripts.lockfile import load_lock
 from tests import test_build_fes_pong as pong_tests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -149,6 +151,40 @@ class SplashProducerTests(unittest.TestCase):
         with patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_ROOT": "/tmp/cache"}, clear=False):
             with self.assertRaisesRegex(board.BuildError, "local OSS lane"):
                 splash.authenticate_oss_tools(ROOT)
+
+    def test_authenticates_the_repository_oss_lane(self):
+        # Unmocked: the build tests mock authenticate_oss_tools, which hid #966.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+            install = root / "build/toolchain/install/bin"
+            install.mkdir(parents=True)
+            pins = load_lock(root / "toolchain.lock")
+            for lock_name, binary_name in (
+                ("yosys", "yosys"),
+                ("mistral", "mistral-cv"),
+                ("nextpnr", "nextpnr-mistral"),
+            ):
+                binary = install / binary_name
+                pong_tests._write_fake_tool(binary, lock_name)
+                evidence = root / "build/toolchain/build" / lock_name
+                evidence.mkdir(parents=True)
+                commit = pins[lock_name].commit
+                (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
+                digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+                (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+                if lock_name == "nextpnr":
+                    (evidence / f".config-{commit}.txt").write_text(
+                        f"{splash.OSS_CONFIGURATION}\n", encoding="utf-8"
+                    )
+
+            with patch.dict(os.environ, {}, clear=True):
+                tools = splash.authenticate_oss_tools(root)
+            self.assertEqual(tools["yosys"].path, install / "yosys")
+            self.assertEqual(tools["nextpnr-mistral"].path, install / "nextpnr-mistral")
+            self.assertTrue(
+                tools["nextpnr-mistral"].identity.endswith(f"; {splash.OSS_CONFIGURATION}")
+            )
 
     def test_failed_evidence_invalidates_rbf(self):
         with tempfile.TemporaryDirectory() as temporary:
