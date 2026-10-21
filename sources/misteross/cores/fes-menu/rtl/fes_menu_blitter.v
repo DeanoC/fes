@@ -62,10 +62,12 @@ module fes_menu_blitter #(
     localparam [28:0] ROW_WORDS = 29'd640;
     localparam [2:0] OP_END = 3'd0, OP_FILL_BLEND = 3'd2, OP_COPY = 3'd3, OP_BLEND = 3'd4;
     localparam [2:0] FAULT_LIST = 3'd1, FAULT_OP = 3'd2, FAULT_RECT = 3'd3, FAULT_SOURCE = 3'd4, FAULT_RESERVED = 3'd5;
-    localparam [2:0] S_IDLE = 3'd0, S_FETCH = 3'd1, S_DECODE = 3'd2, S_SPAN = 3'd3, S_ROW = 3'd4,
-        S_READ = 3'd5, S_WRITE = 3'd6, S_NEXT = 3'd7;
+    localparam [3:0] S_IDLE = 4'd0, S_FETCH = 4'd1, S_DECODE = 4'd2, S_CHECK = 4'd3, S_SPAN = 4'd4,
+        S_ROW = 4'd5, S_READ = 4'd6, S_WRITE = 4'd7, S_NEXT = 4'd8;
+    // fes_menu_blend's latency. Copies and fills are delayed to match.
+    localparam BLEND_LATENCY = 4;
 
-    reg [2:0] state = S_IDLE;
+    reg [3:0] state = S_IDLE;
     assign idle = state == S_IDLE;
     assign run_ready = idle && !faulted && !halt;
 
@@ -83,6 +85,8 @@ module fes_menu_blitter #(
     reg [31:0] source_byte = 32'd0;
     reg [10:0] beats = 11'd0, source_beats_even = 11'd0, source_beats_odd = 11'd0;
     reg x_odd = 1'b0, last_even = 1'b0;
+    // Decode registers its checks; the next state acts on them.
+    reg ok_reserved = 1'b0, ok_op = 1'b0, ok_rect = 1'b0, ok_source = 1'b0;
     // Heap check: stride * (h - 1) by shift and add.
     reg [25:0] span = 26'd0, multiplicand = 26'd0;
     reg [9:0] multiplier = 10'd0;
@@ -130,11 +134,14 @@ module fes_menu_blitter #(
     end
 
     // Compute: stage 0 reads source beat t and destination beat t - ahead;
-    // stage 1 picks each lane's source; the blend takes two more clocks.
-    // Copies take the same path, so every beat reaches the FIFO in order.
+    // stage 1 picks each lane's source; the blend takes BLEND_LATENCY more
+    // clocks. Copies take the same path, so every beat reaches the FIFO in
+    // order. keep marks the beats in the blend that go to the FIFO.
     reg [10:0] t = 11'd0, s1_t = 11'd0;
-    reg s1_valid = 1'b0, p1_keep = 1'b0, p2_keep = 1'b0;
-    reg [63:0] src_q = 64'd0, dst_q = 64'd0, previous = 64'd0, copy1 = 64'd0, copy2 = 64'd0;
+    reg s1_valid = 1'b0;
+    reg [BLEND_LATENCY-1:0] keep = {BLEND_LATENCY{1'b0}};
+    reg [63:0] src_q = 64'd0, dst_q = 64'd0, previous = 64'd0;
+    reg [64*BLEND_LATENCY-1:0] copies = {64*BLEND_LATENCY{1'b0}};
     always @(posedge clk) begin
         src_q <= src_buf[t[9:0]];
         dst_q <= dst_buf[t[9:0] - {8'd0, ahead}];
@@ -144,28 +151,35 @@ module fes_menu_blitter #(
     wire [31:0] blend0, blend1;
     fes_menu_blend b0 (.clk(clk), .source(lane0_source), .destination(dst_q[31:0]), .result(blend0));
     fes_menu_blend b1 (.clk(clk), .source(lane1_source), .destination(dst_q[63:32]), .result(blend1));
-    wire [63:0] result = reads_destination ? {blend1, blend0} : {8'd0, copy2[55:32], 8'd0, copy2[23:0]};
+    wire [63:0] copied = copies[64*BLEND_LATENCY-1 -: 64];
+    wire [63:0] result = reads_destination ? {blend1, blend0} : {8'd0, copied[55:32], 8'd0, copied[23:0]};
+    integer i;
+    reg [3:0] kept;
+    always @* begin
+        kept = 4'd0;
+        for (i = 0; i < BLEND_LATENCY; i = i + 1) kept = kept + {3'd0, keep[i]};
+    end
 
-    // Write: computed beats queue in a four-entry FIFO whose head is on the
-    // bus; a burst pauses while the FIFO refills.
+    // Write: computed beats queue in an eight-entry FIFO whose head is on
+    // the bus; a burst pauses while the FIFO refills.
     reg [10:0] k = 11'd0;
     reg in_burst = 1'b0;
     reg [7:0] burst_left = 8'd0;
     reg [28:0] write_address = 29'd0;
     reg [7:0] write_burstcount = 8'd0;
-    reg [63:0] fifo [0:3];
-    reg [1:0] fifo_head = 2'd0;
-    reg [2:0] fifo_count = 3'd0;
+    reg [63:0] fifo [0:7];
+    reg [2:0] fifo_head = 3'd0;
+    reg [3:0] fifo_count = 4'd0;
     wire [10:0] write_left = beats - k;
     wire [7:0] write_length = write_left > 11'd128 ? 8'd128 : write_left[7:0];
-    assign d_write = state == S_WRITE && in_burst && fifo_count != 3'd0;
+    assign d_write = state == S_WRITE && in_burst && fifo_count != 4'd0;
     assign d_writedata = fifo[fifo_head];
     assign d_byteenable = (k == 11'd0 && x_odd ? 8'hf0 : 8'hff) & (k == beats - 11'd1 && last_even ? 8'h0f : 8'hff);
     assign d_address = state == S_WRITE ? write_address : d_read_address;
     assign d_burstcount = state == S_WRITE ? write_burstcount : d_read_burstcount;
     wire accept = d_write && !d_waitrequest;
     // Every beat in flight may need a FIFO entry: issue only if one stays free.
-    wire [3:0] owed = {1'b0, fifo_count} + {3'd0, s1_valid} + {3'd0, p1_keep} + {3'd0, p2_keep} - {3'd0, accept};
+    wire [4:0] owed = {1'b0, fifo_count} + {4'd0, s1_valid} + {1'b0, kept} - {4'd0, accept};
 
     // Decode checks, in byte offsets within the window.
     wire [2:0] decoded_op = word[0][2:0];
@@ -198,7 +212,7 @@ module fes_menu_blitter #(
     always @(posedge clk) begin
         s_start <= 1'b0; d_start <= 1'b0;
         if (rst) begin
-            state <= S_IDLE; in_burst <= 1'b0; s1_valid <= 1'b0; p1_keep <= 1'b0; p2_keep <= 1'b0;
+            state <= S_IDLE; in_burst <= 1'b0; s1_valid <= 1'b0; keep <= {BLEND_LATENCY{1'b0}};
             faulted <= 1'b0; fault_code <= 3'd0; completed <= 16'd0;
         end else case (state)
             S_IDLE: if (run_valid && !faulted && !halt) begin
@@ -212,26 +226,29 @@ module fes_menu_blitter #(
             end
             S_FETCH: if (reads_done) state <= S_DECODE;
             S_DECODE: begin
-                if (!reserved_ok) fault(FAULT_RESERVED);
-                else if (!op_known) fault(FAULT_OP);
-                else if (decoded_op == OP_END) begin completed <= completed + 16'd1; state <= S_IDLE; end
-                else if (!rect_ok) fault(FAULT_RECT);
-                else if ((decoded_op == OP_COPY || decoded_op == OP_BLEND) && !source_shape_ok) fault(FAULT_SOURCE);
-                else begin
-                    op <= decoded_op; colour <= word[0][63:32];
-                    w <= dw; h <= dh; row <= 10'd0;
-                    source_byte <= d_source; source_stride <= d_stride;
-                    src_row_byte <= WINDOW_BASE + d_source;
-                    dst_word <= slot_word + {10'd0, dy, 9'd0} + {12'd0, dy, 7'd0} + {19'd0, dx[10:1]};
-                    x_odd <= dx[0];
-                    // The last pixel x + w - 1 is even, so its beat's upper half is outside.
-                    last_even <= dx[0] ^ dw[0];
-                    beats <= last_beat + 11'd1;
-                    source_beats_even <= ((dw - 11'd1) >> 1) + 11'd1;
-                    source_beats_odd <= (dw >> 1) + 11'd1;
-                    span <= 26'd0; multiplicand <= {10'd0, d_stride}; multiplier <= dh - 10'd1;
-                    state <= decoded_op == OP_COPY || decoded_op == OP_BLEND ? S_SPAN : S_ROW;
-                end
+                // Loads are harmless for a command that then faults.
+                ok_reserved <= reserved_ok; ok_op <= op_known; ok_rect <= rect_ok; ok_source <= source_shape_ok;
+                op <= decoded_op; colour <= word[0][63:32];
+                w <= dw; h <= dh; row <= 10'd0;
+                source_byte <= d_source; source_stride <= d_stride;
+                src_row_byte <= WINDOW_BASE + d_source;
+                dst_word <= slot_word + {10'd0, dy, 9'd0} + {12'd0, dy, 7'd0} + {19'd0, dx[10:1]};
+                x_odd <= dx[0];
+                // The last pixel x + w - 1 is even, so its beat's upper half is outside.
+                last_even <= dx[0] ^ dw[0];
+                beats <= last_beat + 11'd1;
+                source_beats_even <= ((dw - 11'd1) >> 1) + 11'd1;
+                source_beats_odd <= (dw >> 1) + 11'd1;
+                span <= 26'd0; multiplicand <= {10'd0, d_stride}; multiplier <= dh - 10'd1;
+                state <= S_CHECK;
+            end
+            S_CHECK: begin
+                if (!ok_reserved) fault(FAULT_RESERVED);
+                else if (!ok_op) fault(FAULT_OP);
+                else if (op == OP_END) begin completed <= completed + 16'd1; state <= S_IDLE; end
+                else if (!ok_rect) fault(FAULT_RECT);
+                else if (uses_source && !ok_source) fault(FAULT_SOURCE);
+                else state <= uses_source ? S_SPAN : S_ROW;
             end
             S_SPAN: begin
                 // The last source byte must stay inside the heap.
@@ -251,21 +268,20 @@ module fes_menu_blitter #(
                 state <= S_READ;
             end
             S_READ: if (reads_done) begin
-                t <= 11'd0; s1_valid <= 1'b0; p1_keep <= 1'b0; p2_keep <= 1'b0; k <= 11'd0;
-                fifo_head <= 2'd0; fifo_count <= 3'd0; state <= S_WRITE;
+                t <= 11'd0; s1_valid <= 1'b0; keep <= {BLEND_LATENCY{1'b0}}; k <= 11'd0;
+                fifo_head <= 3'd0; fifo_count <= 4'd0; state <= S_WRITE;
             end
             S_WRITE: begin
-                if (t != beats + {9'd0, ahead} && owed <= 4'd3) begin
+                if (t != beats + {9'd0, ahead} && owed <= 5'd7) begin
                     s1_t <= t; s1_valid <= 1'b1; t <= t + 11'd1;
                 end else s1_valid <= 1'b0;
                 if (s1_valid) previous <= src_q;
-                p1_keep <= s1_valid && s1_t >= {9'd0, ahead};
-                p2_keep <= p1_keep;
-                copy1 <= {lane1_source, lane0_source}; copy2 <= copy1;
-                if (p2_keep) fifo[fifo_head + fifo_count[1:0]] <= result;
-                fifo_count <= fifo_count + {2'd0, p2_keep} - {2'd0, accept};
+                keep <= {keep[BLEND_LATENCY-2:0], s1_valid && s1_t >= {9'd0, ahead}};
+                copies <= {copies[64*(BLEND_LATENCY-1)-1:0], lane1_source, lane0_source};
+                if (keep[BLEND_LATENCY-1]) fifo[fifo_head + fifo_count[2:0]] <= result;
+                fifo_count <= fifo_count + {3'd0, keep[BLEND_LATENCY-1]} - {3'd0, accept};
                 if (accept) begin
-                    fifo_head <= fifo_head + 2'd1; k <= k + 11'd1;
+                    fifo_head <= fifo_head + 3'd1; k <= k + 11'd1;
                     if (burst_left == 8'd1) in_burst <= 1'b0;
                     burst_left <= burst_left - 8'd1;
                     if (k + 11'd1 == beats) state <= S_NEXT;

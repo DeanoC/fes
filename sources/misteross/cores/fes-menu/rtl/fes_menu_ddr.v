@@ -34,12 +34,18 @@ module fes_menu_ddr #(
     wire p2_read, p2_waitrequest, p2_readdatavalid;
     wire [63:0] p1_writedata, p1_readdata, p2_readdata;
     wire all_drained = drained && (!BLITTER || (blit_idle && p1_drained && p2_drained));
-    reg started = 1'b0;
+    // The f2sdram responses are too far from the GP control and the hold
+    // check for one clock, so the drained proof is registered. A sample from
+    // before quiesce rose reads not drained: scanout reports drained only
+    // while quiesced or disabled, and the menu is disabled only by a quiesce.
+    // Quiesce gates the output so Enable clears quiesced at once.
+    reg started = 1'b0, drained_q = 1'b0;
     always @(posedge clk) begin
         if (enable && !port_reset && !reset_hold) started <= 1'b1;
-        if (started && reset_hold && !all_drained) faulted <= 1'b1;
+        if (started && reset_hold && !drained_q) faulted <= 1'b1;
+        drained_q <= all_drained;
     end
-    assign quiesced = all_drained && !faulted;
+    assign quiesced = drained_q && quiesce && !faulted;
     fes_menu_video #(.WINDOW_BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE)) video (
         .raster_h(11'd0), .raster_v(10'd0),
         .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
