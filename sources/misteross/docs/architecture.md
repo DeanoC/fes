@@ -1400,10 +1400,11 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
+`fes.zx81` 1.6.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
+M10K allowed and MLAB forbidden. The only DSP cells are exactly three unsigned
+`MISTRAL_MUL9X9` display-plane products; wider multipliers are forbidden. The machine ROM is `zx81_rom_link`:
 eight empty BEL-locked 1024×10 lanes at `MISTRAL_M10K.5.73.0` through
 `MISTRAL_M10K.5.80.0`, each with a synchronous read (`CFG_ASYNC_READ=0`,
 live `CLK1`, `B1EN` held high). The bank select is registered on that same
