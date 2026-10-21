@@ -103,10 +103,10 @@ leaves library selections unchanged, so switch a ZX81 entry between installed
 versions with `core-select` when changing software. There is no compatibility
 path for the earlier plane.
 
-A 1.6.0 kit check therefore needs this software selected, not just an image that
-contains it. A new image runs its built-in software only during its trial boot;
-after confirmation the supervisor restores the selected bundle
-([kit software releases](kit-software-releases.md#activation-and-recovery)).
+A 1.6.0 kit check therefore needs software with the shared plane selected, not
+just an image that contains it. A new image runs its built-in software only
+during its trial boot; after confirmation the supervisor restores the selected
+bundle ([kit software releases](kit-software-releases.md#activation-and-recovery)).
 Install and activate the `make kit-software` bundle, then restore the baseline
 bundle afterwards.
 
