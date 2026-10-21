@@ -1,0 +1,31 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.video.display-plane
+description: >-
+  Shared running-machine display plane behind fes.video.session-display. A
+  shell feeds it the finished 720p word in the video-part response layout,
+  after any part; it blends premultiplied RGBA launcher frames over that word
+  and delays the whole word by a fixed latency. Its MENU_INFO reports the
+  premultiplied pixel format and the machine picture rectangle. This is not a
+  GP capability; the plane's ABIs keep fes.video.session-display 1.0.
+major: 1
+minor: 0
+constants:
+  - name: FesDisplayPlaneMajor
+    value: 1
+  - name: FesDisplayPlaneMinor
+    value: 0
+  - name: FesDisplayPlaneWordBits
+    value: 28
+  - name: FesDisplayPlaneLatencyCycles
+    value: 3
+  - name: FesDisplayPlanePixelFormatPremultipliedRgba
+    value: 2
+  - name: FesDisplayPlaneInfoPictureLeftIndex
+    value: 14
+  - name: FesDisplayPlaneInfoPictureTopIndex
+    value: 15
+  - name: FesDisplayPlaneInfoPictureWidthIndex
+    value: 16
+  - name: FesDisplayPlaneInfoPictureHeightIndex
+    value: 17

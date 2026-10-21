@@ -165,6 +165,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
+                build_fes_zx81_oss, '_plane_dsp_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -186,6 +187,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
+                build_fes_zx81_oss, '_plane_dsp_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -208,6 +210,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
+                build_fes_zx81_oss, '_plane_dsp_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -403,7 +406,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertNotIn("cores/fes-zx81/rtl/zx8x.hex", build_fes_zx81_oss.PINNED_INPUTS)
         self.assertIn("cores/fes-zx81/rtl/zx81_rom_link.v", build_fes_zx81_oss.PINNED_INPUTS)
         self.assertNotIn("-DFES_ZX81_OSS=1", program)
-        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
+        self.assertIn("synth_intel_alm -nolutram -top top", program)
+        self.assertNotIn("-nodsp", program)
         self.assertNotIn("-nobram", program)
         self.assertNotIn("T80pa.vhd", program)
         self.assertIn("cores/fes-zx81/rtl/top.v", program)
@@ -504,7 +508,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.5.0")
+        self.assertEqual(fields["core"]["version"], "1.6.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)
@@ -523,6 +527,27 @@ class BuildFesZx81OssTests(unittest.TestCase):
         for item in fields["interfaces"]:
             if item["id"] in ("fes.memory.hps-ddr", "fes.video.session-display"):
                 self.assertTrue(item["required"])
+
+
+class Zx81PlaneDspTests(unittest.TestCase):
+    @staticmethod
+    def design(*cells):
+        return {"modules": {"top": {"cells": {
+            name: {"type": kind, "parameters": {"A_SIGNED": signed, "B_SIGNED": signed}}
+            for name, kind, signed in cells}}}}
+
+    def test_exactly_three_unsigned_plane_products(self) -> None:
+        products = [(f"display.{colour}_product", "MISTRAL_MUL9X9", "0")
+                    for colour in ("red", "green", "blue")]
+        build_fes_zx81_oss._plane_dsp_evidence(self.design(*products))
+        self.assertEqual(build_fes_zx81_oss.DSP_RESOURCES & build_fes_zx81_oss.FORBIDDEN_RESOURCES, frozenset())
+        self.assertIn("MISTRAL_MUL18X19", build_fes_zx81_oss.FORBIDDEN_RESOURCES)
+        for cells in (products[:2], [*products, ("machine.alu", "MISTRAL_MUL9X9", "0")],
+                      [*products[:2], ("machine.alu", "MISTRAL_MUL9X9", "0")],
+                      [*products[:2], ("display.blue_product", "MISTRAL_MUL9X9", "1")],
+                      [*products[:2], ("display.blue_product", "MISTRAL_MUL9X9", "x")]):
+            with self.subTest(cells=cells), self.assertRaises(build_fes_zx81_oss.BuildError):
+                build_fes_zx81_oss._plane_dsp_evidence(self.design(*cells))
 
 
 class Zx81SyncM10kTests(unittest.TestCase):
@@ -580,7 +605,7 @@ class Zx81YosysM10kTests(unittest.TestCase):
             f"{sources}; "
             "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
             "chparam -set EXPANSION_SOCKET 1 top; "
-            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "synth_intel_alm -nolutram -top top -run :map_luts; "
             "autoname; select -module top; "
             "log ---SDP---; select -count t:MISTRAL_M10K; "
             "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "

@@ -16,6 +16,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_display_plane.hpp"
 #include "native/input.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
@@ -1434,6 +1435,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
    // count here is a fault in this image, not history from the previous core.
    if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
+   if(error.ok()&&info.pixel_format!=generated::FesApplicationMenuPixelFormat)
+    error={ErrorCode::io_failed,"idle menu must scan the XRGB format","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
    menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
@@ -1441,9 +1444,12 @@ HardwareResult NativeHardware::LoadCoreInternal(
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
+   if(error.ok()&&info.pixel_format!=generated::FesDisplayPlanePixelFormatPremultipliedRgba)
+    error={ErrorCode::io_failed,"session display must blend premultiplied RGBA","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
    menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
+   menu_status_.picture=info.picture;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,

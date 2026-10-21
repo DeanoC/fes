@@ -220,3 +220,32 @@ func TestGenerateABIRejectsGeneratedSymbolCollisions(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateDisplayPlaneFabricConstants(t *testing.T) {
+	fabric, err := pack.LoadFabric("../../packages/fabric/fes_fabric_video_display_plane.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateFabric(fabric)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"packages/fabric/fes_fabric_video_display_plane.yaml",
+		"constexpr std::uint32_t FesDisplayPlaneLatencyCycles = 0x3u;",
+		"constexpr std::uint32_t FesDisplayPlanePixelFormatPremultipliedRgba = 0x2u;",
+		"constexpr std::uint32_t FesDisplayPlaneInfoPictureLeftIndex = 0xeu;",
+		"constexpr std::uint32_t FesDisplayPlaneInfoPictureHeightIndex = 0x11u;",
+	} {
+		if !strings.Contains(generated, fragment) {
+			t.Fatalf("missing fabric constant %q", fragment)
+		}
+	}
+	if strings.Contains(generated, "ABIID") || strings.Contains(generated, "Capability") {
+		t.Fatal("fabric generated host ABI/capability symbols")
+	}
+	fabric.Constants = append(fabric.Constants, fabric.Constants[0])
+	if _, err := GenerateFabric(fabric); err == nil {
+		t.Fatal("fabric accepted a duplicate constant")
+	}
+}

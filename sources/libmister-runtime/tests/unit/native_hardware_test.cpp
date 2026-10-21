@@ -1499,12 +1499,15 @@ public:
 struct MenuGpScript {
  mister_test::FakeMmio* mmio;
  bool toggle=false;
+ // A session plane reports premultiplied RGBA and its picture rectangle.
+ bool session=false;
  void Reply(std::uint16_t value=0){toggle=!toggle;PushFesGpResponse(mmio,toggle,value);}
  void Info(std::uint16_t state,std::uint32_t sequence,std::uint32_t underflows=0){
-  const std::uint16_t words[]={1280,720,5120,16384,56,0,64,1,2,state,
+  const std::uint16_t words[]={1280,720,5120,16384,56,0,64,std::uint16_t(session?2:1),2,state,
    static_cast<std::uint16_t>(sequence),static_cast<std::uint16_t>(sequence>>16),
    static_cast<std::uint16_t>(underflows),static_cast<std::uint16_t>(underflows>>16)};
   for(auto word:words)Reply(word);
+  if(session)for(std::uint16_t word:{312,90,656,540})Reply(word);
  }
  void Identity(){
   using namespace mister::native::generated;
@@ -1549,7 +1552,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
   if(abi.id==FesSimpleComputerABIID&&interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID)advertised=true;
  assert(advertised);
  assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
- MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
+ MenuGpScript script{&mmio};script.session=true;auto words=FesGpIdentityWords();
  words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
  words[FesGpIdentityCapabilitiesIndex]=775;
  for(auto word:words)script.Reply(word);

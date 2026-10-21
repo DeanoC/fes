@@ -22,7 +22,8 @@ The example identity is syntax only. Status adds `menu_display` when a menu
 has been configured or has unavailable/error evidence. Its generation is
 independent of gameplay `generation`; absent means no menu configuration.
 Geometry is fixed: 1280×720, stride 5120, 3,686,400-byte RGBA8888 staging,
-two 4 MiB XRGB8888 DDR slots. Clients never receive a DDR descriptor/address.
+two 4 MiB DDR slots of B, G, R, A words. Idle MENU ignores the alpha byte.
+Clients never receive a DDR descriptor/address.
 
 A frame uses two JSON lines on **one connection**:
 
@@ -119,19 +120,24 @@ reload both fail. Stop from splash idle remains idempotent. A present that
 misses completion or trips the underflow limit reactivates the menu within
 the budget above before using the splash path. Failed containment requires reboot.
 
-## In-session simple-computer display
+## In-session display
 
-An active package with required `fes.video.session-display` and
-`fes.memory.hps-ddr` 1.0 exposes the same frame transport. Open/return uses the
-active core identity, not the frame generation:
+An active simple-computer or computer package with required
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the same
+frame transport. The plane blends the staged RGBA as premultiplied alpha over
+the machine picture; an opaque frame replaces it. Open/return uses the active
+core identity, not the frame generation:
 
 ```json
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true}
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false}
 ```
 
-Status carries `session: true` and `core_generation: 7` in `menu_display`,
-alongside the active package ID and fixed geometry, while the plane is closed.
+Status carries `session: true`, `core_generation: 7` and the machine picture
+rectangle `picture: [x, y, width, height]` in `menu_display`, alongside the
+active package ID and fixed geometry, while the plane is closed. Admission
+requires the plane to report pixel format 2 and a picture inside the frame;
+idle MENU must report format 1.
 `available` becomes true only after successful open, which grants a fresh
 nonzero `menu_display.generation` for immutable frame submissions. A repeated
 open is idempotent. Close sets availability false and generation zero, revokes

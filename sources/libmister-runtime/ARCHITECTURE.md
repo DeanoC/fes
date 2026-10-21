@@ -208,7 +208,10 @@ tests do not establish physical scanout acceptance.
 ## In-session simple-computer presentation
 
 Simple-computer `fes.video.session-display` 1.0 reuses the menu driver and
-reserved DDR slots, with required `fes.memory.hps-ddr` 1.0. Its bit 9 and the
+reserved DDR slots, with required `fes.memory.hps-ddr` 1.0. The plane reports
+pixel format 2, premultiplied RGBA, and the machine picture rectangle; the DDR
+copy keeps each staged pixel's alpha byte and status publishes the rectangle
+as `menu_display.picture`. Its bit 9 and the
 DDR bit 8 are included in exact declared/live identity checks. Admission
 advertises this interface only when boot DDR layout and presentation adapters
 are available. Activation initializes black slots and configures the disabled

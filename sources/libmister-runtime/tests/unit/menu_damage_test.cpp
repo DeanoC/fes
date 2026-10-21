@@ -40,8 +40,9 @@ public:
  bool MenuCopyCancelled() const override {return cancel;}
  const std::uint32_t* slot(int s) const {return data.data()+s*FesApplicationMenuSlotBytes/4;}
 };
-std::uint32_t Xrgb(const std::vector<unsigned char>& rgba,std::size_t pixel)
-{return std::uint32_t(rgba[pixel*4+2])|std::uint32_t(rgba[pixel*4+1])<<8|std::uint32_t(rgba[pixel*4])<<16;}
+std::uint32_t DdrWord(const std::vector<unsigned char>& rgba,std::size_t pixel)
+{return std::uint32_t(rgba[pixel*4+2])|std::uint32_t(rgba[pixel*4+1])<<8|std::uint32_t(rgba[pixel*4])<<16|
+ std::uint32_t(rgba[pixel*4+3])<<24;}
 // A sealed staging file. With rects, only those pixels are copied in; the
 // rest of the file is junk the runtime must not use.
 std::unique_ptr<MenuFrame> Stage(const std::vector<unsigned char>& rgba,const std::vector<MenuRect>* rects)
@@ -69,7 +70,7 @@ void Paint(std::vector<unsigned char>* rgba,MenuRect r,unsigned char seed)
 void AssertSlotIs(const Ddr& ddr,int slot,const std::vector<unsigned char>& rgba)
 {
  const std::uint32_t* s=ddr.slot(slot);
- for(std::size_t i=0;i<std::size_t(W)*H;++i)if(s[i]!=Xrgb(rgba,i)){std::fprintf(stderr,"slot %d differs at %zu\n",slot,i);assert(false);}
+ for(std::size_t i=0;i<std::size_t(W)*H;++i)if(s[i]!=DdrWord(rgba,i)){std::fprintf(stderr,"slot %d differs at %zu\n",slot,i);assert(false);}
 }
 }
 int main()

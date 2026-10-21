@@ -690,6 +690,10 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"package_id\":");AppendIdentity(&output,menu.package_id);
   if(menu.session) {
    output.Append(",\"session\":true,\"core_generation\":");output.Append(std::to_string(menu.core_generation));
+   const auto& picture=menu.picture;
+   output.Append(",\"picture\":[");output.Append(std::to_string(picture.x));output.Append(",");
+   output.Append(std::to_string(picture.y));output.Append(",");output.Append(std::to_string(picture.w));
+   output.Append(",");output.Append(std::to_string(picture.h));output.Append("]");
   }
   output.Append(",\"generation\":");output.Append(std::to_string(menu.generation));
   output.Append(",\"width\":");output.Append(std::to_string(geometry.width));

@@ -48,6 +48,8 @@ module cyclonev_hps_interface_fpga2sdram (
     reg violation /* verilator public_flat_rd */ = 1'b0;
     reg [31:0] accepted /* verilator public_flat_rd */ = 32'd0;
     reg [7:0] remaining /* verilator public_flat_rd */ = 8'd0;
+    // Top byte of every pixel word: premultiplied alpha for a session plane.
+    reg [7:0] alpha /* verilator public_flat_rw */ = 8'd0;
     reg [31:0] next_byte = 32'd0;
     assign cmd_ready_0 = !block_commands && remaining == 8'd0;
     assign {cmd_ready_1,cmd_ready_2,cmd_ready_3,cmd_ready_4,cmd_ready_5} = 5'd0;
@@ -63,7 +65,7 @@ module cyclonev_hps_interface_fpga2sdram (
         reg [31:0] index;
         begin
             index=(a-32'h30000000-(a[22] ? 32'h00400000 : 32'd0))>>2;
-            pixel={8'd0,index[7:0],index[15:8],a[22] ? 8'h77 : 8'h22};
+            pixel={alpha,index[7:0],index[15:8],a[22] ? 8'h77 : 8'h22};
         end
     endfunction
     always @(posedge cmd_port_clk_0) begin

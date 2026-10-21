@@ -222,7 +222,10 @@ Error MenuMemory::CopyRgba(std::uint8_t slot,const MenuFrame& frame,std::uint32_
    const unsigned char* source=bytes+(std::size_t(y)*kMenuWidth+r.x)*4;
    std::uint32_t* row=shadow_.data()+std::size_t(y)*kMenuWidth+r.x;
    for(unsigned x=0;x<r.w;++x,source+=4)
-    row[x]=std::uint32_t(source[2])|std::uint32_t(source[1])<<8|std::uint32_t(source[0])<<16;
+    // B,G,R,A bytes in DDR. Idle firmware ignores the top byte; a session
+    // plane blends with it as premultiplied alpha.
+    row[x]=std::uint32_t(source[2])|std::uint32_t(source[1])<<8|std::uint32_t(source[0])<<16|
+     std::uint32_t(source[3])<<24;
   }
  }
  // Store what changed plus what this slot missed. Overlap is stored twice.

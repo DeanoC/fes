@@ -54,7 +54,7 @@ int main(){
  assert(!frame->ValidateImmutable(frame->fd()).ok());
  assert(ftruncate(frame->fd(),1)==0);assert(!frame->ValidateImmutable(frame->fd()).ok());assert(ftruncate(frame->fd(),3686400)==0);
  auto rgba=static_cast<unsigned char*>(mmap(nullptr,3686400,PROT_READ|PROT_WRITE,MAP_SHARED,frame->fd(),0));assert(rgba!=MAP_FAILED);
- memset(rgba,0,3686400);rgba[0]=0x11;rgba[1]=0x22;rgba[2]=0x33;rgba[3]=255;
+ memset(rgba,0,3686400);rgba[0]=0x11;rgba[1]=0x22;rgba[2]=0x33;rgba[3]=0x80;
  rgba[3686396]=0x44;rgba[3686397]=0x55;rgba[3686398]=0x66;rgba[3686399]=255;
  assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)<0);
  assert(munmap(rgba,3686400)==0);assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
@@ -67,7 +67,8 @@ int main(){
    assert(ops.data[0]==0&&ops.data[3686400/4-1]==0&&ops.data[3686400/4]==0xdeadbeef);
    assert(ops.data[4194304/4]==0&&ops.data.back()==0xdeadbeef);
    ops.barrier=false;assert(memory.CopyRgba(1,*frame).ok());assert(ops.barrier);
-   assert(ops.data[4194304/4]==0x00112233&&ops.data[(4194304+3686400)/4-1]==0x00445566);
+   // Alpha reaches the top byte: a session plane blends with it.
+   assert(ops.data[4194304/4]==0x80112233&&ops.data[(4194304+3686400)/4-1]==0xff445566);
    assert(ops.data[0]==0&&ops.data.back()==0xdeadbeef);assert(!memory.CopyRgba(2,*frame).ok());
    assert(!memory.CopyRgba(0,*other).ok());
  } assert(!ops.mapped);
@@ -109,7 +110,7 @@ int main(){
    const auto offset=i*4;
    const auto expect=std::uint32_t(static_cast<unsigned char>(offset>>16))|
     (std::uint32_t(static_cast<unsigned char>(offset>>8))<<8)|
-    (std::uint32_t(static_cast<unsigned char>(offset))<<16);
+    (std::uint32_t(static_cast<unsigned char>(offset))<<16)|0xff000000u;
    assert(slot[i]==expect);
   }
   assert(recorded.data[FesApplicationMenuFrameBytes/4-1]==0xdeadbeef);

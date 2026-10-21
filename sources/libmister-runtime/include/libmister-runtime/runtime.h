@@ -295,8 +295,16 @@ struct CorePackageInspection {
 struct MenuGeometry {
  std::uint32_t width=0,height=0,stride=0,frame_bytes=0,slot_bytes=0;
 };
+// A changed region of a menu frame, in pixels.
+struct MenuRect {
+ std::uint16_t x=0,y=0,w=0,h=0;
+};
 struct MenuDisplayInfo {
  MenuGeometry geometry;
+ // Idle firmware scans XRGB (format 1). A session-display 2.0 plane blends
+ // premultiplied RGBA (format 2) and reports where the machine picture lands.
+ std::uint16_t pixel_format=0;
+ MenuRect picture;
  bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Timing of the present that produced this info, for frame-time
@@ -315,14 +323,12 @@ struct MenuDisplayStatus {
  std::string package_id;
  std::uint64_t generation=0;
  MenuGeometry geometry;
+ // Session planes only: the machine picture inside the launcher frame.
+ MenuRect picture;
  std::uint32_t displayed_sequence=0,underflows=0;
  // This hardware accepts damaged commits (menu_frame_commit "damage").
  bool damage=false;
  Error error;
-};
-// A changed region of a menu frame, in pixels.
-struct MenuRect {
- std::uint16_t x=0,y=0,w=0,h=0;
 };
 // The only regions of a commit's staging file that differ from the frame
 // the runtime last displayed (base_sequence). Everything else in the file

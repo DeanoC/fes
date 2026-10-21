@@ -722,7 +722,7 @@ linking requires fresh exact-shell placement, containment and timing evidence;
 the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
 defines token validation and the initial geometry/encoding. Future RGB, SMS,
-overlay, CRT and DDR profiles require separate implementation and evidence.
+CRT and DDR profiles require separate implementation and evidence.
 
 The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
 Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
@@ -811,8 +811,33 @@ digest/size. Compiler evidence and the frozen routed netlist remain in host
 caches; they are not installed on the target. Reuse validates the current
 functional inputs and original provenance, then independently checks the
 configuration header, actual CRAM fence, timing and clock/resource ownership.
-Other native geometries, DDR scanout, overlays, variable modes and audio parts
-remain subsequent work.
+Other native geometries, DDR scanout, variable modes and audio parts remain
+subsequent work. Launcher overlays and surrounds belong to the shell's
+[display plane](#display-plane), after the part.
+
+### Display plane
+
+`cores/fes-common/rtl/fes_display_plane.v` implements the
+`fes.video.session-display` plane and `fes.fabric.video.display-plane` 1.0
+([contract](../../mister-packages/docs/session-display.md)). A shell feeds it
+the finished 720p word in the video-part response layout (RGB888, DE, HS, VS,
+CE) after any part, and drives the HDMI pins from its output. The plane:
+
+- crosses GP opcodes 18–21 from the system clock in `fes_display_cdc`;
+- derives raster coordinates from the word's DE and VS edges and locks after a
+  whole frame matches the fixed 1650×750 timing with CE set;
+- reads premultiplied RGBA from the HPS DDR window through `fes_menu_video`;
+- blends `P + M × (256 − a − (a >> 7)) / 256` per channel with three unsigned
+  9×9 DSP products and saturation;
+- delays the whole word by three pixel clocks, so RGB and sync stay aligned;
+- reports the shell's machine picture rectangle through MENU_INFO 14–17.
+
+A closed, faulted, unlocked or reset-held plane returns the machine word
+unchanged. Losing lock or missing a pixel while visible is a scanout fault.
+`make sim-fes-display-plane` checks exact passthrough, the blend at alpha 255,
+128, 64 and 0 (saturating), the fixed latency, lock/relock and fault return.
+ZX81 is the only shell with a plane; [the display pipeline](../../../docs/display-pipeline.md)
+lists the remaining cores.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
@@ -1294,9 +1319,10 @@ and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects. Its optional session
 hook admits display opcodes 18–21 only in the ZX81 board shell and declares
 HPS DDR plus `fes.video.session-display`. A held command/response crosses
-52.224/74.25 MHz with `zx81_display_cdc` toggle handshakes and stable payload
+52.224/74.25 MHz with `fes_display_cdc` toggle handshakes and stable payload
 registers. Execution hold rejects while the session plane is not quiesced;
-normal show/return does not use execution hold.
+normal show/return does not use execution hold. The GP command crosses
+52.224/74.25 MHz in the shared `fes_display_cdc`.
 
 ## FES ZX81 machine simulation
 
@@ -1397,12 +1423,14 @@ its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
-The session plane reuses `fes_menu_control`, `fes_menu_reader` and
-`fes_hps_ddr`. `fes_menu_video` selects its optional external-raster and
-complete-frame mode: ZX81 remains the only 1650×750 raster owner, and a
-submission completes only after every pixel of one frame arrived on time.
-`zx81_session_display` keeps the first launcher frame hidden, then selects
-its RGB at the next frame boundary. Closing waits for issued DDR responses to
+The ZX81 HDMI output passes through the shared
+`cores/fes-common/rtl/fes_display_plane.v`, the `fes.video.session-display`
+plane described under [display plane](#display-plane). It reuses
+`fes_menu_control`, `fes_menu_reader` and `fes_hps_ddr`. `fes_menu_video`
+selects its optional external-raster and complete-frame mode: ZX81 remains the
+only 1650×750 raster owner, and a submission completes only after every pixel
+of one frame arrived on time. The plane keeps the first launcher frame hidden,
+then blends it from the next frame boundary. Closing waits for issued DDR responses to
 drain and returns machine RGB at a frame boundary before acknowledging. A
 visible underflow contains the display and restores machine pixels; it never
 reprograms the FPGA or resets CPU/RAM/ROM, expansion, capture or audio. Unexpected
