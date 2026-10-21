@@ -1,0 +1,146 @@
+Atari ST timing-path experiments, 2026-10-21
+
+Issue: https://github.com/DeanoC/fes/issues/910
+FES base: dcfa92c98fc9eb4c619e398872e52a91d071fe66. Its ST RTL is identical to
+#913's 811a5a34; later main commits touch only RISC-V RTL and recipe tooling.
+Candidates:
+  bf1281a0  st_native_border: compare only the held border event; register the
+            row descriptors before the event addresses
+  b72c1756  bf1281a0 plus st_native_low_video: each bank's frame read group
+            registers its own hit and chunk index
+Tools: the ST toolchain.lock pins, yosys 3a5accbd, nextpnr 9128800f, mistral 8fcc4cb4.
+  HIP: Powerboat slot fac97e973f94adee154caaaf227d75bc971b6e0ab78bdb4e84f383690f6d6764
+       (the slot #913's 811a5a34 search used)
+  CUDA: chip-30x0-ai-dev /data/scratch/fes-toolchain-c64-cuda (nextpnr 9128800f and
+        mistral 8fcc4cb4, clean trees, CUDA sm86)
+
+Evidence class
+These are zero-BUILD_ID frozen-netlist RTL experiments, not production
+qualification. Each netlist comes from the ST producer's own functions:
+build_commands (its Yosys program), prepare_cpu_inputs, clock_read_only_memories
+and validate_synth_evidence. BUILD_ID is 0, the producer's --synth-only value.
+socket_qsf() supplies the QSF, and the SDC is the producer's clocks-oss.sdc.
+Routes use the producer's nextpnr argv: weight 2000, critexp 5, --router gpu,
+search-mode --timing-allow-fail, and the 1800 s nextpnr_lease.py lease timeout.
+They also use its environment (HOME, LANG=C, LC_ALL=C, TZ=UTC, slot PATH), with
+one gpu-run lease per route (owner lander, 1 GPU). The production QoR search
+additionally runs nextpnr under the strace read-audit; these routes do not.
+A run passes when every clock's final analogue signoff fmax meets its
+constraint: pixel_clk 74.25, system_clock.clocks[0] 52.22 and clocks[1] 12.29 MHz.
+The baseline netlist reproduces #913's CUDA no-DSP table exactly at seed 4
+(route timeout) and seed 5 (64.92 / 54.85 MHz), on HIP.
+No producer seal was run. The current host's ST toolchain key resolves to slot
+6e2837613d66767ee9d1bad984d4dc3415487603b14b11ea6c166eaea0e00adb, which is not
+built. The producer bootstraps it on its next run.
+
+#781 is not the cause (history.txt)
+- The #910 per-seed values at adbe6298 (pixel 55.90-77.36 / sys[0] 38.74-46.03
+  MHz) are nextpnr's post-placement estimates, printed before "Routing globals".
+  All ten adbe6298 seeds hit the 1800 s route timeout, so none produced routed
+  timing. Seed 8 finished its main route and timed out in analogue repair.
+- The sys[0] placement estimate shows the same 35-48 MHz band at every commit:
+  pre-#781 cf6987bb, post-#781 507dc554, adbe6298, a5f002c9 and 811a5a34.
+- Routed sys[0] improved with #781. Pre-#781 cf6987bb s2/s4/s5 reached
+  51.09/46.96/47.76 MHz (fail). Post-#781 507dc554 s4/s5 reached 52.82/53.23
+  (pass). #781's head f53eba76 sealed seed 9 at 74.37 / 52.42.
+- At 811a5a34 every mailbox endpoint keeps positive slack on every routed seed:
+  1759-1785 endpoints per seed, worst +1.445 ns (s4), up to +3.296 ns (s3).
+- adbe6298 used the same slot (9e819bba) and flags as the 507dc554 control, and
+  its netlist was within synthesis noise of the control's (FF 9690, M10K 513,
+  LUTs within 1%). Its seeds completed 26-51 main-route iterations within the
+  timeout. The control finished its main routes in 65-132 iterations, taking
+  654-801 s. adbe6298's overuse per iteration matched routes that finished, so
+  its iterations ran several times slower. The lease directory keeps no
+  history, so the cause is not recorded.
+
+Critical paths at 811a5a34 (#913's production search, 7 of 10 seeds routed)
+pixel_clk failed on all 7 routed seeds, at 64.24-71.74 MHz:
+- Border consume: event M10K output head0..2 (4.5-6.4 ns of route), then the
+  held/head select, the consume-bank select and the x compare, into
+  raster_rgb_q, remaining, colour, next_pointer and held_valid. Worst slack
+  -0.471 (s5) to -2.098 ns (s10).
+- Border event address: descriptor M10K output desc0..2, through the
+  read-pointer LUT4, to the B1ADDR of all 18 8Kx1 event M10Ks in the bank.
+  Worst -1.029 ns (s2).
+- Frame read: the 16:1 group selects sit next to the frame M10K columns. In one
+  cycle, read_chunk's index travels out to them and the selected word travels
+  back to group_read. Worst -0.927 ns (s2).
+sys[0] failed on 2 of 7 (s4 50.18, s2 51.74 MHz). The path runs from the ROM lane
+M10Ks through the 192-lane OR to upper_byte/rdata. On s3 it had 10.8 ns of route.
+Every one of these paths starts at an M10K output; the build uses 513 of 553
+M10Ks.
+
+Analogue repair (nextpnr 9128800f)
+At 811a5a34, final signoff was worse than the first analogue check on 6 of 7
+routed seeds. Examples: s3 74.12 -> 69.77, s4 73.00 -> 68.74, s10 70.60 -> 64.24
+MHz. For s3, nextpnr restored the routing with its best recorded slack
+(-0.024 ns, the first check), but final signoff measured -0.865 ns. Signoff
+re-times arcs that the analogue model cannot time with the calibration
+accumulated over the repair rounds (analogue.cc 551-556). The repair also runs
+on a 300 s wall-clock budget.
+
+Routability
+Final SA placement wirelength predicts routing within the 1800 s budget, across
+every netlist here. Every seed below 368k routed. Above 376k, every seed but one
+timed out; the exception, bf1281a0 s2, routed at 388k. Between those, 811a5a34 s8
+timed out at 368.5k, while its s4/s6 routed at 370-372k. The RTL changes do not
+target routability.
+
+Changes and equivalence (sims.txt)
+bf1281a0, in st_native_border:
+- One held register loads the consume bank's prefetched head whenever
+  held_valid is clear. The consume bank changes only at SOF, which also clears
+  held_valid.
+- consume_current requires held_valid and compares only the held event's x.
+- Each descriptor RAM's read data takes one more pixel edge into desc0..2.
+- The adapter sets output_row 6 edges before line start and 11 before SOF.
+  Line start and SOF fall in blanking (border_sample_ce = 0). Each native pixel
+  is held for two output_ce edges.
+- A row's event x values strictly increase, so no event is due on the edge after
+  a consume. A probe in the original RTL confirms that the real adapter path
+  never consumes on such an edge.
+- native_border_tb now drives the adapter's timing: one blanking edge after
+  SOF/line start, and two output_ce edges per native pixel in the full-arena
+  replay, checked on both edges.
+b72c1756, in st_native_low_video:
+- Each bank's 16-chunk group registers its own hit with the RAM read, and loads
+  its own chunk index only when it is the addressed group. The distinct enables
+  keep Yosys from merging the fifteen index registers.
+- A miss, a chunk past the frame and reset clear the group's selected word, and
+  the RGB output is the OR of the fifteen group words.
+- RAM ports, read latency and the SOF in-flight bank tag are unchanged.
+Every video sim result line is identical to main's: native-video, video-adapter,
+shifter-output, short-line-video and cache-write-coherence. The only difference
+is native_border_tb's check count.
+
+Results (results.tsv, runs.jsonl)
+Final signoff pixel/sys[0] MHz. H = HIP Powerboat, C = CUDA chip-30x0-ai-dev.
+811a5a34 is #913's production search of the same ST RTL with its production BUILD_ID.
+
+seed  811a5a34          dcfa92c9 (base)    bf1281a0           b72c1756
+4     68.74/50.18 FAIL  timeout            timeout            75.37/56.96 PASS H
+5     71.74/54.61 FAIL  64.92/54.85 FAIL H timeout            76.01/55.53 PASS C
+2     67.44/51.74 FAIL  -                  74.39/56.78 PASS H 80.85/57.47 PASS H
+1     timeout           -                  71.30/50.29 FAIL H timeout
+3     69.77/57.17 FAIL  -                  timeout            73.35/57.42 FAIL H
+6     65.16/52.94 FAIL  -                  77.51/57.76 PASS H -
+7     68.07/54.61 FAIL  -                  -                  75.70/52.23 PASS H
+8     timeout           -                  -                  -
+9     timeout           -                  -                  -
+10    64.24/58.01 FAIL  -                  -                  -
+
+dcfa92c9: 2 routes, 1 routed, 0 pass
+bf1281a0: 6 routes, 3 routed, 2 pass
+b72c1756: 6 routes, 5 routed, 4 pass
+811a5a34 (#913): 10 routes, 7 routed, 0 pass
+
+Not done
+- Producer seal: the producer's normal search on the PR head (it bootstraps the
+  missing ST slot) is the promotion evidence; these routes are not.
+- Kit HIL.
+- Limiters left on b72c1756 routes, by clock:
+  pixel_clk: the frame read (s5 +0.312 ns, s7), the adapter's mute/show gating
+  into the video socket request (s3 -0.165 ns) and the legacy renderer line logic
+  (s2, s4).
+  sys[0]: the FX68K instruction register into its nanoROM M10K address
+  (s7 +0.002 ns).
