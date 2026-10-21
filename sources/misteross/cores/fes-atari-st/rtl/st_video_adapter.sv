@@ -62,7 +62,13 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     reg [23:0] job_base [0:1];
     reg [8:0] job_row [0:1];
     reg job_high [0:1];
+    // Frame tags are retained for the focused simulation's cache checks.
+    /* verilator lint_off UNUSEDSIGNAL */
     reg [31:0] job_frame [0:1];
+    /* verilator lint_on UNUSEDSIGNAL */
+    // Set when a bank's job is scheduled and cleared as debug_frame advances,
+    // so it equals job_frame == debug_frame without a 32-bit pixel-path compare.
+    reg [1:0] job_current;
 
     typedef enum logic [1:0] { MEMORY_IDLE, MEMORY_READ, MEMORY_GAP } memory_state_t;
     memory_state_t memory_state;
@@ -183,7 +189,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         (next_vertical >= 10'd160 && next_vertical < 10'd560) :
         (next_vertical >= 10'd60 && next_vertical < 10'd660));
     wire next_row_ready = cache_valid[next_row[0]] && !cache_busy[next_row[0]] &&
-        job_frame[next_row[0]] == debug_frame && job_row[next_row[0]] == next_row;
+        job_current[next_row[0]] && job_row[next_row[0]] == next_row;
     integer bank;
     always @(posedge clk_pixel) begin
         if (reset_pixel) begin
@@ -207,6 +213,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             job_request <= 2'd0;
             cache_busy <= 2'd0;
             cache_valid <= 2'd0;
+            job_current <= 2'b11;
             line_available <= 1'b0;
             debug_underruns <= 32'd0;
             debug_frame <= 32'd0;
@@ -238,15 +245,16 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             for (bank = 0; bank < 2; bank = bank + 1) begin
                 if (cache_busy[bank] && job_done_sync[bank] == job_request[bank]) begin
                     cache_busy[bank] <= 1'b0;
-                    cache_valid[bank] <= job_ok[bank] && job_frame[bank] == debug_frame;
+                    cache_valid[bank] <= job_ok[bank] && job_current[bank];
                 end
                 if (scheduling && !cache_busy[bank] && desired_rows[bank] < native_height &&
-                    (!cache_valid[bank] || job_frame[bank] != debug_frame ||
+                    (!cache_valid[bank] || !job_current[bank] ||
                      job_row[bank] != desired_rows[bank])) begin
                     job_base[bank] <= active_base;
                     job_row[bank] <= desired_rows[bank];
                     job_high[bank] <= high_resolution;
                     job_frame[bank] <= debug_frame;
+                    job_current[bank] <= 1'b1;
                     job_request[bank] <= !job_request[bank];
                     cache_busy[bank] <= 1'b1;
                     cache_valid[bank] <= 1'b0;
@@ -267,6 +275,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                 if (vertical == V_TOTAL - 10'd1) begin
                     debug_frame <= debug_frame + 32'd1;
                     cache_valid <= 2'd0;
+                    job_current <= 2'd0;
                     if (pending_valid || config_complete) begin
                         {active_base, active_resolution, active_palette} <=
                             config_complete ? config_bundle_sys : pending_config;
@@ -309,7 +318,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             renderer_data <= 16'd0;
         end else begin
             lookup_valid <= renderer_fetch_valid && cache_valid[renderer_row[0]] &&
-                !cache_busy[renderer_row[0]] && job_frame[renderer_row[0]] == debug_frame &&
+                !cache_busy[renderer_row[0]] && job_current[renderer_row[0]] &&
                 job_row[renderer_row[0]] == renderer_row;
             lookup_bank <= renderer_row[0];
             lookup_column <= renderer_column;
