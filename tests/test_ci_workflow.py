@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -12,6 +13,30 @@ from scripts.affected import plan
 
 
 class ParentWorkflowTests(unittest.TestCase):
+    def test_deadcode_step_forwards_paths_to_real_selector(self):
+        repository = Path(__file__).resolve().parents[1]
+        workflow = (repository / '.github/workflows/check.yml').read_text()
+        step = workflow.split('      - name: Unused Go code\n', 1)[1].split('  host:\n', 1)[0]
+        self.assertIn('CHANGED_PATHS: ${{ needs.plan.outputs.paths }}', step)
+        command = re.search(r'        run: (.+)', step).group(1)
+        for paths, expected in ((['scripts/appliance.py'], False),
+                                (['tests/test_receipt.py', 'docs/test-changed.md'], False),
+                                (['platform/boot.go'], True),
+                                (['<new-branch>'], True)):
+            with self.subTest(paths=paths), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                # Exercise the actual workflow command/quoting and real selector,
+                # adding only plan-only to avoid installing analysis tools.
+                stub = root / 'python3'
+                stub.write_text('#!' + sys.executable + '\nimport os, sys\n'
+                                'os.execv(sys.executable, [sys.executable, *sys.argv[1:], "--plan-only"])\n')
+                stub.chmod(0o755)
+                result = subprocess.run(['bash', '-e', '-c', command], cwd=repository,
+                    env={**os.environ, 'CHANGED_PATHS': json.dumps(paths),
+                         'PATH': str(root) + os.pathsep + os.environ['PATH']},
+                    capture_output=True, text=True, check=True)
+                self.assertEqual(json.loads(result.stdout), {'selected': expected, 'paths': paths})
+
     def test_platform_and_image_commands_follow_media_inputs(self):
         workflow = (Path(__file__).resolve().parents[1] /
                     '.github/workflows/check.yml').read_text()
