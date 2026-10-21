@@ -24,6 +24,7 @@ from scripts.fes_build_common import (
 )
 from scripts.search_placer_qor import route_after_synth
 from scripts import zx81_expansion as expansion
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build/fes-zx81-socket-bus"
@@ -64,6 +65,13 @@ def synthesize_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
     print("shell synthesis and socket rename OK", flush=True)
 
 
+def socket_route_extra(nextpnr: Path) -> tuple[str, ...]:
+    """Use the production ZX81 pin policy in this socket route diagnostic."""
+    flags = pnr_recipe.recipe_for("fes.zx81", nextpnr)["flags"]
+    pin_assignment = ("--arrival-pin-assignment",) if flags["arrival_pin_assignment"] else ()
+    return ("--router", "gpu", *pin_assignment)
+
+
 def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
     winner = route_after_synth(
         nextpnr=tools["nextpnr"],
@@ -78,7 +86,7 @@ def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
         critexp=shell.PLACER_CRITICALITY_EXPONENT,
         budget=len(shell.PLACER_SEEDS) * len(shell.PLACER_FIRST_PASS_WEIGHTS),
         mode="first-pass",
-        extra=("--router", "gpu"),
+        extra=socket_route_extra(tools["nextpnr"]),
         timeout=1800,
         required=shell.PLACER_QOR_CLOCKS,
         gpu_devices=(0,),

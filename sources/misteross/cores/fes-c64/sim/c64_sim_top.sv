@@ -19,13 +19,20 @@ module c64_sim_top (
     output wire signed [15:0] audio_sample,
     output wire [7:0]  debug_stage,
     output wire [7:0]  debug_error,
-    output wire [7:0]  debug_iec,
+    output wire [7:0]  debug_iec, debug_load_status,
+    output wire        cpu_enable,
+    output wire        cpu_run_enable, sprite_bus_owned,
     output wire [15:0] debug_pc
 );
     wire [`C64_BUS_REQ-1:0] slot1_request, slot2_request;
     wire [`C64_BUS_REQ-1:0] slot1_plug_request, slot2_plug_request;
     wire [`C64_BUS_RSP-1:0] slot1_response, slot2_response;
     wire [`C64_BUS_RSP-1:0] slot1_plug_response, slot2_plug_response;
+
+    assign debug_load_status = machine.main_ram.ram[16'h0017];
+    assign cpu_enable = machine.cpu_ce;
+    assign cpu_run_enable = machine.cpu_run_ce;
+    assign sprite_bus_owned = !machine.vic.sprites.aec_n;
 
     c64_machine machine (
         .clk_sys(clk_sys), .reset(reset),

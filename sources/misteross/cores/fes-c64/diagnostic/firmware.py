@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Open 16 KiB C64 firmware: an 8 KiB BASIC window and an 8 KiB KERNAL window.
+"""Open 36 KiB C64/1541 firmware: BASIC, KERNAL, characters and drive ROM.
 
 No Commodore ROM is used. The KERNAL window is a diagnostic that checks RAM,
 the linked BASIC signature, VIC and character generator, both cartridge
-sockets, the joystick and keyboard, then LOADs BOOT from the built-in 1541
-over the IEC bus and checks CIA1 IRQ and CIA2 NMI delivery. Bytes 0..8191 map
-at $A000 and bytes 8192..16383 at $E000.
+sockets, the joystick and keyboard, then receives a checked disk-sector payload
+from the native 1541 through the physical IEC pins. This original diagnostic
+transaction is not DOS or KERNAL LOAD. CIA1 IRQ and CIA2 NMI are also checked.
+Bytes 0..8191 map at $A000, bytes 8192..16383 at $E000, bytes 16384..20479
+form character ROM, and the final 16 KiB map at $C000 in the drive.
 """
 
 from __future__ import annotations
@@ -17,6 +19,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from asm6502 import assemble
+from drive_media_firmware import build as drive_media_image
+import importlib.util
+_font_spec=importlib.util.spec_from_file_location("fes_c64_character_font",Path(__file__).with_name("font.py"))
+_font=importlib.util.module_from_spec(_font_spec)
+_font_spec.loader.exec_module(_font)
+character_image=_font.image
 
 BASIC = bytes(b"FESBASIC") + bytes(8192 - 8)
 
@@ -134,14 +142,14 @@ wait_joy:
 joy_ok:
         lda #$ff
         sta $dc02
-        lda #$fb
+        lda #$fd
         sta $dc00
         lda #$08
         sta $c000
         jsr show_stage
 wait_key:
         lda $dc01
-        and #$02
+        and #$04
         bne wait_key
 key_ok:
         lda #$00
@@ -183,7 +191,25 @@ disk_bad:
         lda #$09
         jmp fail
 disk_ok:
+        ; Exercise real CPU read stalls from eight expanded sprite DMAs.
+        ; X=0 keeps these sprites outside the native display window.
+        ldx #$0f
+        lda #$14
+sprite_y_setup:
+        sta $d000,x
+        dex
+        dex
+        bpl sprite_y_setup
+        lda #$ff
+        sta $d017
+        sta $d015
         jsr check_interrupts
+        ; The demo's fastloader leaves VIC bank pins as inputs. Their pull-ups
+        ; select bank zero even when the CIA output latch holds zero.
+        lda #$00
+        sta $dd00
+        lda #$3c
+        sta $dd02
         ; Black border and screen. A green bar is the 720p letterbox and is
         ; not this test. The pass mark is the word PASS in the active picture.
         lda #$00
@@ -293,10 +319,64 @@ nmi_done:
         lda $19
         cmp #$01
         bne nmi_bad
+        jsr check_vic_irq
+        rts
+
+check_vic_irq:
+        lda #$00
+        sta $1d
+        sta $1e
+        lda $d011
+        and #$7f
+        sta $d011
+        lda #$20
+        sta $d012
+        lda #$01
+        sta $d019
+        sta $d01a
+        cli
+        ldy #$ff
+vic_wait_outer:
+        ldx #$ff
+vic_wait:
+        lda $1d
+        bne vic_irq_done
+        dex
+        bne vic_wait
+        dey
+        bne vic_wait_outer
+vic_irq_bad:
+        sei
+        lda #$0c
+        jmp fail
+vic_irq_done:
+        sei
+        cmp #$01
+        bne vic_irq_bad
+        lda $1e
+        and #$81
+        cmp #$81
+        bne vic_irq_bad
+        lda $d019
+        and #$81
+        bne vic_irq_bad
+        lda #$00
+        sta $d01a
         rts
 
 irq_handler:
         pha
+        lda $d019
+        and #$81
+        cmp #$81
+        bne irq_cia
+        lda $d019
+        sta $1e
+        inc $d019
+        inc $1d
+        pla
+        rti
+irq_cia:
         lda $dc0d
         sta $1b
         inc $19
@@ -312,211 +392,64 @@ nmi_handler:
         rti
 
 load_boot:
+        ; Original diagnostic transfer: ATN request, CLK acknowledgement,
+        ; DATA payload, all through the actual CIA/VIA IEC pins.
+        lda #$09
+        sta $c000
+        jsr show_stage
         lda #$00
         sta $17
+        lda #$08
         sta $14
-        jsr atn_on
-        lda #$28
-        jsr send_byte
-        lda #$f0
-        jsr send_byte
-        jsr atn_off
-        lda #'B'
-        jsr send_byte
-        lda #'O'
-        jsr send_byte
-        lda #'O'
-        jsr send_byte
-        lda #'T'
-        jsr send_byte
-        jsr atn_on
-        lda #$3f
-        jsr send_byte
-        lda #$48
-        jsr send_byte
-        lda #$60
-        jsr send_byte
-        jsr atn_off
         ldx #$00
-recv_loop:
-        jsr recv_byte
-        sta $0800,x
-        inx
-        lda $17
-        bne load_done
-        lda $14
-        beq recv_loop
-load_done:
-        rts
-
-atn_on:
-        lda $02
-        ora #$08
-        sta $02
-        rts
-atn_off:
-        lda $02
-        and #$f7
-        sta $02
-        rts
-
-port:
-        lda $02
-        and #$08
-        ora #$03
-        rts
-
-send_byte:
-        sta $13
-        jsr port
-        ora #$10
-        sta $dd00
-        jsr wait_data_high
-        lda $17
-        bne send_done
-        ldx #$08
-send_bit:
-        jsr port
-        ora #$10
-        lsr $13
-        bcc send_zero
-        ora #$20
-send_zero:
-        sta $dd00
-        jsr delay
-        and #$ef
-        sta $dd00
-        jsr delay
-        dex
-        bne send_bit
-        jsr wait_data_low
-        lda $17
-        bne send_done
-        jsr port
-        ora #$10
-        sta $dd00
-send_done:
-        rts
-
-recv_byte:
+native_byte:
         lda #$00
-        sta $14
-        jsr port
-        ora #$20
+        sta $15
+        ldy #$08
+native_bit:
+        lda $14
+        ora #$03
         sta $dd00
-        jsr wait_clk_low
-        lda $17
-        bne recv_done
-        jsr port
-        sta $dd00
-        ldy #40
-eoi_watch:
+        lda #$00
+        sta $16
+        sta $18
+        lda $14
+        beq native_high
+native_low:
         lda $dd00
         and #$40
-        bne recv_bits
-        jsr delay
-        dey
-        bne eoi_watch
-        lda #$01
-        sta $14
-        jsr port
-        ora #$20
-        sta $dd00
-        jsr delay
-        and #$df
-        sta $dd00
-recv_bits:
-        lda #$08
-        sta $15
-recv_bit:
-        jsr wait_clk_low
-        jsr wait_clk_high
+        beq native_sample
+        dec $16
+        bne native_low
+        dec $18
+        bne native_low
+        jmp native_timeout
+native_high:
+        lda $dd00
+        and #$40
+        bne native_sample
+        dec $16
+        bne native_high
+        dec $18
+        bne native_high
+native_timeout:
+        lda #$80
+        sta $17
+        rts
+native_sample:
         lda $dd00
         asl
-        ror $13
-        dec $15
-        bne recv_bit
-        jsr port
-        ora #$20
-        sta $dd00
-        lda $13
-recv_done:
-        rts
-
-wait_data_high:
-        ldy #0
-wdh:
-        lda $dd00
-        bpl wdh_ok
-        iny
-        bne wdh
-        lda $17
-        bne wdh_done
-        lda #$01
-        sta $17
-wdh_done:
-        rts
-wdh_ok:
-        rts
-
-wait_data_low:
-        ldy #0
-wdl:
-        lda $dd00
-        bmi wdl_ok
-        iny
-        bne wdl
-        lda $17
-        bne wdl_done
-        lda #$02
-        sta $17
-wdl_done:
-        rts
-wdl_ok:
-        rts
-
-wait_clk_low:
-        ldy #0
-wcl:
-        lda $dd00
-        and #$40
-        bne wcl_ok
-        iny
-        bne wcl
-        lda $17
-        bne wcl_done
-        lda #$03
-        sta $17
-wcl_done:
-        rts
-wcl_ok:
-        rts
-
-wait_clk_high:
-        ldy #0
-wch:
-        lda $dd00
-        and #$40
-        beq wch_ok
-        iny
-        bne wch
-        lda $17
-        bne wch_done
-        lda #$04
-        sta $17
-wch_done:
-        rts
-wch_ok:
-        rts
-
-delay:
-        pha
-        lda #$08
-        sta $18
-delay_loop:
-        dec $18
-        bne delay_loop
-        pla
+        ror $15
+        lda $14
+        eor #$08
+        sta $14
+        dey
+        bne native_bit
+        lda $15
+        sta $0800,x
+        inx
+        cpx #$06
+        bne native_byte
         rts
 
 msg:
@@ -551,7 +484,7 @@ def build(*, without_cartridges: bool = False) -> bytes:
         raise RuntimeError("firmware windows must be 8 KiB")
     if kernal[0x1FFC] != 0x00 or kernal[0x1FFD] != 0xE0:
         raise RuntimeError("reset vector is not $E000")
-    return BASIC + kernal
+    return BASIC + kernal + character_image() + drive_media_image()
 
 
 def main() -> None:
@@ -564,6 +497,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "firmware.bin").write_bytes(image)
     (args.output_dir / "firmware.hex").write_text("".join(f"{byte:02X}\n" for byte in image))
+    (args.output_dir / "rom-test.hex").write_text("".join(f"{(i*37+(i>>8)*11+(i>>10)*17)&255:02x}\n" for i in range(36864)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,7 @@
+{
+  "fes_base": "d739889b00e36e50bff41516a2dbf7a011dc8d00",
+  "fes_candidate": "6235759885bf096a772a4bee8a616597733369de",
+  "nextpnr": "5558fe25667c414d436fe2a4105cd24990c2be1f",
+  "cache_root": "/home/deano/fes/out/cache/misteross-toolchains",
+  "cache_slot": "f141e5ea79ad4b4079ca0346fcd3c4a00c6ec79c68b3a6639bbfcbaca540d8a6"
+}

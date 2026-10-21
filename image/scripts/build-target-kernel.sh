@@ -131,7 +131,7 @@ inside_build() {
   checkout_defconfig=$(sha256sum "$kernel/arch/arm/configs/MiSTer_defconfig" | awk '{print $1}')
   test "$checkout_defconfig" = "$defconfig_sha256"
 
-  selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}
+  selected_work=${FES_IMAGE_WORK:-/target-image-output/work-1-native-dev}
   # The shipped kernel is compiled once; never take objects from the shared ccache.
   export CCACHE_DISABLE=1
   cross=$selected_work/host/bin/arm-buildroot-linux-gnueabihf-
