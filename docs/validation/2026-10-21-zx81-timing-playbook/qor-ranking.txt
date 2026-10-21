@@ -1,0 +1,217 @@
+{
+  "budget": 15,
+  "critexp": 5,
+  "mode": "first-pass-paired",
+  "ranking": [
+    {
+      "argv": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin/nextpnr-mistral",
+        "--json",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/socket.qsf",
+        "--seed",
+        "1",
+        "--placer-heap-timingweight",
+        "1000",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/timing.json",
+        "--write",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/routed.json",
+        "--rbf",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/home/deano/tmp/k936q/sources/misteross/cores/fes-zx81/clocks-oss.sdc",
+        "--freq",
+        "74.25",
+        "--arrival-pin-assignment"
+      ],
+      "critexp": 5,
+      "environment": {
+        "HOME": "/tmp/fes-tool-home-2145g_xa",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "audio_clk": {
+          "achieved": 213.6295623779297,
+          "constraint": 12.288031578063965
+        },
+        "clk_sys": {
+          "achieved": 55.96284103393555,
+          "constraint": 52.22477340698242
+        },
+        "display.control.clk": {
+          "achieved": 95.64801788330078,
+          "constraint": 74.25006866455078
+        }
+      },
+      "log": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/route.log",
+      "passing": true,
+      "recipe_sha256": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+      "run_dir": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5",
+      "seed": 1,
+      "slot": "0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec",
+      "sum_ratio": 19.74493773899961,
+      "weight": 1000,
+      "worst_ratio": 1.0715765216982893
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin/nextpnr-mistral",
+        "--json",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/socket.qsf",
+        "--seed",
+        "1",
+        "--placer-heap-timingweight",
+        "300",
+        "--placer-heap-critexp",
+        "5",
+        "--report",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w300-c5/timing.json",
+        "--write",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w300-c5/routed.json",
+        "--rbf",
+        "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w300-c5/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/home/deano/tmp/k936q/sources/misteross/cores/fes-zx81/clocks-oss.sdc",
+        "--freq",
+        "74.25",
+        "--arrival-pin-assignment"
+      ],
+      "critexp": 5,
+      "environment": {
+        "HOME": "/tmp/fes-tool-home-2145g_xa",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "audio_clk": {
+          "achieved": 231.26734924316406,
+          "constraint": 12.288031578063965
+        },
+        "clk_sys": {
+          "achieved": 51.8995246887207,
+          "constraint": 52.22477340698242
+        },
+        "display.control.clk": {
+          "achieved": 98.3961410522461,
+          "constraint": 74.25006866455078
+        }
+      },
+      "log": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w300-c5/route.log",
+      "passing": false,
+      "recipe_sha256": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+      "run_dir": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w300-c5",
+      "seed": 1,
+      "slot": "0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec",
+      "sum_ratio": 21.1395081612194,
+      "weight": 300,
+      "worst_ratio": 0.9937721373010642
+    }
+  ],
+  "seeds": [
+    1,
+    3,
+    10
+  ],
+  "weights": [
+    300,
+    1000,
+    2000,
+    100,
+    10
+  ],
+  "winner": {
+    "argv": [
+      "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin/nextpnr-mistral",
+      "--json",
+      "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/synth.json",
+      "--device",
+      "5CSEBA6U23I7",
+      "--qsf",
+      "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/socket.qsf",
+      "--seed",
+      "1",
+      "--placer-heap-timingweight",
+      "1000",
+      "--placer-heap-critexp",
+      "5",
+      "--report",
+      "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/timing.json",
+      "--write",
+      "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/routed.json",
+      "--rbf",
+      "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/core.rbf",
+      "--compress-rbf",
+      "--detailed-timing-report",
+      "--timing-allow-fail",
+      "--router",
+      "gpu",
+      "--gpu-device",
+      "0",
+      "--sdc",
+      "/home/deano/tmp/k936q/sources/misteross/cores/fes-zx81/clocks-oss.sdc",
+      "--freq",
+      "74.25",
+      "--arrival-pin-assignment"
+    ],
+    "critexp": 5,
+    "environment": {
+      "HOME": "/tmp/fes-tool-home-2145g_xa",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
+      "TZ": "UTC"
+    },
+    "fmax": {
+      "audio_clk": {
+        "achieved": 213.6295623779297,
+        "constraint": 12.288031578063965
+      },
+      "clk_sys": {
+        "achieved": 55.96284103393555,
+        "constraint": 52.22477340698242
+      },
+      "display.control.clk": {
+        "achieved": 95.64801788330078,
+        "constraint": 74.25006866455078
+      }
+    },
+    "log": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5/route.log",
+    "passing": true,
+    "recipe_sha256": "9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340",
+    "run_dir": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-search/s1-w1000-c5",
+    "seed": 1,
+    "slot": "0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec",
+    "sum_ratio": 19.74493773899961,
+    "weight": 1000,
+    "worst_ratio": 1.0715765216982893
+  }
+}

@@ -1,3 +1,9 @@
+HISTORY: every identity, timing and seed result in this directory was
+produced on nextpnr 5558fe25, the DeanoC/nextpnr#267 branch commit. The
+ZX81 lock now pins merged main 1eecf877, so none of these artifacts belongs
+to the current lock. Its fresh shell, ram16k cart and seed requalification
+is ../2026-10-21-zx81-timing-playbook/.
+
 ZX81 issue-236 production rebuild and real-cart qualification
 2026-10-20
 

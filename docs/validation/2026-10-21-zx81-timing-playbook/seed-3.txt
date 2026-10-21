@@ -1,0 +1,128 @@
+{
+  "seed": 3,
+  "argv": [
+    "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin/nextpnr-mistral",
+    "--json",
+    "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/synth.json",
+    "--device",
+    "5CSEBA6U23I7",
+    "--qsf",
+    "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/socket.qsf",
+    "--seed",
+    "3",
+    "--placer-heap-timingweight",
+    "1000",
+    "--placer-heap-critexp",
+    "5",
+    "--report",
+    "/home/deano/tmp/k936q-run/seed-3/timing.json",
+    "--write",
+    "/home/deano/tmp/k936q-run/seed-3/routed.json",
+    "--rbf",
+    "/home/deano/tmp/k936q-run/seed-3/core.rbf",
+    "--compress-rbf",
+    "--detailed-timing-report",
+    "--router",
+    "gpu",
+    "--gpu-device",
+    "0",
+    "--sdc",
+    "/home/deano/tmp/k936q/sources/misteross/cores/fes-zx81/clocks-oss.sdc",
+    "--freq",
+    "74.25",
+    "--arrival-pin-assignment"
+  ],
+  "environment": {
+    "HOME": "/home/deano/tmp/k936q-run/seed-3/home",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
+    "TZ": "UTC"
+  },
+  "binary_sha256": "6e8eab340a66e20de4575bc654f9751cecd3160903d184880cca12cdf262d21d",
+  "synth_sha256": "fa13f5961c26100118ec593de1cf6cd6786665439ba0488cbd7f250d33a61328",
+  "exit_code": 1,
+  "seconds": 137.67562651634216,
+  "fmax": {
+    "audio_clk": {
+      "achieved": 217.15525817871094,
+      "constraint": 12.288031578063965
+    },
+    "clk_sys": {
+      "achieved": 49.44620132446289,
+      "constraint": 52.22477340698242
+    },
+    "display.control.clk": {
+      "achieved": 92.04712677001953,
+      "constraint": 74.25006866455078
+    }
+  },
+  "timing_summary": {
+    "clocks": {
+      "audio_clk": {
+        "hold_wns_ns": 0.9380000233650208,
+        "setup_wns_ns": 76.7750015258789
+      },
+      "clk_sys": {
+        "hold_wns_ns": 0.7260000109672546,
+        "setup_wns_ns": -0.5379999876022339
+      },
+      "display.control.clk": {
+        "hold_wns_ns": 0.7919999957084656,
+        "setup_wns_ns": 2.6040000915527344
+      }
+    },
+    "final_analogue_model": true
+  },
+  "artifacts": {
+    "routed.json": {
+      "path": "/home/deano/tmp/k936q-run/seed-3/routed.json",
+      "sha256": "04c380d273e6d3d6c4379522736ae34b31ec3434649ced139b8f8e3c46230445",
+      "size": 31861884
+    },
+    "timing.json": {
+      "path": "/home/deano/tmp/k936q-run/seed-3/timing.json",
+      "sha256": "eae86a14863b2901eaa94a6bcaaf94c6e8f44d0619e5d8df30da97d4fdc0b672",
+      "size": 3685208
+    },
+    "core.rbf": {
+      "path": "/home/deano/tmp/k936q-run/seed-3/core.rbf",
+      "sha256": "3d2dbd82e542a984f45095c5d108c6789ba4d444dd608ecfc9c87497258df7f8",
+      "size": 2635953
+    },
+    "route.log": {
+      "path": "/home/deano/tmp/k936q-run/seed-3/route.log",
+      "sha256": "a6ef030f1e250196de0fc841c6098e15e24215d3ec78aeabfd7f28a611226fee",
+      "size": 196422
+    }
+  },
+  "result": "FAIL",
+  "route_log_status": [
+    "ERROR: Max frequency for clock             'clk_sys': 49.45 MHz (FAIL at 52.22 MHz)",
+    "0 warnings, 1 error",
+    "Info: Program finished normally."
+  ],
+  "gpu_lease": "none: the runner invoked nextpnr-mistral directly with --gpu-device 0, outside gpu-run; the route log names device 0 and has no lease grant, so contention was not recorded. NEXTPNR_REQUIRE_GPU was unset; the log shows the live HIP backend and no CPU fallback.",
+  "gpu_evidence": [
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.25s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 61.18s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1253 launches, 96663 arcs, 269045026 wires expanded, 55.50s routing, 0.62s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 1.51s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 104 launches, 331 arcs, 321891 wires expanded, 0.17s routing, 0.04s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 1.16s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 91 launches, 298 arcs, 254360 wires expanded, 0.13s routing, 0.03s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 1.32s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 97 launches, 319 arcs, 291362 wires expanded, 0.15s routing, 0.03s transfers)"
+  ]
+}

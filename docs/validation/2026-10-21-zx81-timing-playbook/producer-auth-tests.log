@@ -1,0 +1,48 @@
+...........usage: python3 -m unittest [-h] [--root ROOT]
+                           [--package-output PACKAGE_OUTPUT]
+                           [--cache-root CACHE_ROOT] [--identity-version {2}]
+                           [--gpu-device GPU_DEVICE]
+python3 -m unittest: error: argument --identity-version: invalid choice: '1' (choose from 2)
+usage: python3 -m unittest [-h] [--root ROOT]
+                           [--package-output PACKAGE_OUTPUT]
+                           [--cache-root CACHE_ROOT] [--print-commands]
+                           [--identity-version {2}] [--best-fmax]
+                           [--gpu-devices GPU_DEVICES]
+                           [--gpu-router {HIP,CUDA}]
+                           [--toolchain-root TOOLCHAIN_ROOT]
+python3 -m unittest: error: argument --identity-version: invalid choice: '1' (choose from 2)
+usage: python3 -m unittest [-h] [--root ROOT]
+                           [--package-output PACKAGE_OUTPUT]
+                           [--cache-root CACHE_ROOT] [--bios BIOS]
+                           [--print-commands] [--identity-version {2}]
+                           [--best-fmax] [--gpu-devices GPU_DEVICES]
+python3 -m unittest: error: argument --identity-version: invalid choice: '1' (choose from 2)
+usage: python3 -m unittest [-h] [--root ROOT]
+                           [--package-output PACKAGE_OUTPUT]
+                           [--cache-root CACHE_ROOT] [--print-commands]
+                           [--identity-version {2}] [--gpu-device GPU_DEVICE]
+                           [--gpu-router {HIP,CUDA}]
+                           [--toolchain-root TOOLCHAIN_ROOT] [--synth-only]
+python3 -m unittest: error: argument --identity-version: invalid choice: '1' (choose from 2)
+usage: python3 -m unittest [-h] [--root ROOT]
+                           [--package-output PACKAGE_OUTPUT]
+                           [--cache-root CACHE_ROOT] [--print-commands]
+                           [--identity-version {2}] [--gpu-device GPU_DEVICE]
+                           [--gpu-router {HIP,CUDA}]
+                           [--toolchain-root TOOLCHAIN_ROOT] [--synth-only]
+python3 -m unittest: error: argument --identity-version: invalid choice: '1' (choose from 2)
+......
+----------------------------------------------------------------------
+Ran 17 tests in 1.188s
+
+OK
+/pkg
+/pkg
+/pkg
+/pkg
+/pkg
+synth-only altera_pll=0 MISTRAL_IO=0 MISTRAL_M10K=0 MISTRAL_M10K_TDP=0
+synth-only altera_pll=0 MISTRAL_IO=0 MISTRAL_M10K=0 MISTRAL_M10K_TDP=0
+/pkg
+/pkg
+/pkg

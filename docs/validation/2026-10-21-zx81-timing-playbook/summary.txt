@@ -1,0 +1,141 @@
+ZX81 issue-236 production requalification on merged nextpnr 1eecf877
+2026-10-21
+
+Compiler: 1eecf87722419c35f0519204fffaf99974cfb076 (DeanoC/nextpnr main,
+squash merge of #267; all 8 nextpnr CI check runs pass, nextpnr-ci.txt)
+Tested producer source: 688d902ed20867b4b9f41e8b87e21ec98188286d (clean)
+FES base: dcfa92c98fc9eb4c619e398872e52a91d071fe66
+Toolchain lock SHA256: 27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a
+Authenticated cache slot: 0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec
+nextpnr-mistral SHA256: 6e8eab340a66e20de4575bc654f9751cecd3160903d184880cca12cdf262d21d
+(gpu-router=HIP; hip-architectures=gfx1100;gfx1201)
+
+This record qualifies the lock this PR now pins. The 5558fe25 shell, cart
+and seed results in ../2026-10-20-zx81-timing-playbook/ are history only;
+none of their identities is an artifact for this lock.
+
+Commands, run from a clean worktree at 688d902e on Powerboat
+(/home/deano/tmp/k936q-run/run.sh; status.txt there has the timeline):
+  make toolchain-fes-zx81 CACHE_ROOT=/home/deano/fes/out/cache/misteross-toolchains
+      exit 0; the normal bootstrap publishes the slot above
+  python3 scripts/build_fes_zx81_oss.py --cache-root /home/deano/fes/out/cache/misteross-toolchains
+      exit 0
+  strict seed 3 and seed 10 reroutes of the producer winner's argv
+      seed 3 exit 1, seed 10 exit 0
+  python3 scripts/build_zx81_bus_validation_cart.py --shell build/fes-zx81-oss
+      --package build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198
+      --cache-root /home/deano/fes/out/cache/misteross-toolchains --cart ram16k
+      exit 0
+A first runner attempt (status-try1.txt, 10:13:44 EEST) records no
+bootstrap step and stopped two seconds after start with producer exit 1.
+The retry above overwrote its producer log.
+
+The producer synthesizes a fresh BUILD_ID from the current inputs; it does
+not reuse an older synth.json.
+BUILD_ID: 59b51a7527d362d9c30a9ec2115a5a1f
+Production synth SHA256: fa13f5961c26100118ec593de1cf6cd6786665439ba0488cbd7f250d33a61328
+
+The recipe is unchanged: seeds 1, 3, 10; timing weights 300, 1000, 2000,
+100, 10; critexp 5; --arrival-pin-assignment; first-pass-paired search
+(budget 15) whose --timing-allow-fail routes are followed by the normal
+acceptance gates. On this compiler the profile's first candidate misses
+timing:
+
+producer candidate    clk_sys MHz  setup WNS ns  hold WNS ns  result
+seed 1, weight 300      51.899525       -0.120       +0.816    FAIL
+seed 1, weight 1000     55.962841       +1.279       +0.820    pass, sealed
+
+The producer then accepted seed 1, weight 1000, exponent 5
+(qor-ranking.txt). On 5558fe25 the weight-300 candidate passed at
+54.297661 MHz. That build had a different BUILD_ID and synth, so the two
+results are not a matched comparison.
+
+Sealed shell, final analogue model:
+clock                    required MHz  achieved MHz  setup WNS ns  hold WNS ns
+clk_sys                     52.224773     55.962841        +1.279       +0.820
+display.control.clk          74.250069     95.648018        +3.013       +0.784
+audio_clk                   12.288032    213.629562       +76.699       +0.872
+
+Shell package: db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198
+Shell RBF SHA256: 3d7805086b1d1134f67e2c42d039f762df973f8e902f338ec55b7ebcc0954e3a
+The normal producer's acceptance gates pass: shell-summary.txt records
+status, route and timing "pass", the live HIP route backend, and the
+1eecf877 compiler. The immutable package's payload and manifest equal the
+build's core.rbf and manifest.toml.
+
+Real ram16k cart, seed 2, against that exact frozen shell package:
+clock                    required MHz  achieved MHz  setup WNS ns  hold WNS ns
+clk_sys                     52.224773     55.962841        +1.279       +0.815
+display.control.clk          74.250069     95.648018        +3.013       +0.784
+audio_clk                   12.288032    213.629562       +76.699       +0.872
+
+Cart expansion: e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736
+Cart archive SHA256: 3453f17f119859c94526f52bedd8910048d898ead09e92a5ac8aca36568daa0d
+Cart RBF SHA256: 2d96d01563c83f9cbfa4446fc33fc1996b48886cfa531a485545de37d80a591e
+The cart producer exits 0 only after its timing, frozen shell/scaffold,
+source and compiler identity, ORAM/PRAM header and slot-containment gates
+pass. An independent read of the published package and cart agrees: the
+package and expansion ids recompute, the header is identical, 181551 CRAM
+bits change inside the reserved slot and zero outside, and linked.rbf
+recomputes byte-for-byte. The shell and cart reports differ only in
+clk_sys hold (+0.820/+0.815 ns).
+
+Seed criterion. The strict reroutes use the exact production synth and
+compiler with the producer winner's argv (weight 1000, critexp 5,
+--arrival-pin-assignment). They change only --seed and private output
+paths, and remove the search --timing-allow-fail:
+seed  clk_sys MHz  setup WNS ns  hold WNS ns  pixel MHz   audio MHz   exit  result
+1       55.962841       +1.279       +0.820   95.648018  213.629562    0    pass (sealed producer route)
+3       49.446201       -0.538       +0.726   92.047127  217.155258    1    FAIL
+10      52.734272       +0.185       +0.781   93.703148  200.440979    0    pass
+
+Seed 3 fails timing: clk_sys reaches 49.446201 MHz against the required
+52.224773 MHz, with setup WNS -0.538 ns. Its route log ends with "ERROR:
+Max frequency for clock 'clk_sys': 49.45 MHz (FAIL at 52.22 MHz)". Its
+pixel and audio clocks pass setup and hold. Seeds 1 and 10 pass every
+clock's setup and hold, so two of the three declared seeds pass at weight
+1000/critexp 5. This meets the two-of-three candidate criterion; it is not
+hardware acceptance or permission to promote the recipe. Seed 10's clk_sys
+setup margin of +0.185 ns is small. Weight 300 was tried only at seed 1,
+where it fails. Exact argv, environment, elapsed time, outputs and hashes
+are in seed-3.txt, seed-10.txt and runs.jsonl.
+
+GPU evidence. The producer routes and the cart route hold exclusive gpu-run
+leases (FES-GPU-GRANT) on live HIP backends. The sealed shell and cart ran
+on physical GPU 1 (AMD Radeon AI PRO R9700). The failed weight-300
+candidate ran on GPUs 1 and 0 after lease waits of up to 793 s. The strict
+seed 3/10 reroutes invoked nextpnr-mistral directly with --gpu-device 0,
+outside gpu-run. Their logs show the live HIP backend on device 0 (AMD
+Radeon RX 7900 XTX) and no lease grant, so contention was not recorded.
+NEXTPNR_REQUIRE_GPU was unset for them, and no CPU fallback occurred.
+Route outcomes do not depend on the backend, and these reroutes are not
+seals.
+
+Checks at 15bad2dc, which merges main 6ba34a4a into 688d902e; that main
+commit changes only sources/FogCast/appliance/software. Nothing under
+sources/misteross or config changed since 688d902e, and all 85 closure
+entries recorded by the shell and cart builds match the checkout:
+  python3 -m unittest tests.test_pnr_recipes                28 tests OK
+  python3 -m unittest tests.test_build_fes_zx81_oss         22 tests OK (skipped=1)
+  python3 -m unittest tests.test_build_fes_zx81_expansion   35 tests OK
+  python3 -m unittest tests.test_build_fes_pong             25 tests OK
+  python3 -m unittest tests.test_fes_hip_lane               17 tests OK
+  python3 -m unittest tests.test_hip_zx81_bus_socket         1 test OK
+  make check                                                exit 0
+The unittest commands run from sources/misteross; make check runs at the
+repository root. Logs are producer-*-tests.log and make-check.log.
+
+Evidence class: host-only exact-artifact producer, seal, route and
+containment qualification. No kit was used. Hardware acceptance and the
+normal recipe promotion/review bar remain open: test shell package
+db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198 with
+ram16k expansion e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736
+through the supported leased kit install/test/restore path. No factory
+package selection was replaced, no PR was merged, and no recipe, seed list,
+allow-fail setting, lock, seal or timing gate was changed or relaxed.
+
+Artifacts are retained on Powerboat beneath
+/home/deano/tmp/k936q/sources/misteross/build/ (shell, package, cart) and
+/home/deano/tmp/k936q-run/ (runner, status, logs, strict seed outputs).
+result.txt lists every artifact path, size and hash; shell-summary.txt and
+cart-summary.txt are the producers' build-summary.json files verbatim.
