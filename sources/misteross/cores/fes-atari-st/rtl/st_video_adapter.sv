@@ -69,10 +69,11 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     // Set when a bank's job is scheduled and cleared as debug_frame advances,
     // so it equals job_frame == debug_frame without a 32-bit pixel-path compare.
     reg [1:0] job_current;
-    // Each bank's line start and bounds follow its metadata one pixel edge
-    // later. The system side reads them two system edges after the request
-    // toggle synchronizes, so they settle well before use.
-    reg [17:0] job_start [0:1];
+    // Each bank's line start follows its metadata one pixel edge later and
+    // its bounds check a second edge later. The system side reads both two
+    // system edges after the request toggle synchronizes, so they settle
+    // well before use.
+    reg [23:0] job_start [0:1];
     reg [1:0] job_start_ok;
 
     typedef enum logic [1:0] { MEMORY_IDLE, MEMORY_READ, MEMORY_GAP } memory_state_t;
@@ -122,7 +123,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                     memory_words <= selected_words;
                     next_bank <= !selected_bank;
                     if (job_start_ok[selected_bank]) begin
-                        legacy_addr <= job_start[selected_bank];
+                        legacy_addr <= job_start[selected_bank][17:0];
                         legacy_req <= 1'b1;
                         memory_state <= MEMORY_READ;
                     end else begin
@@ -304,10 +305,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire [23:0] bank_start0 = line_start(job_base[0][23:8], job_row[0], job_high[0]);
     wire [23:0] bank_start1 = line_start(job_base[1][23:8], job_row[1], job_high[1]);
     always @(posedge clk_pixel) begin
-        job_start[0] <= bank_start0[17:0];
-        job_start[1] <= bank_start1[17:0];
-        job_start_ok[0] <= bank_start0 + (job_high[0] ? 24'd40 : 24'd80) <= 24'h040000;
-        job_start_ok[1] <= bank_start1 + (job_high[1] ? 24'd40 : 24'd80) <= 24'h040000;
+        job_start[0] <= bank_start0;
+        job_start[1] <= bank_start1;
+        job_start_ok[0] <= job_start[0] + (job_high[0] ? 24'd40 : 24'd80) <= 24'h040000;
+        job_start_ok[1] <= job_start[1] + (job_high[1] ? 24'd40 : 24'd80) <= 24'h040000;
     end
 
     // Use the renderer's native coordinates instead of reversing its physical
