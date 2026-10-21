@@ -14,6 +14,8 @@ func TestProtocol2SessionDisplayStatusIsStrictAndBackwardCompatible(t *testing.T
 	}
 	for _, suffix := range []string{`,"session":true}`, `,"core_generation":9}`, `,"session":false,"core_generation":9}`, `,"session":true,"core_generation":0}`, `,"session":true,"core_generation":"9"}`, `,"session":true,"core_generation":9,"visible":true}`, `,"damage":false}`, `,"damage":1}`, `,"damage":null}`,
 		`,"picture":[312,90,656,540]}`, `,"session":true,"core_generation":9,"picture":[312,90,656]}`,
+		`,"session":true,"core_generation":9,"picture":[312,90,656,540,999]}`, `,"session":true,"core_generation":9,"picture":[312,90,656,540,0]}`,
+		`,"session":true,"core_generation":9,"picture":[]}`,
 		`,"session":true,"core_generation":9,"picture":[312,90,0,540]}`, `,"session":true,"core_generation":9,"picture":[1000,90,656,540]}`,
 		`,"session":true,"core_generation":9,"picture":[0,200,1280,540]}`, `,"session":true,"core_generation":9,"picture":null}`} {
 		if err := validateMenuDisplayShape([]byte(base + suffix)); err == nil {

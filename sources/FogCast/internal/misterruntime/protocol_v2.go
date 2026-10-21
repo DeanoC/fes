@@ -657,9 +657,11 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		return errInvalidRuntimeResponse
 	}
 	if raw, present := menu["picture"]; present {
-		var picture [4]uint16
+		// A slice, not [4]uint16: decoding into an array silently drops
+		// surplus elements, and the rectangle has exactly four.
+		var picture []uint16
 		var width, height uint64
-		if json.Unmarshal(raw, &picture) != nil || json.Unmarshal(menu["width"], &width) != nil ||
+		if json.Unmarshal(raw, &picture) != nil || len(picture) != 4 || json.Unmarshal(menu["width"], &width) != nil ||
 			json.Unmarshal(menu["height"], &height) != nil || picture[2] == 0 || picture[3] == 0 ||
 			uint64(picture[0])+uint64(picture[2]) > width || uint64(picture[1])+uint64(picture[3]) > height {
 			return errInvalidRuntimeResponse
