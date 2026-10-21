@@ -4,12 +4,15 @@
 1.0. It follows the Apple II pattern: late-bound firmware, a live removable
 disk, and linkable expansion cards. It is not in the factory image. No
 Commodore ROM is in this tree. The current seal of this native-drive shell
-with the default SID audio stage is CUDA package `3678ad9e7135e327…` (build
-`a5ff8fde4a3ad25a…`) on `cores/fes-c64/toolchain.lock` (Yosys `3a5accbd`,
-Mistral `8fcc4cb4`, nextpnr `9128800f`), seed 5, final analogue signoff
-system 58.01/52.224 (setup slack 1.91 ns, hold 0.73 ns), pixel 102.99/74.25,
-audio 204.21/12.288, from source `6463e5c0`. The previous merge head
-`1966dbcf` sealed as `19dff102415d319a…` (seed 4, system 58.38/52.224).
+with the default SID audio stage and the wired-AND joystick ports is CUDA
+package `139d53f88b210e6e…` (build `0d507d2bc92176ba…`) on
+`cores/fes-c64/toolchain.lock` (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr
+`9128800f`), seed 4 (seed 5 failed), final analogue signoff system
+55.33/52.224 (worst clock slack 1.07 ns), pixel 100.60/74.25, audio
+213.72/12.288, from source `bf7d536f`. The #714 merge head `6463e5c0`, with
+DDR-masked joysticks, sealed as `3678ad9e7135e327…` (seed 5, system
+58.01/52.224); its earlier head `1966dbcf` sealed as `19dff102415d319a…`
+(seed 4, system 58.38/52.224).
 Earlier seals of this RTL on the shared Yosys `5391eeb1` pin
 (`79148f4e2c5a08d5…`, `e64ae33581d79e72…`, `99405f9cda6f4275…`) do not cover
 the per-core lock. The earlier 0.4.0 seal was CUDA package
