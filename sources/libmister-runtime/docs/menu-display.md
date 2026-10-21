@@ -1,8 +1,10 @@
 # Local menu frame presentation
 
 This is an explicit diagnostic/library presentation path, with host software
-coverage and an [exact-artifact kit diagnostic pass](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md).
-Product-image acceptance remains pending. The FES image now installs and selects
+coverage and a [Kit A diagnostic](https://github.com/DeanoC/fes/pull/959#issuecomment-6316246790)
+of granted-slot presentation; the earlier
+[exact-artifact kit diagnostic pass](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md)
+covered the retired copy path. Product-image acceptance remains pending. The FES image now installs and selects
 a described menu package for daemon startup. The sealed splash remains the boot
 and failure fallback. A daemon started without a menu selection stays on splash.
 
