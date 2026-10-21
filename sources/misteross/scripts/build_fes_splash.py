@@ -20,7 +20,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_pong as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.export_core_package import build_identity, encode_build_record
-from scripts.fes_build_common import validate_timing_resources
+from scripts.fes_build_common import _authenticate_tools, validate_timing_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_splash.py"
@@ -153,7 +153,9 @@ def authenticate_oss_tools(root: Path) -> dict[str, board.AuthenticatedTool]:
             "splash uses the local OSS lane; unset FES_TOOLCHAIN_CACHE_ROOT"
         )
     try:
-        return board._authenticate_tools(
+        # The splash authenticates the repository-wide OSS lane
+        # (toolchain.lock, build/toolchain), not Pong's per-core lock.
+        return _authenticate_tools(
             root,
             expected_configuration={"nextpnr": OSS_CONFIGURATION},
             gpu_router="OFF",

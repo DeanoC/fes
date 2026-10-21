@@ -45,6 +45,7 @@ test:
 	sh scripts/tests/check-native-payloads_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-kernel_test.sh
+	sh scripts/tests/build-fes-window_test.sh
 
 build-target-image-lock-container:
 	$(require_fogcast)
