@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -316,7 +317,7 @@ func (r *Instance) Load() error {
 	}
 	r.started = r.opts.Now()
 	r.last = r.started
-	if err := r.call(fn, r.budget.Load, 0); err != nil {
+	if _, err := r.call(fn, r.budget.Load, 0); err != nil {
 		return r.fail(err)
 	}
 	r.loaded = true
@@ -472,11 +473,12 @@ var errSoftOverrun = errors.New("script exceeded soft callback budget")
 // softOverrun is a callback that finished inside its hard deadline but
 // over its soft budget. It is errSoftOverrun and also carries the timing.
 type softOverrun struct {
-	budget, elapsed time.Duration
+	budget time.Duration
+	timing callTiming
 }
 
 func (e softOverrun) Error() string {
-	return fmt.Sprintf("script exceeded %s soft callback budget (elapsed %s)", e.budget, e.elapsed.Round(10*time.Microsecond))
+	return fmt.Sprintf("script exceeded %s soft callback budget (%s)", e.budget, e.timing)
 }
 
 func (e softOverrun) Is(target error) bool { return target == errSoftOverrun }
@@ -534,34 +536,32 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
 	top := r.L.GetTop()
 	defer r.L.SetTop(top)
-	start := time.Now()
 	hardBudget := budget * callbackHardLimitFactor
-	if err := r.call(fn, hardBudget, 1, args...); err != nil {
+	timing, err := r.call(fn, hardBudget, 1, args...)
+	if err != nil {
 		return lua.LNil, err
 	}
 	v := r.L.Get(-1)
 	r.L.Pop(1)
-	elapsed := time.Since(start)
-	if elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
+	if timing.elapsed > hardBudget {
+		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (%s)", hardBudget, timing)
 	}
-	if elapsed > budget {
-		return v, softOverrun{budget: budget, elapsed: elapsed}
+	if timing.elapsed > budget {
+		return v, softOverrun{budget: budget, timing: timing}
 	}
 	return v, nil
 }
 
 func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
-	start := time.Now()
-	if err := r.call(fn, budget*callbackHardLimitFactor, nret, args...); err != nil {
+	timing, err := r.call(fn, budget*callbackHardLimitFactor, nret, args...)
+	if err != nil {
 		return err
 	}
-	elapsed := time.Since(start)
-	if elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
+	if timing.elapsed > budget*callbackHardLimitFactor {
+		return fmt.Errorf("script exceeded %s hard callback budget (%s)", budget*callbackHardLimitFactor, timing)
 	}
-	if elapsed > budget {
-		return softOverrun{budget: budget, elapsed: elapsed}
+	if timing.elapsed > budget {
+		return softOverrun{budget: budget, timing: timing}
 	}
 	return nil
 }
@@ -763,7 +763,7 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
-	if err := r.call(fn, budget, 0, args...); err != nil {
+	if _, err := r.call(fn, budget, 0, args...); err != nil {
 		return fmt.Errorf("%s callback: %w", name, err)
 	}
 	return nil
@@ -772,7 +772,7 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
 	top := r.L.GetTop()
 	defer r.L.SetTop(top)
-	if err := r.call(fn, budget, 1, args...); err != nil {
+	if _, err := r.call(fn, budget, 1, args...); err != nil {
 		return lua.LNil, err
 	}
 	v := r.L.Get(-1)
@@ -780,7 +780,30 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 	return v, nil
 }
 
-func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+// callTiming is one callback's wall time. Where the OS reports it, it also
+// has the script thread's own CPU time and context switches, so a kit
+// overrun shows whether the script ran slowly or waited for a CPU.
+// Voluntary switches are the thread parking (Go descheduling, GC, a blocking
+// call); involuntary switches are the kernel giving its core to other work.
+type callTiming struct {
+	elapsed  time.Duration
+	thread   threadUsage
+	measured bool
+}
+
+func (t callTiming) String() string {
+	s := "elapsed " + t.elapsed.Round(10*time.Microsecond).String()
+	if t.measured {
+		s += "; " + t.thread.String()
+	}
+	return s
+}
+
+func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
+	// Both thread samples must read the thread that ran the callback.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	before, measured := readThreadUsage()
 	start := time.Now()
 	L := r.L
 	top := L.GetTop()
@@ -792,14 +815,19 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	for _, a := range args {
 		L.Push(a)
 	}
-	if err := L.PCall(len(args), nret, nil); err != nil {
+	err := L.PCall(len(args), nret, nil)
+	timing := callTiming{elapsed: time.Since(start)}
+	if after, ok := readThreadUsage(); ok && measured {
+		timing.thread, timing.measured = after.since(before), true
+	}
+	if err != nil {
 		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("script exceeded %s budget (elapsed %s)", budget, time.Since(start))
+			return timing, fmt.Errorf("script exceeded %s budget (%s)", budget, timing)
 		}
-		return errors.New(strings.TrimSpace(err.Error()))
+		return timing, errors.New(strings.TrimSpace(err.Error()))
 	}
-	return nil
+	return timing, nil
 }
 
 func (r *Instance) drainResults() {

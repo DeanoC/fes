@@ -1792,7 +1792,11 @@ func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
 	if i < 0 || !strings.HasSuffix(msg, ")") {
 		t.Fatalf("hard overrun diagnostic: %v", err)
 	}
-	elapsed, parseErr := time.ParseDuration(strings.TrimSuffix(msg[i+len(prefix):], ")"))
+	rest := strings.TrimSuffix(msg[i+len(prefix):], ")")
+	if end := strings.Index(rest, ";"); end >= 0 {
+		rest = rest[:end]
+	}
+	elapsed, parseErr := time.ParseDuration(rest)
 	if parseErr != nil {
 		t.Fatalf("elapsed in %q: %v", msg, parseErr)
 	}
@@ -1815,8 +1819,11 @@ func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
 	r.images["cover:b"] = &Image{Key: "cover:b", Ready: true, requested: true}
 	r.images["cover:bad"] = &Image{Key: "cover:bad", Err: "no artwork", requested: true}
 	for i := 0; i < maxConsecutiveOverruns; i++ {
-		elapsed := time.Duration(13+i) * time.Millisecond
-		r.recordFrameOverrun(fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, elapsed: elapsed}))
+		timing := callTiming{elapsed: time.Duration(13+i) * time.Millisecond}
+		if i == 0 {
+			timing.thread, timing.measured = threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9}, true
+		}
+		r.recordFrameOverrun(fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, timing: timing}))
 	}
 	err := r.Err()
 	if err == nil {
@@ -1824,7 +1831,8 @@ func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
 	}
 	msg := err.Error()
 	for _, want := range []string{"draw callback", "12ms soft callback budget", "8 consecutive overruns",
-		"elapsed 13ms, 14ms, 15ms, 16ms, 17ms, 18ms, 19ms, 20ms", "process-wide GC cycles", "up to 1 images loading"} {
+		"elapsed 13ms (thread cpu 2ms, 1 voluntary/9 involuntary switches), 14ms, 15ms, 16ms, 17ms, 18ms, 19ms, 20ms",
+		"process-wide GC cycles", "up to 1 images loading"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("retirement %q lacks %q", msg, want)
 		}
