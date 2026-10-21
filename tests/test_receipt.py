@@ -34,6 +34,22 @@ class ReceiptTest(unittest.TestCase):
                             ["linux.img", "reproducibility.txt"])
         return image_sha256, qemu_log_sha256
 
+    def test_verified_image_preserves_independent_software_provenance(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            self.make_verified_output(build, output)
+            provenance = {'fogcast': '3' * 40, 'runtime': '4' * 40}
+            (output / 'inputs.json').write_text(json.dumps({'bootstrap_artifacts': {'provenance': provenance}}))
+            build.write_receipt(output, 'image', 'cold-fingerprint',
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+            result = build.load_verified_image(output, 'cold-fingerprint')
+            self.assertEqual(result['software_provenance'], provenance)
+            (output / 'inputs.json').write_text('{}')
+            with self.assertRaises(ValueError):
+                build.load_verified_image(output, 'cold-fingerprint')
+
     def test_host_sidecar_is_bound_and_diagnostic_rejected_by_cold_reader(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

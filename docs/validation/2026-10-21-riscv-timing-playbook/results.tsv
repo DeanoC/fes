@@ -1,0 +1,7 @@
+variant	seed	MHz	setup_WNS_ns	hold_WNS_ns	COMB	FF	exit
+baseline	1	64.699791	-1.988	0.732	2625	755	1
+branch	1	67.888664	-1.262	0.698	2707	756	1
+execute	1	75.346596	0.196	0.682	2827	954	0
+execute	10	77.429344	0.553	0.782	2827	954	0
+execute	3	77.309624	0.533	0.849	2827	954	0
+production	1	76.242760	0.352	0.836			0

@@ -1,0 +1,11 @@
+alu:
+fes_rv32_alu: 2001936 operations match (host simulation only).
+firmware images match firmware.S (1256 bytes)
+system:
+Static scene: 549849600 output pixels checked across 600 frames.
+fes_riscv_system: firmware drew the scene, moved the box, cycled colour on the timer interrupt and restarted on hold (863733754 pixel cycles, 173043905 instructions).
+faults:
+fes_riscv_system: unmapped I/O, framebuffer overrun and wild addresses fault; mapped words do not (425 cycles)
+board:
+fes.riscv board mailbox, release, gamepad, HDMI output and hold passed (20996254 pixel cycles)
+RV32I RTL checks passed (host simulation only).

@@ -41,7 +41,7 @@ module fes_rv32_cpu #(
     output logic [31:0] wb_data,
     output logic [31:0] debug_pc
 );
-    typedef enum logic [1:0] {S_FETCH, S_EXEC, S_MEM} state_t;
+    typedef enum logic [1:0] {S_FETCH, S_EXEC, S_COMMIT, S_MEM} state_t;
 
     localparam [6:0] OP_LUI    = 7'b0110111;
     localparam [6:0] OP_AUIPC  = 7'b0010111;
@@ -70,6 +70,13 @@ module fes_rv32_cpu #(
     logic fetch_issued;
     logic [31:0] mem_addr, mem_wdata;
     logic [3:0] mem_wstrb;
+    // EXEC captures independent results before COMMIT selects side effects.
+    // Register-file operands are valid in EXEC; its synchronous read ports
+    // continue sampling the shared bus while COMMIT uses these stable values.
+    logic [31:0] alu_result_q, access_addr_q, pc_plus_4_q, pc_plus_offset_q;
+    logic [31:0] store_data_q, csr_operand_q;
+    logic [3:0] store_strb_q;
+    logic branch_taken_q, access_misaligned_q, jump_misaligned_q;
 
     // Register file: two synchronous read ports sampled when the fetch
     // completes, one write port. x0 is entry 0: initialised to zero with the
@@ -141,7 +148,7 @@ module fes_rv32_cpu #(
     wire [31:0] access_addr = rs1 + access_imm;
     // Alignment needs only the two low bits; keep them off the full carry chain.
     wire [1:0] access_low = rs1[1:0] + access_imm[1:0];
-    wire [31:0] jalr_target = {access_addr[31:1], 1'b0};
+    wire [31:0] jalr_target = {access_addr_q[31:1], 1'b0};
 
     logic branch_taken;
     always_comb begin
@@ -168,8 +175,8 @@ module fes_rv32_cpu #(
     logic [31:0] trap_cause_now, trap_value_now;
     fes_rv32_csr csr (
         .clk(clk), .reset(reset),
-        .access(state == S_EXEC && is_csr), .addr(ir[31:20]), .op(funct3[1:0]),
-        .write(csr_write), .operand(csr_operand), .rdata(csr_rdata), .illegal(csr_illegal),
+        .access(state == S_COMMIT && is_csr), .addr(ir[31:20]), .op(funct3[1:0]),
+        .write(csr_write), .operand(csr_operand_q), .rdata(csr_rdata), .illegal(csr_illegal),
         .trap(trap_now), .trap_cause(trap_cause_now), .trap_pc(pc),
         .trap_value(trap_value_now), .mret(mret_now), .mtvec(csr_mtvec), .mepc(csr_mepc),
         .irq_external(irq_external), .irq_timer(irq_timer), .irq_software(irq_software),
@@ -233,9 +240,9 @@ module fes_rv32_cpu #(
     logic [31:0] wb_value;
     logic start_mem, finish;
     always_comb begin
-        flow_pc = pc_plus_4;
+        flow_pc = pc_plus_4_q;
         wb_now = 1'b0;
-        wb_value = alu_result;
+        wb_value = alu_result_q;
         trap_now = 1'b0;
         trap_cause_now = CAUSE_ILLEGAL;
         trap_value_now = 32'd0;
@@ -254,7 +261,7 @@ module fes_rv32_cpu #(
                     finish = 1'b1;
                 end
             end
-            S_EXEC: begin
+            S_COMMIT: begin
                 finish = 1'b1;
                 if (!is_legal) begin
                     trap_now = 1'b1;
@@ -264,26 +271,26 @@ module fes_rv32_cpu #(
                     wb_value = imm_u;
                 end else if (is_auipc) begin
                     wb_now = 1'b1;
-                    wb_value = pc_plus_offset;
+                    wb_value = pc_plus_offset_q;
                 end else if (is_jump || is_branch) begin
-                    if (is_jump || branch_taken) begin
-                        flow_pc = is_jalr ? jalr_target : pc_plus_offset;
-                        if (jump_misaligned) begin
+                    if (is_jump || branch_taken_q) begin
+                        flow_pc = is_jalr ? jalr_target : pc_plus_offset_q;
+                        if (jump_misaligned_q) begin
                             trap_now = 1'b1;
                             trap_cause_now = CAUSE_IADDR_MISALIGNED;
                             trap_value_now = flow_pc;
                         end else begin
                             wb_now = is_jump;
-                            wb_value = pc_plus_4;
+                            wb_value = pc_plus_4_q;
                         end
                     end
                 end else if (is_load || is_store) begin
                     finish = 1'b0;
-                    if (access_misaligned) begin
+                    if (access_misaligned_q) begin
                         finish = 1'b1;
                         trap_now = 1'b1;
                         trap_cause_now = is_load ? CAUSE_LADDR_MISALIGNED : CAUSE_SADDR_MISALIGNED;
-                        trap_value_now = access_addr;
+                        trap_value_now = access_addr_q;
                     end else begin
                         start_mem = 1'b1;
                     end
@@ -310,7 +317,7 @@ module fes_rv32_cpu #(
                 end
                 // FENCE, FENCE.I and WFI complete as no-operations.
             end
-            default: begin   // S_MEM
+            S_MEM: begin
                 if (mem_done) begin
                     finish = 1'b1;
                     if (bus_error) begin
@@ -323,6 +330,7 @@ module fes_rv32_cpu #(
                     end
                 end
             end
+            default: ; // EXEC captures results without completing an instruction.
         endcase
     end
 
@@ -381,10 +389,23 @@ module fes_rv32_cpu #(
                     end
                 end
                 S_EXEC: begin
+                    alu_result_q <= alu_result;
+                    access_addr_q <= access_addr;
+                    pc_plus_4_q <= pc_plus_4;
+                    pc_plus_offset_q <= pc_plus_offset;
+                    store_data_q <= store_data;
+                    store_strb_q <= store_strb;
+                    csr_operand_q <= csr_operand;
+                    branch_taken_q <= branch_taken;
+                    access_misaligned_q <= access_misaligned;
+                    jump_misaligned_q <= jump_misaligned;
+                    state <= S_COMMIT;
+                end
+                S_COMMIT: begin
                     if (start_mem) begin
-                        mem_addr <= access_addr;
-                        mem_wdata <= store_data;
-                        mem_wstrb <= is_store ? store_strb : 4'd0;
+                        mem_addr <= access_addr_q;
+                        mem_wdata <= store_data_q;
+                        mem_wstrb <= is_store ? store_strb_q : 4'd0;
                         state <= S_MEM;
                     end else begin
                         pc <= next_pc;

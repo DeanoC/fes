@@ -1078,6 +1078,15 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
+critical_cohort_budget = 0
+critical_cohort_report = "unset"
+critical_cohort_model_out = "unset"
+mistral_dsp_signed_lanes = false
+set = []
+gpu_required = false
+router2_profile = "unset"
 
 [[recipes]]
 core_id = "fes.ramtest"

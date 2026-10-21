@@ -82,7 +82,7 @@ chmod +x "$selector"
 
 # The corruption and multi-package tests below need these explicit fixtures;
 # they must not depend on which cores the bootstrap image happens to ship.
-package_ids=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.spectrum,fes.ramtest,fes.atari-st
+package_ids=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum,fes.ramtest,fes.atari-st
 package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {

@@ -4,6 +4,18 @@
 #
 ################################################################################
 
+ifneq ($(FES_PREBUILT_RUNTIME_SHA256),)
+# Assembly consumes the explicitly selected binary. There is no build fallback.
+MISTER_RUNTIME_SITE = $(FOGCAST_DIR)/bin
+MISTER_RUNTIME_SITE_METHOD = local
+MISTER_RUNTIME_LICENSE = GPL-3.0-or-later
+
+define MISTER_RUNTIME_INSTALL_TARGET_CMDS
+	printf '%s  %s\n' "$(FES_PREBUILT_RUNTIME_SHA256)" "$(@D)/mister-runtime-linux-armv7" | sha256sum -c -
+	/bin/rm -f $(TARGET_DIR)/usr/sbin/mister-runtime
+	$(INSTALL) -D -m 0755 $(@D)/mister-runtime-linux-armv7 $(TARGET_DIR)/usr/sbin/mister-runtime
+endef
+else
 FES_RUNTIME_SOURCE_PATH ?= .
 MISTER_RUNTIME_SITE = /runtime-source/$(FES_RUNTIME_SOURCE_PATH)
 MISTER_RUNTIME_SITE_METHOD = local
@@ -24,5 +36,7 @@ define MISTER_RUNTIME_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/build/mister-runtime \
 		$(TARGET_DIR)/usr/sbin/mister-runtime
 endef
+
+endif
 
 $(eval $(generic-package))

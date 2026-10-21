@@ -36,7 +36,7 @@ LOCK_SHA256 = {
     "fes.apple2": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.c64": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.riscv": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
 }
@@ -87,7 +87,7 @@ GOLDENS = {
     "fes.apple2": ("57406311d69ef2e121f002c7cf0afbbbfb7b1c26d114acf88e1664a4b482ddd3", "66f49fb8cf973ded993aff3540cba1c3dc01c5d58c2e1c8353eb10003aaee65b"),
     "fes.c64": ("6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
     "fes.spectrum": ("780de931801b08dcc4df525763a573165a6baf3a3241c6161fd8cdc6d312938a", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
-    "fes.riscv": ("aae5ea738224669955f178252e48606f44b6d46dceb0767bd53bab43ce4e208b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
+    "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
     "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
@@ -219,7 +219,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(lock.read_bytes()).hexdigest(), LOCK_SHA256[core_id])
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
-                option_count = 105 if core_id in ("fes.pong", "fes.zx81") else 96
+                option_count = 105 if core_id in {"fes.pong", "fes.riscv", "fes.zx81"} else 96
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
