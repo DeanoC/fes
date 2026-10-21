@@ -161,7 +161,7 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 | `make verify` | Require host/image receipts, verify image hashes and QEMU packaging; compare both hashes when `IMAGE_PASSES=2` |
 | `make media` | Publish a verified flashable disk image, auto-embedding the local target agent config |
 | `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
-| `make rebuild` | Force host and both package-only image passes |
+| `make rebuild` | Force host and the selected package-only image passes |
 
 | Profile | Selected source combination |
 | --- | --- |

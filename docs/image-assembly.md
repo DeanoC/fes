@@ -164,7 +164,8 @@ published cutover, reproducible image completion or hardware acceptance.
 `--fast-dev` entrypoints have been retired. The native overlay directly owns
 per-card Ethernet MAC ([bootable media](bootable-media.md#per-card-ethernet-mac)),
 network, SSH, supervisor, mount-smoke, agent and runtime services. The kernel
-build uses the retained native image compiler under `work-2-native-dev/host`.
+build uses the selected pass's retained native image compiler:
+`work-1-native-dev/host` by default, `work-2-native-dev/host` with `IMAGE_PASSES=2`.
 Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
 requires a fresh committed-source image build and separate hardware acceptance.
 

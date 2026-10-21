@@ -119,7 +119,7 @@ mapping does not assert that cutover has been published or hardware-qualified.
 | `make doctor` | Selected profile and build prerequisites |
 | `make host` | Compile selected linux/amd64 host outputs and `host.json` |
 | `make dev` | Incremental diagnostic native image using a persistent base |
-| `make build` | Build selected host and cold two-pass native image outputs |
+| `make build` | Build selected host and cold one-pass native image outputs; `IMAGE_PASSES=2` adds the reproducibility pass |
 | `make verify` | Verify published outputs against receipts and child checks |
 | `make media` | Assemble a flashable disk image from verified cold outputs |
 | `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
@@ -398,7 +398,7 @@ owned by FES `image/`; see [image assembly](image-assembly.md).
 
 ## Contract generation and shared build caches
 
-Cold two-pass native images cache the pinned Buildroot SDK under
+Cold native images cache the pinned Buildroot SDK under
 `image/build/cache/target-image/toolchains/`. Each image pass uses a fresh
 extraction of the same checked archive. Set `TOOLCHAIN_REBUILD=1` on `make build`
 to force a new SDK and bypass image receipt reuse; see
@@ -408,9 +408,10 @@ For cross-worktree image reuse, set
 `FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`
 or `make dev`. The external directory holds `dl/`, `toolchains/<key>/` and
 `ccache/`; it does not change the shared compiler and package cache below.
-The toolchain-only build never uses ccache. Cold pass 2 disables it so the two
-rootfs hashes still compare independent compiles. Stop builds before removing
-one of these cache directories; see [image assembly](image-assembly.md#buildroot-cross-toolchain).
+The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
+disables it so the two rootfs hashes still compare independent compiles. Stop
+builds before removing one of these cache directories; see
+[image assembly](image-assembly.md#buildroot-cross-toolchain).
 
 `make check-generated` verifies generated consumers and copied conformance data.
 `make generate` regenerates these outputs in the FES working tree, including the
