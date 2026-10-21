@@ -23,7 +23,8 @@ SOURCES = ('cores/fes-splash/rtl/pixel_pll.v', 'cores/fes-menu/rtl/fes_menu_read
            'cores/fes-menu/rtl/top.v')
 DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-common/rtl/fes_hps_ddr_guard.v',
-               'cores/fes-menu/rtl/fes_menu_ddr.v')
+               'cores/fes-menu/rtl/fes_menu_blend.v', 'cores/fes-menu/rtl/fes_menu_blit_read.v',
+               'cores/fes-menu/rtl/fes_menu_blitter.v', 'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
 TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
 TOOLCHAIN_ROOT = 'build/toolchain/fes-menu'

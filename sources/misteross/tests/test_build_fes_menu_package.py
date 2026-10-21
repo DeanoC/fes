@@ -18,6 +18,8 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertNotIn('cores/fes-menu/rtl/top.v',synth)
         self.assertIn('fes_application_gp.v',synth)
         self.assertIn('fes_menu_control.v',synth)
+        for blitter in ('fes_menu_blit_control.v','fes_menu_blitter.v','fes_menu_blit_read.v','fes_menu_blend.v'):
+            self.assertIn(blitter,synth)
         self.assertIn("BUILD_ID 128'h0123456789abcdef0123456789abcdef",synth)
         self.assertIn(p.MENU_TOOLCHAIN_LOCK, p.INPUTS)
         self.assertIn('--gpu-device',commands[1]); self.assertEqual(commands[1][commands[1].index('--gpu-device')+1],'0')
@@ -43,7 +45,7 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertNotIn('system',fields['core'])
         self.assertEqual(fields['abi']['id'],'fes.application')
         self.assertEqual(fields['target']['programming_profile'],'fes-gp-v1')
-        self.assertEqual({i['id'] for i in fields['interfaces'] if i['required']},{'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display'})
+        self.assertEqual({i['id'] for i in fields['interfaces'] if i['required']},{'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display','fes.video.menu-blitter'})
         self.assertTrue(all(i['required'] for i in fields['interfaces']))
 
     def test_package_routes_first_pass_ladder(self):

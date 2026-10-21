@@ -121,8 +121,9 @@ and records it in the closed build inputs. Failed routes publish no RBF.
 
 `make build-fes-menu-package` builds separate format-2 `fes.menu` 1.0.0
 firmware under `build/oss/fes-menu-package`, exporting the closed package to
-`build/packages`. It requires application fixed video, HPS DDR and menu-display
-1.0. It has no playable system identity and does not change factory selection.
+`build/packages`. It requires application fixed video, HPS DDR, menu-display
+1.0 and menu-blitter 1.0. It has no playable system identity and does not
+change factory selection.
 The qualified RAM-test lock now includes the congestion fix from FES #266.
 GPU 0 and bounded explicit seeds retain the normal provenance/evidence gates.
 The described package tries seed 5 first, then 1, 2, 3, 4, 6, 7, 8, and keeps
@@ -135,11 +136,25 @@ frame-boundary completion. Quiesce waits for the reader to drain before ACK;
 execution hold during enabled scanout rejects without abandoning responses.
 The GP and reader use the same pixel clock.
 
-`python3 scripts/sim_fes_menu.py --case gp` replays the shared golden wire
-fixture through actual GP/control/DDR RTL and verifies stalls, drain, restart,
-sequence exhaustion and coherent snapshots. `--case gp-board` checks the
-production board top, modeled GP/DDR atoms, PLL gating and explicit enable.
-These and the seven existing cases are included in `--case all`.
+`fes_menu_blitter` runs `fes.video.menu-blitter` command lists into a menu
+slot (`sources/mister-packages/docs/application-io.md`). MenuBlit goes to
+`fes_menu_blit_control`; the blitter reads destinations and writes results on
+port 1, so a blend reads what earlier commands wrote, and reads commands and
+textures on port 2. Each row is read, then blended through a two-clock
+pipeline into the write burst: 2 pixels a clock for fills, 1 for blends and
+copies. Quiesce stops a run at the next row and waits for both ports to drain.
+The diagnostic DDR wrapper leaves the blitter and ports 1/2 out.
+
+`python3 scripts/sim_fes_menu.py --case gp` replays the shared golden blitter
+wire fixture through actual GP/control/DDR/blitter RTL on a memory-backed
+hard-block model. It verifies stalls, drain, restart, sequence exhaustion and
+coherent snapshots; the fixture's run against the gfx reference byte for byte
+and a whole scanned-out frame of the result; and quiesce during a blit and
+fault containment. `--case blitter` checks every op, width, alignment, fault,
+halt and full-frame throughput against the reference with randomly stalling
+ports, and `--case blend` every source, destination and alpha byte.
+`--case gp-board` checks the production board top, modeled GP/DDR atoms, PLL
+gating and explicit enable. `--case all` runs every case.
 
 Runtime presentation is implemented and has exact-artifact kit diagnostic
 evidence in `docs/validation/2026-09-28-native-menu-kit-presentation.md`.
