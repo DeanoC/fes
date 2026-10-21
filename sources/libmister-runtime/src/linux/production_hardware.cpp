@@ -14,6 +14,7 @@
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
 #include "native/linux/mmio.hpp"
+#include "native/linux/window_driver.hpp"
 #include "native/idle_recipe.hpp"
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
@@ -248,6 +249,10 @@ Error CreateProductionHardware(LogSink& log,
 {
 	if (hardware == nullptr)
 		return {ErrorCode::invalid_request, "missing production hardware output"};
+	// Nothing maps through the driver yet; a load failure is reported, not fatal.
+	const Error window = native::LoadWindowDriver(native::WindowDriverDirectory());
+	if (!window.ok())
+		log.Write({"window_driver", "", "", "failure", window});
 	hardware->reset(new ProductionHardware(log));
 	return {};
 }
