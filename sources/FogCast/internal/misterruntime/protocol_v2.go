@@ -43,21 +43,20 @@ type Protocol2MenuDisplay struct {
 	CoreGeneration uint64 `json:"core_generation,omitempty"`
 	// Picture is a session plane's machine picture as [x, y, width, height]
 	// inside the launcher frame, for drawing a surround around it.
-	Picture           *[4]uint16 `json:"picture,omitempty"`
-	PackageID         *string    `json:"package_id"`
-	Generation        uint64     `json:"generation"`
-	Width             uint64     `json:"width"`
-	Height            uint64     `json:"height"`
-	Stride            uint64     `json:"stride"`
-	ByteCount         uint64     `json:"byte_count"`
-	SlotBytes         uint64     `json:"slot_bytes"`
-	StagingFormat     string     `json:"staging_format"`
-	DisplayedSequence uint64     `json:"displayed_sequence"`
-	Underflows        uint64     `json:"underflows"`
-	// Damage is the runtime's optional damaged-present capability. It is
-	// emitted only as true; absence means the runtime does not accept damage.
-	Damage bool            `json:"damage,omitempty"`
-	Error  *Protocol2Error `json:"error"`
+	Picture    *[4]uint16 `json:"picture,omitempty"`
+	PackageID  *string    `json:"package_id"`
+	Generation uint64     `json:"generation"`
+	Width      uint64     `json:"width"`
+	Height     uint64     `json:"height"`
+	Stride     uint64     `json:"stride"`
+	ByteCount  uint64     `json:"byte_count"`
+	SlotBytes  uint64     `json:"slot_bytes"`
+	Slots      uint64     `json:"slots"`
+	// Format is the pixel layout of the granted slots the client draws into.
+	Format            string          `json:"format"`
+	DisplayedSequence uint64          `json:"displayed_sequence"`
+	Underflows        uint64          `json:"underflows"`
+	Error             *Protocol2Error `json:"error"`
 }
 
 type Protocol2Response struct {
@@ -630,7 +629,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "picture", "damage"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "picture"})
 	if err != nil {
 		return err
 	}
@@ -638,7 +637,7 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		"available": rawBoolean, "package_id": rawNullableString,
 		"generation": rawUnsigned, "width": rawUnsigned, "height": rawUnsigned,
 		"stride": rawUnsigned, "byte_count": rawUnsigned, "slot_bytes": rawUnsigned,
-		"staging_format": rawString, "displayed_sequence": rawUnsigned,
+		"slots": rawUnsigned, "format": rawString, "displayed_sequence": rawUnsigned,
 		"underflows": rawUnsigned, "error": rawNullableObject,
 	}); err != nil {
 		return err
@@ -666,9 +665,6 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 			uint64(picture[0])+uint64(picture[2]) > width || uint64(picture[1])+uint64(picture[3]) > height {
 			return errInvalidRuntimeResponse
 		}
-	}
-	if damage, present := menu["damage"]; present && !bytes.Equal(bytes.TrimSpace(damage), []byte("true")) {
-		return errInvalidRuntimeResponse
 	}
 	if !isNull(menu["error"]) {
 		return validateErrorShape(menu["error"])
@@ -1121,7 +1117,7 @@ func validProtocol2Error(remote Protocol2Error) bool {
 		return false
 	}
 	switch remote.Phase {
-	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_memory":
+	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_window":
 		return true
 	default:
 		return false

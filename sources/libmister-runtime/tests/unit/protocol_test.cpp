@@ -1042,41 +1042,48 @@ void TestMenuProtocolRequestsAndStatus()
  assert(mister::daemon::json::ParseResponse(nested,&deep,&message));
 
  mister::Status status;status.menu_display.available=true;status.menu_display.generation=2;status.menu_display.displayed_sequence=9;
- mister::daemon::MenuFrameReply reply;reply.generation=1;reply.displayed_sequence=3;
+ // Status names the slot format the client draws, not a staging format.
+ const auto listed=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,nullptr);
+ assert(listed.find("\"slots\":2,\"format\":\"bgrx8888\"")!=std::string::npos);
+ assert(listed.find("staging_format")==std::string::npos&&listed.find("\"damage\"")==std::string::npos);
+ mister::daemon::MenuFrameReply reply;reply.generation=1;reply.slot=1;reply.displayed_sequence=3;
+ // A completed present reports where its time went.
+ reply.clean_us=700;reply.submit_us=12;reply.scanout_wait_us=9000;
  const auto response=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
- assert(response.find("\"menu_frame\":{\"generation\":1")!=std::string::npos);
- assert(response.find("\"displayed_sequence\":3")!=std::string::npos);
- // A completed present reports where its time went; a prepared reply does not.
- reply.copy_us=41000;reply.submit_us=12;reply.scanout_wait_us=9000;
- const auto timed=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
- reply.stored_pixels=3424;
- const auto stored=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
- assert(stored.find("\"timing\":{\"copy_us\":41000,\"submit_us\":12,\"scanout_wait_us\":9000,\"stored_pixels\":3424}")!=std::string::npos);
- assert(timed.find("\"damage\"")==std::string::npos);
- status.menu_display.damage=true;
- assert(mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,nullptr).find("\"damage\":true")!=std::string::npos);
- mister::daemon::MenuFrameReply prepared;prepared.generation=1;prepared.prepared=true;
+ assert(response.find("\"menu_frame\":{\"generation\":1,\"slot\":1,\"displayed_sequence\":3,\"underflows\":0,"
+  "\"timing\":{\"clean_us\":700,\"submit_us\":12,\"scanout_wait_us\":9000}}")!=std::string::npos);
+ mister::daemon::MenuFrameReply prepared;prepared.kind=mister::daemon::MenuFrameReply::Kind::prepared;prepared.generation=1;prepared.slot=0;
  const auto begun=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&prepared);
- assert(begun.find("\"timing\"")==std::string::npos);
+ assert(begun.find("\"menu_frame\":{\"generation\":1,\"slot\":0}")!=std::string::npos);
+ mister::daemon::MenuFrameReply granted;granted.kind=mister::daemon::MenuFrameReply::Kind::granted;granted.generation=1;
+ const auto window=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
+ assert(window.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304}")!=std::string::npos);
 
  Request request;
- assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615,"byte_count":3686400})",&request).ok());
- assert(request.expected_generation==UINT64_MAX);
- assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400})",&request).ok());
- // A commit may name the changed rects relative to the displayed frame.
- assert(!request.has_menu_damage);
- assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"damage":{"base_sequence":9,"rects":[[0,0,1280,720],[13,40,101,30]]}})",&request).ok());
- assert(request.has_menu_damage&&request.menu_damage.base_sequence==9&&request.menu_damage.rects.size()==2);
- assert(request.menu_damage.rects[1].x==13&&request.menu_damage.rects[1].y==40&&request.menu_damage.rects[1].w==101&&request.menu_damage.rects[1].h==30);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7})",&request).ok());
+ assert(request.operation==mister::daemon::Operation::menu_frame_grant&&request.expected_generation==7);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615})",&request).ok());
+ assert(request.operation==mister::daemon::Operation::menu_frame_begin&&request.expected_generation==UINT64_MAX);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1})",&request).ok());
+ assert(request.operation==mister::daemon::Operation::menu_frame_commit&&request.menu_slot==1&&request.menu_written.empty());
+ // A commit may name the regions it wrote, which the runtime writes back.
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"written":[[0,0,1280,720],[13,40,101,30]]})",&request).ok());
+ assert(request.menu_written.size()==2&&request.menu_written[1].x==13&&request.menu_written[1].y==40&&
+  request.menu_written[1].w==101&&request.menu_written[1].h==30);
  std::string many;for(int i=0;i<17;++i)many+=std::string(i?",":"")+"[0,0,8,8]";
- const std::string commit=R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"damage":)";
- for(const auto& damage:{std::string(R"({"base_sequence":0,"rects":[[0,0,8,8]]})"),std::string(R"({"base_sequence":4294967296,"rects":[[0,0,8,8]]})"),
-  std::string(R"({"base_sequence":1,"rects":[]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,0,8]]})"),std::string(R"({"base_sequence":1,"rects":[[1273,0,8,8]]})"),
-  std::string(R"({"base_sequence":1,"rects":[[0,713,8,8]]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,8]]})"),std::string(R"({"base_sequence":1,"rects":[[0,0,8,8]],"x":1})"),
-  std::string(R"({"base_sequence":1})"),std::string(R"([1])"),R"({"base_sequence":1,"rects":[)"+many+"]}"})
-  ExpectError(commit+damage+"}",ErrorCode::invalid_request);
- ExpectError(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":1,"byte_count":3686400,"damage":{"base_sequence":9,"rects":[[0,0,8,8]]}})",ErrorCode::invalid_request);
- for(const auto& line:{R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":0,"byte_count":3686400})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686401})",R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,"address":805306368})"})assert(!Parse(line,&request).ok());
+ const std::string commit=R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"written":)";
+ for(const auto& written:{std::string("[]"),std::string("[[0,0,0,8]]"),std::string("[[1273,0,8,8]]"),std::string("[[0,713,8,8]]"),
+  std::string("[[0,0,8]]"),std::string("[[0,0,8,\"8\"]]"),std::string("{}"),"["+many+"]"})
+  ExpectError(commit+written+"}",ErrorCode::invalid_request);
+ for(const auto& line:{R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":0})",
+  R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":1,"byte_count":3686400})",
+  R"({"protocol":2,"operation":"menu_frame_commit","generation":1})",
+  R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":2})",
+  R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":-1})",
+  R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"damage":{"base_sequence":9,"rects":[[0,0,8,8]]}})",
+  R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":1,"written":[[0,0,8,8]]})",
+  R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"address":805306368})"})
+  ExpectError(line,ErrorCode::invalid_request);
 }
 
 void TestSessionDisplayRequestAndBoundStatus()

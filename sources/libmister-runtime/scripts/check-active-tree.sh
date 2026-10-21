@@ -90,7 +90,7 @@ input.o
 linux_input.o
 media_data.o
 menu_display.o
-menu_memory.o
+menu_window.o
 mmio.o
 production_hardware.o
 runtime.o
