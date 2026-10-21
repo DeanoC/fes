@@ -9,7 +9,8 @@ a described menu package for daemon startup. The sealed splash remains the boot
 and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
-1.0 interfaces can be configured. It is idle firmware, not a game. Normal
+1.0 interfaces, and optionally the menu-blitter 1.0 interface, can be
+configured. It is idle firmware, not a game. Normal
 package programming, build identity and boot-latched DDR admission still apply.
 The window is mapped through the [fes-window driver](../../../image/kernel/fes-window/README.md),
 which the runtime loads from its software release and which refuses a window
@@ -43,7 +44,19 @@ The response carries one `SCM_RIGHTS` descriptor, the grant file, and
 shared and read/write: slot *n* starts at *n* × `slot_bytes`. The mapping is
 cached. Every process's mapping of the grant ends when the runtime revokes it
 (see Lifecycle); a later access raises SIGBUS. A new generation needs a new
-grant. Any socket peer may take the grant, as any peer may present, launch or
+grant.
+
+A menu package with `fes.video.menu-blitter` gets a larger grant, and its
+`menu_frame` adds the layout of the
+[blitter](../../mister-packages/docs/application-io.md#menu-blitter-10):
+
+```json
+"blitter":{"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
+```
+
+Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0. The client writes
+command lists and BGRA textures there; only the blitter draws that grant's
+slots. Any socket peer may take the grant, as any peer may present, launch or
 Stop. The mapping covers both slots, so the slot rules below are the client's
 contract: the runtime checks a slot only when a commit names it, and refuses
 the displayed one.
@@ -65,14 +78,30 @@ after each presented frame. Commit names the same slot and, optionally, the
 whole frame counts as written. The client tracks what each slot holds: a slot
 two frames old needs this frame's changes and the previous frame's.
 
+On a blitter grant the commit names a command list instead, and the heap
+bytes it uploaded since its last frame as 1–16 `[offset,bytes]` window ranges
+inside the heap:
+
+```json
+{"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"list":{"first":0,"count":819},"uploaded":[[16777216,65536]]}
+```
+
+The client writes the list and uploads between begin and commit. The runtime
+writes back the list's commands and the uploads, checks that the blitter is
+idle, runs it into the slot, waits for its completed count, then submits the
+slot as below. A list commit with `written`, a list on a grant without the
+blitter, and a CPU commit on a blitter grant are refused without touching the
+display. Nothing reads the list or the heap once commit returns.
+
 fpga2sdram reads DDR past the CPU caches, so the runtime writes back the
 written regions (`FES_WINDOW_CLEAN`) before it submits the slot. Commit
 returns its own `menu_frame` generation, slot, displayed sequence and underflow
 count. Those completion fields remain bound to this frame even if current
 status changes concurrently. `underflows` is the per-present delta, not the
 cumulative hardware counter. Commit also returns `menu_frame.timing` with
-`clean_us` (writing back the client's lines), `submit_us` (submitting the
-slot) and `scanout_wait_us` (waiting until scanout shows it). These are
+`clean_us` (writing back the client's lines), `blit_us` (running the blitter,
+0 for a CPU frame), `submit_us` (submitting the slot) and `scanout_wait_us`
+(waiting until scanout shows it). These are
 diagnostics for frame-time measurement; clients must not depend on them.
 A commit naming the displayed slot is refused before any display access.
 
@@ -117,8 +146,10 @@ revokes the grant too. Stop restores an explicitly configured menu with a new
 generation, a new grant and black slots. On a menu kit, Stop reprograms the
 FPGA, blips HDMI, and can end in `reboot_required` if the menu reload and the
 splash reload both fail. Stop from splash idle remains idempotent. A present
-that misses completion or trips the underflow limit reactivates the menu within
-the budget above before using the splash path. Failed containment requires reboot.
+that misses completion, trips the underflow limit or faults the blitter
+reactivates the menu within the budget above before using the splash path. A
+blitter fault holds until execution reset, so reprogramming is its recovery.
+Failed containment requires reboot.
 
 ## In-session simple-computer display
 
@@ -175,7 +206,9 @@ selects a sustained, bounded run (maximum one hour); it cannot combine with
 `--frames`. `--interval-ms 0` removes pacing for an explicit stress run.
 Patterns alternate full-color bars, fine pixel/row boundaries, a top-row
 sequence marker and a final-column row/sequence marker. It maps the grant once
-and draws every frame whole into its slot. The client checks generation,
+and draws every frame whole into its slot. On a blitter grant it writes the
+same pattern as 819 FILL commands and commits that list, and it reports
+`blitter=1` and the average `blit_avg_ms`. The client checks generation,
 geometry, format, the grant, completion sequence and an underflow delta of at
 most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately

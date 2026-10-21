@@ -226,11 +226,12 @@ public:
   }
   condition_.notify_all();return {};
  }
- Error ShareMenuWindow(std::uint64_t generation,int* fd)
+ Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter)
  {
-  if(!fd)return Invalid("missing menu window output");
+  if(!fd||!blitter)return Invalid("missing menu window output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  *blitter=status_.menu_display.blitter;
   return hardware_.ShareMenuWindow(fd);
  }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
@@ -253,11 +254,14 @@ public:
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
+   // Only the blitter draws a blitter grant's slots.
+   if(frame.draw_.blit!=status_.menu_display.blitter)
+    return Invalid(frame.draw_.blit?"menu grant has no blitter":"menu blitter grant needs a command list");
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
   }
-  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.written_,&info);
+  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.draw_,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
    if(session) {
@@ -1482,7 +1486,7 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
-Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd) {return impl_->ShareMenuWindow(generation,fd);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter) {return impl_->ShareMenuWindow(generation,fd,blitter);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
 Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible) {return impl_->SetSessionDisplay(package_id,generation,visible);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}

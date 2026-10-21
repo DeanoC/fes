@@ -115,7 +115,8 @@ verify construction and reject old mutation authority.
 ## Menu presentation primitives
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
-is admitted only alongside fixed video and HPS DDR, with those three interfaces.
+is admitted only alongside fixed video and HPS DDR, with those three interfaces,
+or with `fes.video.menu-blitter` 1.0 as a fourth.
 Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
@@ -137,14 +138,24 @@ failure is logged; menu activation then fails to grant and the idle path
 falls back to splash.
 
 `MenuWindow` (`native/linux/menu_window.cpp`) owns one grant of both 4 MiB
-slots at `0x30000000` per menu or session-plane activation. Activation revokes
-any earlier grant, grants the slots, fills both frames black through a cached
-mapping and writes them back for the fabric; a re-shown session plane is
+slots at `0x30000000` per menu or session-plane activation. A menu with the
+blitter's grant also covers its command lists and texture heap, 80 MiB in all.
+Activation revokes any earlier grant and fills both frames black through a
+separate slots-only grant, which it revokes before granting the client's.
+That revoke writes back and invalidates every slot line, where a clean would
+leave valid lines in the PL310. No stale slot line is then cached for a CPU
+write to carry over what the blitter drew. A re-shown session plane is
 granted again without clearing, so its pixels survive. `ShareMenuWindow` hands
 any socket peer the grant's descriptor; `MenuBackSlot` names the slot scanout
 is not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
 regions the client wrote (`FES_WINDOW_CLEAN`, L1 by address then the PL310)
 and only then submits the slot, because fpga2sdram reads DDR past the caches.
+On a blitter grant only the blitter draws slots: a frame is a command list,
+and a CPU frame is refused, as is a list without a blitter. The runtime writes
+back the list's commands and the heap bytes the client uploaded, checks the
+blitter idle, runs it into the back slot and polls its completed count before
+submitting. A blitter fault fails the present like any other completion
+fault.
 Revoke ends every process's mapping and writes back and invalidates the
 grant's lines. It runs before any lifecycle operation quiesces menu firmware
 or programs another core, when a session plane is hidden, and on any failed

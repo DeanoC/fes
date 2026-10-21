@@ -1723,8 +1723,9 @@ void TestMenuFramesAlternateSlots()
  Fixture f;const std::string id(64,'a');
  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  const auto menu=f.runtime.status().menu_display;
- int window=-1;assert(f.runtime.ShareMenuWindow(menu.generation,&window).ok()&&window>=0);close(window);
- assert(f.runtime.ShareMenuWindow(menu.generation+1,&window).code==ErrorCode::invalid_request);
+ int window=-1;bool blitter=true;
+ assert(f.runtime.ShareMenuWindow(menu.generation,&window,&blitter).ok()&&window>=0&&!blitter);close(window);
+ assert(f.runtime.ShareMenuWindow(menu.generation+1,&window,&blitter).code==ErrorCode::invalid_request);
  mister::MenuDisplayInfo info;
  for(const std::uint8_t expected:{std::uint8_t(1),std::uint8_t(0),std::uint8_t(1)}) {
   std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
@@ -1732,6 +1733,29 @@ void TestMenuFramesAlternateSlots()
   assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());
  }
  assert((f.hardware.menu_present_slots==std::vector<std::uint8_t>{1,0,1}));
+}
+
+// Only the blitter draws a blitter grant's slots, and a grant without one
+// takes no list. A mismatched commit is the client's error: it reaches no
+// hardware and leaves the menu running.
+void TestMenuBlitterFramesNeedLists()
+{
+ for(const bool blitter:{false,true}) {
+  Fixture f;const std::string id(64,'a');f.hardware.menu_status.blitter=blitter;
+  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  const auto menu=f.runtime.status().menu_display;
+  int window=-1;bool granted=!blitter;
+  assert(f.runtime.ShareMenuWindow(menu.generation,&window,&granted).ok()&&granted==blitter);close(window);
+  mister::MenuDisplayInfo info;std::unique_ptr<mister::MenuFrame> frame;
+  assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+  mister::MenuDraw draw;draw.blit=!blitter;draw.count=1;frame->SetDraw(draw);
+  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).code==ErrorCode::invalid_request);
+  assert(f.hardware.menu_present_calls==0&&f.runtime.status().menu_display.available);
+  draw.blit=blitter;draw.first=7;draw.count=9;draw.uploaded={{16777216,64}};frame->SetDraw(draw);
+  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());
+  const auto& presented=f.hardware.menu_present_draws.at(0);
+  assert(presented.blit==blitter&&presented.first==7&&presented.count==9&&presented.uploaded.size()==1);
+ }
 }
 
 // A preparation the client abandons, or keeps past the bound, never holds a
@@ -1772,6 +1796,7 @@ int main()
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
  TestMenuFramesAlternateSlots();
+ TestMenuBlitterFramesNeedLists();
  TestMenuPreparationFencesLifecycle();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();

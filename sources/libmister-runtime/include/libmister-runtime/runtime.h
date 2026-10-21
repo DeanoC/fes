@@ -301,8 +301,9 @@ struct MenuDisplayInfo {
  std::uint32_t displayed_sequence=0,underflows=0;
  // Timing of the present that produced this info, for frame-time
  // diagnostics: writing back the client's pixels, the slot submit, and the
- // wait until scanout shows the new slot. Zero when not measured.
- std::uint32_t clean_us=0,submit_us=0,scanout_wait_us=0;
+ // wait until scanout shows the new slot, and for a blitter frame the run
+ // that drew it. Zero when not measured.
+ std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
 struct MenuDisplayStatus {
  bool available=false;
@@ -314,6 +315,9 @@ struct MenuDisplayStatus {
  std::uint64_t generation=0;
  MenuGeometry geometry;
  std::uint32_t displayed_sequence=0,underflows=0;
+ // The grant also covers the blitter's command lists and texture heap, and
+ // only the blitter draws its slots. Reported in the grant, not in status.
+ bool blitter=false;
  Error error;
 };
  // A region of a menu frame, in pixels.
@@ -321,23 +325,36 @@ struct MenuRect {
  std::uint16_t x=0,y=0,w=0,h=0;
 };
 constexpr std::size_t kMenuWrittenMaxRects=16;
+// Window bytes the client wrote, by window offset.
+struct MenuSpan {
+ std::uint32_t offset=0,bytes=0;
+};
+constexpr std::size_t kMenuUploadedMaxSpans=16;
+// What a frame drew into its slot. A CPU frame names the regions it wrote
+// (empty: the whole frame). A blitter frame names count commands from first
+// in the list region, and the heap bytes it uploaded since its last frame.
+struct MenuDraw {
+ std::vector<MenuRect> written;
+ bool blit=false;
+ std::uint32_t first=0,count=0;
+ std::vector<MenuSpan> uploaded;
+};
 class Runtime;
 // One outstanding menu preparation: the client draws into slot of the
-// granted window, then commits that slot and the regions it wrote.
+// granted window, then commits that slot and what it drew.
 class MenuFrame final {
 public:
  MenuFrame()=default;
  MenuFrame(const MenuFrame&)=delete;
  MenuFrame& operator=(const MenuFrame&)=delete;
  std::uint8_t slot() const {return slot_;}
- // Empty means the whole frame.
- void SetWritten(std::vector<MenuRect> rects) {written_=std::move(rects);}
+ void SetDraw(MenuDraw draw) {draw_=std::move(draw);}
 private:
  friend class Runtime;
  std::shared_ptr<void> preparation_;
  std::uint64_t generation_=0;
  std::uint8_t slot_=0;
- std::vector<MenuRect> written_;
+ MenuDraw draw_;
 };
 
 struct Status {
@@ -416,7 +433,8 @@ public:
  virtual Error SetSessionDisplay(bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }
- // A new descriptor, owned by the caller, for the grant of both menu slots.
+ // A new descriptor, owned by the caller, for the grant of both menu slots
+ // and, with a blitter, its lists and heap.
  virtual Error ShareMenuWindow(int*) {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
@@ -424,9 +442,9 @@ public:
  virtual Error MenuBackSlot(std::uint8_t*) const {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
- // Writes back the regions the client drew in slot (empty: the whole
- // frame) for the fabric, then shows slot.
- virtual Error PresentMenuSlot(std::uint8_t,const std::vector<MenuRect>&,MenuDisplayInfo*) {
+ // Writes back what the client wrote for the fabric, runs the blitter for a
+ // blitter frame, then shows slot.
+ virtual Error PresentMenuSlot(std::uint8_t,const MenuDraw&,MenuDisplayInfo*) {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
 	virtual Error FlushSave() { return {}; }
@@ -564,7 +582,8 @@ public:
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
   std::uint64_t expected_generation,bool visible);
- Error ShareMenuWindow(std::uint64_t,int*);
+ // blitter reports whether the grant covers the blitter's lists and heap.
+ Error ShareMenuWindow(std::uint64_t,int*,bool* blitter);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;
