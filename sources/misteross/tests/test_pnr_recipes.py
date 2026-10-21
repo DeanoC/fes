@@ -29,7 +29,7 @@ LOCK_SHA256 = {
     "fes.menu": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
-    "fes.zx81": "77d2321be9acaf84b3fac80c4c9b182344602471a1390168b02738ac252df145",
+    "fes.zx81": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
     "fes.coleco": "ba411cc51b40cf31a606762253d5e121bf16486e293276d06c84ca5702693a7f",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
