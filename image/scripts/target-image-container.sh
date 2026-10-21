@@ -138,6 +138,9 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ -n "${FES_PREBUILT_RUNTIME_SHA256:-}" ]; then
+    set -- --env "FES_PREBUILT_RUNTIME_SHA256=$FES_PREBUILT_RUNTIME_SHA256" "$@"
+  fi
   if [ -n "$shared_cache" ]; then
     set -- --volume "$shared_cache:$shared_container_path" \
       --volume "$shared_cache/dl:/work/build/cache/target-image/dl" \

@@ -57,7 +57,7 @@ local module tests can exercise uncommitted work.
 | Check Linux/Go/container prerequisites | `make doctor` | Prerequisite and selected-revision report |
 | Build the host CLI and browser API | `make host` | `out/native-integration-dev/fogcast` and `fogcast-api` |
 | Build an everyday diagnostic target image | `make dev` | `out/native-integration-dev/development/linux.img` |
-| Build only the clean two-pass image | `make image` | `out/native-integration-dev/linux.img` and image evidence |
+| Assemble a clean two-pass OS from [prebuilt inputs](image-artifacts.md) | `make image IMAGE_ARTIFACTS=/absolute/artifacts` | `out/native-integration-dev/linux.img` and image evidence |
 | Build a stabilized host/image combination | `make build` | Host binaries and clean two-pass image under `out/native-integration-dev/` |
 | Verify that clean combination | `make verify` | Receipt checks, structural checks and QEMU packaging smoke |
 | Publish flashable native media | `make media` | `out/native-integration-dev/media/current/fes.img` and receipts |
@@ -230,7 +230,7 @@ Next: [change a component](development.md#isolate-component-work) or
 
 # Scratch/HIL image builds
 
-For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image`. The
+For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The
 single output records `image_passes=1` and `single_pass_scratch=1`, and includes
 `SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
 A HIL-named `make release` with `IMAGE_PASSES=1` appends `-1p` to the version

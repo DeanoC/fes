@@ -191,6 +191,40 @@ class ReleaseTests(unittest.TestCase):
             data=arm_elf();struct.pack_into('<H' if offset==18 else '<I',data,offset,value);binary.write_bytes(data)
             with self.assertRaises(ValueError):appliance.validate_static_arm(binary)
 
+    def test_bootstrap_source_may_differ_from_packaged_software_revision(self):
+        software=provenance(self.rootfs,self.kernel)
+        factory_software=dataclasses.replace(software,fogcast_revision='f'*40)
+        factory=self.root/'factory.json'
+        factory.write_bytes(appliance.canonical(
+            appliance.release_manifest(self.rootfs,version='v1',provenance=factory_software)))
+        binary=self.root/'fes-boot';binary.write_bytes(arm_elf())
+        runner_root=self.root/'runner'
+        for name in appliance.BOOTSTRAP_RECIPE_FILES:
+            destination=runner_root/name
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(ROOT/name,destination)
+
+        class LocalRunner:
+            container='sha256:'+'8'*64
+            root=runner_root
+            def path(self,path):
+                Path(path).relative_to(self.root)
+                return str(path)
+            def disk(self,command):
+                output=Path(command[command.index('--output')+1])
+                output.write_bytes(b'bootstrap image')
+                return json.dumps({'image_sha256':appliance.digest(output)})
+
+        platform_build=fes_platform.platform_build_record(
+            '1'*64,'2'*64,software.fogcast_revision,'go1.26.5','3'*64)
+        result=appliance.assemble_bootstrap(runner_root/'out/bootstrap',binary,factory,self.kernel,
+            runner=LocalRunner(),binary_source_revision=platform_build['fogcast_revision'],
+            assembly_revision='a'*40,platform_build=platform_build)
+        evidence=json.loads(result.evidence.read_bytes())
+        self.assertNotEqual(factory_software.fogcast_revision,platform_build['fogcast_revision'])
+        self.assertEqual(evidence['binary_source_revision'],platform_build['fogcast_revision'])
+        self.assertEqual(evidence['platform_build']['fogcast_revision'],platform_build['fogcast_revision'])
+
     def test_reject_existing_unsealed_or_open_ended_bundle(self):
         for mutation in ('directory','file','extra'):
             with self.subTest(mutation=mutation):
@@ -212,14 +246,17 @@ class ReleaseTests(unittest.TestCase):
         original=result.manifest.read_bytes()
         mutated=json.loads(original);mutated['image_sha256']='9'*64
         p=provenance(self.rootfs,self.kernel)
+        selected_revision='9'*40
         def build_arm(root,fogcast,output,env):
             Path(output).write_bytes(arm_elf())
             result.manifest.chmod(0o644);result.manifest.write_bytes(appliance.canonical(mutated))
-            return appliance.digest(output),fes_platform.platform_build_record('1'*64,'2'*64,p.fogcast_revision,'go1.26.5','3'*64)
+            return appliance.digest(output),fes_platform.platform_build_record('1'*64,'2'*64,selected_revision,'go1.26.5','3'*64)
         def assemble(output,binary,factory,kernel,**kwargs):
             self.assertEqual(Path(factory).read_bytes(),original,'CLI reopened mutable factory after verification')
             self.assertTrue(Path(output).is_absolute())
             self.assertIn('platform_build',kwargs)
+            self.assertEqual(kwargs['binary_source_revision'],selected_revision)
+            self.assertNotEqual(kwargs['binary_source_revision'],p.fogcast_revision)
             return appliance.BootstrapResult(Path(output))
         with mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(result.directory),'--output','out/test-bootstrap']), \
              mock.patch.object(media,'operation',return_value=contextlib.nullcontext()), \
@@ -230,6 +267,35 @@ class ReleaseTests(unittest.TestCase):
              mock.patch.object(appliance,'assemble_bootstrap',side_effect=assemble), \
              mock.patch('builtins.print'):
             appliance.main()
+
+    def test_appliance_media_rebuild_uses_bootstrap_source_revision(self):
+        software=dataclasses.replace(provenance(self.rootfs,self.kernel),fogcast_revision='b'*40)
+        release=appliance.export_release(self.root/'release-media',self.rootfs,self.kernel,
+                                         version='v1',provenance=software)
+        platform_build=fes_platform.platform_build_record('1'*64,'2'*64,'9'*40,'go1.26.5','3'*64)
+
+        class StopAtBootstrap(Exception):
+            pass
+
+        def build_binary(root,fogcast,output,env):
+            Path(output).write_bytes(arm_elf())
+            return appliance.digest(output),platform_build
+
+        def capture_bootstrap(*args,**kwargs):
+            self.assertEqual(kwargs['binary_source_revision'],platform_build['fogcast_revision'])
+            self.assertNotEqual(kwargs['binary_source_revision'],software.fogcast_revision)
+            raise StopAtBootstrap
+
+        with mock.patch.object(appliance,'verified_inputs',return_value=(
+                self.rootfs,self.kernel,software,self.root,{},None)), \
+             mock.patch.object(appliance_media,'compare_bundle'), \
+             mock.patch.object(appliance,'cached_media_container',return_value='sha256:'+'8'*64), \
+             mock.patch.object(appliance_media,'retained_assembly_revision',return_value='a'*40), \
+             mock.patch.object(appliance_media,'build_selected_binary',side_effect=build_binary), \
+             mock.patch.object(appliance,'assemble_bootstrap',side_effect=capture_bootstrap):
+            with self.assertRaises(StopAtBootstrap):
+                appliance_media.prepare(self.root,'native-integration-dev',release.directory,
+                    self.root/'bootstrap',self.root/'media-scratch')
 
     def test_cli_rejects_bootstrap_output_outside_checkout(self):
         import sys

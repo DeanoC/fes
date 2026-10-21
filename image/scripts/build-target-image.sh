@@ -101,14 +101,14 @@ cleanup_inside_output() {
 }
 
 verify_native_inputs() {
-  [ -n "${LIBMISTER_RUNTIME_DIR:-}" ] || {
+  [ -n "${LIBMISTER_RUNTIME_DIR:-}${FES_PREBUILT_RUNTIME_SHA256:-}" ] || {
     printf '%s\n' 'build-target-image: LIBMISTER_RUNTIME_DIR is required for native-dev' >&2
     exit 2
   }
   NATIVE_RUNTIME_MODE=package-only \
     "$repo/scripts/verify-native-runtime-inputs.sh" \
     "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
-    "$LIBMISTER_RUNTIME_DIR" \
+    "${LIBMISTER_RUNTIME_DIR:-/unused-prebuilt-runtime}" \
     "$repo/build/cache/target-image/native/idle.rbf" \
     "$repo/build/cache/target-image/native/splash.rbf"
 }
@@ -118,7 +118,7 @@ run_target_container() {
   shift
   if [ "$container_variant" = native-dev ]; then
     verify_native_inputs
-    LIBMISTER_RUNTIME_DIR=$LIBMISTER_RUNTIME_DIR \
+    LIBMISTER_RUNTIME_DIR=${LIBMISTER_RUNTIME_DIR:-} \
       "$repo/scripts/target-image-container.sh" "$@"
   else
     LIBMISTER_RUNTIME_DIR= "$repo/scripts/target-image-container.sh" "$@"

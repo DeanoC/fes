@@ -339,7 +339,10 @@ def select(root, profile):
         (Path(temporary) / 'go.mod').write_text(cold_build.git(root / 'sources/FogCast', 'show',
                                                            revisions['FogCast'] + ':go.mod') + '\n')
         toolchain = subprocess.check_output(['go', 'version'], cwd=temporary, env=env, text=True).strip()
-    image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    image_fingerprint, image_info = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    recorded = root / 'out' / profile / 'inputs.json'
+    artifacts = json.loads(recorded.read_text()).get('bootstrap_artifacts') if recorded.is_file() else None
+    image_fingerprint, _ = cold_build.bootstrap_fingerprint(image_fingerprint, image_info, artifacts)
     host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
     # The runtime lock is an FES-owned assembly overlay. Snapshot refreshes
@@ -351,7 +354,7 @@ def select(root, profile):
         lock_path = fogcast / 'build/native-runtime.inputs.lock.toml'
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text(cold_build.selected_runtime_lock(
-            policy.read_text(), revisions['libmister-runtime']))
+            policy.read_text(), artifacts['provenance']['runtime'] if artifacts else revisions['libmister-runtime']))
     return image_fingerprint, host_fingerprint, fogcast, env
 
 

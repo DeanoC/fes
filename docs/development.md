@@ -150,7 +150,7 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
-For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
+For local scratch/HIL iteration, `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts` runs once and
 records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
 the checkout head and image digest. A HIL-named `make release` appends `-1p`,
 carries the marker into release outputs, and records `image_passes: 1` in
@@ -166,7 +166,7 @@ contains it. CI and cold media/appliance paths keep two
 passes and omit the evidence field.
 
 An optional core, currently Atari ST, can miss timing without failing
-`make image`, `make build`, or `make dev`. The build prints a `WARNING:` block
+`make build` or `make dev`. The build prints a `WARNING:` block
 naming the core, the reason (`timing-not-met`, `build-failed`, or `skipped`),
 and any seeds and clock figures, then continues. `FES_SKIP_OPTIONAL_CORES=1`
 or `FES_SKIP_CORES=fes.atari-st` skips that producer before place-and-route,
