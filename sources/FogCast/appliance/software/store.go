@@ -242,6 +242,9 @@ func (s *Store) Path(ctx context.Context, id string) (string, error) {
 	}
 	return filepath.Join(s.root, "releases", id), nil
 }
+
+// List authenticates manifest identities for inventory, not payload readiness.
+// Read and Path still verify all payload bytes before a release can be used.
 func (s *Store) List(ctx context.Context) (out []Release, err error) {
 	out = []Release{}
 	err = s.locked(ctx, func() error {
@@ -250,9 +253,15 @@ func (s *Store) List(ctx context.Context) (out []Release, err error) {
 			return e
 		}
 		for _, entry := range entries {
-			r, e := s.read(ctx, entry.Name())
+			if !ValidID(entry.Name()) {
+				return errors.New("invalid release ID")
+			}
+			r, e := readDirectoryManifest(ctx, filepath.Join(s.root, "releases", entry.Name()))
 			if e != nil {
 				return e
+			}
+			if r.ID != entry.Name() {
+				return errors.New("stored manifest identity mismatch")
 			}
 			out = append(out, r)
 		}
@@ -275,10 +284,11 @@ func (s *Store) read(ctx context.Context, id string) (Release, error) {
 	return r, nil
 }
 
-// VerifyDirectory authenticates a complete unpacked release, including factory
-// bundles in the read-only base image. Callers must separately check compatibility.
-func VerifyDirectory(ctx context.Context, dir string) (Release, error) {
+func readDirectoryManifest(ctx context.Context, dir string) (Release, error) {
 	var out Release
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
 	dir, e := filepath.Abs(dir)
 	if e != nil {
 		return out, e
@@ -318,6 +328,23 @@ func VerifyDirectory(ctx context.Context, dir string) (Release, error) {
 	if e != nil {
 		return out, e
 	}
+	return Release{id, m}, nil
+}
+
+// VerifyDirectory authenticates a complete unpacked release, including factory
+// bundles in the read-only base image. Callers must separately check compatibility.
+func VerifyDirectory(ctx context.Context, dir string) (Release, error) {
+	var out Release
+	dir, e := filepath.Abs(dir)
+	if e != nil {
+		return out, e
+	}
+	release, e := readDirectoryManifest(ctx, dir)
+	if e != nil {
+		return out, e
+	}
+	id, m := release.ID, release.Manifest
+
 	expected := map[string]File{}
 	dirs := map[string]bool{".": true}
 	for _, file := range m.Files {

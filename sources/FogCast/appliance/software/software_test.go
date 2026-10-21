@@ -694,3 +694,50 @@ func TestStoreRejectsSharedPermissions(t *testing.T) {
 		t.Fatal("used a store after it became world-accessible")
 	}
 }
+
+func TestInventoryAuthenticatesManifestWithoutReadingPayload(t *testing.T) {
+	m, archive := fixture(t)
+	store, err := New(privateRoot(t), compatibility(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	release, _, err := store.Install(ctx, bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(store.root, "releases", release.ID)
+	payload := filepath.Join(dir, RequiredExecutables[0])
+	if err := os.Chmod(payload, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(payload, []byte("corrupt"), 0555); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(payload, 0555); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := store.List(ctx)
+	if err != nil || len(listed) != 1 || listed[0].ID != release.ID {
+		t.Fatalf("inventory must read manifest independently of payload: %v %v", listed, err)
+	}
+	if _, err := store.Read(ctx, release.ID); err == nil {
+		t.Fatal("activation read accepted corrupt payload")
+	}
+	if _, err := store.Path(ctx, release.ID); err == nil {
+		t.Fatal("execution path accepted corrupt payload")
+	}
+	manifest := filepath.Join(dir, "manifest.json")
+	if err := os.Chmod(manifest, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("{}"), 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(manifest, 0444); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.List(ctx); err == nil {
+		t.Fatal("inventory accepted invalid manifest")
+	}
+}
