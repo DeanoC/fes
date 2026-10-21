@@ -23,7 +23,8 @@
 module fes_hps_ddr #(
     parameter [0:0] P0_WRITE_ENABLE = 1'b1,
     parameter [0:0] P1_ENABLE = 1'b1,
-    parameter [0:0] P2_ENABLE = 1'b1
+    parameter [0:0] P2_ENABLE = 1'b1,
+    parameter [0:0] P2_WRITE_ENABLE = 1'b1
 ) (
     input  wire         hold,
 
@@ -139,7 +140,7 @@ module fes_hps_ddr #(
     wire command_read1 = P1_ENABLE && m1_read;
     wire command_write1 = P1_ENABLE && m1_write;
     wire command_read2 = P2_ENABLE && m2_read;
-    wire command_write2 = P2_ENABLE && m2_write;
+    wire command_write2 = P2_ENABLE && P2_WRITE_ENABLE && m2_write;
 
     cyclonev_hps_interface_fpga2sdram f2sdram (
         .cfg_axi_mm_select(AXI_MM_SELECT[5:0]),
