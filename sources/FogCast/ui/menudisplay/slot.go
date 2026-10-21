@@ -8,11 +8,15 @@ import "encoding/binary"
 func writeRect(slot, frame []byte, r Rect) {
 	for y := r.Y; y < r.Y+r.H; y++ {
 		at := y*Stride + r.X*4
-		src, dst := frame[at:at+r.W*4], slot[at:at+r.W*4]
-		for i := 0; i < len(src); i += 4 {
-			v := binary.LittleEndian.Uint32(src[i:])
-			binary.LittleEndian.PutUint32(dst[i:], (v&0xff)<<16|v&0xff00|(v>>16)&0xff)
-		}
+		writeRow(slot[at:at+r.W*4], frame[at:at+r.W*4])
+	}
+}
+
+// writeRowScalar converts one row of RGBA pixels into XRGB8888 words.
+func writeRowScalar(dst, src []byte) {
+	for i := 0; i < len(src); i += 4 {
+		v := binary.LittleEndian.Uint32(src[i:])
+		binary.LittleEndian.PutUint32(dst[i:], (v&0xff)<<16|v&0xff00|(v>>16)&0xff)
 	}
 }
 
