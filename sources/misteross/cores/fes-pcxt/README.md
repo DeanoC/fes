@@ -23,7 +23,10 @@ release chains also do not by themselves supply asynchronous recovery/removal
 timing or metastability qualification.
 The board synthesis recipe copies `async_reg` intent to registers before Intel
 FF mapping, preserving the metadata on the mapped FFs instead of their polarity
-inverters. This does not add timing exceptions or change reset behavior.
+inverters. This does not add timing exceptions or change reset behavior. The
+[21 October board netlist comparison](../../../../docs/validation/2026-10-21-pcxt-reset-metadata/summary.md)
+finds every variant's mapped netlist unchanged apart from that attribute on
+the four reset-chain and six video-crossing FFs.
 A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
