@@ -42,13 +42,14 @@ module st_native_low_video (
     wire [8:0] chunk_read0 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read1 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read2 [0:FRAME_CHUNKS-1];
-    reg [6:0] read_chunk;
-    // Register local 16-chunk groups before the final group/bank mux.
+    reg [1:0] front_bank;
+    // Register local 16-chunk groups before the final OR. With the RAM read,
+    // each bank's group registers its own hit and loads its own chunk index
+    // only when it is the addressed group, so no one index register drives
+    // all fifteen selections. A miss, a chunk past the frame and reset clear
+    // a group's word; only the addressed group of the front bank is nonzero.
     // These are pixel registers; all 234 synchronous RAM ports stay unchanged.
     wire [8:0] group_read0 [0:4], group_read1 [0:4], group_read2 [0:4];
-    reg [2:0] read_group;
-    reg [1:0] read_bank_ram, read_bank;
-    reg read_valid;
     generate for (genvar g = 0; g < 5; g = g + 1) begin : read_groups
         wire [8:0] words0 [0:15], words1 [0:15], words2 [0:15];
         for (genvar k = 0; k < 16; k = k + 1) begin : words
@@ -62,20 +63,26 @@ module st_native_low_video (
                 assign words2[k] = 9'd0;
             end
         end
+        wire group_hit = output_address[16:14] == 3'(g);
+        wire hit_next0 = group_hit && front_bank == 2'd0;
+        wire hit_next1 = group_hit && front_bank == 2'd1;
+        wire hit_next2 = group_hit && front_bank[1];
+        reg hit0, hit1, hit2;
+        reg [3:0] index0, index1, index2;
         reg [8:0] selected0, selected1, selected2;
         always @(posedge clk_pixel) begin
-            selected0 <= words0[read_chunk[3:0]];
-            selected1 <= words1[read_chunk[3:0]];
-            selected2 <= words2[read_chunk[3:0]];
+            hit0 <= hit_next0; hit1 <= hit_next1; hit2 <= hit_next2;
+            if (hit_next0) index0 <= output_address[13:10];
+            if (hit_next1) index1 <= output_address[13:10];
+            if (hit_next2) index2 <= output_address[13:10];
+            selected0 <= reset_pixel || !hit0 ? 9'd0 : words0[index0];
+            selected1 <= reset_pixel || !hit1 ? 9'd0 : words1[index1];
+            selected2 <= reset_pixel || !hit2 ? 9'd0 : words2[index2];
         end
         assign group_read0[g] = selected0;
         assign group_read1[g] = selected1;
         assign group_read2[g] = selected2;
     end endgenerate
-    wire [8:0] read0 = read_valid ? group_read0[read_group] : 9'd0;
-    wire [8:0] read1 = read_valid ? group_read1[read_group] : 9'd0;
-    wire [8:0] read2 = read_valid ? group_read2[read_group] : 9'd0;
-    reg [1:0] front_bank;
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
     reg [31:0] sequence_number [0:2];
@@ -91,17 +98,13 @@ module st_native_low_video (
     wire border_overflow;
     reg [31:0] front_sequence;
     reg [8:0] front_border;
-    assign output_rgb = read_bank == 2'd0 ? read0 : read_bank == 2'd1 ? read1 : read2;
+    // One RAM edge and one grouped-selection edge. Hits tag their words with
+    // the bank at the RAM edge, including the old bank for a read in flight
+    // when SOF selects anew.
+    assign output_rgb = group_read0[0] | group_read0[1] | group_read0[2] | group_read0[3] | group_read0[4] |
+                        group_read1[0] | group_read1[1] | group_read1[2] | group_read1[3] | group_read1[4] |
+                        group_read2[0] | group_read2[1] | group_read2[2] | group_read2[3] | group_read2[4];
     assign output_border = front_border;
-    // One RAM edge and one grouped-selection edge. Capture tags with their
-    // words, including the old bank for a read in flight when SOF selects anew.
-    always @(posedge clk_pixel) begin
-        read_chunk <= output_address[16:10];
-        read_group <= read_chunk[6:4];
-        read_bank_ram <= front_bank;
-        read_bank <= read_bank_ram;
-        read_valid <= !reset_pixel && read_chunk < 7'd78;
-    end
     integer candidate;
     wire choose_valid;
     wire [1:0] choose_bank;
