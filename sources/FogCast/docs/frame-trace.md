@@ -19,7 +19,7 @@ Each JSON line has `kind`:
   - `queued`/`seq`, when it produced a new menu frame
 - **`input`:** a command (`cmd`) as `HandleCommand` received it.
 - **`present`:** one frame the menu-display worker handled:
-  - the render-thread frame copy
+  - the render-thread hand-over of the frame (`frame_copy_us`): a framebuffer swap, so near zero; older traces copied the whole frame here. A frame that does not start with Clear copies the previous frame back while it draws, inside render time
   - queue wait
   - status round trip
   - the client's `menu_frame_begin` (with a new generation's grant), writing the granted slot (`stage_us`) and commit round trip

@@ -13,7 +13,9 @@ Stages:
   tick_other the rest of Tick (host polling, state, non-Lua work)
   snapshot   building the render snapshot
   raster     CPU drawing into the framebuffer (render minus frame copy)
-  frame_copy copying the rendered frame for the display worker
+  frame_copy handing the rendered frame to the display worker: a buffer swap
+             now (older traces copied the whole frame); a frame that does not
+             start with Clear copies the previous one back inside raster
   queue      waiting for the display worker
   status     runtime status round trip before presenting
   begin      dial + menu_frame_begin round trip (and a new generation's grant)
