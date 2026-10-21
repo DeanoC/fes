@@ -4,7 +4,7 @@ FES is the parent image command and the authoritative **recipe** for
 Buildroot, rootfs layout and native image scripts. FogCast supplies the
 agent, kit launcher and extra-core selector through `FOGCAST_DIR`. FES owns
 external-artifact policy in `image/build/native-inputs.toml` and derives the
-runtime revision from the selected real FES commit and runtime module path.
+runtime revision from the selected source or explicit artifact provenance.
 
 Do not invoke FogCast `make target-image-native` as a second builder.
 
@@ -19,7 +19,7 @@ From the FES root:
 | Flashable disk | `make media` after verify |
 | Versioned appliance | `make release` / `make appliance-media` |
 
-For a local scratch/HIL image, run `IMAGE_PASSES=1 make image`. The output
+For a local scratch/HIL image, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The output
 records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
 head and image SHA-256. A HIL-named release appends `-1p`, records
 `image_passes: 1` in `evidence.json`, and includes the marker. `release.json`
@@ -31,7 +31,10 @@ accepts an optional positive `image_passes` when a manifest already contains
 it. CI and cold/production receipts require two passes and omit
 the evidence field.
 
-Those commands build FogCast agent, kit and selector/verifier binaries, then run
+`make image IMAGE_ARTIFACTS=/absolute/artifacts` consumes named prebuilt
+MENU and userspace inputs; see [bootstrap artifacts](image-artifacts.md).
+It builds only assembly helpers and OS dependencies. Source integration commands
+build FogCast agent, kit and selector/verifier binaries, then run
 `make -C image FOGCAST_DIR=<snapshot>/sources/FogCast`. Do not run FogCast
 `make target-image-native` as the parent integration path.
 

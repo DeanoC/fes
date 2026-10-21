@@ -16,7 +16,7 @@ GROUPS = {
         ci_workflow consistency coordination generate hil_plan host_affected
         image_assembly parent_affected test_changed test_policy'''),
     'build': names('''build_diagnostics dev_snapshot import_modules inputs
-        kit_software module_sources native_dev receipt source_status staging status'''),
+        image_artifacts kit_software module_sources native_dev receipt source_status staging status'''),
     'packages': names('''artifact_cache bundle core_build core_catalog core_dev
         core_dev_accept core_key_nightly factory_video_parts factory_video_publication
         optional_cores recipes rom_package_pipeline'''),
