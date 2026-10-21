@@ -142,9 +142,13 @@ The GP and reader use the same pixel clock.
 slot (`sources/mister-packages/docs/application-io.md`). MenuBlit goes to
 `fes_menu_blit_control`; the blitter reads destinations and writes results on
 port 1, so a blend reads what earlier commands wrote, and reads commands and
-textures on port 2. Each row is read, then blended through a two-clock
-pipeline into the write burst: 2 pixels a clock for fills, 1 for blends and
-copies. Quiesce stops a run at the next row and waits for both ports to drain.
+textures on port 2. Each row is read, then blended through a four-clock
+pipeline and an eight-beat FIFO into the write burst: 2 pixels a clock for
+fills, 1 for blends and copies. The blend's 8x8 products are built from two
+8x4 halves a clock apart because the core builds without DSPs. Quiesce stops a
+run at the next row and waits for both ports to drain; the drained proof is
+registered, because the f2sdram responses are too far from the GP control
+for one clock.
 The diagnostic DDR wrapper leaves the blitter and ports 1/2 out. The package
 producer's netlist evidence allows exactly that: port 0 and port 2 commands
 must have their write bit tied low, write FIFOs 0, 1 and 3 and ports 3 to 5
