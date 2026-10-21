@@ -1,0 +1,88 @@
+{
+  "cram_diff": {
+    "bits_inside_slot": 181538,
+    "bits_outside_slot": 0,
+    "column_bits": {
+      "21": 60,
+      "22": 142,
+      "23": 250,
+      "24": 1734,
+      "25": 5807,
+      "26": 168061,
+      "27": 4314,
+      "28": 570,
+      "29": 296,
+      "30": 240,
+      "31": 56,
+      "33": 8
+    },
+    "diff": {
+      "bits": 181538,
+      "x0": 1816,
+      "x1": 2790,
+      "y0": 88,
+      "y1": 1808
+    },
+    "identical": false,
+    "inside_slot_column": true
+  },
+  "expansion_id": "54093e96034664318dddf16a654a0b4848c13d3b53d00f7f2d60d40363da703d",
+  "manifest": {
+    "cart_sha256": "8a0686fc3c99273538220aaaced13da63bf21f8a64b7a9aeed061b1517113dd3",
+    "cart_size": 2729192,
+    "device": "5CSEBA6U23I7",
+    "format": 1,
+    "map": "fes.zx81-bus.socket/2",
+    "recipe_sha256": "f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600",
+    "revision": "6235759885bf096a772a4bee8a616597733369de",
+    "shell_build_id": "6b02e996d4e636f7882d36cb4e9d2070",
+    "shell_package_id": "bf3583cb8bb50a0d885e73533880bb74e747ca22fb1b658caf799cccddf146ad",
+    "shell_sha256": "b3f33d5947dcd90d9b4575d940d1d925703ec43318eafd80bd981004db6090bc",
+    "slot": "fes.expansion.zx81-bus",
+    "slot_major": 2,
+    "slot_minor": 0
+  },
+  "recipe": {
+    "cart_kind": "ram16k",
+    "clock_constraints_sha256": "864ee29db3ba9b93d7dbfb027181bef82cf63dee4ed5a9c42ef7f32ede9b0008",
+    "cram_region": [
+      1769,
+      32,
+      2806,
+      7024
+    ],
+    "inputs": {
+      "cores/fes-zx81/clocks-oss.sdc": "38bb8779376406d4dfb1621f05c7eae1cbe3e652aa448becd43a5c63e2eaa7bb",
+      "cores/fes-zx81/expansions/ram16k.v": "506c70b9d3e2f277cf475abf4015a541af524c7db1d7e2fd2bbe42c25ba3b348",
+      "cores/fes-zx81/rtl/zx81_bus_pack.vh": "dbe3e58505b27a71362a602b1bc4e8c2249a0407d42abb52a56da8deab5cbfb0",
+      "cores/fes-zx81/rtl/zx81_dpram.v": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "cores/fes-zx81/rtl/zx81_ram_pack.v": "4c4a434af8300da18cea2a6a3431bfb5aab300223f1b75df7090cc5858f2a29a",
+      "cores/fes-zx81/toolchain.lock": "77d2321be9acaf84b3fac80c4c9b182344602471a1390168b02738ac252df145",
+      "scripts/build_fes_zx81_oss.py": "ddaa6df817a7f15a96f6bdcc96179520fd46650446231a5c3e2960eb3429d6f6",
+      "scripts/build_zx81_bus_validation_cart.py": "a24bf72fa79c1f7c77d8952aa4900e2590804599973206b9263caa36ccb9346d",
+      "scripts/core_package.py": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+      "scripts/cyclonev_rbf.py": "613bacbeedd4f51842dacd92b60c169e9fd7708bb3323b92eceedb4a64be63a3",
+      "scripts/fes_build_common.py": "7a52bb11e96fed03587d1037d03cee32703ff1cdc3669bc851d8117ca1c60b94",
+      "scripts/rom_map.py": "f85a91c888fc04601b73ff3968e75a87446fbc9c24f9fec395f2ae55ccc0430c",
+      "shell/core.rbf": "b3f33d5947dcd90d9b4575d940d1d925703ec43318eafd80bd981004db6090bc",
+      "shell/manifest.toml": "848f07b14280913b9312ad26443063e0d0ca2708bc0690ce981bd8f7ffecefd8",
+      "shell/rom-map.json": "1cb879448d34697e5b0d634639f090fa57d0c92f44dfdb7865ef54f693089ff5",
+      "shell/routed.json": "8c10fd10718a7f8182f2cf8200c2fbec6904f238f252eda50fa02e04b5ea2d39",
+      "shell/socket.qsf": "399a6fce230eb82f32cb1eef8c9c6d54ab9fb2b222475539977b698cc986cab0"
+    },
+    "map": "fes.zx81-bus.socket/2",
+    "placer_seed": 2,
+    "required_clocks_mhz": {
+      "audio_clk": 12.288,
+      "clk_sys": 52.224,
+      "display.control.clk": 74.25
+    },
+    "scaffold_sha256": "8072ea7d0113783282f62672fe74b4b3d10a0b31009b563580bebf62ca0a3ceb",
+    "slot_clock": "clk_sys",
+    "tools": {
+      "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=c4ac14f407ff019b0bfb55149d673167ac7c002b6234d558b766c8153422d240",
+      "nextpnr-mistral": "commit=5558fe25667c414d436fe2a4105cd24990c2be1f; sha256=0c78c5103d4581d17e4e279375cbdccc3d70baeb9768bae6abd5d6572b59bef0; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=565ca8316ccca084d73aec8456b2c86748f6da97a74a59846e2c2c325c6d9ef5"
+    }
+  }
+}

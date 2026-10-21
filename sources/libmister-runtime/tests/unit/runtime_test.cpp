@@ -1528,14 +1528,14 @@ void TestStaleMenuErrorIsNotPromotedOntoIdleStatus()
 	assert(f.runtime.Start().ok());
 	assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
 	assert(f.runtime.LoadCore("/game", id).ok());
-	f.hardware.menu_status.error = {ErrorCode::io_failed, "stale menu map", "menu_memory"};
+	f.hardware.menu_status.error = {ErrorCode::io_failed, "stale menu map", "menu_window"};
 	f.hardware.menu_configured = true;
 	assert(f.runtime.Stop().ok());
 	assert(f.runtime.status().error.ok());
 	assert(f.runtime.status().state == State::idle);
 	assert(f.runtime.status().menu_display.available);
 	assert(f.runtime.status().menu_display.error.code == ErrorCode::io_failed);
-	assert(f.runtime.status().menu_display.error.phase == "menu_memory");
+	assert(f.runtime.status().menu_display.error.phase == "menu_window");
 	assert(f.runtime.status().menu_display.error.message == "stale menu map");
 }
 

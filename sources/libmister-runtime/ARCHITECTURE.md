@@ -152,6 +152,15 @@ present, so nothing writes the window, and no dirty line is evicted into it,
 once a core owns it. Host tests inject the driver calls and cannot establish
 DDR visibility on hardware.
 
+Before constructing production hardware, the runtime loads the
+[fes-window driver](../../image/kernel/fes-window/README.md) that its software
+release carries in `share/fes-window/`, beside `bin/mister-runtime`. The load
+uses the generated window base and size (`native/linux/window_driver.cpp`). A
+loaded copy is kept only when its `version` and window parameters match;
+otherwise the runtime unloads it, and a copy still in use is reported busy.
+Nothing maps through the driver yet, so a load failure is logged and startup
+continues. Menu frames still use the `O_SYNC` copy above.
+
 Menu status carries its own nonzero generation, geometry and completion
 counters. `BeginMenuFrame` permits one preparation, naming the back slot,
 without retaining the lifecycle lock while its caller draws. Both the

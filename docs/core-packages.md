@@ -229,8 +229,8 @@ core-video-parts/<shell-package-id>/<part-id>.tar
 The installed directory is
 `/usr/share/mister-runtime/core-packages/<package-id>/`. The child image builder
 revalidates the package during fetch, install and image verification and records
-the selection in its installed build inputs. Cold builds compare the selection
-from both independent passes. Development and cold receipts include the exact
+the selection in its installed build inputs. Two-pass cold builds compare the
+selection from both independent passes. Development and cold receipts include the exact
 selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
 

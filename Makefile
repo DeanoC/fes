@@ -2,7 +2,7 @@
 PROFILE ?= native-integration-dev
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
-IMAGE_PASSES ?= 2
+IMAGE_PASSES ?= 1
 ifneq ($(origin FES_TARGET_IMAGE_SHARED_CACHE),undefined)
 export FES_TARGET_IMAGE_SHARED_CACHE
 endif

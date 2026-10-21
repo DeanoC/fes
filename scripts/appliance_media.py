@@ -111,8 +111,10 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     """
     rootfs,kernel,provenance,fogcast,env,lock=appliance.verified_inputs(root,profile)
     manifest=appliance.load_manifest(Path(release_directory)/'release.json')
-    if appliance.recorded_image_passes(release_directory, manifest) == 1: raise ValueError('single-pass scratch release cannot be bootstrapped')
-    expected_release=appliance.export_release(scratch/'expected-release',rootfs,kernel,version=manifest['version'],provenance=provenance)
+    passes=appliance.recorded_image_passes(release_directory, manifest)
+    if passes != provenance.image_passes:
+        raise ValueError("release pass count differs from verified image")
+    expected_release=appliance.export_release(scratch/'expected-release',rootfs,kernel,version=manifest['version'],provenance=provenance,image_passes=passes)
     compare_bundle(release_directory,expected_release.directory,('rootfs.img','release.json','evidence.json'))
     sys.path.insert(0,str(Path(__file__).resolve().parent));import media
     runtime=os.environ.get('CONTAINER_RUNTIME','docker')

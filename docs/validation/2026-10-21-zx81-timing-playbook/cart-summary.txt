@@ -1,0 +1,89 @@
+{
+  "cram_diff": {
+    "bits_inside_slot": 181551,
+    "bits_outside_slot": 0,
+    "column_bits": {
+      "21": 12,
+      "22": 110,
+      "23": 240,
+      "24": 1657,
+      "25": 5559,
+      "26": 168206,
+      "27": 4580,
+      "28": 495,
+      "29": 330,
+      "30": 294,
+      "31": 54,
+      "32": 4,
+      "33": 10
+    },
+    "diff": {
+      "bits": 181551,
+      "x0": 1817,
+      "x1": 2790,
+      "y0": 88,
+      "y1": 1808
+    },
+    "identical": false,
+    "inside_slot_column": true
+  },
+  "expansion_id": "e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736",
+  "manifest": {
+    "cart_sha256": "2d96d01563c83f9cbfa4446fc33fc1996b48886cfa531a485545de37d80a591e",
+    "cart_size": 2689841,
+    "device": "5CSEBA6U23I7",
+    "format": 1,
+    "map": "fes.zx81-bus.socket/2",
+    "recipe_sha256": "53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3",
+    "revision": "688d902ed20867b4b9f41e8b87e21ec98188286d",
+    "shell_build_id": "59b51a7527d362d9c30a9ec2115a5a1f",
+    "shell_package_id": "db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198",
+    "shell_sha256": "3d7805086b1d1134f67e2c42d039f762df973f8e902f338ec55b7ebcc0954e3a",
+    "slot": "fes.expansion.zx81-bus",
+    "slot_major": 2,
+    "slot_minor": 0
+  },
+  "recipe": {
+    "cart_kind": "ram16k",
+    "clock_constraints_sha256": "864ee29db3ba9b93d7dbfb027181bef82cf63dee4ed5a9c42ef7f32ede9b0008",
+    "cram_region": [
+      1769,
+      32,
+      2806,
+      7024
+    ],
+    "inputs": {
+      "cores/fes-zx81/clocks-oss.sdc": "38bb8779376406d4dfb1621f05c7eae1cbe3e652aa448becd43a5c63e2eaa7bb",
+      "cores/fes-zx81/expansions/ram16k.v": "506c70b9d3e2f277cf475abf4015a541af524c7db1d7e2fd2bbe42c25ba3b348",
+      "cores/fes-zx81/rtl/zx81_bus_pack.vh": "dbe3e58505b27a71362a602b1bc4e8c2249a0407d42abb52a56da8deab5cbfb0",
+      "cores/fes-zx81/rtl/zx81_dpram.v": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "cores/fes-zx81/rtl/zx81_ram_pack.v": "4c4a434af8300da18cea2a6a3431bfb5aab300223f1b75df7090cc5858f2a29a",
+      "cores/fes-zx81/toolchain.lock": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+      "scripts/build_fes_zx81_oss.py": "ddaa6df817a7f15a96f6bdcc96179520fd46650446231a5c3e2960eb3429d6f6",
+      "scripts/build_zx81_bus_validation_cart.py": "a24bf72fa79c1f7c77d8952aa4900e2590804599973206b9263caa36ccb9346d",
+      "scripts/core_package.py": "63afff6526b1be6895fd84f51802fdadf9048181d6e93dd37289b821eeb39e8b",
+      "scripts/cyclonev_rbf.py": "613bacbeedd4f51842dacd92b60c169e9fd7708bb3323b92eceedb4a64be63a3",
+      "scripts/fes_build_common.py": "7a52bb11e96fed03587d1037d03cee32703ff1cdc3669bc851d8117ca1c60b94",
+      "scripts/rom_map.py": "f85a91c888fc04601b73ff3968e75a87446fbc9c24f9fec395f2ae55ccc0430c",
+      "shell/core.rbf": "3d7805086b1d1134f67e2c42d039f762df973f8e902f338ec55b7ebcc0954e3a",
+      "shell/manifest.toml": "b2f644312ac22ce27f6b8b5b7fa317d1452386ff2466e2e26a39ed7d9e3890e7",
+      "shell/rom-map.json": "845401912fbc309e69f65c73cf49aaf37a7369ed01c2667660cf2d277354dcb5",
+      "shell/routed.json": "6c68e701d6d217f20e172ee8a715a3978ea6f8a043fa64b17a926e7b47c77084",
+      "shell/socket.qsf": "399a6fce230eb82f32cb1eef8c9c6d54ab9fb2b222475539977b698cc986cab0"
+    },
+    "map": "fes.zx81-bus.socket/2",
+    "placer_seed": 2,
+    "required_clocks_mhz": {
+      "audio_clk": 12.288,
+      "clk_sys": 52.224,
+      "display.control.clk": 74.25
+    },
+    "scaffold_sha256": "60cc283b4492e521b580f64f48e04d48db2b90096418f681c7a5fc3e042ec18d",
+    "slot_clock": "clk_sys",
+    "tools": {
+      "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=30f24d40b3dd6b2eb494b97edd84c580c8ab8c2deb1bc7794440245e2d6897ba",
+      "nextpnr-mistral": "commit=1eecf87722419c35f0519204fffaf99974cfb076; sha256=6e8eab340a66e20de4575bc654f9751cecd3160903d184880cca12cdf262d21d; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=325945f3250b04154e6d0b5a26d06b23cf93c5216432bcae11986c010e04e4a5"
+    }
+  }
+}

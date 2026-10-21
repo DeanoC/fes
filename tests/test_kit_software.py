@@ -164,6 +164,18 @@ class SoftwareWorkflowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             kit.runtime_script('b' * 40, {'kernel_release': '5.15; touch x'})
 
+    BOOT_KERNEL = 'a' * 64
+
+    def kernel_snapshot(self, name, commit, paired=BOOT_KERNEL, boot=BOOT_KERNEL):
+        snapshot = self.root / name
+        image = snapshot / 'image'
+        (image / 'build').mkdir(parents=True)
+        (image / 'build/target-image.sources.lock.toml').write_text(
+            f'[image_creator]\nkernel_sha256 = "{paired}"\n\n'
+            f'[kernel]\ncommit = "{commit}"\nrelease = "5.15.1-MiSTer"\n')
+        (snapshot / 'boot-media.lock.toml').write_text(f'[kernel]\npath = "zImage_dtb"\nsha256 = "{boot}"\n')
+        return snapshot
+
     def test_kernel_module_stages_pinned_source_and_refuses_other_commits(self):
         git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
                        GIT_COMMITTER_EMAIL='t@t')
@@ -176,15 +188,23 @@ class SoftwareWorkflowTests(unittest.TestCase):
         commit = subprocess.run(['git', '-C', str(work), 'rev-parse', 'HEAD'], check=True,
                                 capture_output=True, text=True).stdout.strip()
         cache = self.root / 'shared-cache'
-        subprocess.run(['git', 'clone', '-q', '--bare', str(work), str(cache / 'linux-kernel.git')],
-                       check=True, env=git_env)
-        for pinned, expected in ((commit, None), ('f' * 40, 'pinned kernel commit f+ missing')):
-            with self.subTest(pinned=pinned):
-                snapshot = self.root / ('snapshot-' + pinned[:4])
+        bare = cache / 'linux-kernel.git'
+        subprocess.run(['git', 'clone', '-q', '--bare', str(work), str(bare)], check=True, env=git_env)
+        pin = bare / 'refs/target-image/pinned'
+        pin.parent.mkdir(parents=True)
+        # (locked commit, fetch pin, expected refusal)
+        for index, (locked, pinned, expected) in enumerate((
+                (commit, commit, None),
+                ('f' * 40, commit, f'pin is {commit}, expected f+'),
+                (commit, None, 'pin is missing'),
+                ('f' * 40, 'f' * 40, 'pinned kernel commit f+ missing'))):
+            with self.subTest(locked=locked, pinned=pinned):
+                if pinned:
+                    pin.write_text(pinned + '\n')
+                else:
+                    pin.unlink()
+                snapshot = self.kernel_snapshot(f'snapshot-{index}', locked)
                 image = snapshot / 'image'
-                (image / 'build').mkdir(parents=True)
-                (image / 'build/target-image.sources.lock.toml').write_text(
-                    f'[kernel]\ncommit = "{pinned}"\nrelease = "5.15.1-MiSTer"\n')
                 env = dict(os.environ, FES_TARGET_IMAGE_SHARED_CACHE=str(cache))
                 if expected:
                     with self.assertRaisesRegex(ValueError, expected):
@@ -192,18 +212,33 @@ class SoftwareWorkflowTests(unittest.TestCase):
                     self.assertFalse((image / 'build/software/kernel-source').exists())
                     continue
                 driver = kit.prepare_kernel_module(self.root, snapshot, env)
-                self.assertEqual(driver, {'kernel_commit': commit, 'kernel_release': '5.15.1-MiSTer'})
+                self.assertEqual(driver, {'kernel_commit': commit, 'kernel_release': '5.15.1-MiSTer',
+                                          'kernel_sha256': self.BOOT_KERNEL})
                 self.assertEqual((image / 'build/software/kernel-source/Makefile').read_text(), 'kernel')
         # Without a shared cache the checkout's own target-image source cache is used.
+        pin.write_text(commit + '\n')
         local = self.root / 'image/build/cache/target-image'
         local.mkdir(parents=True)
-        shutil.copytree(cache / 'linux-kernel.git', local / 'linux-kernel.git')
-        snapshot = self.root / 'snapshot-local'
-        (snapshot / 'image/build').mkdir(parents=True)
-        (snapshot / 'image/build/target-image.sources.lock.toml').write_text(
-            f'[kernel]\ncommit = "{commit}"\nrelease = "5.15.1-MiSTer"\n')
+        shutil.copytree(bare, local / 'linux-kernel.git')
+        snapshot = self.kernel_snapshot('snapshot-local', commit)
         env = {k: v for k, v in os.environ.items() if k != 'FES_TARGET_IMAGE_SHARED_CACHE'}
         self.assertEqual(kit.prepare_kernel_module(self.root, snapshot, env)['kernel_commit'], commit)
+
+    def test_kernel_module_targets_only_the_boot_media_kernel(self):
+        # A base image holds no kernel: the module must target the kernel every
+        # card boots, so a source pin paired with another image is refused first.
+        for index, (paired, boot) in enumerate((('b' * 64, self.BOOT_KERNEL), ('A' * 64, 'A' * 64))):
+            with self.subTest(paired=paired, boot=boot):
+                snapshot = self.kernel_snapshot(f'snapshot-{index}', 'c' * 40, paired=paired, boot=boot)
+                with self.assertRaisesRegex(ValueError, 'not paired with the boot-media kernel'):
+                    kit.prepare_kernel_module(self.root, snapshot, dict(os.environ))
+                self.assertFalse((snapshot / 'image/build/software').exists())
+
+    def test_repository_kernel_source_is_paired_with_boot_media_kernel(self):
+        boot = kit.tomllib.loads((ROOT / 'boot-media.lock.toml').read_text())['kernel']['sha256']
+        source = kit.tomllib.loads((ROOT / 'image/build/target-image.sources.lock.toml').read_text())['kernel']
+        self.assertEqual(kit.pinned_kernel(ROOT), {'kernel_commit': source['commit'],
+                                                   'kernel_release': source['release'], 'kernel_sha256': boot})
 
     def runtime_fixture(self):
         runtime = self.root / 'sources/libmister-runtime'

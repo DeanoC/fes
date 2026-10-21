@@ -119,7 +119,7 @@ mapping does not assert that cutover has been published or hardware-qualified.
 | `make doctor` | Selected profile and build prerequisites |
 | `make host` | Compile selected linux/amd64 host outputs and `host.json` |
 | `make dev` | Incremental diagnostic native image using a persistent base |
-| `make build` | Build selected host and cold two-pass native image outputs |
+| `make build` | Build selected host and cold one-pass native image outputs; `IMAGE_PASSES=2` adds the reproducibility pass |
 | `make verify` | Verify published outputs against receipts and child checks |
 | `make media` | Assemble a flashable disk image from verified cold outputs |
 | `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
@@ -150,20 +150,28 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
-For local scratch/HIL iteration, `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts` runs once and
-records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
-the checkout head and image digest. A HIL-named `make release` appends `-1p`,
-carries the marker into release outputs, and records `image_passes: 1` in
-`evidence.json`. `release.json` keeps the legacy field set
-(`format`, `board`, `boot_abi`, `version`, `kernel_sha256`, `image_sha256`,
-`image_size`, `fes_revision`, `fogcast_revision`, `runtime_revision`) so a
-deployed agent can stage the image. Readers treat a missing `manifest_format`
-as `1.0`. The same major with a higher minor may add unknown optional fields;
-the update path ignores those fields and logs them. An unknown major, a
-duplicate, or a missing or malformed required field is rejected. Readers still
-accept an optional positive `image_passes` integer when a manifest already
-contains it. CI and cold media/appliance paths keep two
-passes and omit the evidence field.
+Image builds use one pass by default, including CI. `make image
+IMAGE_ARTIFACTS=/absolute/artifacts` assembles explicit prebuilt inputs without
+rebuilding their sources. `make verify` still checks the image hashes, structure,
+and QEMU packaging. Receipts and release evidence record `image_passes: 1` and
+`two_pass_reproducibility: not-run-single-pass`; they do not claim reproducibility.
+Single-pass images can be exported, bootstrapped and provisioned normally, without
+a special version name or scratch marker.
+
+For an explicit reproducibility check, use `IMAGE_PASSES=2 make image` (with the
+same artifact selection), then `IMAGE_PASSES=2 make verify` and
+`IMAGE_PASSES=2 make release RELEASE_VERSION=<version>`. Both independent rootfs
+builds must match. Cached outputs and export requests must match the selected
+pass count. `make media` follows the verified image's pass count. A two-pass
+release of the same image and version gets its own default release directory
+beside the one-pass release. Image integrity, target compatibility and boot
+acceptance are the same for both modes. Bootstrap and card assembly retain
+their separate, inexpensive deterministic packaging comparisons; these do not
+rebuild the OS.
+
+The update manifest keeps its existing field set; build-pass evidence lives in
+`evidence.json`, bound to the verified image receipts. Source revisions identify
+provenance, not a requirement for matching host software.
 
 An optional core, currently Atari ST, can miss timing without failing
 `make build` or `make dev`. The build prints a `WARNING:` block
@@ -220,12 +228,15 @@ the selected package is format 3.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 
-A compatible existing clean pass can seed a new development volume. FES checks
-its source/profile/Go identities, receipt hashes, both recorded image hashes and
-the actual pass-two image before copying it with symlinks and modes preserved.
-The clean volume is mounted read-only. Without a compatible seed, the first run
-builds the base once. Subsequent runs retain it. Internal Buildroot paths remain
-identical because its generated host tools are not generally relocatable.
+A compatible existing clean build can seed a new development volume. FES checks
+its source/profile/Go identities, receipt hashes and recorded pass hashes. It then
+copies only the clean tree for the selected pass (`work-1-native-dev` by default,
+`work-2-native-dev` with `IMAGE_PASSES=2`), after checking that tree's rootfs
+hash, with symlinks and modes preserved. The clean volume is mounted read-only.
+Without a compatible seed, including a clean build that lacks the selected
+pass's tree, the first run builds the base once. Subsequent runs retain it.
+Internal Buildroot paths remain identical because its generated host tools are
+not generally relocatable.
 
 The cache key covers the FES `image/` Buildroot tree (configuration, overlays,
 patches and package recipes), container inputs, source/package locks, scripts,
@@ -387,7 +398,7 @@ owned by FES `image/`; see [image assembly](image-assembly.md).
 
 ## Contract generation and shared build caches
 
-Cold two-pass native images cache the pinned Buildroot SDK under
+Cold native images cache the pinned Buildroot SDK under
 `image/build/cache/target-image/toolchains/`. Each image pass uses a fresh
 extraction of the same checked archive. Set `TOOLCHAIN_REBUILD=1` on `make build`
 to force a new SDK and bypass image receipt reuse; see
@@ -397,9 +408,10 @@ For cross-worktree image reuse, set
 `FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`
 or `make dev`. The external directory holds `dl/`, `toolchains/<key>/` and
 `ccache/`; it does not change the shared compiler and package cache below.
-The toolchain-only build never uses ccache. Cold pass 2 disables it so the two
-rootfs hashes still compare independent compiles. Stop builds before removing
-one of these cache directories; see [image assembly](image-assembly.md#buildroot-cross-toolchain).
+The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
+disables it so the two rootfs hashes still compare independent compiles. Stop
+builds before removing one of these cache directories; see
+[image assembly](image-assembly.md#buildroot-cross-toolchain).
 
 `make check-generated` verifies generated consumers and copied conformance data.
 `make generate` regenerates these outputs in the FES working tree, including the

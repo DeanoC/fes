@@ -1,0 +1,117 @@
+{
+  "seed": 3,
+  "argv": [
+    "/home/deano/fes/out/cache/misteross-toolchains/slots/f141e5ea79ad4b4079ca0346fcd3c4a00c6ec79c68b3a6639bbfcbaca540d8a6/install/bin/nextpnr-mistral",
+    "--json",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/synth.json",
+    "--device",
+    "5CSEBA6U23I7",
+    "--qsf",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/socket.qsf",
+    "--seed",
+    "3",
+    "--placer-heap-timingweight",
+    "300",
+    "--placer-heap-critexp",
+    "5",
+    "--report",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/timing.json",
+    "--write",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/routed.json",
+    "--rbf",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/core.rbf",
+    "--compress-rbf",
+    "--detailed-timing-report",
+    "--router",
+    "gpu",
+    "--gpu-device",
+    "0",
+    "--sdc",
+    "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/cores/fes-zx81/clocks-oss.sdc",
+    "--freq",
+    "74.25",
+    "--arrival-pin-assignment"
+  ],
+  "environment": {
+    "HOME": "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/home",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/f141e5ea79ad4b4079ca0346fcd3c4a00c6ec79c68b3a6639bbfcbaca540d8a6/install/bin:/usr/bin:/bin",
+    "TZ": "UTC",
+    "FES_GPU_IDS": "0",
+    "GPU_RUN_DEVICE": "0",
+    "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD128",
+    "ROCR_VISIBLE_DEVICES": "0",
+    "NEXTPNR_REQUIRE_GPU": "1"
+  },
+  "binary_sha256": "0c78c5103d4581d17e4e279375cbdccc3d70baeb9768bae6abd5d6572b59bef0",
+  "synth_sha256": "b3b39bacc1d4c648804e9b60076e6db4f9ef916eb8504ccaba1ca2d229825cf8",
+  "exit_code": 0,
+  "seconds": 159.31971669197083,
+  "fmax": {
+    "audio_clk": {
+      "achieved": 165.864990234375,
+      "constraint": 12.288031578063965
+    },
+    "clk_sys": {
+      "achieved": 52.339576721191406,
+      "constraint": 52.22477340698242
+    },
+    "display.control.clk": {
+      "achieved": 102.59567260742188,
+      "constraint": 74.25006866455078
+    }
+  },
+  "timing_summary": {
+    "clocks": {
+      "audio_clk": {
+        "hold_wns_ns": 0.8190000057220459,
+        "setup_wns_ns": 75.35099792480469
+      },
+      "clk_sys": {
+        "hold_wns_ns": 0.6959999799728394,
+        "setup_wns_ns": 0.020999999716877937
+      },
+      "display.control.clk": {
+        "hold_wns_ns": 0.8100000023841858,
+        "setup_wns_ns": 3.7209999561309814
+      }
+    },
+    "final_analogue_model": true
+  },
+  "artifacts": {
+    "routed.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/routed.json",
+      "sha256": "4e960a7f898d326a8b9fea71d39eac12ae04ce80384290fecf16717a83686322",
+      "size": 31955212
+    },
+    "timing.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/timing.json",
+      "sha256": "06adf751eab900eae9ad88439bb3a58087046ebe9c690d895513341ce5d8c323",
+      "size": 3631933
+    },
+    "core.rbf": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/core.rbf",
+      "sha256": "a8b68ea38ad2f1c3b2d73da85b3fcd36bfa9d8764119d88889d581d553388a47",
+      "size": 2673184
+    },
+    "route.log": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/production-confirmation/seed-3/route.log",
+      "sha256": "e5ff3da6399dbae1d1eb130539f81c29d4a023facf4a23e3eca7c03a4879f1d4",
+      "size": 157725
+    }
+  },
+  "gpu_evidence": [
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.28s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 51.93s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1820 launches, 106213 arcs, 291357133 wires expanded, 44.62s routing, 0.99s transfers)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 5.64s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 744 launches, 3755 arcs, 8319426 wires expanded, 2.40s routing, 0.30s transfers)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.03s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 10.31s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1058 launches, 3262 arcs, 12669488 wires expanded, 5.66s routing, 0.46s transfers)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.02s (estimate 0.075 ns/x, 0.200 ns/y)"
+  ]
+}
