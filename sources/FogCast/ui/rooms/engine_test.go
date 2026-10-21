@@ -1792,13 +1792,71 @@ func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
 	if i < 0 || !strings.HasSuffix(msg, ")") {
 		t.Fatalf("hard overrun diagnostic: %v", err)
 	}
-	elapsed, parseErr := time.ParseDuration(strings.TrimSuffix(msg[i+len(prefix):], ")"))
+	rest := strings.TrimSuffix(msg[i+len(prefix):], ")")
+	if end := strings.Index(rest, ";"); end >= 0 {
+		rest = rest[:end]
+	}
+	elapsed, parseErr := time.ParseDuration(rest)
 	if parseErr != nil {
 		t.Fatalf("elapsed in %q: %v", msg, parseErr)
 	}
 	if elapsed <= hard {
 		t.Fatalf("elapsed %s did not exceed hard budget %s (%s)", elapsed, hard, msg)
 	}
+}
+
+// The deadline and the soft and hard checks time the whole call, so the
+// launcher thread stalling while it samples itself around a quick script
+// still counts against the room.
+func TestThreadSampleStallCountsTowardCallbackBudget(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		sample int
+	}{{"before the script", 0}, {"after the script", 1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			const budget, stall = 40 * time.Millisecond, 50 * time.Millisecond
+			r := sampleStallRoom(t, budget, tc.sample, stall)
+			r.Step(time.Now())
+			if err := r.Err(); err != nil {
+				t.Fatalf("soft overrun failed the room: %v", err)
+			}
+			if r.frameOverruns != 1 || len(r.frameStreak.timings) != 1 {
+				t.Fatalf("stalled draw was not a soft overrun: %d overruns", r.frameOverruns)
+			}
+			if got := r.frameStreak.timings[0]; got.elapsed < stall {
+				t.Fatalf("elapsed %s left out the %s stall", got.elapsed, stall)
+			}
+		})
+	}
+	t.Run("past the hard limit", func(t *testing.T) {
+		const budget = 5 * time.Millisecond
+		hard := budget * callbackHardLimitFactor
+		r := sampleStallRoom(t, budget, 0, hard+40*time.Millisecond)
+		r.Step(time.Now())
+		err := r.Err()
+		if err == nil || errors.Is(err, errSoftOverrun) || !strings.Contains(err.Error(), "draw callback: script exceeded "+hard.String()) {
+			t.Fatalf("stall past the hard limit: %v", err)
+		}
+	})
+}
+
+// sampleStallRoom is a loaded room with a no-op draw. Its next callback's
+// thread sample which (0 before the script, 1 after it) sleeps for stall.
+func sampleStallRoom(t *testing.T, budget time.Duration, which int, stall time.Duration) *Instance {
+	t.Helper()
+	r := newRoom(t, memPack(t, "sample-stall", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	samples := 0
+	r.threadSample = func() (threadUsage, bool) {
+		if samples == which {
+			time.Sleep(stall)
+		}
+		samples++
+		return readThreadUsage()
+	}
+	return r
 }
 
 // A room retired by consecutive soft overruns reports each callback's time
@@ -1815,8 +1873,12 @@ func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
 	r.images["cover:b"] = &Image{Key: "cover:b", Ready: true, requested: true}
 	r.images["cover:bad"] = &Image{Key: "cover:bad", Err: "no artwork", requested: true}
 	for i := 0; i < maxConsecutiveOverruns; i++ {
-		elapsed := time.Duration(13+i) * time.Millisecond
-		r.recordFrameOverrun(fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, elapsed: elapsed}))
+		timing := callTiming{elapsed: time.Duration(13+i) * time.Millisecond}
+		if i == 0 {
+			timing.script = 12500 * time.Microsecond
+			timing.thread, timing.measured = threadUsage{cpu: 2 * time.Millisecond, voluntary: 1, involuntary: 9}, true
+		}
+		r.recordFrameOverrun(fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, timing: timing}))
 	}
 	err := r.Err()
 	if err == nil {
@@ -1824,7 +1886,8 @@ func TestSoftOverrunRetirementReportsTimings(t *testing.T) {
 	}
 	msg := err.Error()
 	for _, want := range []string{"draw callback", "12ms soft callback budget", "8 consecutive overruns",
-		"elapsed 13ms, 14ms, 15ms, 16ms, 17ms, 18ms, 19ms, 20ms", "process-wide GC cycles", "up to 1 images loading"} {
+		"elapsed 13ms (script run 12.5ms: thread cpu 2ms, 1 voluntary/9 involuntary switches), 14ms, 15ms, 16ms, 17ms, 18ms, 19ms, 20ms",
+		"process-wide GC cycles", "up to 1 images loading"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("retirement %q lacks %q", msg, want)
 		}
