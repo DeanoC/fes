@@ -276,9 +276,10 @@ make kit-software \
 The command freezes the committed FES HEAD, builds the agent and both launchers
 with the selected Go version, and builds the runtime with the pinned container
 and verified cached ARM SDK. In the same container it builds the fes-window
-module against the pinned kernel source, which it takes from the target-image
-source cache (`TARGET_IMAGE_CACHE`, default `image/build/cache/target-image`;
-fill it with `image/scripts/fetch-target-image-sources.sh`). It copies application
+module against the pinned kernel commit. It reads that commit from the bare
+repository `linux-kernel.git` in `FES_TARGET_IMAGE_SHARED_CACHE` when that is
+set, like the SDK, and otherwise from the checkout's target-image source cache,
+which `image/scripts/fetch-target-image-sources.sh` fills. It copies application
 assets from that same source snapshot. It never runs an OS image build or an FPGA
 package producer. A missing or mismatching SDK or kernel source fails explicitly;
 qualify its base image first.

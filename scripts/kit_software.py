@@ -73,12 +73,15 @@ def prepare_kernel_module(root, snapshot, env):
     kernel = tomllib.loads((image / 'build/target-image.sources.lock.toml').read_text())['kernel']
     if not re.fullmatch('[0-9a-f]{40}', kernel['commit']) or not re.fullmatch('[0-9A-Za-z.+-]+', kernel['release']):
         raise ValueError('invalid pinned kernel in source lock')
-    cache = Path(env.get('TARGET_IMAGE_CACHE') or Path(root) / 'image/build/cache/target-image')
-    bare = cache / 'linux-kernel.git'
-    pinned = subprocess.run(['git', '--git-dir', str(bare), 'rev-parse', 'refs/target-image/pinned'],
-                            capture_output=True, text=True, env=env, check=False)
-    if pinned.returncode != 0 or pinned.stdout.strip() != kernel['commit']:
-        raise ValueError(f'pinned kernel source missing from {bare}; run image/scripts/fetch-target-image-sources.sh')
+    # Kit builds share the kernel source like the SDK; a checkout falls back to
+    # the target-image source cache that fetch-target-image-sources.sh fills.
+    shared = env.get('FES_TARGET_IMAGE_SHARED_CACHE')
+    bare = (Path(shared) if shared else Path(root) / 'image/build/cache/target-image') / 'linux-kernel.git'
+    present = subprocess.run(['git', '--git-dir', str(bare), 'cat-file', '-e', kernel['commit'] + '^{commit}'],
+                             capture_output=True, env=env, check=False)
+    if present.returncode != 0:
+        raise ValueError(f'pinned kernel commit {kernel["commit"]} missing from {bare}; '
+                         'clone the kernel repository there as a bare repository')
     source = image / 'build/software/kernel-source'
     source.mkdir(parents=True)
     archive = subprocess.Popen(['git', '--git-dir', str(bare), 'archive', kernel['commit']],

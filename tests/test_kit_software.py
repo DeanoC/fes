@@ -190,12 +190,10 @@ class SoftwareWorkflowTests(unittest.TestCase):
         subprocess.run(['git', '-C', str(work), 'commit', '-qm', 'k'], check=True, env=git_env)
         commit = subprocess.run(['git', '-C', str(work), 'rev-parse', 'HEAD'], check=True,
                                 capture_output=True, text=True).stdout.strip()
-        cache = self.root / 'source-cache'
+        cache = self.root / 'shared-cache'
         subprocess.run(['git', 'clone', '-q', '--bare', str(work), str(cache / 'linux-kernel.git')],
                        check=True, env=git_env)
-        subprocess.run(['git', '--git-dir', str(cache / 'linux-kernel.git'), 'update-ref',
-                        'refs/target-image/pinned', commit], check=True, env=git_env)
-        for pinned, expected in ((commit, None), ('f' * 40, 'pinned kernel source missing')):
+        for pinned, expected in ((commit, None), ('f' * 40, 'pinned kernel commit f+ missing')):
             with self.subTest(pinned=pinned):
                 snapshot = self.root / ('snapshot-' + pinned[:4])
                 image = snapshot / 'image'
@@ -203,7 +201,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 (image / 'build/target-image.sources.lock.toml').write_text(
                     f'[kernel]\ncommit = "{pinned}"\nrelease = "5.15.1-MiSTer"\n')
                 source = self.window_source(image)
-                env = dict(os.environ, TARGET_IMAGE_CACHE=str(cache))
+                env = dict(os.environ, FES_TARGET_IMAGE_SHARED_CACHE=str(cache))
                 if expected:
                     with self.assertRaisesRegex(ValueError, expected):
                         kit.prepare_kernel_module(self.root, snapshot, env)
@@ -214,6 +212,17 @@ class SoftwareWorkflowTests(unittest.TestCase):
                                           'version': kit.window_driver_version(source)})
                 self.assertEqual((image / 'build/software/kernel-source/Makefile').read_text(), 'kernel')
                 self.assertEqual((image / 'build/software/fes-window/fes_window.c').read_text(), 'driver one')
+        # Without a shared cache the checkout's own target-image source cache is used.
+        local = self.root / 'image/build/cache/target-image'
+        local.mkdir(parents=True)
+        shutil.copytree(cache / 'linux-kernel.git', local / 'linux-kernel.git')
+        snapshot = self.root / 'snapshot-local'
+        (snapshot / 'image/build').mkdir(parents=True)
+        (snapshot / 'image/build/target-image.sources.lock.toml').write_text(
+            f'[kernel]\ncommit = "{commit}"\nrelease = "5.15.1-MiSTer"\n')
+        self.window_source(snapshot / 'image')
+        env = {k: v for k, v in os.environ.items() if k != 'FES_TARGET_IMAGE_SHARED_CACHE'}
+        self.assertEqual(kit.prepare_kernel_module(self.root, snapshot, env)['kernel_commit'], commit)
 
     def runtime_fixture(self):
         runtime = self.root / 'sources/libmister-runtime'
