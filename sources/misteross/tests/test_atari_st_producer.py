@@ -183,6 +183,8 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_video_parts.PLACEMENT}"'), 1)
         self.assertEqual(qsf.count('-name PLACE_REGION "X20 Y0 X89 Y81" -to video.native_capture.capture\n'), 1)
         self.assertEqual(qsf.count('-name PLACE_REGION "X0 Y0 X89 Y81" -to "video.native_capture.capture.output_pipe*"'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X10 Y28 X38 Y56" -to video.renderer\n'), 1)
+        self.assertEqual(qsf.count('-name PLACE_REGION "X10 Y28 X38 Y56" -to "video_request*"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
         self.assertEqual(route[route.index('--seed') + 1], '4')
