@@ -135,12 +135,6 @@ func (c *scriptedControl) counts() (loads, stops int, freedEarly bool) {
 	return c.loads, c.stops, c.freedEarly
 }
 
-func (c *scriptedControl) operation() context.Context {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.op
-}
-
 func cleanIdleResponse() misterruntime.Protocol2Response {
 	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}
 }

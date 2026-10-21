@@ -1,0 +1,96 @@
+{
+  "variant": "production",
+  "fes_sha": "4bbf35cff3f70b3942f378fbb8e6726610fcc7d2",
+  "nextpnr_pin": "8f453ebc7420ad619dfe94818d869ea76dd2585f",
+  "normal_command": [
+    "python3",
+    "scripts/build_fes_riscv.py",
+    "--cache-root",
+    "/home/deano/fes/out/cache/misteross-toolchains"
+  ],
+  "cwd": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross",
+  "exit": 0,
+  "winner": {
+    "argv": [
+      "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin/nextpnr-mistral",
+      "--json",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/synth.json",
+      "--device",
+      "5CSEBA6U23I7",
+      "--qsf",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/cores/fes-pong/constraints.qsf",
+      "--seed",
+      "1",
+      "--placer-heap-timingweight",
+      "10",
+      "--placer-heap-critexp",
+      "2",
+      "--report",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/timing.json",
+      "--write",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/routed.json",
+      "--rbf",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/core.rbf",
+      "--compress-rbf",
+      "--detailed-timing-report",
+      "--timing-allow-fail",
+      "--router",
+      "gpu",
+      "--gpu-device",
+      "0",
+      "--sdc",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/boards/de10nano/clocks.sdc",
+      "--freq",
+      "74.25"
+    ],
+    "critexp": 2,
+    "environment": {
+      "HOME": "/tmp/fes-tool-home-5y1a3sj6",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin:/usr/bin:/bin",
+      "TZ": "UTC"
+    },
+    "fmax": {
+      "endpoint.clk": {
+        "achieved": 76.24275970458984,
+        "constraint": 74.25006866455078
+      }
+    },
+    "log": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/route.log",
+    "passing": true,
+    "recipe_sha256": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+    "run_dir": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2",
+    "seed": 1,
+    "slot": "8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b",
+    "sum_ratio": 1.026837564946124,
+    "weight": 10,
+    "worst_ratio": 1.026837564946124
+  },
+  "fmax": {
+    "endpoint.clk": {
+      "achieved": 76.24275970458984,
+      "constraint": 74.25006866455078
+    }
+  },
+  "timing_summary": {
+    "clocks": {
+      "endpoint.clk": {
+        "hold_wns_ns": 0.8360000252723694,
+        "setup_wns_ns": 0.35199999809265137
+      }
+    },
+    "final_analogue_model": true
+  },
+  "build_id": "145daa3b3e172bdf69d2bd901bc60175",
+  "package_id": "10905b0785d2d550bc9f1b0ebd85d486ad8b1dfd7ae602a866a8f1cdfaec36ab",
+  "package_path": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/packages/10905b0785d2d550bc9f1b0ebd85d486ad8b1dfd7ae602a866a8f1cdfaec36ab",
+  "rbf_sha256": "887e899d7367b1ca37c741ef9ea63fe00a455594e9e969a13b6544c895560b7b",
+  "synth_sha256": "9d186ec4ca1a1e6a4a3441db7640e644bdb552c072bf636ea37987b5e5021aee",
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=fb339f5231a1363ce70b2780185df9cf3be34e92928e22fb19e879dd9f8bdc49",
+    "nextpnr-mistral": "commit=8f453ebc7420ad619dfe94818d869ea76dd2585f; sha256=6d9df2411fae8c910803345427f2baa63a72fc63f0681c6d1d8c6e690fb2eab2; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=3a5accbd78c526ab7bae32640044a2e062a3cfc9; sha256=bba338e6df675fd275213b437154de2798b8c08ede96178cdfc2af6805e68efb"
+  },
+  "evidence_class": "fresh normal authenticated producer and seal; host-only, no kit"
+}

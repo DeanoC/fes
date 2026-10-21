@@ -306,7 +306,7 @@ func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool, p
 	}
 	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(t.TempDir() + "/tenfoot.json")
-	app.SetRooms(index, "/tmp/rooms")
+	app.SetRooms(index, "")
 	app.SetHomeRooms(homeRooms)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

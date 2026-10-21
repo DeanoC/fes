@@ -72,10 +72,11 @@ func ReadUpdateGate(paths GatePaths) (Gate, error) {
 	}
 	trial := boot.Trial
 	if trial {
-		// boot.json records the immutable boot selection. Confirmation lives in
-		// the durable store, and must match this exact boot/image and complete
-		// its sync boundary before storage migrations or software activation.
-		// Good alone is insufficient when the same image was retried as trial.
+		// Confirmation clears trial on this boot's ticket. A ticket that still
+		// says trial, because the rewrite was interrupted or an older confirm
+		// left it, is reconciled against the durable store for this exact
+		// boot and image. Good alone is insufficient when the same image was
+		// retried as trial.
 		confirmed, err := store.ConfirmedContext(context.Background(), boot.BootID, boot.ImageSHA256)
 		if err != nil {
 			return Gate{Trial: true}, err

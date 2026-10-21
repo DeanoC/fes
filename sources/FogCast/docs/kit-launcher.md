@@ -1,128 +1,113 @@
-# Native kit launcher adapter
+# Kit launcher
 
-`cmd/fogcast-kit` is the CGO-free ARMv7 controller/session shell. It uses
-`kitlauncher.Run` with a renderer callback and physical controller factory.
-The callback receives `kitlauncher.Model`: the loaded catalog, the active system
-shelf, the filtered games list, selected index, connection and
-session status, controller presence and a readable message. This boundary lets
-the renderer use the shared `ui/fbgrid` primitive without owning
-network, input leases, or FPGA transitions. The kit view pages the live catalog
-as a 4×3 grid, a coverflow focus row, a 6×3 cover wall, or a split list plus
-hero; the standalone `tenfoot-linuxfb-grid` command remains a hardcoded
-paint/input fixture for framebuffer tests. Existing SDL rendering files are
-unchanged.
+The kit UI is `fogcast-tenfoot` (`ui/tenfoot`). The base-image supervisor
+`fes-kit-software` starts it after the runtime and agent:
 
-An explicitly configured described HDMI menu can paint that same shell using
-`menu_display: true` in the provisioned `launcher.json` or `-menu-display`.
-The kit process sends complete sealed RGBA frames to the local runtime socket;
-the runtime gates every submission by the current menu generation and alone
-owns DDR/FPGA access. The sender keeps only the latest pending frame, so a
-display acknowledgment does not block pad input. When menu firmware is
-unavailable, the current FPGA picture is left alone. The FES native integration
-image selects the sealed `fes.menu` package and starts this display path at boot.
-The boot splash remains the fallback when menu activation fails.
-`kit_ui` in that same file selects which program the image init script
-starts. Empty or `grid` (the default) keeps `fogcast-kit`. `tenfoot` starts
-`/usr/sbin/fogcast-tenfoot -gfx menu-display` only when the `fes.menu`
-selection exists and that binary is executable; otherwise the script keeps
-today's `fogcast-kit` command, including `--menu-display` when the selection
-exists. Any other value is grid and `fogcast-kit --print-kit-ui` writes a
-stderr note. The helper prints exactly `tenfoot` or `grid` and exits 0,
-including when the file is missing or invalid, so boot can always fall back.
-Saving a theme rewrites `launcher.json` and keeps `kit_ui`. The supervise
-name stays `fogcast-kit`, so stop still uses `/run/fogcast-kit.pid`.
-The kit shell shows the effective `eth0` MAC at the right of its top bar on
-wheel, browse, detail and attract screens. This label remains visible when
-the host is offline and follows the SD card's first-boot address assignment
-or a manual `ethaddr=` override.
+```sh
+fogcast-tenfoot -config /media/fat/fogcast/launcher.json \
+  -catalog-config <release>/share/fogcast/config.toml \
+  -gfx menu-display -menu-socket /run/mister-runtime.sock -input auto -home rooms
+```
 
-Build with `make build-fogcast-kit`. The native image installs the command and
-supervises it after runtime and agent startup. Its default configuration is
-`/media/fat/fogcast/launcher.json`; FES generates and embeds that file through
-its launcher setup/media workflow. Tenfoot preferences and per-room state are
-not stored in `launcher.json`. They live under `/media/fat/fogcast/state/FogCast/`
-(`tenfoot.json` and `rooms/<id>.state.json`). Missing configuration causes a readable
-service error and retry. A successful host catalog fetch also writes
-`/media/fat/fogcast/launcher-cache/` (catalog snapshot plus cover files keyed by
-artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache;
-replacing the system image does not wipe it. Catalog.json is still published
-atomically; a later host fetch merges in place when titles/covers are unchanged
-so the grid does not blank. Covers use a 512 MiB LRU budget under
-`launcher-cache/covers/` and never evict the ROM cache. Prefetch order is
-focus → page → next page → strip → attract (three concurrent fetches).
-`GET /api/v1/library/cache` returns ROM used/free from the target; the kit store
-reports cover used/free and last sync. `rom_cached` on a games row is a host
-probe of that inventory while the host is up — not a hostless launch grant.
-Boot paints the last-good shelf from
-disk before host games HTTP and decodes visible covers from disk first. An absent
-host shows `Offline, showing your saved list` rather than an endless reconnect. Local D-pad
-and A still browse that snapshot. When `config.toml` is beside `launcher.json`
-(or `FOGCAST_CONFIG` / `FES_HOST_CONFIG` names one, or the default user config
-exists), `fogcast-tenfoot -gfx menu-display` and `fogcast-kit` also boot
-`fogcast.BootLocalCatalog` and browse that library while the remote host is
-absent. A present Master System row from that catalog is Play on the tenfoot
-room path: Confirm posts the cartridge path to the local-control launch route
-and does not post the host session or fall back to the network. The agent
-reads that file and calls LoadCartridge with the bytes. The kit install is an
-extracted directory. LoadCartridge rebuilds the canonical package archive from
-those members, wraps the cartridge with that archive, and programs the core
-through the same ROM-link load the host uses. It does not dial a host. A
-missing install, a core that cannot be read, a core that cannot take a
-cartridge, or a cartridge that does not fit is reported, and the core is not
-programmed. Host-catalog Launch and
-Stop stay unavailable until the configured host API reconnects; the launcher
-does not claim a lease for those titles while offline. Installed cores that need no cartridge or
-firmware are listed and launched on the kit through mister-agent's root-only
-`/run/fogcast/local-control.sock` (`GET /v1/local/cores`,
-`POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`,
-`GET /v1/local/status`). A list while the agent is still warming those
-catalog caches returns HTTP 503 `{"error":"warming"}`. The client reports
-`warming` at once. Tenfoot keeps checking and retries; it does not treat
-that response as an empty library. A launch posted during the same warm
-returns that `warming` response. The client reports it at once, the same way
-it reports a warming list, so the caller can retry. It does not treat the
-response as an unavailable agent. That path
-claims owner `kit-hostless` with purpose `kit-local-core` and fails closed,
-without taking over, when the lease is already held (fes#172). See [the host connection
-contract](launcher-host.md) for listener configuration and the session HTTP
-schema. Play input from a pad on the kit uses the local socket described below.
-`fogcast-kit` supplies the socket path and the runtime core-bound probe.
-`fogcast-tenfoot -gfx menu-display` writes the same pad frames through `ui/localfeed` while a kit-local core is running. Select+Start held for one second stops that core instead of posting the host session stop. In tenfoot, keyboard F12 or a pad's Guide button also stops it with one press; neither is forwarded to the core. For both kit grid launch paths and tenfoot local launches, the first indeterminate loading frame includes phase and elapsed time, starting at `0:00`. The launcher waits for that frame to drain, pauses menu-display, then dispatches the launch request. No frame is submitted between pause and resume. On linuxfb, the overlay continues to animate with elapsed time. Host session stage/message text appears when available; local status exposes only `launching`/`running`, so neither path invents a percentage. The default grid also plays available kit-local SMS rows through that socket from browse, detail, and, while the host is down, attract. Hostless attract lists only those playable local SMS rows and launches them on South. A session that succeeds and a later poll step that fails, including Health, replaces the previous host playlist with that tagged local list. Attract arms only when the list is tagged and every row is one of those cartridges; an untagged mixed host playlist does not arm attract offline. When the host reconnects, that local list is dropped immediately and the host playlist is fetched again. Local and host launches show timeout copy after the 60 second local load bound plus five seconds grace. A successful local launch returns its exact execution-lease generation, which both launchers retain for Stop and status reconciliation. Select+Start during loading is deferred only until that successful reply identifies the running grant. `POST /v1/local/stop` requires `expected_generation`; missing or stale generations are refused before the runtime is called. A replacement generation clears the old Stop intent and controller chord. A lost launch reply remains unavailable: a later same-package run cannot complete that request or inherit its deferred Stop. The launcher waits for confirmed idle before reopening uncertain local launch admission. Pause failure clears the launch state and resumes the menu. While a known local core runs, status is polled about once a second. Idle resumes the menu; a different generation revokes Stop ownership. The grid separately adopts a current local run observed at startup or outside an unresolved launch, retaining that observed generation so a new Select+Start chord can stop it.
-The delivered loading frame remains while the launch request is pending;
-request completion alone does not resume the grid before status reconciliation.
-A failed host launch resumes the browsable menu with readable failure copy;
-Select+Start remains available to retry host cleanup before another launch.
-Host endpoint configuration is explicit; target discovery is separate.
+Home, Library and rooms are described in [rooms](rooms.md) and
+[the native tenfoot launcher](native-tenfoot-launcher/README.md).
 
-With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. When Play is pressed the kit always asks the connected host for the row's current ROM SHA-256 (a game id names a library path, not ROM bytes, so a saved digest can be stale), refreshes the cached digest from it, then launches the matched local entry through local control and keeps pad input on the kit. While that catalog is up, digests for browse-only SMS rows are refreshed in the background. A stored digest is refreshed at most every 15 minutes. A cancelled fill stays eligible for the next catalog load and does not replace a digest stored by a later fill. A failed fetch waits 2 minutes before another try. A later offline launch reads the saved digest and does not ask the host. A definitive miss says “Not on this kit”; with the host up, an identity check failure is reported as “Could not check this kit's cartridges” and never falls back to a title match.
+`/media/fat/fogcast/launcher.json` is the provisioned host connection. FES
+generates and embeds it through its launcher setup and media workflow.
+`ui/launcherconfig` reads `api`, `token` and `target_id`. Other keys, such as
+`kit_ui`, `theme` or `shelf` written for the removed grid launcher, are
+ignored, so older cards still load. Tenfoot preferences and per-room state live
+under `/media/fat/fogcast/state/FogCast/` (`tenfoot.json` and
+`rooms/<id>.state.json`).
 
-Offline, the saved host list stays on screen and kit-local SMS rows absent from that list are appended, so both browse-only host rows and kit-only cartridges remain available. Play on a host row uses its remembered digest and does not call the host, even if its id happens to match a kit-local row. Kit rows launch directly through local control. The title fallback applies only while the host is unreachable: if no digest is cached, Play accepts a single local SMS cartridge with the same title slug in the game id (`sms-datastorm-…`) or the same letters and digits in the title (`Data Storm` and `datastorm`). That title match is weaker than a hash: a saved host row does not carry a cartridge size, so size is not compared, and two local rows that share the title are refused with “Needs the host” instead of guessing. No local row says “Not on this kit”.
+`cmd/fogcast-kit` is a stub. Base images whose supervisor runs
+`fogcast-kit --print-kit-ui` before starting the launcher get `tenfoot`; any
+other invocation fails. Kit software bundles still ship it for those bases.
+Delete it once every kit runs a base whose supervisor starts tenfoot directly.
+
+## Menu display
+
+With `-gfx menu-display`, tenfoot sends complete sealed RGBA frames to the local
+runtime socket. The runtime gates every submission by the current menu
+generation and alone owns DDR and FPGA access. When menu firmware is
+unavailable, the current FPGA picture is left alone. The FES native image
+selects the sealed `fes.menu` package; the boot splash remains the fallback
+when menu activation fails.
+
+## Kit-local catalog and play
+
+When `-catalog-config` (or `FOGCAST_CONFIG` / `FES_HOST_CONFIG`, or a
+`config.toml` beside `launcher.json`) resolves, tenfoot boots
+`fogcast.BootLocalCatalog` and serves it on loopback. It replaces the
+`launcher.json` host library only when the kit has playable local files and the
+config does not declare only disabled targets (#616). Otherwise the host
+library stays in place.
+
+A present Master System row from that catalog is Play on the tenfoot room path:
+Confirm posts the library root and the catalog-relative cartridge path to the
+local-control launch route and does not post the host session or fall back to
+the network. The agent pins that root and opens the relative path from the
+root directory handle. A symlink in any component under the root is refused,
+so a parent directory replaced with a symlink cannot be read from outside the
+library. Symlinks above the configured root stay followed. The agent then
+calls LoadCartridge with the bytes. LoadCartridge rebuilds the canonical
+package archive from the extracted install, wraps the cartridge with that
+archive, and programs the core through the same ROM-link load the host uses. A
+missing install, a core that cannot be read or take a cartridge, or a cartridge
+that does not fit is reported, and the core is not programmed.
+
+Installed cores that need no cartridge or firmware are listed and launched on
+the kit through mister-agent's root-only `/run/fogcast/local-control.sock`
+(`GET /v1/local/cores`, `POST /v1/local/cores/{package_id}/launch`,
+`POST /v1/local/stop`, `GET /v1/local/status`). A list or launch while the
+agent is still warming its catalog caches returns HTTP 503
+`{"error":"warming"}`. Tenfoot reports `warming`, keeps checking and retries;
+it does not treat that response as an empty library or an unavailable agent.
+That path claims owner `kit-hostless` with purpose `kit-local-core` and fails
+closed, without taking over, when the lease is already held (fes#172). See
+[the host connection contract](launcher-host.md) for listener configuration and
+the session HTTP schema.
+
+A successful local launch returns its exact execution-lease generation, which
+tenfoot keeps for Stop and status reconciliation. `POST /v1/local/stop`
+requires `expected_generation`; missing or stale generations are refused before
+the runtime is called. Select+Start held for one second stops a kit-local core
+instead of posting the host session stop. Keyboard F12 or a pad's Guide button
+also stops it with one press; neither is forwarded to the core. The first
+loading frame shows phase and elapsed time. Tenfoot waits until that frame
+has been presented, pauses menu display, then dispatches the launch request.
+A failed or unpresented frame aborts dispatch. Late adoption of a core that
+already owns HDMI submits no loading frame, drains outstanding menu work, and
+pauses; an older menu failure does not block that pause. Local status
+exposes only `launching`/`running`, so no percentage is invented.
+
+While a kit-local core runs, `ui/localfeed` writes pad and USB keyboard events
+as raw input frames on `/run/fogcast/local-input.sock`. mister-agent delivers
+them into the running core. Play input does not cross the LAN and does not fall
+back to the host. For Coleco, SMS and SG-1000, mister-agent turns local pad
+directions and A into the core's keyboard joystick matrix; SMS and SG-1000
+ignore B. Closing the connection releases only that local source. Unplugging one
+pad sends its releases, centered axes and a local departure event, freeing only
+that player's claim. The local listener serves one writer at a time. The host
+input stream remains the path for a pad that is not plugged into this kit.
 
 ## Physical controls
 
-Every eligible physical evdev gamepad is opened; polls merge in stable device
-path order into one `remoteinput.Event` stream. Physical USB keyboards are
-opened on the same hub so play-session HID can reach the kit-local input
-socket without stealing browse focus. Keyboard events carry the key's USB HID
-usage; mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the
-ZX81 matrix or native gamepad keys for the other cores. The virtual FogCast device
-(`BUS_VIRTUAL` / name `FogCast Virtual Gamepad`), other virtual-bus nodes, devices
-without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
-excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are
-normalized. Axis range comes from EVIOCGABS, including unsigned 0–255 fixture
-axes. Left stick (`ABS_X`/`ABS_Y`) and D-pad hat (`ABS_HAT0X`/`ABS_HAT0Y`)
-share `left-x`/`left-y`. A held hat owns that axis: stick reports are dropped
-until the hat returns to centre, and that centre report restores the stick's
-latest position. The framebuffer tenfoot shell uses this same mapper.
-Buttons held on opening are suppressed until release. Unplug drops that
-pad and keeps any remaining pads; a one-second rescan from the 16ms loop picks
-up a newly plugged pad without blocking present. When the last pad disconnects,
-the launcher reopens as before.
+Tenfoot's native input (`ui/tenfoot/linuxfb_linux.go`, `-input auto`) opens
+evdev devices that `ui/controller` admits: `controller.Eligible` for gamepads
+and `controller.EligibleMouse` for mice. The virtual FogCast device
+(`BUS_VIRTUAL` / `FogCast Virtual Gamepad`), other virtual-bus nodes and
+devices without gamepad buttons are excluded. `controller.NewMapper`
+normalizes standard Linux gamepad buttons and the kit's 081f:e401 USB pad, with
+axis ranges from EVIOCGABS, including unsigned 0–255 fixture axes. Left stick
+and D-pad hat share `left-x`/`left-y`; a held hat owns that axis until it
+returns to centre. Keyboard events carry the key's USB HID usage;
+mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
+matrix or native gamepad keys for the other cores.
 
 Remapping lives in `ui/inputmap`. The default **identity** profile
 leaves codes unchanged, so A still launches and Select+Start still stops.
-`-input-profile` (then optional `input_profile` in `launcher.json`, then
-`FOGCAST_INPUT_PROFILE`) selects a built-in name (`identity`, `swap-ab`) or a
+`-input-profile` (then `FOGCAST_INPUT_PROFILE`) selects a built-in name (`identity`, `swap-ab`) or a
 JSON file:
 
 ```json
@@ -135,374 +120,8 @@ JSON file:
 
 Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
 `dpad-up`, `left-x`, …) or raw `evdev:<code>` / `js:<n>` keys onto those logical
-names. The same remapper is what linuxinput-derived paths and the tenfoot
-`CommandFromLogical` adapter apply. There is no on-screen editor in this slice.
-
-Look tokens live in `ui/theme`. Built-in **default** / pack **Classic**
-keep the current kit pixels (highlight BGRX 0,220,255,0, flash white, system
-palette). **Neon** (`arcade`) and **Sofa Dim** (`night`) are named living-room
-packs: colours, type roles, chrome accents, and a scene `transition`
-(curtain / glitch / wipe). `-theme` (then optional `theme` in
-`launcher.json`, then `FOGCAST_THEME`) selects a pack or builtin name, or a
-JSON/TOML file. X (West) cycles Classic → Neon → Sofa Dim → Classic on the
-wheel, browse, strip, and title pane without stealing D-pad or Y; the last
-pack is written to `launcher.json` `theme`. Classic stays untagged in the
-header; Neon paints `NEON` and Sofa Dim paints `DIM`. `fbgrid.Paint` and the
-system-color fallback consume those tokens (fills,
-highlight, flash, chrome, spacing). Header, tile names, and footer/status draw
-through `gfx.DrawText` / `gfx.DrawTextWeight` with the embedded Go Regular and
-Go Bold faces (`golang.org/x/image/font/gofont/goregular` and `gobold`);
-the kit does not read system fonts. Typography roles `title_px` / `body_px` /
-`caption_px` / `status_px` are explicit UI-face pixel sizes (header, tile name,
-placeholder lettermark, footer). When a role is omitted, `header_scale` /
-`label_scale` / `status_scale` still map to pixel size `8*scale` (the former
-DebugText glyph height) so existing JSON keeps the same hierarchy. Paint uses
-`theme.TitlePx` and siblings rather than repeating that fallback. Built-in
-themes set `title_bold` (and chrome `header_bold`) true so grid headers and
-detail titles use Bold; body, caption, and status stay Regular unless a
-matching `*_bold` token is set. Incomplete themes inherit those defaults.
-Overlong
-chrome and tile labels truncate with an ellipsis. `DebugText` remains the 8×8
-HUD path for FPGA protocol and spikes. There is no italic, medium, or
-font-family picker in this slice. The catalog, input, and launch path stay the same. There is no
-on-screen theme file picker in this slice; X cycles the three packs.
-
-Focus changes play a short ease-in-out pop: the focused highlight ring
-grows about its cell (~1.06 scale, ~160ms via `anim.Tween`) while unfocused
-tiles keep their `CellOrigin` layout. South/A confirm is a white pulse that
-eases out over `ConfirmFrames` (launch path unchanged). The present loop
-paints while pop or a scene overlay is active instead of waiting for
-the usual 100ms same-key skip.
-
-Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
-and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
-cycle platforms; A/South enters the filtered catalog browse (default 4×3 grid).
-East/B on browse returns to the wheel and closes search. Start is the search
-chord on browse (and from the wheel or title pane): it opens the existing
-gamepad OSK from `ui/shared` and filters the current shelf by a
-case-insensitive substring of the title, or of the clear-logo wordmark fallback
-(system id) when the title is empty. D-pad moves keys while the OSK is open; A
-types; L/R page letters and symbols; B clears a non-empty query or closes; Start
-or Done commits and leaves the filter on the shelf. An empty query restores the
-full shelf; no matches hide tiles (including the recent strip) and paint `No
-matches`. A committed query keeps the recent strip hidden so Down stays on the
-filtered shelf. After the OSK closes, D-pad and A/B match browse on the filtered
-results; closing search restores the prior focus when that title is still
-visible. Y, X, and Select are ignored while the OSK is open so they
-cannot steal layout, pack, or shelf. Y (North) is the layout switch chord
-on browse: Grid → Coverflow → Wall → Split → Grid. Coverflow is a scaled focus row of five titles
-with the focused cover largest and its name (or ready clear logo) at the title
-role; wall is a denser 6×3 mosaic with caption labels; split is a vertical
-clear-logo (or title) list with a focused cover and short meta
-(platform/year/genre/studio/players/region when those fields exist). Y is ignored on the
-wheel, title pane, and attract. X (West) cycles theme packs Classic → Neon →
-Sofa Dim → Classic on the wheel, browse, strip, and title pane; attract still
-dismisses on X. The last pack is stored in `launcher.json`. An empty catalog hides tiles and keeps chrome. The hero paints an attract still for that system,
-then presentation `backdrop_artwork_id`, then a representative catalog/presentation
-cover; missing art uses the same theme-tinted placeholder as the grid. Light
-stats chrome is the shelf game count, a play-count rollup when host games
-carry `play_count`, and last-played (or a representative title) when that
-exists. Wheel cells use a representative `logo_id` when
-presentation has one, else a bold text label. Browse uses the D-pad and left
-stick to select, Shoulder L/R
-(or Select) to cycle system shelves as a secondary filter, and A to launch.
-The wheel, browse layouts, recent strip, and title pane paint a dimmed
-fanart/backdrop behind chrome when presentation `backdrop_artwork_id` or an
-attract backdrop handle exists (`DecodeStill` through the existing still
-cache). Missing fanart uses a soft cover-wall of decoded covers already on
-the page; missing that art keeps the solid theme background. Atmosphere does
-not change focus, launch, or stop. A soft `vignette` / `vignette_alpha`
-edge darken paints on the wheel, browse layouts, and title pane after
-atmosphere so tiles and focus rings stay inside the pad; Neon and Sofa Dim
-add a 2px `bezel` frame and Classic leaves `bezel_width` at 0.
-`vignette_alpha` `0` disables the edge darken. When host `GET /api/v1/session`
-reports `active`, `launching`, `stopping`, or `failed`, `fbgrid` dims that
-same stage and paints a `Paused` (or Starting / Stopping / Retry Stop)
-badge with the catalog title and `Select+Start stop`. East/B, Start, and
-Guide are not remapped; Select+Start still requests Stop. The overlay is
-kit linuxfb chrome, not captured HDMI. When host `GET /api/v1/games?collection=recents` or `collection=favorites`
-returns titles, a single horizontal Recent / Favorites row paints under the
-browse view (covers and clear logos when those handles exist). Recents win on
-duplicates; the caption is `Recent`, `Favorites`, or `Recent / Favorites`.
-An empty result hides the row and keeps today's full stage height. Down that
-cannot move focus further enters that strip; L/R move among its tiles; A
-opens the title pane for the strip game; B or Up return to the same browse
-cell. Last-row Down still opens a focused
-title pane when the strip is hidden (large cover from CoverCache/DecodeCover, title at the theme title
-role, meta from catalog year/genre/region plus presentation studio/players
-when the host `GET /api/v1/presentation/games/{id}` succeeds, and wrapped
-`summary` prose at the caption role). Empty summary draws no description
-block. A ready `marquee_id` paints a banner strip under the header; missing
-art hides that strip. Compact chips paint on grid, coverflow, wall, and the pane for
-players, rating, completion, and portable when those presentation fields
-exist (portable also uses handheld catalog systems); missing chips stay
-hidden. Play-count and last-played stay off the pane body; the wheel hero
-rolls them up from host `play_count` / `last_played_at` when admitted.
-A stays launch on the grid and is not used to enter the pane. The pane closes
-on East/B or Up and restores the same shelf and focus. A on the pane launches
-the focused title through the same session path as the grid. Shoulder L/R and
-D-pad L/R cycle presentation `screenshot_ids` when two or more handles are
-present; otherwise those controls do nothing in the pane (shelf cycling stays
-on the grid). When presentation `series`, `related` / `related_ids`, or
-`collection` admits at least one other loaded catalog title, a Series strip
-paints at the bottom of the pane. Down focuses it; L/R move; A opens that title's pane
-(and its system shelf when the mate lives elsewhere); B or Up return to the
-title. The row hides when no sibling exists. Split Right focuses the same
-mates in the hero; Left/B return to the list. Y and X stay layout and theme.
-When presentation `video_id` is present, the screenshot slot
-becomes a kit-safe motion preview: it auto-cycles screenshots then unique
-backdrop/cover posters every two seconds, paints a VIDEO badge, and captions
-the slot `preview` (or `preview N / M`). That path does not decode H.264 on
-the CGO-free ARMv7 binary; full clip playback is a follow-up. Titles without
-a video handle keep today's still carousel. Attract does not arm while the pane is open; opening it notes
-activity so idle does not fire underneath. Meaningful scene cuts (detail
-open/close, attract show/hide, wheel enter/leave, Y layout, X pack, search
-OSK open/close) paint a
-short overlay from the active theme `transition` token: Classic **curtain**,
-Neon **glitch**, Sofa Dim **wipe**. Attract does not arm while the search OSK
-is open. Durations stay under 400ms and do not
-block pad input. `transition` `none`, `-no-transition`, or
-`FOGCAST_NO_TRANSITION=1` skips the overlay. Attract edge chrome is off by
-default. `-audio-chrome`, `launcher.json` `audio_chrome`, a theme file
-`audio_chrome` token, or `FOGCAST_AUDIO_CHROME=1` paints theme-highlight edge
-bars from a measured 0..1 file (`-audio-level-file` /
-`FOGCAST_AUDIO_LEVEL_FILE`) on attract and browse. The kit ALSA Dummy card
-is not a game-audio meter and is not treated as one. With the gate on and no
-file, attract uses a labeled `idle pulse` instead of claiming HDMI or FPGA
-audio. `-selftest-audio-chrome` injects fake levels and samples the edge.
-Missing cover art uses the same
-placeholder path as the grid. The wheel footer hint is
-`A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
-`classic`); the search OSK footer is
-`A type | B clear | L/R abc | START done`; the browse footer after entering from the wheel is
-`A play | B platforms | L/R | Y flow` (Y names the next layout: `flow`, `wall`,
-`split`, or `grid`); a browse view that never used the wheel (selftests)
-keeps `A play | B detail | L/R | Y flow`; the strip footer is
-`A detail | B grid | L/R`; the pane footer is `A play | B back`
-(or `A play | B back | L/R shots` when screenshots can cycle, or
-`A play | B back | L/R preview` when a video preview can cycle, plus
-`Down series` when mates exist; the focused series row is
-`A open | B title | L/R`). Shelves are `All` plus
-each system present in the loaded catalog. Changing shelf filters the browse page
-and keeps focus when that game is still visible; otherwise focus lands on the
-first launchable title. The last shelf is stored in `launcher.json` when that
-file was loaded from disk. Left/right move one cell and clamp at the ends of
-the current row; up/down move by the layout column count (four on the grid, six
-on the wall, one row of titles on coverflow, one column of titles on split) and clamp
-at the first and last catalog rows. Crossing a page updates the painted
-window because `Model.Focus` stays an index into the visible shelf. Coverflow
-down that cannot change rows enters the recent strip or title pane. Split
-left/right clamp; last-item down enters the strip or title pane. Stick motion
-steps on the rising edge only; holding a deflection does not repeat. During
-native play, while the local runtime has a core bound, pad and USB keyboard
-events are raw input frames on `/run/fogcast/local-input.sock`. mister-agent
-delivers them into the running core. The kit does not post that play input to
-the host, and it does not wait for launcher.json reachability or the host
-session's input.ready. A pad on the kit still drives the core when another
-host holds the lease. For Coleco, SMS and SG-1000, mister-agent turns local
-pad directions and A into the core's keyboard joystick matrix; SMS and SG-1000
-ignore B. Select+Start is the stop chord for this host's active or failed session
-and for kit-local owned play. A foreign-owned core accepts local play controls,
-including Select and Start, but this launcher cannot stop it. While a core is bound,
-those events do not leave the platform wheel, change browse selection, or
-request a launch from a stale idle host session. With no core bound, the same
-pad still browses. The player
-index on the frame is the one the kit assigned. If the socket is not
-listening, the kit reports `Local input unavailable`, waits one second before
-dialing again, and does not fall back to the host input route. Hold Select +
-Start together for one second to request ordinary Stop; both must release
-before rearming. That Stop chord still posts for an owned session while a core
-is bound. Successful bound observations expire after one second without a
-refresh; persistent probe errors close the play feed and clear the input notice.
-Individual Start and Select remain game controls while a session can stop; B does not
-stop gameplay.
-Stop/save errors retain the retry operation. After the host `idle_seconds` from
-`GET /api/v1/library/attract` (default 60s; 1s is allowed) with no pad input,
-no busy/session transition, and a ready host, the kit leaves the grid for an
-attract stage: backdrop, then cover, then marquee, decoded with `DecodeStill`
-and cycled with `anim` fade-through-black. A distinct marquee or presentation
-`marquee_id` also paints a banner strip under the header alongside that still,
-motion preview, or 2×2 wall; a marquee-only row keeps the still fallback and
-hides the duplicate strip. When the staged row has a video
-handle plus stills, attract auto-cycles those stills (and presentation
-`screenshot_ids` when fetched) every two seconds under a VIDEO badge and a
-`preview` caption — the same kit-safe motion path as the title pane. Four or
-more stills-backed rows with at least one video handle paint a 2×2 wall of
-neighboring stills with the staged tile highlighted. Title chrome uses the theme
-`AttractBackground` and title/status roles. A/South on a launchable still
-launches that title when a game id is present; any other pad input dismisses
-and returns to the same shelf and focus. The CGO-free kit path does not decode
-H.264; full clip playback is a follow-up. Titles without a video handle keep
-today's stills attract and hide the VIDEO chrome. An empty playlist (or
-video-only rows) still enters a themed idle panel (`Idle` / `No attract stills`)
-so the grid is not frozen; any input returns to the grid.
-
-Closing the kit's connection to `/run/fogcast/local-input.sock` releases only
-that local source. Unplugging one pad sends its releases, centered axes and a
-local departure event, freeing only that player's claim while the other pad
-keeps the connection. Claiming local P1 immediately moves a connected remote P1
-to P2; an excluded remote player still clears released controls, so freeing
-a local port cannot revive an old hold. The local listener serves one writer
-at a time; close the old writer before replacing it.
-The host input stream remains the path for a pad that is
-not plugged into this kit: the host delivers it to the kit that owns the
-session, and a missing stream is an error to that caller. Local play input
-does not cross the LAN and does not fall back to the host. Report
-measured transport values separately from end-to-end button-to-photon latency.
-
-## Display and verification
-
-The launcher only renders memory; it never issues SPI, programs the FPGA, or
-claims a kit lease. Rendering pauses while a game is active and while the
-host reports a kit-local session, so attract stays disarmed and the core's
-picture stays on HDMI. Menu display stays paused through that session's
-startup (`launching`), the running core (`local`), and the idle load
-(`stopping`), and resumes when the host reports idle. If the host drops during
-that hold, the pause stays through runtime `starting` and recovery, including
-a failed idle load that leaves `reboot_required`. The launcher
-clears the stale local session and resumes the menu only after a probe taken
-during that hold confirms a completed idle menu that belongs to the hold: state
-`idle`, menu display available, and a non-zero generation that is not a session
-binding. The shelf generation is the idle menu read at the pause. Runtime
-reads are serialized, and a probe that started earlier cannot replace that
-read. If the pause read fails, a cached generation is not the shelf, and a
-later idle menu does not resume merely because its generation differs. The menu
-resumes after this hold has seen the runtime leave the shelf. When the pause
-read identified the shelf, that generation does not qualify, nor does a later
-probe error after an idle sample. A different menu generation does, and so does
-a later idle probe after the hold has seen the runtime leave that shelf. When
-no idle menu was sampled before the hold, the first completed idle during the
-hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is
-absent and that confirmation is still missing. Loading and stopping feedback still uses the temporary
-overlay when the idle enables the framebuffer. After confirmed
-idle it also skips `present` when that idle has no HPS framebuffer (SPI
-`0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
-pixels in place. A missing linuxfb device does not stop the service. When
-the launcher config or the session sets `hps_framebuffer`, the
-connecting/retry/last-good shelf may use the existing pure-Go linuxfb backend
-and the shared `fbgrid` paint path as a temporary overlay. That overlay is
-not Menu's file browser, not rooms, and not a permanent catalog. Tiles are a
-bounded page of live catalog rows. Cover handles come from catalog
-`Game.Cover` when present, otherwise from `GET /api/v1/presentation/games/{id}`
-(`cover_artwork_id`) for the visible page and the cheap next page. The same
-presentation payload may include `logo_id` from LaunchBox Clear Logo art, with
-`library_media` RoleLogo winning when that overlay is present. The kit
-fetches `GET /api/v1/presentation/artwork/{handle}` on the paired listener,
-decodes it with `DecodeCover` (Catmull–Rom downscale to
-the cover cell; Software Draw stays nearest), and aspect-fits the RGBA into the
-cell over theme-tinted letterbox bars. The focused tile, split hero, and title
-pane prefer `box3d_id` when that handle is ready (LaunchBox Box-3D / Cart-3D /
-Box-Spine, or `library_media` files named `box3d` / `cart-3d` / `*_3d`, or a
-`Box - 3D` folder next to the ROM stem). Missing 3D art skews the 2D cover;
-missing both hides the 3D look. Unfocused tiles keep 2D covers. Neon and Sofa
-Dim add a thin cabinet bezel around focus (`cabinet_width`); Classic leaves it
-off. Missing or failed art paints a
-theme-tinted placeholder with a lettermark; still-loading art uses a distinct
-panel without a letter. Ready logos replace the grid label-bar text and the
-detail title; missing or still-loading logos keep today's text labels.
-Presentation and artwork fetching are asynchronous and
-do not block the present loop. The title pane paints the focused cover (and current screenshot or
-video-preview still, when present) through the same cache. Presentation
-`marquee_id` paints a wide strip under the header when that handle is ready;
-missing or still-loading marquees hide the strip and leave cover, meta,
-badges, and the screenshot/preview slot on today's layout. Video bytes are
-not fetched on kit; the preview uses already-admitted still artwork. After idle, attract stills use the same artwork GET with `DecodeStill`
-(Catmull–Rom to a 720p-class stage) and `fbgrid.PaintAttract`. A video handle
-on the staged row cycles those stills as an honest motion preview; four or more
-stills-backed rows with a video handle paint a 2×2 wall. Empty playlists
-paint a themed idle panel instead of hanging on the grid. Video bytes are not
-fetched on kit.
-
-Run `go test -race ./ui/kitlauncher/... ./ui/shared ./ui/inputmap ./ui/theme ./ui/fbgrid ./ui/gfx ./ui/anim ./cmd/fogcast-kit` for adapter tests. They
-exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-boxes` paints a focused 3D box over a 2D
-cover, a cover perspective when the 3D handle is missing, hides both when no
-art exists, samples Neon cabinet chrome (Classic stays off), paints the same
-3D art on the title pane and split hero, keeps Y/X/A, and re-runs search
-(which re-runs transition, packs, layouts, atmosphere, strip, wheel, motion,
-detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-bezel` paints the
-soft vignette, an Arcade bezel frame, and pause chrome over an active
-session, proves East/B and Start do not stop, keeps split layout, and
-re-runs search (which re-runs transition, packs, layouts, atmosphere,
-strip, wheel, motion, detail, attract, cover, text, nav, and shelf).
-On the kit, `fogcast-kit -selftest-search` opens Start search,
-types through the gamepad OSK, filters the current shelf, paints an honest empty
-miss, restores prior focus, keeps Y/X/Select, and re-runs transition (which re-runs
-packs, layouts, atmosphere, strip, wheel, motion, detail, attract, cover, text, nav,
-and shelf). On the kit, `fogcast-kit -selftest-marquee` paints a banner
-strip on attract beside a still and a motion preview, hides the strip when the
-handle is absent or is the only still, paints the same strip on the title pane
-without crushing cover, meta, badges, or VIDEO preview, keeps Y/X/A, and
-re-runs transition (which re-runs packs, layouts, atmosphere, strip, wheel,
-motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-transition` paints curtain, wipe, and glitch
-overlays on a 4×3 grid, proves `none` is a no-op, keeps A launch during a
-detail cut, and re-runs packs (which re-runs layouts, atmosphere, strip,
-wheel, motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-badges` paints players/rating/completion/portable
-chips on grid, coverflow, wall, and the title pane, hides empty chips, samples
-theme-pack highlight fills so covers stay readable, paints wheel play-stats,
-keeps Y/X/A, and re-runs packs (which re-runs layouts, atmosphere, strip,
-wheel, motion, detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-packs` paints Classic, cycles X to Neon then
-Sofa Dim then Classic, samples highlight and background so the three looks
-differ, keeps Y layout cycle and D-pad browse, paints a Neon wheel hint, keeps
-A launch, and re-runs layouts (which re-runs atmosphere, strip, wheel, motion,
-detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-layouts` paints the 4×3 grid, cycles Y to
-coverflow then wall then split, samples a larger focused coverflow tile, a denser wall
-cell, and a split list-plus-hero with short meta, hides empty coverflow and split,
-keeps A launch, and re-runs atmosphere (which
-re-runs strip, wheel, motion, detail, attract, cover, text, nav, and shelf).
-On the kit, `fogcast-kit -selftest-atmosphere` paints dimmed fanart behind the
-grid, proves a missing-art stage stays the theme background, paints a
-cover-wall from decoded covers, dims the wheel stage around a bright hero,
-dims the title pane around a bright cover, and re-runs strip (which re-runs
-wheel, motion, detail, attract, cover, text, nav, and shelf).
-On the kit, `fogcast-kit -selftest-strip` paints a Recent row under the grid, enters it
-from last-row Down, moves L/R, opens detail on A, returns on B, hides the
-row when empty, and re-runs wheel (which re-runs motion, detail, attract,
-cover, text, nav, and shelf). `fogcast-kit -selftest-wheel` paints the platform
-wheel and hero, cycles systems, enters the Mega Drive grid, returns on B, and
-re-runs motion (which re-runs detail, attract, cover, text, nav, and shelf).
-`fogcast-kit -selftest-nav` paints a 25-title
-catalog, moves focus right/down across a 4×3 page, samples the highlight, and
-exits without talking to the host. `fogcast-kit -selftest-shelf` paints a mixed
-pong/Mega Drive/SNES catalog, cycles shelves with L/R and Select, checks the
-header counts and visible set, and samples the highlight. `fogcast-kit -selftest-theme` paints **default**
-then **arcade**, samples highlight and background, requires the pixels to
-differ, and checks that title/body/caption/status pixel roles change the
-painted `DrawText` sizes (including a scale-only fallback versus a px
-override). `fogcast-kit -selftest-text` paints UI-face header/tile/footer chrome,
-requires the header pixels to differ from a DebugText-only baseline, checks
-themed glyph ink, proves the header uses Bold (and differs from a Regular
-paint of the same chrome), and re-runs nav plus shelf. `fogcast-kit -selftest-bold`
-proves gobold rasters differ from goregular at the same size, checks detail
-title ink uses Bold, and re-runs detail (which re-runs attract, cover, text,
-nav, and shelf). `fogcast-kit -selftest-cover`
-decodes a cover, paints missing and loading placeholders, samples the art and
-panel pixels, and re-runs text (which re-runs nav plus shelf). `fogcast-kit -selftest-attract`
-arms a short idle, paints a decoded still plus an empty idle panel, paints a
-kit-safe VIDEO motion preview and a stills-only neighbour without that chrome,
-paints a 2×2 wall when four titles include a video handle, dismisses on
-pad input with shelf and focus unchanged, and re-runs cover (which re-runs text,
-nav, and shelf). `fogcast-kit -selftest-detail` opens and closes the title pane
-(East/B, last-row Down, Up), paints a large cover plus title ink at `TitlePx`,
-paints admitted meta and wrapped description (and omits empty description),
-paints a VIDEO preview badge and `preview` caption when `video_id` is present
-(and keeps a neighbour still-only carousel without that badge),
-launches from the pane, holds attract while open, and re-runs attract (which
-re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-series` paints
-series mates on the title pane, enters the row from Down, jumps with A, hides
-an empty row, enters split-hero mates from Right, keeps Y/X, and re-runs
-detail. `fogcast-kit -selftest-motion` moves
-focus, ticks a mid-pop, samples a gap pixel that the highlight ring grows
-into, confirms and samples a mid-pulse interior that is neither full flash
-nor the tile fill, and re-runs series (which re-runs detail, attract, cover, text,
-nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
-and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
-`HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.
-It does not claim a programmed 2D core. `fogcast-kit -selftest-pads` opens every
-eligible USB pad under the identity profile, prints device id/name, and exits.
-Runtime and host tests cover their respective boundaries.
-Use FES for selected image assembly and exact-artifact evidence. A diagnostic
-binary or modified image does not establish reproducible-image acceptance.
+names. The tenfoot `CommandFromLogical` adapter applies the remapper. There is
+no on-screen editor.
 
 ## HOW_TO_RUN: LaunchBox covers on the kit host
 
@@ -523,13 +142,12 @@ archive = "/absolute/path/to/Metadata.zip"
 
 3. Restart the kit-host API so it reloads metadata. Cover files land under
    `~/.cache/fogcast/metadata/launchbox-covers`.
-4. Rebuild and run `fogcast-kit` (`make build-fogcast-kit`, CGO-free ARMv7).
-   Visible tiles prefetch presentation then artwork; titles without a match keep
-   the existing placeholder. Clear logos use the same artwork GET via `logo_id`
+4. Tenfoot fetches presentation and artwork for visible titles; titles without
+   a match keep the existing placeholder. Clear logos use the same artwork GET via `logo_id`
    and fall back to text labels when the handle is missing. Arcade-Marquee and
 Banner files use the same artwork GET via `marquee_id` and hide when absent.
    Box-3D, Cart-3D, and Box-Spine files use the same artwork GET via `box3d_id`
-   on the focused tile; local `library_media` RoleBox3D (including a `Box - 3D`
+   when present; local `library_media` RoleBox3D (including a `Box - 3D`
    folder or `*_3d` still) wins when present. Missing 3D handles hide rather
    than invent geometry.
 

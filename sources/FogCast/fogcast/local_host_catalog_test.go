@@ -192,6 +192,51 @@ func TestBootLocalCatalogExplainsEmptyAndMissingContent(t *testing.T) {
 	}
 }
 
+func TestLocalContentPathRejectsParentDirectorySymlink(t *testing.T) {
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "remote host is absent", http.StatusBadGateway)
+	}))
+	t.Cleanup(remote.Close)
+	dir := t.TempDir()
+	root := filepath.Join(dir, "sms")
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "Parent Swap.sms"), []byte("inside-rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service, notice, err := fogcast.BootLocalCatalog(context.Background(), localCatalogPaths(t, dir, remote.URL, root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	if notice != "" {
+		t.Fatalf("notice = %q", notice)
+	}
+	game := localCatalogGame(t, service, "Parent Swap")
+	gotRoot, gotRel, err := service.LocalContentPath(context.Background(), game.ID)
+	if err != nil || gotRoot != root || gotRel != "nested/Parent Swap.sms" {
+		t.Fatalf("content path = %q %q %v", gotRoot, gotRel, err)
+	}
+	outside := filepath.Join(dir, "outside")
+	if err := os.Mkdir(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "Parent Swap.sms"), []byte("outside-rom"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(nested, nested+"-real"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, nested); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := service.LocalContentPath(context.Background(), game.ID); err == nil {
+		t.Fatal("parent symlink still resolved")
+	}
+}
+
 func localCatalogPaths(t *testing.T, dir, baseURL, root string) fogcast.Paths {
 	t.Helper()
 	configPath := filepath.Join(dir, "config.toml")

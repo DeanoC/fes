@@ -94,6 +94,7 @@ INTERFACES = ("fes.video.fixed-720p60", "fes.gamepad")
 
 def _authenticate_tools(root, *, cache_root=None):
     return board._authenticate_tools(root, lock_path=pnr_recipe.lock_path(root, "fes.riscv"),
+                                     toolchain_root=root / "build/toolchain/fes-riscv",
                                      cache_root=cache_root)
 
 
@@ -102,6 +103,9 @@ def require_clean_source(root, *, identity_version=2):
         return board._require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
     except ValueError as exc:
         raise board.BuildError(str(exc)) from exc
+
+
+_require_clean_source = require_clean_source
 
 
 def require_current_firmware(root: Path) -> None:

@@ -15,7 +15,6 @@ import (
 
 type fakeProcess struct {
 	mu                   sync.Mutex
-	args                 []string
 	killed               bool
 	killCalls            int
 	keepWaitingAfterKill bool

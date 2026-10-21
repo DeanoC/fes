@@ -24,21 +24,6 @@ Transport is never inferred from a core ID or descriptive system field.
 Beyond that guarantee, larger media and new roles need additional support; this is not a retail-media
 compatibility claim. Original catalog Pong and standalone FES Pong remain separate.
 
-## Native launcher status
-
-The native fogcast-kit launcher performs a read-only join of the library
-entries and installed package inventory. For the selected fes.pong,
-fes.zx81, and fes.coleco packages it shows the core ID, selected package
-version and a compact state (installed, missing, mismatch, or
-incompatible) in the catalog and detail metadata. A failed read clears the
-previous status and leaves ordinary catalog browsing available.
-
-This UI status does not claim target compatibility when inventory reports
-compatibility:"unknown"; hardware acceptance still requires the explicit
-target inspection path described below. The native launcher does not install
-packages or change the selected package. Package replacement remains the
-explicit core-select/API operation and is outside this read-only UI slice.
-
 ## Browser management
 
 Open **Manage FPGA library** on the normal host browser listener. Import a

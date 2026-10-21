@@ -6,18 +6,23 @@ import json
 import math
 import os
 import re
+import subprocess
 import tomllib
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import MappingProxyType
 from typing import Mapping, Sequence
 from scripts.fes_build_common import nextpnr_gpu_command
 
 
 FES_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY = FES_ROOT / "config/core-recipes.toml"
-PINNED_NEXTPNR = "9128800fa6e77c4138088a7107a95376ba47ff15"
-CURRENT_FLAGS = {
+
+# nextpnr's own defaults for the 96-option CLI set. The
+# Mistral/FES fork switches are fes_*, mistral_*, replicate_enables, remap_*
+# and balance_reduction_root; the rest are result-affecting kernel options.
+_DEFAULTS_96_OPTIONS = {
     "randomize_seed": False, "placer": "heap", "cstrweight": "unset",
     "starttemp": "unset", "pack_only": False, "no_route": False,
     "no_place": False, "no_pack": False, "ignore_loops": False,
@@ -42,34 +47,52 @@ CURRENT_FLAGS = {
     "remap_candidate": "unset", "remap_groups": 1, "balance_reduction_root": [],
 }
 
-# These are the Mistral/FES switches available at PINNED_NEXTPNR. Keep every
-# one classified in each per-core recipe, including options set to their
-# current disabled/default value. Later nextpnr additions require a schema
-# decision before a lock can move.
-FORK_FLAGS = frozenset({
-    "fes_scaffold", "fes_cart", "fes_cart_region", "fes_slot_clock",
-    "fes_cram_region", "mistral_ff4", "mistral_clkb", "replicate_enables",
-    "remap_critical", "remap_optimize_pins", "remap_preserve_ffs",
-    "remap_plan", "remap_post_plan", "remap_comb_critical",
-    "remap_comb_candidate", "remap_comb_plan", "remap_decompose_critical",
-    "remap_decompose_candidate", "remap_lut_pair_critical",
-    "remap_lut_pair_candidate", "remap_lut_pair_compose_copy",
-    "remap_lut_driver_critical", "remap_lut_driver_candidate",
-    "remap_candidate", "remap_groups", "balance_reduction_root",
-})
+# The nine options in the 105-option set, as declared in its source files.
+# sources: common/kernel/command.cc and mistral/main.cc. The Mistral declarations
+# say both placement flags and signed-DSP packing are opt-in; cohort budget 0
+# disables setup-path repair, its report is an input, and model-out is an output
+# for an unrepaired calibration. `set` is a repeatable key=value override,
+# restricted below to settings that do not have dedicated recipe inputs.
+_ADDED_105_OPTIONS = {
+    "arrival_pin_assignment": False, "isolated_lut_placement": False,
+    "critical_cohort_budget": 0, "critical_cohort_report": "unset",
+    "mistral_dsp_signed_lanes": False,
+    "set": [],
+    # The source says this fails if --router gpu cannot use a GPU device.
+    "gpu_required": False,
+    "critical_cohort_model_out": "unset", "router2_profile": "unset",
+}
 
-# Result-affecting non-fork switches whose values also need to stay reviewed.
-RECIPE_FLAGS = frozenset({
-    "randomize_seed", "placer", "cstrweight", "starttemp", "pack_only",
-    "no_route", "no_place", "no_pack", "ignore_loops", "ignore_rel_clk",
-    "no_tmdriv", "sdf_cvc", "no_print_critical_path_source",
-    "placer_heap_alpha", "placer_heap_beta",
-    "placer_heap_cell_placement_timeout", "placer_heap_no_ctrl_set",
-    "static_dump_density", "parallel_refine", "router2_heatmap",
-    "tmg_ripup", "router2_tmg_ripup", "router2_alt_weights",
-    "gpu_batches", "gpu_cpu", "gpu_perf", "gpu_telemetry", "gpu_opt",
-    "timing_report_paths", "seed_racing_contract",
-}) | FORK_FLAGS
+# A nextpnr source option set selects one of these recipe-flag schemas. The
+# option names not present in either flag table are still included in the exact
+# CLI fingerprint; producer-owned inputs and deliberately unused CLI options
+# remain closed by the recipe and argv builders.
+_SCHEMA_96_OPTIONS = MappingProxyType(_DEFAULTS_96_OPTIONS)
+_SCHEMA_105_OPTIONS = MappingProxyType({**_DEFAULTS_96_OPTIONS, **_ADDED_105_OPTIONS})
+_OTHER_SOURCE_OPTIONS = frozenset({
+    "Werror", "compress_rbf", "debug", "debug_placer", "debug_router",
+    "detailed_timing_report", "device", "force", "freq", "gpu_device", "gui",
+    "gui_no_aa", "help", "json", "log", "on_failure", "placed_svg",
+    "placer_heap_critexp", "placer_heap_timingweight", "post_route", "pre_pack",
+    "pre_place", "pre_route", "qsf", "quiet", "rbf", "report", "routed_svg",
+    "router", "run", "sdc", "sdf", "seed", "test", "threads",
+    "timing_allow_fail", "top", "verbose", "version", "write",
+})
+_ABSENT_BY_RECIPE_OPTIONS = frozenset({
+    "gui", "gui_no_aa", "on_failure", "post_route", "pre_pack", "pre_place",
+    "pre_route", "run",
+})
+_SOURCE_OPTION_SET_SCHEMAS: Mapping[frozenset[str], Mapping[str, object]] = MappingProxyType({
+    frozenset(_SCHEMA_96_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_96_OPTIONS,
+    frozenset(_SCHEMA_105_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_105_OPTIONS,
+})
+_RUNTIME_SCHEMAS: dict[
+    tuple[str, str, str, tuple[str, int, int, int, int] | None], Mapping[str, object]
+] = {}
+_ACTIVE_RUNTIME_SCHEMA_IDENTITIES: dict[
+    tuple[str, str, str], tuple[str, int, int, int, int] | None
+] = {}
+_HELP_OPTION = re.compile(r"^\s*(?:-[A-Za-z0-9]\s+\[\s*)?--([A-Za-z][A-Za-z0-9_-]*)\b")
 
 RECIPE_FIELDS = frozenset({
     "seeds", "timing_weights", "search_weights", "critexp", "clocks",
@@ -87,12 +110,15 @@ FLAG_BOOLEAN_FIELDS = frozenset({
     "router2_tmg_ripup", "router2_alt_weights", "gpu_cpu", "gpu_perf",
     "seed_racing_contract", "fes_scaffold", "mistral_ff4", "mistral_clkb",
     "remap_optimize_pins", "remap_preserve_ffs",
-    "remap_lut_pair_compose_copy",
+    "remap_lut_pair_compose_copy", "arrival_pin_assignment",
+    "isolated_lut_placement", "mistral_dsp_signed_lanes", "gpu_required",
 })
 FLAG_INTEGER_FIELDS = frozenset({
     "placer_heap_cell_placement_timeout", "timing_report_paths",
-    "replicate_enables", "remap_groups",
+    "replicate_enables", "remap_groups", "critical_cohort_budget",
 })
+# nextpnr rejects values above these limits after loading the design.
+_FLAG_INTEGER_LIMITS = {"critical_cohort_budget": 64}
 FLAG_INTEGER_OR_UNSET_FIELDS = frozenset({
     "gpu_batches", "remap_comb_candidate", "remap_decompose_candidate",
     "remap_lut_pair_candidate", "remap_lut_driver_candidate",
@@ -107,8 +133,27 @@ FLAG_STRING_FIELDS = frozenset({
     "remap_critical", "remap_plan", "remap_post_plan",
     "remap_comb_critical", "remap_comb_plan", "remap_decompose_critical",
     "remap_lut_pair_critical", "remap_lut_driver_critical",
+    "critical_cohort_report", "critical_cohort_model_out", "router2_profile",
 })
-FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root"})
+FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root", "set"})
+
+# --set may tune only placer and router settings that no dedicated option or
+# recipe field owns. A dedicated option the builder omits at its default
+# would not conflict inside nextpnr, so --set could silently replace its
+# recorded value. Constraints (sdc/*, timing/*, target_freq), the seed, the
+# device and the FES boundary settings stay with their own recipe inputs.
+_SETTABLE_PREFIXES = ("placerHeap/", "placer1/", "router/", "router1/", "router2/", "gpurouter/")
+_DEDICATED_SETTINGS = frozenset({
+    "placer1/constraintWeight", "placer1/startTemp", "placerHeap/alpha",
+    "placerHeap/beta", "placerHeap/criticalityExponent",
+    "placerHeap/timingWeight", "placerHeap/cellPlacementTimeout",
+    "placerHeap/noCtrlSet", "placerHeap/parallelRefine", "router/tmg_ripup",
+    "router2/heatmap", "router2/profilePath", "router2/alt-weights",
+    "gpurouter/device", "gpurouter/cpu", "gpurouter/required",
+    "gpurouter/perfProfile", "gpurouter/maxBatches",
+    "gpurouter/telemetryPath", "gpurouter/telemetrySeed",
+})
+_SETTING_KEY = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\Z")
 
 # gpu-run's environment is normally removed by the functional build boundary.
 # Its small, explicit marker set is admitted only after the complete lease
@@ -128,7 +173,7 @@ def _valid_flag_value(name: str, value: object) -> bool:
     if name in FLAG_BOOLEAN_FIELDS:
         return type(value) is bool
     if name in FLAG_INTEGER_FIELDS:
-        return type(value) is int and value >= 0
+        return type(value) is int and 0 <= value <= _FLAG_INTEGER_LIMITS.get(name, value)
     if name in FLAG_INTEGER_OR_UNSET_FIELDS:
         return value == "unset" or (type(value) is int and value >= 0)
     if name in FLAG_NUMBER_FIELDS:
@@ -148,16 +193,194 @@ def _valid_flag_value(name: str, value: object) -> bool:
     return False
 
 
-if (FLAG_BOOLEAN_FIELDS | FLAG_INTEGER_FIELDS | FLAG_INTEGER_OR_UNSET_FIELDS
-        | FLAG_NUMBER_FIELDS | FLAG_STRING_FIELDS | FLAG_LIST_FIELDS) != RECIPE_FLAGS:
-    raise RuntimeError("nextpnr recipe flag types do not cover the closed flag schema")
+def _valid_settings(flags: Mapping[str, object]) -> bool:
+    """Accept only unique key=value settings that no other recipe input owns."""
+    keys = []
+    for item in flags.get("set", ()):
+        key, separator, value = item.partition("=")
+        keys.append(key)
+        if (not separator or not value or _SETTING_KEY.fullmatch(key) is None
+                or not key.startswith(_SETTABLE_PREFIXES) or key in _DEDICATED_SETTINGS):
+            return False
+    gpu_opt_keys = {"gpurouter/" + item.partition("=")[0] for item in flags.get("gpu_opt", ())}
+    return len(keys) == len(set(keys)) and not set(keys) & gpu_opt_keys
+
+
+def _valid_cohort_options(flags: Mapping[str, object]) -> bool:
+    """Reject cohort combinations nextpnr refuses only after loading the design."""
+    # A cohort report guides a positive repair budget; the model export
+    # calibrates the unrepaired baseline, so it needs budget 0.
+    budget = flags.get("critical_cohort_budget", 0)
+    return not ((flags.get("critical_cohort_report", "unset") != "unset" and budget == 0)
+                or (flags.get("critical_cohort_model_out", "unset") != "unset" and budget != 0))
+
+
+_SUPPORTED_FLAG_NAMES = frozenset(
+    name for defaults in _SOURCE_OPTION_SET_SCHEMAS.values() for name in defaults
+)
+_FLAG_TYPE_NAMES = (FLAG_BOOLEAN_FIELDS | FLAG_INTEGER_FIELDS
+                    | FLAG_INTEGER_OR_UNSET_FIELDS | FLAG_NUMBER_FIELDS
+                    | FLAG_STRING_FIELDS | FLAG_LIST_FIELDS)
+if _FLAG_TYPE_NAMES != _SUPPORTED_FLAG_NAMES:
+    raise RuntimeError("nextpnr recipe flag types do not cover the classified option sets")
+if any(not _valid_flag_value(name, value)
+       for defaults in _SOURCE_OPTION_SET_SCHEMAS.values()
+       for name, value in defaults.items()):
+    raise RuntimeError("a classified nextpnr default does not satisfy its option type")
 
 
 class RecipeError(ValueError):
     """A registered producer disagrees with its pinned P&R recipe."""
 
 
-def _registry() -> tuple[dict, dict[str, dict]]:
+def _schema_for_option_set(option_names: Sequence[str] | set[str] | frozenset[str]
+                           ) -> Mapping[str, object]:
+    actual = frozenset(option_names)
+    schema = _SOURCE_OPTION_SET_SCHEMAS.get(actual)
+    if schema is None:
+        schema = next((classified_schema
+                       for classified_options, classified_schema
+                       in _SOURCE_OPTION_SET_SCHEMAS.items()
+                       if actual == classified_options - _ABSENT_BY_RECIPE_OPTIONS), None)
+    if schema is not None:
+        return schema
+    expected = min(_SOURCE_OPTION_SET_SCHEMAS,
+                   key=lambda known: len(known.symmetric_difference(actual)))
+    raise RecipeError(
+        "nextpnr CLI option set differs from every classified schema; "
+        f"missing {sorted(expected - actual)}, extra {sorted(actual - expected)}")
+
+
+def _schema_for_flag_names(flag_names: Sequence[str] | set[str] | frozenset[str]
+                           ) -> Mapping[str, object]:
+    actual = frozenset(flag_names)
+    for schema in _SOURCE_OPTION_SET_SCHEMAS.values():
+        if actual == frozenset(schema):
+            return schema
+    raise RecipeError("recipe flags do not match a classified nextpnr option schema")
+
+
+def _effective_flags(core_id: str, recipe: Mapping[str, object],
+                     schema: Mapping[str, object]) -> dict[str, object]:
+    """Fill shared defaults, then require exact classification of this CLI schema."""
+    flags = recipe["flags"]
+    listed = set(flags)
+    options = set(schema)
+    unknown = listed - options
+    missing = options - listed - set(_ADDED_105_OPTIONS)
+    if unknown or missing:
+        raise RecipeError(
+            f"{core_id}: recipe flags differ from the nextpnr option schema; "
+            f"missing {sorted(missing)}, extra {sorted(unknown)}")
+    effective = {
+        name: flags[name] if name in flags else _ADDED_105_OPTIONS[name]
+        for name in schema
+    }
+    if (any(not _valid_flag_value(name, value) for name, value in effective.items())
+            or not _valid_settings(effective) or not _valid_cohort_options(effective)):
+        raise RecipeError(f"{core_id}: invalid nextpnr option value")
+    return effective
+
+
+def _runtime_schema_registry_key(core_id: str, pin: str) -> tuple[str, str, str]:
+    return str(REGISTRY.resolve()), core_id, pin
+
+
+def _validated_option_schema(
+    core_id: str, option_names: Sequence[str] | set[str] | frozenset[str]
+) -> tuple[Mapping[str, object], str]:
+    recipe, pin = _selected(core_id)
+    schema = _schema_for_option_set(option_names)
+    _effective_flags(core_id, recipe, schema)
+    return schema, pin
+
+
+def validate_option_names(core_id: str, option_names: Sequence[str] | set[str] | frozenset[str]
+                          ) -> Mapping[str, object]:
+    """Select and validate a recipe schema from a supplied compiler option set."""
+    schema, pin = _validated_option_schema(core_id, option_names)
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    _RUNTIME_SCHEMAS[(*registry_key, None)] = schema
+    _ACTIVE_RUNTIME_SCHEMA_IDENTITIES[registry_key] = None
+    return schema
+
+
+@lru_cache(maxsize=32)
+def _help_option_names(path: str, device: int, inode: int, size: int, mtime_ns: int
+                       ) -> frozenset[str]:
+    try:
+        result = subprocess.run([path, "--help"], capture_output=True, text=True,
+                                timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        raise RecipeError(f"cannot inspect nextpnr CLI options for {path}: {exc}") from exc
+    if result.returncode != 0:
+        raise RecipeError(f"nextpnr --help failed while validating its recipe schema: {path}")
+    options = frozenset(
+        match.group(1).replace("-", "_")
+        for line in (result.stdout + "\n" + result.stderr).splitlines()
+        if (match := _HELP_OPTION.match(line)) is not None
+    )
+    if not options:
+        raise RecipeError(f"nextpnr --help exposed no CLI options: {path}")
+    return options
+
+
+def _nextpnr_tool_identity(binary: str | Path) -> tuple[Path, tuple[str, int, int, int, int]]:
+    path = Path(binary).resolve()
+    try:
+        info = path.stat()
+    except OSError as exc:
+        raise RecipeError(f"cannot inspect nextpnr CLI options for {path}: {exc}") from exc
+    if not path.is_file() or not os.access(path, os.X_OK):
+        raise RecipeError(f"nextpnr CLI option source is not executable: {path}")
+    identity = (str(path), info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+    return path, identity
+
+
+def validate_nextpnr_tool(core_id: str, binary: str | Path) -> Mapping[str, object]:
+    """Read this executable's --help and validate its full option set."""
+    path, identity = _nextpnr_tool_identity(binary)
+    _, device, inode, size, mtime_ns = identity
+    schema, pin = _validated_option_schema(
+        core_id, _help_option_names(str(path), device, inode, size, mtime_ns))
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    _RUNTIME_SCHEMAS[(*registry_key, identity)] = schema
+    _ACTIVE_RUNTIME_SCHEMA_IDENTITIES[registry_key] = identity
+    return schema
+
+
+def core_for_lock(root: str | Path, lock_path: str | Path) -> str | None:
+    """Return the registered core whose per-core lock was authenticated."""
+    root = Path(root).resolve()
+    lock_path = Path(lock_path)
+    if not lock_path.is_absolute():
+        lock_path = root / lock_path
+    try:
+        relative = lock_path.resolve().relative_to(root).as_posix()
+    except (OSError, ValueError):
+        return None
+    return next((entry["core_id"] for entry in _registry()[0]["recipes"]
+                 if entry.get("lock_path") == relative), None)
+
+
+def _lock_nextpnr(core_id: str, relative: object) -> str:
+    """Return the nextpnr commit pinned by a recipe's own lock."""
+    if (not isinstance(relative, str) or not relative or relative.startswith("/")
+            or any(part in ("", ".", "..") for part in relative.split("/"))):
+        raise RecipeError(f"{core_id}: invalid toolchain lock path")
+    try:
+        # The selected core's lock is a pinned producer input and authenticates
+        # its toolchain slot; other cores' locks are only validated here.
+        from scripts.functional_execution import read_execution_data
+        lock = tomllib.loads(read_execution_data(
+            FES_ROOT / "sources/misteross" / relative).decode("utf-8"))
+        commit = lock["tool"]["nextpnr"]["commit"]
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, KeyError, TypeError) as exc:
+        raise RecipeError(f"{core_id}: cannot read the nextpnr pin in {relative}: {exc}") from exc
+    return commit
+
+
+def _registry() -> tuple[dict, dict[str, dict], dict[str, str]]:
     try:
         # The selected table is sealed into every registered producer record
         # with recipe_digest(). Use the narrow capture helper so a functional
@@ -171,6 +394,7 @@ def _registry() -> tuple[dict, dict[str, dict]]:
         raise RecipeError("unsupported P&R recipe registry")
     entries = document["recipes"]
     recipes = {}
+    pins = {}
     for entry in entries:
         core_id = entry.get("core_id")
         pnr = entry.get("pnr")
@@ -178,9 +402,14 @@ def _registry() -> tuple[dict, dict[str, dict]]:
             raise RecipeError("every registered core must have a [recipes.pnr] table")
         if set(pnr) != RECIPE_FIELDS:
             raise RecipeError(f"{core_id}: P&R fields differ from the closed schema")
-        if not isinstance(pnr["flags"], dict) or set(pnr["flags"]) != RECIPE_FLAGS:
-            raise RecipeError(f"{core_id}: every pinned nextpnr option must be classified")
-        if any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items()):
+        pin = _lock_nextpnr(core_id, entry.get("lock_path"))
+        if not isinstance(pnr["flags"], dict):
+            raise RecipeError(f"{core_id}: P&R flags must be a table")
+        unknown_flags = set(pnr["flags"]) - _SUPPORTED_FLAG_NAMES
+        if unknown_flags:
+            raise RecipeError(f"{core_id}: unknown nextpnr recipe flags {sorted(unknown_flags)}")
+        if (any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items())
+                or not _valid_settings(pnr["flags"]) or not _valid_cohort_options(pnr["flags"])):
             raise RecipeError(f"{core_id}: invalid nextpnr option value")
         if (not all(isinstance(pnr[key], list) and pnr[key]
                     for key in ("seeds", "timing_weights", "search_weights", "clocks"))
@@ -221,21 +450,48 @@ def _registry() -> tuple[dict, dict[str, dict]]:
         if core_id in recipes:
             raise RecipeError(f"duplicate P&R recipe for {core_id}")
         recipes[core_id] = pnr
+        pins[core_id] = pin
     if not recipes:
         raise RecipeError("P&R recipe registry is empty")
-    return document, recipes
+    return document, recipes, pins
 
 
-def recipe_for(core_id: str) -> dict:
-    """Return one validated P&R table from config/core-recipes.toml."""
+def _selected(core_id: str) -> tuple[dict, str]:
+    registry = _registry()
     try:
-        return _registry()[1][core_id]
+        return registry[1][core_id], registry[2][core_id]
     except KeyError as exc:
         raise RecipeError(f"unknown P&R recipe {core_id!r}") from exc
 
 
-def recipe_digest(core_id: str) -> str:
-    payload = json.dumps(recipe_for(core_id), sort_keys=True, separators=(",", ":"))
+def recipe_for(core_id: str, binary: str | Path | None = None) -> dict:
+    """Return the P&R table with the schema validated for the selected binary."""
+    recipe, pin = _selected(core_id)
+    registry_key = _runtime_schema_registry_key(core_id, pin)
+    if binary is None:
+        identity = _ACTIVE_RUNTIME_SCHEMA_IDENTITIES.get(registry_key)
+    elif Path(binary).is_file():
+        _, identity = _nextpnr_tool_identity(binary)
+        schema_key = (*registry_key, identity)
+        if schema_key not in _RUNTIME_SCHEMAS:
+            validate_nextpnr_tool(core_id, binary)
+    else:
+        # Recipe-only unit tests and preflight callers may have a placeholder
+        # tool path. Real producers authenticate and validate their tool first.
+        identity = _ACTIVE_RUNTIME_SCHEMA_IDENTITIES.get(registry_key)
+    schema = _RUNTIME_SCHEMAS.get((*registry_key, identity))
+    if schema is not None:
+        recipe["flags"] = _effective_flags(core_id, recipe, schema)
+    return recipe
+
+
+def nextpnr_pin(core_id: str) -> str:
+    """Return the nextpnr commit that a registered core's lock pins."""
+    return _selected(core_id)[1]
+
+
+def recipe_digest(core_id: str, binary: str | Path | None = None) -> str:
+    payload = json.dumps(recipe_for(core_id, binary), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -262,12 +518,12 @@ def _path(value: str | Path) -> str:
     return os.fspath(value)
 
 
-def _flag_arguments(flags: Mapping[str, object]) -> tuple[str, ...]:
-    """Serialize only explicitly nondefault options, preserving today's argv."""
+def _flag_arguments(flags: Mapping[str, object], defaults: Mapping[str, object]) -> tuple[str, ...]:
+    """Serialize only values that differ from the pinned nextpnr's defaults."""
     arguments: list[str] = []
-    for name in sorted(RECIPE_FLAGS):
+    for name in sorted(defaults):
         value = flags[name]
-        if value == CURRENT_FLAGS[name]:
+        if value == defaults[name]:
             continue
         option = "--" + name.replace("_", "-")
         if name in FLAG_BOOLEAN_FIELDS:
@@ -326,8 +582,22 @@ def argv(
     extra: Sequence[str] = (),
 ) -> tuple[str, ...]:
     """Build the complete nextpnr command for a registered FES producer."""
-    recipe = recipe_for(core_id)
+    pin = nextpnr_pin(core_id)
+    # Revalidate the exact executable supplied to this argv build. The help
+    # probe is cached by that executable's file identity, not by the recipe pin.
+    tool_exists = Path(slot).is_file()
+    if tool_exists:
+        validate_nextpnr_tool(core_id, slot)
+    recipe = recipe_for(core_id, slot if tool_exists else None)
     flags = recipe["flags"]
+    if tool_exists:
+        _, tool_identity = _nextpnr_tool_identity(slot)
+        schema_key = (*_runtime_schema_registry_key(core_id, pin), tool_identity)
+        defaults = _RUNTIME_SCHEMAS.get(schema_key) or _schema_for_flag_names(flags)
+    else:
+        defaults = _schema_for_flag_names(flags)
+    if set(flags) != set(defaults):
+        raise RecipeError(f"{core_id}: the flags do not classify the nextpnr option set")
     if device != "5CSEBA6U23I7":
         raise RecipeError(f"{core_id}: unexpected target device {device!r}")
     if extra and tuple(extra) != tuple(recipe["extra"]):
@@ -399,7 +669,7 @@ def argv(
     # emitted so the initial recipes retain their exact producer argv.
     if recipe["threads"] != 1 or flags["parallel_refine"]:
         command.extend(("--threads", str(recipe["threads"])))
-    command.extend(_flag_arguments(flags))
+    command.extend(_flag_arguments(flags, defaults))
     return tuple(command)
 
 
@@ -416,7 +686,9 @@ def build(
 ) -> tuple[tuple[str, ...], dict[str, str]]:
     """Build nextpnr argv and validate its complete controlled environment."""
     command = argv(core_id, slot, synth, seed, gpu, output=output, **options)
-    return nextpnr_gpu_command(command, env), environment(core_id, env, gpu=gpu)
+    return nextpnr_gpu_command(command, env), environment(
+        core_id, env, gpu=gpu, binary=slot if Path(slot).is_file() else None
+    )
 
 
 def _gpu_run_environment(
@@ -493,9 +765,10 @@ def environment(
     source: Mapping[str, str],
     *,
     gpu: int | None = None,
+    binary: str | Path | None = None,
 ) -> dict[str, str]:
     """Validate and return only recipe values and a coherent active gpu-run lease."""
-    recipe = recipe_for(core_id)
+    recipe = recipe_for(core_id, binary)
     required = recipe["env"]
     optional = recipe["optional_env"]
     lease_names = _gpu_run_environment(core_id, recipe, source, gpu)

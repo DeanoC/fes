@@ -12,6 +12,13 @@ Never relax a seal or timing check; stop and report instead.
 
 Delete superseded code instead of keeping compatibility shims or "kept for older kits" branches.
 
+## PR scope
+
+- One issue per PR. Don't bundle unrelated fixes.
+- The PR body says `Closes #N` for the issue it resolves.
+- Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
+- Stay inside the repo and the scope the task names.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -44,6 +51,10 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+Firmware, ROMs, media and software may be placed on either kit. Use the
+applicable kit lease and supported install, activation or media-delivery path;
+these rules do not require keeping those artifacts on a host or Powerboat.
 
 GPU jobs follow the [Shared GPUs](AGENTS.md#shared-gpus) section.
 

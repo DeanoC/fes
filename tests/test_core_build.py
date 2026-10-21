@@ -216,11 +216,9 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(repository_profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in repository_profile['fpga_packages']],
-            ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-             'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'])
+            ['fes.menu'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
-                         ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-                          'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'))
+                         ('fes.menu',))
 
     def test_selection_overrides_do_not_leak_from_shell(self):
         with patch.dict('os.environ', {'NATIVE_RUNTIME_SYSTEMS': 'pong',
@@ -474,6 +472,165 @@ class CoreBuildTest(unittest.TestCase):
             self.assertNotEqual(before, build.digest(policy))
 
     def test_clean_package_only_image_fetch_passes_complete_package_tuple(self):
+        self.check_clean_fetch(False)
+
+    def test_artifact_assembly_never_invokes_component_producers(self):
+        self.check_clean_fetch(True)
+
+    def test_artifact_assembly_and_verification_publish_a_receipted_image(self):
+        """Exercise the complete parent path while replacing the expensive image child."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            image_root = root / 'image'
+            (root / 'profiles').mkdir()
+            (root / 'profiles/native-integration-dev.toml').write_text(
+                "host_os = 'linux'\nhost_arch = 'amd64'\nversion = 'test'\n"
+                "native_image_mode = 'package-only'\n"
+                "[[fpga_packages]]\ncore_id = 'fes.menu'\n")
+            (image_root / 'build').mkdir(parents=True)
+            shutil.copyfile(build.IMAGE / 'build/native-inputs.toml',
+                            image_root / 'build/native-inputs.toml')
+            shutil.copyfile(build.IMAGE / 'build/target-image.sources.lock.toml',
+                            image_root / 'build/target-image.sources.lock.toml')
+
+            identity = 'a' * 64
+            artifact_root = root / 'artifacts'
+            package_dir = artifact_root / 'core-packages' / identity
+            package_dir.mkdir(parents=True)
+            (package_dir / 'manifest.toml').write_bytes(b'menu manifest')
+            (package_dir / 'core.rbf').write_bytes(b'menu firmware')
+            selection_path = artifact_root / 'fes-menu.package-selection.toml'
+            selection_path.parent.mkdir(parents=True, exist_ok=True)
+            selection_path.write_text(f'core_id = "fes.menu"\npackage_id = "{identity}"\n')
+
+            digest = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+            inputs = {'selection': {'core_id': 'fes.menu', 'package_id': identity},
+                      'selection_sha256': digest(selection_path),
+                      'manifest_sha256': digest(package_dir / 'manifest.toml'),
+                      'core_rbf_sha256': digest(package_dir / 'core.rbf')}
+            package = {'directory': package_dir, 'selection_path': selection_path, 'inputs': inputs}
+            artifact_manifest = {
+                'format': 1,
+                'provenance': {'fogcast': '1' * 40, 'runtime': '2' * 40},
+                'binaries': {name: '3' * 64 for name in (
+                    'mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot',
+                    'fes-kit-data', 'fes-kit-software')},
+                'packages': [inputs],
+            }
+
+            revisions = {'FogCast': '4' * 40, 'libmister-runtime': '5' * 40,
+                         'mister-packages': '6' * 40, 'misteross': '7' * 40}
+            calls = []
+            child_output = image_root / 'build/output/target-image/native-dev'
+            image_bytes = b'assembled root filesystem fixture'
+            image_sha = hashlib.sha256(image_bytes).hexdigest()
+
+            class FakeDiagnostics:
+                @contextmanager
+                def measure(self, *args):
+                    yield
+                def cache(self, *args):
+                    pass
+
+            @contextmanager
+            def no_diagnostics(*args, **kwargs):
+                yield None, FakeDiagnostics()
+
+            def fake_checkout(name, revision, *args):
+                checkout = root / name
+                (checkout / 'build').mkdir(parents=True, exist_ok=True)
+                lock = checkout / 'build/native-runtime.inputs.lock.toml'
+                if not lock.exists():
+                    lock.write_text('initial lock')
+                return checkout
+
+            def fake_git(path, *args):
+                if args[:1] == ('show',):
+                    return 'module github.com/DeanoC/FogCast\n'
+                if args[:1] == ('rev-parse',):
+                    return '8' * 40
+                if args[:1] == ('status',):
+                    return ''
+                return 'fixture'
+
+            def fake_stage(diagnostics, stage, args, **kwargs):
+                args = [str(arg) for arg in args]
+                calls.append((stage, args))
+                if 'target-image-native' in args:
+                    child_output.mkdir(parents=True, exist_ok=True)
+                    (child_output / 'linux.img').write_bytes(image_bytes)
+                    (child_output / 'reproducibility.txt').write_text(
+                        'image_passes=2\nrun_1_sha256=' + image_sha + '\nrun_2_sha256=' +
+                        image_sha + '\ntoolchain_key=test-toolchain\ntoolchain_sha256=' +
+                        '9' * 64 + '\n')
+                    (child_output / 'manifest.tsv').write_text('fixture manifest\n')
+                    (child_output / 'library-report.tsv').write_text('fixture libraries\n')
+                    (child_output / 'fes-menu.package-selection.toml').write_bytes(
+                        selection_path.read_bytes())
+                if 'target-image-native-qemu-smoke' in args:
+                    (child_output / 'qemu-smoke.log').write_text('fixture QEMU smoke\n')
+
+            def fake_run(*args, **kwargs):
+                return subprocess.CompletedProcess(args[0] if args else [], 0)
+
+            output = root / 'out/native-integration-dev'
+            with ExitStack() as stack:
+                for context in (
+                    patch.object(build, 'ROOT', root),
+                    patch.object(build, 'IMAGE', image_root),
+                    patch.object(build.sys, 'argv', ['build.py']),
+                    patch.object(build, 'validate', return_value=revisions),
+                    patch.object(build, 'selected_packages', return_value=('fes.menu',)),
+                    patch.object(build, 'source_checkout', side_effect=fake_checkout),
+                    patch.object(build, 'git', side_effect=fake_git),
+                    patch.object(build.subprocess, 'check_output', return_value='go version go1.26.5 linux/amd64\n'),
+                    patch.object(build.subprocess, 'run', side_effect=fake_run),
+                    patch.object(build.platform, 'system', return_value='Linux'),
+                    patch.object(build.platform, 'machine', return_value='x86_64'),
+                    patch.object(build, 'build_environment', return_value={}),
+                    patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
+                    patch.object(build, 'locked_diagnostics', no_diagnostics),
+                    patch.object(build, 'run', return_value=None),
+                    patch.object(build, 'run_stage', side_effect=fake_stage),
+                    patch.object(build, 'build_fingerprint', return_value=(
+                        'source-key', {'sources': revisions, 'profile': {'version': 'test'},
+                                       'recipe': {'build': 'fixture'}, 'image_recipe': {'os': 'fixture'},
+                                       'image_toolchain_key': 'test-toolchain'})),
+                    patch.object(build, 'host_fingerprint', return_value=('host-key', {})),
+                    patch('image_artifacts.load', return_value=(artifact_manifest, (package,))),
+                    patch('image_artifacts.stage', return_value=(artifact_manifest, (package,))),
+                    patch.object(build, 'toolchain_key', return_value='test-toolchain'),
+                    patch.object(build, 'validate_image_passes', return_value=2),
+                ):
+                    stack.enter_context(context)
+                with patch.object(build.sys, 'argv', [
+                        'build.py', 'image', '--profile', 'native-integration-dev',
+                        '--artifacts', str(artifact_root)]):
+                    build.main()
+
+                (output / 'fogcast').write_bytes(b'host CLI')
+                (output / 'fogcast-api').write_bytes(b'host API')
+                build.write_receipt(output, 'host', 'host-key',
+                                    ['fogcast', 'fogcast-api'], os_name='linux', arch='amd64')
+                with patch.object(build.sys, 'argv', [
+                        'build.py', 'verify', '--profile', 'native-integration-dev',
+                        '--artifacts', str(artifact_root)]):
+                    build.main()
+
+            self.assertTrue((output / 'image.json').is_file())
+            self.assertTrue((output / 'verification.json').is_file())
+            self.assertEqual(digest(output / 'linux.img'), image_sha)
+            self.assertEqual(build.recorded_image_fingerprint(
+                json.loads((output / 'inputs.json').read_text())),
+                json.loads((output / 'image.json').read_text())['inputs'])
+            commands = [args for _, args in calls]
+            self.assertTrue(any('target-image-native' in args for args in commands))
+            self.assertTrue(any('target-image-native-verify' in args for args in commands))
+            self.assertTrue(any('target-image-native-qemu-smoke' in args for args in commands))
+            self.assertFalse(any('build-agent' in args or 'build-fogcast-kit' in args
+                                 for args in commands))
+
+    def check_clean_fetch(self, artifacts):
         packages = tuple({
             'directory': Path('/packages') / core_id,
             'selection_path': Path('/records') / (core_id.replace('.', '-') + '.package-selection.toml'),
@@ -484,6 +641,8 @@ class CoreBuildTest(unittest.TestCase):
             ('fes.coleco', 'c' * 64),
         ))
         captured = {}
+        artifact_manifest = {'provenance': {'runtime': '5' * 40, 'fogcast': '6' * 40},
+                             'binaries': {'mister-runtime': 'a' * 64}}
 
         class StopAfterFetch(Exception):
             pass
@@ -519,6 +678,9 @@ class CoreBuildTest(unittest.TestCase):
                 return parsed
 
             def fake_run(args, **kwargs):
+                if artifacts:
+                    self.assertNotIn('build-agent', args)
+                    self.assertNotIn('build-fogcast-kit', args)
                 if (len(args) >= 3 and
                         Path(args[0]).name == 'target-image-container.sh' and
                         args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh']):
@@ -548,7 +710,10 @@ class CoreBuildTest(unittest.TestCase):
                         'FES_SMS_PACKAGE_SELECTION': '/ambient/sms-selection',
                     }),
                     patch.object(build.sys, 'argv',
-                                 ['build.py', 'image', '--profile', 'native-integration-dev']),
+                                 ['build.py', 'image' if artifacts else 'build', '--profile', 'native-integration-dev'] +
+                                 (['--artifacts', '/explicit-artifacts'] if artifacts else [])),
+                    patch('image_artifacts.load', return_value=(artifact_manifest, packages)),
+                    patch('image_artifacts.stage', return_value=(artifact_manifest, packages)),
                     patch.object(build, 'validate', return_value=revisions),
                     patch.object(build, 'source_checkout', side_effect=fake_checkout),
                     patch.object(build, 'git', side_effect=lambda root, *args:
@@ -562,14 +727,18 @@ class CoreBuildTest(unittest.TestCase):
                                  else 'go version go1.26.5 linux/amd64\n'),
                     patch.object(build.platform, 'system', return_value='Linux'),
                     patch.object(build.platform, 'machine', return_value='x86_64'),
-                    patch.object(build.platform, 'build_kit_software'),
+                    patch.object(build.platform, 'build_kit_software',
+                                 side_effect=AssertionError('must not compile') if artifacts else None),
+                    patch.object(build, 'write_receipt'),
+                    patch.object(build, 'publish_host_inputs'),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
                     patch.object(build.subprocess, 'run',
                                  return_value=subprocess.CompletedProcess([], 1)),
                     patch.object(build, 'run', side_effect=fake_run),
                     patch.object(build, 'locked_diagnostics', no_diagnostics),
                     patch.object(build, 'resolve_packages_for_action',
-                                 return_value=(packages, ())),
+                                 return_value=(packages, ()),
+                                 side_effect=AssertionError('must not resolve producers') if artifacts else None),
                     patch.object(build, 'build_fingerprint',
                                  return_value=('base-fingerprint', {'sources': {}})),
                     patch.object(build, 'host_fingerprint',
@@ -583,7 +752,7 @@ class CoreBuildTest(unittest.TestCase):
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
-        self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], '2' * 40)
+        self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], ('5' if artifacts else '2') * 40)
         self.assertEqual(captured['assembly_lock']['idle_rbf'],
                          tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])
         self.assertEqual(captured['assembly_lock']['splash_rbf'],

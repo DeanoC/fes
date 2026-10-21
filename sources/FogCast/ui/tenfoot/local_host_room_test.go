@@ -92,7 +92,7 @@ root = %q
 	var launches int
 	var sawAll bool
 	handler := hostapi.New(service)
-	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	hostServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/session/launch" {
 			mu.Lock()
 			launches++
@@ -105,12 +105,12 @@ root = %q
 		}
 		handler.ServeHTTP(w, r)
 	}))
-	t.Cleanup(host.Close)
+	t.Cleanup(hostServer.Close)
 
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "local", localDataStormScript)})
-	app := NewApp(NewClient(host.URL, host.Client()), 1280, 720, 50)
+	app := NewApp(NewClient(hostServer.URL, hostServer.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

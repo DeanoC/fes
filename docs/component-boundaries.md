@@ -14,7 +14,7 @@ profile consumes the component graph; native image assembly lives in FES `image/
 | mister-packages | Describe boards, SoCs, registers, system protocols and upstream core sources; generate consumer definitions | YAML, emitter, generated C++/Go definitions and reports |
 | misteross | Build FPGA artifacts in two lanes: OSS primitive place-and-route experiments, and described-core producers. See `sources/misteross/README.md` | RBF bundles, simulations and compiler recipes |
 | libmister-runtime | Execute the hardware lifecycle on the target: program FPGA, configure hardware, load media, handle input, stop and return to idle | Native library and daemon, runtime protocol |
-| FogCast | Own the user-facing application, game library, launch selection, host services and target agent | `ui/tenfoot`, `ui/kitlauncher`, host binaries, agent and public APIs |
+| FogCast | Own the user-facing application, game library, launch selection, host services and target agent | `ui/tenfoot`, host binaries, agent and public APIs |
 | Main_MiSTer | Original implementation and comparison/test reference | Reference behavior and optional test fixtures; not an FES production dependency |
 
 An upstream core-source pin describes what to fetch; misteross owns fetching
@@ -22,8 +22,7 @@ and compiling it. FES selects a committed source snapshot and which resulting
 artifacts belong in a system image. These are different responsibilities.
 
 Within FogCast, the application UI is explicitly under
-`sources/FogCast/ui/tenfoot` and `sources/FogCast/ui/kitlauncher`. Their Go
-package names remain `tenfoot` and `kitlauncher` for compatibility. Host
+`sources/FogCast/ui/tenfoot`, which is both the sofa app and the kit UI. Host
 services and public API ownership stays with FogCast, while target HTTP/cache
 coordination remains in the agent and physical lifecycle remains in
 libmister-runtime. The UI does not own target handlers, runtime lifecycle,
@@ -102,12 +101,10 @@ see [core status](core-status.md) for packages and this page for ownership.
 The tracked modules contain the host, runtime, shared package definitions and
 FPGA product sources in one FES commit. Original repository URLs and imported
 histories are recorded in [config/source-imports.toml](../config/source-imports.toml).
-The current profile remains package-only and installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest` and `fes.atari-st` set through the HIP/nextpnr
-route, as selected by [the default profile](../profiles/native-integration-dev.toml).
-`fes.menu` is idle display firmware, not a playable library entry. The image
-selector also admits `fes.c64`; its seal evidence is in [core status](core-status.md).
+The current profile remains package-only and installs `fes.menu` display firmware
+through HIP/nextpnr, plus the locked idle RBF. Playable packages are installed
+independently. See [modular updates](modular-updates.md) and
+[core status](core-status.md).
 
 `make check` validates committed module selection and cleanliness, FES native
 artifact policy, package YAML, generated consumers and shared fixtures. It
@@ -160,10 +157,9 @@ This does not require a fixed agent team for every change.
 
 ## Current profile
 
-The factory image is the ordered `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
-`fes.atari-st` set.
-The menu selection is not a playable core.
+The default image contains `fes.menu` display firmware and the locked idle RBF.
+Playable core installation is independent of the OS.
+
 Package, image and QEMU commands do not inherit NES, SNES, Mega Drive, or any
 other historical kit result. Later revisions need their own evidence.
 [Core status](core-status.md) is the package matrix.

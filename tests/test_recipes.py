@@ -99,15 +99,46 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_ramtest_and_menu_have_per_core_locks_with_the_shared_pin(self):
+    def test_ramtest_and_menu_have_their_own_core_locks(self):
         self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path,
                          "cores/fes-ramtest/toolchain.lock")
         self.assertEqual(recipes.recipe_for("fes.menu").lock_path,
                          "cores/fes-menu/toolchain.lock")
-        root = Path(__file__).resolve().parents[1] / "sources/misteross"
-        base = (root / "toolchain.lock").read_bytes()
-        self.assertEqual((root / recipes.recipe_for("fes.ramtest").lock_path).read_bytes(), base)
-        self.assertEqual((root / recipes.recipe_for("fes.menu").lock_path).read_bytes(), base)
+
+    def test_each_recipe_uses_a_classified_schema_and_its_own_lock(self):
+        # nextpnr schemas are selected by the executable's exact option set,
+        # not by its commit pin. Keep checking each recipe's own lock here and
+        # ask the source checkout to validate its flags against every known set.
+        import json
+        import tomllib
+        source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        program = (
+            "import json\nfrom scripts import pnr_recipe\n"
+            "def matching_schemas(core):\n"
+            " matches = []\n"
+            " for option_names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS:\n"
+            "  try:\n"
+            "   schema = pnr_recipe.validate_option_names(core, option_names)\n"
+            "  except pnr_recipe.RecipeError:\n"
+            "   continue\n"
+            "  matches.append(sorted(schema))\n"
+            " return matches\n"
+            "print(json.dumps({core: [pnr_recipe.nextpnr_pin(core),"
+            " sorted(pnr_recipe.recipe_for(core)['flags']), matching_schemas(core)]"
+            " for core in json.loads(input())}))\n")
+        result = subprocess.run([sys.executable, "-c", program], cwd=source, check=True,
+                                input=json.dumps(sorted(recipes.FORMAT2_RECIPES)),
+                                capture_output=True, text=True, timeout=60)
+        selected = json.loads(result.stdout)
+        self.assertEqual(set(selected), set(recipes.FORMAT2_RECIPES))
+        for core_id, (pin, flags, schemas) in selected.items():
+            with self.subTest(core=core_id):
+                recipe = recipes.recipe_for(core_id)
+                lock = tomllib.loads((source / recipe.lock_path).read_text())
+                self.assertEqual(pin, lock["tool"]["nextpnr"]["commit"])
+                self.assertEqual(sorted(recipe.pnr["flags"]), flags)
+                self.assertTrue(schemas)
+                self.assertIn(flags, schemas)
 
     def assert_existing_descriptors(self):
         self.assertTrue(

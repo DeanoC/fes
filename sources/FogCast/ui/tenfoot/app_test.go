@@ -1550,18 +1550,19 @@ func TestApplyCatalogPageRetainsNavDirtyAfterReturnToRestoredIndex(t *testing.T)
 	app.keepFocusIndex = 2
 	pinned := true
 	lastFocus := -1
-	app.applyCatalogPageLocked(page1, "c", 2, &pinned, &lastFocus)
+	navID := ""
+	app.applyCatalogPageLocked(page1, "c", 2, &pinned, &lastFocus, &navID)
 	if !pinned || lastFocus != 0 || app.grid.Focus != 0 {
 		t.Fatalf("page1 restore pinned=%v last=%d focus=%d", pinned, lastFocus, app.grid.Focus)
 	}
-	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus)
+	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus, &navID)
 	if !pinned || lastFocus != 1 || app.grid.Focus != 1 {
 		t.Fatalf("page2 clamp pinned=%v last=%d focus=%d", pinned, lastFocus, app.grid.Focus)
 	}
 	app.grid.Focus = 0
 	app.navDirty = true
 	app.grid.Focus = lastFocus
-	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus)
+	app.applyCatalogPageLocked(page2, "c", 2, &pinned, &lastFocus, &navID)
 	if pinned {
 		t.Fatal("returning to restored index must unpin pagination focus")
 	}

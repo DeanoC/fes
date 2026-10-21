@@ -115,7 +115,6 @@ func (*compositionRuntime) Stop(context.Context) (string, *protocol.APIError) {
 }
 
 type compositionStore struct {
-	reconciled bool
 }
 
 type compositionInput struct {

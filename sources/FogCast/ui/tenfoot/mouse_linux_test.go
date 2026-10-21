@@ -5,7 +5,7 @@ package tenfoot
 import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
+	"github.com/DeanoC/FogCast/ui/controller"
 	"golang.org/x/sys/unix"
 	"os"
 	"testing"

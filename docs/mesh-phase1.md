@@ -85,13 +85,18 @@ this acceptance for the kit contract.
   `{"retain_lease":true}`. The host still runs service Stop: agent
   `POST /v1/stop`, then the runtime LoadIdle path. It does not call
   `ReleaseKitLease`. The same kit-lease token stays with that owner.
-- Kit Select+Start is not Soft-stop. It posts an empty body on the same
-  session stop route. That is explicit session end and releases after
-  idle.
-- Release stays on the existing paths: empty-body session stop (CLI,
-  browser library, kit Select+Start), host process shutdown, and
-  `POST /v1/kit/release` from kit.py `release` or EOF. Soft-stop is
-  none of those.
+- Kit Select+Start is not Soft-stop. When the displayed play has a package
+  identity it posts that identity with `retain_lease` false. A play without
+  a package posts the session id, launch flight, game, and target with
+  `retain_lease` false. A missing flight is not posted as an empty body,
+  because an unbound stop would release whichever play is foreground at
+  admission. Either posted form is explicit session end and releases after
+  idle. A delayed request keeps the captured identity and cannot stop a
+  replacement play.
+- Release stays on the existing paths: explicit session stop (CLI and
+  browser library empty body, and kit Select+Start as above), host process
+  shutdown, and `POST /v1/kit/release` from kit.py `release` or EOF.
+  Soft-stop is none of those.
 - The recorded session event is `session.stop` with state `idle`, so
   playing is cleared. The same owner's held lease remains a lease
   strip. It is not Unavailable for that shell. A foreign holder is
@@ -109,7 +114,9 @@ that kit's client; an already-idle explicit Stop still releases when the
 newly selected target's probe or Stop fails; invalidating one target
 leaves another retained grant in place; a failed release leaves that
 grant for retry; an owned held lease after idle stays ready; kit
-Select+Start posts an empty stop body. Kit HIL is optional and does not
+Select+Start posts `retain_lease` false with the captured play: the package
+generation when present, otherwise the session id and launch flight. A
+missing flight is not posted. Kit HIL is optional and does not
 block merge.
 
 ### 2. Capability advertisements — done on main

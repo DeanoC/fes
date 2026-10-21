@@ -36,11 +36,13 @@ class RamtestNoticesTest(unittest.TestCase):
         text = (self.destination / 'SOURCE.md').read_text()
         self.assertIn('Exact producing commit: ' + '1' * 40, text)
         self.assertIn('https://github.com/DeanoC/fes/archive/' + '1' * 40 + '.tar.gz', text)
-        # Rebuild instructions must hold for retained packages from before
-        # the shared-lock move, so the notice names the recipe's lock_path
-        # rather than one fixed lock file.
+        # The producing commit's lock_path is authoritative. The notice also
+        # names the current per-core lock and pin, plus the older lock paths.
         self.assertIn('lock_path in config/core-recipes.toml at that commit', text)
-        self.assertIn('sources/misteross/toolchains/ramtest.lock for earlier ones', text)
+        self.assertIn('sources/misteross/cores/fes-ramtest/toolchain.lock', text)
+        self.assertIn('nextpnr pin ' + notices.ramtest_nextpnr_pin(), text)
+        self.assertIn('sources/misteross/toolchain.lock', text)
+        self.assertIn('sources/misteross/toolchains/ramtest.lock', text)
         self.assertEqual((self.destination / 'COPYING').read_bytes(), notices.LICENSE.read_bytes())
         self.assertEqual({p.name for p in self.package.iterdir()}, {'manifest.toml', 'core.rbf'})
         notices.process('verify', self.target, self.package)
@@ -131,6 +133,55 @@ class RamtestNoticesTest(unittest.TestCase):
         self.assertEqual(notices.verify_retained(self.target), self.destination / 'SOURCE.md')
         self.assertIn('Exact producing commit: ' + '1' * 40,
                       (self.destination / 'SOURCE.md').read_text())
+
+    def previous_notice_source(self, package):
+        current = notices.source_notice(package).decode()
+        current_details = notices._current_tool_lock_details(notices.ramtest_nextpnr_pin())
+        previous_details = ''' The tool lock is the one named by
+the fes.ramtest lock_path in config/core-recipes.toml at that commit:
+sources/misteross/toolchain.lock for packages built after RAM test moved to
+the shared lock, sources/misteross/toolchains/ramtest.lock for earlier ones.'''
+        self.assertIn(current_details, current)
+        return current.replace(current_details, previous_details).encode()
+
+    def test_stale_retained_notice_fails_without_rewriting_it(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        stale = self.previous_notice_source(package)
+        source.chmod(0o644)
+        source.write_bytes(stale)
+        source.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'retained notice is stale'):
+            notices.verify_retained(self.target)
+        self.assertEqual(source.read_bytes(), stale)
+
+    def test_tampered_retained_notice_fails_without_rewriting_it(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        tampered = b'wrong notice\n'
+        source.chmod(0o644)
+        source.write_bytes(tampered)
+        source.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'SOURCE.md'):
+            notices.verify_retained(self.target)
+        self.assertEqual(source.read_bytes(), tampered)
+
+    def test_retained_notice_rejects_an_earlier_nextpnr_pin(self):
+        package = self.retained_package()
+        notices.process('install', self.target, package)
+        source = self.destination / 'SOURCE.md'
+        text = source.read_text()
+        current_pin = notices.ramtest_nextpnr_pin()
+        previous_pin = '0' * 40 if current_pin != '0' * 40 else '1' * 40
+        source.chmod(0o644)
+        source.write_text(text.replace('nextpnr pin ' + current_pin,
+                                       'nextpnr pin ' + previous_pin))
+        source.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, 'retained notice is stale'):
+            notices.verify_retained(self.target)
+        self.assertIn('nextpnr pin ' + previous_pin, source.read_text())
 
     def test_retained_notice_rejects_missing_package_and_changed_notice(self):
         notices.process('install', self.target, self.package)

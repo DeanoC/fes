@@ -62,3 +62,22 @@ Legend: **E** = explicit in the producer (value), **H** = hard-coded in the prod
 4. **The `gpurouter/*` keys aren't reachable** without a `-x/--set` passthrough. If a core needs, say, `repairBbExpand`, nextpnr first needs a generic `--set key=value` flag. That would be a nextpnr PR. It's not proposed here as action.
 5. **Route timeouts differ**: 600 s for coleco, 1800 s for the ST, and the search default elsewhere. They belong in the recipe.
 6. **coleco is split across two files**: `build_fes_coleco_oss.py` still holds SEED=5 and w100, which v2 doesn't use.
+
+## D. Options nextpnr `552ba246` adds over `9128800f` (fes#882, 2026-10-19)
+Method: diff of the `--help` option lists of the `9128800f` slot binary (`64efd8e9`, HIP) and a private CPU-only `552ba246` build against Mistral `8fcc4cb4`. A parse of every `add_options()` call in `common/kernel/command.cc` and `mistral/main.cc` at both commits gives the same list. `552ba246` removes no option and changes no existing option's help text or settings default. The tracker counted ten options; the binaries differ by these nine.
+
+| Option | Recipe key | Type, nextpnr default | Class |
+|---|---|---|---|
+| `--arrival-pin-assignment` | `arrival_pin_assignment` | switch, off | placement fork flag: permutes private LUT inputs by arrival after legalisation |
+| `--isolated-lut-placement` | `isolated_lut_placement` | switch, off | placement fork flag: scores the earlier L5 inputs on their isolated legal pins |
+| `--critical-cohort-budget` | `critical_cohort_budget` | integer 0–64, 0 | placement fork flag: setup-path repair trials |
+| `--critical-cohort-report` | `critical_cohort_report` | path, unset | placement input; nextpnr requires a positive budget |
+| `--critical-cohort-model-out` | `critical_cohort_model_out` | path, unset | output only: writes the calibration after the route; needs budget 0 |
+| `--mistral-dsp-signed-lanes` | `mistral_dsp_signed_lanes` | switch, off | packing fork flag (hardware-unverified); the default packs each signed 9x9 into its own block, as Quartus does |
+| `--set` | `set` | list of `key=value`, empty | generic settings, result-affecting |
+| `--gpu-required` | `gpu_required` | switch, off | GPU guard: fails instead of falling back to the CPU reference; a completed route is unchanged |
+| `--router2-profile` | `router2_profile` | path, unset | output only: router2 observer snapshots |
+
+- `scripts/pnr_recipe.py` (`NEXTPNR_PINS`) holds both pins' defaults. A recipe whose lock pins `552ba246` must list all nine with explicit values; a missing option, or one its lock's nextpnr lacks, fails validation. Only nondefault values reach argv.
+- `set` may only tune `placerHeap/`, `placer1/`, `router/`, `router1/`, `router2/` or `gpurouter/` settings that no dedicated option owns, without repeating a key or a `gpu_opt` entry. A dedicated option the builder omits at its default would not conflict inside nextpnr, so `--set` could silently replace its recorded value. Constraint keys (`sdc/*`, `timing/*`, `target_freq`), the seed, the device and the FES boundary settings are refused.
+- Environment: `552ba246` also reads `NEXTPNR_REQUIRE_GPU` (a gpu-run marker that a lease already sets to `1`) and `GPU_LEASE_FD` (the phase-lease relay in `fes_build_common.py`). Neither needs a recipe entry.

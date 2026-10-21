@@ -160,6 +160,9 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 	if a.roomsIndex != nil {
 		for _, p := range a.roomsIndex.Packs {
 			row := a.packToHomeRow(p)
+			if a.room != nil && a.room.ID() == p.ID && a.room.Revision() != p.Revision {
+				row.Detail = "Update ready. Select to reload."
+			}
 			row.Kind = HomeKindRoom
 			if _, pinned := pinnedSeen[p.ID]; pinned {
 				row.Pinned = true
@@ -212,6 +215,7 @@ func (a *App) restoreHomeFocusLocked(key string) {
 }
 
 func (a *App) openRoomPickerLocked() {
+	a.refreshInstalledRoomsLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
@@ -270,8 +274,22 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 	case HomeKindRecent:
 		a.launchRecentFromHomeLocked(row.ID)
 	case HomeKindPinned, HomeKindRoom:
-		a.roomPickerOpen = false
+		pack, ok := rooms.Pack{}, false
+		if a.roomsIndex != nil {
+			pack, ok = a.roomsIndex.Find(row.ID)
+		}
 		if a.room != nil && a.room.ID() == row.ID {
+			if ok && pack.Revision == a.room.Revision() {
+				return
+			}
+		}
+		if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
+			a.status = "Stop the running machine before opening another room."
+			return
+		}
+		a.roomPickerOpen = false
+		if ok && pack.Revision != "" {
+			a.openInstalledRoomLocked(pack, true)
 			return
 		}
 		a.closeAllRoomsLocked()
@@ -358,12 +376,34 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 		a.mu.Unlock()
 		return
 	}
-	games, _, err := a.client.ListGames(ctx, hostclient.GameListQuery{
-		Collection: "recents",
-		Limit:      homeRecentLimit,
-	})
-	if err == nil && len(games) > homeRecentLimit {
-		games = games[:homeRecentLimit]
+	var games []hostclient.Game
+	var err error
+	fails := 0
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		games, _, err = a.client.ListGames(ctx, hostclient.GameListQuery{
+			Collection: "recents",
+			Limit:      homeRecentLimit,
+		})
+		if err == nil && len(games) > homeRecentLimit {
+			games = games[:homeRecentLimit]
+		}
+		if err == nil || !libraryNetRetry(err) {
+			break
+		}
+		a.mu.Lock()
+		stale := gen != a.homeRecentsGen
+		a.mu.Unlock()
+		if stale {
+			return
+		}
+		fails++
+		a.noteRecentsUnreachable(gen)
+		if !a.libraryRetryWait(ctx, fails, gen, true) {
+			return
+		}
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -385,6 +425,24 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 	}
 	a.homeRecents = append([]hostclient.Game(nil), games...)
 	a.homeRecentsErr = ""
+	if a.roomPickerOpen {
+		a.restoreHomeFocusLocked(key)
+	}
+}
+
+func (a *App) noteRecentsUnreachable(gen int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if gen != a.homeRecentsGen {
+		return
+	}
+	key := ""
+	if a.roomPickerOpen {
+		key = a.homeFocusKeyLocked()
+	}
+	a.homeRecents = nil
+	a.homeRecentsErr = "couldn't load recently played"
+	a.homeRecentsLoaded = true
 	if a.roomPickerOpen {
 		a.restoreHomeFocusLocked(key)
 	}

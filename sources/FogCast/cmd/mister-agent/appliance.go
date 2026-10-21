@@ -11,6 +11,7 @@ import (
 	release "github.com/DeanoC/FogCast/appliance"
 	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/agent"
+	"github.com/DeanoC/FogCast/internal/appliancesplash"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/rebootguard"
 )
@@ -90,7 +91,9 @@ func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coor
 	if _, err = store.Verify(boot.ImageSHA256); err != nil {
 		return nil, err
 	}
-	service := applianceupdate.New(store, coordinator, boot, reboot, cleanup)
+	service := applianceupdate.NewWithSplash(store, coordinator, boot, reboot, cleanup, appliancesplash.New(appliancesplash.Paths{
+		ReleaseRoot: root,
+	}))
 	disarmStaleReboot(rebootguard.Config{}, boot.Trial)
 	return service, nil
 }

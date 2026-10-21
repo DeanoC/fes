@@ -518,9 +518,6 @@ const (
 	BackendChoiceAction = "Choose how to play."
 )
 
-// InUseLine is the single-line form of the in-use copy.
-func InUseLine() string { return InUseStatus + ". " + InUseDetail }
-
 func meshUnavailableCopy(block string) (status, action string, ok bool) {
 	switch hostclient.LaunchBlock(block) {
 	case hostclient.LaunchDistant:

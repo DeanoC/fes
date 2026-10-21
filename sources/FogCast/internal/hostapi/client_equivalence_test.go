@@ -10,12 +10,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/hostclient"
+
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/fogcastcli"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/FogCast/ui/kitlauncher"
 )
 
 func TestUnifiedSessionClientsShareHostOwnerAcrossFESCoreEntries(t *testing.T) {
@@ -59,11 +60,11 @@ func TestUnifiedSessionClientsShareHostOwnerAcrossFESCoreEntries(t *testing.T) {
 		hostHandler.ServeHTTP(w, r)
 	}))
 	defer api.Close()
-	kit := kitlauncher.NewClient(kitlauncher.Config{
-		API:      api.URL,
-		Token:    strings.Repeat("t", 32),
-		TargetID: "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
-	})
+	// The kit launcher's paired identity: bearer plus target ID on every request.
+	kit := hostclient.NewClient(api.URL, &http.Client{Transport: kitIdentityTransport{
+		token:    strings.Repeat("t", 32),
+		targetID: "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+	}})
 	ctx := context.Background()
 	var sessionID string
 
@@ -79,7 +80,7 @@ func TestUnifiedSessionClientsShareHostOwnerAcrossFESCoreEntries(t *testing.T) {
 				t.Fatalf("%s CLI launch = %+v", test.gameID, launch)
 			}
 		} else {
-			launch, err := kit.Library.Launch(ctx, test.gameID)
+			launch, err := kit.Launch(ctx, test.gameID)
 			if err != nil {
 				t.Fatalf("%s kit launch: %v", test.gameID, err)
 			}
@@ -111,7 +112,7 @@ func TestUnifiedSessionClientsShareHostOwnerAcrossFESCoreEntries(t *testing.T) {
 		}
 
 		if index%2 == 0 {
-			stop, err := kit.Library.Stop(ctx)
+			stop, err := kit.Stop(ctx)
 			if err != nil {
 				t.Fatalf("%s kit stop: %v", test.gameID, err)
 			}
@@ -129,7 +130,7 @@ func TestUnifiedSessionClientsShareHostOwnerAcrossFESCoreEntries(t *testing.T) {
 				t.Fatalf("%s CLI stop = %+v", test.gameID, stop)
 			}
 			service.status = protocol.Status{State: protocol.StateIdle}
-			status, err := kit.Library.Session(ctx)
+			status, err := kit.Session(ctx)
 			if err != nil {
 				t.Fatalf("%s kit status after CLI stop: %v", test.gameID, err)
 			}
@@ -214,4 +215,13 @@ func readEquivalenceSession(t *testing.T, ctx context.Context, apiURL string) eq
 		t.Fatal(err)
 	}
 	return result
+}
+
+type kitIdentityTransport struct{ token, targetID string }
+
+func (t kitIdentityTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	q := r.Clone(r.Context())
+	q.Header.Set("Authorization", "Bearer "+t.token)
+	q.Header.Set("X-FogCast-Target-ID", t.targetID)
+	return http.DefaultTransport.RoundTrip(q)
 }

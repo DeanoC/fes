@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -18,7 +19,11 @@ from scripts.build_fes_zx81_oss import OUTPUT_RELATIVE as ZX81_OUTPUT
 from scripts.build_fes_zx81_oss import build_commands as zx81_build_commands
 from scripts.build_fes_zx81_oss import create_build_record as zx81_create_build_record
 from scripts.lockfile import load_lock
-from tests.test_build_fes_pong import _write_fake_tool, publish_shared_toolchain
+from tests.test_build_fes_pong import (
+    _nextpnr_option_count_for_lock,
+    _write_fake_tool,
+    publish_shared_toolchain,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +54,7 @@ CUDA_PRODUCERS = (
 )
 
 
-def _write_local_root_tools(
+def _write_local_pong_tools(
     root: Path,
     *,
     nextpnr_config: str | None,
@@ -65,7 +70,7 @@ def _write_local_root_tools(
             raise AssertionError("expected one nextpnr commit in the fixture lock")
         lock_text = lock_text.replace(old, f'commit = "{nextpnr_commit}"', 1)
     lock.write_text(lock_text, encoding="utf-8")
-    install = root / "build/toolchain/install/bin"
+    install = root / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
     install.mkdir(parents=True)
     pins = load_lock(lock)
     for lock_name, binary_name in (
@@ -74,8 +79,12 @@ def _write_local_root_tools(
         ("nextpnr", "nextpnr-mistral"),
     ):
         binary = install / binary_name
-        _write_fake_tool(binary, lock_name)
-        evidence = root / "build/toolchain/build" / lock_name
+        _write_fake_tool(
+            binary,
+            lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+        )
+        evidence = root / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
         evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
         (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
@@ -178,6 +187,49 @@ class FesHipLaneTests(unittest.TestCase):
             self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
             self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
 
+    def test_one_shared_cache_gives_each_core_its_own_lock_slot(self) -> None:
+        # The image build authenticates every selected core against one cache
+        # root. A core whose lock moves to another nextpnr gets that lock's
+        # slot; a core on the old lock keeps the old slot.
+        from scripts import build_fes_catch
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "misteross"
+            for relative in ("scripts/bootstrap.sh", "scripts/lockfile.py", "scripts/toolchain_cache.py",
+                             build_fes_pong.TOOLCHAIN_LOCK, build_fes_catch.TOOLCHAIN_LOCK):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_bytes((ROOT / relative).read_bytes())
+            # Keep the two cache requests distinct even when current locks
+            # happen to pin the same nextpnr commit. The synthetic pin also
+            # confirms recipe lookup is independent of a commit allowlist.
+            pong_pin = "a" * 40
+            catch_pin = load_lock(ROOT / build_fes_catch.TOOLCHAIN_LOCK)["nextpnr"].commit
+            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pong_pin),
+                                  (build_fes_catch.TOOLCHAIN_LOCK, catch_pin)):
+                text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
+                                      rf'\g<1>{pin}"', (root / relative).read_text())
+                self.assertEqual(count, 1)
+                (root / relative).write_text(text)
+            pong_request, pong_manifest = publish_shared_toolchain(
+                base, lock_path=root / build_fes_pong.TOOLCHAIN_LOCK, gpu_router=HIP)
+            catch_request, catch_manifest = publish_shared_toolchain(
+                base, lock_path=root / build_fes_catch.TOOLCHAIN_LOCK, gpu_router=HIP)
+            self.assertEqual(pong_request.cache_root, catch_request.cache_root)
+            self.assertNotEqual(pong_manifest.slot, catch_manifest.slot)
+            with patch.dict(os.environ, {"PATH": str(base)}, clear=True), patch.object(
+                toolchain_cache, "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache, "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                pong = build_fes_pong._authenticate_tools(root, cache_root=pong_request.cache_root)
+                catch = build_fes_catch._authenticate_tools(root, cache_root=catch_request.cache_root)
+            self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
+            self.assertEqual(catch["nextpnr-mistral"].path, catch_manifest.install / "bin/nextpnr-mistral")
+            self.assertIn(f"commit={pong_pin};", pong["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={catch_pin};", catch["nextpnr-mistral"].identity)
+
     def test_ambient_cache_root_does_not_select_shared_lane(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -187,7 +239,7 @@ class FesHipLaneTests(unittest.TestCase):
             lock = local / build_fes_pong.TOOLCHAIN_LOCK
             lock.parent.mkdir(parents=True, exist_ok=True)
             lock.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
-            install = local / "build/toolchain/install/bin"
+            install = local / build_fes_pong.TOOLCHAIN_ROOT / "install/bin"
             install.mkdir(parents=True)
             from tests.test_build_fes_pong import _write_fake_tool
             from scripts.lockfile import load_lock
@@ -195,8 +247,12 @@ class FesHipLaneTests(unittest.TestCase):
             for lock_name, binary_name in (("yosys", "yosys"), ("mistral", "mistral-cv"),
                                            ("nextpnr", "nextpnr-mistral")):
                 binary = install / binary_name
-                _write_fake_tool(binary, lock_name)
-                evidence = local / "build/toolchain/build" / lock_name
+                _write_fake_tool(
+                    binary,
+                    lock_name,
+                    nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+                )
+                evidence = local / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit
                 (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
@@ -325,10 +381,10 @@ class FesHipLaneTests(unittest.TestCase):
                 with self.subTest(module=module.__name__, stamp=stamp):
                     with tempfile.TemporaryDirectory() as directory:
                         root = Path(directory)
-                        (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
+                        (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_pong_tools)(
                             root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            target = "toolchain-fes-zx81" if module is build_fes_zx81_oss else "toolchain-fes"
+                            target = "toolchain-fes-zx81" if module is build_fes_zx81_oss else "toolchain-fes-pong"
                             hint = rf"make {target}"
                             with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
@@ -343,7 +399,7 @@ class FesHipLaneTests(unittest.TestCase):
                 self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
             root = Path(directory) / "pong"
             root.mkdir()
-            install = _write_local_root_tools(root, nextpnr_config=HIP_CONFIGURATION)
+            install = _write_local_pong_tools(root, nextpnr_config=HIP_CONFIGURATION)
             with patch.dict(os.environ, {}, clear=True):
                 authenticated = build_fes_pong._authenticate_tools(root)
                 self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
@@ -353,7 +409,7 @@ class FesHipLaneTests(unittest.TestCase):
         commit = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            install = _write_local_root_tools(
+            install = _write_local_pong_tools(
                 root,
                 nextpnr_config=HIP_CONFIGURATION,
                 nextpnr_commit=commit,
@@ -529,10 +585,11 @@ class CudaLaneConfigurationTests(unittest.TestCase):
         compiler = {"commands": {"cc": {"path": "/test/cc"}}}
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _manifest = publish_shared_toolchain(
-                base, gpu_router="CUDA", cuda_architectures=selected
-            )
             spectrum = importlib.import_module("scripts.build_fes_spectrum_oss")
+            request, _manifest = publish_shared_toolchain(
+                base, lock_path=ROOT / spectrum.SPECTRUM_TOOLCHAIN_LOCK,
+                gpu_router="CUDA", cuda_architectures=selected
+            )
             with patch.dict(
                 os.environ,
                 {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},
@@ -556,7 +613,8 @@ class CudaLaneConfigurationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            publish_shared_toolchain(base, gpu_router="CUDA", cuda_architectures="86")
+            publish_shared_toolchain(base, lock_path=ROOT / spectrum.SPECTRUM_TOOLCHAIN_LOCK,
+                                     gpu_router="CUDA", cuda_architectures="86")
             with patch.dict(
                 os.environ,
                 {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},

@@ -25,6 +25,26 @@ class BundleTest(unittest.TestCase):
         module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
+    def test_every_registered_producer_exposes_bundle_clean_source_check(self):
+        module = self.module()
+        source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        recipes = [
+            (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
+            for recipe in module.FORMAT2_RECIPES.values()
+        ]
+        probe = '''
+import importlib, inspect, json, sys
+from pathlib import Path
+for core_id, module_name, options in json.loads(sys.argv[1]):
+    producer = importlib.import_module(module_name)
+    source_check = getattr(producer, "_require_clean_source", None)
+    assert callable(source_check), f"{core_id}: {module_name} lacks _require_clean_source"
+    inspect.signature(source_check).bind(Path.cwd(), **options, identity_version=2)
+'''
+        subprocess.run(
+            [sys.executable, "-c", probe, json.dumps(recipes)],
+            cwd=source, check=True, capture_output=True, text=True, timeout=30)
+
     def test_missing_compiler_guidance_binds_recipe_and_quotes_paths(self):
         module = self.module()
         with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
@@ -221,25 +241,32 @@ class BundleTest(unittest.TestCase):
         module = self.module()
         # Probe this working module's CLI, authentication and lock contract,
         # without building tools or claiming committed-artifact acceptance.
+        # The image build authenticates each producer against the shared cache;
+        # capture the lock it selects before any slot is resolved.
         probe = '''
 import importlib
 import inspect
 import sys
 from pathlib import Path
-from scripts.fes_build_common import _authenticate_tools as default_authenticate
-from scripts import pnr_recipe
+from scripts import pnr_recipe, toolchain_cache
 producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
-locks = [value for name, value in vars(producer).items() if name == "TOOLCHAIN_LOCK" or name.endswith("_TOOLCHAIN_LOCK")]
-locks.append(pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).relative_to(Path.cwd()).as_posix())
 authenticate = getattr(producer, sys.argv[2])
-# A scoped socket compiler does not replace the shared authenticator's
-# default lock used by the ordinary ZX81 recipe.
-if authenticate is default_authenticate:
-    locks.append("toolchain.lock")
-assert sys.argv[4] in locks, (sys.argv[4], locks)
 inspect.signature(authenticate).bind(
     Path.cwd(), cache_root=Path("unused-cache-probe"))
+class Selected(Exception):
+    pass
+def request_from_environment(root, lock_path=None, **kwargs):
+    raise Selected(Path(lock_path).resolve())
+toolchain_cache.request_from_environment = request_from_environment
+try:
+    authenticate(Path.cwd(), cache_root=Path("unused-cache-probe"))
+except Selected as selected:
+    lock = selected.args[0]
+else:
+    raise AssertionError("producer did not select a shared toolchain slot")
+expected = (Path.cwd() / sys.argv[4]).resolve()
+assert lock == expected == pnr_recipe.lock_path(Path.cwd(), sys.argv[5]).resolve(), (lock, expected)
 '''
         for recipe in module.FORMAT2_RECIPES.values():
             with self.subTest(core=recipe.core_id):

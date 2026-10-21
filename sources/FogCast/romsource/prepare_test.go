@@ -1234,19 +1234,3 @@ func preparePathBackedFixture(t *testing.T, root catalog.Root, game catalog.Game
 	assertSecureStagingPath(t, staging, prepared.Path)
 	return prepared
 }
-
-func assertNoPreparedIdentity(t *testing.T, stagingRoot string, original fs.FileInfo) {
-	t.Helper()
-	err := filepath.Walk(stagingRoot, func(name string, info fs.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if info.Mode().IsRegular() && os.SameFile(original, info) {
-			return fmt.Errorf("prepared identity remains at %s", name)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}

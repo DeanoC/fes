@@ -249,7 +249,10 @@ select that cache. If both variables are set they must be the same absolute
 path.
 
 Each registered package authenticates the lock named by its `lock_path` in
-`config/core-recipes.toml`; the per-core lock files currently contain the same
+`config/core-recipes.toml`. A lock can move to another nextpnr that
+`scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
+lock has moved to nextpnr `552ba246`, and Coleco's pins Yosys `5391eeb1`, so
+each has its own slot. The other per-core lock files still contain the same
 bytes as `toolchain.lock` and therefore share one cached compiler slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.
 The unregistered demos and splash continue to select the repository-level
@@ -371,7 +374,7 @@ Parent validation for a named package id is under FES `docs/validation/`.
 Read the artifact ids in that record before treating it as evidence for the
 tree you have open.
 
-Compiler source-read auditing retains bounded traces: 64 MiB per process and
+Compiler source-read auditing retains bounded traces: 128 MiB per process and
 256 MiB per invocation, including child compilers. The larger allowance covers
 RAM-heavy Atari ST synthesis and its ABC partitions. Overflow cancels the
 private compiler process group; excluded-source and completion checks remain

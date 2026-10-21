@@ -230,6 +230,25 @@ func New(pack Pack, opts Options) (*Instance, error) {
 // ID is the pack id.
 func (r *Instance) ID() string { return r.pack.ID }
 
+// Revision identifies the installed snapshot this instance keeps reading.
+func (r *Instance) Revision() string { return r.pack.Revision }
+
+// FlushState saves current room state before a replacement reads it.
+func (r *Instance) FlushState() { r.store.flush() }
+
+// StageState prevents trial load/draw callbacks from publishing state.
+func (r *Instance) StageState() { r.store.staged = true }
+
+// AdoptSavedState incorporates outgoing unload saves and commits trial writes.
+func (r *Instance) AdoptSavedState() {
+	r.store.adoptSaved()
+	r.store.staged = false
+	r.store.flush()
+}
+
+// Discard closes an unsuccessful candidate without persisting trial state.
+func (r *Instance) Discard() { r.store.path = ""; r.Close() }
+
 // Title is the pack title.
 func (r *Instance) Title() string { return r.pack.Title }
 
