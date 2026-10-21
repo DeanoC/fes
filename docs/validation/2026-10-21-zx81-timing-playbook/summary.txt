@@ -21,7 +21,8 @@ Commands, run from a clean worktree at 688d902e on Powerboat
   python3 scripts/build_fes_zx81_oss.py --cache-root /home/deano/fes/out/cache/misteross-toolchains
       exit 0
   strict seed 3 and seed 10 reroutes of the producer winner's argv
-      seed 3 exit 1, seed 10 exit 0
+      seed 3 exit 1, seed 10 exit 0; unleased, superseded by the leased
+      reroutes below
   python3 scripts/build_zx81_bus_validation_cart.py --shell build/fes-zx81-oss
       --package build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198
       --cache-root /home/deano/fes/out/cache/misteross-toolchains --cart ram16k
@@ -29,6 +30,14 @@ Commands, run from a clean worktree at 688d902e on Powerboat
 A first runner attempt (status-try1.txt, 10:13:44 EEST) records no
 bootstrap step and stopped two seconds after start with producer exit 1.
 The retry above overwrote its producer log.
+
+The strict seed 3 and seed 10 reroutes were then repeated on that
+worktree's synth, each under its own gpu-run lease
+(/home/deano/tmp/k936r-run/run.sh, 12:09-12:17 EEST; status.txt there has
+the timeline):
+  GPU_LEASE_MAX_PER_OWNER=2 gpu-run --gpus 1 --owner lander --label k936r-seed<N> --wait
+      -- bash -c '<record lease env>; python3 seed.py <shell build> <run dir> <N>'
+      seed 3 exit 1, seed 10 exit 0
 
 The producer synthesizes a fresh BUILD_ID from the current inputs; it does
 not reuse an older synth.json.
@@ -80,14 +89,14 @@ bits change inside the reserved slot and zero outside, and linked.rbf
 recomputes byte-for-byte. The shell and cart reports differ only in
 clk_sys hold (+0.820/+0.815 ns).
 
-Seed criterion. The strict reroutes use the exact production synth and
-compiler with the producer winner's argv (weight 1000, critexp 5,
+Seed criterion. The leased strict reroutes use the exact production synth
+and compiler with the producer winner's argv (weight 1000, critexp 5,
 --arrival-pin-assignment). They change only --seed and private output
 paths, and remove the search --timing-allow-fail:
 seed  clk_sys MHz  setup WNS ns  hold WNS ns  pixel MHz   audio MHz   exit  result
 1       55.962841       +1.279       +0.820   95.648018  213.629562    0    pass (sealed producer route)
-3       49.446201       -0.538       +0.726   92.047127  217.155258    1    FAIL
-10      52.734272       +0.185       +0.781   93.703148  200.440979    0    pass
+3       49.446201       -0.538       +0.726   92.047127  217.155258    1    FAIL (leased GPU 1, 258 s)
+10      52.734272       +0.185       +0.781   93.703148  200.440979    0    pass (leased GPU 0, 214 s)
 
 Seed 3 fails timing: clk_sys reaches 49.446201 MHz against the required
 52.224773 MHz, with setup WNS -0.538 ns. Its route log ends with "ERROR:
@@ -97,19 +106,35 @@ clock's setup and hold, so two of the three declared seeds pass at weight
 1000/critexp 5. This meets the two-of-three candidate criterion; it is not
 hardware acceptance or permission to promote the recipe. Seed 10's clk_sys
 setup margin of +0.185 ns is small. Weight 300 was tried only at seed 1,
-where it fails. Exact argv, environment, elapsed time, outputs and hashes
-are in seed-3.txt, seed-10.txt and runs.jsonl.
+where it fails. Exact argv, environment, lease, elapsed time, outputs and
+hashes are in seed-3.txt, seed-10.txt and runs.jsonl.
 
 GPU evidence. The producer routes and the cart route hold exclusive gpu-run
 leases (FES-GPU-GRANT) on live HIP backends. The sealed shell and cart ran
 on physical GPU 1 (AMD Radeon AI PRO R9700). The failed weight-300
-candidate ran on GPUs 1 and 0 after lease waits of up to 793 s. The strict
-seed 3/10 reroutes invoked nextpnr-mistral directly with --gpu-device 0,
-outside gpu-run. Their logs show the live HIP backend on device 0 (AMD
-Radeon RX 7900 XTX) and no lease grant, so contention was not recorded.
-NEXTPNR_REQUIRE_GPU was unset for them, and no CPU fallback occurred.
-Route outcomes do not depend on the backend, and these reroutes are not
-seals.
+candidate ran on GPUs 1 and 0 after lease waits of up to 793 s. Each
+leased seed reroute held an exclusive whole-command gpu-run lease for its
+entire route, so no other leased job could use its GPU and neither route
+was contended. Seed 3 was granted physical GPU 1 (AMD Radeon AI PRO R9700)
+at 12:09:24 EEST and seed 10 physical GPU 0 (AMD Radeon RX 7900 XTX) at
+12:13:43 EEST, each after a wait of under 0.2 s. run.sh unsets the lease
+variables before gpu-run, and each route ran with the variables its grant
+set: FES_GPU_IDS and ROCR_VISIBLE_DEVICES naming the leased GPU,
+GPU_RUN_DEVICE=0 and NEXTPNR_REQUIRE_GPU=1 (k936r-run/lease-env-3.txt,
+lease-env-10.txt). The unchanged --gpu-device 0 selects that masked
+device. Both route logs show the live HIP backend on the leased GPU and no
+CPU fallback, and gpu-run wrote nothing to stderr. Route outcomes do not
+depend on the backend, and these reroutes are not seals.
+
+The leased reroutes supersede the first, unleased seed 3/10 reroutes
+(k936q, 11:14-11:18 EEST). Those invoked nextpnr-mistral directly with
+--gpu-device 0, outside gpu-run, on physical GPU 0 with
+NEXTPNR_REQUIRE_GPU unset, so their contention was not recorded. The
+leased argv differs from theirs only in output paths, and the leased
+environment only in its private HOME and the lease variables. For each
+seed, core.rbf, routed.json and timing.json are byte-identical between
+the two runs, although seed 3 moved from GPU 0 to GPU 1. Every seed
+result above is therefore unchanged, and seed 3 still fails.
 
 Checks at 15bad2dc, which merges main 6ba34a4a into 688d902e; that main
 commit changes only sources/FogCast/appliance/software. Nothing under
@@ -135,7 +160,10 @@ package selection was replaced, no PR was merged, and no recipe, seed list,
 allow-fail setting, lock, seal or timing gate was changed or relaxed.
 
 Artifacts are retained on Powerboat beneath
-/home/deano/tmp/k936q/sources/misteross/build/ (shell, package, cart) and
-/home/deano/tmp/k936q-run/ (runner, status, logs, strict seed outputs).
-result.txt lists every artifact path, size and hash; shell-summary.txt and
+/home/deano/tmp/k936q/sources/misteross/build/ (shell, package, cart),
+/home/deano/tmp/k936q-run/ (runner, status, logs, superseded unleased seed
+outputs) and /home/deano/tmp/k936r-run/ (leased seed runner, status,
+lease environments, logs and outputs). result.txt lists every shell,
+package and cart artifact path, size and hash, and seed-3.txt and
+seed-10.txt list the leased seed outputs; shell-summary.txt and
 cart-summary.txt are the producers' build-summary.json files verbatim.

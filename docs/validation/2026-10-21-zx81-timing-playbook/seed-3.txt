@@ -15,11 +15,11 @@
     "--placer-heap-critexp",
     "5",
     "--report",
-    "/home/deano/tmp/k936q-run/seed-3/timing.json",
+    "/home/deano/tmp/k936r-run/seed-3/timing.json",
     "--write",
-    "/home/deano/tmp/k936q-run/seed-3/routed.json",
+    "/home/deano/tmp/k936r-run/seed-3/routed.json",
     "--rbf",
-    "/home/deano/tmp/k936q-run/seed-3/core.rbf",
+    "/home/deano/tmp/k936r-run/seed-3/core.rbf",
     "--compress-rbf",
     "--detailed-timing-report",
     "--router",
@@ -33,16 +33,21 @@
     "--arrival-pin-assignment"
   ],
   "environment": {
-    "HOME": "/home/deano/tmp/k936q-run/seed-3/home",
+    "HOME": "/home/deano/tmp/k936r-run/seed-3/home",
     "LANG": "C",
     "LC_ALL": "C",
     "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "FES_GPU_IDS": "1",
+    "GPU_RUN_DEVICE": "0",
+    "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD129",
+    "ROCR_VISIBLE_DEVICES": "1",
+    "NEXTPNR_REQUIRE_GPU": "1"
   },
   "binary_sha256": "6e8eab340a66e20de4575bc654f9751cecd3160903d184880cca12cdf262d21d",
   "synth_sha256": "fa13f5961c26100118ec593de1cf6cd6786665439ba0488cbd7f250d33a61328",
   "exit_code": 1,
-  "seconds": 137.67562651634216,
+  "seconds": 257.80767035484314,
   "fmax": {
     "audio_clk": {
       "achieved": 217.15525817871094,
@@ -76,24 +81,24 @@
   },
   "artifacts": {
     "routed.json": {
-      "path": "/home/deano/tmp/k936q-run/seed-3/routed.json",
+      "path": "/home/deano/tmp/k936r-run/seed-3/routed.json",
       "sha256": "04c380d273e6d3d6c4379522736ae34b31ec3434649ced139b8f8e3c46230445",
       "size": 31861884
     },
     "timing.json": {
-      "path": "/home/deano/tmp/k936q-run/seed-3/timing.json",
+      "path": "/home/deano/tmp/k936r-run/seed-3/timing.json",
       "sha256": "eae86a14863b2901eaa94a6bcaaf94c6e8f44d0619e5d8df30da97d4fdc0b672",
       "size": 3685208
     },
     "core.rbf": {
-      "path": "/home/deano/tmp/k936q-run/seed-3/core.rbf",
+      "path": "/home/deano/tmp/k936r-run/seed-3/core.rbf",
       "sha256": "3d2dbd82e542a984f45095c5d108c6789ba4d444dd608ecfc9c87497258df7f8",
       "size": 2635953
     },
     "route.log": {
-      "path": "/home/deano/tmp/k936q-run/seed-3/route.log",
-      "sha256": "a6ef030f1e250196de0fc841c6098e15e24215d3ec78aeabfd7f28a611226fee",
-      "size": 196422
+      "path": "/home/deano/tmp/k936r-run/seed-3/route.log",
+      "sha256": "aea16d07311e49fecd7a8ff7b22f0f3e6679366dfd25dba7b4674869aa1e0833",
+      "size": 196446
     }
   },
   "result": "FAIL",
@@ -102,27 +107,60 @@
     "0 warnings, 1 error",
     "Info: Program finished normally."
   ],
-  "gpu_lease": "none: the runner invoked nextpnr-mistral directly with --gpu-device 0, outside gpu-run; the route log names device 0 and has no lease grant, so contention was not recorded. NEXTPNR_REQUIRE_GPU was unset; the log shows the live HIP backend and no CPU fallback.",
+  "gpu_lease": {
+    "command": "GPU_LEASE_MAX_PER_OWNER=2 /home/deano/bin/gpu-run --gpus 1 --owner lander --label k936r-seed3 --wait -- bash -c 'env | grep -E \"^(FES_GPU_IDS|ROCR_VISIBLE_DEVICES|GPU_RUN_DEVICE|NEXTPNR_REQUIRE_GPU)=\" > /home/deano/tmp/k936r-run/lease-env-3.txt; python3 /home/deano/tmp/k936r-run/seed.py /home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss /home/deano/tmp/k936r-run 3'",
+    "lease": "exclusive whole-command gpu-run flock on physical GPU 1 (AMD Radeon AI PRO R9700), held until seed.py and nextpnr-mistral exited; run.sh unsets GPU_LEASE_IDS, GPU_RUN_DEVICE, GPU_LEASE_FD, FES_GPU_IDS, ROCR_VISIBLE_DEVICES and HIP_VISIBLE_DEVICES before gpu-run",
+    "granted_gpu": "1",
+    "window": "2026-10-21 12:09:24-12:13:43 EEST",
+    "wait": "under 0.2 s: run.sh wrote run.pid at 12:09:24.70 EEST before starting gpu-run, and the grant's holder record starts at 12:09:24.90 EEST",
+    "lease_env": "GPU_RUN_DEVICE=0 ROCR_VISIBLE_DEVICES=1 FES_GPU_IDS=1 NEXTPNR_REQUIRE_GPU=1",
+    "holder_record": {
+      "gpu": "1",
+      "host": "powerboat",
+      "label": "k936r-seed3",
+      "owner": "lander",
+      "pid": 1367510,
+      "start": "2026-10-21T09:09:24Z"
+    },
+    "stderr": "seed-3.err is empty: gpu-run printed no lease, GPU-use or CPU-fallback refusal"
+  },
+  "gpu_contended": false,
   "gpu_evidence": [
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.25s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 61.18s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1253 launches, 96663 arcs, 269045026 wires expanded, 55.50s routing, 0.62s transfers)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 1.51s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 104 launches, 331 arcs, 321891 wires expanded, 0.17s routing, 0.04s transfers)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 1.16s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 91 launches, 298 arcs, 254360 wires expanded, 0.13s routing, 0.03s transfers)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 1.32s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 97 launches, 319 arcs, 291362 wires expanded, 0.15s routing, 0.03s transfers)"
-  ]
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.30s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 53.50s (backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700: 1253 launches, 96663 arcs, 269045026 wires expanded, 45.52s routing, 0.85s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.77s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.08s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 3.46s (backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700: 104 launches, 331 arcs, 321891 wires expanded, 0.25s routing, 0.08s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 1.30s (backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700: 91 launches, 298 arcs, 254360 wires expanded, 0.20s routing, 0.06s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.19s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon AI PRO R9700",
+    "Info:     backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700 ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 2.49s (backend hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700: 97 launches, 319 arcs, 291362 wires expanded, 0.23s routing, 0.07s transfers)"
+  ],
+  "supersedes": {
+    "run": "k936q unleased strict reroute, 2026-10-21 11:14-11:16 EEST",
+    "outputs": "/home/deano/tmp/k936q-run/seed-3",
+    "gpu_lease": "none: nextpnr-mistral was invoked directly with --gpu-device 0, outside gpu-run, so contention was not recorded",
+    "gpu": "physical GPU 0, AMD Radeon RX 7900 XTX (live HIP backend 0000:04:00.0, no CPU fallback)",
+    "argv": "identical apart from the --report, --write and --rbf output paths",
+    "environment": "HOME, LANG, LC_ALL, PATH and TZ only: no lease variables and NEXTPNR_REQUIRE_GPU unset",
+    "exit_code": 1,
+    "seconds": 137.67562651634216,
+    "route_log_sha256": "a6ef030f1e250196de0fc841c6098e15e24215d3ec78aeabfd7f28a611226fee",
+    "byte_identical_outputs": [
+      "core.rbf",
+      "routed.json",
+      "timing.json"
+    ]
+  }
 }

@@ -15,11 +15,11 @@
     "--placer-heap-critexp",
     "5",
     "--report",
-    "/home/deano/tmp/k936q-run/seed-10/timing.json",
+    "/home/deano/tmp/k936r-run/seed-10/timing.json",
     "--write",
-    "/home/deano/tmp/k936q-run/seed-10/routed.json",
+    "/home/deano/tmp/k936r-run/seed-10/routed.json",
     "--rbf",
-    "/home/deano/tmp/k936q-run/seed-10/core.rbf",
+    "/home/deano/tmp/k936r-run/seed-10/core.rbf",
     "--compress-rbf",
     "--detailed-timing-report",
     "--router",
@@ -33,16 +33,21 @@
     "--arrival-pin-assignment"
   ],
   "environment": {
-    "HOME": "/home/deano/tmp/k936q-run/seed-10/home",
+    "HOME": "/home/deano/tmp/k936r-run/seed-10/home",
     "LANG": "C",
     "LC_ALL": "C",
     "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/0f5694ae71f1056868bd4382f7a9a60188b2b6bcb22e429e010903df13a929ec/install/bin:/usr/bin:/bin",
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "FES_GPU_IDS": "0",
+    "GPU_RUN_DEVICE": "0",
+    "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD128",
+    "ROCR_VISIBLE_DEVICES": "0",
+    "NEXTPNR_REQUIRE_GPU": "1"
   },
   "binary_sha256": "6e8eab340a66e20de4575bc654f9751cecd3160903d184880cca12cdf262d21d",
   "synth_sha256": "fa13f5961c26100118ec593de1cf6cd6786665439ba0488cbd7f250d33a61328",
   "exit_code": 0,
-  "seconds": 137.5479576587677,
+  "seconds": 214.45893144607544,
   "fmax": {
     "audio_clk": {
       "achieved": 200.44097900390625,
@@ -76,45 +81,72 @@
   },
   "artifacts": {
     "routed.json": {
-      "path": "/home/deano/tmp/k936q-run/seed-10/routed.json",
+      "path": "/home/deano/tmp/k936r-run/seed-10/routed.json",
       "sha256": "d5bfed1606eec03fdcf76b10c86988d9d581b385ffd801eb16111fe0033424ad",
       "size": 32210701
     },
     "timing.json": {
-      "path": "/home/deano/tmp/k936q-run/seed-10/timing.json",
+      "path": "/home/deano/tmp/k936r-run/seed-10/timing.json",
       "sha256": "77014b52b3fec9a4bcecc7728b699e8655755d4d4de2cde2f1183fcececf2c86",
       "size": 3672336
     },
     "core.rbf": {
-      "path": "/home/deano/tmp/k936q-run/seed-10/core.rbf",
+      "path": "/home/deano/tmp/k936r-run/seed-10/core.rbf",
       "sha256": "b3540f19f497f35bf7dd2c16b22dcec1b5db9b792a1b33c70a9046d04bbb83d5",
       "size": 2689027
     },
     "route.log": {
-      "path": "/home/deano/tmp/k936q-run/seed-10/route.log",
-      "sha256": "6a52bbc8596c5e96215b24acb136902138acbfd034c77ebf477a9117c0f9a3e4",
-      "size": 128502
+      "path": "/home/deano/tmp/k936r-run/seed-10/route.log",
+      "sha256": "2c55f37141f8ab1c130bc904be902d58160553208b755052ffb7c090a9a23d1c",
+      "size": 128505
     }
   },
   "result": "pass",
   "route_log_status": [
     "Info: Program finished normally."
   ],
-  "gpu_lease": "none: the runner invoked nextpnr-mistral directly with --gpu-device 0, outside gpu-run; the route log names device 0 and has no lease grant, so contention was not recorded. NEXTPNR_REQUIRE_GPU was unset; the log shows the live HIP backend and no CPU fallback.",
+  "gpu_lease": {
+    "command": "GPU_LEASE_MAX_PER_OWNER=2 /home/deano/bin/gpu-run --gpus 1 --owner lander --label k936r-seed10 --wait -- bash -c 'env | grep -E \"^(FES_GPU_IDS|ROCR_VISIBLE_DEVICES|GPU_RUN_DEVICE|NEXTPNR_REQUIRE_GPU)=\" > /home/deano/tmp/k936r-run/lease-env-10.txt; python3 /home/deano/tmp/k936r-run/seed.py /home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss /home/deano/tmp/k936r-run 10'",
+    "lease": "exclusive whole-command gpu-run flock on physical GPU 0 (AMD Radeon RX 7900 XTX), held until seed.py and nextpnr-mistral exited; run.sh unsets GPU_LEASE_IDS, GPU_RUN_DEVICE, GPU_LEASE_FD, FES_GPU_IDS, ROCR_VISIBLE_DEVICES and HIP_VISIBLE_DEVICES before gpu-run",
+    "granted_gpu": "0",
+    "window": "2026-10-21 12:13:43-12:17:19 EEST",
+    "wait": "under 0.2 s: gpu-run started after seed 3's seed-3.json was written at 12:13:43.69 EEST, and the granted child wrote lease-env-10.txt at 12:13:43.87 EEST",
+    "lease_env": "GPU_RUN_DEVICE=0 ROCR_VISIBLE_DEVICES=0 FES_GPU_IDS=0 NEXTPNR_REQUIRE_GPU=1",
+    "holder_record": null,
+    "holder_record_note": "not retained: a later lease rewrote gpu-0.lock before this record was written; the grant is shown by lease-env-10.txt and the route environment",
+    "stderr": "seed-10.err is empty: gpu-run printed no lease, GPU-use or CPU-fallback refusal"
+  },
+  "gpu_contended": false,
   "gpu_evidence": [
     "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.25s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 68.41s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1041 launches, 110163 arcs, 307723252 wires expanded, 61.11s routing, 0.61s transfers)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.04s (estimate 0.075 ns/x, 0.200 ns/y)",
-    "Info: GPU router time 4.95s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 507 launches, 4858 arcs, 6086120 wires expanded, 1.22s routing, 0.22s transfers)",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.26s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 60.30s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 1041 launches, 110163 arcs, 307723252 wires expanded, 52.58s routing, 0.73s transfers)",
     "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
     "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
     "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
-    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.05s (estimate 0.075 ns/x, 0.200 ns/y)"
-  ]
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.09s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info: GPU router time 15.53s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 507 launches, 4858 arcs, 6086120 wires expanded, 1.45s routing, 0.37s transfers)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)",
+    "Info:     GPU router using device 0: AMD Radeon RX 7900 XTX",
+    "Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)"
+  ],
+  "supersedes": {
+    "run": "k936q unleased strict reroute, 2026-10-21 11:16-11:18 EEST",
+    "outputs": "/home/deano/tmp/k936q-run/seed-10",
+    "gpu_lease": "none: nextpnr-mistral was invoked directly with --gpu-device 0, outside gpu-run, so contention was not recorded",
+    "gpu": "physical GPU 0, AMD Radeon RX 7900 XTX (live HIP backend 0000:04:00.0, no CPU fallback)",
+    "argv": "identical apart from the --report, --write and --rbf output paths",
+    "environment": "HOME, LANG, LC_ALL, PATH and TZ only: no lease variables and NEXTPNR_REQUIRE_GPU unset",
+    "exit_code": 0,
+    "seconds": 137.5479576587677,
+    "route_log_sha256": "6a52bbc8596c5e96215b24acb136902138acbfd034c77ebf477a9117c0f9a3e4",
+    "byte_identical_outputs": [
+      "core.rbf",
+      "routed.json",
+      "timing.json"
+    ]
+  }
 }
