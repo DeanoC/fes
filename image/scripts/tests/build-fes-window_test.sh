@@ -7,7 +7,9 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 
 # A stand-in kernel tree. Like Linux, an O= build runs make again in the output
 # directory, and kernelrelease appends the localversion file found there.
-# Preparation builds the GCC plugins, whose headers include gmp.h.
+# Preparation builds the GCC plugins, whose headers include gmp.h. Like the
+# debug information its build ID hashes, the module records the kernel, build
+# and SDK paths unless KCFLAGS maps them.
 kernel=$fixture/kernel
 mkdir "$kernel"
 cat >"$kernel/Makefile" <<'EOF'
@@ -23,7 +25,14 @@ kernelrelease:
 modules_prepare:
 	@test -f $(patsubst -I%,%,$(HOSTCXXFLAGS))/gmp.h || { echo 'gmp.h: No such file or directory' >&2; exit 1; }
 modules:
-	@echo $(FES_WINDOW_VERSION) >$(M)/fes_window.ko
+	@{ echo $(FES_WINDOW_VERSION); \
+	  for path in $(patsubst %/Makefile,%,$(firstword $(MAKEFILE_LIST))) $(CURDIR) $(M) \
+	      $(patsubst -I%/include,%,$(HOSTCXXFLAGS)); do \
+	    for map in $(patsubst -fdebug-prefix-map=%,%,$(filter -fdebug-prefix-map=%,$(KCFLAGS))); do \
+	      case $$path in "$${map%%=*}"*) path=$${map#*=}$${path#"$${map%%=*}"} ;; esac; \
+	    done; \
+	    echo $$path; \
+	  done; } >$(M)/fes_window.ko
 endif
 EOF
 printf '%s\n' '#!/bin/sh' >"$fixture/arm-strip"
@@ -39,7 +48,7 @@ build_window() {
 
 build_window 5.15.1-MiSTer
 grep -Eqx '[0-9a-f]{16}' "$fixture/output/version"
-cmp "$fixture/output/version" "$fixture/output/fes_window.ko"
+[ "$(head -n 1 "$fixture/output/fes_window.ko")" = "$(cat "$fixture/output/version")" ]
 
 if message=$(build_window 5.15.1 2>&1); then
   echo 'build-fes-window accepted the wrong kernel release' >&2
@@ -121,5 +130,7 @@ MAKEFLAGS=w MAKELEVEL=1 BUILD_DIR=$fixture/buildroot-build HOST_DIR=$fixture/bui
   FOGCAST_DIR=$fogcast NATIVE_RUNTIME_INPUT_LOCK=$fixture/runtime.lock.toml \
   NATIVE_RUNTIME_IDLE_FILE=$fixture/idle/idle.rbf \
   sh "$board/native-post-build.sh" "$target"
+# The post-build's kernel, build and SDK paths differ from the first build's,
+# and the module is the same.
 cmp "$fixture/output/version" "$target/window-driver/version"
 cmp "$fixture/output/fes_window.ko" "$target/window-driver/fes_window.ko"

@@ -30,6 +30,11 @@ version=$(cd "$source_dir" && for file in *; do printf '%s\0' "$file"; cat "$fil
 printf '%s\n' -MiSTer > "$build/kernel/localversion.mister"
 export KBUILD_BUILD_USER=fogcast KBUILD_BUILD_HOST=target-image KBUILD_BUILD_VERSION=1
 export HOSTCXXFLAGS="-I$host/include"
+# Debug information records the kernel, build and SDK paths, and the GNU
+# build ID that --strip-debug keeps is a hash over it. Mapping the paths, as
+# the kernel's reproducible-builds guide does, gives the same module wherever
+# it builds: each image pass and kit software build in a different directory.
+export KCFLAGS="-fdebug-prefix-map=$kernel=/kernel -fdebug-prefix-map=$build=/build -fdebug-prefix-map=$host=/host"
 # Run the kernel make as a top-level make: Buildroot's post-build passes its
 # MAKEFLAGS down, and their w adds directory lines to the kernelrelease output.
 unset MAKEFLAGS GNUMAKEFLAGS MAKELEVEL

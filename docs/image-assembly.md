@@ -110,7 +110,9 @@ files are checked against those selections. `reproducibility.txt` and
 `verification.json` bind the image to the toolchain key and archive digest.
 The native post-build extracts one more, unrelocated copy to build the
 fes-window kernel module. Relocation rewrites GCC's plugin `configargs.h`, and
-cc1 then refuses the kernel's GCC plugins.
+cc1 then refuses the kernel's GCC plugins. The module build maps its absolute
+paths out of the debug information that its build ID hashes, so both passes
+build the same module.
 
 This should save about 5.6 minutes on pass two, and about 5.6 minutes per pass
 on a cache hit. A real cold image build must confirm the SDK's external-toolchain
