@@ -12,8 +12,8 @@ use as the `fes.application` interface `fes.memory.hps-ddr` 1.0.
 | --- | --- |
 | mister-packages | The interface, its capability bit 8, the port layout constants, the window and the SDR mirror registers ([application I/O](../sources/mister-packages/docs/application-io.md#hps-ddr)) |
 | misteross | `cores/fes-common/rtl/fes_hps_ddr.v`, the splash that carries the layout at boot, and the `fes.ramtest` tester |
-| libmister-runtime | Admission of the interface, and releasing the SDR FPGA ports after the layout check |
-| FES image | Pinning the splash as the idle core, FAT `/idle.rbf`, and deriving the U-Boot that loads it (`core=idle.rbf`) before it enables the bridges |
+| libmister-runtime | Admission of the interface, releasing the SDR FPGA ports after the layout check, and loading the fes-window driver with the window |
+| FES image | The [fes-window driver](../image/kernel/fes-window/README.md), which maps window grants cached and cleans them for fpga2sdram; pinning the splash as the idle core, FAT `/idle.rbf`, and deriving the U-Boot that loads it (`core=idle.rbf`) before it enables the bridges |
 
 FogCast admits the interface from the registry the runtime advertises. It has
 no DDR-specific code.

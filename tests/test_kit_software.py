@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -136,18 +137,83 @@ class SoftwareWorkflowTests(unittest.TestCase):
             self.assertIn('Revision=' + 'b' * 40, args[args.index('-ldflags') + 1])
         self.assertEqual((self.root / 'sources/FogCast/bin/kit-software.revision').read_text(), 'b'*40+'\n')
 
+    DRIVER = {'version': '0123456789abcdef', 'kernel_release': '5.15.1-MiSTer'}
+
     def test_runtime_script_uses_private_sdk_and_no_image_build(self):
-        script = kit.runtime_script('b' * 40)
+        script = kit.runtime_script('b' * 40, self.DRIVER)
         self.assertIn('extract /work/build/software/sdk', script)
         self.assertIn('/work/build/software/sdk/host/relocate-sdk.sh', script)
         self.assertIn('make -C /work/build/software/runtime', script)
         self.assertIn('CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm"', script)
         self.assertIn('MISTER_RUNTIME_VERSION=git-' + 'b' * 40, script)
         self.assertNotIn('build-target-image', script)
-        self.assertNotIn('defconfig', script)
+        self.assertNotIn('zImage', script)
         self.assertNotIn('/target-image-output/external-toolchain', script)
         with self.assertRaises(ValueError):
-            kit.runtime_script('$(touch injected)')
+            kit.runtime_script('$(touch injected)', self.DRIVER)
+
+    def test_runtime_script_builds_window_driver_for_pinned_kernel(self):
+        script = kit.runtime_script('b' * 40, self.DRIVER)
+        self.assertIn("printf '%s\\n' -MiSTer > \"$kbuild/localversion.mister\"", script)
+        self.assertIn('$kmake MiSTer_defconfig', script)
+        self.assertIn('test "$($kmake kernelrelease)" = 5.15.1-MiSTer', script)
+        self.assertIn('$kmake -j2 modules_prepare', script)
+        self.assertIn('M=/work/build/software/fes-window FES_WINDOW_VERSION=0123456789abcdef modules', script)
+        for driver in ({'version': '$(touch x)', 'kernel_release': '5.15.1-MiSTer'},
+                       {'version': '0123456789abcdef', 'kernel_release': '5.15; touch x'}):
+            with self.assertRaises(ValueError):
+                kit.runtime_script('b' * 40, driver)
+
+    def window_source(self, image):
+        source = image / 'kernel/fes-window'
+        source.mkdir(parents=True)
+        (source / 'fes_window.c').write_text('driver one')
+        (source / 'Kbuild').write_text('obj-m := fes_window.o')
+        return source
+
+    def test_window_driver_version_follows_source_bytes(self):
+        source = self.window_source(self.root / 'image')
+        first = kit.window_driver_version(source)
+        self.assertRegex(first, '^[0-9a-f]{16}$')
+        self.assertEqual(first, kit.window_driver_version(source))
+        (source / 'fes_window.c').write_text('driver two')
+        self.assertNotEqual(first, kit.window_driver_version(source))
+
+    def test_kernel_module_stages_pinned_source_and_refuses_other_commits(self):
+        git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
+                       GIT_COMMITTER_EMAIL='t@t')
+        work = self.root / 'kernel-work'
+        work.mkdir()
+        subprocess.run(['git', 'init', '-q', str(work)], check=True, env=git_env)
+        (work / 'Makefile').write_text('kernel')
+        subprocess.run(['git', '-C', str(work), 'add', 'Makefile'], check=True, env=git_env)
+        subprocess.run(['git', '-C', str(work), 'commit', '-qm', 'k'], check=True, env=git_env)
+        commit = subprocess.run(['git', '-C', str(work), 'rev-parse', 'HEAD'], check=True,
+                                capture_output=True, text=True).stdout.strip()
+        cache = self.root / 'source-cache'
+        subprocess.run(['git', 'clone', '-q', '--bare', str(work), str(cache / 'linux-kernel.git')],
+                       check=True, env=git_env)
+        subprocess.run(['git', '--git-dir', str(cache / 'linux-kernel.git'), 'update-ref',
+                        'refs/target-image/pinned', commit], check=True, env=git_env)
+        for pinned, expected in ((commit, None), ('f' * 40, 'pinned kernel source missing')):
+            with self.subTest(pinned=pinned):
+                snapshot = self.root / ('snapshot-' + pinned[:4])
+                image = snapshot / 'image'
+                (image / 'build').mkdir(parents=True)
+                (image / 'build/target-image.sources.lock.toml').write_text(
+                    f'[kernel]\ncommit = "{pinned}"\nrelease = "5.15.1-MiSTer"\n')
+                source = self.window_source(image)
+                env = dict(os.environ, TARGET_IMAGE_CACHE=str(cache))
+                if expected:
+                    with self.assertRaisesRegex(ValueError, expected):
+                        kit.prepare_kernel_module(self.root, snapshot, env)
+                    self.assertFalse((image / 'build/software/kernel-source').exists())
+                    continue
+                driver = kit.prepare_kernel_module(self.root, snapshot, env)
+                self.assertEqual(driver, {'kernel_commit': commit, 'kernel_release': '5.15.1-MiSTer',
+                                          'version': kit.window_driver_version(source)})
+                self.assertEqual((image / 'build/software/kernel-source/Makefile').read_text(), 'kernel')
+                self.assertEqual((image / 'build/software/fes-window/fes_window.c').read_text(), 'driver one')
 
     def runtime_fixture(self):
         runtime = self.root / 'sources/libmister-runtime'
@@ -175,7 +241,8 @@ class SoftwareWorkflowTests(unittest.TestCase):
         with patch.object(kit, 'load', return_value=sdk), \
              patch.object(kit, 'run', side_effect=command), \
              patch.object(kit.subprocess, 'run') as cleanup:
-            result = kit.build_runtime(self.root, cache, 'b' * 40, {'FES_TARGET_IMAGE_SHARED_CACHE':'/shared'})
+            result = kit.build_runtime(self.root, cache, 'b' * 40, {'FES_TARGET_IMAGE_SHARED_CACHE':'/shared'},
+                                       self.DRIVER)
         self.assertIn('inspect', calls[0][0])
         self.assertEqual(str(calls[1][0][0]), str(self.root / 'image/scripts/target-image-container.sh'))
         self.assertEqual(calls[1][0][1:4], ['run', 'sh', '-c'])
@@ -192,7 +259,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
              patch.object(kit, 'run', return_value='sha256:' + 'c' * 64) as command, \
              patch.object(kit.subprocess, 'run', return_value=Mock(returncode=0)) as docker:
             with self.assertRaisesRegex(ValueError, 'already exists'):
-                kit.build_runtime(self.root, cache, 'b' * 40, {})
+                kit.build_runtime(self.root, cache, 'b' * 40, {}, self.DRIVER)
         command.assert_called_once()
         docker.assert_called_once()
         self.assertIn('inspect', docker.call_args.args[0])
@@ -203,7 +270,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         sdk.validated_sha.side_effect = ['a' * 64, 'b' * 64]
         with patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run') as command:
             with self.assertRaisesRegex(ValueError, 'changed while copying'):
-                kit.build_runtime(self.root, cache, 'b' * 40, {})
+                kit.build_runtime(self.root, cache, 'b' * 40, {}, self.DRIVER)
             command.assert_not_called()
 
     def test_pack_failure_never_publishes_partial_output(self):
@@ -227,16 +294,22 @@ class SoftwareWorkflowTests(unittest.TestCase):
         def runtime(snapshot, *unused):
             binary = snapshot / 'image/build/software/runtime/build/mister-runtime'
             binary.parent.mkdir(parents=True); binary.write_bytes(b'runtime')
+            module = snapshot / 'image/build/software/fes-window/fes_window.ko'
+            module.parent.mkdir(parents=True); module.write_bytes(b'module')
             return {}
         def fail(base, payload, output, *args):
             self.assertEqual((payload / 'bin/mister-runtime').read_bytes(), b'runtime')
             self.assertEqual((payload / 'share/fogcast/config.toml').read_text(), 'defaults')
+            self.assertEqual((payload / 'share/fes-window/fes_window.ko').read_bytes(), b'module')
+            self.assertEqual((payload / 'share/fes-window/version').read_text(), '0123456789abcdef\n')
+            self.assertEqual((payload / 'share/fes-window/version').stat().st_mode & 0o777, 0o444)
             output.write_bytes(b'partial failed pack')
             raise ValueError('incompatible base')
         with patch.object(kit, 'load', return_value=sdk), \
              patch.object(kit, 'package', side_effect=fail), \
              patch.object(kit, 'run', side_effect=clone), \
              patch.object(kit, 'build_go', return_value='go test'), \
+             patch.object(kit, 'prepare_kernel_module', return_value=dict(self.DRIVER)), \
              patch.object(kit, 'build_runtime', side_effect=runtime):
             with self.assertRaisesRegex(ValueError, 'incompatible base'):
                 kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'new')

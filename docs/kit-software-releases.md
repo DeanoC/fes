@@ -19,7 +19,9 @@ to compile and package the complete software release from committed sources.
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
 Its payload includes `bin/mister-agent`, `bin/mister-runtime`,
-`bin/fogcast-tenfoot` and the required assets beneath `share/`. It also carries
+`bin/fogcast-tenfoot` and the required assets beneath `share/`, including the
+[fes-window kernel driver](../image/kernel/fes-window/README.md) at
+`share/fes-window/` that the runtime loads on start. It also carries
 the `bin/fogcast-kit` stub, which answers `--print-kit-ui` with `tenfoot` for
 bases whose supervisor still probes it. The pack command
 fills the closed file inventory with sizes, executable modes and SHA-256 digests.
@@ -273,9 +275,13 @@ make kit-software \
 
 The command freezes the committed FES HEAD, builds the agent and both launchers
 with the selected Go version, and builds the runtime with the pinned container
-and verified cached ARM SDK. It copies application assets from that same source
-snapshot. It never runs an OS image build or an FPGA package producer. A missing
-or mismatching SDK fails explicitly; qualify its base image first.
+and verified cached ARM SDK. In the same container it builds the fes-window
+module against the pinned kernel source, which it takes from the target-image
+source cache (`TARGET_IMAGE_CACHE`, default `image/build/cache/target-image`;
+fill it with `image/scripts/fetch-target-image-sources.sh`). It copies application
+assets from that same source snapshot. It never runs an OS image build or an FPGA
+package producer. A missing or mismatching SDK or kernel source fails explicitly;
+qualify its base image first.
 
 The image hash is required: an extracted filesystem or a self-authored base
 receipt is not a substitute for the reviewed image identity. The command hashes

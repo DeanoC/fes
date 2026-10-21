@@ -59,11 +59,47 @@ def build_go(snapshot, version, revision, env):
             'target': 'linux/arm GOARM=7 CGO_ENABLED=0', 'helper': 'linux/amd64 CGO_ENABLED=0'}
 
 
-def runtime_script(revision):
+def window_driver_version(source):
+    """Digest of the fes-window driver sources, stamped into the module."""
+    digest = hashlib.sha256()
+    for path in sorted(Path(source).iterdir()):
+        digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
+    return digest.hexdigest()[:16]
+
+
+def prepare_kernel_module(root, snapshot, env):
+    """Stage the pinned kernel tree and fes-window sources for the container build."""
+    image = snapshot / 'image'
+    kernel = tomllib.loads((image / 'build/target-image.sources.lock.toml').read_text())['kernel']
+    if not re.fullmatch('[0-9a-f]{40}', kernel['commit']) or not re.fullmatch('[0-9A-Za-z.+-]+', kernel['release']):
+        raise ValueError('invalid pinned kernel in source lock')
+    cache = Path(env.get('TARGET_IMAGE_CACHE') or Path(root) / 'image/build/cache/target-image')
+    bare = cache / 'linux-kernel.git'
+    pinned = subprocess.run(['git', '--git-dir', str(bare), 'rev-parse', 'refs/target-image/pinned'],
+                            capture_output=True, text=True, env=env, check=False)
+    if pinned.returncode != 0 or pinned.stdout.strip() != kernel['commit']:
+        raise ValueError(f'pinned kernel source missing from {bare}; run image/scripts/fetch-target-image-sources.sh')
+    source = image / 'build/software/kernel-source'
+    source.mkdir(parents=True)
+    archive = subprocess.Popen(['git', '--git-dir', str(bare), 'archive', kernel['commit']],
+                               stdout=subprocess.PIPE, env=env)
+    extract = subprocess.run(['tar', '-x', '-C', str(source)], stdin=archive.stdout, env=env, check=False)
+    archive.stdout.close()
+    if archive.wait() != 0 or extract.returncode != 0:
+        raise ValueError('could not extract the pinned kernel source')
+    shutil.copytree(image / 'kernel/fes-window', image / 'build/software/fes-window')
+    return {'kernel_commit': kernel['commit'], 'kernel_release': kernel['release'],
+            'version': window_driver_version(image / 'kernel/fes-window')}
+
+
+def runtime_script(revision, driver):
     # All paths are fixed inside the private snapshot. No shell input comes from
-    # user paths/version. The only interpolated value is a validated Git SHA.
+    # user paths/version. Interpolated values are a validated Git SHA, the
+    # pinned kernel release and the hex driver digest.
     if not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('invalid runtime revision')
+    if not re.fullmatch('[0-9a-f]{16}', driver['version']) or not re.fullmatch('[0-9A-Za-z.+-]+', driver['kernel_release']):
+        raise ValueError('invalid fes-window driver identity')
     return '''set -eu
 export SOURCE_DATE_EPOCH=1751459412
 python3 /work/scripts/toolchain_cache.py extract /work/build/software/sdk
@@ -73,6 +109,19 @@ make -C /work/build/software/runtime -j2 all \\
  CXX="$prefix-g++" AR="$prefix-ar" NM="$prefix-nm" CXXFILT="$prefix-c++filt" \\
  MISTER_RUNTIME_VERSION=git-''' + revision + '''
 "$prefix-strip" --strip-unneeded /work/build/software/runtime/build/mister-runtime
+# fes-window builds against the pinned kernel configuration. The -MiSTer
+# local version and identical config give the shipped kernel's vermagic.
+kbuild=/work/build/software/kernel-build
+mkdir -p "$kbuild"
+printf '%s\\n' -MiSTer > "$kbuild/localversion.mister"
+export KBUILD_BUILD_USER=fogcast KBUILD_BUILD_HOST=target-image KBUILD_BUILD_VERSION=1
+export HOSTCXXFLAGS="-I/work/build/software/sdk/host/include"
+kmake="make -s -C /work/build/software/kernel-source O=$kbuild ARCH=arm CROSS_COMPILE=$prefix-"
+$kmake MiSTer_defconfig
+test "$($kmake kernelrelease)" = ''' + driver['kernel_release'] + '''
+$kmake -j2 modules_prepare
+$kmake M=/work/build/software/fes-window FES_WINDOW_VERSION=''' + driver['version'] + ''' modules
+"$prefix-strip" --strip-debug /work/build/software/fes-window/fes_window.ko
 mkdir -p /work/build/software/base/etc /work/build/software/base/usr/share/fes /work/build/software/base/usr
 # Only base ABI and immutable factory trees are required. Avoid device inodes.
 debugfs -R 'rdump /lib /work/build/software/base' /work/build/software/base.img
@@ -82,7 +131,7 @@ debugfs -R 'rdump /usr/share/fes/software /work/build/software/base/usr/share/fe
 '''
 
 
-def build_runtime(snapshot, cache, revision, env):
+def build_runtime(snapshot, cache, revision, env, driver):
     image = snapshot / 'image'
     work = image / 'build/software'
     work.mkdir(parents=True, exist_ok=True)
@@ -119,7 +168,7 @@ def build_runtime(snapshot, cache, revision, env):
     if existing.returncode == 0:
         raise ValueError('private build volume already exists; refusing to claim it')
     try:
-        run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', runtime_script(revision)],
+        run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', runtime_script(revision, driver)],
             env=container_env)
     finally:
         subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'rm',
@@ -197,7 +246,8 @@ def publish(root, base, base_sha, version, output):
         if sha(image / 'build/software/base.img') != base_sha:
             raise ValueError('base image changed while copying')
         go_version = build_go(snapshot, version, revision, env)
-        toolchain = build_runtime(snapshot, cache, revision, env)
+        driver = prepare_kernel_module(root, snapshot, env)
+        toolchain = build_runtime(snapshot, cache, revision, env, driver)
         fogcast = snapshot / 'sources/FogCast'
         payload = Path(scratch) / 'payload'
         (payload / 'bin').mkdir(parents=True)
@@ -206,6 +256,14 @@ def publish(root, base, base_sha, version, output):
         shutil.copyfile(image / 'build/software/runtime/build/mister-runtime', payload / 'bin/mister-runtime')
         shutil.copytree(image / 'buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast',
                         payload / 'share/fogcast')
+        # The runtime loads its release's driver; see libmister-runtime window_driver.
+        window = payload / 'share/fes-window'
+        window.mkdir()
+        shutil.copyfile(image / 'build/software/fes-window/fes_window.ko', window / 'fes_window.ko')
+        (window / 'version').write_text(driver['version'] + '\n')
+        for path in window.iterdir():
+            path.chmod(0o444)
+        driver['sha256'] = sha(window / 'fes_window.ko')
         for path in (payload / 'bin').iterdir():
             path.chmod(0o555)
         candidate = Path(publication)
@@ -220,7 +278,7 @@ def publish(root, base, base_sha, version, output):
                                     for name in ('sources/FogCast', 'sources/libmister-runtime', 'image')},
                    'base_image_sha256': base_sha, 'base_contract': factory['base_contract'],
                    'base_factory_manifest_sha256': sha(image / 'build/software/base/usr/share/fes/software/manifest.json'),
-                   'toolchain': toolchain, 'go_toolchain': go_version,
+                   'toolchain': toolchain, 'go_toolchain': go_version, 'window_driver': driver,
                    'workflow_sha256': workflow_sha, 'bundle': result,
                    'artifacts': {'bundle.tar': {'sha256': sha(candidate / 'bundle.tar'),
                                                'size': (candidate / 'bundle.tar').stat().st_size}}}
