@@ -123,7 +123,7 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'pass count differs'):
                 appliance_media.prepare(self.root,'native-integration-dev',release.directory,self.root/'bootstrap',self.root/'scratch')
 
-    def test_media_kernel_cache_runner_forwards_selected_pass_count(self):
+    def test_media_kernel_cache_runner_forwards_verified_pass_count(self):
         import sys
         sys.path.insert(0,str(ROOT/'scripts'))
         import media
@@ -131,8 +131,8 @@ class ReleaseTests(unittest.TestCase):
         runner.runtime='fake-runtime'
         staged=self.root/'staged';staged.mkdir()
         with mock.patch.dict(os.environ,{'IMAGE_PASSES':'1'}), mock.patch.object(runner,'create_and_start') as start:
-            runner.child_verify(self.root/'image',staged,{'TARGET_IMAGE_CONTAINER_RUNTIME':'docker'})
-        self.assertEqual(start.call_args.kwargs['env']['FES_IMAGE_PASSES'],'1')
+            runner.child_verify(self.root/'image',staged,{'TARGET_IMAGE_CONTAINER_RUNTIME':'docker','FES_IMAGE_PASSES':'2'})
+        self.assertEqual(start.call_args.kwargs['env']['FES_IMAGE_PASSES'],'2')
 
     def test_release_cli_defaults_to_one_pass_in_ci_without_special_version(self):
         import sys

@@ -539,6 +539,20 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(self.runner.asserted_env['FES_PONG_PACKAGE_SELECTION'],
                          str(self.output / 'fes-pong.package-selection.toml'))
 
+    def test_child_verify_uses_verified_image_pass_count(self):
+        # make verify keyed the QEMU kernel cache to that pass's compiler tree.
+        sha = cold_build.digest(self.output / 'linux.img')
+        toolchain = f"toolchain_key={cold_build.toolchain_key(cold_build.IMAGE)}\ntoolchain_sha256={'b' * 64}\n"
+        for passes, ambient in ((2, {}), (2, {'IMAGE_PASSES': '1'}), (1, {'IMAGE_PASSES': '2'})):
+            with self.subTest(passes=passes, ambient=ambient), patch.dict(os.environ, ambient):
+                runs = f'run_1_sha256={sha}\n' + (f'run_2_sha256={sha}\n' if passes == 2 else '')
+                (self.output / 'reproducibility.txt').write_text(f'image_passes={passes}\n' + runs + toolchain)
+                (self.output / 'verification.json').write_text(
+                    json.dumps(cold_build.verification_record(self.output, sha, False, passes)))
+                shutil.rmtree(self.output / 'media', ignore_errors=True)
+                self.build()
+                self.assertEqual(self.runner.asserted_env['FES_IMAGE_PASSES'], str(passes))
+
     def test_package_only_media_reuses_the_complete_ordered_package_set(self):
         second_package = self.packages['fes.zx81']
         second = second_package['directory']

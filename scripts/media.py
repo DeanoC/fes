@@ -463,10 +463,11 @@ def prepare(root, profile):
                          splash=native_cache / 'splash.rbf')
     verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
     verify_file(inputs.splash_payload(), inputs.provenance.splash_size, inputs.provenance.splash_sha256, "splash provenance")
+    # make verify keyed the QEMU kernel cache to the verified pass's compiler.
     env = dict(env, NATIVE_RUNTIME_MODE=mode,
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
-               FOGCAST_DIR=str(fogcast))
+               FOGCAST_DIR=str(fogcast), FES_IMAGE_PASSES=str(cold['image_passes']))
     for recipe in cold_build.FORMAT2_RECIPES.values():
         env.pop(recipe.package_dir_env, None)
         env.pop(recipe.package_selection_env, None)
@@ -951,8 +952,7 @@ class Runner:
         try:
             self.create_and_start([image / 'scripts/target-image-container.sh', 'run', 'sh',
                       '/work/build/output/target-image/media-verify/verify.sh'], name,
-                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim),
-                              FES_IMAGE_PASSES=os.environ.get('IMAGE_PASSES', '1')))
+                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)))
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 
