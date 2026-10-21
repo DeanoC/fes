@@ -105,7 +105,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                       fingerprint, env, fogcast_make, image_make, packages=None,
                       unavailable=(), diagnostics=None):
     mode = native_image_mode(profile)
-    selected_work = env.get('FES_IMAGE_WORK', WORK.format(passes=os.environ.get('IMAGE_PASSES', '2')))
+    selected_work = env.get('FES_IMAGE_WORK', WORK.format(passes=os.environ.get('IMAGE_PASSES', '1')))
     if mode != 'package-only':
         raise ValueError('FES native development requires package-only mode')
     output = root / 'out' / profile_name / 'development'

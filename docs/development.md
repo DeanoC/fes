@@ -150,20 +150,25 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
-For local scratch/HIL iteration, `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts` runs once and
-records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
-the checkout head and image digest. A HIL-named `make release` appends `-1p`,
-carries the marker into release outputs, and records `image_passes: 1` in
-`evidence.json`. `release.json` keeps the legacy field set
-(`format`, `board`, `boot_abi`, `version`, `kernel_sha256`, `image_sha256`,
-`image_size`, `fes_revision`, `fogcast_revision`, `runtime_revision`) so a
-deployed agent can stage the image. Readers treat a missing `manifest_format`
-as `1.0`. The same major with a higher minor may add unknown optional fields;
-the update path ignores those fields and logs them. An unknown major, a
-duplicate, or a missing or malformed required field is rejected. Readers still
-accept an optional positive `image_passes` integer when a manifest already
-contains it. CI and cold media/appliance paths keep two
-passes and omit the evidence field.
+Image builds use one pass by default, including CI. `make image
+IMAGE_ARTIFACTS=/absolute/artifacts` assembles explicit prebuilt inputs without
+rebuilding their sources. `make verify` still checks the image hashes, structure,
+and QEMU packaging. Receipts and release evidence record `image_passes: 1` and
+`two_pass_reproducibility: not-run-single-pass`; they do not claim reproducibility.
+Single-pass images can be exported, bootstrapped and provisioned normally, without
+a special version name or scratch marker.
+
+For an explicit reproducibility check, use `IMAGE_PASSES=2 make image` (with the
+same artifact selection), then `IMAGE_PASSES=2 make verify` and
+`IMAGE_PASSES=2 make release RELEASE_VERSION=<version>`. Both independent rootfs
+builds must match. Cached outputs and export requests must match the selected
+pass count. Image integrity, target compatibility and boot acceptance are the
+same for both modes. Bootstrap and card assembly retain their separate,
+inexpensive deterministic packaging comparisons; these do not rebuild the OS.
+
+The update manifest keeps its existing field set; build-pass evidence lives in
+`evidence.json`, bound to the verified image receipts. Source revisions identify
+provenance, not a requirement for matching host software.
 
 An optional core, currently Atari ST, can miss timing without failing
 `make build` or `make dev`. The build prints a `WARNING:` block

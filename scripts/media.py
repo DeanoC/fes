@@ -952,7 +952,7 @@ class Runner:
             self.create_and_start([image / 'scripts/target-image-container.sh', 'run', 'sh',
                       '/work/build/output/target-image/media-verify/verify.sh'], name,
                      env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim),
-                              FES_IMAGE_PASSES=os.environ.get('IMAGE_PASSES', '2')))
+                              FES_IMAGE_PASSES=os.environ.get('IMAGE_PASSES', '1')))
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 

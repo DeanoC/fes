@@ -7,9 +7,8 @@ container_script=$repo/scripts/target-image-container.sh
 verify_script=$repo/scripts/verify-target-image.sh
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
-# The single-pass cases model a local scratch build, so clear the CI markers
-# here; the CI refusal is asserted explicitly below.
-unset CI GITHUB_ACTIONS
+# Reproducibility cases explicitly request two passes; default/CI cases below use one.
+export FES_IMAGE_PASSES=2
 
 for script in "$build_script" "$container_script" "$verify_script"; do
   test -x "$script"
@@ -134,21 +133,19 @@ grep -Fq "target image native-dev image: $(/usr/bin/shasum -a 256 "$fixture/outp
 test "$(wc -l < "$fixture/build.log" | tr -d ' ')" = 1
 test ! -e "$fixture/output/work-2-native-dev"
 grep -Fq 'image_passes=1' "$fixture/output/native-dev/reproducibility.txt"
-grep -Fq 'single_pass_scratch=1' "$fixture/output/native-dev/reproducibility.txt"
+! grep -Fq 'single_pass_scratch=' "$fixture/output/native-dev/reproducibility.txt"
 ! grep -Fq 'run_2_sha256=' "$fixture/output/native-dev/reproducibility.txt"
-grep -Fq 'linux_img_sha256=' "$fixture/output/native-dev/SINGLE-PASS-SCRATCH.txt"
+test ! -e "$fixture/output/native-dev/SINGLE-PASS-SCRATCH.txt"
 if FES_IMAGE_PASSES=3 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/invalid-passes.log" 2>&1; then
   echo 'invalid IMAGE_PASSES accepted' >&2; exit 1
 fi
 grep -Fq 'must be 1 or 2' "$fixture/invalid-passes.log"
 for marker in CI GITHUB_ACTIONS; do
-  if env "$marker=true" FES_IMAGE_PASSES=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev \
-      >"$fixture/ci-refusal.log" 2>&1; then
-    echo "single-pass image accepted with $marker=true" >&2; exit 1
-  fi
-  grep -Fq 'single-pass images are disabled in CI' "$fixture/ci-refusal.log"
+  : > "$fixture/build.log"
+  env -u FES_IMAGE_PASSES "$marker=true" sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >/dev/null
+  test "$(wc -l < "$fixture/build.log" | tr -d ' ')" = 1
+  grep -Fq 'image_passes=1' "$fixture/output/native-dev/reproducibility.txt"
 done
-env CI=true sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >/dev/null
 if FES_IMAGE_PASSES=1 FES_IMAGE_WORK=/target-image-output/work-2-native-dev \
     sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/mismatched-work.log" 2>&1; then
   echo 'mismatched image work directory was accepted' >&2; exit 1

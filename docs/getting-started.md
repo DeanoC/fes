@@ -57,8 +57,8 @@ local module tests can exercise uncommitted work.
 | Check Linux/Go/container prerequisites | `make doctor` | Prerequisite and selected-revision report |
 | Build the host CLI and browser API | `make host` | `out/native-integration-dev/fogcast` and `fogcast-api` |
 | Build an everyday diagnostic target image | `make dev` | `out/native-integration-dev/development/linux.img` |
-| Assemble a clean two-pass OS from [prebuilt inputs](image-artifacts.md) | `make image IMAGE_ARTIFACTS=/absolute/artifacts` | `out/native-integration-dev/linux.img` and image evidence |
-| Build a stabilized host/image combination | `make build` | Host binaries and clean two-pass image under `out/native-integration-dev/` |
+| Assemble a clean one-pass OS from [prebuilt inputs](image-artifacts.md) | `make image IMAGE_ARTIFACTS=/absolute/artifacts` | `out/native-integration-dev/linux.img` and image evidence |
+| Build a stabilized host/image combination | `make build` | Host binaries and clean one-pass image under `out/native-integration-dev/` |
 | Verify that clean combination | `make verify` | Receipt checks, structural checks and QEMU packaging smoke |
 | Publish flashable native media | `make media` | `out/native-integration-dev/media/current/fes.img` and receipts |
 | Reverify published native media | `make verify-media` | Media, payload, embedded-rootfs and QEMU checks |
@@ -88,8 +88,9 @@ make verify-media
 ```
 
 `make build` also reuses matching complete outputs. When it must assemble a new
-image, it runs two independent clean passes. `make rebuild` forces the host,
-selected package production and both image passes; use it when that expensive
+image, it runs one clean pass by default. Set `IMAGE_PASSES=2` for build and
+verify to compare two independent passes. `make rebuild` forces the host,
+selected package production and the selected number of image passes; use it when that expensive
 work is intended. The only parent profile is `native-integration-dev`.
 
 `make verify` requires both host and clean-image receipts, so run `make host`
@@ -228,16 +229,15 @@ and input behavior require separate hardware checks of the exact image.
 Next: [change a component](development.md#isolate-component-work) or
 [assign a bounded agent task](agent-workflow.md).
 
-# Scratch/HIL image builds
+# Image pass policy
 
-For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The
-single output records `image_passes=1` and `single_pass_scratch=1`, and includes
-`SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
-A HIL-named `make release` with `IMAGE_PASSES=1` appends `-1p` to the version
-and records `image_passes: 1` in `evidence.json`. `release.json` keeps the
-legacy manifest fields so a deployed agent can stage it. `fes-update` treats
-a missing `manifest_format` as `1.0`. The same major with a higher minor may
-add unknown optional fields, which it ignores and logs. An unknown major, a
-duplicate, or a missing or malformed required field is rejected. It still
-accepts an optional positive `image_passes` on a manifest that already has
-it. CI and cold releases omit the evidence field.
+`make image IMAGE_ARTIFACTS=/absolute/artifacts` uses one pass by default, including
+CI. Image hashes, structure and QEMU packaging are still checked. `make release
+RELEASE_VERSION=dev.1` preserves the requested version and records the actual pass
+count in `evidence.json`; single-pass releases support normal bootstrap and media
+assembly. Their verification reports reproducibility as `not-run-single-pass`.
+
+For two independent OS builds and a byte-for-byte comparison, use
+`IMAGE_PASSES=2` consistently with `make image`, `make verify`, and `make release`.
+A cached one-pass image cannot satisfy that request. See [image assembly](image-assembly.md)
+for cache behavior and [appliance releases](appliance-releases.md) for boot evidence.
