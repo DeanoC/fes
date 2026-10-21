@@ -1,0 +1,25 @@
+cpu:
+directed (max wait 0): 826 instructions, 15 exceptions, 6 interrupts, 2828 cycles
+directed (max wait 3): 826 instructions, 15 exceptions, 6 interrupts, 3762 cycles
+fuzz seed 1 (max wait 3): 18782 instructions, 518 exceptions, 40 interrupts, 122 adopted counter reads, 75425 cycles
+fuzz seed 2 (max wait 3): 17602 instructions, 480 exceptions, 75 interrupts, 40 adopted counter reads, 70881 cycles
+fuzz seed 3 (max wait 0): 17298 instructions, 440 exceptions, 1 interrupts, 40 adopted counter reads, 54380 cycles
+fuzz seed 4 (max wait 3): 19140 instructions, 540 exceptions, 159 interrupts, 120 adopted counter reads, 77221 cycles
+fuzz seed 5 (max wait 3): 20251 instructions, 640 exceptions, 80 interrupts, 40 adopted counter reads, 81840 cycles
+fuzz seed 6 (max wait 0): 19965 instructions, 440 exceptions, 279 interrupts, 40 adopted counter reads, 63855 cycles
+fuzz seed 7 (max wait 3): 21732 instructions, 720 exceptions, 160 interrupts, 120 adopted counter reads, 88019 cycles
+fuzz seed 8 (max wait 3): 18981 instructions, 560 exceptions, 41 interrupts, 40 adopted counter reads, 76931 cycles
+fuzz seed 9 (max wait 0): 19976 instructions, 720 exceptions, 0 interrupts, 120 adopted counter reads, 62893 cycles
+fuzz seed 10 (max wait 3): 23453 instructions, 639 exceptions, 314 interrupts, 120 adopted counter reads, 95499 cycles
+fuzz seed 11 (max wait 3): 21501 instructions, 640 exceptions, 149 interrupts, 0 adopted counter reads, 86288 cycles
+fuzz seed 12 (max wait 0): 21871 instructions, 680 exceptions, 238 interrupts, 80 adopted counter reads, 69447 cycles
+fuzz seed 13 (max wait 3): 22613 instructions, 760 exceptions, 128 interrupts, 160 adopted counter reads, 90899 cycles
+fuzz seed 14 (max wait 3): 19998 instructions, 682 exceptions, 40 interrupts, 80 adopted counter reads, 80087 cycles
+fuzz seed 15 (max wait 0): 16737 instructions, 440 exceptions, 40 interrupts, 120 adopted counter reads, 52775 cycles
+fuzz seed 16 (max wait 3): 19282 instructions, 520 exceptions, 79 interrupts, 120 adopted counter reads, 77650 cycles
+fuzz seed 17 (max wait 3): 16412 instructions, 440 exceptions, 0 interrupts, 120 adopted counter reads, 66539 cycles
+fuzz seed 18 (max wait 0): 19092 instructions, 640 exceptions, 0 interrupts, 240 adopted counter reads, 60119 cycles
+fuzz seed 19 (max wait 3): 18652 instructions, 520 exceptions, 40 interrupts, 80 adopted counter reads, 75298 cycles
+fuzz seed 20 (max wait 3): 18320 instructions, 599 exceptions, 0 interrupts, 120 adopted counter reads, 73469 cycles
+fes_rv32_cpu checks passed (host simulation only).
+RV32I RTL checks passed (host simulation only).

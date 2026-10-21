@@ -3120,6 +3120,11 @@ an optional external interrupt, identification and software interrupt).
 Other addresses fault. The CPU, memories, raster and I/O share the 74.25 MHz
 pixel clock; there is no second clock domain and no DDR.
 
+The CPU separates result capture in EXEC from completion in COMMIT. ALU,
+address/PC, branch, alignment, store and CSR operands cross that register
+boundary before side effects. This adds one execution cycle per instruction
+while preserving the shared pixel clock and precise instruction completions.
+
 The firmware is hand-written RV32I assembled by `cores/fes-riscv/firmware/assemble.py`
 into `firmware.hex` and four lane images. Source, assembler and images are
 pinned producer inputs, and `scripts/build_fes_riscv.py` re-assembles the

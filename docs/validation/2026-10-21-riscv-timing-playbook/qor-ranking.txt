@@ -1,0 +1,134 @@
+{
+  "budget": 8,
+  "critexp": 2,
+  "mode": "first-pass",
+  "ranking": [
+    {
+      "argv": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin/nextpnr-mistral",
+        "--json",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/synth.json",
+        "--device",
+        "5CSEBA6U23I7",
+        "--qsf",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/cores/fes-pong/constraints.qsf",
+        "--seed",
+        "1",
+        "--placer-heap-timingweight",
+        "10",
+        "--placer-heap-critexp",
+        "2",
+        "--report",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/timing.json",
+        "--write",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/routed.json",
+        "--rbf",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/core.rbf",
+        "--compress-rbf",
+        "--detailed-timing-report",
+        "--timing-allow-fail",
+        "--router",
+        "gpu",
+        "--gpu-device",
+        "0",
+        "--sdc",
+        "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/boards/de10nano/clocks.sdc",
+        "--freq",
+        "74.25"
+      ],
+      "critexp": 2,
+      "environment": {
+        "HOME": "/tmp/fes-tool-home-5y1a3sj6",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin:/usr/bin:/bin",
+        "TZ": "UTC"
+      },
+      "fmax": {
+        "endpoint.clk": {
+          "achieved": 76.24275970458984,
+          "constraint": 74.25006866455078
+        }
+      },
+      "log": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/route.log",
+      "passing": true,
+      "recipe_sha256": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+      "run_dir": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2",
+      "seed": 1,
+      "slot": "8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b",
+      "sum_ratio": 1.026837564946124,
+      "weight": 10,
+      "worst_ratio": 1.026837564946124
+    }
+  ],
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "weights": [
+    10
+  ],
+  "winner": {
+    "argv": [
+      "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin/nextpnr-mistral",
+      "--json",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/synth.json",
+      "--device",
+      "5CSEBA6U23I7",
+      "--qsf",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/cores/fes-pong/constraints.qsf",
+      "--seed",
+      "1",
+      "--placer-heap-timingweight",
+      "10",
+      "--placer-heap-critexp",
+      "2",
+      "--report",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/timing.json",
+      "--write",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/routed.json",
+      "--rbf",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/core.rbf",
+      "--compress-rbf",
+      "--detailed-timing-report",
+      "--timing-allow-fail",
+      "--router",
+      "gpu",
+      "--gpu-device",
+      "0",
+      "--sdc",
+      "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/boards/de10nano/clocks.sdc",
+      "--freq",
+      "74.25"
+    ],
+    "critexp": 2,
+    "environment": {
+      "HOME": "/tmp/fes-tool-home-5y1a3sj6",
+      "LANG": "C",
+      "LC_ALL": "C",
+      "PATH": "/home/deano/fes/out/cache/misteross-toolchains/slots/8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b/install/bin:/usr/bin:/bin",
+      "TZ": "UTC"
+    },
+    "fmax": {
+      "endpoint.clk": {
+        "achieved": 76.24275970458984,
+        "constraint": 74.25006866455078
+      }
+    },
+    "log": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2/route.log",
+    "passing": true,
+    "recipe_sha256": "c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b",
+    "run_dir": "/home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/fes-riscv/qor-search/s1-w10-c2",
+    "seed": 1,
+    "slot": "8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b",
+    "sum_ratio": 1.026837564946124,
+    "weight": 10,
+    "worst_ratio": 1.026837564946124
+  }
+}
