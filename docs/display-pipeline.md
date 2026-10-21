@@ -35,6 +35,11 @@ The display plane sits after the video part, outside the part's CRAM fence:
 - Scanlines and later CRT effects darken the machine picture, not the
   launcher's text or the surround.
 
+A package with the plane declares both `fes.video.session-display` 1.0 and
+`fes.fabric.video.display-plane` 1.0 as required interfaces. Kit software
+without the plane therefore refuses the package at compatibility, before
+programming, and software with the plane refuses a session display that lacks it.
+
 ## One plane for surround and overlay
 
 The surround and the overlay are both content of a single 1280×720 plane.

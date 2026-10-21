@@ -332,6 +332,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.memory.hps-ddr", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.session-display", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.fabric.video.display-plane", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
         ],

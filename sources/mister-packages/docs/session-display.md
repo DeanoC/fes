@@ -24,11 +24,19 @@ runtime. Keeping these constants out of the ABI files leaves every other
 core's generated ABI header unchanged. The runtime consumer revision is
 recorded in `testdata/oracles/fes-display-plane.json`.
 
+A package with the session display also declares `fes.fabric.video.display-plane`
+1.0 as a required interface. It grants no capability bit. Software with the
+plane advertises it beside the session display and refuses either declaration
+without the other, so it refuses a package with the earlier opaque plane at
+compatibility. Software without the plane does not know the interface, so it
+refuses the package at compatibility too. Neither refusal programs the FPGA.
+
 Each 32-bit slot word is B, G, R, A in byte order. The plane reports pixel
 format 2 (`FesDisplayPlanePixelFormatPremultipliedRgba`) at MENU_INFO index
-7; idle menu display stays format 1 and ignores the top byte. The runtime
-admits a session plane only at format 2 and idle firmware only at format 1,
-so either mismatch fails closed. For machine pixel `M` and plane pixel `P`
+7; idle menu display stays format 1 and ignores the top byte. After
+programming, the runtime accepts a session plane only at format 2 and idle
+firmware only at format 1, so a bitstream that does not match its declaration
+fails closed. For machine pixel `M` and plane pixel `P`
 with premultiplied alpha `a`, every channel of the visible plane is
 
 ```

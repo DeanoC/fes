@@ -1531,7 +1531,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  TempDirectory package;
  auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
  ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
- for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display"})
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
   manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
  package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
  OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
@@ -1548,9 +1548,14 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  fpga.boot_hps_ddr_layout=false;
  assert(!hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  fpga.boot_hps_ddr_layout=true;
- bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
-  if(abi.id==FesSimpleComputerABIID&&interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID)advertised=true;
- assert(advertised);
+ // The shared plane is advertised with session display, so FogCast sees every
+ // required interface of the package as supported.
+ bool advertised=false,plane=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(abi.id==FesSimpleComputerABIID) {
+   advertised|=interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID;
+   plane|=interface.id==std::string(kDisplayPlaneInterfaceID)&&interface.major==1&&interface.minor==0;
+  }
+ assert(advertised&&plane);
  assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  MenuGpScript script{&mmio};script.session=true;auto words=FesGpIdentityWords();
  words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
@@ -1596,18 +1601,24 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  assert(!hardware.menu_display().session);
 }
 
-// A session package built before the shared plane reports the idle XRGB
-// format. Load fails closed after programming, so the runtime returns to idle.
+// A session package built before the shared plane (ZX81 1.5.0) declares no
+// display plane, so inspection and admission refuse it before programming.
+// A package that declares the plane but whose bitstream still reports the
+// idle XRGB format fails closed after programming, so the runtime returns to idle.
 void TestSessionDisplayRejectsPlaneWithoutBlend()
 {
  using namespace mister::native;using namespace mister::native::generated;
- TempDirectory package;
- auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
- ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
- for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display"})
-  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
- package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
- OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ auto session_package=[](TempDirectory* package,bool plane,OpenedCorePackage* opened) {
+  auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+  ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+  for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+   if(plane||std::string(id)!=kDisplayPlaneInterfaceID)
+    manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+  package->File("manifest.toml",manifest);package->File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+  assert(OpenCorePackage(package->path,"",opened).ok());
+ };
+ TempDirectory opaque,package;OpenedCorePackage opaque_opened,opened;
+ session_package(&opaque,false,&opaque_opened);session_package(&package,true,&opened);
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
  MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
@@ -1618,6 +1629,12 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
  NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
   idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
  std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ mister::CorePackageInspection inspection;
+ assert(hardware.InspectCorePackage(opaque.path,opaque_opened.package_id,&inspection).ok());
+ assert(!inspection.compatible&&inspection.compatibility_error.code==mister::ErrorCode::unsupported_interface);
+ const auto refused=hardware.AdmitCorePackage(opaque.path,opaque_opened.package_id,&admitted);
+ assert(refused.code==mister::ErrorCode::unsupported_interface&&refused.phase=="compatibility");
+ assert(!admitted&&fpga.calls==0);
  assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
  words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
@@ -3688,6 +3705,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 				"\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
+				"\n[[interfaces]]\nid = \"fes.fabric.video.display-plane\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
 		} else {
 			const auto first = manifest.find("[[interfaces]]");
@@ -3761,6 +3779,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 		const bool plane = item.layout && item.adapters;
 		assert(advertised(hardware, FesComputerInterfaceMemoryHpsDdrID) == item.layout);
 		assert(advertised(hardware, FesComputerInterfaceVideoSessionDisplayID) == plane);
+		assert(advertised(hardware, kDisplayPlaneInterfaceID) == plane);
 		assert(admitted(&hardware, display_package.path, display_opened.package_id) == plane);
 		assert(admitted(&hardware, ddr_package.path, ddr_opened.package_id) == item.layout);
 	}

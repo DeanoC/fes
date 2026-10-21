@@ -1258,10 +1258,12 @@ void TestSessionDescriptorExchangeDoesNotFollowReopenedPlane()
  fixture.hardware.core_info.descriptor.abi={"fes.simple-computer",1,0};
  fixture.hardware.core_info.descriptor.interfaces={
   {"fes.keyboard",1,0,true},{"fes.video.fixed-720p60",1,0,true},
-  {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},{"fes.video.session-display",1,0,true}};
+  {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},{"fes.video.session-display",1,0,true},
+  {"fes.fabric.video.display-plane",1,0,true}};
  fixture.hardware.supported.abis={{"fes.simple-computer",1,0,{
   {"fes.keyboard",1,0},{"fes.video.fixed-720p60",1,0},
-  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0}}}};
+  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0},
+  {"fes.fabric.video.display-plane",1,0}}}};
  fixture.Start();const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
  Contains(Exchange(path,kLoad),"\"ok\":true");
  const auto generation=fixture.runtime.status().generation;

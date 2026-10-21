@@ -527,6 +527,14 @@ class BuildFesZx81OssTests(unittest.TestCase):
         for item in fields["interfaces"]:
             if item["id"] in ("fes.memory.hps-ddr", "fes.video.session-display"):
                 self.assertTrue(item["required"])
+        # Software without the shared plane refuses the package at admission,
+        # before programming. The declared version is the generated contract's.
+        header = (build_fes_zx81_oss.ROOT / "cores/fes-common/generated/fes_display_plane.vh").read_text()
+        major, minor = (int(header.split(f"`define FES_DISPLAY_PLANE_{part} 32'h")[1].split()[0], 16)
+                        for part in ("MAJOR", "MINOR"))
+        plane = [item for item in fields["interfaces"] if item["id"] == "fes.fabric.video.display-plane"]
+        self.assertEqual(plane, [{"id": "fes.fabric.video.display-plane", "major": major,
+                                  "minor": minor, "required": True}])
 
 
 class Zx81PlaneDspTests(unittest.TestCase):

@@ -91,14 +91,24 @@ display retains its live controls. The
 describe ownership and failure
 behavior.
 
-Kit software and core packages update independently. A 1.6.0 package's shared
-plane reports pixel format 2; a 1.5.0 package's opaque plane reports format 1.
-The runtime admits a session plane at exactly one of those formats: software
-with the shared plane refuses to launch 1.5.0, and older software refuses
-1.6.0. Either refusal returns the kit to idle. Installing software leaves
-library selections unchanged, so switch a ZX81 entry between installed
+Kit software and core packages update independently. A 1.6.0 package declares
+the shared plane, `fes.fabric.video.display-plane` 1.0, as a required interface
+beside `fes.video.session-display` 1.0, and its plane reports pixel format 2. A
+1.5.0 package's opaque plane declares only the session display and reports
+format 1. Software with the shared plane refuses a session display without the
+plane, and older software does not know the plane, so each refuses the other
+version at compatibility, before programming. After programming, software with
+the plane also checks that the bitstream reports format 2. Installing software
+leaves library selections unchanged, so switch a ZX81 entry between installed
 versions with `core-select` when changing software. There is no compatibility
 path for the earlier plane.
+
+A 1.6.0 kit check therefore needs this software selected, not just an image that
+contains it. A new image runs its built-in software only during its trial boot;
+after confirmation the supervisor restores the selected bundle
+([kit software releases](kit-software-releases.md#activation-and-recovery)).
+Install and activate the `make kit-software` bundle, then restore the baseline
+bundle afterwards.
 
 ## Validation
 

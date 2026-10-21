@@ -1549,10 +1549,11 @@ void StartSessionDisplayFixture(Fixture& f,const std::string& id)
  f.hardware.core_info.descriptor.interfaces={
   {"fes.keyboard",1,0,true},{"fes.video.fixed-720p60",1,0,true},
   {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},
-  {"fes.video.session-display",1,0,true}};
+  {"fes.video.session-display",1,0,true},{"fes.fabric.video.display-plane",1,0,true}};
  f.hardware.supported.abis={{"fes.simple-computer",1,0,{
   {"fes.keyboard",1,0},{"fes.video.fixed-720p60",1,0},
-  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0}}}};
+  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0},
+  {"fes.fabric.video.display-plane",1,0}}}};
  assert(f.runtime.Start().ok());assert(f.runtime.LoadCore("/zx81",id).ok());
 }
 
@@ -1564,11 +1565,11 @@ void StartComputerSessionDisplayFixture(Fixture& f, const std::string& id)
 	f.hardware.core_info.descriptor.interfaces = {
 		{"fes.keyboard.hid", 1, 0, true}, {"fes.video.fixed-720p60", 1, 0, true},
 		{"fes.media.zx81-tape", 1, 0, true}, {"fes.memory.hps-ddr", 1, 0, true},
-		{"fes.video.session-display", 1, 0, true}};
+		{"fes.video.session-display", 1, 0, true}, {"fes.fabric.video.display-plane", 1, 0, true}};
 	f.hardware.supported.abis.push_back({"fes.computer", 1, 0, {
 		{"fes.keyboard.hid", 1, 0}, {"fes.video.fixed-720p60", 1, 0},
 		{"fes.media.zx81-tape", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
-		{"fes.video.session-display", 1, 0}}});
+		{"fes.video.session-display", 1, 0}, {"fes.fabric.video.display-plane", 1, 0}}});
 	assert(f.runtime.Start().ok());
 	assert(f.runtime.LoadCore("/zx81", id).ok());
 }

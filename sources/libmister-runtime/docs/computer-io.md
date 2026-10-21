@@ -56,8 +56,10 @@ Native capabilities advertise the ABI with every recognized interface:
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
 core latched the port layout, including a kit without presentation adapters.
 `fes.video.session-display` 1.0 is added only when that layout and both
-presentation adapters are present. A computer that does not implement the
-plane leaves the session-display bit clear.
+presentation adapters are present, together with its shared plane
+`fes.fabric.video.display-plane` 1.0. That plane has no capability bit; a
+package declaring either one without the other is refused at compatibility. A
+computer that does not implement the plane leaves the session-display bit clear.
 
 ## Lifecycle
 

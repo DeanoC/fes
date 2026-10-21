@@ -686,8 +686,11 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesSimpleComputerInterfaceMediaBlobStreamMinor}};
 		if (fpga_.BootHpsDdrLayout())
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceMemoryHpsDdrID,1,0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_) {
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceVideoSessionDisplayID,1,0});
+			computer.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
@@ -758,13 +761,17 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
 		// DDR follows the latched boot layout. Session display also needs both
-		// presentation adapters, matching admission of each interface.
+		// presentation adapters, matching admission of each interface. Its
+		// shared plane is advertised with it.
 		if (fpga_.BootHpsDdrLayout())
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_) {
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
+			computer_io.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
@@ -1444,6 +1451,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
+   // Admission required the declared shared plane; the live bitstream must be it.
    if(error.ok()&&info.pixel_format!=generated::FesDisplayPlanePixelFormatPremultipliedRgba)
     error={ErrorCode::io_failed,"session display must blend premultiplied RGBA","menu"};
    if(!error.ok())return {error,true,identified.observed_core};

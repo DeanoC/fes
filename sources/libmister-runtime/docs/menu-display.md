@@ -123,8 +123,9 @@ the budget above before using the splash path. Failed containment requires reboo
 ## In-session display
 
 An active simple-computer or computer package with required
-`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the same
-frame transport. The plane blends the staged RGBA as premultiplied alpha over
+`fes.video.session-display` 1.0, its shared plane
+`fes.fabric.video.display-plane` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the
+same frame transport. The plane blends the staged RGBA as premultiplied alpha over
 the machine picture; an opaque frame replaces it. Open/return uses the active
 core identity, not the frame generation:
 
@@ -136,8 +137,9 @@ core identity, not the frame generation:
 Status carries `session: true`, `core_generation: 7` and the machine picture
 rectangle `picture: [x, y, width, height]` in `menu_display`, alongside the
 active package ID and fixed geometry, while the plane is closed. Admission
-requires the plane to report pixel format 2 and a picture inside the frame;
-idle MENU must report format 1.
+refuses a session display that does not declare the shared plane, such as ZX81
+1.5.0, before programming. Load then requires the plane to report pixel format
+2 and a picture inside the frame; idle MENU must report format 1.
 `available` becomes true only after successful open, which grants a fresh
 nonzero `menu_display.generation` for immutable frame submissions. A repeated
 open is idempotent. Close sets availability false and generation zero, revokes
