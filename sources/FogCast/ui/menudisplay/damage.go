@@ -5,7 +5,8 @@ import "bytes"
 const (
 	// MaxDamageRects is the most rectangles one damaged present may name.
 	MaxDamageRects = 16
-	// damageAlign is the runtime's DDR store granule in pixels (32 bytes).
+	// damageAlign is one 32-byte cache line of pixels; the slot is written
+	// and written back in whole lines.
 	damageAlign = 8
 	// damageGapRows lets nearby changed row bands share one rectangle.
 	damageGapRows = 4
@@ -15,8 +16,8 @@ const (
 type Rect struct{ X, Y, W, H int }
 
 // Damage names the rectangles that differ from the frame the runtime is
-// showing as BaseSequence. Only those pixels cross the staging file; the
-// runtime keeps the rest from its copy of the base frame.
+// showing as BaseSequence. The client writes only those, plus what the
+// slot it draws into missed, into the granted window.
 type Damage struct {
 	BaseSequence uint32
 	Rects        []Rect

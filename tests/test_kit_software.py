@@ -137,7 +137,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
             self.assertIn('Revision=' + 'b' * 40, args[args.index('-ldflags') + 1])
         self.assertEqual((self.root / 'sources/FogCast/bin/kit-software.revision').read_text(), 'b'*40+'\n')
 
-    DRIVER = {'version': '0123456789abcdef', 'kernel_release': '5.15.1-MiSTer'}
+    DRIVER = {'kernel_release': '5.15.1-MiSTer'}
 
     def test_runtime_script_uses_private_sdk_and_no_image_build(self):
         script = kit.runtime_script('b' * 40, self.DRIVER)
@@ -154,34 +154,15 @@ class SoftwareWorkflowTests(unittest.TestCase):
 
     def test_runtime_script_builds_window_driver_for_pinned_kernel(self):
         script = kit.runtime_script('b' * 40, self.DRIVER)
-        self.assertIn("printf '%s\\n' -MiSTer > \"$kbuild/localversion.mister\"", script)
-        self.assertIn('$kmake MiSTer_defconfig', script)
-        self.assertIn('test "$($kmake kernelrelease)" = 5.15.1-MiSTer', script)
-        self.assertIn('$kmake -j2 modules_prepare', script)
-        self.assertIn('M=/work/build/software/fes-window FES_WINDOW_VERSION=0123456789abcdef modules', script)
+        build = ('/work/scripts/build-fes-window.sh /work/build/software/kernel-source /work/build/software/fes-window-build \\\n'
+                 ' /work/build/software/fes-window "$prefix-" /work/build/software/sdk/host 5.15.1-MiSTer\n')
+        self.assertIn(build, script)
         # Relocation rewrites GCC's plugin configargs.h, so the kernel plugins build first.
         relocate = script.index('\n/work/build/software/sdk/host/relocate-sdk.sh\n')
-        self.assertLess(script.index('$kmake -j2 modules_prepare'), relocate)
+        self.assertLess(script.index(build), relocate)
         self.assertLess(relocate, script.index('make -C /work/build/software/runtime'))
-        for driver in ({'version': '$(touch x)', 'kernel_release': '5.15.1-MiSTer'},
-                       {'version': '0123456789abcdef', 'kernel_release': '5.15; touch x'}):
-            with self.assertRaises(ValueError):
-                kit.runtime_script('b' * 40, driver)
-
-    def window_source(self, image):
-        source = image / 'kernel/fes-window'
-        source.mkdir(parents=True)
-        (source / 'fes_window.c').write_text('driver one')
-        (source / 'Kbuild').write_text('obj-m := fes_window.o')
-        return source
-
-    def test_window_driver_version_follows_source_bytes(self):
-        source = self.window_source(self.root / 'image')
-        first = kit.window_driver_version(source)
-        self.assertRegex(first, '^[0-9a-f]{16}$')
-        self.assertEqual(first, kit.window_driver_version(source))
-        (source / 'fes_window.c').write_text('driver two')
-        self.assertNotEqual(first, kit.window_driver_version(source))
+        with self.assertRaises(ValueError):
+            kit.runtime_script('b' * 40, {'kernel_release': '5.15; touch x'})
 
     def test_kernel_module_stages_pinned_source_and_refuses_other_commits(self):
         git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
@@ -204,7 +185,6 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 (image / 'build').mkdir(parents=True)
                 (image / 'build/target-image.sources.lock.toml').write_text(
                     f'[kernel]\ncommit = "{pinned}"\nrelease = "5.15.1-MiSTer"\n')
-                source = self.window_source(image)
                 env = dict(os.environ, FES_TARGET_IMAGE_SHARED_CACHE=str(cache))
                 if expected:
                     with self.assertRaisesRegex(ValueError, expected):
@@ -212,10 +192,8 @@ class SoftwareWorkflowTests(unittest.TestCase):
                     self.assertFalse((image / 'build/software/kernel-source').exists())
                     continue
                 driver = kit.prepare_kernel_module(self.root, snapshot, env)
-                self.assertEqual(driver, {'kernel_commit': commit, 'kernel_release': '5.15.1-MiSTer',
-                                          'version': kit.window_driver_version(source)})
+                self.assertEqual(driver, {'kernel_commit': commit, 'kernel_release': '5.15.1-MiSTer'})
                 self.assertEqual((image / 'build/software/kernel-source/Makefile').read_text(), 'kernel')
-                self.assertEqual((image / 'build/software/fes-window/fes_window.c').read_text(), 'driver one')
         # Without a shared cache the checkout's own target-image source cache is used.
         local = self.root / 'image/build/cache/target-image'
         local.mkdir(parents=True)
@@ -224,7 +202,6 @@ class SoftwareWorkflowTests(unittest.TestCase):
         (snapshot / 'image/build').mkdir(parents=True)
         (snapshot / 'image/build/target-image.sources.lock.toml').write_text(
             f'[kernel]\ncommit = "{commit}"\nrelease = "5.15.1-MiSTer"\n')
-        self.window_source(snapshot / 'image')
         env = {k: v for k, v in os.environ.items() if k != 'FES_TARGET_IMAGE_SHARED_CACHE'}
         self.assertEqual(kit.prepare_kernel_module(self.root, snapshot, env)['kernel_commit'], commit)
 
@@ -309,6 +286,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
             binary.parent.mkdir(parents=True); binary.write_bytes(b'runtime')
             module = snapshot / 'image/build/software/fes-window/fes_window.ko'
             module.parent.mkdir(parents=True); module.write_bytes(b'module')
+            (module.parent / 'version').write_text('0123456789abcdef\n')
             return {}
         def fail(base, payload, output, *args):
             self.assertEqual((payload / 'bin/mister-runtime').read_bytes(), b'runtime')

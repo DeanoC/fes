@@ -158,7 +158,24 @@ if [ "$native_mode" = package-only ]; then
     printf 'native-post-build: installed RBF count differs from package-only inputs, found %s\n' "$rbf_count" >&2
     exit 1
   }
+  # The factory runtime loads the fes-window driver its software carries.
+  # It builds here with the unrelocated Buildroot host and the pinned kernel.
+  window_driver=${FES_WINDOW_DRIVER_DIR:-}
+  if [ -z "$window_driver" ]; then
+    kernel_lock=$repo/build/target-image.sources.lock.toml
+    kernel_value() {
+      /usr/bin/python3 -c 'import sys,tomllib;print(tomllib.load(open(sys.argv[1],"rb"))["kernel"][sys.argv[2]])' "$kernel_lock" "$1"
+    }
+    window_work=${BUILD_DIR:?BUILD_DIR is required}/fes-window
+    /bin/rm -rf "$window_work"
+    /bin/mkdir -p "$window_work/kernel-source"
+    git --git-dir="$repo/build/cache/target-image/linux-kernel.git" archive "$(kernel_value commit)" |
+      tar -x -C "$window_work/kernel-source"
+    window_driver=$window_work/driver
+    "$repo/scripts/build-fes-window.sh" "$window_work/kernel-source" "$window_work/build" "$window_driver" \
+      "${HOST_DIR:?HOST_DIR is required}/bin/arm-buildroot-linux-gnueabihf-" "$HOST_DIR" "$(kernel_value release)"
+  fi
   /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
-    --fogcast "$fogcast" --runtime-revision "$runtime_commit"
+    --fogcast "$fogcast" --runtime-revision "$runtime_commit" --window-driver "$window_driver"
   exit 0
 fi

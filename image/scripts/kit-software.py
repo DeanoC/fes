@@ -130,7 +130,7 @@ def base_contract(target, executables):
             'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
 
 
-def assemble(target, fogcast, runtime_revision):
+def assemble(target, fogcast, runtime_revision, window_driver):
     target = target.resolve()
     inputs = [target / 'usr/sbin' / name for name in BINARIES]
     for p in inputs:
@@ -156,6 +156,14 @@ def assemble(target, fogcast, runtime_revision):
             raise ValueError('fresh factory assets must not be a symlink')
         if assets.exists():
             shutil.copytree(assets, payload / 'share/fogcast', symlinks=True)
+        # The runtime loads the fes-window driver its release carries.
+        window_driver = Path(window_driver)
+        if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
+                not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
+            raise ValueError('fes-window driver input must be fes_window.ko and its version')
+        (payload / 'share/fes-window').mkdir(parents=True)
+        for name in ('fes_window.ko', 'version'):
+            shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
         metadata = {**contract, 'format': 1, 'version': 'factory-' + revision[:12],
                     'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
         meta = temporary / 'metadata.json'
@@ -224,11 +232,14 @@ def main():
     parser.add_argument('--version', help='software version label (update only)')
     parser.add_argument('--fogcast', type=Path, required=True)
     parser.add_argument('--runtime-revision', required=True)
+    parser.add_argument('--window-driver', type=Path, help='built fes-window driver directory (factory only)')
     args = parser.parse_args()
     if args.target:
         if args.payload or args.output or args.version:
             parser.error('--payload, --output and --version require --base-root')
-        assemble(args.target, args.fogcast, args.runtime_revision)
+        if not args.window_driver:
+            parser.error('--target requires --window-driver')
+        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver)
     else:
         if not args.payload or not args.output or not args.version:
             parser.error('--base-root requires --payload, --output and --version')

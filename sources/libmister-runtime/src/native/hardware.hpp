@@ -25,7 +25,7 @@ class InputSession;
 struct InputDeviceIdentity;
 class VideoBringup;
 class MenuDisplayDriver;
-class MenuMemory;
+class MenuWindow;
 
 class Clock {
 public:
@@ -71,15 +71,16 @@ public:
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
- MenuDisplayDriver* menu_display = nullptr,MenuMemory* menu_memory = nullptr);
+ MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
  MenuDisplayStatus menu_display() const override {return menu_status_;}
  Error SetSessionDisplay(bool visible) override;
- Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) override;
- bool AcceptsMenuDamage(std::uint32_t) const override;
+ Error ShareMenuWindow(int*) override;
+ Error MenuBackSlot(std::uint8_t*) const override;
+ Error PresentMenuSlot(std::uint8_t,const std::vector<MenuRect>&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;
@@ -128,11 +129,11 @@ private:
 		std::unique_ptr<AdmittedCorePackage>*);
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
- void CancelMenuCopies();
+ void RevokeMenuWindow();
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
  MenuDisplayDriver* menu_display_;
- MenuMemory* menu_memory_;
+ MenuWindow* menu_window_;
  MenuDisplayStatus menu_status_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;

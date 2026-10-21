@@ -18,7 +18,7 @@ type MenuPresenter interface {
 	Present(context.Context, uint64, []byte) (menudisplay.Result, error)
 }
 
-// MenuDamagePresenter is a MenuPresenter that can stage only the rectangles
+// MenuDamagePresenter is a MenuPresenter that can write only the rectangles
 // that changed since the frame the runtime is showing.
 type MenuDamagePresenter interface {
 	PresentDamage(context.Context, uint64, []byte, menudisplay.Damage) (menudisplay.Result, error)
@@ -886,6 +886,9 @@ func (d *MenuDisplay) Close() {
 	}
 	d.freeBuffers = nil
 	d.mu.Unlock()
+	if closer, ok := d.client.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
 	d.Software.Close()
 }
 
@@ -918,10 +921,13 @@ func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
 
 // cachedStatusLocked returns the status remembered from the last successful
 // present while change-driven presents are on, the binding is unchanged and
-// the runtime was asked within the probe interval. Only a runtime that
-// advertises damage is trusted this way; older runtimes are asked per frame.
+// the runtime was asked within the probe interval. Only a client that
+// presents damage relies on it; another asks the runtime per frame.
 func (d *MenuDisplay) cachedStatusLocked(frame queuedMenuFrame) (menudisplay.Status, bool) {
-	if !d.changeDriven || !d.statusCacheOK || !d.statusCache.Damage || d.statusCacheEpoch != frame.epoch || d.paused ||
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
+		return menudisplay.Status{}, false
+	}
+	if !d.changeDriven || !d.statusCacheOK || d.statusCacheEpoch != frame.epoch || d.paused ||
 		!d.clock().Before(d.statusCacheAt.Add(menuProbeInterval)) {
 		return menudisplay.Status{}, false
 	}
@@ -954,7 +960,7 @@ func (d *MenuDisplay) dropShortcutsLocked() {
 // damageFor returns the rectangles where frame differs from the frame the
 // runtime is showing for this display, or nil when the frame must go whole.
 func (d *MenuDisplay) damageFor(frame queuedMenuFrame, status menudisplay.Status) *menudisplay.Damage {
-	if _, ok := d.client.(MenuDamagePresenter); !ok || !status.Damage {
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
 		return nil
 	}
 	d.mu.Lock()
