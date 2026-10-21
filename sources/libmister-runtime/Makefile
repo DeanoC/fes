@@ -489,4 +489,3 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 $(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
-
