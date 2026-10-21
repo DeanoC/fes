@@ -91,6 +91,15 @@ display retains its live controls. The
 describe ownership and failure
 behavior.
 
+Kit software and core packages update independently. A 1.6.0 package's shared
+plane reports pixel format 2; a 1.5.0 package's opaque plane reports format 1.
+The runtime admits a session plane at exactly one of those formats: software
+with the shared plane refuses to launch 1.5.0, and older software refuses
+1.6.0. Either refusal returns the kit to idle. Installing software leaves
+library selections unchanged, so switch a ZX81 entry between installed
+versions with `core-select` when changing software. There is no compatibility
+path for the earlier plane.
+
 ## Validation
 
 Component tests and Verilator live in `sources/misteross` in this FES repository.

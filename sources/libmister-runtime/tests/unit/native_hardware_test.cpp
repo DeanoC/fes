@@ -1596,6 +1596,43 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  assert(!hardware.menu_display().session);
 }
 
+// A session package built before the shared plane reports the idle XRGB
+// format. Load fails closed after programming, so the runtime returns to idle.
+void TestSessionDisplayRejectsPlaneWithoutBlend()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
+ words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
+ words[FesGpIdentityCapabilitiesIndex]=775;
+ for(auto word:words)script.Reply(word);
+ script.Info(8,0);script.Reply(); // configure
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply(); // execution release
+ script.Info(9,0); // drained, but pixel format 1
+ const auto loaded=hardware.LoadCore(std::move(admitted),17);
+ assert(loaded.error.code==mister::ErrorCode::io_failed&&loaded.error.phase=="menu");
+ assert(loaded.error.message=="session display must blend premultiplied RGBA");
+ assert(loaded.mutation_attempted&&fpga.calls==1&&!hardware.menu_display().session);
+}
+
 void TestNativeMenuActivationAndCompletion()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -3735,6 +3772,7 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+ TestSessionDisplayRejectsPlaneWithoutBlend();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
