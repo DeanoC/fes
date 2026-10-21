@@ -79,17 +79,11 @@ def seed_base(container, base, cold_volume, dev_volume, sha, selected_work):
     # Copy only into a new development volume. The source is mounted read-only.
     # Validate before copying; use a temporary directory so interrupted copies
     # cannot be mistaken for a usable Buildroot output on the next invocation.
+    # Seed only the clean tree already at the selected path; host tools embed it.
     script = '''set -eu
-src=
-for candidate in /seed/work-1-native-dev /seed/work-2-native-dev; do
-    if test -f "$candidate/images/rootfs.ext4" &&
-       test "$(sha256sum "$candidate/images/rootfs.ext4" | cut -d ' ' -f 1)" = "$1"; then
-        src=$candidate
-        break
-    fi
-done
+src=/seed/$4
 chown "$2:$3" /dest
-if ! (test -n "$src" && test -f "$src/.config" && test -d "$src/host" &&
+if ! (test -f "$src/.config" && test -d "$src/host" &&
       test -d "$src/build" && test -d "$src/target" &&
       test "$(sha256sum "$src/images/rootfs.ext4" | cut -d ' ' -f 1)" = "$1"); then
     echo 'Development: clean volume is incomplete or changed; building a fresh base'

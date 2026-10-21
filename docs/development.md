@@ -225,12 +225,15 @@ the selected package is format 3.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 
-A compatible existing clean pass can seed a new development volume. FES checks
-its source/profile/Go identities, receipt hashes, both recorded image hashes and
-the actual pass-two image before copying it with symlinks and modes preserved.
-The clean volume is mounted read-only. Without a compatible seed, the first run
-builds the base once. Subsequent runs retain it. Internal Buildroot paths remain
-identical because its generated host tools are not generally relocatable.
+A compatible existing clean build can seed a new development volume. FES checks
+its source/profile/Go identities, receipt hashes and recorded pass hashes. It then
+copies only the clean tree for the selected pass (`work-1-native-dev` by default,
+`work-2-native-dev` with `IMAGE_PASSES=2`), after checking that tree's rootfs
+hash, with symlinks and modes preserved. The clean volume is mounted read-only.
+Without a compatible seed, including a clean build that lacks the selected
+pass's tree, the first run builds the base once. Subsequent runs retain it.
+Internal Buildroot paths remain identical because its generated host tools are
+not generally relocatable.
 
 The cache key covers the FES `image/` Buildroot tree (configuration, overlays,
 patches and package recipes), container inputs, source/package locks, scripts,

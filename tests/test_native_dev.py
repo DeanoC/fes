@@ -105,6 +105,44 @@ class NativeDevTest(unittest.TestCase):
             (output / 'linux.img').write_bytes(b'changed')
             self.assertIsNone(native_dev.seed_digest(output, info))
 
+    def test_seed_copies_only_the_selected_pass_tree(self):
+        # Buildroot host tools embed their output path; never relocate work-1 to work-2.
+        sha = hashlib.sha256(b'cold').hexdigest()
+        for trees, passes, origin in (
+                ({1: b'cold', 2: b'cold'}, 2, 'work-2-native-dev'),
+                ({1: b'cold', 2: b'cold'}, 1, 'work-1-native-dev'),
+                ({1: b'cold'}, 1, 'work-1-native-dev'),
+                ({1: b'cold'}, 2, None),
+                ({1: b'cold', 2: b'stale'}, 2, None)):
+            with self.subTest(trees=sorted(trees), passes=passes), tempfile.TemporaryDirectory() as tmp:
+                seed, dest = Path(tmp) / 'seed', Path(tmp) / 'dest'
+                dest.mkdir()
+                for run_number, rootfs in trees.items():
+                    work = seed / Path(native_dev.WORK.format(passes=run_number)).name
+                    for name in ('host', 'build', 'target', 'images'):
+                        (work / name).mkdir(parents=True)
+                    (work / '.config').write_text('config')
+                    (work / 'images/rootfs.ext4').write_bytes(rootfs)
+                    (work / 'host/origin').write_text(work.name)
+                absent = {'dev': 1, 'cold': 0}
+                with patch.object(native_dev.subprocess, 'run', side_effect=lambda args, **_:
+                                  subprocess.CompletedProcess(args, absent[args[-1]])), \
+                     patch.object(native_dev, 'run') as run:
+                    native_dev.seed_base('docker', {'platform': 'linux/amd64', 'image': 'base',
+                                                    'digest': 'sha256:abc'}, 'cold', 'dev', sha,
+                                         native_dev.WORK.format(passes=passes))
+                args = [str(arg) for arg in run.call_args.args[0]]
+                script = args[args.index('-c') + 1].replace('/dest', str(dest))
+                script = script.replace('/seed/', f'{seed}/')
+                subprocess.run(['sh', '-c', script, *args[args.index('-c') + 2:]], check=True,
+                               capture_output=True)
+                selected = Path(native_dev.WORK.format(passes=passes)).name
+                if origin is None:
+                    self.assertEqual(list(dest.iterdir()), [])
+                else:
+                    self.assertEqual([path.name for path in dest.iterdir()], [selected])
+                    self.assertEqual((dest / selected / 'host/origin').read_text(), origin)
+
     def test_seed_accepts_bound_derived_package_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
