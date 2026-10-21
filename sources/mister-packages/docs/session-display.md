@@ -21,7 +21,8 @@ interface belongs to the active machine.
 1.0 defines the shared plane behind this interface. It generates
 `fes_display_plane.vh` for misteross and `fes_display_plane.hpp` for the
 runtime. Keeping these constants out of the ABI files leaves every other
-core's generated ABI header unchanged.
+core's generated ABI header unchanged. The runtime consumer revision is
+recorded in `testdata/oracles/fes-display-plane.json`.
 
 Each 32-bit slot word is B, G, R, A in byte order. The plane reports pixel
 format 2 (`FesDisplayPlanePixelFormatPremultipliedRgba`) at MENU_INFO index
