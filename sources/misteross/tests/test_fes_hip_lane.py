@@ -108,7 +108,11 @@ def _write_local_zx81_tools(root: Path, *, nextpnr_config: str | None) -> Path:
         ("nextpnr", "nextpnr-mistral"),
     ):
         binary = install / binary_name
-        _write_fake_tool(binary, lock_name)
+        _write_fake_tool(
+            binary,
+            lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+        )
         evidence = root / "build/toolchain/zx81-expansion/build" / lock_name
         evidence.mkdir(parents=True)
         commit = pins[lock_name].commit

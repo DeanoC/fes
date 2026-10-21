@@ -1,0 +1,171 @@
+{
+  "shell_package_id": "bf3583cb8bb50a0d885e73533880bb74e747ca22fb1b658caf799cccddf146ad",
+  "shell_build_id": "6b02e996d4e636f7882d36cb4e9d2070",
+  "cart_expansion_id": "54093e96034664318dddf16a654a0b4848c13d3b53d00f7f2d60d40363da703d",
+  "shell_exit": 0,
+  "cart_exit": 0,
+  "shell_timing": {
+    "fmax": {
+      "audio_clk": {
+        "achieved": 161.68148803710938,
+        "constraint": 12.288031578063965
+      },
+      "clk_sys": {
+        "achieved": 54.29766082763672,
+        "constraint": 52.22477340698242
+      },
+      "display.control.clk": {
+        "achieved": 91.3909683227539,
+        "constraint": 74.25006866455078
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "audio_clk": {
+          "hold_wns_ns": 1.0709999799728394,
+          "setup_wns_ns": 75.19499969482422
+        },
+        "clk_sys": {
+          "hold_wns_ns": 0.8149999976158142,
+          "setup_wns_ns": 0.7310000061988831
+        },
+        "display.control.clk": {
+          "hold_wns_ns": 0.7620000243186951,
+          "setup_wns_ns": 2.5260000228881836
+        }
+      },
+      "final_analogue_model": true
+    }
+  },
+  "cart_timing": {
+    "fmax": {
+      "audio_clk": {
+        "achieved": 161.68148803710938,
+        "constraint": 12.288031578063965
+      },
+      "clk_sys": {
+        "achieved": 54.29766082763672,
+        "constraint": 52.22477340698242
+      },
+      "display.control.clk": {
+        "achieved": 91.3909683227539,
+        "constraint": 74.25006866455078
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "audio_clk": {
+          "hold_wns_ns": 1.0709999799728394,
+          "setup_wns_ns": 75.19499969482422
+        },
+        "clk_sys": {
+          "hold_wns_ns": 0.8149999976158142,
+          "setup_wns_ns": 0.7310000061988831
+        },
+        "display.control.clk": {
+          "hold_wns_ns": 0.7620000243186951,
+          "setup_wns_ns": 2.5260000228881836
+        }
+      },
+      "final_analogue_model": true
+    }
+  },
+  "containment": {
+    "bits_inside_slot": 181538,
+    "bits_outside_slot": 0,
+    "headers_identical": true,
+    "method": "Independent rbf_load/classify_cram_diff check after producer publication"
+  },
+  "artifacts": {
+    "shell/build-inputs.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/build-inputs.json",
+      "size": 11693,
+      "sha256": "79864a0bfa553e30ea87f0013d067bc99498ff45c352a2edc422550df1ac281d"
+    },
+    "shell/build-summary.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/build-summary.json",
+      "size": 153369,
+      "sha256": "6f2814c6623a9919185de26a38dd9d9483be774b93a91947b1962203ee8fc4fb"
+    },
+    "shell/core.rbf": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/core.rbf",
+      "size": 2673707,
+      "sha256": "b3f33d5947dcd90d9b4575d940d1d925703ec43318eafd80bd981004db6090bc"
+    },
+    "shell/routed.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/routed.json",
+      "size": 31952562,
+      "sha256": "8c10fd10718a7f8182f2cf8200c2fbec6904f238f252eda50fa02e04b5ea2d39"
+    },
+    "shell/timing.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/timing.json",
+      "size": 3647920,
+      "sha256": "fd0208cc30f455878105de16723b09bb86756f6f84ed33615aa089b7ec59e4f7"
+    },
+    "shell/manifest.toml": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/manifest.toml",
+      "size": 1888,
+      "sha256": "848f07b14280913b9312ad26443063e0d0ca2708bc0690ce981bd8f7ffecefd8"
+    },
+    "shell/rom-map.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/rom-map.json",
+      "size": 742014,
+      "sha256": "1cb879448d34697e5b0d634639f090fa57d0c92f44dfdb7865ef54f693089ff5"
+    },
+    "shell/qor-ranking.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/qor-ranking.json",
+      "size": 5441,
+      "sha256": "25145ddcd0aca1496954cc240224fab06b2e46f245ea87a1188cac2187b6c139"
+    },
+    "shell/yosys.log": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/yosys.log",
+      "size": 9296945,
+      "sha256": "d91f5b9443a6fb28db66abe38dece3c415a4434e33baffa0e901cfb9d46f024a"
+    },
+    "shell/nextpnr.log": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/fes-zx81-oss/nextpnr.log",
+      "size": 96055,
+      "sha256": "04453b7ac2ee5c2ef9e0be1e46a6b94705b23e9f7dcd38f8df8c9a2f5ed1b65c"
+    },
+    "cart/cart.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/cart.json",
+      "size": 568139,
+      "sha256": "860bb3523dfcf914d49e6cc9baa61fd73302b5c92e079a532ba2f59d8ea30f45"
+    },
+    "cart/cart-routed.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/cart-routed.json",
+      "size": 31791173,
+      "sha256": "2d8b7e3824c543bb95a2b0c103480f5d644ea85329f1b7b4ef29b7a95c7f5eec"
+    },
+    "cart/cart.rbf": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/cart.rbf",
+      "size": 2729192,
+      "sha256": "8a0686fc3c99273538220aaaced13da63bf21f8a64b7a9aeed061b1517113dd3"
+    },
+    "cart/linked.rbf": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/linked.rbf",
+      "size": 2729192,
+      "sha256": "8a0686fc3c99273538220aaaced13da63bf21f8a64b7a9aeed061b1517113dd3"
+    },
+    "cart/timing.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/timing.json",
+      "size": 124681,
+      "sha256": "d9e225b37165196a0c7c518db33cba444614a4bff119e8138aeb16b41df23e91"
+    },
+    "cart/build-summary.json": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/build-summary.json",
+      "size": 4059,
+      "sha256": "f2a4d0f8a5842e557b3d72938a4b07d5675f7d52a50c134dde817cf91ec6ec4a"
+    },
+    "cart/route.log": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/route.log",
+      "size": 83578,
+      "sha256": "0ef33b55d8978516d1344708aae915ca6eefee40679a004f39f1782b7d6a9837"
+    },
+    "cart/54093e96034664318dddf16a654a0b4848c13d3b53d00f7f2d60d40363da703d.tar": {
+      "path": "/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/zx81-bus-validation-cart/f12f1af72f11faad2ae5c2f9ac9c3feb422cbc7e5a028adeb6d5a93f576b9600/54093e96034664318dddf16a654a0b4848c13d3b53d00f7f2d60d40363da703d.tar",
+      "size": 2734080,
+      "sha256": "dd9a2c5abd74d7a862083960633ef3c600710b9052aeff9f21bd330fe65d3741"
+    }
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "shell_package_id": "db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198",
+  "shell_build_id": "59b51a7527d362d9c30a9ec2115a5a1f",
+  "cart_expansion_id": "e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736",
+  "shell_exit": 0,
+  "cart_exit": 0,
+  "shell_timing": {
+    "fmax": {
+      "audio_clk": {
+        "achieved": 213.6295623779297,
+        "constraint": 12.288031578063965
+      },
+      "clk_sys": {
+        "achieved": 55.96284103393555,
+        "constraint": 52.22477340698242
+      },
+      "display.control.clk": {
+        "achieved": 95.64801788330078,
+        "constraint": 74.25006866455078
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "audio_clk": {
+          "hold_wns_ns": 0.871999979019165,
+          "setup_wns_ns": 76.6989974975586
+        },
+        "clk_sys": {
+          "hold_wns_ns": 0.8199999928474426,
+          "setup_wns_ns": 1.2790000438690186
+        },
+        "display.control.clk": {
+          "hold_wns_ns": 0.7839999794960022,
+          "setup_wns_ns": 3.013000011444092
+        }
+      },
+      "final_analogue_model": true
+    }
+  },
+  "cart_timing": {
+    "fmax": {
+      "audio_clk": {
+        "achieved": 213.6295623779297,
+        "constraint": 12.288031578063965
+      },
+      "clk_sys": {
+        "achieved": 55.96284103393555,
+        "constraint": 52.22477340698242
+      },
+      "display.control.clk": {
+        "achieved": 95.64801788330078,
+        "constraint": 74.25006866455078
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "audio_clk": {
+          "hold_wns_ns": 0.871999979019165,
+          "setup_wns_ns": 76.6989974975586
+        },
+        "clk_sys": {
+          "hold_wns_ns": 0.8149999976158142,
+          "setup_wns_ns": 1.2790000438690186
+        },
+        "display.control.clk": {
+          "hold_wns_ns": 0.7839999794960022,
+          "setup_wns_ns": 3.013000011444092
+        }
+      },
+      "final_analogue_model": true
+    }
+  },
+  "containment": {
+    "bits_inside_slot": 181551,
+    "bits_outside_slot": 0,
+    "headers_identical": true,
+    "method": "Producer gate, then an independent read_package/rbf_load/classify_cram_diff recheck of the published package and cart: identical ORAM/PRAM header, recomputed CRAM diff equal to the producer's, linked.rbf recomputed byte-for-byte, package and expansion ids recomputed."
+  },
+  "artifacts": {
+    "shell/build-inputs.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/build-inputs.json",
+      "sha256": "15fee8756f4ce27af45858dc2e9f4aa9b80811a747e29d95ed4bd29261b8ee58",
+      "size": 11689
+    },
+    "shell/build-summary.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/build-summary.json",
+      "sha256": "6192fae1febb52f9ef3244c85c927039ff279bfd572aa1d980f2c58ddd2ea559",
+      "size": 153370
+    },
+    "shell/core.rbf": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/core.rbf",
+      "sha256": "3d7805086b1d1134f67e2c42d039f762df973f8e902f338ec55b7ebcc0954e3a",
+      "size": 2634321
+    },
+    "shell/routed.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/routed.json",
+      "sha256": "6c68e701d6d217f20e172ee8a715a3978ea6f8a043fa64b17a926e7b47c77084",
+      "size": 31869337
+    },
+    "shell/timing.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/timing.json",
+      "sha256": "9c951fa6eb91683664cc062a39d375ee2a43e5db5934a73f0bb629c964c482d7",
+      "size": 3687705
+    },
+    "shell/manifest.toml": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/manifest.toml",
+      "sha256": "b2f644312ac22ce27f6b8b5b7fa317d1452386ff2466e2e26a39ed7d9e3890e7",
+      "size": 1884
+    },
+    "shell/rom-map.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/rom-map.json",
+      "sha256": "845401912fbc309e69f65c73cf49aaf37a7369ed01c2667660cf2d277354dcb5",
+      "size": 742014
+    },
+    "shell/qor-ranking.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/qor-ranking.json",
+      "sha256": "7997be456f9e597e24d1a85a39069d9ecaef0d04579669394f4384b5e6e4aa37",
+      "size": 7562
+    },
+    "shell/synth.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/synth.json",
+      "sha256": "fa13f5961c26100118ec593de1cf6cd6786665439ba0488cbd7f250d33a61328",
+      "size": 18411304
+    },
+    "shell/yosys.log": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/yosys.log",
+      "sha256": "77992c08a3f6abaaeb00b9bb0d3d36417615bbd89db1fca47278d62711b94591",
+      "size": 9299010
+    },
+    "shell/nextpnr.log": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/fes-zx81-oss/nextpnr.log",
+      "sha256": "b901107426bcb64fd8dd305616f68556eceb2cc93c815cbd36b7feb5efa6debb",
+      "size": 85691
+    },
+    "package/core.rbf": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198/core.rbf",
+      "sha256": "3d7805086b1d1134f67e2c42d039f762df973f8e902f338ec55b7ebcc0954e3a",
+      "size": 2634321
+    },
+    "package/manifest.toml": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198/manifest.toml",
+      "sha256": "b2f644312ac22ce27f6b8b5b7fa317d1452386ff2466e2e26a39ed7d9e3890e7",
+      "size": 1884
+    },
+    "package/rom-map.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198/rom-map.json",
+      "sha256": "845401912fbc309e69f65c73cf49aaf37a7369ed01c2667660cf2d277354dcb5",
+      "size": 742014
+    },
+    "package/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198.fcore": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/packages/db76fe616123c9f22f45de5d1df101af9b0d257c5f00cc42e0e09c75d5e80198.fcore",
+      "sha256": "21c43461f6e80759a7b66cad4d119e2c3546702ea6b2719ef7b405800267d152",
+      "size": 3381760
+    },
+    "cart/cart.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/cart.json",
+      "sha256": "3c24a367f15ac8b1c454a64b5cbeb57fbc57feacee810a87c05e08a473525b32",
+      "size": 568139
+    },
+    "cart/cart-routed.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/cart-routed.json",
+      "sha256": "975facd5a1663e207739b08d54e862dd90f3030df9f2fd204d3a2918c0d1ee66",
+      "size": 31707700
+    },
+    "cart/cart.rbf": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/cart.rbf",
+      "sha256": "2d96d01563c83f9cbfa4446fc33fc1996b48886cfa531a485545de37d80a591e",
+      "size": 2689841
+    },
+    "cart/linked.rbf": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/linked.rbf",
+      "sha256": "2d96d01563c83f9cbfa4446fc33fc1996b48886cfa531a485545de37d80a591e",
+      "size": 2689841
+    },
+    "cart/timing.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/timing.json",
+      "sha256": "833bf43cb467be23417e823ca27ca722e62ad7ad3e27a273d0770fa65593003f",
+      "size": 121383
+    },
+    "cart/build-summary.json": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/build-summary.json",
+      "sha256": "86298ea7883cf278bb41fef0004db2137fa320d4b1d5b5d791a83f8aab4fd4a0",
+      "size": 4075
+    },
+    "cart/route.log": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/route.log",
+      "sha256": "6410ef204015e4552ff44c881c31a7f4c4fe00a6fd0a62bcb2e3f5c10213aa30",
+      "size": 73718
+    },
+    "cart/e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736.tar": {
+      "path": "/home/deano/tmp/k936q/sources/misteross/build/zx81-bus-validation-cart/53cb908ef5da64022e1f9b1d5e652dc20fb1cbdf582829f76750e70e4646eea3/e446361e9a6289729d5290400a1dd071187b3bbd0011dfbd797be09a69d07736.tar",
+      "sha256": "3453f17f119859c94526f52bedd8910048d898ead09e92a5ac8aca36568daa0d",
+      "size": 2693120
+    }
+  }
+}
