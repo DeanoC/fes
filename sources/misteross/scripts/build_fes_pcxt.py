@@ -33,16 +33,26 @@ SDC = 'boards/de10nano/clocks.sdc'
 ROM_CLOCK_MAP = 'cores/fes-pcxt/synth/rom_clock_map.v'
 PLACER_TIMING_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
+SYNTHESIS = 'synth_intel_alm -nolutram -nodsp -top top'
 
 
 def synthesis_command():
     # Transfer register intent before dff_map introduces polarity inverters.
     # After full mapping attrmvcp would annotate those inverters, not the FFs.
-    base = 'synth_intel_alm -nolutram -nodsp -top top'
     # The end label is exclusive: stop at map_ffs so memory_map and its final
     # optimization still run before the attribute transfer.
-    return (base + ' -run begin:map_ffs; attrmvcp -copy -attr async_reg; ' +
-            base + ' -run map_ffs:')
+    return (SYNTHESIS + ' -run begin:map_ffs; attrmvcp -copy -attr async_reg; ' +
+            SYNTHESIS + ' -run map_ffs:')
+
+
+def yosys_program(output, mda, scanlines, synthesis):
+    """Complete board Yosys script; run with cwd=output after board_inputs(output)."""
+    return ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
+            ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
+            ' '.join(str(ROOT / s) for s in RTL) + '; ' +
+            f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)} top; ' +
+            synthesis + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
+            '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
 
 
 def gpu_choice(gpu_router):
@@ -112,12 +122,7 @@ def main():
         receipt['generated_roms'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                      for p in sorted(output.glob('*.mem'))}
         save()
-        program = ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' -I ' + str(output) + ' ' +
-                   ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
-                   ' '.join(str(ROOT / s) for s in RTL) + '; ' +
-                   f'chparam -set MDA {int(args.mda)} -set SCANLINES {int(args.scanlines)} top; ' +
-                   synthesis_command() + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
-                   '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
+        program = yosys_program(output, args.mda, args.scanlines, synthesis_command())
         with (output / 'yosys.log').open('w') as log:
             subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,
                            stdout=log, stderr=subprocess.STDOUT, check=True)
