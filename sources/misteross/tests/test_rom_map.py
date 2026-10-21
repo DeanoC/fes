@@ -55,6 +55,45 @@ class ROMMapTests(unittest.TestCase):
                                       lane_rows=lanes, reserved_rect=(SX120F.x_to_bx[14], 0,
                                                                       SX120F.x_to_bx[14]+300, 7024))
 
+    def test_c64_character_ports_keep_one_source_block_per_rom_lane(self):
+        from scripts import rom_map
+        from scripts.cyclonev_rbf import SX120F
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        rows=tuple((5,row) for row in range(32,52))+tuple((14,row) for row in range(32,48));tdp=tuple(range(16,20))
+        cells={f"machine.rom.lane{i}":{"type":"MISTRAL_M10K",
+            "attributes":{"NEXTPNR_BEL":f"MISTRAL_M10K.{column}.{row}.0"},
+            "parameters":{"CFG_ABITS":10,"CFG_DBITS":10,"CFG_ASYNC_READ":0,
+                          "CFG_TDP":"0001" if i in tdp else "0000","INIT":"0"*10240}}
+            for i,(column,row) in enumerate(rows)}
+        routed={"modules":{"top":{"cells":cells}}}
+        rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
+        with self.assertRaises(ValueError):rom_map.validate_routed_rom(routed,rows,expected_async_read=0)
+        lane = cells['machine.rom.lane16']
+        for value in [None, 0, '0', 2, True, 'invalid']:
+            lane['parameters']['CFG_TDP'] = value
+            with self.assertRaisesRegex(ValueError, 'invalid CFG_TDP'):
+                rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
+        lane['parameters']['CFG_TDP'] = '0001'
+        lane['type'] = 'MISTRAL_M10K_TDP'
+        with self.assertRaisesRegex(ValueError, 'must occupy'):
+            rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
+        lane['type'] = 'MISTRAL_M10K'
+        for selection in [(16,16),(36,),(-1,),(True,)]:
+            with self.assertRaises(ValueError):rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=selection)
+        die=('7605, 7024, // cram size\n// x to bit x\n{'+','.join(map(str,SX120F.x_to_bx))+
+             '}\n// column types\n{'+','.join('T_M10K' if i in (5,14) else 'T_EMPTY' for i in range(15))+
+             '}\nsx120f_bel_spans_info[] = {1, 14, 1, 32, 51, 0xff};')
+        source={'data/m10k-mux.txt':mux_text().encode(),'libmistral/cvd-sx120f.cc':die.encode(),
+                'libmistral/cyclonev.h':b'y = 2 + 86 * pos2y(pos);'}
+        cram=bytearray(b'\xff')*((SX120F.cram_sx*SX120F.cram_sy+7)//8)
+        with patch('scripts.rom_map.rbf_load',return_value=SimpleNamespace(cram=cram)):
+            mapping,_=rom_map.build_rom_map(source,b'base',routed=routed,lane_rows=rows,
+                        expected_async_read=0,true_dual_port_lanes=tdp)
+        self.assertEqual(mapping['source_size'],36864)
+        self.assertEqual([b['source_offset']for b in mapping['blocks']],list(range(0,36864,1024)))
+        self.assertEqual(mapping['encoding'],'m10k-1024x10-v1')
+
     def test_sms_32k_map_uses_32_verified_blank_lanes(self):
         import hashlib
         from types import SimpleNamespace

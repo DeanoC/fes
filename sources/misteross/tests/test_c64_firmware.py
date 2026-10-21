@@ -14,15 +14,18 @@ class C64FirmwareTests(unittest.TestCase):
         full = firmware.build()
         vacant = firmware.build(without_cartridges=True)
         for image in (full, vacant):
-            self.assertEqual(len(image), 16384)
+            self.assertEqual(len(image), 36864)
             self.assertEqual(image[:8192], firmware.BASIC)
-            self.assertEqual(image[-4:-2], b"\x00\xe0")
+            self.assertEqual(image[16380:16382], b"\x00\xe0")
+            self.assertEqual(image[16384:20480], firmware.character_image())
+            self.assertEqual(image[20480:], firmware.drive_media_image())
+            self.assertEqual(image[36860:36862], b"\x00\xc0")
         self.assertNotEqual(full, vacant)
         # Absolute cartridge reads vanish only in the explicitly vacant variant.
-        self.assertIn(b"\xad\x00\x80", full[8192:])
-        self.assertNotIn(b"\xad\x00\x80", vacant[8192:])
-        self.assertIn(b"\xad\x01\xde", full[8192:])
-        self.assertNotIn(b"\xad\x01\xde", vacant[8192:])
+        self.assertIn(b"\xad\x00\x80", full[8192:16384])
+        self.assertNotIn(b"\xad\x00\x80", vacant[8192:16384])
+        self.assertIn(b"\xad\x01\xde", full[8192:16384])
+        self.assertNotIn(b"\xad\x01\xde", vacant[8192:16384])
 
     def test_success_is_pass_text_in_the_picture_not_a_green_border(self):
         # Screen codes for "PASS " eight times: one 40-column row.
@@ -30,7 +33,7 @@ class C64FirmwareTests(unittest.TestCase):
         green_border = bytes([0xA9, 0x05, 0x8D, 0x20, 0xD0])
         black_border = bytes([0xA9, 0x00, 0x8D, 0x20, 0xD0])
         for image in (firmware.build(), firmware.build(without_cartridges=True)):
-            kernal = image[8192:]
+            kernal = image[8192:16384]
             self.assertNotIn(green_border, kernal)
             self.assertIn(black_border, kernal)
             self.assertIn(pass_row, kernal)

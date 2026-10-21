@@ -127,6 +127,8 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
+		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -1007,25 +1009,29 @@ sim-fes-spectrum-board: spectrum-diagnostic
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
 
+C64_SID_AUDIO_SOURCES := cores/fes-c64/rtl/c64_sid_svf.sv cores/fes-c64/rtl/c64_sid_filter_rom.sv cores/fes-c64/rtl/c64_sid_filter_table.sv cores/fes-c64/rtl/c64_sid_vcr_shared.sv cores/fes-c64/rtl/c64_sid_integrator.sv cores/fes-c64/rtl/c64_sid_filter.sv cores/fes-c64/rtl/c64_sid_output_filter.sv cores/fes-c64/rtl/c64_sid_dac.sv cores/fes-c64/rtl/c64_sid_audio.sv
 C64_DIAGNOSTIC := build/diagnostics/fes-c64
-C64_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
+C64_VERILATOR_FLAGS := -DFES_SIMULATION -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
+	$(VERILATOR_PROCASSINIT) \
 	-Icores/fes-c64/rtl -Icores/fes-c64/expansions -Icores/fes-common/generated
+# Full writable visibility remains available for deep internal diagnostics.
+C64_BOOT_FULL_VISIBILITY ?= 0
+C64_BOOT_VISIBILITY := $(if $(filter 1,$(C64_BOOT_FULL_VISIBILITY)),--public-flat-rw,cores/fes-c64/sim/observe.vlt)
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 	cores/fes-c64/rtl/c64_color_ram.v \
-	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_sid.v \
-	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_iec.sv cores/fes-c64/rtl/c64_disk_store.v \
+	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv \
+	cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_sid_envelope.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid.v $(C64_SID_AUDIO_SOURCES) \
+	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_disk_store.v \
+	cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v cores/fes-c64/rtl/c64_gcr_read.v cores/fes-c64/rtl/c64_d64_medium.sv \
 	cores/fes-c64/rtl/c64_keyboard.v cores/fes-c64/rtl/c64_slot_sockets.v \
 	cores/fes-c64/expansions/probe.v \
 	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
 
-.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia sim-fes-c64-color-ram
+.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram
 c64-diagnostic:
 	@mkdir -p $(C64_DIAGNOSTIC)
-	$(PYTHON) cores/fes-c64/diagnostic/font.py --verilog $(C64_DIAGNOSTIC)/font.vh
-	@cmp -s $(C64_DIAGNOSTIC)/font.vh cores/fes-c64/rtl/c64_font.vh || \
-		{ echo 'cores/fes-c64/rtl/c64_font.vh is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
 	$(PYTHON) cores/fes-c64/diagnostic/firmware.py --output-dir $(C64_DIAGNOSTIC)
 	$(PYTHON) cores/fes-c64/diagnostic/disk.py --output $(C64_DIAGNOSTIC)/disk.d64 \
 		--hex-output $(C64_DIAGNOSTIC)/disk.hex
@@ -1038,6 +1044,109 @@ sim-fes-c64-cia:
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
 	@build/sim/fes-c64-cia/Vc64_cia
 
+sim-fes-c64-cia-reference:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-cia-reference
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_cia $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-cia-reference" \
+		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_timing_tb.cpp"
+	@build/sim/fes-c64-cia-reference/Vc64_cia
+
+.PHONY: sim-fes-c64-d021
+sim-fes-c64-d021:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-d021
+	$(VERILATOR) --cc --exe --build -O2 --top-module d021_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-d021" \
+		cores/fes-c64/sim/d021_sim_top.sv $(C64_RTL) "$(CURDIR)/cores/fes-c64/sim/d021_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17' -MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3'
+	@for fixture in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23; do \
+		build/sim/fes-c64-d021/Vd021_sim_top $$fixture \
+		build/sim/fes-c64-d021/firmware.hex build/sim/fes-c64-d021/disk.hex || exit $$?; \
+	done
+
+.PHONY: sim-fes-c64-vic-timing
+sim-fes-c64-vic-timing:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-vic-timing
+	$(VERILATOR) --cc --exe --build -O2 --top-module vic_timing_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-vic-timing" \
+		cores/fes-c64/sim/vic_timing_sim_top.sv cores/fes-c64/rtl/c64_vic.v \
+		cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
+		cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv \
+		cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_color_ram.v "$(CURDIR)/cores/fes-c64/sim/vic_timing_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-vic-timing/Vvic_timing_sim_top
+
+.PHONY: sim-fes-c64-vic
+.PHONY: sim-fes-c64-so sim-fes-c64-drive-so sim-fes-c64-via sim-fes-c64-drive sim-fes-c64-drive-build
+sim-fes-c64-drive-so:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-drive-so
+	$(VERILATOR) --cc --exe --build -O2 --top-module drive_so_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-drive-so" \
+		cores/fes-c64/sim/drive_so_sim_top.sv cores/fes-c64/rtl/c64_drive1541.sv \
+		cores/fes-c64/rtl/c64_via.v cores/fes-common/rtl/cpu6502/cpu6502.v \
+		cores/fes-common/rtl/cpu6502/cpu6502_alu.v "$(CURDIR)/cores/fes-c64/sim/drive_so_tb.cpp"
+	@build/sim/fes-c64-drive-so/Vdrive_so_sim_top
+
+sim-fes-c64-so:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-so build/sim/fes-c64-so-disabled
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw -GENABLE_SO=1 \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-so" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
+	@build/sim/fes-c64-so/Vcpu6502
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-so-disabled" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
+	@build/sim/fes-c64-so-disabled/Vcpu6502 +SO_DISABLED=1
+
+sim-fes-c64-via:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-via
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_via $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-via" \
+		cores/fes-c64/rtl/c64_via.v "$(CURDIR)/cores/fes-c64/sim/via_tb.cpp"
+	@build/sim/fes-c64-via/Vc64_via
+
+sim-fes-c64-drive-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-drive
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_drive_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-drive" \
+		cores/fes-c64/sim/c64_drive_sim_top.sv cores/fes-c64/rtl/c64_rom.v \
+		cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/drive_tb.cpp"
+
+sim-fes-c64-drive: sim-fes-c64-so sim-fes-c64-drive-so sim-fes-c64-via sim-fes-c64-drive-build
+	$(PYTHON) cores/fes-c64/diagnostic/drive_firmware.py --output-dir build/diagnostics/fes-c64-drive
+	@cd build/sim/fes-c64-drive && ./Vc64_drive_sim_top \
+		+C64_FIRMWARE_HEX=$(CURDIR)/build/diagnostics/fes-c64-drive/combined-firmware.hex \
+		+C64_DRIVE_DIAGNOSTIC=1 +C64_DRIVE_CYCLES=1000000
+
+sim-fes-c64-vic:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-vic
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-vic" \
+		cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/vic_tb.cpp"
+	@build/sim/fes-c64-vic/Vc64_vic
+
+.PHONY: sim-fes-c64-keyboard
+sim-fes-c64-keyboard:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-keyboard
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_keyboard $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-keyboard" \
+		cores/fes-c64/rtl/c64_keyboard.v "$(CURDIR)/cores/fes-c64/sim/keyboard_tb.cpp"
+	@build/sim/fes-c64-keyboard/Vc64_keyboard
+
 sim-fes-c64-color-ram:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-color-ram
@@ -1047,14 +1156,269 @@ sim-fes-c64-color-ram:
 		"$(CURDIR)/cores/fes-c64/sim/color_ram_tb.cpp"
 	@build/sim/fes-c64-color-ram/Vc64_color_ram
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram
+.PHONY: sim-fes-c64-boot-build
+sim-fes-c64-boot-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-boot
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
+		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
+		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
+
+.PHONY: sim-fes-c64-boot-oracle-build sim-fes-c64-gcr
+sim-fes-c64-boot-oracle-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-boot-oracle
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
+		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
+		-DFES_C64_EXTERNAL_MEDIUM_SIM -CFLAGS -DFES_C64_EXTERNAL_MEDIUM_SIM \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-boot-oracle" \
+		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
+
+C64_MEDIUM_FIXTURE := build/sim/fes-c64-medium-fixture
+.PHONY: c64-medium-fixture sim-fes-c64-medium sim-fes-c64-medium-mailbox
+c64-medium-fixture:
+	$(PYTHON) cores/fes-c64/sim/medium_fixture.py --output-dir $(C64_MEDIUM_FIXTURE)
+
+sim-fes-c64-medium: c64-medium-fixture
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-medium
+	$(VERILATOR) --cc --exe --build -O2 --top-module medium_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-medium" \
+		cores/fes-c64/sim/medium_top.sv cores/fes-c64/rtl/c64_d64_medium.sv \
+		cores/fes-c64/rtl/c64_disk_store.v "$(CURDIR)/cores/fes-c64/sim/medium_tb.cpp"
+	@build/sim/fes-c64-medium/Vmedium_top $(C64_MEDIUM_FIXTURE)/disk1.g64 \
+		$(C64_MEDIUM_FIXTURE)/disk2.g64 $(C64_MEDIUM_FIXTURE)/disk2.d64 \
+		+C64_DISK_HEX=$(C64_MEDIUM_FIXTURE)/disk1.hex
+
+sim-fes-c64-medium-mailbox: c64-medium-fixture
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-medium-mailbox
+	$(VERILATOR) --cc --exe --build -O2 --top-module mailbox_medium_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-medium-mailbox" \
+		cores/fes-c64/sim/mailbox_medium_top.sv cores/fes-c64/rtl/c64_d64_medium.sv \
+		cores/fes-c64/rtl/c64_disk_store.v cores/fes-common/rtl/fes_computer_mailbox.v \
+		"$(CURDIR)/cores/fes-c64/sim/mailbox_medium_tb.cpp"
+	@build/sim/fes-c64-medium-mailbox/Vmailbox_medium_top $(C64_MEDIUM_FIXTURE)/disk1.d64 \
+		$(C64_MEDIUM_FIXTURE)/disk1.g64 $(C64_MEDIUM_FIXTURE)/disk2.d64 \
+		$(C64_MEDIUM_FIXTURE)/disk2.g64 +C64_DISK_HEX=$(C64_MEDIUM_FIXTURE)/empty.hex
+
+
+.PHONY: sim-fes-c64-sprite
+sim-fes-c64-sprite:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sprite
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_sprite_fetch $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite" \
+		cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sprite_tb.cpp"
+	@build/sim/fes-c64-sprite/Vc64_vic_sprite_fetch
+
+.PHONY: sim-fes-c64-ba-timing
+sim-fes-c64-ba-timing:
+	$(require_local_sim)
+	$(PYTHON) cores/fes-c64/sim/ba_timing_cases.py --verilator "$(VERILATOR)" \
+		--build-dir build/sim/fes-c64-ba-timing -- $(C64_VERILATOR_FLAGS) $(C64_RTL)
+
+.PHONY: sim-fes-c64-ready
+sim-fes-c64-ready: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-ready
+	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-ready" \
+		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/ready_tb.cpp"
+	@build/sim/fes-c64-ready/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-ready/firmware.hex"
+
+.PHONY: sim-fes-c64-push
+sim-fes-c64-push: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-push-bus build/sim/fes-c64-push
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-push-bus" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/push_bus_tb.cpp"
+	@build/sim/fes-c64-push-bus/Vcpu6502
+	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-push" \
+		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/push_tb.cpp"
+	@build/sim/fes-c64-push/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-push/firmware.hex"
+
+.PHONY: sim-fes-c64-jsr
+sim-fes-c64-jsr: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-jsr-bus build/sim/fes-c64-jsr
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-jsr-bus" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/jsr_bus_tb.cpp"
+	@build/sim/fes-c64-jsr-bus/Vcpu6502
+	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-jsr" \
+		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/jsr_tb.cpp"
+	@build/sim/fes-c64-jsr/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-jsr/firmware.hex"
+
+.PHONY: sim-fes-c64-nmi
+sim-fes-c64-nmi:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-nmi
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-nmi" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/nmi_tb.cpp"
+	@build/sim/fes-c64-nmi/Vcpu6502
+
+.PHONY: sim-fes-c64-irq
+sim-fes-c64-irq:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-irq
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-irq" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/irq_tb.cpp"
+	@build/sim/fes-c64-irq/Vcpu6502
+
+.PHONY: sim-fes-c64-clock
+sim-fes-c64-clock: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-clock
+	$(VERILATOR) --cc --exe --build -O2 --top-module clock_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-clock" \
+		cores/fes-c64/sim/clock_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/clock_tb.cpp"
+	@build/sim/fes-c64-clock/Vclock_sim_top
+
+.PHONY: sim-fes-c64-cadence
+sim-fes-c64-cadence:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-cadence
+	$(VERILATOR) --cc --exe --build -O2 --top-module cadence_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O2" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-cadence" \
+		cores/fes-c64/sim/cadence_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/cadence_tb.cpp"
+	@build/sim/fes-c64-cadence/Vcadence_sim_top
+
+.PHONY: sim-fes-c64-sax
+sim-fes-c64-sax:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sax
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sax" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/sax_tb.cpp"
+	@build/sim/fes-c64-sax/Vcpu6502
+
+.PHONY: sim-fes-c64-axs
+sim-fes-c64-axs:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-axs
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-axs" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/axs_tb.cpp"
+	@build/sim/fes-c64-axs/Vcpu6502
+
+.PHONY: sim-fes-c64-axs-oracle
+sim-fes-c64-axs-oracle:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-axs-oracle
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-axs-oracle" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/axs_oracle_tb.cpp"
+	@build/sim/fes-c64-axs-oracle/Vcpu6502
+
+.PHONY: sim-fes-c64-rmw
+sim-fes-c64-rmw:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-rmw
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-rmw" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/rmw_tb.cpp"
+	@build/sim/fes-c64-rmw/Vcpu6502
+
+sim-fes-c64-gcr:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-gcr
+	$(PYTHON) cores/fes-c64/sim/gcr_fixture.py --output build/sim/fes-c64-gcr
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_gcr_read $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-gcr" cores/fes-c64/rtl/c64_gcr_read.v \
+		"$(CURDIR)/cores/fes-c64/sim/gcr_read_tb.cpp"
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-1.hex build/sim/fes-c64-gcr/blocks-1.hex 3 21
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-18.hex build/sim/fes-c64-gcr/blocks-18.hex 2 19
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-25.hex build/sim/fes-c64-gcr/blocks-25.hex 1 18
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-31.hex build/sim/fes-c64-gcr/blocks-31.hex 0 17
+
+.PHONY: sim-fes-c64-checkpoint
+sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-oracle-build
+	$(PYTHON) cores/fes-c64/sim/checkpoint_tb.py
+	$(PYTHON) cores/fes-c64/sim/observer_tb.py
+
+.PHONY: sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64-video:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-video
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-video" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/video_tb.cpp"
+	@build/sim/fes-c64-video/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-rom-primitive
+sim-fes-c64-rom-primitive:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-rom-primitive
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) -UVERILATOR \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-rom-primitive" cores/fes-c64/rtl/c64_rom.v \
+		cores/fes-c64/sim/rom_primitives.sv "$(CURDIR)/cores/fes-c64/sim/rom_tb.cpp"
+	@build/sim/fes-c64-rom-primitive/Vc64_rom
+
+sim-fes-c64-rom: c64-diagnostic sim-fes-c64-rom-primitive
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-rom
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-rom" cores/fes-c64/rtl/c64_rom.v \
+		"$(CURDIR)/cores/fes-c64/sim/rom_tb.cpp"
+	@build/sim/fes-c64-rom/Vc64_rom +C64_FIRMWARE_HEX=build/diagnostics/fes-c64/rom-test.hex
+
+.PHONY: sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64-fetch:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-fetch build/sim/fes-c64-fetch-dynamic
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-fetch" cores/fes-c64/rtl/c64_vic_fetch.sv \
+		"$(CURDIR)/cores/fes-c64/sim/fetch_tb.cpp"
+	@build/sim/fes-c64-fetch/Vc64_vic_fetch
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_fetch $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-fetch-dynamic" cores/fes-c64/rtl/c64_vic_fetch.sv \
+		"$(CURDIR)/cores/fes-c64/sim/fetch_dynamic_tb.cpp"
+	@build/sim/fes-c64-fetch-dynamic/Vc64_vic_fetch
+
+sim-fes-c64-frame:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-frame
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_frame_store $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-frame" cores/fes-c64/rtl/c64_frame_store.sv \
+		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
+	@build/sim/fes-c64-frame/Vc64_frame_store
+
+sim-fes-c64: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-machine" \
 		cores/fes-c64/sim/c64_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/machine_tb.cpp"
-	@build/sim/fes-c64-machine/Vc64_sim_top
+	$(PYTHON) cores/fes-c64/sim/diagnostic_cases.py \
+		--model build/sim/fes-c64-machine/Vc64_sim_top --diagnostic-dir $(C64_DIAGNOSTIC)
 
 sg1000-diagnostic:
 	@mkdir -p build/diagnostics/fes-sg1000
@@ -1895,6 +2259,276 @@ sim-fes-atari-st-mfp-iack-timing:
 		$(ST_CORE)/rtl/st_system.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_iack_timing_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-mfp-iack-timing/Vst_mfp_iack_timing
+
+.PHONY: sim-fes-c64-sprite-video
+sim-fes-c64-sprite-video:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sprite-video
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-video" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/sprite_video_tb.cpp"
+	@build/sim/fes-c64-sprite-video/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-border
+sim-fes-c64-border:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-border
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-border" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/border_tb.cpp"
+	@build/sim/fes-c64-border/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-readback
+sim-fes-c64-readback:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-readback
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-readback" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/readback_tb.cpp"
+	@build/sim/fes-c64-readback/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-collisions
+sim-fes-c64-collisions:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-collisions
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_collisions $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-collisions" cores/fes-c64/rtl/c64_vic_collisions.sv \
+		"$(CURDIR)/cores/fes-c64/sim/collision_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-collisions/Vc64_vic_collisions
+
+.PHONY: sim-fes-c64-collision-cpu
+sim-fes-c64-collision-cpu:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-collision-cpu
+	$(PYTHON) cores/fes-c64/sim/collision_cpu_program.py --output build/sim/fes-c64-collision-cpu/program.bin
+	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-collision-cpu" \
+		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/collision_cpu_tb.cpp"
+	@build/sim/fes-c64-collision-cpu/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-collision-cpu/firmware.hex" "$(CURDIR)/build/sim/fes-c64-collision-cpu/program.bin"
+
+.PHONY: sim-fes-c64-border-position
+sim-fes-c64-border-position:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-border-position
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-border-position" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/border_position_tb.cpp"
+	@build/sim/fes-c64-border-position/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-scroll
+sim-fes-c64-scroll:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-scroll
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-scroll" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/scroll_tb.cpp"
+	@build/sim/fes-c64-scroll/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-graphics-modes
+sim-fes-c64-graphics-modes:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-graphics-modes
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-graphics-modes" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/graphics_modes_tb.cpp"
+	@build/sim/fes-c64-graphics-modes/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-graphics
+sim-fes-c64-graphics:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-graphics
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_graphics_pixels $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-graphics" cores/fes-c64/rtl/c64_vic_graphics_pixels.sv \
+		"$(CURDIR)/cores/fes-c64/sim/graphics_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-graphics/Vc64_vic_graphics_pixels
+
+.PHONY: sim-fes-c64-open-graphics
+sim-fes-c64-open-graphics:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-open-graphics
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-open-graphics" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv \
+		cores/fes-c64/rtl/c64_frame_store.sv \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/open_graphics_tb.cpp"
+	@build/sim/fes-c64-open-graphics/Vc64_video_sim_top
+
+.PHONY: sim-fes-c64-sid-audio
+sim-fes-c64-sid-audio:
+	$(require_local_sim)
+	@for prepared in 0 1; do \
+		mkdir -p "$(CURDIR)/build/sim/fes-c64-sid-audio-$$prepared"; \
+		$(VERILATOR) --cc --exe --build -j 2 -O2 $(C64_VERILATOR_FLAGS) \
+			-CFLAGS "-std=c++17 -O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+			--top-module sid_audio_sim_top -GPREPARED=$$prepared \
+			--Mdir "$(CURDIR)/build/sim/fes-c64-sid-audio-$$prepared" \
+			cores/fes-c64/sim/sid_audio_sim_top.sv \
+			cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv \
+			cores/fes-c64/rtl/c64_sid_envelope.sv $(C64_SID_AUDIO_SOURCES) \
+			"$(CURDIR)/cores/fes-c64/sim/sid_audio_tb.cpp" || exit $$?; \
+		build/sim/fes-c64-sid-audio-$$prepared/Vsid_audio_sim_top || exit $$?; \
+	done
+
+
+.PHONY: sim-fes-c64-sid
+sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix sim-fes-c64-sid-svf
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
+	@build/sim/fes-c64-sid/Vc64_sid_sim_top
+
+.PHONY: sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3
+sim-fes-c64-sid-oscillator:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-oscillator
+	$(VERILATOR) --cc --exe --build -O2 --top-module oscillator_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-oscillator" \
+		cores/fes-c64/sim/sid_oscillator_sim_top.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_tb.cpp"
+	@build/sim/fes-c64-sid-oscillator/Voscillator_sim_top
+
+sim-fes-c64-sid-osc3:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-osc3
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-osc3" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
+	@build/sim/fes-c64-sid-osc3/Vc64_sid_sim_top
+
+.PHONY: sim-fes-c64-sid-coupling
+sim-fes-c64-sid-coupling:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-coupling
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-coupling" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-coupling/Vsid_coupling_sim_top
+
+.PHONY: sim-fes-c64-sid-phase
+sim-fes-c64-sid-phase:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-phase
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_PHASE" \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-phase" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-phase/Vsid_coupling_sim_top
+
+
+.PHONY: sim-fes-c64-sid-svf
+sim-fes-c64-sid-svf:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-svf
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_svf_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-svf" \
+		cores/fes-c64/sim/sid_svf_sim_top.sv cores/fes-c64/rtl/c64_sid_svf.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_svf_tb.cpp"
+	@build/sim/fes-c64-sid-svf/Vsid_svf_sim_top
+
+.PHONY: sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix
+# Sequenced voices: the same pinned reSID coupling, OSC3 and mix fixtures with
+# each voice's waveform stage one SYS edge after Phi (the motherboard build).
+sim-fes-c64-sid-sequenced:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_PREPARED_PHASE -DC64_SEQUENCED_VOICES" \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced/Vsid_coupling_sim_top
+
+sim-fes-c64-sid-sequenced-osc3:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced-osc3
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_SEQUENCED_VOICES -O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-osc3" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced-osc3/Vc64_sid_sim_top
+
+sim-fes-c64-sid-sequenced-mix:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced-mix
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_SEQUENCED_VOICES" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-mix" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced-mix/Vc64_sid_sim_top
+
+.PHONY: sim-fes-c64-sid-envelope
+sim-fes-c64-sid-envelope:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-envelope
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_envelope $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope" \
+		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
+	@build/sim/fes-c64-sid-envelope/Vc64_sid_envelope
+
+.PHONY: sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared
+sim-fes-c64-sid-envelope-prepared:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-envelope-prepared
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_envelope -GPREPARE_STATE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_ENVELOPE" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope-prepared" \
+		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
+	@build/sim/fes-c64-sid-envelope-prepared/Vc64_sid_envelope
+
+sim-fes-c64-sid-prepared:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-prepared
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-prepared" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
+	@build/sim/fes-c64-sid-prepared/Vc64_sid_sim_top
+
+
+.PHONY: sim-fes-c64-sprite-pal
+sim-fes-c64-sprite-pal:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_sprite_pixels $(C64_VERILATOR_FLAGS) -GROW_DATA_DOT=5 \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-pal" cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels
 
 .PHONY: sim-fes-pcxt
 sim-fes-pcxt:
