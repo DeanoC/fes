@@ -1,0 +1,75 @@
+RISC-V execute/commit timing qualification, 2026-10-21
+
+Issue: https://github.com/DeanoC/fes/issues/942
+FES base: 218716ebdef44ac4682451096d6beb2d7e9b50b0
+Sealed source: 4bbf35cff3f70b3942f378fbb8e6726610fcc7d2
+Compiler: 8f453ebc7420ad619dfe94818d869ea76dd2585f (nextpnr PR #267)
+Toolchain slot: 8ca38f2aaa95094360b9cbe9020fd6ae5ee84db0e81c58f17fc8ddaf062d894b
+
+EXEC captures the ALU, each independent address/PC result, branch and alignment
+flags, store payload and CSR operand. COMMIT applies instruction side effects
+from those stable values. This adds one execute cycle per instruction: with
+a one-cycle memory, ALU/branch/jump instructions take four clocks and loads/
+stores six. The bus, ISA and shared 74.25 MHz clock are unchanged. Only
+fes.riscv consumes this CPU in the current tree. No shared ABI or factory change.
+
+Matched zero-BUILD_ID controls, corrected compiler and original constraints:
+variant / seed        MHz        setup ns    hold ns    COMB    FF
+baseline / 1          64.699791    -1.988     +0.732     2625   755
+branch-only / 1       67.888664    -1.262     +0.698     2707   756
+execute / 1           75.346596    +0.196     +0.682     2827   954
+execute / 3           77.309624    +0.533     +0.849     2827   954
+execute / 10          77.429344    +0.553     +0.782     2827   954
+All use 54 M10Ks. The three complete-execute candidates pass strict timing
+and hold with exit 0. No timing allowance was supplied to those experiments.
+The branch-only source was superseded; it is retained only with the external
+experiment artifacts. The runtime has one execute/commit implementation.
+These are candidate routes, not production or hardware acceptance evidence.
+
+Fresh normal production qualification
+
+Command: python3 scripts/build_fes_riscv.py --cache-root /home/deano/fes/out/cache/misteross-toolchains
+The normal JOBS=12 make toolchain-fes-riscv bootstrap built and authenticated
+all tools. The full producer ran from clean committed source and accepted its
+first candidate: seed 1, weight 10, exponent 2. The normal seed/weight/search
+profile is preserved. The nine added CLI options remain at their source
+defaults, including disabled arrival-pin assignment and isolation. Other
+cores retain their locks and profiles.
+
+The full producer exits 0 and seals a format-2 package at 76.242760 MHz,
+required 74.250069 MHz, setup +0.352 ns and hold +0.836 ns. Independent reads
+require final_analogue_model=true, nonnegative setup/hold for every clock,
+a passing producer summary, and matching RBF hashes in the summary and
+immutable package. Normal source/tool, resource, PLL/board/electrical and
+package gates remain enforced. Existing search timing-allow-fail is followed
+by the normal acceptance gates. Live leased GPU proof is in route-proof.txt.
+
+BUILD_ID: 145daa3b3e172bdf69d2bd901bc60175
+Package: 10905b0785d2d550bc9f1b0ebd85d486ad8b1dfd7ae602a866a8f1cdfaec36ab
+RBF SHA256: 887e899d7367b1ca37c741ef9ea63fe00a455594e9e969a13b6544c895560b7b
+Immutable package: /home/deano/tmp/issue236-riscv-20261021/fes/out/dev/riscv-late-branch-timing/sources/misteross/build/packages/10905b0785d2d550bc9f1b0ebd85d486ad8b1dfd7ae602a866a8f1cdfaec36ab
+
+This production build synthesizes its real embedded BUILD_ID afresh; it does
+not reuse diagnostic synth.json. Compiler code at 8f453ebc matches 6bf1ae66
+used for the experiments; the intervening commit adds evidence only.
+
+Completed focused checks
+
+CPU directed checks with zero/random waits and 20 random lockstep streams
+pass, including exceptions, interrupts and retirement checks. A new untaken
+misaligned-target branch leaves the previous mtval intact. The ALU matches
+2,001,936 arithmetic cases. Firmware images match source. System simulation
+checks 549,849,600 static pixels over 600 frames and verifies gamepad movement,
+timer colour and hold restart. Bus-fault and board-mailbox cases pass. All
+28 recipe tests, 10 producer tests and make check pass. Full affected checks
+are recorded separately when complete. All evidence is host-only.
+
+Hardware acceptance remains open. No kit was used or deployed. Before
+promotion, load the exact package through the supported leased kit path,
+check scene, timer colour, gamepad movement and Stop, then restore/release
+the designated baseline. Normal review is required before merge.
+
+Exact commands, environments, compiler/source/synth hashes and timing results
+are in runs.jsonl, production.txt and the normal input/summary files. Full
+routes, logs, source variants and bootstrap/producer logs remain beneath
+/home/deano/tmp/issue236-riscv-20261021/.

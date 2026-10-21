@@ -16,9 +16,13 @@ timing and hardware qualification.
 
 The CPU is multicycle and not pipelined. FETCH issues the instruction read
 and, when it completes, captures the word, its decoded class and both source
-registers; EXEC performs the instruction or starts a data access; MEM waits
-for that access. With a one-cycle memory an ALU, branch or jump instruction
-takes three clocks and a load or store takes five. Exceptions are precise:
+registers. EXEC captures the ALU result, each independent address/PC result,
+branch decision, alignment flags, store payload and CSR operand. COMMIT uses
+those stable results to perform write-back, retirement, trap/CSR updates or
+start a data access; MEM waits for that access. With a one-cycle memory an
+ALU, branch or jump instruction takes four clocks and a load or store takes
+six. The extra execute cycle separates the M10K read and arithmetic from
+completion control at the unchanged 74.25 MHz system clock. Exceptions are precise:
 the trapping instruction has no side effects and `mepc` is its address.
 
 The register file is a 32-entry synchronous-read array (two M10K blocks on
