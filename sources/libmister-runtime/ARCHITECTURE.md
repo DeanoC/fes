@@ -208,9 +208,9 @@ tests do not establish physical scanout acceptance.
 Simple-computer `fes.video.session-display` 1.0 reuses the menu driver and
 reserved DDR slots, with required `fes.memory.hps-ddr` 1.0 and its shared plane
 `fes.fabric.video.display-plane` 1.0. The plane reports
-pixel format 2, premultiplied RGBA, and the machine picture rectangle; the DDR
-copy keeps each staged pixel's alpha byte and status publishes the rectangle
-as `menu_display.picture`. Its bit 9 and the
+pixel format 2, premultiplied RGBA, and the machine picture rectangle; the
+client writes each pixel's alpha as the slot word's top byte, and status
+publishes the rectangle as `menu_display.picture`. Its bit 9 and the
 DDR bit 8 are included in exact declared/live identity checks; the plane
 grants no bit. Admission advertises this interface and the plane only when boot
 DDR layout and presentation adapters are available. Activation initializes

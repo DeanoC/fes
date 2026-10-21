@@ -301,7 +301,7 @@ struct MenuRect {
 };
 struct MenuDisplayInfo {
  MenuGeometry geometry;
- // Idle firmware scans XRGB (format 1). A session-display 2.0 plane blends
+ // Idle firmware scans XRGB (format 1). A session-display plane blends
  // premultiplied RGBA (format 2) and reports where the machine picture lands.
  std::uint16_t pixel_format=0;
  MenuRect picture;

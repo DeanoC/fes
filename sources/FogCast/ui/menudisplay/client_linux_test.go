@@ -165,8 +165,9 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 	if err != nil || result.DisplayedSequence != 1 {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	// B, G, R, X: the XRGB8888 word 0x00112233 the menu scanout reads.
-	if got := runtime.slot(1)[:4]; string(got) != "\x33\x22\x11\x00" {
+	// B, G, R, then the pixel's alpha: the XRGB8888 word 0xff112233 the menu
+	// scanout reads, opaque to a session plane.
+	if got := runtime.slot(1)[:4]; string(got) != "\x33\x22\x11\xff" {
 		t.Fatalf("slot pixel % x", got)
 	}
 	if _, partial := runtime.commit(0)["written"]; partial {
@@ -179,7 +180,7 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 	if _, err := client.Present(ctx, 7, filled(0x44, 0x55, 0x66)); err != nil {
 		t.Fatal(err)
 	}
-	if got := runtime.slot(0)[:4]; string(got) != "\x66\x55\x44\x00" || runtime.grantCount() != 1 {
+	if got := runtime.slot(0)[:4]; string(got) != "\x66\x55\x44\xff" || runtime.grantCount() != 1 {
 		t.Fatalf("second slot % x after %d grants", got, runtime.grantCount())
 	}
 	// A new generation is a new grant.
@@ -231,7 +232,7 @@ func TestPresentDamageWritesWhatTheSlotMissed(t *testing.T) {
 	for _, check := range []struct {
 		x, y int
 		want string
-	}{{100, 55, "\xa2\xa1\xa0\x00"}, {645, 302, "\xb2\xb1\xb0\x00"}, {0, 0, "\x00\x00\x00\x00"}} {
+	}{{100, 55, "\xa2\xa1\xa0\xff"}, {645, 302, "\xb2\xb1\xb0\xff"}, {0, 0, "\x00\x00\x00\xff"}} {
 		at := check.y*Stride + check.x*4
 		if got := string(slot[at : at+4]); got != check.want {
 			t.Fatalf("slot pixel %d,%d = % x", check.x, check.y, got)

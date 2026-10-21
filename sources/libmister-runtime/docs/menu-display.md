@@ -26,7 +26,9 @@ has been configured or has unavailable/error evidence. Its generation is
 independent of gameplay `generation`; absent means no menu configuration.
 Geometry is fixed: 1280×720, stride 5120, `byte_count` 3,686,400, two (`slots`)
 4 MiB (`slot_bytes`) slots in `format` `bgrx8888`: XRGB8888 words, bytes
-B, G, R, X. The client draws straight into the slots; the runtime copies no
+B, G, R, X. X is the pixel's alpha: idle MENU ignores it, and a session plane
+blends with it as premultiplied alpha, so clients write 255 where a pixel is
+opaque. The client draws straight into the slots; the runtime copies no
 frame.
 
 ### Grant
@@ -125,8 +127,8 @@ the budget above before using the splash path. Failed containment requires reboo
 An active simple-computer or computer package with required
 `fes.video.session-display` 1.0, its shared plane
 `fes.fabric.video.display-plane` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the
-same frame transport. The plane blends the staged RGBA as premultiplied alpha over
-the machine picture; an opaque frame replaces it. Open/return uses the active
+same frame transport. The plane blends the slot pixels over the machine
+picture, with X as premultiplied alpha; an opaque frame replaces it. Open/return uses the active
 core identity, not the frame generation:
 
 ```json

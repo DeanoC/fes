@@ -24,10 +24,13 @@ func TestWriteRowMatchesScalar(t *testing.T) {
 			}
 		}
 	}
-	got := make([]byte, 4)
-	writeRow(got, []byte{0x11, 0x22, 0x33, 0xff})
-	if string(got) != "\x33\x22\x11\x00" {
-		t.Fatalf("pixel % x", got)
+	// Alpha stays in the fourth byte, which a session plane blends with.
+	// Eight pixels are one NEON block on ARM.
+	src := bytes.Repeat([]byte{0x11, 0x22, 0x33, 0xff, 0x44, 0x55, 0x66, 0x80}, 4)
+	got := make([]byte, len(src))
+	writeRow(got, src)
+	if want := bytes.Repeat([]byte{0x33, 0x22, 0x11, 0xff, 0x66, 0x55, 0x44, 0x80}, 4); !bytes.Equal(got, want) {
+		t.Fatalf("pixels % x", got)
 	}
 }
 
