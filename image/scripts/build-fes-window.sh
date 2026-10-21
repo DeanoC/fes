@@ -28,6 +28,9 @@ version=$(cd "$source_dir" && for file in *; do printf '%s\0' "$file"; cat "$fil
 printf '%s\n' -MiSTer > "$build/kernel/localversion.mister"
 export KBUILD_BUILD_USER=fogcast KBUILD_BUILD_HOST=target-image KBUILD_BUILD_VERSION=1
 export HOSTCXXFLAGS="-I$host/include"
+# Run the kernel make as a top-level make: Buildroot's post-build passes its
+# MAKEFLAGS down, and their w adds directory lines to the kernelrelease output.
+unset MAKEFLAGS GNUMAKEFLAGS MAKELEVEL
 kmake() {
   make -s -C "$kernel" O="$build/kernel" ARCH=arm CROSS_COMPILE="$cross" "$@"
 }
