@@ -12,7 +12,7 @@ import (
 )
 
 func softDraw(elapsed time.Duration) error {
-	return fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, elapsed: elapsed})
+	return fmt.Errorf("draw callback: %w", softOverrun{budget: 12 * time.Millisecond, timing: callTiming{elapsed: elapsed}})
 }
 
 // The baseline is the sample taken before the callback. A cycle that runs
@@ -55,7 +55,7 @@ func TestFrameAndInputStreaksKeepSeparateGCBaselines(t *testing.T) {
 
 	r.noteInputBaseline()
 	inputN = 2
-	r.inputStreak.add(r, fmt.Errorf("on_input callback: %w", softOverrun{budget: 8 * time.Millisecond, elapsed: 15 * time.Millisecond}), 1)
+	r.inputStreak.add(r, fmt.Errorf("on_input callback: %w", softOverrun{budget: 8 * time.Millisecond, timing: callTiming{elapsed: 15 * time.Millisecond}}), 1)
 	inputMsg := r.inputStreak.summary(r)
 
 	if !strings.Contains(frameMsg, "4 process-wide GC cycles") {

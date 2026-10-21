@@ -6,9 +6,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import build
+from image_passes import validate_image_passes
 
 
 class ImagePassCacheTest(unittest.TestCase):
+    def test_default_one_pass_in_local_and_ci_and_explicit_reproducibility(self):
+        for env in ({}, {"CI": "true"}, {"GITHUB_ACTIONS": "true"}):
+            self.assertEqual(validate_image_passes(environment=env), 1)
+            self.assertEqual(validate_image_passes(2, environment=env), 2)
+        for value in (0, 3, True, "garbage"):
+            with self.assertRaises(ValueError):
+                validate_image_passes(value)
+
     def test_pass_count_must_match_in_both_directions(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)

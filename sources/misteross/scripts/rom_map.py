@@ -52,11 +52,15 @@ def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, b
 
 
 def validate_routed_rom(routed: dict, lane_rows: tuple[int | tuple[int, int], ...] = ZX81_LANE_ROWS, *,
-                        expected_async_read: int = 1) -> None:
+                        expected_async_read: int = 1,
+                        true_dual_port_lanes: tuple[int, ...] = ()) -> None:
     """Require the actual routed BEL, lane shape and empty INIT for every bank."""
     if type(expected_async_read) is not int or expected_async_read not in (0, 1):
         raise ValueError('invalid ROM read mode')
     locations = lane_locations(lane_rows)
+    if (len(set(true_dual_port_lanes)) != len(true_dual_port_lanes) or
+        any(type(index) is not int or not 0 <= index < len(locations) for index in true_dual_port_lanes)):
+        raise ValueError('invalid true-dual-port ROM lane selection')
     cells = routed.get('modules', {}).get('top', {}).get('cells', {})
     if not isinstance(cells, dict):
         raise ValueError('routed ROM cells missing')
@@ -64,9 +68,16 @@ def validate_routed_rom(routed: dict, lane_rows: tuple[int | tuple[int, int], ..
         name = f'machine.rom.lane{index}'
         cell = cells.get(name, {})
         bel = f'MISTRAL_M10K.{column}.{row}.0'
+        # nextpnr normalizes the frontend TDP primitive to MISTRAL_M10K
+        # with CFG_TDP=1 before placement. Validate the routed representation.
         if cell.get('type') != 'MISTRAL_M10K' or cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'routed ROM lane {name} must occupy {bel}')
         parameters = cell.get('parameters', {})
+        tdp = parameters.get('CFG_TDP', 0)
+        if isinstance(tdp, str) and re.fullmatch('[01]+', tdp):
+            tdp = int(tdp, 2)
+        if type(tdp) is not int or tdp != int(index in true_dual_port_lanes):
+            raise ValueError(f'routed ROM lane {name} has invalid CFG_TDP')
         for key, expected in (('CFG_ABITS', 10), ('CFG_DBITS', 10), ('CFG_ASYNC_READ', expected_async_read)):
             value = parameters.get(key)
             if isinstance(value, str) and re.fullmatch('[01]+', value):
@@ -129,12 +140,14 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
                   routed: dict | None = None,
                   lane_rows: tuple[int | tuple[int, int], ...] = ZX81_LANE_ROWS,
                   reserved_rect: tuple[int, int, int, int] | None = None,
-                  expected_async_read: int = 1) -> tuple[dict, dict]:
+                  expected_async_read: int = 1,
+                  true_dual_port_lanes: tuple[int, ...] = ()) -> tuple[dict, dict]:
     if type(expected_async_read) is not int or expected_async_read not in (0, 1):
         raise ValueError('invalid ROM read mode')
     locations = lane_locations(lane_rows)
     if routed is not None:
-        validate_routed_rom(routed, lane_rows, expected_async_read=expected_async_read)
+        validate_routed_rom(routed, lane_rows, expected_async_read=expected_async_read,
+                            true_dual_port_lanes=true_dual_port_lanes)
     paths = DATABASE_FILES
     sources = read_database(mistral_source) if isinstance(mistral_source, Path) else mistral_source
     die = sources[paths[1]].decode()

@@ -7,7 +7,7 @@ runtime=${TARGET_IMAGE_CONTAINER_RUNTIME:-docker}
 output_volume=${TARGET_IMAGE_OUTPUT_VOLUME:-fogcast-target-image-output}
 package_lock=$repo_root/build/target-image-container-packages.sha256
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
-image_passes=${FES_IMAGE_PASSES:-2}
+image_passes=${FES_IMAGE_PASSES:-1}
 case "$image_passes" in
   1|2) : ;;
   *) printf '%s\n' 'target-image-container: FES_IMAGE_PASSES must be 1 or 2' >&2; exit 2 ;;

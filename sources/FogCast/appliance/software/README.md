@@ -38,7 +38,10 @@ incomplete staging directories (`incoming/bundle-` plus a decimal suffix) left
 by an interrupted install, then syncs `incoming`. Published releases are not
 removed. Installation verifies all bytes, syncs files and directories, then
 publishes atomically under that same lock. Repeated identical installation
-is idempotent. Reads reverify bytes and pinned storage identities. Installation
+is idempotent. Inventory authenticates canonical manifests and their release IDs,
+without reading payloads. It describes installed releases, not payload readiness.
+`Read`, `Path`, and activation still reverify all payload bytes and pinned storage
+identities before use. Installation
 alone never selects a release, restarts services or modifies user data.
 
 Activation and its durable journal are implemented separately by the base-image

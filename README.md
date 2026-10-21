@@ -156,12 +156,12 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 | `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'` | Explicit opt-in single-package lifecycle diagnostic; no image rebuild ([guide](docs/package-acceptance.md)) |
 | `make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS='...'` | Private-host package lifecycle and restart diagnostic; live library is not mounted ([guide](docs/package-acceptance.md)) |
 | `python3 scripts/kit_software_acceptance.py --help` | Explicit leased software install/queue/cancel/activation diagnostic; successful selections remain installed ([guide](docs/kit-software-acceptance.md)) |
-| `make build` | Host and two-pass native image, reusing matching checked outputs |
+| `make build` | Host and one-pass native image, reusing matching checked outputs; `IMAGE_PASSES=2` opts into reproducibility |
 | `make image IMAGE_ARTIFACTS=/absolute/artifacts` | Assemble OS from prebuilt bootstrap inputs ([guide](docs/image-artifacts.md)) |
-| `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
+| `make verify` | Require host/image receipts, verify image hashes and QEMU packaging; compare both hashes when `IMAGE_PASSES=2` |
 | `make media` | Publish a verified flashable disk image, auto-embedding the local target agent config |
 | `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
-| `make rebuild` | Force host and both package-only image passes |
+| `make rebuild` | Force host and the selected package-only image passes |
 
 | Profile | Selected source combination |
 | --- | --- |

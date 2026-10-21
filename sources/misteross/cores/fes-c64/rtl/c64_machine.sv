@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // FES Commodore 64 motherboard in the 52.224 MHz system domain.
 // The 6510 is the shared NMOS 6502 plus the processor port. Phi2 is a
-// fractional 1.022727 MHz enable. Video is scanned in the HDMI domain.
+// fractional 0.985248 MHz PAL enable. Video is scanned in the HDMI domain.
 `include "c64_bus.vh"
-`include "c64_font.vh"
 
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
-    parameter integer CPU_CLOCK_HZ = 1_022_727
+    parameter integer CPU_CLOCK_HZ = 985_248
 ) (
+`ifdef FES_C64_EXTERNAL_MEDIUM_SIM
+    // Explicit simulation oracle; normal builds use the internal RTL medium.
+    input wire drive_flux,
+`endif
     input  wire        clk_sys,
     input  wire        reset,
     input  wire [143:0] keyboard_rows,
@@ -37,7 +40,18 @@ module c64_machine #(
     localparam integer PHASE_BITS = 27;
     reg [PHASE_BITS-1:0] cpu_phase = 0;
     wire [PHASE_BITS:0] cpu_phase_next = {1'b0, cpu_phase} + CPU_CLOCK_HZ;
-    wire cpu_ce = cpu_phase_next >= SYSTEM_CLOCK_HZ;
+    wire cpu_ce;
+    generate if (SYSTEM_CLOCK_HZ > 2 * CPU_CLOCK_HZ) begin : registered_enable
+        // Predict the next tick before updating phase. This keeps the original
+        // pulse sequence and removes the phase adder from CPU RDY.
+        reg enable = 0;
+        always @(posedge clk_sys)
+            enable <= !enable && cpu_phase >= SYSTEM_CLOCK_HZ - 2 * CPU_CLOCK_HZ;
+        assign cpu_ce = enable;
+    end else begin : direct_enable
+        // Retain the original parameter behavior when enables may be adjacent.
+        assign cpu_ce = cpu_phase_next >= SYSTEM_CLOCK_HZ;
+    end endgenerate
     always @(posedge clk_sys)
         cpu_phase <= cpu_ce ? PHASE_BITS'(cpu_phase_next - SYSTEM_CLOCK_HZ)
                             : cpu_phase_next[PHASE_BITS-1:0];
@@ -45,8 +59,37 @@ module c64_machine #(
     always @(posedge clk_sys)
         if (cpu_ce) cycle_clock <= 6'd0;
         else if (cycle_clock != 6'd63) cycle_clock <= cycle_clock + 6'd1;
-    wire bus_strobe = cycle_clock == 6'd0;
-    wire bus_sample = cycle_clock == 6'd16;
+    // The bus strobe (cycle 26) and read sample (cycle 43) pulses are
+    // predicted one edge ahead into registers, like the Phi enable: the same
+    // pulses, without the cycle counter compare in the device write, read
+    // and interrupt paths. A Phi enable never follows cycles 25 or 42.
+    reg bus_strobe = 1'b0;
+    reg bus_sample = 1'b0;
+    always @(posedge clk_sys) begin
+        bus_strobe <= cycle_clock == 6'd25 && !cpu_ce;
+        bus_sample <= cycle_clock == 6'd42 && !cpu_ce;
+    end
+    // Each CIA gets its own predicted write strobe: the same edge-26 pulse,
+    // already qualified by direction and chip select, so the register sits
+    // beside the CIA instead of at the end of the shared strobe's fanout.
+    wire bus_we;
+    reg cia1_we = 1'b0;
+    reg cia2_we = 1'b0;
+    wire sel_cia1_q, sel_cia2_q;
+    // The register select and write data are also copied beside each CIA:
+    // they change at the CPU enable and are consumed at edge 26 or 43.
+    reg [3:0] cia1_rs = 4'd0;
+    reg [3:0] cia2_rs = 4'd0;
+    reg [7:0] cia1_din = 8'd0;
+    reg [7:0] cia2_din = 8'd0;
+    always @(posedge clk_sys) begin
+        cia1_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia1_q;
+        cia2_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia2_q;
+        cia1_rs <= bus_addr[3:0];
+        cia2_rs <= bus_addr[3:0];
+        cia1_din <= bus_wdata;
+        cia2_din <= bus_wdata;
+    end
 
     reg [3:0] reset_hold = 4'hf;
     always @(posedge clk_sys)
@@ -61,23 +104,40 @@ module c64_machine #(
     wire [15:0] cpu_ab;
     wire [7:0] cpu_do;
     wire cpu_we;
+    reg bus_we_q = 1'b0;
+    assign bus_we = bus_we_q;
+    wire vic_ba_n;
+    // The synchronous CPU prepares the following bus cycle. Only a write
+    // already on the bus can finish under BA; a prepared write must not
+    // retire its preceding operand read while that read is stalled.
+    // Phase26 guest writes commit27 SYS edges after the previous CPU enable.
+    // BA can be captured on edge28 and consumed on edge29. Shorter periods
+    // retain the direct path, including adjacent-enable parameter modes.
+    wire cpu_ba_n;
+    generate if (SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 29) begin : prepared_cpu_ba
+        reg value = 1'b1;
+        always @(posedge clk_sys) value <= vic_ba_n;
+        assign cpu_ba_n = value;
+    end else begin : direct_cpu_ba
+        assign cpu_ba_n = vic_ba_n;
+    end endgenerate
+    wire cpu_run_ce=cpu_ce&&(cpu_ba_n||bus_we);
     reg [7:0] cpu_di = 8'hff;
     wire irq_n, nmi_n;
     cpu6502 cpu (
         .clk(clk_sys), .reset(system_reset), .AB(cpu_ab), .DI(cpu_di),
-        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_ce)
+        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_run_ce), .SO(1'b1)
     );
     assign debug_pc = cpu_ab;
 
     reg [15:0] bus_addr = 16'h0000;
     reg [7:0] bus_wdata = 8'h00;
-    reg bus_we = 1'b0;
     always @(posedge clk_sys)
-        if (cpu_ce) begin
+        if (cpu_run_ce) begin
             bus_addr <= cpu_ab;
             bus_wdata <= cpu_do;
-            bus_we <= cpu_we && reset_writes == 2'd0 && !system_reset;
-        end
+            bus_we_q <= cpu_we && reset_writes == 2'd0 && !system_reset;
+        end else if(cpu_ce) bus_we_q <= 0;
 
     reg [7:0] ddr = 8'h00;
     reg [7:0] pr = 8'h00;
@@ -91,31 +151,65 @@ module c64_machine #(
     wire hiram = port_eff[1];
     wire charen = port_eff[2];
 
-    wire exrom = slot1_response[`C64_BUS_EXROM] | slot2_response[`C64_BUS_EXROM];
-    wire game = slot1_response[`C64_BUS_GAME] | slot2_response[`C64_BUS_GAME];
+    // The sockets are frozen in reserved rectangles far from the machine, so
+    // their registered responses are sampled once more here, beside the
+    // consumers. One extra SYS edge is invisible at the bus level: a response
+    // to the strobe at edge 26 is read at edge 43, and the cartridge control
+    // and interrupt lines only change in reply to a strobe.
+    reg [`C64_BUS_RSP-1:0] slot1_rsp = 0;
+    reg [`C64_BUS_RSP-1:0] slot2_rsp = 0;
+    always @(posedge clk_sys) begin
+        slot1_rsp <= slot1_response;
+        slot2_rsp <= slot2_response;
+    end
+    wire exrom = slot1_rsp[`C64_BUS_EXROM] | slot2_rsp[`C64_BUS_EXROM];
+    wire game = slot1_rsp[`C64_BUS_GAME] | slot2_rsp[`C64_BUS_GAME];
     wire ultimax = game && !exrom;
     wire cart16 = game && exrom;
     wire cart8 = !game && exrom;
-    wire cart_irq = slot1_response[`C64_BUS_IRQ] | slot2_response[`C64_BUS_IRQ];
-    wire cart_nmi = slot1_response[`C64_BUS_NMI] | slot2_response[`C64_BUS_NMI];
-    wire [7:0] cart_data = slot1_response[`C64_BUS_DRIVE] ? slot1_response[`C64_BUS_RD]
-                                                          : slot2_response[`C64_BUS_RD];
-    wire cart_hit = slot1_response[`C64_BUS_DRIVE] | slot2_response[`C64_BUS_DRIVE];
+    wire cart_irq = slot1_rsp[`C64_BUS_IRQ] | slot2_rsp[`C64_BUS_IRQ];
+    wire cart_nmi = slot1_rsp[`C64_BUS_NMI] | slot2_rsp[`C64_BUS_NMI];
+    wire [7:0] cart_data = slot1_rsp[`C64_BUS_DRIVE] ? slot1_rsp[`C64_BUS_RD]
+                                                     : slot2_rsp[`C64_BUS_RD];
+    wire cart_hit = slot1_rsp[`C64_BUS_DRIVE] | slot2_rsp[`C64_BUS_DRIVE];
 
-    wire a000 = bus_addr[15:13] == 3'b101;
-    wire e000 = bus_addr[15:13] == 3'b111;
-    wire roml = bus_addr[15:13] == 3'b100;
-    wire d000 = bus_addr[15:12] == 4'hD;
-    wire show_io = d000 && (ultimax || (!ultimax && charen && (loram || hiram)));
-    wire show_char = d000 && !ultimax && !show_io && (loram || hiram);
-    wire show_basic = a000 && hiram && loram && !cart16 && !ultimax;
-    wire show_kernal = e000 && hiram && !ultimax;
-    wire sel_vic = show_io && bus_addr[11:10] == 2'b00;
-    wire sel_sid = show_io && bus_addr[11:10] == 2'b01;
-    wire sel_color = show_io && bus_addr[11:10] == 2'b10;
-    wire sel_cia1 = show_io && bus_addr[15:8] == 8'hDC;
-    wire sel_cia2 = show_io && bus_addr[15:8] == 8'hDD;
-    wire sel_port = bus_addr[15:1] == 15'h0000;
+    // The address decode is registered one system edge after the bus address
+    // changes at the CPU enable. Every consumer samples it at edge 26 or
+    // later, or reads data that is itself sampled at edge 27 or later, so the
+    // registered decode is invisible at the bus level and keeps the port,
+    // cartridge-map and address compare out of the device read mux path.
+    wire a000_c = bus_addr[15:13] == 3'b101;
+    wire e000_c = bus_addr[15:13] == 3'b111;
+    wire roml_c = bus_addr[15:13] == 3'b100;
+    wire d000_c = bus_addr[15:12] == 4'hD;
+    wire show_io_c = d000_c && (ultimax || (!ultimax && charen && (loram || hiram)));
+    wire show_char_c = d000_c && !ultimax && !show_io_c && (loram || hiram);
+    wire show_basic_c = a000_c && hiram && loram && !cart16 && !ultimax;
+    wire show_kernal_c = e000_c && hiram && !ultimax;
+    reg a000 = 1'b0, e000 = 1'b0, roml = 1'b0, d000 = 1'b0;
+    reg show_io = 1'b0, show_char = 1'b0, show_basic = 1'b0, show_kernal = 1'b0;
+    reg sel_vic = 1'b0, sel_sid = 1'b0, sel_color = 1'b0, sel_cia1 = 1'b0, sel_cia2 = 1'b0;
+    assign sel_cia1_q = sel_cia1;
+    assign sel_cia2_q = sel_cia2;
+    reg sel_port = 1'b0, basic_window = 1'b0, ultimax_open = 1'b0;
+    always @(posedge clk_sys) begin
+        a000 <= a000_c;
+        e000 <= e000_c;
+        roml <= roml_c;
+        d000 <= d000_c;
+        show_io <= show_io_c;
+        show_char <= show_char_c;
+        show_basic <= show_basic_c;
+        show_kernal <= show_kernal_c;
+        sel_vic <= show_io_c && bus_addr[11:10] == 2'b00;
+        sel_sid <= show_io_c && bus_addr[11:10] == 2'b01;
+        sel_color <= show_io_c && bus_addr[11:10] == 2'b10;
+        sel_cia1 <= show_io_c && bus_addr[15:8] == 8'hDC;
+        sel_cia2 <= show_io_c && bus_addr[15:8] == 8'hDD;
+        sel_port <= bus_addr[15:1] == 15'h0000;
+        basic_window <= a000_c;
+        ultimax_open <= ultimax && !roml_c && !e000_c && !d000_c && bus_addr >= 16'h1000;
+    end
     wire ram_we = bus_strobe && bus_we && !show_io && !sel_port;
 
     reg [`C64_BUS_REQ-1:0] request = 0;
@@ -130,7 +224,7 @@ module c64_machine #(
             request[`C64_BUS_ROMH] <= (cart16 && a000) || (ultimax && e000);
             request[`C64_BUS_IO1] <= show_io && bus_addr[15:8] == 8'hDE;
             request[`C64_BUS_IO2] <= show_io && bus_addr[15:8] == 8'hDF;
-            request[`C64_BUS_BA] <= 1'b1;
+            request[`C64_BUS_BA] <= vic_ba_n;
         end else
             request[`C64_BUS_STROBE] <= 1'b0;
         if (bus_strobe && bus_we && bus_addr == 16'h0000) ddr <= bus_wdata;
@@ -166,16 +260,23 @@ module c64_machine #(
     assign slot2_request = io_socket(request);
 
     wire [7:0] ram_q, rom_q;
+    wire [13:0] drive_rom_address;
+    wire [7:0] drive_rom_data;
     wire [15:0] video_ram_addr;
-    wire [7:0] video_ram_q;
+    wire [7:0] video_ram_q, video_char_q;
+    reg video_char_selected;
+    always @(posedge clk_sys)
+        video_char_selected <= !video_ram_addr[14] && video_ram_addr[13:12]==2'b01;
     c64_ram main_ram (
         .clk_a(clk_sys), .addr_a(bus_addr), .wdata_a(bus_wdata), .we_a(ram_we), .q_a(ram_q),
-        .clk_b(video_clk), .addr_b(video_ram_addr), .q_b(video_ram_q)
+        .clk_b(clk_sys), .addr_b(video_ram_addr), .q_b(video_ram_q)
     );
-    wire basic_window = bus_addr[15:13] == 3'b101;
-    wire [13:0] rom_address = basic_window ? {1'b0, bus_addr[12:0]} : {1'b1, bus_addr[12:0]};
+    wire [14:0] rom_address = show_char ? {3'b100,bus_addr[11:0]} :
+        basic_window ? {2'b00,bus_addr[12:0]} : {2'b01,bus_addr[12:0]};
     c64_rom rom (
-        .clk(clk_sys), .address(rom_address), .data(rom_q)
+        .clk(clk_sys), .address(rom_address), .data(rom_q),
+        .video_clk(clk_sys), .video_address(video_ram_addr[11:0]), .video_data(video_char_q),
+        .drive_address(drive_rom_address), .drive_data(drive_rom_data)
     );
 
     wire [7:0] cia1_pa, cia1_pb, cia1_ddra, cia1_ddrb, cia1_dout;
@@ -185,19 +286,46 @@ module c64_machine #(
                        controller_buttons[1], controller_buttons[0]};
     wire [4:0] joy1 = {controller_buttons[12], controller_buttons[11], controller_buttons[10],
                        controller_buttons[9], controller_buttons[8]};
-    wire [4:0] pa1_low_lo = (cia1_ddra[4:0] & ~cia1_pa[4:0]) | (~cia1_ddra[4:0] & joy2);
-    wire [2:0] pa1_low_hi = cia1_ddra[7:5] & ~cia1_pa[7:5];
-    wire [7:0] pa1_low = {pa1_low_hi, pa1_low_lo};
+    // Joystick switches short CIA1 port pins to ground. The pins are
+    // wired-AND, so a closed switch reads low even where the DDR drives the
+    // pin high, as the KERNAL leaves DDRA at $FF.
+    wire [7:0] pa1_low = (cia1_ddra & ~cia1_pa) | {3'b000, joy2};
     wire [7:0] key_rows;
     c64_keyboard keyboard (
         .rows(keyboard_rows), .columns_low(pa1_low), .rows_low(key_rows)
     );
-    wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) |
-                         (~cia1_ddrb & {3'b000, joy1});
+    wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) | {3'b000, joy1};
+    // The PAL power-supply TOD input is 50 Hz, independent of raster timing
+    // and CPU RDY stalls. Accumulating on the free-running Phi enable retains
+    // fractional periods at non-integral CPU clock rates.
+    localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + 50);
+    reg [TOD_PHASE_BITS-1:0] tod_phase;
+    // The accumulator only moves on Phi. When an idle SYS edge always follows
+    // Phi, the compare is registered between enables and the tick stays the
+    // same pulse without the compare in the CIA alarm/interrupt paths.
+    // Adjacent enables have no such edge: a wrap would leave the registered
+    // compare high and the next Phi would emit a second tick.
+    wire tod_compare = tod_phase >= CPU_CLOCK_HZ - 50;
+    wire tod_tick;
+    generate if (SYSTEM_CLOCK_HZ > 2 * CPU_CLOCK_HZ) begin : registered_tod
+        reg tod_due = 1'b0;
+        always @(posedge clk_sys)
+            tod_due <= tod_compare;
+        assign tod_tick = cpu_ce && tod_due;
+    end else begin : direct_tod
+        assign tod_tick = cpu_ce && tod_compare;
+    end endgenerate
+    always @(posedge clk_sys) begin
+        if (system_reset) tod_phase <= 0;
+        else if (cpu_ce)
+            tod_phase <= tod_tick ? TOD_PHASE_BITS'(tod_phase + 50 - CPU_CLOCK_HZ)
+                                 : TOD_PHASE_BITS'(tod_phase + 50);
+    end
+
     c64_cia cia1 (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia1),
-        .we(bus_strobe && bus_we && sel_cia1), .reading(!bus_we), .read_sample(bus_sample),
-        .rs(bus_addr[3:0]), .din(bus_wdata),
+        .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia1),
+        .we(cia1_we), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(cia1_rs), .din(cia1_din),
         .dout(cia1_dout), .pa_pin(~pa1_low), .pb_pin(~pb1_low),
         .pa_reg(cia1_pa), .pb_reg(cia1_pb), .pa_ddr(cia1_ddra), .pb_ddr(cia1_ddrb),
         .irq(cia1_irq)
@@ -206,64 +334,118 @@ module c64_machine #(
     wire dev_clk_low, dev_data_low;
     wire cpu_clk_low = cia2_ddra[4] & cia2_pa[4];
     wire cpu_data_low = cia2_ddra[5] & cia2_pa[5];
+    wire drive_ref_ce;
+    wire [7:0] drive_pins, drive_ddr;
+    wire [15:0] drive_pc;
+    wire [7:0] drive_data;
+    wire drive_sync, drive_ready_n, drive_reading, drive_enabled;
+    c64_drive1541 drive (
+        .clk(clk_sys), .reset(system_reset),
+        .atn_low(cia2_ddra[3] & cia2_pa[3]),
+        .host_clock_low(cpu_clk_low), .host_data_low(cpu_data_low),
+        .drive_clock_low(dev_clk_low), .drive_data_low(dev_data_low),
+        .disk_data(drive_data), .disk_pb({!drive_sync,3'b110,4'b1111}),
+        .byte_ready_n(drive_ready_n), .disk_pa_out(), .disk_pa_ddr(),
+        .disk_pb_out(drive_pins), .disk_pb_ddr(drive_ddr),
+        .byte_ready_enable(drive_enabled), .read_mode(drive_reading),
+        .debug_pc(drive_pc), .phi(), .ref_ce(drive_ref_ce),
+        .rom_address(drive_rom_address), .rom_data(drive_rom_data)
+    );
+    c64_gcr_read reader (
+        .clk(clk_sys), .reset(system_reset), .ref_ce(drive_ref_ce), .flux(drive_flux),
+        .motor(drive_pins[2]), .reading(drive_reading), .ready_enable(drive_enabled),
+        .density(drive_pins[6:5]), .data(drive_data), .sync_found(drive_sync),
+        .byte_ready_n(drive_ready_n), .bit_sample()
+    );
+    assign debug_iec = {drive_sync, drive_ready_n, 4'b0, dev_clk_low, dev_data_low};
+`ifndef FES_C64_EXTERNAL_MEDIUM_SIM
+    wire drive_flux;
     wire [17:0] disk_addr;
     wire [7:0] disk_byte;
+    wire medium_cache_ready;
+    wire [6:0] medium_halftrack;
+    wire [21:0] medium_rotation;
+    wire [12:0] medium_byte_addr;
+    wire [7:0] medium_byte;
     c64_disk_store disk (
         .clk(clk_sys), .write_addr(media_write_addr), .write_data(media_write_data),
         .write_enable(media_write_enable), .read_addr(disk_addr), .read_data(disk_byte)
     );
-    c64_iec iec (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset),
-        .atn_low(cia2_ddra[3] & cia2_pa[3]),
-        .cpu_clk_low(cpu_clk_low), .cpu_data_low(cpu_data_low), .disk_ready(disk_ready),
-        .dev_clk_low(dev_clk_low), .dev_data_low(dev_data_low),
-        .disk_addr(disk_addr), .disk_byte(disk_byte), .debug(debug_iec)
+    c64_d64_medium disk_medium (
+        .clk(clk_sys), .reset(reset), .ref_ce(drive_ref_ce), .disk_ready(disk_ready),
+        .drive_pins(drive_pins), .drive_ddr(drive_ddr),
+        .disk_addr(disk_addr), .disk_data(disk_byte), .flux(drive_flux),
+        .cache_ready(medium_cache_ready), .halftrack(medium_halftrack),
+        .rotation(medium_rotation), .debug_byte_addr(medium_byte_addr), .debug_byte(medium_byte)
     );
-    wire [7:0] pa2_pin = {(cpu_data_low | dev_data_low), (cpu_clk_low | dev_clk_low),
+`endif
+    wire [7:0] pa2_pin = {~(cpu_data_low | dev_data_low), ~(cpu_clk_low | dev_clk_low),
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia2),
-        .we(bus_strobe && bus_we && sel_cia2), .reading(!bus_we), .read_sample(bus_sample),
-        .rs(bus_addr[3:0]), .din(bus_wdata),
+        .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia2),
+        .we(cia2_we), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(cia2_rs), .din(cia2_din),
         .dout(cia2_dout), .pa_pin(pa2_pin), .pb_pin(8'hFF),
         .pa_reg(cia2_pa), .pb_reg(cia2_pb), .pa_ddr(cia2_ddra), .pb_ddr(cia2_ddrb),
         .irq(cia2_irq)
     );
 
     wire [7:0] vic_dout, color_dout;
+    wire vic_irq;
     wire signed [15:0] sid_sample;
+    wire [7:0] sid_dout;
     c64_vic vic (
         .clk_sys(clk_sys), .phi(cpu_ce), .pixel_clk(video_clk), .reset(system_reset),
-        .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic), .addr(bus_addr[5:0]),
+        .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic),
+        .reading(!bus_we), .read_sample(bus_sample), .addr(bus_addr[5:0]),
         .din(bus_wdata), .dout(vic_dout),
         .color_cs(sel_color), .color_addr(bus_addr[9:0]), .color_din(bus_wdata),
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
-        .bank(~cia2_pa[1:0]), .ram_addr(video_ram_addr), .ram_data(video_ram_q),
+        .cycle_clock(cycle_clock),.cpu_bus_data(bus_we?bus_wdata:read_data),.ba_n(vic_ba_n),
+        .bank(~pa2_pin[1:0]), .ram_addr(video_ram_addr), .ram_data(video_char_selected?video_char_q:video_ram_q),
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
-        .raster()
+        .raster(), .irq(vic_irq)
     );
-    c64_sid sid (
+    // One idle SYS edge prepares oscillator phase and the first envelope
+    // state transition before Phi. Shorter ratios retain both direct paths.
+    // The three voice waveform lookup/finish stages run on Phi+1..Phi+9.
+    // The motherboard samples a SID write at edge 27. A sequenced CONTROL
+    // write finishes two edges later (edge 29) and needs one idle edge
+    // (edge 30) to refresh the prepared phase before the next Phi, so
+    // sequencing requires a minimum interval of 31. A 30-edge gap consumes
+    // the pre-feedback sum and can false-sync another voice. Audio captures
+    // at Phi+10 and starts at Phi+11: the reSID chain completes 39 edges
+    // later and the default filter sooner, so require at least 52 edges
+    // between Phi edges so that result and idle state precede the next
+    // transaction. Native PAL cadence is 53/54 SYS edges. Faster modes keep
+    // direct audio.
+    c64_sid #(
+        .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
+        .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
+        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 31),
+        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52),
+        .RESID_FILTER(1'b0)
+    ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
-        .sample(sid_sample)
+        .dout(sid_dout), .sample(sid_sample)
     );
     assign audio_sample = sid_sample;
-    assign irq_n = cart_irq | cia1_irq;
+    assign irq_n = cart_irq | cia1_irq | vic_irq;
     assign nmi_n = cart_nmi | cia2_irq;
 
-    wire [7:0] char_byte = c64_glyph(bus_addr[10:3], bus_addr[2:0]);
     wire [7:0] read_data =
         bus_addr == 16'h0000 ? ddr :
         bus_addr == 16'h0001 ? port_eff :
         sel_vic ? vic_dout :
-        sel_sid ? 8'h00 :
+        sel_sid ? sid_dout :
         sel_color ? color_dout :
         sel_cia1 ? cia1_dout :
         sel_cia2 ? cia2_dout :
         cart_hit ? cart_data :
-        show_char ? char_byte :
+        show_char ? rom_q :
         (show_basic || show_kernal) ? rom_q :
-        (ultimax && !roml && !e000 && !d000 && bus_addr >= 16'h1000) ? 8'hFF :
+        ultimax_open ? 8'hFF :
         ram_q;
 
     always @(posedge clk_sys)

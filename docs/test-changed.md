@@ -66,6 +66,23 @@ Platform provisioning, platform Go tests and image shell tests run only when
 does not provision an OS test container just because it selects parent regressions.
 Unknown inputs still select all lanes and cores.
 
+## Go dead-code analysis
+
+CI's consistency job always runs `make check`. Its dead-code step passes the
+changed-path list to `scripts/check_deadcode.py`: known non-Go parent scripts,
+tests, image/container/profile recipes and non-Go runtime/FPGA inputs skip the
+expensive Go analysis. Any change in a Go module (including non-Go build or
+embedded inputs), Go source/dependency files elsewhere, checker/workflow inputs,
+shared configuration or unknown roots keeps the full host and ARM analysis.
+Documentation follows the outer planner's documentation-only policy.
+Mixed changes and renames retain all relevant inputs. Scheduled/manual full
+runs pass the full-run marker and always analyze every module.
+
+`make deadcode` remains an unconditional full check. To inspect CI selection
+without installing tools, use `python3 scripts/check_deadcode.py --plan-only
+--paths-json '["scripts/appliance.py"]'`. Invalid path payloads fail; an omitted
+path list runs full analysis. A skip is reported explicitly in the CI step log.
+
 ## Affected host Go packages
 
 For a change set containing only Go source/test files in FogCast, its appliance
@@ -92,14 +109,16 @@ other component lanes retain their own selection rules.
 
 ## Affected parent regression groups
 
-Routine component-only changes select parent integration groups before test setup:
+Routine reviewed changes select parent integration groups before test setup:
 
 | Change | Parent groups |
 | --- | --- |
 | FogCast UI and resources | Policy and build orchestration |
 | Host/package/protocol consumers, runtime, or FPGA sources | Policy, build, packages and acceptance tooling |
 | Appliance module or target-image selector | All groups, including media |
-| Parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
+| Recognized parent test modules outside the policy group | Policy, build and the owning group, plus cross-group fixture consumers |
+| `scripts/appliance.py`, `appliance_inside.py`, `appliance_media.py`, `appliance_media_inside.py`, `appliance_expand_dry_run.py` | Policy, build and media |
+| Selection-policy scripts/tests, other parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
 
 Policy includes planner, generated-consumer and image-boundary checks. Build
 includes source snapshots, receipts and kit software assembly. Package checks
@@ -122,8 +141,13 @@ python3 scripts/parent_tests.py --video false --media false --plan-only \
 
 No path list, scheduled/manual runs, and `--full` retain every group. `--full`
 also enables both extended modes. This policy narrows component integration
-regressions; parent implementation changes deliberately retain full regression
-coverage because imports alone do not describe their subprocess and file inputs.
+regressions and reviewed parent inputs. Shared build scripts and unreviewed parent
+implementation retain full regression coverage because imports alone do not
+describe their subprocess and file inputs. The explicit parent script allowlist
+lives in `scripts/parent_affected.py`; adding a script requires checking its
+consumers, including subprocess calls and recipe-file reads. Test fixture consumers
+across groups are retained explicitly. Extended video/media mode selection is
+unchanged and adds its owning group when required.
 
 ## Routine and extended test modes
 
