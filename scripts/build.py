@@ -256,6 +256,7 @@ def verification_record(output, image_sha256, baseline_match, image_passes=2):
     validate_shared_cache_evidence(evidence)
     result = {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
             "toolchain_key": evidence["toolchain_key"], "toolchain_sha256": evidence["toolchain_sha256"],
+            "image_passes": image_passes,
             "two_pass_reproducibility": "pass" if image_passes == 2 else "not-run-single-pass",
             "structural": "pass", "qemu_packaging": "pass",
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
@@ -340,7 +341,7 @@ def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
         raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
 
 
-def load_verified_image(output, fingerprint, *, allow_single_pass=False):
+def load_verified_image(output, fingerprint):
     selected_fingerprint = fingerprint
     if not reusable(output, "image", selected_fingerprint):
         try:
@@ -360,16 +361,14 @@ def load_verified_image(output, fingerprint, *, allow_single_pass=False):
         evidence = dict(line.split("=", 1) for line in
                         (output / "reproducibility.txt").read_text().splitlines())
         validate_shared_cache_evidence(evidence, verification)
-        single = evidence.get("image_passes") == "1"
-        verification_ok = (verification.get("two_pass_reproducibility") == "pass"
-                           and verification.get("image_passes", 2) == 2
-                           and evidence.get("run_2_sha256") == actual)
-        if allow_single_pass and single:
-            marker = dict(line.split("=", 1) for line in (output / "SINGLE-PASS-SCRATCH.txt").read_text().splitlines())
-            verification_ok = (verification.get("two_pass_reproducibility") == "not-run-single-pass"
-                               and evidence.get("single_pass_scratch") == "1"
-                               and marker.get("linux_img_sha256") == actual
-                               and marker.get("head_sha") == receipt_revision(receipt))
+        passes = evidence.get("image_passes", "2")
+        single = passes == "1"
+        verification_ok = (passes in ("1", "2")
+                           and type(verification.get("image_passes", 2)) is int
+                           and verification.get("image_passes", 2) == int(passes)
+                           and verification.get("two_pass_reproducibility") ==
+                               ("not-run-single-pass" if single else "pass")
+                           and (not single or "run_2_sha256" not in evidence))
         required = (receipt["files"]["linux.img"] == actual
                     and verification.get("image_sha256") == actual
                     and verification.get("structural") == "pass"
@@ -388,7 +387,7 @@ def load_verified_image(output, fingerprint, *, allow_single_pass=False):
             if artifacts := selected.get('bootstrap_artifacts'):
                 bootstrap_fingerprint('', {}, artifacts)
                 extra['software_provenance'] = artifacts['provenance']
-            return {**extra, "fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
+            return {**extra, "image_passes": int(passes), "fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
                     "image_receipt_sha256": digest(output / "image.json"),
                     "verification_sha256": digest(output / "verification.json"),
                     "qemu_log_sha256": qemu_log_sha256}
@@ -1852,7 +1851,7 @@ def main():
             image_hit, image_reason = (False, "forced rebuild") if (args.action == "rebuild" or env.get("TOOLCHAIN_REBUILD") == "1") else reuse_status(
                 output, "image", image_fp)
             if image_hit:
-                if reason := image_pass_cache_reason(output, os.environ.get("IMAGE_PASSES", "2")):
+                if reason := image_pass_cache_reason(output, os.environ.get("IMAGE_PASSES", "1")):
                     image_hit, image_reason = False, reason
             if image_hit:
                 prior = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
@@ -1895,11 +1894,7 @@ def main():
                     env=verify_env)
                 built = IMAGE / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
-                marker = built / "SINGLE-PASS-SCRATCH.txt"
-                if marker.is_file():
-                    names.append(marker.name)
-                else:
-                    (output / marker.name).unlink(missing_ok=True)
+                (output / "SINGLE-PASS-SCRATCH.txt").unlink(missing_ok=True)
                 for name in names:
                     publish_file(built / name, output / name)
                 built_selections = {
@@ -1924,6 +1919,8 @@ def main():
             diagnostics.cache("verify image", "hit" if image_hit else "miss", image_reason)
             if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
+            if reason := image_pass_cache_reason(output, str(image_passes)):
+                raise ValueError(reason)
             verify_package_only_outputs(output, packages, unavailable)
             built = IMAGE / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
@@ -1938,7 +1935,9 @@ def main():
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
             validate_shared_cache_evidence(evidence)
-            passes = int(evidence.get("image_passes", "2"))
+            passes = validate_image_passes(evidence.get("image_passes", "2"))
+            if passes != image_passes:
+                raise ValueError("image pass count differs from requested verification")
             if evidence.get("run_1_sha256") != actual or (passes == 2 and evidence.get("run_2_sha256") != actual):
                 raise ValueError("image does not match recorded build passes")
             if (evidence.get("toolchain_key") != toolchain_key(IMAGE) or

@@ -128,7 +128,9 @@ jobs:
       - run: |
           make check
       - name: Unused Go code
-        run: make deadcode
+        env:
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
+        run: python3 scripts/check_deadcode.py --paths-json "$CHANGED_PATHS"
   host:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host
