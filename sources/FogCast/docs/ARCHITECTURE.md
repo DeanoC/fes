@@ -547,9 +547,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
-evidence, including a failed menu and optional `"damage":true`, so physical
-idle can still be confirmed for appliance maintenance. Any other `damage`
-shape is rejected. `underflows` on that object and on a frame completion
+evidence, including a failed menu, so physical idle can still be confirmed
+for appliance maintenance. A `menu_display` field it does not define is
+rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The runtime and this agent must ship in the same image because decoding is
@@ -1202,28 +1202,32 @@ is separate from the broader SDL smoke.
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-The kit display loop records an always-on frame trace (`ui/tenfoot/frame_trace.go`): per tick the poll, `Tick` with that iteration's room Lua async/update/draw time (zero when the room did not step), `Snapshot` and render; per input the command; per menu frame the worker's copy, queue, status and present phases plus the runtime's DDR copy, submit and scanout wait from `menu_frame.timing`. Tick time starts when the loop begins the iteration. Each `SIGUSR1` writes a new JSON Lines file. `scripts/frame-trace-summary.py` reports where displayed frames spend their time and counts failed presents separately. See [frame trace](frame-trace.md).
+The kit display loop records an always-on frame trace (`ui/tenfoot/frame_trace.go`): per tick the poll, `Tick` with that iteration's room Lua async/update/draw time (zero when the room did not step), `Snapshot` and render; per input the command; per menu frame the worker's copy, queue, status and present phases plus the runtime's write-back, submit and scanout wait from `menu_frame.timing`. Tick time starts when the loop begins the iteration. Each `SIGUSR1` writes a new JSON Lines file. `scripts/frame-trace-summary.py` reports where displayed frames spend their time and counts failed presents separately. See [frame trace](frame-trace.md).
 
 `gfx.MenuDisplay` rasters RGBA8888 in
 software and queues only the
 newest complete frame. Its
 local `ui/menudisplay` client reads the runtime's menu generation and fixed
-1280×720 geometry, fills the runtime-created memfd, seals it and waits for
-displayed-sequence completion through protocol 2. The UI receives no DDR
-address or FPGA register access; stale generations and unavailable menu
-firmware reject frames at the runtime. Submission runs off the pad loop.
+1280×720 geometry, maps the generation's grant of both slots once, and per
+frame writes into the slot the runtime names: this frame's damage and the
+previous frame's when that slot holds the frame before, otherwise the whole
+frame, converted to the scanout's BGRX order. It commits the rectangles it
+wrote and waits for displayed-sequence completion through protocol 2. The UI
+receives no DDR address or FPGA register access; stale generations and
+unavailable menu firmware reject frames at the runtime, and a fault from a
+grant revoked mid-frame fails that frame. Submission runs off the pad loop.
 `fogcast-tenfoot -gfx menu-display` is the client of that socket and
 opts into change-driven presents. An unchanged frame reads menu status once
 a second and is submitted again when the generation changes. Status errors,
 underflow, and present failures back off from 250ms to 5s. An unavailable
 menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
-wait. When the runtime advertises `damage`, a change-driven worker also skips
+wait. A change-driven worker with a damage-capable client also skips
 the per-frame status read for up to a second after a successful present, and
-stages only the row bands that differ from the frame the runtime is showing
-(at most 16 rectangles). If the runtime refuses either shortcut, for example
-a new generation or a stale base, the frame is retried once with fresh status
-and complete pixels; Pause, Resume, rebinding and any failure drop both
+hands the client only the row bands that differ from the frame the runtime is
+showing (at most 16 rectangles). If a shortcut no longer holds, for example
+after a new generation, the frame is retried once with fresh status and
+complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,

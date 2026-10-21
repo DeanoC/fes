@@ -20,7 +20,7 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	}
 	f.input(CmdSelect, start)
 	f.present(gfx.MenuPresentTrace{Seq: 9, Queued: start, Presented: true, PresentUS: 70000,
-		Timing: menudisplay.Timing{RuntimeCopyUS: 41000, RuntimeScanoutWaitUS: 9000}})
+		Timing: menudisplay.Timing{RuntimeCleanUS: 41000, RuntimeScanoutWaitUS: 9000}})
 	path, err := f.dump(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestFrameTraceRingWrapsAndDumpsJSONLines(t *testing.T) {
 	if input.Kind != "input" || input.Cmd != CmdSelect.String() {
 		t.Fatalf("input record %+v", input)
 	}
-	if last.Kind != "present" || last.Seq != 9 || last.RTCopyUS != 41000 || last.RTWaitUS != 9000 || !last.Presented {
+	if last.Kind != "present" || last.Seq != 9 || last.RTCleanUS != 41000 || last.RTWaitUS != 9000 || !last.Presented {
 		t.Fatalf("present record %+v", last)
 	}
 }

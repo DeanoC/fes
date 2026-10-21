@@ -18,7 +18,7 @@ type MenuPresenter interface {
 	Present(context.Context, uint64, []byte) (menudisplay.Result, error)
 }
 
-// MenuDamagePresenter is a MenuPresenter that can stage only the rectangles
+// MenuDamagePresenter is a MenuPresenter that can write only the rectangles
 // that changed since the frame the runtime is showing.
 type MenuDamagePresenter interface {
 	PresentDamage(context.Context, uint64, []byte, menudisplay.Damage) (menudisplay.Result, error)
@@ -150,14 +150,17 @@ type MenuDisplay struct {
 	nextSeq      uint64
 	submitted    *submittedMenuFrame
 	freeBuffers  []*menuPixels
-	now          func() time.Time
-	probeQueued  bool
-	probeEpoch   uint64
-	lastProbe    time.Time
-	backoff      time.Duration
-	backoffUntil time.Time
-	hasPresented bool
-	presentedGen uint64
+	// drawing is the buffer the Software device draws into; previous is the
+	// last frame taken from it, which Software may still copy back.
+	drawing, previous *menuPixels
+	now               func() time.Time
+	probeQueued       bool
+	probeEpoch        uint64
+	lastProbe         time.Time
+	backoff           time.Duration
+	backoffUntil      time.Time
+	hasPresented      bool
+	presentedGen      uint64
 	// presentedSeq is the submission sequence last shown on this binding.
 	// Zero means none. A status probe may acknowledge only this sequence.
 	presentedSeq uint64
@@ -203,7 +206,8 @@ func newMenuDisplayWithClient(client MenuPresenter) (*MenuDisplay, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	d := &MenuDisplay{Software: sw, client: client, frames: make(chan queuedMenuFrame, 1), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	d := &MenuDisplay{Software: sw, client: client, frames: make(chan queuedMenuFrame, 1), ctx: ctx, cancel: cancel, done: make(chan struct{}),
+		drawing: &menuPixels{pixels: sw.Framebuffer().Pix}}
 	go d.run()
 	return d, nil
 }
@@ -348,7 +352,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		}
 	} else {
 		copyStart := time.Now()
-		buffer = d.copyFrameLocked(pix)
+		buffer = d.takeFrameLocked()
 		copyUS = time.Since(copyStart).Microseconds()
 	}
 	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
@@ -884,8 +888,13 @@ func (d *MenuDisplay) Close() {
 		d.releaseBufferLocked(frame.buffer)
 	default:
 	}
+	d.releaseBufferLocked(d.previous)
+	d.previous = nil
 	d.freeBuffers = nil
 	d.mu.Unlock()
+	if closer, ok := d.client.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
 	d.Software.Close()
 }
 
@@ -894,16 +903,33 @@ var _ Device = (*MenuDisplay)(nil)
 // Buffers return to the bounded pool only after both the worker/queue and
 // remembered submission release them. A probe shares immutable submitted bytes.
 func (d *MenuDisplay) copyFrameLocked(pix []byte) *menuPixels {
-	var buffer *menuPixels
-	if n := len(d.freeBuffers); n > 0 {
-		buffer = d.freeBuffers[n-1]
-		d.freeBuffers = d.freeBuffers[:n-1]
-	} else {
-		buffer = &menuPixels{pixels: make([]byte, len(pix))}
-	}
+	buffer := d.freeBufferLocked()
 	copy(buffer.pixels, pix)
 	buffer.refs = 1
 	return buffer
+}
+
+func (d *MenuDisplay) freeBufferLocked() *menuPixels {
+	if n := len(d.freeBuffers); n > 0 {
+		buffer := d.freeBuffers[n-1]
+		d.freeBuffers = d.freeBuffers[:n-1]
+		return buffer
+	}
+	return &menuPixels{pixels: make([]byte, len(d.drawing.pixels))}
+}
+
+// takeFrameLocked hands the finished frame on without copying it: Software
+// draws the next frame into a free buffer. The frame holds one reference for
+// the caller and one while Software may still copy it back for a frame that
+// does not start with Clear; the swap after that releases it.
+func (d *MenuDisplay) takeFrameLocked() *menuPixels {
+	next := d.freeBufferLocked()
+	done := d.drawing
+	d.Software.swapFramebuffer(next.pixels)
+	d.releaseBufferLocked(d.previous)
+	d.drawing, d.previous = next, done
+	done.refs = 2
+	return done
 }
 
 func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
@@ -918,10 +944,13 @@ func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
 
 // cachedStatusLocked returns the status remembered from the last successful
 // present while change-driven presents are on, the binding is unchanged and
-// the runtime was asked within the probe interval. Only a runtime that
-// advertises damage is trusted this way; older runtimes are asked per frame.
+// the runtime was asked within the probe interval. Only a client that
+// presents damage relies on it; another asks the runtime per frame.
 func (d *MenuDisplay) cachedStatusLocked(frame queuedMenuFrame) (menudisplay.Status, bool) {
-	if !d.changeDriven || !d.statusCacheOK || !d.statusCache.Damage || d.statusCacheEpoch != frame.epoch || d.paused ||
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
+		return menudisplay.Status{}, false
+	}
+	if !d.changeDriven || !d.statusCacheOK || d.statusCacheEpoch != frame.epoch || d.paused ||
 		!d.clock().Before(d.statusCacheAt.Add(menuProbeInterval)) {
 		return menudisplay.Status{}, false
 	}
@@ -954,7 +983,7 @@ func (d *MenuDisplay) dropShortcutsLocked() {
 // damageFor returns the rectangles where frame differs from the frame the
 // runtime is showing for this display, or nil when the frame must go whole.
 func (d *MenuDisplay) damageFor(frame queuedMenuFrame, status menudisplay.Status) *menudisplay.Damage {
-	if _, ok := d.client.(MenuDamagePresenter); !ok || !status.Damage {
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
 		return nil
 	}
 	d.mu.Lock()

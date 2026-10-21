@@ -30,9 +30,10 @@ std::string Controller::Handle(const std::string& line)
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
  case Operation::session_display:
   result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible);break;
+ case Operation::menu_frame_grant:
  case Operation::menu_frame_begin:
  case Operation::menu_frame_commit:
-  result={ErrorCode::invalid_request,"menu frame requires same-connection descriptor exchange","request"};break;
+  result={ErrorCode::invalid_request,"menu frame requires its own connection exchange","request"};break;
 	case Operation::status:
 		break;
 	case Operation::inspect_core:
@@ -181,19 +182,29 @@ std::string Controller::Handle(const std::string& line)
 	return Respond(request.protocol, result, inspected, core_data);
 }
 
+std::string Controller::GrantMenuWindow(const Request& request,int* fd)
+{
+ *fd=-1;
+ const auto error=runtime_.ShareMenuWindow(request.expected_generation,fd);
+ MenuFrameReply reply;reply.kind=MenuFrameReply::Kind::granted;reply.generation=request.expected_generation;
+ return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
+}
 std::string Controller::BeginMenuFrame(const Request& request,std::unique_ptr<MenuFrame>* frame)
 {
  const auto error=runtime_.BeginMenuFrame(request.expected_generation,frame);
- MenuFrameReply reply;reply.generation=request.expected_generation;reply.prepared=true;
+ MenuFrameReply reply;reply.kind=MenuFrameReply::Kind::prepared;reply.generation=request.expected_generation;
+ if(error.ok())reply.slot=(*frame)->slot();
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
-std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame,int descriptor)
+std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame)
 {
- Error error=frame.ValidateImmutable(descriptor);MenuDisplayInfo info;
- if(request.has_menu_damage)frame.SetDamage(request.menu_damage);
+ Error error;MenuDisplayInfo info;
+ if(request.menu_slot!=frame.slot())error={ErrorCode::invalid_request,"menu commit names another slot than its preparation","request"};
+ frame.SetWritten(request.menu_written);
  if(error.ok())error=runtime_.PresentMenuFrame(request.expected_generation,frame,&info);
- MenuFrameReply reply;reply.generation=request.expected_generation;reply.displayed_sequence=info.displayed_sequence;reply.underflows=info.underflows;
- reply.copy_us=info.copy_us;reply.submit_us=info.submit_us;reply.scanout_wait_us=info.scanout_wait_us;reply.stored_pixels=info.stored_pixels;
+ MenuFrameReply reply;reply.generation=request.expected_generation;reply.slot=frame.slot();
+ reply.displayed_sequence=info.displayed_sequence;reply.underflows=info.underflows;
+ reply.clean_us=info.clean_us;reply.submit_us=info.submit_us;reply.scanout_wait_us=info.scanout_wait_us;
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 

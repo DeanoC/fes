@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "native/linux/menu_window.hpp"
+#include "native/generated/fes_application.hpp"
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#if defined(__linux__)
+#include "native/linux/fes_window.h"
+#endif
+namespace mister {
+namespace native {
+namespace {
+using namespace generated;
+constexpr std::size_t kSlotBytes=FesApplicationMenuSlotBytes;
+constexpr std::size_t kGrantBytes=FesApplicationMenuSlotCount*kSlotBytes;
+Error Invalid(const char* text){return {ErrorCode::io_failed,text,"menu_window"};}
+Error Io(const char* text){return {ErrorCode::io_failed,std::string(text)+": "+std::strerror(errno),"menu_window"};}
+class DriverOperations final : public MenuWindowOperations {
+public:
+ Error Grant(std::uint64_t offset,std::uint64_t bytes,int* fd) override {
+#if defined(__linux__)
+  const int device=open("/dev/fes-window",O_RDWR|O_CLOEXEC);
+  if(device<0)return Io("open fes-window");
+  fes_window_grant grant{};grant.offset=offset;grant.length=bytes;
+  const int result=ioctl(device,FES_WINDOW_GRANT,&grant);
+  const Error error=result<0?Io("grant menu window"):Error{};
+  close(device);
+  if(error.ok())*fd=grant.fd;
+  return error;
+#else
+  (void)offset;(void)bytes;(void)fd;return Invalid("menu window grants require the Linux fes-window driver");
+#endif
+ }
+ Error Map(int fd,std::size_t bytes,void** mapping) override {
+  void* mapped=mmap(nullptr,bytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+  if(mapped==MAP_FAILED)return Io("map menu window");
+  *mapping=mapped;return {};
+ }
+ void Unmap(void* mapping,std::size_t bytes) override {(void)munmap(mapping,bytes);}
+ Error Clean(int fd,std::uint64_t offset,std::uint32_t width,std::uint32_t height,std::uint32_t stride) override {
+#if defined(__linux__)
+  fes_window_clean clean{};clean.offset=offset;clean.width=width;clean.height=height;clean.stride=stride;
+  return ioctl(fd,FES_WINDOW_CLEAN,&clean)<0?Io("clean menu window"):Error{};
+#else
+  (void)fd;(void)offset;(void)width;(void)height;(void)stride;return Invalid("menu window cleans require Linux");
+#endif
+ }
+ Error Revoke(int fd) override {
+#if defined(__linux__)
+  return ioctl(fd,FES_WINDOW_REVOKE)<0?Io("revoke menu window"):Error{};
+#else
+  (void)fd;return Invalid("menu window revoke requires Linux");
+#endif
+ }
+ Error Duplicate(int fd,int* copy) override {
+  *copy=fcntl(fd,F_DUPFD_CLOEXEC,0);return *copy<0?Io("share menu window"):Error{};
+ }
+ void Close(int fd) override {(void)close(fd);}
+};
+}
+MenuWindow::MenuWindow():owned_(new DriverOperations),operations_(owned_.get()){}
+MenuWindow::MenuWindow(MenuWindowOperations& operations):operations_(&operations){}
+MenuWindow::~MenuWindow(){Revoke();}
+Error MenuWindow::Activate(bool clear)
+{
+ Revoke();
+ int grant=-1;Error error=operations_->Grant(0,kGrantBytes,&grant);
+ if(!error.ok())return error;
+ void* mapping=nullptr;
+ if(clear)error=operations_->Map(grant,kGrantBytes,&mapping);
+ if(clear&&error.ok()) {
+  // Black is all-zero XRGB. The frame rows are contiguous within a slot.
+  for(unsigned slot=0;slot<FesApplicationMenuSlotCount;++slot)
+   std::memset(static_cast<unsigned char*>(mapping)+slot*kSlotBytes,0,FesApplicationMenuFrameBytes);
+  operations_->Unmap(mapping,kGrantBytes);
+  error=operations_->Clean(grant,0,FesApplicationMenuFrameBytes,FesApplicationMenuSlotCount,kSlotBytes);
+ }
+ if(!error.ok()){(void)operations_->Revoke(grant);operations_->Close(grant);return error;}
+ std::lock_guard<std::mutex> lock(mutex_);grant_=grant;return {};
+}
+void MenuWindow::Revoke()
+{
+ int grant;
+ {std::lock_guard<std::mutex> lock(mutex_);grant=grant_;grant_=-1;}
+ if(grant<0)return;
+ // A failed revoke cannot be retried meaningfully; closing still drops
+ // the runtime's reference, and the driver writes back on the last close.
+ (void)operations_->Revoke(grant);
+ operations_->Close(grant);
+}
+Error MenuWindow::Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const
+{
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(grant_<0)return {ErrorCode::busy,"menu window is not granted","menu_window"};
+ const std::uint64_t base=std::uint64_t(slot)*kSlotBytes;
+ if(rects.empty())return operations_->Clean(grant_,base,FesApplicationMenuFrameBytes,1,FesApplicationMenuStride);
+ for(const auto& r:rects) {
+  const Error error=operations_->Clean(grant_,base+std::uint64_t(r.y)*FesApplicationMenuStride+std::uint64_t(r.x)*4u,
+   std::uint32_t(r.w)*4u,r.h,FesApplicationMenuStride);
+  if(!error.ok())return error;
+ }
+ return {};
+}
+Error MenuWindow::Share(int* fd) const
+{
+ if(!fd)return Invalid("missing menu window output");
+ std::lock_guard<std::mutex> lock(mutex_);
+ if(grant_<0)return {ErrorCode::busy,"menu window is not granted","menu_window"};
+ return operations_->Duplicate(grant_,fd);
+}
+} }

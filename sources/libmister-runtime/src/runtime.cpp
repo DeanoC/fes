@@ -22,8 +22,8 @@ namespace mister {
 namespace {
 
 // Shared by launch, core-data, Stop, development load, idle recovery and
-// menu configure. Only an in-flight menu frame is waited out; every other
-// busy reason still rejects immediately after the wait returns.
+// menu configure. Only a menu frame being drawn or presented is waited out;
+// every other busy reason still rejects immediately after the wait returns.
 constexpr std::chrono::milliseconds kMenuFrameMutationWait(2000);
 
 Error Busy(const char* message)
@@ -226,13 +226,21 @@ public:
   }
   condition_.notify_all();return {};
  }
+ Error ShareMenuWindow(std::uint64_t generation,int* fd)
+ {
+  if(!fd)return Invalid("missing menu window output");
+  std::lock_guard<std::mutex> lock(mutex_);
+  Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  return hardware_.ShareMenuWindow(fd);
+ }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
  {
   if(!output||*output)return Invalid("menu preparation requires an empty frame output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
   if(!preparation_.expired())return Busy("one menu preparation is already outstanding");
-  std::unique_ptr<MenuFrame> frame;error=MenuFrame::Create(&frame);if(!error.ok())return error;
+  std::unique_ptr<MenuFrame> frame(new MenuFrame);
+  error=hardware_.MenuBackSlot(&frame->slot_);if(!error.ok())return error;
   frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;
   preparation_=frame->preparation_;*output=std::move(frame);return {};
  }
@@ -245,19 +253,11 @@ public:
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
-   error=frame.ValidateImmutable(frame.fd());if(!error.ok())return error;
-   // A stale damage base is an ordinary refusal: the client resends a full
-   // frame. It must not reach the hardware path, where a failed present
-   // retires the display.
-   if(const auto* damage=frame.damage()) {
-    if(!hardware_.AcceptsMenuDamage(damage->base_sequence))
-     return {ErrorCode::stale_revision,"menu damage base is not the displayed frame","menu"};
-   }
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
   }
-  MenuDisplayInfo info;const Error error=hardware_.PresentMenuFrame(frame,&info);
+  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.written_,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
    if(session) {
@@ -273,7 +273,7 @@ public:
    }
    // Hardware keeps the menu package while a bounded reactivation is allowed
    // and clears it once that limit is exhausted. LoadIdle then reprograms the
-   // package or the splash. The copy has already finished or been cancelled.
+   // package or the splash. The failure path revoked the window.
    const Error failure=FinishLaunchFailure("menu_frame_commit","","fes.menu",{error,true,"fes.menu"});
    { std::lock_guard<std::mutex> lock(mutex_);menu_frame_busy_=false; }
    condition_.notify_all();return failure;
@@ -1176,11 +1176,17 @@ public:
  // configure share kMenuFrameMutationWait. The caller proceeds only after
  // the frame fence drops, then applies its existing busy checks.
  void WaitForMenuFrame(std::unique_lock<std::mutex>& lock) {
-  if(!menu_frame_busy_)return;
+  if(!MenuFrameOutstanding())return;
   ++menu_mutation_waiters_;
-  condition_.wait_for(lock,kMenuFrameMutationWait,[this]{return !menu_frame_busy_;});
+  // An abandoned preparation expires without a notification, so the wait
+  // also polls. A client still drawing past the bound is revoked.
+  const auto until=std::chrono::steady_clock::now()+kMenuFrameMutationWait;
+  while(MenuFrameOutstanding()&&std::chrono::steady_clock::now()<until)
+   condition_.wait_for(lock,std::chrono::milliseconds(10));
   --menu_mutation_waiters_;
  }
+ // The client draws into the granted window between begin and commit.
+ bool MenuFrameOutstanding() const {return menu_frame_busy_||!preparation_.expired();}
  Error AdmitMenuGeneration(std::uint64_t generation) const {
   if(busy_||menu_mutation_waiters_||!started_||pending_fault_generation_||!status_.menu_display.available)
    return Busy("menu display is unavailable");
@@ -1476,6 +1482,7 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd) {return impl_->ShareMenuWindow(generation,fd);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
 Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible) {return impl_->SetSessionDisplay(package_id,generation,visible);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}
