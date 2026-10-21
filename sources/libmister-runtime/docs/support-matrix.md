@@ -32,6 +32,7 @@ Hardware-supported package paths: 0.
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
 | `fes-gp-v1` bridge release after user mode; SDR FPGA ports only after `fes.memory.hps-ddr` identity and mirror match, on a boot whose U-Boot core latched the layout | covered | diagnostic 2026-09-27 (port release; boot capture pending) |
+| Startup load of the release's `fes-window` driver with the `fes.memory.hps-ddr` window; a loaded copy kept only on matching version and window, otherwise replaced, or reported busy while in use; a failure is logged and startup continues | covered by host tests | [Kit A diagnostic](https://github.com/DeanoC/fes/issues/949#issuecomment-6310766923) 2026-10-21 of a dev driver build (grant, cached draw, clean, revoke); runtime load of the bundled driver pending exact-artifact acceptance |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package
 activation are retired. Existing catalog/cache/save files are not migrated or

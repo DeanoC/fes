@@ -97,6 +97,7 @@ runtime.o
 sha256.o
 video.o
 video_recipe.o
+window_driver.o
 EOF
 ar t "$archive" | grep -v '^__\.SYMDEF' >"$temporary/archive-members"
 LC_ALL=C sort -o "$temporary/archive-members" "$temporary/archive-members"

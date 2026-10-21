@@ -19,7 +19,9 @@ to compile and package the complete software release from committed sources.
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
 Its payload includes `bin/mister-agent`, `bin/mister-runtime`,
-`bin/fogcast-tenfoot` and the required assets beneath `share/`. It also carries
+`bin/fogcast-tenfoot` and the required assets beneath `share/`, including the
+[fes-window kernel driver](../image/kernel/fes-window/README.md) at
+`share/fes-window/` that the runtime loads on start. It also carries
 the `bin/fogcast-kit` stub, which answers `--print-kit-ui` with `tenfoot` for
 bases whose supervisor still probes it. The pack command
 fills the closed file inventory with sizes, executable modes and SHA-256 digests.
@@ -273,9 +275,18 @@ make kit-software \
 
 The command freezes the committed FES HEAD, builds the agent and both launchers
 with the selected Go version, and builds the runtime with the pinned container
-and verified cached ARM SDK. It copies application assets from that same source
-snapshot. It never runs an OS image build or an FPGA package producer. A missing
-or mismatching SDK fails explicitly; qualify its base image first.
+and verified cached ARM SDK. In the same container it builds the fes-window
+module against the pinned kernel commit. It reads that commit from the bare
+repository `linux-kernel.git` in `FES_TARGET_IMAGE_SHARED_CACHE` when that is
+set, like the SDK, and otherwise from the checkout's target-image source cache,
+which `image/scripts/fetch-target-image-sources.sh` fills. That repository's
+`refs/target-image/pinned` must name the commit, as the fetch script leaves it.
+A base image carries no kernel: every card boots the kernel in
+`boot-media.lock.toml`, and appliance releases must keep it. The build refuses a
+kernel source pin that the source lock does not pair with that boot kernel. It
+copies application assets from that same source snapshot. It never runs an OS
+image build or an FPGA package producer. A missing or mismatching SDK or kernel
+source fails explicitly; qualify its base image first.
 
 The image hash is required: an extracted filesystem or a self-authored base
 receipt is not a substitute for the reviewed image identity. The command hashes
@@ -290,7 +301,9 @@ The default output is the new directory `out/kit-software/<version>/`, containin
 are never overwritten, including when two builders compete. Failed builds leave
 prior outputs intact. The receipt closes the bundle digest, file inventory,
 selected source and tree identities, base image/factory/ABI identities, Go
-version, and SDK/container identities. It explicitly records `deployed: false`.
+version, SDK/container identities, and the fes-window module with the kernel
+commit, release and boot kernel digest it was built for. It explicitly records
+`deployed: false`.
 
 Install `bundle.tar` through the software-release client and request activation
 separately. Build receipts do not establish hardware acceptance. If the retained

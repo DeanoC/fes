@@ -36,10 +36,9 @@ ABI_DEFINITION = 'cores/fes-common/generated/fes_computer.vh'
 DDR_ATOM = 'cores/fes-common/rtl/fes_hps_ddr_atom.v'
 QSF = 'cores/fes-zx81/constraints-oss.qsf'
 SDC = 'cores/fes-zx81/clocks-oss.sdc'
-# nextpnr c2bb4363 reassigns LUT pins and inserts data route-through for a
-# user-BEL socket flip-flop on a fresh route. A scaffold reload locks those
-# cells and does not rewrite the restored pin map. Seed 10 stays first.
-# Qualify the exact sealed winner on hardware after every build.
+# Issue #236's corrected input-mux timer and setup-relative pin assignment
+# require a fresh shell. Seed 1 leads this candidate's bounded profile;
+# restored scaffolds retain their pins. Qualify each exact sealed winner.
 PNR = pnr_recipe.recipe_for('fes.zx81')
 PLACER_SEEDS = tuple(PNR['seeds'])
 PLACER_TIMING_WEIGHT = PNR['timing_weights'][0]
