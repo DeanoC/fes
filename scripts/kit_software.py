@@ -67,32 +67,52 @@ def window_driver_version(source):
     return digest.hexdigest()[:16]
 
 
+def pinned_kernel(tree):
+    """The kernel source pin, bound to the kernel the boot media install."""
+    lock = tomllib.loads((tree / 'image/build/target-image.sources.lock.toml').read_text())
+    kernel = lock['kernel']
+    if not re.fullmatch('[0-9a-f]{40}', kernel['commit']) or not re.fullmatch('[0-9A-Za-z.+-]+', kernel['release']):
+        raise ValueError('invalid pinned kernel in source lock')
+    # A base image carries no kernel. Every card boots the boot-media kernel and
+    # appliance releases must keep it, so the module can only target that kernel.
+    # The source lock pairs the kernel source with that upstream image.
+    boot = tomllib.loads((tree / 'boot-media.lock.toml').read_text())['kernel']['sha256']
+    if not re.fullmatch('[0-9a-f]{64}', boot) or lock['image_creator']['kernel_sha256'] != boot:
+        raise ValueError('pinned kernel source is not paired with the boot-media kernel')
+    return {'kernel_commit': kernel['commit'], 'kernel_release': kernel['release'], 'kernel_sha256': boot}
+
+
 def prepare_kernel_module(root, snapshot, env):
     """Stage the pinned kernel tree and fes-window sources for the container build."""
     image = snapshot / 'image'
-    kernel = tomllib.loads((image / 'build/target-image.sources.lock.toml').read_text())['kernel']
-    if not re.fullmatch('[0-9a-f]{40}', kernel['commit']) or not re.fullmatch('[0-9A-Za-z.+-]+', kernel['release']):
-        raise ValueError('invalid pinned kernel in source lock')
+    kernel = pinned_kernel(snapshot)
+    commit = kernel['kernel_commit']
     # Kit builds share the kernel source like the SDK; a checkout falls back to
     # the target-image source cache that fetch-target-image-sources.sh fills.
     shared = env.get('FES_TARGET_IMAGE_SHARED_CACHE')
     bare = (Path(shared) if shared else Path(root) / 'image/build/cache/target-image') / 'linux-kernel.git'
-    present = subprocess.run(['git', '--git-dir', str(bare), 'cat-file', '-e', kernel['commit'] + '^{commit}'],
+    # The provenance verify-target-image-source-cache.sh requires: the fetch pin
+    # names the locked commit, and that commit object is present.
+    pinned = subprocess.run(['git', '--git-dir', str(bare), 'rev-parse', '--verify', '--quiet',
+                             'refs/target-image/pinned'], capture_output=True, text=True, env=env,
+                            check=False).stdout.strip()
+    if pinned != commit:
+        raise ValueError(f'{bare} pin is {pinned or "missing"}, expected {commit}; '
+                         'point refs/target-image/pinned at it, as fetch-target-image-sources.sh does')
+    present = subprocess.run(['git', '--git-dir', str(bare), 'cat-file', '-e', commit + '^{commit}'],
                              capture_output=True, env=env, check=False)
     if present.returncode != 0:
-        raise ValueError(f'pinned kernel commit {kernel["commit"]} missing from {bare}; '
-                         'clone the kernel repository there as a bare repository')
+        raise ValueError(f'pinned kernel commit {commit} missing from {bare}; fetch it into that bare repository')
     source = image / 'build/software/kernel-source'
     source.mkdir(parents=True)
-    archive = subprocess.Popen(['git', '--git-dir', str(bare), 'archive', kernel['commit']],
+    archive = subprocess.Popen(['git', '--git-dir', str(bare), 'archive', commit],
                                stdout=subprocess.PIPE, env=env)
     extract = subprocess.run(['tar', '-x', '-C', str(source)], stdin=archive.stdout, env=env, check=False)
     archive.stdout.close()
     if archive.wait() != 0 or extract.returncode != 0:
         raise ValueError('could not extract the pinned kernel source')
     shutil.copytree(image / 'kernel/fes-window', image / 'build/software/fes-window')
-    return {'kernel_commit': kernel['commit'], 'kernel_release': kernel['release'],
-            'version': window_driver_version(image / 'kernel/fes-window')}
+    return {**kernel, 'version': window_driver_version(image / 'kernel/fes-window')}
 
 
 def runtime_script(revision, driver):
