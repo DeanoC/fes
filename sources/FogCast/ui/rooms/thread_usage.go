@@ -12,6 +12,14 @@ type threadUsage struct {
 	involuntary int64
 }
 
+// sampleThread reads the calling OS thread's usage.
+func (r *Instance) sampleThread() (threadUsage, bool) {
+	if r.threadSample != nil {
+		return r.threadSample()
+	}
+	return readThreadUsage()
+}
+
 func (u threadUsage) since(before threadUsage) threadUsage {
 	return threadUsage{
 		cpu:         u.cpu - before.cpu,

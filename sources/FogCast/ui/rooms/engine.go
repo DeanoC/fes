@@ -156,6 +156,9 @@ type Instance struct {
 	inputOverruns int
 	// lastStep is the Lua time of the most recent Step, for frame traces.
 	lastStep StepTiming
+	// threadSample, when set, replaces the OS read of the callback thread's
+	// CPU time and switches. Tests use it. Production leaves it nil.
+	threadSample func() (threadUsage, bool)
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -780,13 +783,24 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 	return v, nil
 }
 
-// callTiming is one callback's wall time. Where the OS reports it, it also
-// has the script thread's own CPU time and context switches, so a kit
+// callTiming is one callback's timing over two nested windows, so a kit
 // overrun shows whether the script ran slowly or waited for a CPU.
-// Voluntary switches are the thread parking (Go descheduling, GC, a blocking
-// call); involuntary switches are the kernel giving its core to other work.
+//
+// elapsed is the wall time of the whole call: pinning the OS thread, both
+// thread samples, the script and the deferred cleanup. The callback deadline
+// starts with it and the soft and hard checks compare it, so a stall
+// anywhere in the call counts against the room.
+//
+// Where the OS reports it (measured), thread is the script thread's own CPU
+// time and context switches between the samples taken just before and just
+// after the script. script is the wall time of that run, from before the
+// first sample to after the second, so thread cpu <= script <= elapsed and
+// elapsed minus script was spent outside the script run. Voluntary switches
+// are the thread parking (Go descheduling, GC, a blocking call); involuntary
+// switches are the kernel giving its core to other work.
 type callTiming struct {
 	elapsed  time.Duration
+	script   time.Duration
 	thread   threadUsage
 	measured bool
 }
@@ -794,20 +808,40 @@ type callTiming struct {
 func (t callTiming) String() string {
 	s := "elapsed " + t.elapsed.Round(10*time.Microsecond).String()
 	if t.measured {
-		s += "; " + t.thread.String()
+		s += "; " + t.scriptRun()
 	}
 	return s
 }
 
+// scriptRun labels the thread usage with the run it covers.
+func (t callTiming) scriptRun() string {
+	return "script run " + t.script.Round(10*time.Microsecond).String() + ": " + t.thread.String()
+}
+
+// call runs fn under a deadline budget after the call starts. elapsed is
+// read after runPinned's deferred cleanup has finished.
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) (callTiming, error) {
-	// Both thread samples must read the thread that ran the callback.
+	start := time.Now()
+	timing, expired, err := r.runPinned(fn, start.Add(budget), nret, args...)
+	timing.elapsed = time.Since(start)
+	if err != nil {
+		if expired {
+			return timing, fmt.Errorf("script exceeded %s budget (%s)", budget, timing)
+		}
+		return timing, errors.New(strings.TrimSpace(err.Error()))
+	}
+	return timing, nil
+}
+
+// runPinned runs fn locked to its OS thread, so both thread samples read the
+// thread that ran the script. expired reports that fn failed because the
+// deadline passed.
+func (r *Instance) runPinned(fn *lua.LFunction, deadline time.Time, nret int, args ...lua.LValue) (timing callTiming, expired bool, err error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	before, measured := readThreadUsage()
-	start := time.Now()
 	L := r.L
 	top := L.GetTop()
-	ctx, cancel := context.WithTimeout(r.ctx, budget)
+	ctx, cancel := context.WithDeadline(r.ctx, deadline)
 	defer cancel()
 	L.SetContext(ctx)
 	defer L.RemoveContext()
@@ -815,19 +849,19 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	for _, a := range args {
 		L.Push(a)
 	}
-	err := L.PCall(len(args), nret, nil)
-	timing := callTiming{elapsed: time.Since(start)}
-	if after, ok := readThreadUsage(); ok && measured {
+	scriptStart := time.Now()
+	before, measured := r.sampleThread()
+	err = L.PCall(len(args), nret, nil)
+	after, ok := r.sampleThread()
+	timing.script = time.Since(scriptStart)
+	if ok && measured {
 		timing.thread, timing.measured = after.since(before), true
 	}
 	if err != nil {
 		L.SetTop(top)
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return timing, fmt.Errorf("script exceeded %s budget (%s)", budget, timing)
-		}
-		return timing, errors.New(strings.TrimSpace(err.Error()))
+		return timing, errors.Is(ctx.Err(), context.DeadlineExceeded), err
 	}
-	return timing, nil
+	return timing, false, nil
 }
 
 func (r *Instance) drainResults() {
