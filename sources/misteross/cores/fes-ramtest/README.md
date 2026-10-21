@@ -66,9 +66,17 @@ Quartus selects the frequency directly from the PLL, packs SDRAM
 command/address registers into the output cells, and captures read data on a
 shifted clock in the input cells; the 130 MHz path also pipelines the
 captured data before the controller. The controller uses CAS latency 3 at
-130 MHz and CAS latency 2 at 100 MHz. The OSS packer does not support DDR
-input registers on bidirectional DQ pads, so the OSS builds use a
-phase-shifted capture clock and a fabric input register.
+130 MHz and CAS latency 2 at 100 MHz. The OSS recipe selects
+`RAM_OSS_HIGH_SPEED` and retains a phase-shifted capture clock and fabric
+input registers. The compiler now supports bidirectional DDR input packing;
+that support does not change the capture circuit selected by this recipe.
+
+The reusable SDRAM timing model, GPIO characterization and external
+board-budget generator are maintained in the nextpnr fork. See the
+[SDRAM external timing model](../../docs/architecture.md#sdram-external-timing-model)
+for their locations, supported pad configurations and remaining board
+qualification boundaries. The digital controller simulation and a passing
+internal-clock timing report do not cover those external requirements.
 
 ## HPS DDR
 

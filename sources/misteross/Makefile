@@ -46,6 +46,7 @@ help:
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
+		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
 		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
 		"  toolchain-fes-catch  Provision the FES Catch HIP toolchain (per-core lock)" \
 		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
@@ -130,6 +131,7 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -2539,3 +2541,14 @@ sim-fes-pcxt:
 synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
+
+# Autonomous board diagnostic; no package export or programming.
+PCXT_GPU_ROUTER ?= HIP
+.PHONY: build-fes-pcxt toolchain-fes-pcxt
+toolchain-fes-pcxt:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pcxt/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pcxt") \
+	FES_TOOLCHAIN_GPU_ROUTER="$(PCXT_GPU_ROUTER)" \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+build-fes-pcxt:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)

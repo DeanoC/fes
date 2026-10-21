@@ -1,0 +1,122 @@
+{
+  "classification": "host A/B route replay of the async_reg transfer; not timing, seal or acceptance evidence",
+  "command": [
+    "nextpnr-mistral",
+    "--json",
+    "synth.json",
+    "--device",
+    "5CSEBA6U23I7",
+    "--qsf",
+    "sources/misteross/cores/fes-ramtest/constraints.qsf",
+    "--sdc",
+    "sources/misteross/boards/de10nano/clocks.sdc",
+    "--freq",
+    "100",
+    "--seed",
+    "1",
+    "--router",
+    "gpu",
+    "--placer-heap-timingweight",
+    "2000",
+    "--placer-heap-critexp",
+    "5",
+    "--rbf",
+    "diagnostic.rbf",
+    "--compress-rbf",
+    "--write",
+    "routed.json",
+    "--report",
+    "timing.json",
+    "--detailed-timing-report",
+    "--timing-report-paths",
+    "64"
+  ],
+  "comparison": {
+    "log_differences": "Checksum values (they hash cell attributes) and wall-time values only; no other line differs",
+    "placed_cells": 12334,
+    "rbf_identical": true,
+    "routed_json_equal_after_net_naming_and_attribute_removal": true,
+    "routed_nets": 15483,
+    "timing_json_identical": true
+  },
+  "contention": "leased GPU exclusive; GPU 0 concurrently held by another Lander job, sharing host CPU",
+  "environment": {
+    "NEXTPNR_REQUIRE_GPU": "1"
+  },
+  "fes_revision": "0e506fbe37766bf629b0bce13cb2cb21fa5d2da7",
+  "finished_utc": "2026-10-21T18:28:04Z",
+  "fmax": {
+    "capture": {
+      "achieved_mhz": 341.297,
+      "constraint_mhz": 100,
+      "pass": true
+    },
+    "pixel": {
+      "achieved_mhz": 92.123,
+      "constraint_mhz": 74.25,
+      "pass": true
+    },
+    "rom": {
+      "achieved_mhz": 112.68,
+      "constraint_mhz": 100,
+      "pass": true
+    },
+    "system": {
+      "achieved_mhz": 64.466,
+      "constraint_mhz": 100,
+      "pass": false
+    }
+  },
+  "gpu_backend": "HIP",
+  "gpu_devices": [
+    "hip:37336638313031373333343038343830:0000:85:00.0:AMD Radeon AI PRO R9700"
+  ],
+  "lease": {
+    "FES_GPU_IDS": "1",
+    "GPU_RUN_DEVICE": "0",
+    "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD129",
+    "ROCR_VISIBLE_DEVICES": "1",
+    "host": "powerboat",
+    "wrapper": "gpu-run --owner lander --gpus 1 (GPU_LEASE_MAX_PER_OWNER=2)"
+  },
+  "netlists": {
+    "plain": {
+      "routed_input_sha256": "09a9d231391526415baec2abf5a7b1333c1f3ba066de750994ebb4c3e1c3d251",
+      "sha256_without_src": "5c3891dbfe3244765c41c155427f1d434a35fb769d8946ffa0195e0c4256d278"
+    },
+    "transfer": {
+      "routed_input_sha256": "3299d2d1e19919da5851c4b6418b84161f5e0dd5a08f9c54f7e91f5a98400f16",
+      "sha256_without_src": "d4440925ad9b9bc44353fbec1822f0ea95bb5cc5f12fd1ab848fe060ce38967e"
+    }
+  },
+  "nextpnr": {
+    "commit": "552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b",
+    "configuration": "gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "sha256": "725d9dd05b2c1f287555a7ad8c29a05c9c119493491b7f1c78c8c843f905dff7",
+    "source": "immutable cache slot built for cores/fes-pcxt/toolchain.lock"
+  },
+  "runs": {
+    "plain": {
+      "artifacts": {
+        "diagnostic.rbf": "64f32d616d806d46b2e6f9eb35f11c9804e2c3fd33864a7472733b51e8af4a75",
+        "nextpnr.log": "be307dfa1522878569a9539efbc6f84610663e993469fc2cd6d5325819180ad8",
+        "routed.json": "27e5d857fd0481dd6622c6308e1db3db0f18ad7d1925c28cfe462c2cc3cbd89d",
+        "timing.json": "3ce30127afe15ba135750bfcbc867730e9248cd704613109bec95de9c3cf60d1"
+      },
+      "elapsed_seconds": 259.354,
+      "returncode": 1
+    },
+    "transfer": {
+      "artifacts": {
+        "diagnostic.rbf": "64f32d616d806d46b2e6f9eb35f11c9804e2c3fd33864a7472733b51e8af4a75",
+        "nextpnr.log": "ad8e8b1ece409b9df4f77284a528b3dbe0151ba9b6620ecb85f7ae3f065899ae",
+        "routed.json": "cd119d0721fcc9c2b339eec649630a40a57b498b497dfdfd8c33f524e756a80e",
+        "timing.json": "3ce30127afe15ba135750bfcbc867730e9248cd704613109bec95de9c3cf60d1"
+      },
+      "elapsed_seconds": 247.345,
+      "returncode": 1
+    }
+  },
+  "started_utc": "2026-10-21T18:19:37Z",
+  "variant": "cga-direct"
+}

@@ -38,7 +38,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
     'bootstrap.sh',
-    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
+    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
@@ -117,6 +117,8 @@ def fpga_cores(path):
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
+    if relative.as_posix() == 'cores/fes-ramtest/constraints.qsf':
+        return ('ramtest', 'pcxt'), 'shared DE10-Nano SDRAM/HDMI diagnostic pins'
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if len(parts) >= 3 and parts[0] == 'cores':
