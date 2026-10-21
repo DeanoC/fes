@@ -131,13 +131,12 @@ class ImageAssemblyTest(unittest.TestCase):
             self.assertIn(needle, text)
         self.assertNotIn('Do not copy', text)
 
-    def test_default_package_contract_is_documented_as_the_complete_fes_set(self):
+    def test_bootstrap_profile_excludes_playable_core_builds(self):
         profile = tomllib.loads((ROOT / 'profiles/native-integration-dev.toml').read_text())
         self.assertEqual(profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in profile['fpga_packages']],
-            ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-             'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'])
+            ['fes.menu'])
 
     def test_build_and_verify_core_mappings_cover_default_profile(self):
         profile = tomllib.loads((ROOT / 'profiles/native-integration-dev.toml').read_text())

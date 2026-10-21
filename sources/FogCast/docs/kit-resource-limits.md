@@ -126,7 +126,16 @@ from the boot ticket, a factory file supplies `source_revision` only if its
 field. `sed` is used only for the JSON files. Without it, the boot ticket, the
 factory image id and `source_revision` are skipped.
 
+`fat_idle_sha256` is the sha256 of `/media/fat/idle.rbf`, the splash U-Boot
+programs as `core=idle.rbf`. It is empty when that file is missing, a symlink,
+not a regular file, or when `sha256sum` is not on `PATH`. `idle_sha256` is the
+`idle_sha256` value from `/usr/share/mister-runtime/build-inputs` when that
+file is a regular file and the value is 64 lowercase hex digits. It is empty
+otherwise. The collector does not write either file. A difference between the
+two hashes is a stale FAT splash.
+
 Keys, in order: `schema`, `image_id`, `image_id_source`, `source_revision`,
+`fat_idle_sha256`, `idle_sha256`,
 `uptime_seconds`, `load_1`, `load_5`, `load_15`, `cpu_count`, `cpu_idle_percent`,
 `cpu_sample_seconds`, `mem_total_kib`, `mem_available_kib`, `swap_total_kib`,
 `swap_free_kib`, `cma_present`, `cma_total_kib`, `cma_free_kib`, then `present`,

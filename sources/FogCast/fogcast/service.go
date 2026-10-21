@@ -183,12 +183,13 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset   func()
-	connectionMu  sync.Mutex
-	connection    TargetConnection
-	resolveTarget func(context.Context, string) ([]string, error)
-	meshMu        sync.Mutex
-	meshNodes     []MeshNode
+	targetReset       func(string)
+	connectionMu      sync.Mutex
+	connection        TargetConnection
+	targetConnections map[string]targetConnectionState
+	resolveTarget     func(context.Context, string) ([]string, error)
+	meshMu            sync.Mutex
+	meshNodes         []MeshNode
 	// meshNodesRetained is true while meshNodes are the rows kept from an
 	// earlier window after a browse error. Guarded by meshMu.
 	meshNodesRetained bool
@@ -612,6 +613,33 @@ func (s *Service) pairedTargetClient(targetID string) (serviceClient, bool) {
 func (s *Service) selectedClientLocked() (serviceClient, bool) {
 	client := s.targetClients[s.sessionTargetNameLocked()]
 	return client, client != nil
+}
+
+// targetClientLocked resolves one configured target and opens its client on
+// first use. Caller holds targetMu.
+func (s *Service) targetClientLocked(name string) (serviceClient, bool) {
+	if strings.TrimSpace(name) == "" {
+		return s.selectedClientLocked()
+	}
+	cfg := targetByName(s.targets, name)
+	if cfg.Name == "" || !cfg.Enabled {
+		return nil, false
+	}
+	if client := s.targetClients[name]; client != nil {
+		return client, true
+	}
+	if s.targetClientFactory == nil {
+		return nil, false
+	}
+	client, err := s.targetClientFactory(cfg)
+	if err != nil || client == nil {
+		return nil, false
+	}
+	if s.targetClients == nil {
+		s.targetClients = make(map[string]serviceClient)
+	}
+	s.targetClients[name] = client
+	return client, true
 }
 
 func (s *Service) clientForSessionContextLocked(ctx context.Context) (serviceClient, bool) {
@@ -2330,6 +2358,9 @@ func (s *Service) HostExecutionStatus(parent context.Context) (hostexec.Status, 
 }
 
 func (s *Service) statusTarget(parent context.Context, target string) (protocol.Status, error) {
+	if target != "" {
+		parent = WithSessionTarget(parent, target)
+	}
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
@@ -2338,11 +2369,15 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	}
 	defer releaseLifecycle()
 	if target != "" {
-		s.targetMu.RLock()
+		s.targetMu.Lock()
 		cfg := targetByName(s.targets, target)
-		s.targetMu.RUnlock()
+		_, clientAvailable := s.targetClientLocked(target)
+		s.targetMu.Unlock()
 		if cfg.Name == "" || !cfg.Enabled {
 			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		if !clientAvailable {
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 		}
 	}
 	s.executionMu.Lock()
@@ -2350,7 +2385,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	_, selectedPlay := s.selectedKitPlayLocked()
 	knownFPGA := target != "" || selectedPlay.execution != "" || selectedPlay.packageRejection != nil
 	s.executionMu.Unlock()
-	if !localExecution && s.discoveryEnabled() {
+	if !localExecution && s.discoveryEnabledForContext(ctx) {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
 			if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 				return protocol.Status{State: protocol.StateIdle}, nil
@@ -2688,15 +2723,17 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	discoveryAdmission := !hostOnly && !scopedOtherKit && s.discoveryEnabled()
 	protocolClient := s.protocolAdmissionEnabled()
 	if scopedTarget != "" {
-		s.targetMu.RLock()
-		_, protocolClient = s.targetClients[scopedTarget].(*targetclient.Client)
-		s.targetMu.RUnlock()
+		s.targetMu.Lock()
+		client, available := s.targetClientLocked(scopedTarget)
+		_, protocolClient = client.(*targetclient.Client)
+		protocolClient = protocolClient && available
+		s.targetMu.Unlock()
 	}
 	if !hostOnly && protocolClient {
 		admit := s.refreshStopAdmission
 		admitCtx := ctx
 		if scopedOtherKit {
-			admit = s.refreshTargetAdmission
+			admit = s.refreshStopAdmission
 			admitCtx = WithSessionTarget(ctx, scopedTarget)
 		}
 		if _, err := admit(admitCtx); err != nil {

@@ -1329,7 +1329,9 @@ then opens the DesignWare hardware watchdog and acknowledges arming before
 candidate init executes. Its separate
 mount namespace retains the bootstrap and FAT views through pivot. Its deadline
 is 180 seconds. Only a durably synced confirmation matching the actual boot ID
-and selected image permits magic-close. Failure, deadline, or process death
+and selected image permits magic-close. The agent records that confirmation
+only after the image's splash is on FAT, so a failed splash publish leaves the
+watchdog armed. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
 `appliance/store` owns bounded raw-image admission, immutable publication,
@@ -1355,9 +1357,29 @@ the HTTP response and requests reboot. During an unconfirmed trial these normal
 operations are blocked; status, Stop, lease management and confirmation remain
 available. A failed response/reboot leaves pending visible and releases admission
 on the current known-good image. Confirmation requires actual native idle.
-Once the release record is durable, admission opens even when the following
-`boot.json` rewrite fails. The agent logs that failure and retries the rewrite
-once on a later idle status read.
+`internal/appliancesplash` checks the running image's idle core against
+`idle_sha256` in its build-inputs and stages it under the release store.
+Release admission keeps a 1 MiB margin plus room for that splash: an idle core
+up to 8 MiB, its sidecar, and a same-directory temporary of the core, so an
+accepted release can be confirmed. Confirmation first promotes the trial to
+known-good in the release store without telling the watchdog, then atomically
+replaces FAT `/idle.rbf`, and only then records the confirmation the watchdog
+reads and clears the `boot.json` trial flag. A failed or cancelled publish
+leaves the watchdog armed. A boot-ticket rewrite failure after the release
+record is durable does not undo confirmation: admission opens, the error is
+logged, and the rewrite is retried once on a later idle status read. A failed
+splash publish can be retried by the same boot. A later
+boot of that image, including one that is no longer a trial, republishes from
+the running image's verified idle core even when the staged copy was removed.
+An unconfirmed trial does not modify FAT, so watchdog fallback still programs
+the previous splash. Factory fallback records the selected image and does not
+itself write FAT; the agent publishes that image's splash when the non-trial
+boot starts. U-Boot programs whatever is on FAT at the following boot.
+Confirming a rollback writes the restored image's splash. Prune removes the
+staged splash with the image. Status reports `fat_idle_sha256` and
+`idle_sha256`. A non-trial splash repair failure is logged and returned in
+`splash_warning` without hiding that status. A trial stays unconfirmed until
+the publish succeeds.
 
 The host uploads once and activates once. It resolves response loss by reading
 authenticated boot/image identity, rediscovers a changed address using the existing
@@ -2038,9 +2060,11 @@ does not grant ownership for them, and it invalidates a stale local grant.
 The shared host lease object moves game requests, lease renewal, input
 attach and input CONNECT to the validated endpoint. On an unchanged boot, a
 locally held grant is retained only when its live generation still matches the
-agent. An address change closes the old local input stream without replaying held
-input; the user can attach input again through the existing session action.
-On a changed boot the host forgets its old grant and session and closes local input handles without remote Stop, release, or input cleanup. A new user
+agent. An address change closes that target's old local input stream without
+replaying held input; the user can attach input again through the existing
+session action. On a changed boot or lost grant the host forgets that target's
+old grant and session and closes its local input handle without remote Stop,
+release, or input cleanup. Sibling target input attachments stay intact. A new user
 launch may claim a free lease; discovery never claims or takes over a kit, and
 never replays a launch, upload, Stop, reboot, or input operation.
 
@@ -2049,6 +2073,15 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
+Named session reads, launches, Stops and lease checks resolve the configured
+target by name. Each configured target keeps its own client, connection
+observation and lookup backoff. An unavailable target reports its own configured
+address and target ID; it never reuses another target's observation.
+Settings edits clear the affected target's cached connection and lookup backoff
+when its name, identity, enabled state, address or credential changes. An
+explicit named Stop runs the same identity-checked discovery and ownership
+admission for a sibling target, ignoring only the retry backoff; it does not
+retry the Stop mutation.
 Busy means another session holds the kit lease, or the kit is reserved for
 software maintenance. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "In use" /
@@ -2705,9 +2738,11 @@ unavailable observations and reboot-required states remain errors; cleanup never
 zeros a replacement core. New generations begin with empty host and target state.
 
 The host package store validates and atomically publishes immutable archives by
-package ID. Catalog schema v8 associates each stable game entry with an
-explicit package ID and optional media role/digest. Multiple titles can use
-the same core. Importing a package or media object does not select or activate it.
+package ID. Serialized publication checks request cancellation after acquiring
+its lock and before linking an archive. Catalog schema v8 associates each
+stable game entry with an explicit package ID and optional media role/digest.
+Multiple titles can use the same core. Importing a package or media object does
+not select or activate it.
 The `fpga` browse platform is not a cartridge/runtime system. Library scans
 exclude its logical root. See [package library API and operations](core-package-library.md).
 
@@ -3276,3 +3311,56 @@ only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
 and package-generation checks.
+
+
+### Independently installed rooms
+
+`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
+room's `room.toml`, Lua and artwork into the local launcher's room directory.
+The default resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then
+uses the persistent config location shared with the launcher. Use `--rooms`
+when the running launcher uses a custom room directory. A loose pack inside the
+rooms directory can be installed directly; a source that contains the
+installation directory is rejected. Installation uses POSIX file locking on
+Linux/macOS. This is local installation, not a host-to-kit transfer API.
+
+Installation checks the manifest, main script, icon presence and syntax of all
+Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
+2048 entries and 16 MiB per file (Lua sources retain the 2 MiB engine limit);
+symlinks and nonregular files are rejected, hidden entries are ignored. Managed
+snapshots live below `.installed`, separate from loose development packs and
+`<room-id>.state.json`. Each running instance reads its original snapshot, so an
+update cannot mix old Lua with new artwork. The previous selection is retained.
+
+Reopen **Rooms** and select the room again to load the selected version without
+restarting the launcher or rebuilding Go, the OS or any core. The launcher trials
+load and the first update/draw before replacing the working instance. If either
+fails, it preserves the working instance and restores the previous selection;
+a failed first installation is deselected, allowing the embedded room of that ID
+to remain available. A concurrent newer install is not undone by an older
+failure. Home and Rooms navigation refresh the index from embedded defaults and
+the current rooms directory. Home trials a changed installed selection before
+replacing an open instance. Room replacement is refused while a game is running
+or launching, including when the selected pack is loose.
+Nested rooms retain their parents and persistent state stays outside the pack.
+
+Errors in later callbacks retain the normal room error handling. Explicit
+`fogcast-tenfoot room-rollback [--rooms DIRECTORY] ROOM_ID` selects the previous
+installed snapshot; when there is no earlier installed snapshot, it deselects the
+pack and restores the loose/embedded default (or removes that room from the
+list). Reopen Rooms and select it to apply. Snapshot files are
+retained; no installed versions or user state are garbage-collected. These
+commands require a launcher containing the installer once; subsequent Lua/art
+updates use that same executable. Embedded rooms remain the offline defaults.
+To replace an embedded example, use its launcher ID (for example
+`example.fes-cores`) in the external pack's manifest.
+
+A development loop on the client is:
+
+```sh
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
+# Reopen Rooms and select the room; then edit the source Lua/artwork.
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
+# To recover an update that fails only during a later interaction:
+fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
+```

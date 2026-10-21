@@ -232,7 +232,7 @@ func TestHomeLoadsPinnedRoomsFromPrefs(t *testing.T) {
 	})
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
 	app.SetPrefsPath(path)
-	app.SetRooms(index, "/tmp/rooms")
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

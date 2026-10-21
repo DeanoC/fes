@@ -124,19 +124,15 @@ mapping does not assert that cutover has been published or hardware-qualified.
 | `make media` | Assemble a flashable disk image from verified cold outputs |
 | `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
 
-The default and only FES integration profile is `native-integration-dev`.
-Build and verify do not deploy. The profile authenticates the pinned open-source
-misteross HIP/nextpnr tools before selecting the ordered
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set in
-[the default profile](../profiles/native-integration-dev.toml). The image selector
-also supports `fes.c64`. C64 remains package-only. Its shared-pin retirement
-is complete; see [core alignment](core-alignment.md).
-See [described FPGA core
-packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
-workflow. Host-only builds do not require those tools.
-The clean, development, verification and media paths are package-only and all
-reuse the same closed package set.
+The default FES integration profile is `native-integration-dev`. It selects only
+`fes.menu` display firmware and the locked idle RBF; playable core builds do not
+run as part of this image. The clean, development, verification and media paths
+reuse the same closed package set. Install `fes.pong`, `fes.zx81`, `fes.coleco`
+and other systems independently through the [core catalog](core-packages.md).
+Individual packages use HIP/nextpnr; Quartus remains an explicit oracle where
+specified. Host builds and [kit software updates](kit-software-releases.md) do
+not build FPGA packages. Build and verify do not deploy.
+
 FES selects placement seed 5 for both Atari ST video parts. The selected seed
 is part of their canonical cache identity and archive verification; it does not
 change the sealed shell, clocks or socket containment requirements. Standalone
@@ -154,7 +150,7 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
-For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
+For local scratch/HIL iteration, `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts` runs once and
 records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
 the checkout head and image digest. A HIL-named `make release` appends `-1p`,
 carries the marker into release outputs, and records `image_passes: 1` in
@@ -170,7 +166,7 @@ contains it. CI and cold media/appliance paths keep two
 passes and omit the evidence field.
 
 An optional core, currently Atari ST, can miss timing without failing
-`make image`, `make build`, or `make dev`. The build prints a `WARNING:` block
+`make build` or `make dev`. The build prints a `WARNING:` block
 naming the core, the reason (`timing-not-met`, `build-failed`, or `skipped`),
 and any seeds and clock figures, then continues. `FES_SKIP_OPTIONAL_CORES=1`
 or `FES_SKIP_CORES=fes.atari-st` skips that producer before place-and-route,
@@ -274,23 +270,33 @@ The operator command is `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'`.
 Running it against a kit requires explicit operator opt-in and exclusive use;
 ordinary `make test` exercises only host-side fixtures.
 
-## Three-system target acceptance
+## Target acceptance
 
 The package-only build checks image structure and package identity without
-mutating a target. After deploying the exact development image to the
-designated kit, run the FES-owned acceptance lane:
+mutating a target. After booting the development image on the designated kit,
+run the FES-owned acceptance lane:
 
 ```sh
 make target-acceptance
 ```
 
-It checks host and direct-target health, verifies that the selected Pong,
-ZX81 and Coleco package IDs are installed and selected in the host library,
-launches each entry through the persistent session API, attaches input,
-sends a small core-appropriate press/release sequence through the launch-owned
-input bridge, and stops back to idle.
-The runner always stops an active session during cleanup. It does not infer
-video correctness from a successful API response.
+The runner reads the selected package identities from the development image's
+`inputs.json`. For the default MENU-only image, it checks that the recorded
+`fes.menu` identity matches its published selection file, host and direct-target
+health are ready with matching host/agent revisions, and the host session is
+idle. It reports bootstrap readiness; this does not claim a playable-core
+launch or visual MENU check.
+
+For an image that selects supported playable packages, it checks every selected
+package's exact identity, verifies that it is installed and selected by exactly
+one matching host-library entry, launches each entry through the persistent
+session API, sends its core-specific input sequence, and stops back to idle.
+The full expanded package set retains all seven current Pong, ZX81, Coleco,
+SMS, SG-1000, C64 and Spectrum lanes. Missing or unexpected selection files
+and selections that disagree with `inputs.json` are errors. `inputs.json` is
+required; older selection directories without it are rejected. The runner
+always stops an active session during cleanup. It does not infer video
+correctness from a successful API response.
 
 Multiple library titles may select the same core and package. Select the exact
 game ID when that match is ambiguous, repeating the option for other cores:

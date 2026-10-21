@@ -12,6 +12,7 @@ a dated record. A dated record is not the schedule.
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
+| Reduce build/review time and decouple installation | [Development-speed redesign](development-speed.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
@@ -20,13 +21,10 @@ a dated record. A dated record is not the schedule.
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
-The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
-`fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
-`fes.atari-st`, selected by the [default profile](../profiles/native-integration-dev.toml)
-and built with HIP/nextpnr. Menu (`fes.menu`) provides the idle
-display and is not a playable library entry. Other registered packages are not
-in that image. The selector also supports `fes.c64`; admission does not establish
-a passing seal or hardware acceptance. The matrix is [core status](core-status.md).
+The default image contains the locked idle RBF and `fes.menu` display firmware.
+Playable cores are installed separately, so their builds do not hold up OS or
+software work. See [modular updates](modular-updates.md) for update boundaries
+and [core status](core-status.md) for individual package standing.
 
 Shell examples in the parent guides start at the FES repository root.
 A component Makefile is a different command set. `make` inside

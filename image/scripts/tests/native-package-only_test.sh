@@ -80,7 +80,9 @@ esac
 SELECTOR
 chmod +x "$selector"
 
-package_ids=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
+# The corruption and multi-package tests below need these explicit fixtures;
+# they must not depend on which cores the bootstrap image happens to ship.
+package_ids=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum,fes.ramtest,fes.atari-st
 package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {
@@ -379,3 +381,24 @@ if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIV
   printf '%s\n' 'package-only verify graph still exposes format-1 inputs' >&2
   exit 1
 fi
+
+# The real bootstrap selection must stage, install and verify with no
+# playable package inputs.
+for core_id in $package_words; do
+  if [ "$core_id" != fes.menu ]; then
+    name=$(printf '%s' "${core_id#fes.}" | tr '[:lower:]-' '[:upper:]_')
+    unset "FES_${name}_PACKAGE_DIR" "FES_${name}_PACKAGE_SELECTION"
+  fi
+done
+FES_PACKAGE_IDS=$(python3 -c 'import pathlib,tomllib,sys; p=tomllib.loads((pathlib.Path(sys.argv[1])/"profiles/native-integration-dev.toml").read_text()); print(",".join(x["core_id"] for x in p["fpga_packages"]))' "$repo/..")
+export FES_PACKAGE_IDS
+test "$FES_PACKAGE_IDS" = fes.menu
+bootstrap_target=$fixture/bootstrap-target
+bootstrap_cache=$fixture/bootstrap-cache
+mkdir -p "$bootstrap_target" "$bootstrap_cache"
+"$repo/scripts/native-extra-cores.sh" validate
+"$repo/scripts/native-extra-cores.sh" fetch "$bootstrap_cache"
+"$repo/scripts/native-extra-cores.sh" install "$bootstrap_cache" "$bootstrap_target"
+"$repo/scripts/native-extra-cores.sh" verify-image "$bootstrap_cache" "$bootstrap_target"
+test "$(find "$bootstrap_target/usr/share/mister-runtime/core-packages" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = 1
+test -f "$bootstrap_target/usr/share/mister-runtime/selections/fes-menu.package.toml"

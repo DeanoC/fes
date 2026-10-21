@@ -58,6 +58,8 @@ type ManifestTheme struct {
 // so scripts can only read their own files. Err is set for packs that were
 // found but cannot run; they are still listed so creators see the failure.
 type Pack struct {
+	// Revision identifies a managed installed snapshot; empty for loose/embedded packs.
+	Revision string
 	Manifest
 	Source string
 	FS     fs.FS
@@ -166,6 +168,11 @@ func LoadDir(root string) ([]Pack, error) {
 		}
 		packs = append(packs, LoadPackFS(os.DirFS(dir), dir))
 	}
+	installed, err := loadInstalled(root)
+	if err != nil {
+		return nil, err
+	}
+	packs = NewIndex(packs, installed).Packs
 	sortPacks(packs)
 	return packs, nil
 }

@@ -45,7 +45,8 @@ MEDIA_FILES = frozenset({
     'tests/test_appliance_media.py',
 })
 MEDIA_ROOTS = ('image', 'platform', 'containers', 'profiles',
-               'sources/FogCast/appliance', 'sources/FogCast/cmd/target-image-lock')
+               'sources/FogCast/appliance', 'sources/FogCast/cmd/target-image-lock',
+               'sources/FogCast/internal/targetimage')
 MEDIA_SCRIPT_PATTERNS = ('scripts/media*.py', 'scripts/appliance*.py')
 
 # Dependency changes can alter both consumer and assembly behavior.
@@ -53,7 +54,7 @@ DEPENDENCY_FILES = frozenset({'sources/FogCast/go.mod', 'sources/FogCast/go.sum'
 
 # Everything beneath these roots is recognized even when not relevant, so new
 # helper files do not silently classify as unknown. Root-level Make/docs are
-# recognized as well; any AGENTS.md is behavioral guidance and stays broad.
+# recognized as well. Agent guidance is documentation, not executable input.
 RECOGNIZED_ROOTS = ('scripts', 'tests', 'config', '.github',
                     'sources/FogCast', 'sources/misteross',
                     'sources/mister-packages', 'sources/libmister-runtime')
@@ -78,15 +79,19 @@ def _under(path, root):
 
 
 def _documentation(path):
-    # Same semantics as scripts.affected.documentation; AGENTS.md is behavioral.
+    # Same semantics as scripts.affected.documentation.
     parts = Path(path).parts
-    return ('docs' in parts or path.endswith('.md')) and Path(path).name != 'AGENTS.md'
+    return 'docs' in parts or path.endswith('.md')
 
 
 def _classify(path):
-    if path == '<new-branch>' or Path(path).name == 'AGENTS.md':
+    if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
     if _under(path, 'sources/mister-packages'):
+        if path.endswith(('.go', '/go.mod', '/go.sum')):
+            # Generator/tooling code is checked against committed consumers;
+            # actual definition/generated-output changes select their modes.
+            return dict.fromkeys(TEST_MODE_KEYS, False)
         # Shared contracts touch every consumer, including full race coverage.
         return dict.fromkeys(TEST_MODE_KEYS, True)
     video = (path in VIDEO_FILES or

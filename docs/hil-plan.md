@@ -33,6 +33,10 @@ Outside agent sessions have ignored these rules. Obey them.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
 
+Firmware, ROMs, media and software may be placed on either kit. Use the
+applicable kit lease and supported install, activation or media-delivery path;
+these rules do not require keeping those artifacts on a host or Powerboat.
+
 GPU jobs follow the [Shared GPUs](../AGENTS.md#shared-gpus) section.
 
 `python3 scripts/hil_plan.py classify` decides whether a pull request can be
@@ -53,7 +57,8 @@ of a git range, and `--json` prints the plan as JSON.
 
 Each changed path gets a class and a component:
 
-- `none`: docs, tests and simulation inputs. No hardware run is needed.
+- `none`: docs, tests, simulation inputs and explicitly listed CI/checking
+  tools (including `scripts/check_deadcode.py`). No hardware run is needed.
 - `overlay`: the change ships without a new image, as a PR
   [kit software bundle](kit-software-releases.md) (`mister-runtime`,
   `mister-agent`, `fogcast-tenfoot`, other FogCast Go), a host binary
@@ -120,6 +125,8 @@ the PR kit-software bundle on the claimed kit's running image only when the plan
 includes changed kit software, as [kit sharing](kit-sharing.md) and
 [kit software releases](kit-software-releases.md) describe. For a core-only
 plan, load the core package through a private host without installing a bundle.
-For a host-only plan, run the changed private host binary without touching kit
-software. After installing a kit-software bundle, restore the baseline image and
-bundle named in the kit status file and log that restore.
+For a host-only plan, run the changed private host binary. That classification
+does not bar placing firmware, ROMs, media or software on a kit when the planned
+check needs them; use the existing lease and applicable install, activation or
+media-delivery path. After installing a kit-software bundle, restore the
+baseline image and bundle named in the kit status file and log that restore.

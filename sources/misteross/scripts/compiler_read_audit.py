@@ -13,7 +13,7 @@ TRACER = Path('/usr/bin/strace')
 POLICY = 'compiler-markdown-v1'
 # Large RAM-heavy ST synthesis launches many ABC partitions. Retain bounded
 # traces while allowing this authenticated compiler workload to complete.
-MAX_TRACE_FILE = 64 * 1024 * 1024
+MAX_TRACE_FILE = 128 * 1024 * 1024
 MAX_TRACE_TOTAL = 256 * 1024 * 1024
 
 

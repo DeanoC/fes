@@ -392,13 +392,18 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
     end
     generate if (NATIVE_LOW_CAPTURE) begin : native_capture
-        // Forecast the original final-pixel boundary one edge ahead. Counters
-        // step on every non-reset pixel edge, so this registered pulse has the
-        // same value/edge as the original horizontal/vertical decode.
-        reg native_output_sof;
+        // Forecast the original final-pixel and border line-start boundaries
+        // one edge ahead. Counters step on every non-reset pixel edge, so each
+        // registered pulse has the same value/edge as the original decode.
+        reg native_output_sof, native_border_line_start;
         always @(posedge clk_pixel) begin
-            if (reset_pixel) native_output_sof <= 1'b0;
-            else native_output_sof <= horizontal == H_TOTAL - 11'd2 && vertical == V_TOTAL - 10'd1;
+            if (reset_pixel) begin
+                native_output_sof <= 1'b0;
+                native_border_line_start <= 1'b0;
+            end else begin
+                native_output_sof <= horizontal == H_TOTAL - 11'd2 && vertical == V_TOTAL - 10'd1;
+                native_border_line_start <= horizontal == H_TOTAL - 11'd7;
+            end
         end
         /* verilator lint_off PINCONNECTEMPTY */
         st_native_low_video capture (
@@ -415,7 +420,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             .output_valid(native_valid), .output_height(native_height_captured),
             .output_raster_border(unused_native_raster_border), .output_pal(native_pal), .output_raster_rgb(native_raster_rgb),
             .output_border_row(border_row), .output_border_x(border_sample_x), .output_border_ce(border_sample_ce),
-            .output_border_line_start(horizontal == H_TOTAL - 11'd6), .debug_frames(), .debug_skipped(), .debug_underruns()
+            .output_border_line_start(native_border_line_start), .debug_frames(), .debug_skipped(), .debug_underruns()
         );
         /* verilator lint_on PINCONNECTEMPTY */
         reg bus_active, bus_native, bus_gap, prefer_native;

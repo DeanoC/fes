@@ -19,7 +19,11 @@ from scripts.build_fes_zx81_oss import OUTPUT_RELATIVE as ZX81_OUTPUT
 from scripts.build_fes_zx81_oss import build_commands as zx81_build_commands
 from scripts.build_fes_zx81_oss import create_build_record as zx81_create_build_record
 from scripts.lockfile import load_lock
-from tests.test_build_fes_pong import _write_fake_tool, publish_shared_toolchain
+from tests.test_build_fes_pong import (
+    _nextpnr_option_count_for_lock,
+    _write_fake_tool,
+    publish_shared_toolchain,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,7 +79,11 @@ def _write_local_pong_tools(
         ("nextpnr", "nextpnr-mistral"),
     ):
         binary = install / binary_name
-        _write_fake_tool(binary, lock_name)
+        _write_fake_tool(
+            binary,
+            lock_name,
+            nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+        )
         evidence = root / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
         evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
@@ -183,7 +191,7 @@ class FesHipLaneTests(unittest.TestCase):
         # The image build authenticates every selected core against one cache
         # root. A core whose lock moves to another nextpnr gets that lock's
         # slot; a core on the old lock keeps the old slot.
-        from scripts import build_fes_catch, pnr_recipe
+        from scripts import build_fes_catch
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             root = base / "misteross"
@@ -191,8 +199,13 @@ class FesHipLaneTests(unittest.TestCase):
                              build_fes_pong.TOOLCHAIN_LOCK, build_fes_catch.TOOLCHAIN_LOCK):
                 (root / relative).parent.mkdir(parents=True, exist_ok=True)
                 (root / relative).write_bytes((ROOT / relative).read_bytes())
-            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_552BA246),
-                                  (build_fes_catch.TOOLCHAIN_LOCK, pnr_recipe.NEXTPNR_9128800F)):
+            # Keep the two cache requests distinct even when current locks
+            # happen to pin the same nextpnr commit. The synthetic pin also
+            # confirms recipe lookup is independent of a commit allowlist.
+            pong_pin = "a" * 40
+            catch_pin = load_lock(ROOT / build_fes_catch.TOOLCHAIN_LOCK)["nextpnr"].commit
+            for relative, pin in ((build_fes_pong.TOOLCHAIN_LOCK, pong_pin),
+                                  (build_fes_catch.TOOLCHAIN_LOCK, catch_pin)):
                 text, count = re.subn(r'(\[tool\.nextpnr\][^\[]*?commit = ")[0-9a-f]{40}"',
                                       rf'\g<1>{pin}"', (root / relative).read_text())
                 self.assertEqual(count, 1)
@@ -214,8 +227,8 @@ class FesHipLaneTests(unittest.TestCase):
                 catch = build_fes_catch._authenticate_tools(root, cache_root=catch_request.cache_root)
             self.assertEqual(pong["nextpnr-mistral"].path, pong_manifest.install / "bin/nextpnr-mistral")
             self.assertEqual(catch["nextpnr-mistral"].path, catch_manifest.install / "bin/nextpnr-mistral")
-            self.assertIn(f"commit={pnr_recipe.NEXTPNR_552BA246};", pong["nextpnr-mistral"].identity)
-            self.assertIn(f"commit={pnr_recipe.NEXTPNR_9128800F};", catch["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={pong_pin};", pong["nextpnr-mistral"].identity)
+            self.assertIn(f"commit={catch_pin};", catch["nextpnr-mistral"].identity)
 
     def test_ambient_cache_root_does_not_select_shared_lane(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -234,7 +247,11 @@ class FesHipLaneTests(unittest.TestCase):
             for lock_name, binary_name in (("yosys", "yosys"), ("mistral", "mistral-cv"),
                                            ("nextpnr", "nextpnr-mistral")):
                 binary = install / binary_name
-                _write_fake_tool(binary, lock_name)
+                _write_fake_tool(
+                    binary,
+                    lock_name,
+                    nextpnr_option_count=_nextpnr_option_count_for_lock(lock),
+                )
                 evidence = local / build_fes_pong.TOOLCHAIN_ROOT / "build" / lock_name
                 evidence.mkdir(parents=True)
                 commit = pins[lock_name].commit

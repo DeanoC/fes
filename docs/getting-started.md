@@ -57,7 +57,7 @@ local module tests can exercise uncommitted work.
 | Check Linux/Go/container prerequisites | `make doctor` | Prerequisite and selected-revision report |
 | Build the host CLI and browser API | `make host` | `out/native-integration-dev/fogcast` and `fogcast-api` |
 | Build an everyday diagnostic target image | `make dev` | `out/native-integration-dev/development/linux.img` |
-| Build only the clean two-pass image | `make image` | `out/native-integration-dev/linux.img` and image evidence |
+| Assemble a clean two-pass OS from [prebuilt inputs](image-artifacts.md) | `make image IMAGE_ARTIFACTS=/absolute/artifacts` | `out/native-integration-dev/linux.img` and image evidence |
 | Build a stabilized host/image combination | `make build` | Host binaries and clean two-pass image under `out/native-integration-dev/` |
 | Verify that clean combination | `make verify` | Receipt checks, structural checks and QEMU packaging smoke |
 | Publish flashable native media | `make media` | `out/native-integration-dev/media/current/fes.img` and receipts |
@@ -198,15 +198,12 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set
-from [the default profile](../profiles/native-integration-dev.toml); use the
-media command above for the complete flashable layout. The selector also supports
-`fes.c64`. Its shared-pin retirement is complete, and it stays out of the
-factory image until it has image acceptance; see [core status](core-status.md). The image has no legacy
-bundle lane.
-The `make build`, `make dev`, `make verify` and `make media` paths use the
-same closed package set.
+RBF and `fes.menu` display firmware from [the default profile](../profiles/native-integration-dev.toml).
+Install playable systems such as `fes.pong`, `fes.zx81` and `fes.coleco`
+separately through the core catalog. Their builds do not block OS work.
+Use the media command above for the complete flashable layout. The image has
+no legacy bundle lane. The build, dev, verify and media paths use the
+same closed package set containing MENU only.
 
 Build commands do not deploy. Use the exact kit and deployment instructions in
 the selected FogCast [working policy](../sources/FogCast/AGENTS.md) and
@@ -233,7 +230,7 @@ Next: [change a component](development.md#isolate-component-work) or
 
 # Scratch/HIL image builds
 
-For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image`. The
+For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The
 single output records `image_passes=1` and `single_pass_scratch=1`, and includes
 `SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
 A HIL-named `make release` with `IMAGE_PASSES=1` appends `-1p` to the version

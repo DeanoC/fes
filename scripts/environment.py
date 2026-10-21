@@ -18,7 +18,7 @@ def build_environment():
     owned = owned_package_environment_names()
     for name in tuple(env):
         if (name.startswith(("TARGET_IMAGE_", "NATIVE_RUNTIME_")) or name in owned
-                or name in ("LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
+                or name in ("FES_PREBUILT_RUNTIME_SHA256", "LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
                             "GOFLAGS", "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64",
                             "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140",
                             "FES_TOOLCHAIN_CACHE_ROOT")):

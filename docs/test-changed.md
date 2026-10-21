@@ -36,7 +36,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | Unknown or root inputs | All software lanes |
 | Documentation only | Planner regression tests and whitespace checks |
 
-`AGENTS.md` changes count as behavioral inputs. Renames select both old and new
+`AGENTS.md` changes are documentation and select no executable lane. Renames select both old and new
 owners. Shared Coleco VDP, RAM and TV80 changes select Coleco, SG-1000 and SMS.
 The shared 6502, `fes.computer` mailbox and the Apple II socket generator and
 card producer select Apple II; the shared I2S audio units also select it.
@@ -52,14 +52,78 @@ its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
 
 Parent-owned matching is the exact directory or any descendant, so sibling
-names such as `scripts-other/` or `test-other/` stay unknown. The CI
-selection/compiler and shared generator policy files — `scripts/affected.py`,
-`scripts/test_changed.py`, `scripts/ci_gate.py`, `scripts/ci_simulations.py`,
-`scripts/ci_verilator.sh`, `scripts/generate.py`, `scripts/consistency.py`
-(the generated/copied/fixture mapping owner) and their regression suites
-under `tests/` — remain fail-broad and select every lane and core. Root files
-such as the top-level `Makefile`, `config/` and `.github/` also stay on the
-all-lanes path.
+names such as `scripts-other/` or `test-other/` stay unknown. Planner and
+generator regression changes select parent tests and generated-consumer checks;
+they do not simulate unchanged RTL. Changed generated outputs still select their
+actual consumers. Simulation matrix/compiler changes select the FPGA lane and
+all core simulations. The parent Makefile, workflow and shared software test runner select all
+software lanes without RTL simulations. Host runner changes select parent and
+host checks. Contract Go tooling and core recipe/provisioning changes also skip
+unchanged RTL; contract definitions retain consumer coverage.
+
+Platform provisioning, platform Go tests and image shell tests run only when
+`media` is selected, including scheduled/manual runs. A room, host or core edit
+does not provision an OS test container just because it selects parent regressions.
+Unknown inputs still select all lanes and cores.
+
+## Affected host Go packages
+
+For a change set containing only Go source/test files in FogCast, its appliance
+module or the shared expansion module, routine host checks run the changed
+packages and their transitive import consumers. Test and external-test imports
+also count as dependencies. The selector reads both native and race build
+variants with `go list`; selection happens before the existing three-way sharding.
+Each selected package retains its existing functional/race policy.
+
+Both CI and `test-changed` pass the same changed-path list, including both sides
+of renames and local edits for local runs. The host runner reports the selected
+package identities. To inspect a specific change without executing tests:
+
+```sh
+python3 scripts/host_tests.py --plan-only --paths-json '["sources/FogCast/cmd/fogcast/main.go"]'
+```
+
+A mixed/non-Go change set, dependency lock change, missing/deleted whole package
+or omitted path list keeps the complete routine host suite. A Go listing error
+fails the check. `--full` and scheduled/manual coverage never narrow packages.
+This is native Go import coverage; it does not infer runtime file reads or
+cross-platform behavior. Host builds, browser checks, parent regressions and
+other component lanes retain their own selection rules.
+
+## Affected parent regression groups
+
+Routine component-only changes select parent integration groups before test setup:
+
+| Change | Parent groups |
+| --- | --- |
+| FogCast UI and resources | Policy and build orchestration |
+| Host/package/protocol consumers, runtime, or FPGA sources | Policy, build, packages and acceptance tooling |
+| Appliance module or target-image selector | All groups, including media |
+| Parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
+
+Policy includes planner, generated-consumer and image-boundary checks. Build
+includes source snapshots, receipts and kit software assembly. Package checks
+include admission, publication and video-part regressions. Media owns OS/card
+assembly. Acceptance tooling contains host-side diagnostic-runner regressions;
+selecting it does not contact a kit.
+
+Mixed changes union their groups; any full-coverage input restores all groups.
+The existing video/media modes can add their owning groups and still control
+extended classes. New unassigned test modules always run until reviewed and
+assigned. Import failures remain failures even when groups are filtered.
+
+CI and the local affected runner pass the same changed-path list. The parent
+JSON report includes groups and selected/omitted test IDs. For example:
+
+```sh
+python3 scripts/parent_tests.py --video false --media false --plan-only \
+  --paths-json '["sources/FogCast/ui/rooms/examples/fes-cores/main.lua"]'
+```
+
+No path list, scheduled/manual runs, and `--full` retain every group. `--full`
+also enables both extended modes. This policy narrows component integration
+regressions; parent implementation changes deliberately retain full regression
+coverage because imports alone do not describe their subprocess and file inputs.
 
 ## Routine and extended test modes
 
@@ -73,7 +137,7 @@ omits tests and is not exhaustive green.
 | --- | --- | --- |
 | `video` | Parent suite omits the full-device video classes `RealProducerEvidenceTests`, `NativeProducerEvidenceTests`, `STProducerEvidenceTests` (`test_factory_video_parts.py`) and `FactoryVideoPublicationTests`, `RasterFactoryVideoPublicationTests` (`test_factory_video_publication.py`); lightweight classes in the same files still run | Video producer/admission inputs (`scripts/factory_video_parts.py`, `core_catalog.py`, `core_dev_accept.py`, `core_dev.py`, `package_acceptance_isolated.py`, `recipes.py`, `bundle.py`, `artifact_cache.py`, `core-recipes.toml`), `sources/misteross`, `sources/FogCast/corepackage`, `corecatalog`, and non-test `.go` under `catalog`/`fogcast` |
 | `media` | Parent suite omits the container drivers `ContainerImageTests`, `RealImageTests` (`test_media_image.py`), `ContainerTests`, `RealBootstrapTests` (`test_appliance.py`), `ContainerTests`, `RealCardTests` (`test_appliance_media.py`) | Image/platform/containers/profiles roots, `scripts/media*.py`, `scripts/appliance*.py`, `platform.py`, `image_toolchain.py`, `boot-media.lock.toml`, the three media test files, `sources/FogCast/appliance`, `cmd/target-image-lock` |
-| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), `AGENTS.md`, unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
+| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
 
 Shared `scripts/build.py`, `inputs.py`, `native_dev.py`, `environment.py` and
 FogCast `go.mod`/`go.sum` select both video and media. CI validates

@@ -4,7 +4,7 @@ FES is the parent image command and the authoritative **recipe** for
 Buildroot, rootfs layout and native image scripts. FogCast supplies the
 agent, kit launcher and extra-core selector through `FOGCAST_DIR`. FES owns
 external-artifact policy in `image/build/native-inputs.toml` and derives the
-runtime revision from the selected real FES commit and runtime module path.
+runtime revision from the selected source or explicit artifact provenance.
 
 Do not invoke FogCast `make target-image-native` as a second builder.
 
@@ -19,7 +19,7 @@ From the FES root:
 | Flashable disk | `make media` after verify |
 | Versioned appliance | `make release` / `make appliance-media` |
 
-For a local scratch/HIL image, run `IMAGE_PASSES=1 make image`. The output
+For a local scratch/HIL image, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The output
 records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
 head and image SHA-256. A HIL-named release appends `-1p`, records
 `image_passes: 1` in `evidence.json`, and includes the marker. `release.json`
@@ -31,7 +31,10 @@ accepts an optional positive `image_passes` when a manifest already contains
 it. CI and cold/production receipts require two passes and omit
 the evidence field.
 
-Those commands build FogCast agent, kit and selector/verifier binaries, then run
+`make image IMAGE_ARTIFACTS=/absolute/artifacts` consumes named prebuilt
+MENU and userspace inputs; see [bootstrap artifacts](image-artifacts.md).
+It builds only assembly helpers and OS dependencies. Source integration commands
+build FogCast agent, kit and selector/verifier binaries, then run
 `make -C image FOGCAST_DIR=<snapshot>/sources/FogCast`. Do not run FogCast
 `make target-image-native` as the parent integration path.
 
@@ -169,12 +172,14 @@ Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
 requires a fresh committed-source image build and separate hardware acceptance.
 
 Incremental native builds can retain the previous post-build rootfs. Preparation
-verifies any retained RAM Tester package and installed selection record, then
-checks its exact license and source notice before allowing that one `SOURCE.md`
-through the generic payload scan. It installs the selected agent, kit and
-tenfoot binaries before scanning the complete tree for secret assignments.
-The later native post-build step refreshes packages and notices to the current
-selection; other Markdown files remain forbidden.
+requires a retained RAM Tester notice to match the current template exactly;
+stale or changed source text fails closed and is not rewritten in place. It also
+verifies the exact license and installed selection record before allowing that
+one `SOURCE.md` through the generic payload scan. The normal fresh package install
+generates notices from the selected package's sealed manifest. Preparation installs
+the selected agent, kit and tenfoot binaries before scanning the complete tree for
+secret assignments. The later native post-build step refreshes packages and
+notices to the current selection; other Markdown files remain forbidden.
 
 Normal package recipes require explicit functional identity version 2. Older
 artifact caches remain untouched but cannot supply legacy build evidence to
