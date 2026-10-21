@@ -367,9 +367,10 @@ Its registered accepted-write source isolates the output model; real-CPU palette
 admission, RAM 12/512 intervals and Timer B use their existing fixtures.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
 1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
-Five groups of sixteen chunks register local selection before the final
-bank/group mux. Address and bank tags stay aligned with the two-edge read;
-invalid chunks return zero. Frame publication and pixel capacity are unchanged.
+Each bank's five groups of sixteen chunks register their own hit and chunk
+index with the RAM read, then their selected word; a miss clears the word, so
+the output is the OR of the fifteen group words. Address and bank tags stay
+aligned with the two-edge read; invalid chunks return zero. Frame publication and pixel capacity are unchanged.
 Fresh resource and routed timing qualification remain required.
 The banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
