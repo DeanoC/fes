@@ -36,6 +36,9 @@ struct Test {
         pixel();pixel();
         dut.output_sof=sof;dut.output_line_start=!sof;pixel();
         dut.output_sof=0;dut.output_line_start=0;
+        // The adapter starts sampling hundreds of clocks after line start;
+        // the clock after it only loads the first event.
+        pixel();
         for(unsigned x=0;x<416;++x) {
             dut.output_x=x;dut.output_ce=1;dut.eval();
             check(dut.output_rgb==colour(row,x,bias),"border colour changed at wrong native pixel");
@@ -66,11 +69,15 @@ struct Test {
         check(!dut.capture_overflow,"full event arena overflowed without an extra run");
         dut.capture_active=0;dut.capture_tick=0;
         dut.output_bank=dut.output_consume_bank=2;dut.output_row=0;dut.output_ce=0;pixel();pixel();
-        dut.output_sof=1;pixel();dut.output_sof=0;
+        dut.output_sof=1;pixel();dut.output_sof=0;pixel();
+        // Each output x lasts two clocks, as the adapter's 2x canvas drives it.
         for(unsigned x=0;x<416;++x) {
-            dut.output_x=x;dut.output_ce=1;dut.eval();
-            check(dut.output_rgb==(x<32?x:31),"consecutive border run or last event replay failed");
-            pixel();
+            dut.output_x=x;dut.output_ce=1;
+            for(unsigned clock=0;clock<2;++clock) {
+                dut.eval();
+                check(dut.output_rgb==(x<32?x:31),"consecutive border run or last event replay failed");
+                pixel();
+            }
         }
         dut.output_ce=0;display(1,0,0x49,true);
         // The small test capacity exhausts on a deliberately dense border.

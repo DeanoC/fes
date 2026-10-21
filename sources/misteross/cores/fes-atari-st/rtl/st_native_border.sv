@@ -16,6 +16,8 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // Parent front bank is registered. It equals output_bank away from SOF;
     // SOF loads the new descriptor and overrides ordinary consumption.
     input wire [1:0] output_consume_bank,
+    // output_ce must stay low on the clock after SOF or line start, and each
+    // output_x must last at least two output_ce clocks (the adapter's 2x canvas).
     input wire output_sof, output_line_start, output_ce,
     input wire [8:0] output_row, output_x,
     output wire [8:0] output_rgb
@@ -98,18 +100,20 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     wire [EVENT_BITS+8:0] descriptor = output_bank == 2'd0 ? desc0 : output_bank == 2'd1 ? desc1 : desc2;
     reg [17:0] held0, held1, held2;
     reg held_valid;
-    wire [17:0] current0 = held_valid ? held0 : head0;
-    wire [17:0] current1 = held_valid ? held1 : head1;
-    wire [17:0] current2 = held_valid ? held2 : head2;
-    wire [17:0] consume_head = output_consume_bank == 2'd0 ? current0 :
-        output_consume_bank == 2'd1 ? current1 : current2;
+    // Consumption reads only the held events. A row's event x values rise
+    // by at least one and each output x lasts two clocks, so every consume
+    // lands on the first clock of its x. The clock after a consume or line
+    // start, while held_valid is clear, can therefore never consume: the
+    // RAM's unregistered output only loads the held registers.
+    wire [17:0] consume_head = output_consume_bank == 2'd0 ? held0 :
+        output_consume_bank == 2'd1 ? held1 : held2;
     reg [EVENT_BITS-1:0] next_pointer;
     // The published display bank is immutable until SOF. Hold its current
     // event through pauses while the RAM ports prefetch the successor. A
     // consume releases the held event on the original output edge; no head-X
     // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
-    wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
+    wire consume_current = output_ce && held_valid && remaining != 9'd0 && consume_head[17:9] <= output_x;
     wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
         output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
     // Publication can select a bank on this same SOF edge. Increment each
