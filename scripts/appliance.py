@@ -87,16 +87,15 @@ def manifest_image_passes(data):
 def recorded_image_passes(directory, manifest):
     """Pass count from an optional manifest field or the evidence sidecar.
 
-    New releases omit image_passes from release.json. evidence.json carries 1
-    for a single-pass HIL release. Either record blocks bootstrap.
+    Releases keep build pass evidence outside the target update manifest.
     """
     passes = manifest_image_passes(manifest)
     evidence = Path(directory)/'evidence.json'
     if not evidence.is_file():
         return passes
     data = json.loads(regular(evidence).read_bytes(), object_pairs_hook=unique)
-    if isinstance(data, dict) and data.get('image_passes') == 1:
-        return 1
+    if isinstance(data, dict) and 'image_passes' in data:
+        return validate_image_passes(data['image_passes'])
     return passes
 
 
@@ -168,9 +167,14 @@ class ReleaseProvenance:
     image_receipt_sha256: str
     verification_sha256: str
     qemu_log_sha256: str
+    image_passes: int = 2
 
     def __post_init__(self):
+        if type(self.image_passes) is not int or self.image_passes not in (1, 2):
+            raise ValueError("invalid provenance image passes")
         for name,value in asdict(self).items():
+            if name == "image_passes":
+                continue
             width = 40 if name.endswith('_revision') else 64
             if not isinstance(value,str) or not re.fullmatch('[0-9a-f]{'+str(width)+'}',value):
                 raise ValueError('invalid release provenance: ' + name)
@@ -247,7 +251,7 @@ def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,pla
 
 
 def release_manifest(rootfs,*,version,provenance,image_passes=2):
-    if image_passes not in (1,2):
+    if type(image_passes) is not int or image_passes not in (1,2):
         raise ValueError('image passes must be 1 or 2')
     # The pass count stays out of this object. Deployed DecodeManifest
     # allow-lists reject any added field; evidence.json records image_passes.
@@ -258,11 +262,7 @@ def release_manifest(rootfs,*,version,provenance,image_passes=2):
     return validate_manifest(data)
 
 
-def release_version(version,image_passes):
-    return version if image_passes == 2 or version.endswith('-1p') else version + '-1p'
-
-
-def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,single_pass_marker=None):
+def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None):
     """Export caller-verified raw inputs, checking their explicit receipt hashes.
 
     The CLI obtains provenance from current cold-build validation. This lower
@@ -272,25 +272,20 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,sing
     if digest(rootfs) != provenance.rootfs_sha256: raise ValueError('rootfs differs from verified provenance')
     if digest(kernel) != provenance.kernel_sha256: raise ValueError('kernel differs from locked provenance')
     features = validate_ext4(rootfs)
-    if image_passes not in (1,2): raise ValueError('image passes must be 1 or 2')
-    if image_passes == 1 and ('hil' not in version.lower() or single_pass_marker is None):
-        raise ValueError('single-pass release requires a HIL version and scratch marker')
-    if image_passes == 1:
-        marker_fields=dict(line.split('=',1) for line in regular(single_pass_marker).read_text().splitlines())
-        if marker_fields.get('linux_img_sha256') != provenance.rootfs_sha256 or marker_fields.get('head_sha') != provenance.fes_revision:
-            raise ValueError('single-pass scratch marker differs from verified release inputs')
+    image_passes = provenance.image_passes if image_passes is None else image_passes
+    if image_passes != provenance.image_passes:
+        raise ValueError("release pass count differs from verified image")
+    if type(image_passes) is not int or image_passes not in (1,2): raise ValueError('image passes must be 1 or 2')
     manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes)
     evidence = {'format':1,'kind':'fes-appliance-release','provenance':asdict(provenance),
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
-    if image_passes == 1:
-        evidence['image_passes'] = 1
+    evidence['image_passes'] = image_passes
     result = ReleaseResult(output)
     if output.exists() or output.is_symlink():
-        expected_files=('rootfs.img','release.json','evidence.json') + (('SINGLE-PASS-SCRATCH.txt',) if image_passes==1 else ())
+        expected_files=('rootfs.img','release.json','evidence.json')
         require_sealed_bundle(output,expected_files)
-        marker_differs = image_passes == 1 and regular(output/'SINGLE-PASS-SCRATCH.txt').read_bytes() != regular(single_pass_marker).read_bytes()
         if (regular(result.manifest).read_bytes()!=canonical(manifest) or regular(result.evidence).read_bytes()!=canonical(evidence)
-                or digest(regular(result.image))!=provenance.rootfs_sha256 or marker_differs):
+                or digest(regular(result.image))!=provenance.rootfs_sha256):
             raise ValueError('immutable release destination differs')
         return result
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -300,7 +295,6 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,sing
         if digest(scratch/'rootfs.img') != provenance.rootfs_sha256: raise ValueError('rootfs changed during export')
         (scratch/'release.json').write_bytes(canonical(manifest))
         (scratch/'evidence.json').write_bytes(canonical(evidence))
-        if image_passes == 1: shutil.copyfile(single_pass_marker,scratch/'SINGLE-PASS-SCRATCH.txt')
         publish(scratch,output)
     return result
 
@@ -396,7 +390,7 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     return result
 
 
-def verified_inputs(root,profile,allow_single_pass=False):
+def verified_inputs(root,profile):
     # Existing modules use script-style imports; keep this import boundary local.
     sys.path.insert(0,str(Path(__file__).resolve().parent))
     import media
@@ -404,10 +398,7 @@ def verified_inputs(root,profile,allow_single_pass=False):
     if media.cold_build.git(root,'status','--porcelain','--untracked-files=all','--ignore-submodules=all'):
         raise ValueError('appliance release requires a clean committed FES checkout')
     image_fingerprint,_host_fingerprint,fogcast,env=media.select(root,profile)
-    if allow_single_pass:
-        cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint,allow_single_pass=True)
-    else:
-        cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint)
+    cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint)
     lock=MediaLock.load(root/'boot-media.lock.toml')
     cache=root/'out/work/boot-media'/('image-creator-'+lock.commit)
     if not cache.is_dir(): raise ValueError('locked boot payload cache is absent; provision it separately')
@@ -417,7 +408,7 @@ def verified_inputs(root,profile,allow_single_pass=False):
     revisions=media.cold_build.validate(root,configuration)
     software = cold.get('software_provenance', {'fogcast': revisions['FogCast'], 'runtime': revisions['libmister-runtime']})
     p=ReleaseProvenance(cold['fes_revision'],software['fogcast'],software['runtime'],
-        cold['rootfs_sha256'],lock.kernel.sha256,cold['image_receipt_sha256'],cold['verification_sha256'],cold['qemu_log_sha256'])
+        cold['rootfs_sha256'],lock.kernel.sha256,cold['image_receipt_sha256'],cold['verification_sha256'],cold['qemu_log_sha256'],cold['image_passes'])
     return root/'out'/profile/'linux.img',payloads.kernel,p,fogcast,env,lock
 
 
@@ -428,39 +419,32 @@ def main():
         child=commands.add_parser(command);child.add_argument('--profile',default='native-integration-dev',choices=['native-integration-dev'])
         child.add_argument('--output',type=Path)
         if command=='release':
-            child.add_argument('--version',required=True);child.add_argument('--image-passes',type=int,default=2,choices=(1,2))
+            child.add_argument('--version',required=True);child.add_argument('--image-passes',type=int,default=validate_image_passes(),choices=(1,2))
         else:
             child.add_argument('--release',type=Path,required=True)
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
     try:
         if args.command == 'release':
             validate_image_passes(args.image_passes)
-            if args.image_passes == 1 and 'hil' not in args.version.lower():
-                raise ValueError('single-pass release requires a HIL RELEASE_VERSION')
         if args.output is not None:
             args.output=args.output.resolve()
             if args.command=='bootstrap' and not args.output.is_relative_to(root):
                 raise ValueError('bootstrap output must be inside the FES checkout')
         sys.path.insert(0,str(root/'scripts'));import media
         with media.operation(root,args.profile):
-            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile,allow_single_pass=(args.command=='release' and args.image_passes==1))
+            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile)
             if args.command=='release':
-                if args.image_passes == 1:
-                    image_output=root/'out'/args.profile
-                    build_evidence=dict(line.split('=',1) for line in (image_output/'reproducibility.txt').read_text().splitlines())
-                    if build_evidence.get('image_passes') != '1': raise ValueError('single-pass release requested from a two-pass image')
-                    marker=image_output/'SINGLE-PASS-SCRATCH.txt'
-                    if not marker.is_file(): raise ValueError('single-pass scratch marker is missing')
-                    version=release_version(args.version,args.image_passes)
-                else:
-                    marker=None;version=args.version
+                if p.image_passes != args.image_passes:
+                    raise ValueError('release pass count differs from verified image')
+                version=args.version
                 manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes)
-                output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/hashlib.sha256(canonical(manifest)).hexdigest()
-                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes,single_pass_marker=marker)
+                # Identical rootfs and manifest bytes can carry one- or two-pass evidence.
+                output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/(hashlib.sha256(canonical(manifest)).hexdigest()+f'-{p.image_passes}pass')
+                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes)
             else:
                 factory=load_manifest(args.release/'release.json')
-                if recorded_image_passes(args.release, factory) == 1:
-                    raise ValueError('single-pass scratch release cannot be bootstrapped')
+                if recorded_image_passes(args.release, factory) != p.image_passes:
+                    raise ValueError('release pass count differs from verified image')
                 if factory!=release_manifest(rootfs,version=factory['version'],provenance=p) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
                     raise ValueError('release differs from current verified cold image')
                 runtime=os.environ.get('CONTAINER_RUNTIME','docker')
