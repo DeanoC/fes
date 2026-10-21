@@ -255,25 +255,21 @@ func (f *fakeRuntime) slotView(s int) []byte {
 }
 
 func TestRevokedWindowFaultIsAnError(t *testing.T) {
-	_, path := newFakeRuntime(t)
+	runtime, path := newFakeRuntime(t)
 	client := New(path)
+	defer client.Close()
 	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err != nil {
 		t.Fatal(err)
 	}
-	// A revoked grant leaves the mapping without pages; unmapping it under
-	// the client gives the same fault.
-	client.mu.Lock()
-	mapping := client.window.mapping
-	client.mu.Unlock()
-	if err := unix.Munmap(mapping); err != nil {
+	// A revoked grant leaves the mapping without pages, so the next access
+	// faults; truncating the window does the same. Unmapping it instead
+	// would free the range for the next thread stack the runtime maps.
+	if err := unix.Ftruncate(runtime.window, 0); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err == nil {
 		t.Fatal("present into a revoked window succeeded")
 	}
-	client.mu.Lock()
-	client.window = nil
-	client.mu.Unlock()
 }
 
 func TestPresentUnderflowCap(t *testing.T) {
