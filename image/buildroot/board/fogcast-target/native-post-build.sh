@@ -159,7 +159,9 @@ if [ "$native_mode" = package-only ]; then
     exit 1
   }
   # The factory runtime loads the fes-window driver its software carries.
-  # It builds here with the unrelocated Buildroot host and the pinned kernel.
+  # It builds here against the pinned kernel with an unrelocated copy of the
+  # cached SDK, as kit software does. The image's external toolchain has been
+  # relocated, and HOST_DIR has no GMP headers for the kernel's GCC plugins.
   window_driver=${FES_WINDOW_DRIVER_DIR:-}
   if [ -z "$window_driver" ]; then
     kernel_lock=$repo/build/target-image.sources.lock.toml
@@ -171,9 +173,10 @@ if [ "$native_mode" = package-only ]; then
     /bin/mkdir -p "$window_work/kernel-source"
     git --git-dir="$repo/build/cache/target-image/linux-kernel.git" archive "$(kernel_value commit)" |
       tar -x -C "$window_work/kernel-source"
+    /usr/bin/python3 "$repo/scripts/toolchain_cache.py" extract "$window_work/sdk"
     window_driver=$window_work/driver
     "$repo/scripts/build-fes-window.sh" "$window_work/kernel-source" "$window_work/build" "$window_driver" \
-      "${HOST_DIR:?HOST_DIR is required}/bin/arm-buildroot-linux-gnueabihf-" "$HOST_DIR" "$(kernel_value release)"
+      "$window_work/sdk/host/bin/arm-buildroot-linux-gnueabihf-" "$window_work/sdk/host" "$(kernel_value release)"
   fi
   /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
     --fogcast "$fogcast" --runtime-revision "$runtime_commit" --window-driver "$window_driver"

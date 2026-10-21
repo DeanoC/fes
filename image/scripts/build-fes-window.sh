@@ -5,8 +5,10 @@
 # kernel configuration and writes fes_window.ko and version to OUTPUT_DIR.
 # version is the digest of the driver sources and is also the module's
 # MODULE_VERSION, which the runtime compares before reusing a loaded copy.
-# HOST_DIR is an unrelocated Buildroot host: SDK relocation rewrites GCC's
-# plugin configargs.h, and cc1 then refuses the kernel's stack protector plugin.
+# HOST_DIR is the unrelocated Buildroot SDK host that CROSS_PREFIX comes from;
+# its include directory has the GMP headers the kernel's GCC plugins need. SDK
+# relocation rewrites GCC's plugin configargs.h, and cc1 then refuses the
+# kernel's stack protector plugin.
 set -eu
 [ "$#" -eq 6 ] || {
   printf '%s\n' 'usage: build-fes-window.sh KERNEL_SOURCE BUILD_DIR OUTPUT_DIR CROSS_PREFIX HOST_DIR RELEASE' >&2
