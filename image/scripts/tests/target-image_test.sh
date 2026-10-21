@@ -151,8 +151,8 @@ if FES_IMAGE_PASSES=1 FES_IMAGE_WORK=/target-image-output/work-2-native-dev \
   echo 'mismatched image work directory was accepted' >&2; exit 1
 fi
 grep -Fq 'FES_IMAGE_WORK must be /target-image-output/work-1-native-dev' "$fixture/mismatched-work.log"
-grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/build-target-kernel.sh"
-grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/qemu-smoke-target-image.sh"
+grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-1-native-dev}' "$repo/scripts/build-target-kernel.sh"
+grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-1-native-dev}' "$repo/scripts/qemu-smoke-target-image.sh"
 # A 192 MiB rootfs must boot through QEMU's power-of-two SD device without
 # resizing the release image or changing any filesystem byte.
 smoke_script=$repo/scripts/qemu-smoke-target-image.sh

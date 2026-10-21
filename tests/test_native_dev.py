@@ -90,6 +90,12 @@ class NativeDevTest(unittest.TestCase):
             build.write_receipt(output, 'image', hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest(),
                                 ['linux.img', 'reproducibility.txt'])
             self.assertEqual(native_dev.seed_digest(output, info), sha)
+            (output / 'reproducibility.txt').write_text(f'image_passes=1\nrun_1_sha256={sha}\n')
+            build.write_receipt(output, 'image', hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest(),
+                                ['linux.img', 'reproducibility.txt'])
+            self.assertEqual(native_dev.seed_digest(output, info), sha,
+                             'one-pass cold output should seed the incremental base too')
+
             changed = dict(info, sources={'FogCast': 'different'})
             self.assertIsNone(native_dev.seed_digest(output, changed))
             (output / 'inputs.json').write_text(json.dumps(changed))

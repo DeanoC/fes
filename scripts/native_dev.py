@@ -56,14 +56,19 @@ def seed_digest(output, info):
         sha = digest(output / 'linux.img')
         evidence = dict(line.split('=', 1) for line in
                         (output / 'reproducibility.txt').read_text().splitlines())
-        if evidence.get('run_1_sha256') == sha == evidence.get('run_2_sha256'):
+        passes = evidence.get('image_passes', '2')
+        if (evidence.get('run_1_sha256') == sha and
+                ((passes == '1' and 'run_2_sha256' not in evidence) or
+                 (passes == '2' and evidence.get('run_2_sha256') == sha))):
             return sha
     except (OSError, ValueError, KeyError, TypeError):
         pass
     return None
 
 
-def seed_base(container, base, cold_volume, dev_volume, sha):
+def seed_base(container, base, cold_volume, dev_volume, sha, selected_work):
+    if selected_work not in (WORK.format(passes=1), WORK.format(passes=2)):
+        raise ValueError("invalid development work directory")
     if subprocess.run([container, 'volume', 'inspect', dev_volume],
                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
         return  # Includes interrupted builds: normal Buildroot make resumes them.
@@ -75,23 +80,30 @@ def seed_base(container, base, cold_volume, dev_volume, sha):
     # Validate before copying; use a temporary directory so interrupted copies
     # cannot be mistaken for a usable Buildroot output on the next invocation.
     script = '''set -eu
-src=/seed/work-2-native-dev
+src=
+for candidate in /seed/work-1-native-dev /seed/work-2-native-dev; do
+    if test -f "$candidate/images/rootfs.ext4" &&
+       test "$(sha256sum "$candidate/images/rootfs.ext4" | cut -d ' ' -f 1)" = "$1"; then
+        src=$candidate
+        break
+    fi
+done
 chown "$2:$3" /dest
-if ! (test -f "$src/.config" && test -d "$src/host" &&
+if ! (test -n "$src" && test -f "$src/.config" && test -d "$src/host" &&
       test -d "$src/build" && test -d "$src/target" &&
       test "$(sha256sum "$src/images/rootfs.ext4" | cut -d ' ' -f 1)" = "$1"); then
     echo 'Development: clean volume is incomplete or changed; building a fresh base'
     exit 0
 fi
 cp -a "$src" /dest/seed-in-progress
-mv /dest/seed-in-progress /dest/work-2-native-dev
+mv /dest/seed-in-progress "/dest/$4"
 '''
     print('Development: seeding unchanged compiler/base from the clean build', flush=True)
     run([container, 'run', '--rm', '--network', 'none', '--platform', base['platform'],
          '--mount', f'type=volume,source={cold_volume},target=/seed,readonly',
          '--mount', f'type=volume,source={dev_volume},target=/dest',
          base['image'] + '@' + base['digest'], 'sh', '-c', script, 'fes-seed',
-         sha, os.getuid(), os.getgid()])
+         sha, os.getuid(), os.getgid(), Path(selected_work).name])
 
 
 def run_stage(diagnostics, name, args, **kwargs):
@@ -143,7 +155,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                   [container, 'pull', '--platform', base['platform'], ref])
     with diagnostics.measure('native base setup'):
         seed_base(container, base, output_volume(root, profile_name), volume,
-                  seed_digest(output.parent, info))
+                  seed_digest(output.parent, info), selected_work)
     run_stage(diagnostics, 'target subprocess', fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
     platform.build_kit_software(root, fogcast, env)
     run_stage(diagnostics, 'target subprocess', image_make + ['build-target-image-lock-container'], env=env)
