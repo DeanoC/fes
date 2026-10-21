@@ -30,10 +30,13 @@ make release RELEASE_VERSION=0.2.0-dev.1
 ```
 
 The release command prints an immutable directory containing `rootfs.img`,
-`release.json`, and external verification provenance. It requires the existing
-verified image receipt, structural checks and QEMU packaging result. Its FES
-revision identifies the actual cold build; later documentation or assembly-only
-commits do not force recompilation when selected sources and build recipe match.
+`release.json`, and external verification provenance. Its default location,
+`out/<profile>/appliance/releases/<rootfs-sha256>/<manifest-sha256>-<passes>pass/`,
+keeps one- and two-pass evidence for the same image and version apart. It
+requires the existing verified image receipt, structural checks and QEMU
+packaging result. Its FES revision identifies the actual cold build; later
+documentation or assembly-only commits do not force recompilation when selected
+sources and build recipe match.
 
 The kernel and validated FPGA bundles retain their existing locks and cached
 artifacts. OS builds use one pass by default. Request `IMAGE_PASSES=2` consistently

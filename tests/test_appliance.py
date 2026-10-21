@@ -150,6 +150,32 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(export.call_args.kwargs['image_passes'],1)
                 self.assertEqual(export.call_args.kwargs['version'],'dev.1')
 
+    def test_release_cli_default_directory_separates_pass_evidence(self):
+        import sys
+        import media
+        outputs={}
+        for passes in (1,2):
+            p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=passes)
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','release','--version','dev.1','--image-passes',str(passes)]))
+                stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
+                stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)))
+                export=stack.enter_context(mock.patch.object(appliance,'export_release'))
+                stack.enter_context(mock.patch('builtins.print'))
+                appliance.main()
+            outputs[passes]=(export.call_args.args[0],p)
+        (one,p1),(two,p2)=outputs[1],outputs[2]
+        self.assertEqual(one.parent,two.parent)
+        self.assertEqual(one.parent.name,appliance.digest(self.rootfs))
+        self.assertEqual((one.name[-6:],two.name[-6:]),('-1pass','-2pass'))
+        # Identical rootfs and manifest bytes publish both pass records side by side.
+        first=appliance.export_release(self.root/one.name,self.rootfs,self.kernel,version='dev.1',provenance=p1)
+        second=appliance.export_release(self.root/two.name,self.rootfs,self.kernel,version='dev.1',provenance=p2)
+        self.assertEqual(first.manifest.read_bytes(),second.manifest.read_bytes())
+        self.assertEqual(appliance.export_release(second.directory,self.rootfs,self.kernel,version='dev.1',provenance=p2),second)
+        with self.assertRaisesRegex(ValueError,'immutable release destination differs'):
+            appliance.export_release(first.directory,self.rootfs,self.kernel,version='dev.1',provenance=p2)
+
     def test_reject_mismatched_provenance_and_unknown_manifest(self):
         p = dataclasses.replace(provenance(self.rootfs,self.kernel),rootfs_sha256='0'*64)
         with self.assertRaisesRegex(ValueError,'rootfs'):

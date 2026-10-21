@@ -162,9 +162,11 @@ For an explicit reproducibility check, use `IMAGE_PASSES=2 make image` (with the
 same artifact selection), then `IMAGE_PASSES=2 make verify` and
 `IMAGE_PASSES=2 make release RELEASE_VERSION=<version>`. Both independent rootfs
 builds must match. Cached outputs and export requests must match the selected
-pass count. Image integrity, target compatibility and boot acceptance are the
-same for both modes. Bootstrap and card assembly retain their separate,
-inexpensive deterministic packaging comparisons; these do not rebuild the OS.
+pass count. A two-pass release of the same image and version gets its own
+default release directory beside the one-pass release. Image integrity, target
+compatibility and boot acceptance are the same for both modes. Bootstrap and
+card assembly retain their separate, inexpensive deterministic packaging
+comparisons; these do not rebuild the OS.
 
 The update manifest keeps its existing field set; build-pass evidence lives in
 `evidence.json`, bound to the verified image receipts. Source revisions identify

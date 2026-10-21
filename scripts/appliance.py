@@ -438,7 +438,8 @@ def main():
                     raise ValueError('release pass count differs from verified image')
                 version=args.version
                 manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes)
-                output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/hashlib.sha256(canonical(manifest)).hexdigest()
+                # Identical rootfs and manifest bytes can carry one- or two-pass evidence.
+                output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/(hashlib.sha256(canonical(manifest)).hexdigest()+f'-{p.image_passes}pass')
                 result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes)
             else:
                 factory=load_manifest(args.release/'release.json')
