@@ -66,6 +66,23 @@ Platform provisioning, platform Go tests and image shell tests run only when
 does not provision an OS test container just because it selects parent regressions.
 Unknown inputs still select all lanes and cores.
 
+## Go dead-code analysis
+
+CI's consistency job always runs `make check`. Its dead-code step passes the
+changed-path list to `scripts/check_deadcode.py`: known non-Go parent scripts,
+tests, image/container/profile recipes and non-Go runtime/FPGA inputs skip the
+expensive Go analysis. Any change in a Go module (including non-Go build or
+embedded inputs), Go source/dependency files elsewhere, checker/workflow inputs,
+shared configuration or unknown roots keeps the full host and ARM analysis.
+Documentation follows the outer planner's documentation-only policy.
+Mixed changes and renames retain all relevant inputs. Scheduled/manual full
+runs pass the full-run marker and always analyze every module.
+
+`make deadcode` remains an unconditional full check. To inspect CI selection
+without installing tools, use `python3 scripts/check_deadcode.py --plan-only
+--paths-json '["scripts/appliance.py"]'`. Invalid path payloads fail; an omitted
+path list runs full analysis. A skip is reported explicitly in the CI step log.
+
 ## Affected host Go packages
 
 For a change set containing only Go source/test files in FogCast, its appliance
