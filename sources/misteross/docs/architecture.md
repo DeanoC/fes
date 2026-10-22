@@ -3439,8 +3439,7 @@ physical-chip equivalence.
 The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
 records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
-misses the requested clock, after preserving the reports. The CPU contract
-records the selected 56 MHz route and the limits of its 16-times clock ratio.
+misses the requested clock, after preserving the reports.
 SG-1000, ZX81 and the Spectrum models select the NMOS variant. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
