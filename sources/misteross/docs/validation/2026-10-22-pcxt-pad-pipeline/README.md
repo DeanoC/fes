@@ -1148,3 +1148,40 @@ with archive SHA-256
 Root independently extracts all 234 members, verifies all 261 dependency
 members and reproduces the complete proofs. All physical, same-recipe seed,
 production and exact-artifact hardware gates remain open.
+
+
+## Combined second CPU pass and display permutations
+
+A fresh pair using the same frozen `02ffa3aa` compiler and binary
+`ff2174157ae425d4b8c106bb22120be740230ac02b28e8a198010124f3b433e3`
+now measures both changes together. The CPU-two-round control reproduces the
+previous two-round RBF, timing and endpoint reports byte for byte. The candidate
+adds the sixteen-trial ordinary-LUT pass and retains both the CGA D/E and MDA
+A/C permutations. One CGA setup margin improves 135 ps and four MDA margins
+improve 62 ps; all other 17,189 setup margins and all 17,194 hold margins are
+unchanged. Eight setup failures remain: two CPU, three CGA, two MDA and one PIC.
+CPU worst setup stays -25 ps and whole-system worst stays -434 ps. There are
+zero hold failures and minimum checked hold is +822 ps.
+
+The complete 17,199 endpoint identities, windows, flags, metadata and native
+clock guards pass. Complete graph proof covers 12,397 cells, 15,546 aliases,
+all 32 CGA and eight MDA truth rows, and only four changed canonical input
+trees (54479, 54480, 57715, 57717). The frozen native reader verifies ten selected
+nets and all 65 original wire/PIP/strength tuples for eighteen stationary users.
+Independent root executions reproduce both native readbacks byte for byte;
+independent review reproduces the complete graph and timing proof outputs.
+
+Completed route charges are 839.973974572029 and 904.7418550127186 seconds.
+The journal contains 44 subsequent receipts and cumulative charge
+**45003.56689689168647 seconds**. Artifacts are under
+`out/cpu2-permutation16-20261022/`. These improvements are now measured in one
+recipe; closure remains open with 105 unsupported boundaries and `complete=false`.
+Physical, same-recipe seed, production-seal and exact-artifact hardware gates
+remain open. No RTL, constraints, clocks, lock or shared contracts changed.
+
+Separately, compiler `f5c6b90df4b8a36a6a8f631998d52ef160c2044b` adds an
+explicit bounded private-pair local-routing node budget. Default 500,000 nodes
+and all acceptance guards are unchanged; the optional maximum is 2,000,000.
+The 81 native and nine CLI checks pass, and default/zero preparation controls
+reproduce the parent exactly. Fresh default/2,000,000 route trials are running;
+host validation is not a claim that the rewrite improves final routed timing.
