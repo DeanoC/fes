@@ -921,3 +921,34 @@ The corresponding CGA input fanout has six such unused arithmetic outputs and
 66 FF captures. This corrects an earlier structural audit that silently stopped
 at empty branches. No coverage rule has changed and no private-pair or CGA
 permutation timing gain is established.
+
+
+## Preserved frontier evidence and ordinary-LUT host validation
+
+The [private-pair/frontier capture](https://github.com/DeanoC/nextpnr/tree/df90eb41/docs/validation/2026-10-22-pcxt-private-pair-frontiers)
+retains 308 members with archive SHA-256
+`4c82c3d307ad1148abc7dfffdd1d1c0efac58dcb93b419cfac3f9fb02cafba91`.
+Its explicit hash-bound dependency is the CPU capture above. Independent root
+extraction verifies both complete inventories and reproduces the complete
+no-trial comparison and both frontier proofs byte for byte. The older incomplete
+structural audit and original native probe compile failure remain preserved.
+
+Compiler `a17e0ce3` adds a separate default-off ordinary ALUT2–5 input-permutation
+trial with fixed BELs, exact Boolean and native allocation checks, stationary
+route retention, complete source/capture coverage and full setup/hold guards.
+All 45 new native tests, 39 retained source/LUT6 tests and two six-case CLI suites
+pass; default/zero complete preparation controls match. The initial eight test
+oracle failures are preserved and corrected separately; production binary
+`7107f9fd57ee7a096c7f1153a989c105ea4ccaa9525998eac1fdc2cd1a56195b`
+remained unchanged. Root verifies all 93 host evidence files and 26 exact
+committed source blobs. The [immutable host capture](https://github.com/DeanoC/nextpnr/tree/550ba271/docs/validation/2026-10-22-pcxt-lut-permutation-host)
+has 105 members with archive SHA-256
+`3a9da14c90439588794b1c301df1357a28c15718ea8c729723fb7130e6c8d130`.
+Independent root extraction verifies its explicit CPU/frontier dependencies
+and reproduces both offline proofs. These are host checks with zero new route charge.
+
+The intended CGA target remains excluded by the current unused-output guard,
+so no board route is admitted from this host result. A separate narrowly scoped
+opt-in for proven unused arithmetic leaves is under validation. The retained
+board result remains ten setup failures, worst -434 ps, with all physical,
+seed and hardware gates open. No RTL, clocks, contracts or locks change here.
