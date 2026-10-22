@@ -20,13 +20,19 @@ func (c *sessionDisplayControl) SetSessionDisplay(_ context.Context, id string, 
 }
 
 type displayFocus struct {
-	focused bool
-	calls   int
+	focused  bool
+	calls    int
+	launcher []bool
 }
 
-func (f *displayFocus) BeginSessionDisplay(context.Context) (func(bool), error) {
+// BeginSessionDisplay models the input fence: only a launcher request takes
+// focus while the transition runs.
+func (f *displayFocus) BeginSessionDisplay(_ context.Context, launcher bool) (func(bool), error) {
 	f.calls++
-	f.focused = true
+	f.launcher = append(f.launcher, launcher)
+	if launcher {
+		f.focused = true
+	}
 	return func(focused bool) { f.focused = focused }, nil
 }
 
@@ -73,6 +79,26 @@ func TestRuntimeDisplayUsesCapturedGenerationAndRetainsFocusOnUnconfirmedClose(t
 		t.Fatal("mismatched focus reply restored machine input")
 	}
 	reportedFocus = ""
+	if got := focus.launcher; len(got) != 3 || got[0] || !got[1] || got[2] {
+		t.Fatalf("fence requests = %v", got)
+	}
+	if err := r.SetSessionDisplay(context.Background(), protocol.SessionDisplayShown, b); err != nil || focus.focused {
+		t.Fatalf("shown again: %v focus=%v", err, focus.focused)
+	}
+	// A refusal from this session reports where input stayed: a failed
+	// neutral post leaves a shown surround with the machine.
+	control.display = func(string, uint64, protocol.SessionDisplay) (misterruntime.Protocol2Response, error) {
+		calls++
+		result := response
+		menu := *response.MenuDisplay
+		menu.Available, menu.Focus = true, protocol.SessionFocusMachine
+		result.MenuDisplay = &menu
+		result.OK, result.Error = false, &misterruntime.Protocol2Error{Code: "io_failed", Message: "neutral keyboard post failed", Phase: "input"}
+		return result, nil
+	}
+	if err := r.SetSessionDisplay(context.Background(), protocol.SessionDisplayFocused, b); err == nil || focus.focused {
+		t.Fatal("refused focus left machine input fenced")
+	}
 	control.display = func(string, uint64, protocol.SessionDisplay) (misterruntime.Protocol2Response, error) {
 		calls++
 		return misterruntime.Protocol2Response{}, errors.New("lost reply")
@@ -81,7 +107,7 @@ func TestRuntimeDisplayUsesCapturedGenerationAndRetainsFocusOnUnconfirmedClose(t
 		t.Fatal("lost close restored input")
 	}
 	b.Generation++
-	if err := r.SetSessionDisplay(context.Background(), protocol.SessionDisplayFocused, b); err == nil || calls != 4 || focus.calls != 4 {
+	if err := r.SetSessionDisplay(context.Background(), protocol.SessionDisplayFocused, b); err == nil || calls != 6 || focus.calls != 6 {
 		t.Fatal("stale open crossed input or physical admission")
 	}
 	if control.loadCalls != 0 {

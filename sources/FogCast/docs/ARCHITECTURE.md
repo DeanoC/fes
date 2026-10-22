@@ -3240,8 +3240,11 @@ fields every time: `visible` composites the plane over the machine picture and
 `focus` says whether the launcher or the machine receives input. A shown plane
 with `focus: "machine"` keeps machine input, as a surround around the picture
 needs; a closed plane requires machine focus. Moving focus on a shown plane
-keeps its display generation, and the agent's input fence ends focused only
-when the runtime confirms launcher focus. The paired listener admits only
+keeps its display generation. The agent's input fence holds delivery during
+each transition, but only a launcher-focus request retires held keys and
+neutralizes the mouse. The fence ends focused when the runtime confirms
+launcher focus. After a refusal it follows the focus that the session's reply
+reports, and after an unconfirmed failure it stays focused. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
 These do not change the library's next-start media selection.

@@ -36,7 +36,7 @@ type protocol2SessionDisplayControl interface {
 // SessionDisplayFocus fences input delivery until the physical result is known.
 // Its completion retains focus when a failed operation cannot prove a close.
 type SessionDisplayFocus interface {
-	BeginSessionDisplay(context.Context) (func(bool), error)
+	BeginSessionDisplay(context.Context, bool) (func(bool), error)
 }
 
 func (r *Runtime) ConfigureSessionDisplayFocus(focus SessionDisplayFocus) {
@@ -50,6 +50,19 @@ func sessionDisplayResponseMatches(response Protocol2Response, b protocol.Develo
 	p := response.ActivePackage
 	activation := activationFromProtocol2(p.PackageID, p.Descriptor, response)
 	return b.MatchesSessionDisplay(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: corePackageStatus(activation)})
+}
+
+// sessionDisplayFocusReported is the input focus a reply reports for the
+// bound session's plane. Any other reply proves nothing about focus.
+func sessionDisplayFocusReported(response Protocol2Response, b protocol.DevelopmentMediaBinding) (protocol.SessionFocus, bool) {
+	m := response.MenuDisplay
+	if response.State != "running_development" || response.ActivePackage == nil || response.ActivePackage.PackageID != b.PackageID ||
+		response.Generation == nil || *response.Generation != b.Generation || m == nil || !m.Session ||
+		m.CoreGeneration != b.Generation || m.PackageID == nil || *m.PackageID != b.PackageID ||
+		m.Focus != protocol.SessionFocusMachine && m.Focus != protocol.SessionFocusLauncher {
+		return "", false
+	}
+	return m.Focus, true
 }
 
 func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) *protocol.APIError {
@@ -71,7 +84,7 @@ func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.Sessio
 	// post may need computerMu. The runtime itself posts the neutral matrix.
 	focused := true
 	if r.displayFocus != nil {
-		finish, err := r.displayFocus.BeginSessionDisplay(ctx)
+		finish, err := r.displayFocus.BeginSessionDisplay(ctx, display.Focus == protocol.SessionFocusLauncher)
 		if err != nil {
 			return &protocol.APIError{Code: protocol.CodeBusy, Message: "launcher input focus is unavailable", Phase: "input", Cause: err}
 		}
@@ -85,6 +98,11 @@ func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.Sessio
 		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "launcher display change is unconfirmed; retry close or inspect the session", Phase: "display"}
 	}
 	if !response.OK || response.Error != nil {
+		// A refusal from this session still reports where the runtime left
+		// input, for example machine focus kept after a failed neutral post.
+		if focus, ok := sessionDisplayFocusReported(response, b); ok {
+			focused = focus == protocol.SessionFocusLauncher
+		}
 		return mapProtocol2Error(response.Error)
 	}
 	if !sessionDisplayResponseMatches(response, b) || response.MenuDisplay == nil ||
