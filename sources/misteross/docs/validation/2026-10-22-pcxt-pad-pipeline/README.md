@@ -1029,3 +1029,66 @@ This completed route costs 608.085521012079 seconds. The shared CPU16 control
 is charged once. The journal now has 38 subsequent receipts and cumulative
 charge **40240.35303711146057 seconds**. The CGA 135 ps improvement remains the
 best retained local result; this rejected private-pair trial adds no gain.
+
+
+## Second CPU LUT6 repair pass
+
+Compiler `5d566b0d0b93cbcb3773e4a2bd6094bbccd80353` adds an explicit
+`--critical-lut6-swap-rounds 2` option. Default one-pass behavior is unchanged.
+Both rounds share the existing sixteen-trial cap, and a new round requires a
+retained improvement in the previous one. Candidate discovery is refreshed
+from the current native timing state; every existing transaction, coverage,
+setup and hold guard remains in force. The focused six source-coverage,
+33 native LUT6 and nine CLI checks pass. Default/explicit-one preparation
+controls reproduce the prior raw placed bytes and predicted reports.
+
+Fresh seed1 routes at the original clocks compare default one round with two
+rounds using frozen binary
+`e1f208fc6aa72910b639f503c0b5fec5140c15e613c715f3e5476ab7c4d706b7`.
+The one-round control reproduces the previous CPU16 result. The second round
+retains the operand1 lane10 B/F transposition after rejecting three other
+trials. The complete graph proof checks all 12,397 cells and 15,546 aliases;
+only canonical input trees 43272/43277 change.
+
+| Final routed metric | One round | Two rounds |
+| --- | ---: | ---: |
+| All setup failures | 10 | 8 |
+| CPU setup failures | 4 | 2 |
+| CPU worst setup | -72 ps | -25 ps |
+| BP register bit13 setup | -72 ps | +174 ps |
+| CX register bit14 setup | -35 ps | +211 ps |
+| Whole-system worst setup | -434 ps | -434 ps |
+| Hold failures | 0 | 0 |
+| Minimum checked hold | +822 ps | +822 ps |
+
+Exactly sixteen setup margins improve, with a maximum gain of 246 ps. All
+17,178 other checked setup margins and all 17,194 checked hold margins are
+unchanged. Complete endpoint identities, windows, flags, metadata and emitted
+native clock guards pass. Two CPU endpoints remain at -25 ps. The six other
+failures are three CGA, two MDA and one PIC endpoint. The -434 ps worst path
+is in CGA. This recipe does not include the separate retained CGA permutation;
+combining those gains requires a new full route.
+
+The completed route charges are 714.176197880879 and 690.2115861573257 seconds.
+The journal now contains forty subsequent receipts and cumulative charge
+**41644.74082114966527 seconds**. Complete local artifacts and comparisons are
+under `out/lut6-rounds-20261022/`. Native route-tree readback covers all seven selected input/output nets; six
+stationary users preserve thirty original wire/PIP/strength tuples. Independent
+root native executions reproduce both readback outputs byte for byte. Independent
+review reproduces all six final proof files, including all 64 truth-table rows,
+and confirms the complete graph/timing comparison. The native reader uses one
+frozen source/object snapshot with an explicit structural compatibility receipt;
+it performs no routing, bitstream configuration or reload timing.
+There remain 105 unsupported boundaries and `complete=false`; physical,
+same-recipe seed, production-seal and hardware qualification gates stay open.
+No FES RTL, constraints, clocks, toolchain lock or module/shared contract changed.
+
+The earlier CGA gain and rejected MDA private-pair route are now preserved in
+an [immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/1da6a49f/docs/validation/2026-10-22-pcxt-routed-lut-permutation).
+Its archive SHA-256 is
+`f5528953a89346e18cd10c1bc30afcf9e7d0b3f7da63d3628b04e8a7f5d6c855`.
+Independent root extraction verifies all 261 members, all 667 explicit
+dependency members and exact complete proof reproduction. The initial
+extraction into the full shared `/tmp` filesystem stopped before replay;
+that infrastructure failure is retained separately from the passing replay
+on the task disk. Archive verification adds zero route charge.
