@@ -186,9 +186,11 @@ producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
 
-The 2026-10-22 host seals of all four packages, with their package
-identities, clock results and resources, are in
-[the seal record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
+The host seals of all four packages with tape 2.0, with their package
+identities, clock results and resources, and their kit A check are in
+[the tape record](../../../../docs/validation/2026-10-22-spectrum-tape-ddr.md);
+the models' Fuse timing comparisons are in
+[the models record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
 
 Firmware lanes 0-15 are column 5 rows 32-47, 16-23 rows 48-55, 24-31 rows
 73-80 and 32-63 column 14 rows 32-63. Each is a blank 1024x10 M10K with a
@@ -198,9 +200,9 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-The +3 disk drive, TR-DOS, tape write-back, turbo loading (#999), snapshot
-loading through the mailbox, ULAplus, Timex video modes and the IR-register
-snow effect. The previous TV80 shell is recorded in
+The +3 disk drive, TR-DOS, tape write-back, accelerated tape loading
+(#999), snapshot loading through the mailbox, ULAplus, Timex video modes and
+the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
 records and the 2026-10-03 native-CPU diagnostics do not accept these models.
