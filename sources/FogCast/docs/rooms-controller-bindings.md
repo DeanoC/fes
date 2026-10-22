@@ -41,7 +41,8 @@ suppress Back or the system menu.
 
 SDL gamepads use a **positional** face-button layout (Xbox-style). FogCast
 maps those positions after SDL normalization (`CommandFromButton`,
-`commandFromSDLButton`). `-input-profile identity|swap-ab|/path.json` remaps
+`commandFromSDLButton`). Kit evdev pads get the same positions from their SDL
+GameControllerDB entry (`ui/controller`). `-input-profile identity|swap-ab|/path.json` remaps
 buttons after that step; GUIDE / `CmdSettings` is not remapped.
 
 | Logical action | Tenfoot command | Room `on_input` name | Tap / click route exists? |
