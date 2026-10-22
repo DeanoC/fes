@@ -30,7 +30,7 @@ func (i *image) u16(v ...int) {
 	}
 }
 func (i *image) u24(v int)    { i.u8(v, v>>8, v>>16) }
-func (i *image) u32(v int)    { i.b = binary.LittleEndian.AppendUint32(i.b, uint32(v)) }
+func (i *image) u32(v uint32) { i.b = binary.LittleEndian.AppendUint32(i.b, v) }
 func (i *image) raw(b []byte) { i.b = append(i.b, b...) }
 func (i *image) str(s string) { i.u8(len(s)); i.raw([]byte(s)) }
 
@@ -75,9 +75,9 @@ func (i *image) generalised(pauseMS int, pilot []sym, npp int, prle [][2]int,
 	data []sym, npd, totd int, stream []byte) {
 	var b image
 	b.u16(pauseMS)
-	b.u32(len(prle))
+	b.u32(uint32(len(prle)))
 	b.u8(npp, len(pilot)%256)
-	b.u32(totd)
+	b.u32(uint32(totd))
 	b.u8(npd, len(data)%256)
 	if len(prle) > 0 {
 		for _, s := range pilot {
@@ -97,7 +97,7 @@ func (i *image) generalised(pauseMS int, pilot []sym, npp int, prle [][2]int,
 	}
 	b.raw(stream)
 	i.u8(0x19)
-	i.u32(len(b.b))
+	i.u32(uint32(len(b.b)))
 	i.raw(b.b)
 }
 
@@ -105,7 +105,7 @@ func (i *image) pause(ms int) { i.u8(0x20); i.u16(ms) }
 
 func bytesOf(n int, seed int) []byte {
 	b := make([]byte, n)
-	x := uint32(seed*2654435761 + 1)
+	x := uint32(seed)*2654435761 + 1
 	for j := range b {
 		x ^= x << 13
 		x ^= x >> 17
@@ -175,7 +175,7 @@ func newPZX() *pzxImage {
 }
 func (p *pzxImage) block(tag string, body []byte) {
 	p.raw([]byte(tag))
-	p.u32(len(body))
+	p.u32(uint32(len(body)))
 	p.raw(body)
 }
 
@@ -339,7 +339,7 @@ func fixtures() (oracle, extensions map[string][]byte) {
 	csw.u32(0)
 	csw.raw(cswPulseData())
 	t.u8(0x18)
-	t.u32(len(csw.b))
+	t.u32(uint32(len(csw.b)))
 	t.raw(csw.b)
 	var z bytes.Buffer
 	w := zlib.NewWriter(&z)
@@ -352,7 +352,7 @@ func fixtures() (oracle, extensions map[string][]byte) {
 	csw.u32(5)
 	csw.raw(z.Bytes())
 	t.u8(0x18)
-	t.u32(len(csw.b))
+	t.u32(uint32(len(csw.b)))
 	t.raw(csw.b)
 	t.tone(600, 2)
 	extensions["csw.tzx"] = t.b
