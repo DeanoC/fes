@@ -134,7 +134,7 @@ def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> se
             mapping = json.loads(bytes.fromhex(buffer['attributes']['FES_PINMAP_V1']))
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f'boundary route-through pin map is malformed: {buffer_name}') from exc
-        expected = {'count': 2, 'pins': {'A': [0, 'C' if half == 0 else 'D'],
+        expected = {'count': 2, 'pins': {'A': [0, 'F0' if half == 0 else 'F1'],
                                          'Q': [0, 'COMBOUT']}}
         if mapping != expected or type(mapping['count']) is not int or \
                 any(type(pin[0]) is not int for pin in mapping['pins'].values()):

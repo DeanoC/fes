@@ -28,7 +28,7 @@ def clock_coverage_route_fixture():
 
 
 def route_through_fixture(name="anchor", *, ff_bel="MISTRAL_FF.24.4.56",
-                          buffer_bel="MISTRAL_COMB.24.4.54", pin="C"):
+                          buffer_bel="MISTRAL_COMB.24.4.54", pin="F0"):
     return {"cells": {
         name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": ff_bel},
                "connections": {"CLK": [2107], "DATAIN": [10002], "Q": [10003]}},
@@ -52,9 +52,9 @@ def route_through_fixture(name="anchor", *, ff_bel="MISTRAL_FF.24.4.56",
 class BoundaryRouteThroughTest(unittest.TestCase):
     def test_matching_comb_halves_and_mlab_buffers(self):
         for ff_bel, buffer_bel, pin in (
-                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", "C"),
-                ("MISTRAL_FF.24.4.58", "MISTRAL_COMB.24.4.55", "D"),
-                ("MISTRAL_FF.28.23.56", "MISTRAL_MCOMB.28.23.54", "C")):
+                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", "F0"),
+                ("MISTRAL_FF.24.4.58", "MISTRAL_COMB.24.4.55", "F1"),
+                ("MISTRAL_FF.28.23.56", "MISTRAL_MCOMB.28.23.54", "F0")):
             with self.subTest(ff_bel=ff_bel):
                 top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel, pin=pin)
                 self.assertEqual(coleco_expansion.boundary_route_through_cells(
@@ -103,11 +103,12 @@ class BoundaryRouteThroughTest(unittest.TestCase):
 
     def test_route_through_rejects_changed_pin_map(self):
         for mapping in (
+                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}},
                 {"count": 2, "pins": {"A": [0, "D"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [False, "C"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "Q"]}},
-                {"count": 3, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}},
-                {"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}, "extra": 1}):
+                {"count": 2, "pins": {"A": [False, "F0"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "F0"], "Q": [0, "Q"]}},
+                {"count": 3, "pins": {"A": [0, "F0"], "Q": [0, "COMBOUT"]}},
+                {"count": 2, "pins": {"A": [0, "F0"], "Q": [0, "COMBOUT"]}, "extra": 1}):
             with self.subTest(mapping=mapping):
                 top = route_through_fixture()
                 top["cells"]["anchor$ROUTETHRU"]["attributes"]["FES_PINMAP_V1"] = \
