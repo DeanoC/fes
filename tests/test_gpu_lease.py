@@ -217,7 +217,8 @@ class GpuLeaseTests(unittest.TestCase):
                 'print(os.environ["FES_GPU_IDS"]);'
                 'print(os.environ["GPU_RUN_DEVICE"]);'
                 'print(os.environ["GPU_RUN_EXPECTED_DEVICE"]);'
-                'print(os.environ["NEXTPNR_REQUIRE_GPU"])')
+                'print(os.environ["NEXTPNR_REQUIRE_GPU"]);'
+                'print(os.environ.get("CUDA_DEVICE_ORDER", "unset"))')
         nvidia = self.env(GPU_LEASE_IDS='', GPU_LEASE_VENDOR='')
         nvidia.pop('GPU_LEASE_IDS')
         nvidia.pop('GPU_LEASE_VENDOR')
@@ -226,7 +227,7 @@ class GpuLeaseTests(unittest.TestCase):
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--', sys.executable, '-c', code], env=nvidia)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(completed.stdout.splitlines(), [
-            '0', 'unset', 'unset', '0', '0', '/dev/nvidia0', '1',
+            '0', 'unset', 'unset', '0', '0', '/dev/nvidia0', '1', 'PCI_BUS_ID',
         ])
 
         (binary / 'nvidia-smi').write_text('#!/bin/sh\nexit 1\n')
@@ -237,7 +238,7 @@ class GpuLeaseTests(unittest.TestCase):
         lines = completed.stdout.splitlines()
         self.assertEqual(lines[:5], ['unset', 'unset', '0,1', '0,1', '0'])
         self.assertTrue(lines[5].startswith('/dev/dri/renderD') or lines[5] == 'amd:0')
-        self.assertEqual(lines[6], '1')
+        self.assertEqual(lines[6:], ['1', 'unset'])
 
     def test_detected_apple_gpu_exports_physical_id_without_a_mask(self):
         binary = self.root / 'bin'
@@ -318,10 +319,12 @@ class GpuLeaseTests(unittest.TestCase):
                 'HIP_VISIBLE_DEVICES': '77',
                 'ROCR_VISIBLE_DEVICES': '88',
                 'CUDA_VISIBLE_DEVICES': '99',
+                'CUDA_DEVICE_ORDER': 'FASTEST_FIRST',
         }, clear=False):
             hip = gpu_lease.child_env('amd', ['1'], '/dev/dri/renderD129')
             self.assertNotIn('HIP_VISIBLE_DEVICES', hip)
             self.assertNotIn('CUDA_VISIBLE_DEVICES', hip)
+            self.assertNotIn('CUDA_DEVICE_ORDER', hip)
             self.assertEqual(hip['ROCR_VISIBLE_DEVICES'], '1')
             self.assertEqual(hip['FES_GPU_IDS'], '1')
             self.assertEqual(hip['GPU_RUN_DEVICE'], '0')
@@ -332,6 +335,7 @@ class GpuLeaseTests(unittest.TestCase):
             self.assertNotIn('HIP_VISIBLE_DEVICES', cuda)
             self.assertNotIn('ROCR_VISIBLE_DEVICES', cuda)
             self.assertEqual(cuda['CUDA_VISIBLE_DEVICES'], '1')
+            self.assertEqual(cuda['CUDA_DEVICE_ORDER'], 'PCI_BUS_ID')
             self.assertEqual(cuda['FES_GPU_IDS'], '1')
             self.assertEqual(cuda['GPU_RUN_DEVICE'], '0')
             self.assertEqual(cuda['GPU_RUN_EXPECTED_DEVICE'], '/dev/nvidia1')
