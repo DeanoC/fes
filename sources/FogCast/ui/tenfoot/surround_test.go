@@ -184,14 +184,37 @@ func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
 	}
 }
 
-// Host windows have no session plane: a room during play stays opaque.
-func TestHostRoomDuringPlayIsNeverAnOverlay(t *testing.T) {
+// Only a running session's kit plane with confirmed launcher focus is an
+// overlay; host windows, a shown or closed plane and an uncertain one are not.
+func TestRoomOverlayNeedsTheFocusedKitPlaneOfARunningMachine(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 20)
 	t.Cleanup(app.Stop)
+	display, err := gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	app.session.State, app.roomDuringPlay, app.sessionDisplay = "active", true, protocol.SessionDisplayFocused
-	if app.roomOverlayLocked() {
-		t.Fatal("host window drew the room translucently")
+	set := func() {
+		app.menuDisplay, app.session.State = display, "active"
+		app.sessionDisplay, app.sessionDisplayUncertain = protocol.SessionDisplayFocused, false
+	}
+	set()
+	if !app.roomOverlayLocked() {
+		t.Fatal("focused kit plane over a running machine is not an overlay")
+	}
+	for name, change := range map[string]func(){
+		"host window":   func() { app.menuDisplay = nil },
+		"no session":    func() { app.session.State = "idle" },
+		"surround":      func() { app.sessionDisplay = protocol.SessionDisplayShown },
+		"closed plane":  func() { app.sessionDisplay = protocol.SessionDisplayClosed },
+		"unknown plane": func() { app.sessionDisplayUncertain = true },
+	} {
+		set()
+		change()
+		if app.roomOverlayLocked() {
+			t.Fatalf("%s drew the room translucently", name)
+		}
 	}
 }

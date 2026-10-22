@@ -27,6 +27,10 @@ local function appearance()
   overlay = room.overlay and true or false
   C = overlay and DARK or LIGHT
 end
+-- A presented frame may be reused only in the appearance it was painted in.
+local function same_appearance()
+  return (room.overlay and true or false) == overlay
+end
 local data, machine, art
 local chosen, inspected = "", ""
 local focus = "socket"
@@ -610,7 +614,7 @@ local function boot_step()
     else
       boot = 2
     end
-    if room.presented and gfx.reuse() then return end
+    if room.presented and same_appearance() and gfx.reuse() then return end
     paint_opening()
     return
   end
@@ -625,6 +629,11 @@ local function boot_step()
   end
   if not scene_same() then
     boot = 2
+    if not same_appearance() then
+      -- Never keep the upper half over a machine it was not painted for.
+      paint_opening()
+      return
+    end
     if room.presented and gfx.reuse() then return end
     return
   end

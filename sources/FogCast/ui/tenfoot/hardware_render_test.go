@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"io/fs"
 	"os"
@@ -195,7 +196,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					t.Fatal(err)
 				}
 				presentFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{}, false)
-				assertRoomPlanePixels(t, dev.Snapshot(), scene == "overlay")
+				assertRoomPlanePixels(t, dev.Snapshot(), snap.Room, scene == "overlay")
 				if output := strings.TrimSpace(os.Getenv("FES_ROOM_SCREENSHOT_DIR")); output != "" {
 					if err := os.MkdirAll(output, 0o755); err != nil {
 						t.Fatal(err)
@@ -280,9 +281,10 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 
 // assertRoomPlanePixels checks what the kit plane receives. Every pixel must
 // be premultiplied (r,g,b <= a), or the FPGA blend adds light to the machine.
-// An opaque room covers the machine everywhere. An overlay leaves most of
-// the frame translucent, with its controls drawn as solid surfaces.
-func assertRoomPlanePixels(t *testing.T, img *image.RGBA, overlay bool) {
+// An opaque room covers the machine everywhere. An overlay stores the scrim
+// premultiplied, leaves the machine card area clear of surfaces, and draws
+// its controls as solid surfaces.
+func assertRoomPlanePixels(t *testing.T, img *image.RGBA, room RoomSnapshot, overlay bool) {
 	t.Helper()
 	var opaque, translucent int
 	for i := 0; i < len(img.Pix); i += 4 {
@@ -305,5 +307,23 @@ func assertRoomPlanePixels(t *testing.T, img *image.RGBA, overlay bool) {
 	}
 	if translucent < total/2 || opaque < total/20 {
 		t.Fatalf("overlay coverage: %d translucent, %d opaque of %d", translucent, opaque, total)
+	}
+	// The workshop's 1120x630 layout, scaled into the room content box.
+	scale := min(float64(room.Width)/1120, float64(room.Height)/630)
+	at := func(x, y float64) color.RGBA {
+		px := float64(room.OffsetX) + (float64(room.Width)-1120*scale)/2 + x*scale
+		py := float64(room.OffsetY) + (float64(room.Height)-630*scale)/2 + y*scale
+		return img.RGBAAt(int(px), int(py))
+	}
+	scrim := color.RGBA{15, 19, 18, 200} // #141918 at alpha 200, premultiplied
+	if got := img.RGBAAt(2, 2); got != scrim {
+		t.Fatalf("margin pixel %+v, want premultiplied scrim %+v", got, scrim)
+	}
+	if got := at(100, 300); got != scrim {
+		t.Fatalf("machine card area %+v, want the scrim over the machine", got)
+	}
+	// A shelf card's fill sits directly on the scrim.
+	if got := at(240, 538); got.A != 255 {
+		t.Fatalf("shelf card surface %+v is not solid", got)
 	}
 }

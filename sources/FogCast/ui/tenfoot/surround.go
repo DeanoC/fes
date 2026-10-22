@@ -26,12 +26,13 @@ func (a *App) surroundShownLocked() bool {
 		a.stopPhase != "stopping" && !a.retryStopLock
 }
 
-// roomOverlayLocked is true while the open room is drawn over the running
-// machine on the kit's session plane with launcher focus, so a room that
-// reads room.overlay can clear translucently. Host windows and an uncertain
-// plane draw rooms opaque.
+// roomOverlayLocked is true while rooms are drawn over the running machine
+// on the kit's session plane: the plane holds launcher focus only while the
+// hardware room is open in play, and it is confirmed before the room loads,
+// so load and on_resume see the flag too. Host windows and an uncertain plane
+// draw rooms opaque.
 func (a *App) roomOverlayLocked() bool {
-	return a.menuDisplay != nil && a.roomDuringPlay && a.session.State == "active" &&
+	return a.menuDisplay != nil && a.session.State == "active" &&
 		a.sessionDisplay == protocol.SessionDisplayFocused && !a.sessionDisplayUncertain
 }
 

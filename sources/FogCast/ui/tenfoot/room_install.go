@@ -38,7 +38,6 @@ func (a *App) openInstalledRoomLocked(pack rooms.Pack, root bool) bool {
 		candidate.StageState()
 		candidate.SetSessionState(a.session.State)
 		candidate.SetLiveControls(a.liveControlsOfferedLocked())
-		candidate.SetOverlay(a.roomOverlayLocked())
 		err = candidate.Load()
 		if err == nil {
 			candidate.Step(time.Now())
