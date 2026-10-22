@@ -92,20 +92,21 @@ module spectrum_ula #(
     reg [16:0] t = 17'd0;
     reg [8:0] hx = 9'(HX0);
     reg [8:0] vy = 9'(VY0);
-    reg [3:0] flash_count = 4'd0;
-    wire flash = flash_count[3];
+    // FLASH swaps ink and paper every 16 frames.
+    reg [4:0] flash_count = 5'd0;
+    wire flash = flash_count[4];
     always @(posedge clk) begin
         if (reset) begin
             t <= 17'd0;
             hx <= 9'(HX0);
             vy <= 9'(VY0);
-            flash_count <= 4'd0;
+            flash_count <= 5'd0;
         end else if (tick_p) begin
             if (t == 17'(FRAME - 1)) begin
                 t <= 17'd0;
                 hx <= 9'(HX0);
                 vy <= 9'(VY0);
-                flash_count <= flash_count + 4'd1;
+                flash_count <= flash_count + 5'd1;
             end else begin
                 t <= t + 17'd1;
                 if (hx == 9'(T_LINE - 1)) begin

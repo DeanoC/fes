@@ -114,6 +114,26 @@ int main(int argc, char** argv) {
     require(pixel(32, 24) == 0 && pixel(39, 24) == 0, "first paper byte is not black ink");
     require(pixel(32, 25) == 7, "paper below the ink byte is not white (bitmap " + hex(bank(5, 0x100)) +
                                     ", attribute " + hex(bank(5, 0x1800)) + ")");
+    // FLASH swaps ink and paper every 16 frames, as the ULA and Fuse do. The
+    // last paper cell of the shown screen becomes a solid byte with FLASH,
+    // blue paper and yellow ink; its chunk is row 215, chunk 35.
+    const bool shadow = spectrum_ram_bank(root, 7) != nullptr && (root.MACHINE(port_7ffd) & 0x08);
+    uint8_t* screen = spectrum_ram_bank(root, shadow ? 7 : 5);
+    screen[0x17ff] = 0xff;
+    screen[0x1aff] = 0x80 | (1 << 3) | 6;
+    std::vector<int> swaps;
+    unsigned last_ink = 0;
+    for (int seen = 0; seen < 36;) {
+        clock();
+        if (!dut.frame_done) continue;
+        const unsigned ink = (frame[215 * 40 + 35] >> 4) & 15;
+        require(ink == 1 || ink == 6, "FLASH cell shows ink " + std::to_string(ink));
+        if (seen > 0 && ink != last_ink) swaps.push_back(seen);
+        last_ink = ink;
+        ++seen;
+    }
+    require(swaps.size() >= 2 && swaps[1] - swaps[0] == 16,
+            "FLASH did not swap every 16 frames (" + std::to_string(swaps.size()) + " swaps)");
     std::cout << "fes.spectrum " SPECTRUM_MODEL_NAME " machine: ok (marker T " << marker_t << ")\n";
     return 0;
 }

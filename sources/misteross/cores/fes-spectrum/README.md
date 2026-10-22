@@ -124,7 +124,8 @@ The machine simulation runs the open diagnostic firmware
 read-back, the keyboard matrix, Kempston port, probe id and scratch register,
 the 2168 T pilot, a red border and a black ink pixel. It also checks the
 frame T state at which a contended timing loop finishes, against the value
-Fuse 1.6.0 gives for the same firmware on each model. The video simulation
+Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
+attribute swaps ink and paper every 16 frames. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
 `top.v` through the mailbox: identity capability bits 5, 12 and 13, tape
