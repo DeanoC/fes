@@ -686,11 +686,74 @@ subsequent receipts and campaign accounting to **32287.22857020562447 seconds**.
 Earlier route/move captures are preserved and are not charged a second time.
 No kit ran. The 100 MHz system/CPU and 74.25 MHz pixel requirements, original
 seed gate, production lock, seal and shared contracts remain unchanged.
-A bounded private two-LUT MDA rewrite is still under native validation and
-has no routed result yet.
+The later private two-LUT MDA experiment and its rejected full-route result
+are recorded below.
 
 The [committed compiler capture](https://github.com/DeanoC/nextpnr/tree/27ff77c0/docs/validation/2026-10-22-pcxt-post-route-checkpoint)
 retains all original and repaired artifacts, complete comparisons and native
 tree checks. Independent archive readback verifies every one of 395 members;
 fresh extraction and the offline comparison replay pass. The capture SHA-256
 is `abc3a736d38b920ee7c6753c89aa614d3b06f6d2ef3009cfb72ef687beea4581`.
+
+
+## Private MDA decomposition: reject the routed candidate
+
+Compiler `40097b8d` adds an explicitly selected, bounded private ALUT3-to-ALUT5
+partition experiment. Its seven distinct essential inputs are composed over all
+128 assignments; cells, output nets, BELs and all eight input-use slots remain.
+The independent complete graph proof covers 10,448 cells, 13,597 named aliases
+and 19 top ports, with five actual mutation negatives. Four pure and 44 native
+tests plus seven CLI checks pass, including physical mask readback in both ALM
+halves and LAB/MLAB tiles. The initial disconnected memory-enable test fixture
+failure and its test-only correction are retained separately.
+
+Default and listing preparations are byte-identical. The one selected MDA
+partition improves four emitted predicted setup rows by 851 ps and two hold
+rows by 168/363 ps, with no emitted-row regression. These are placement
+estimates, not routed evidence. The final native guard remains unchanged.
+
+A matched pair of fresh full routes uses the same frozen compiler, original
+synthesis/constraints, seed 1, hard-block windows, corrected spreading,
+overflow-17 balancing and post-route budget 32. The enabled case adds only
+private-pair candidate 0 and its immutable prepared timing report.
+
+| Full route | Setup failures | System WNS | CPU failures / WNS | Result |
+| --- | ---: | ---: | --- | --- |
+| Disabled control | 13 | -434 ps | 7 / -173 ps | Reproduces prior RBF and native report bytes |
+| Private MDA candidate 0 | 82 | -829 ps | 69 / -829 ps | Reject |
+
+All 17,199 endpoint/domain identities, windows and flags and every native
+metadata category match. All thirteen old negative rows remain negative;
+sixty-nine new failures appear. MDA-derived Q5/Q7 worsen from -327/-328 ps to
+-655/-656 ps: their dominant source shifts to a sibling VRAM branch with a
+3.112 ns first route. Microcode address stays +124 ps; return drops from
++1257 to +1165 ps and pixel from +2005 to +1201 ps. No hold failure appears,
+but 6,824 previously positive setup rows and 5,809 positive hold rows regress.
+The complete comparison retains all 6,835 setup regressions and every margin;
+unchanged per-cohort hold minima do not hide those regressions.
+The disabled control is the retained recipe; the MDA option is not adopted.
+
+Both final graphs account for all original cells plus 1,949 individually
+proved private routing helpers. Every raw physical difference is retained,
+including an enabled-run-only serialized `gpurouter/localInputEscape` false
+setting inserted by the native router's default read; this is not a changed
+user constraint. Complete graph mutation checks reject nine corruptions.
+No checkpoint reload substitutes for either route.
+
+The completed charges are 920.9708376382478 and 947.4481055433862 seconds.
+The journal now contains 30 subsequent receipts and a total campaign charge of
+**34155.64751338725847 seconds**. Coverage remains incomplete at 105 unsupported
+boundaries. There is no timing closure, seed qualification, production seal or
+hardware acceptance, and no tracked RTL, clock, lock or shared contract changes.
+The next bounded compiler experiment swaps symmetric LUT6 inputs after routing,
+so its acceptance can use the actual failing paths while preserving unrelated
+routes; it has no routed result at this point.
+
+The [committed compiler capture](https://github.com/DeanoC/nextpnr/tree/4b787dc2/docs/validation/2026-10-22-pcxt-private-pair)
+contains all 121 hash-verified members. The archive SHA-256 is
+`18c8074b7fedba429cabec99d2a337a64b827506a12a0f7d2b06d1d43ae7b237`.
+Independent fresh replays reproduce graph and repair-ledger bytes. The report
+comparison exposed only Python-set dictionary-key rendering order; the retained
+initial failure and strict supplement enumerate every permutation while checking
+all values, types, keys and array order. Six checks, including three explicit hash
+seeds, pass on both independent extractions with equal result receipts.
