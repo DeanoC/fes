@@ -314,3 +314,40 @@ simply increasing trial counts. No hardware ran. RTL, clocks, locks, recipes,
 seals and shared contracts are unchanged. Draft #979 and timing issue #840 stay
 open; complete routed coverage, the seed gate, a fresh producer and exact-artifact
 hardware acceptance remain required.
+
+## Exact clock regressions for rejected moves
+
+Compiler [180bacd2](https://github.com/DeanoC/nextpnr/commit/180bacd2)
+adds per-trial native setup/hold margin diagnostics without changing candidate
+generation, routing, acceptance or rollback. The same-input comparison repeats
+eight trials. Four fail local routing; every routable move regresses only
+CPU/system setup: trials 1, 3, 5 and 7 lose 0.907, 0.807, 0.908 and 0.819 ns
+respectively. Other clock setup margins and all hold margins remain unchanged.
+No clock coverage changes or margin improvements occur. This identifies a CPU
+data-path setup regression rather than a hold/other-clock tradeoff.
+
+The new baseline matches all four previous artifact files byte for byte,
+including routed JSON. The candidate reproduces its baseline exactly after
+rollback. Independent checks verify 12,605 cells, 15,736 nets and all 17,199
+endpoint rows; the margin parser validates all 32 native diagnostic rows.
+The two focused native guard and physical rollback tests pass. Final timing
+and unsupported coverage remain unchanged and incomplete.
+
+[Immutable compiler evidence](https://github.com/DeanoC/nextpnr/tree/100521cb/docs/validation/2026-10-22-pcxt-move-margins)
+contains commands, inputs, source identity, build/test logs, receipts and
+comparisons. The 33-member capture passes SHA256 readback; archive SHA256 is
+`8a2738d0e086be6cfdf99d02a1b91120444b313c8643ff932d063e2a58902a3a`.
+This comparison charges 457.853168 seconds, leaving **14005.573293 seconds**
+(about 3 h 53 min) of the renewed allowance.
+
+Connectivity inspection finds shared incident inputs with up to 31 sinks
+(14 on the address LUT). Whole-net rerouting can alter stationary consumers;
+these clock totals do not prove which branch causes the regression. The next
+bounded repair should preserve stationary sink branches and reconnect moved
+sink branches before expanding to coordinated LUT moves. Keep full native
+acceptance and exact rollback checks; do not increase whole-net trial counts.
+
+Evidence is CPU-reference host diagnostic only. No hardware ran and no RTL,
+clocks, locks, recipes, seals or shared contracts changed. Compiler #266 and FES
+#979 remain draft; timing #840 stays open with the existing coverage, multi-seed,
+producer and exact-artifact hardware gates.
