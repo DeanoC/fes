@@ -119,7 +119,10 @@ package, like any other shell change.
 ## Focus and visibility
 
 The runtime's `session_display` operation sets the plane's visibility and
-launcher input focus separately. Every request names both:
+launcher input focus separately. Each runtime request names both. Requests
+between FogCast's host and kit omit `focus` when it is the one visibility
+implies, so a host and kit software that ship separately still agree on
+everything except the surround:
 
 | `visible` | `focus` | Shows | Input |
 | --- | --- | --- | --- |

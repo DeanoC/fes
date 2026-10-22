@@ -65,6 +65,10 @@ func TestCapturedDisplayOpUsesOriginalTargetAndLosslessGeneration(t *testing.T) 
 			t.Error("display request did not carry an explicit visible boolean")
 			return
 		}
+		// Only a surround names focus, so an older host still decodes the rest.
+		if (request.Focus != "") != (*request.Visible && request.Focus == protocol.SessionFocusMachine) {
+			t.Errorf("display request focus %q for visible %v", request.Focus, *request.Visible)
+		}
 		sent = append(sent, request)
 		json.NewEncoder(w).Encode(displaySessionJSON(prior))
 	}))

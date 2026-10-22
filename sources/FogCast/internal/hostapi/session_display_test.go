@@ -215,8 +215,9 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 10, Target: "kit-a", TargetID: launcherID}, `{"visible":true,"focus":"launcher"}`, 409},
 		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-b", TargetID: launcherID}, `{"visible":true,"focus":"launcher"}`, 403},
 		{observed.ID, b, `{"visible":null}`, 400}, {observed.ID, b, `{"visible":true,"focus":"launcher"} {}`, 400},
-		{observed.ID, b, `{"visible":true}`, 400}, {observed.ID, b, `{"visible":false,"focus":"launcher"}`, 400},
-		{observed.ID, b, `{"visible":true,"focus":"menu"}`, 400}, {observed.ID, b, `{"visible":true,"focus":"machine"}`, 200},
+		{observed.ID, b, `{"visible":false,"focus":"launcher"}`, 400},
+		{observed.ID, b, `{"visible":true,"focus":"menu"}`, 400}, {observed.ID, b, `{"visible":true}`, 200},
+		{observed.ID, b, `{"visible":true,"focus":"machine"}`, 200},
 	} {
 		r := launcherRequest(http.MethodPost, "http://192.0.2.1:8789/api/v1/session/display", strings.NewReader(tc.body))
 		r.Header.Set("Content-Type", "application/json")
@@ -228,7 +229,7 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 			t.Fatalf("session=%s status=%d want=%d body=%s", tc.session, out.Code, tc.want, out.Body)
 		}
 	}
-	if s.calls != 4 || s.display != protocol.SessionDisplayShown {
+	if s.calls != 5 || s.display != protocol.SessionDisplayShown {
 		t.Fatalf("foreign or malformed request dispatched: %d %+v", s.calls, s.display)
 	}
 }
