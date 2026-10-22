@@ -502,10 +502,12 @@ def required_clocks(core_id: str) -> tuple[tuple[str | None, float], ...]:
 
 
 def core_for_producer(producer_script: str) -> str | None:
-    for entry in _registry()[0]["recipes"]:
-        if entry["producer_script"] == producer_script:
-            return entry["core_id"]
-    return None
+    """Return the one core a producer builds; a shared producer must name it."""
+    cores = [entry["core_id"] for entry in _registry()[0]["recipes"]
+             if entry["producer_script"] == producer_script]
+    if len(cores) > 1:
+        raise ValueError(f"{producer_script} builds several cores; its record must name core_id")
+    return cores[0] if cores else None
 
 
 def lock_path(root: str | Path, core_id: str) -> Path:
