@@ -4,11 +4,9 @@
 //
 // The ULA writes 8 pixels of 4-bit colour per clock into one of three frame
 // banks (320x240, 40 words per line). HDMI shows the newest complete bank
-// from its next frame start, so 50 Hz frames repeat whole and never tear. A
-// finished bank is published; once the HDMI choice has had time to cross
-// back, the writer takes the bank that is neither the newest nor the shown
-// one. The 960x720 picture is centred at x=160; the side bars are black for
-// the display plane's surround.
+// from its next frame start, so 50 Hz frames repeat whole and never tear.
+// The 960x720 picture is centred at x=160; the side bars are black for the
+// display plane's surround.
 module spectrum_video (
     input  wire        clk_sys,
     input  wire        pixel_we,
@@ -48,28 +46,29 @@ module spectrum_video (
     endfunction
 
     // ------------------------------------------------------- writer (system)
+    // A frame's first word picks its bank: neither the newest complete bank
+    // nor the one HDMI shows. The ULA's 72 blank lines between the last word
+    // of one frame and the first of the next let any HDMI frame start that
+    // took the previous newest bank cross back long before that choice.
     reg [1:0] write_bank = 2'd0;
     reg [1:0] ready_bank = 2'd1;
     reg ready_toggle = 1'b0;
-    reg [4:0] settle = 5'd0;
     reg [1:0] shown_bank = 2'd2;
     (* async_reg = "true" *) reg [1:0] shown_meta = 2'd2;
     (* async_reg = "true" *) reg [1:0] shown_sync = 2'd2;
+    wire frame_start = pixel_row == 8'd0 && pixel_chunk == 6'd0;
+    wire [1:0] target_bank = frame_start ? other_bank(ready_bank, shown_sync) : write_bank;
+    wire [14:0] write_address = word_address(target_bank, pixel_row, pixel_chunk);
     always @(posedge clk_sys) begin
         shown_meta <= shown_bank;
         shown_sync <= shown_meta;
-        if (pixel_we)
-            frames[word_address(write_bank, pixel_row, pixel_chunk)] <= pixel_data;
+        if (pixel_we) begin
+            frames[write_address] <= pixel_data;
+            write_bank <= target_bank;
+        end
         if (frame_done) begin
-            ready_bank <= write_bank;
+            ready_bank <= target_bank;
             ready_toggle <= ~ready_toggle;
-            settle <= 5'd1;
-        end else if (settle != 5'd0) begin
-            // An HDMI frame start that saw the old newest bank is visible
-            // here well within 31 clocks; then take the remaining bank.
-            settle <= settle + 5'd1;
-            if (settle == 5'd31)
-                write_bank <= other_bank(ready_bank, shown_sync);
         end
     end
 

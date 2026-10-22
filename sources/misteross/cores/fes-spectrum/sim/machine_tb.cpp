@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Host simulation of the Spectrum machine: diagnostic firmware, Kempston,
-// keyboard matrix, probe card, tape pilot edges and the centred HDMI picture.
+// Host simulation of one Spectrum model with the open diagnostic firmware:
+// paging, AY read-back, keyboard matrix, Kempston, probe card, tape pilot,
+// the captured frame and the T state of a contended timing marker.
 #include "Vspectrum_sim_top.h"
+#include "Vspectrum_sim_top___024root.h"
 #include "verilated.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <string>
+#include <vector>
+
+#define MACHINE(member) spectrum_sim_top__DOT__machine__DOT__##member
 
 namespace {
 
+#ifndef SPECTRUM_MODEL_NAME
+#define SPECTRUM_MODEL_NAME "48K"
+#endif
+
 [[noreturn]] void fail(const std::string& message) {
-    std::cerr << "fes.spectrum machine: " << message << '\n';
+    std::cerr << "fes.spectrum " SPECTRUM_MODEL_NAME ": " << message << '\n';
     std::exit(EXIT_FAILURE);
 }
 
@@ -19,92 +29,89 @@ void require(bool condition, const std::string& message) {
     if (!condition) fail(message);
 }
 
-struct Machine {
-    Vspectrum_sim_top dut;
-    explicit Machine() {
-        dut.clk_sys = 0;
-        dut.pixel_clk = 0;
-        dut.reset = 1;
-        dut.matrix = 0xffffffffffULL & ~(1ULL << 5);  // A held
-        dut.kempston = 0x11;                          // right + fire
-        dut.unit_state = 3;
-        dut.unit_size = 3;
-        dut.eval();
-    }
-    void sys() {
-        dut.clk_sys = 1;
-        dut.eval();
-        dut.clk_sys = 0;
-        dut.eval();
-    }
-    void pixel() {
-        dut.pixel_clk = 1;
-        dut.eval();
-        dut.pixel_clk = 0;
-        dut.eval();
-    }
-};
+std::string hex(unsigned value) {
+    static const char digits[] = "0123456789abcdef";
+    std::string out = "$";
+    for (int shift = 12; shift >= 0; shift -= 4)
+        if (value >> shift || shift < 8) out += digits[(value >> shift) & 15];
+    return out;
+}
 
 }  // namespace
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
-    Machine machine;
-    for (int i = 0; i < 32; ++i) machine.sys();
-    machine.dut.reset = 0;
+    Vspectrum_sim_top dut;
+    auto& root = *dut.rootp;
+    auto& ram = root.MACHINE(ram__DOT__mem);
+    const bool paged = ram.size() > 3 * 16384;
+    // RAM bank -> local block (48K keeps banks 5, 2, 0 as 0, 1, 2).
+    auto bank = [&](unsigned number, unsigned offset) -> unsigned {
+        unsigned local = number;
+        if (!paged) local = number == 5 ? 0 : number == 2 ? 1 : 2;
+        return ram[local * 16384 + offset];
+    };
+    dut.clk_sys = 0;
+    dut.reset = 1;
+    dut.matrix = 0xffffffffffULL & ~(1ULL << 5);  // A held
+    dut.kempston = 0x11;                          // right + fire
+    dut.unit_state = 3;
+    dut.unit_size = 3;
+    dut.eval();
+    std::vector<uint32_t> frame(240 * 40);
+    auto clock = [&]() {
+        dut.clk_sys = 1; dut.eval();
+        dut.clk_sys = 0; dut.eval();
+        if (dut.pixel_we) frame[dut.pixel_row * 40 + dut.pixel_chunk] = dut.pixel_data;
+    };
+    for (int i = 0; i < 32; ++i) clock();
+    dut.reset = 0;
 
-    int edges = 0;
-    int matched = 0;
+    int frames = 0, matched = 0, last_ear = 0;
     uint32_t since = 0;
     bool seen_edge = false;
-    bool cpu_ok = false;
-    for (int i = 0; i < 2000000 && (!cpu_ok || matched < 3); ++i) {
-        machine.sys();
-        if (machine.dut.cpu_cycle) {
-            if (seen_edge) since++;
-        }
-        const int level = machine.dut.ear;
-        static int last = 0;
-        if (level != last) {
-            if (seen_edge && since == 2168) matched++;
-            else if (seen_edge) matched = 0;
+    long marker_t = -1;
+    unsigned marker_frame = 0;
+    while (frames < 4 || matched < 3) {
+        clock();
+        if (dut.tick && seen_edge) ++since;
+        if (dut.ear != last_ear) {
+            matched = seen_edge && since == 2168 ? matched + 1 : seen_edge ? 0 : matched;
             seen_edge = true;
             since = 0;
-            edges++;
-            last = level;
+            last_ear = dut.ear;
         }
-        if (machine.dut.sig8000 == 0xa5 && machine.dut.sig8001 == 0xbe &&
-            machine.dut.sig8002 == 0x11 && machine.dut.sig8003 == 0xf5 &&
-            machine.dut.sig8004 == 0x5a && machine.dut.border == 2)
-            cpu_ok = true;
+        if (marker_t < 0 && bank(2, 6) == 0xc3) {
+            marker_t = root.MACHINE(ula__DOT__t);
+            marker_frame = frames;
+        }
+        if (dut.frame_done) ++frames;
+        if (dut.cpu_illegal) fail("CPU entered an illegal state");
+        if (frames > 400) fail("diagnostic did not finish (pilot edges " + std::to_string(matched) + ")");
     }
-    require(cpu_ok, "diagnostic signature was not reached");
-    require(matched >= 3, "tape pilot edges were not 2168 T-states apart (edges " +
-                              std::to_string(edges) + ")");
-
-    bool border_ok = false;
-    bool ink_ok = false;
-    int border_seen = 0;
-    int ink_seen = 0;
-    // Two CTA-770 frames. The first origin sample can precede the attribute
-    // prefetch; the border synchronizer settles during the first line.
-    for (int i = 0; i < 1650 * 750 * 2 + 2000; ++i) {
-        machine.pixel();
-        if (!machine.dut.de) continue;
-        if (machine.dut.pixel_x == 0 && machine.dut.pixel_y == 0 && ++border_seen == 2) {
-            require(machine.dut.red == 0xcd && machine.dut.green == 0 && machine.dut.blue == 0,
-                    "border pixel is not red (" + std::to_string(machine.dut.red) + "," +
-                        std::to_string(machine.dut.green) + "," + std::to_string(machine.dut.blue) + ")");
-            border_ok = true;
-        }
-        if (machine.dut.pixel_x == 128 && machine.dut.pixel_y == 72 && ++ink_seen == 2) {
-            require(machine.dut.red == 0 && machine.dut.green == 0 && machine.dut.blue == 0,
-                    "origin pixel is not black ink (" + std::to_string(machine.dut.red) + "," +
-                        std::to_string(machine.dut.green) + "," + std::to_string(machine.dut.blue) + ")");
-            ink_ok = true;
-        }
+    require(bank(2, 0) == 0xa5, "diagnostic marker missing at $8000");
+    if (paged) {
+        require(bank(7, 0) == 0x77, "bank 7 did not receive $77 through $7FFD");
+        require(bank(0, 0) == 0x66, "bank 0 did not return to $C000");
+        require(bank(2, 5) == 0x0f, "AY register 8 read back " + hex(bank(2, 5)));
+    } else {
+        require(bank(0, 0) == 0x66, "48K $C000 is not bank 0");
     }
-    require(border_ok && ink_ok, "HDMI raster did not pass the border and origin samples");
-    std::cout << "fes.spectrum machine: ok\n";
+    require((bank(2, 1) & 0xbf) == 0xbe, "keyboard A row read " + hex(bank(2, 1)));
+    require(bank(2, 2) == 0x11, "Kempston read " + hex(bank(2, 2)));
+    require(bank(2, 3) == 0xf5, "probe socket 1 id " + hex(bank(2, 3)));
+    require(bank(2, 4) == 0x5a, "probe scratch " + hex(bank(2, 4)));
+    require(matched >= 3, "tape pilot edges were not 2168 T-states apart");
+    // The contended marker is a regression check on ULA timing, recorded from
+    // the Fuse-matched simulation of this firmware.
+    require(marker_t == SPECTRUM_MARKER_T,
+            "timing marker at T " + std::to_string(marker_t) + " (frame " + std::to_string(marker_frame) +
+            "), expected " + std::to_string(SPECTRUM_MARKER_T));
+    auto pixel = [&](int x, int y) { return (frame[y * 40 + x / 8] >> (28 - 4 * (x % 8))) & 15; };
+    require(pixel(0, 0) == 2, "border pixel is not red");
+    require(pixel(32, 24) == 0 && pixel(39, 24) == 0, "first paper byte is not black ink");
+    require(pixel(32, 25) == 7, "paper below the ink byte is not white (bitmap " + hex(bank(5, 0x100)) +
+                                    ", attribute " + hex(bank(5, 0x1800)) + ")");
+    std::cout << "fes.spectrum " SPECTRUM_MODEL_NAME " machine: ok (marker T " << marker_t << ")\n";
     return 0;
 }

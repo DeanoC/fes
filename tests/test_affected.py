@@ -190,7 +190,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st', 'pcxt'},
             'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st', 'pcxt'},
             'scripts/test_fes_z80_pin_trace.py': {'z80'},
-            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
+            'scripts/sim_fes_spectrum.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):

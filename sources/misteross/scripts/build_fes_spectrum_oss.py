@@ -25,7 +25,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import spectrum_slots, rom_map, coleco_expansion
+from scripts import spectrum_slots, rom_map, coleco_expansion, fes_de10nano_evidence, build_fes_menu
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -451,7 +451,6 @@ def validate_firmware_ports(cells: dict, lanes: int) -> None:
 
 def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
     """The plane reads launcher frames through one read-only fpga2sdram port."""
-    from scripts import fes_de10nano_evidence, build_fes_menu
     normalized = build_fes_menu.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized["modules"][TOP].get("cells", {})

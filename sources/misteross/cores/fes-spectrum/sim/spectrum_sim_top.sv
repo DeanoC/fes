@@ -2,6 +2,7 @@
 // Machine simulation: Z80, ULA, memory, tape and probe cards in sockets 1 and
 // 3. The build model is the SPECTRUM_MODEL_* define, as in the producer.
 `include "spectrum_bus.vh"
+`include "spectrum_model.vh"
 
 module spectrum_sim_top (
     input  wire        clk_sys,
@@ -27,7 +28,14 @@ module spectrum_sim_top (
     wire [`SP_BUS_REQ-1:0] bus_request;
     wire [`SP_BUS_RSP-1:0] response1, response2, response3, response4;
 
-    spectrum_machine machine (
+`ifdef SPECTRUM_ROM_64K
+    localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-64k.hex";
+`elsif SPECTRUM_ROM_32K
+    localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-32k.hex";
+`else
+    localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware.hex";
+`endif
+    spectrum_machine #(.ROM_FILE(ROM_FILE)) machine (
         .clk_sys(clk_sys), .reset(reset), .matrix(matrix), .kempston(kempston),
         .unit_state(unit_state), .unit_size(unit_size),
         .media_write_addr(16'h0000), .media_write_data(16'h0000), .media_write_enable(2'b00),
