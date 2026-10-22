@@ -188,3 +188,17 @@ func TestBTNModeBoundToAnotherControlIsNotGuide(t *testing.T) {
 		t.Fatalf("a pad without BTN_MODE grew a Guide: %d", l.guide)
 	}
 }
+
+// PowerA's 0x200f entry binds guide and start both to b7, where its siblings
+// put guide on b8. With xpad's keys b7 is BTN_START and b8 is BTN_MODE: Start
+// stays Start, and the free BTN_MODE is Guide.
+func TestGuideBindingOnAForwardedButtonLeavesItToTheCore(t *testing.T) {
+	m := NewMapper(Device{Bus: 3, Vendor: 0x20d6, Product: 0x200f, Version: 0x0101,
+		Keys: bits(96, 304, 305, 307, 308, 310, 311, 314, 315, 316, 317, 318)})
+	if m.Mapping() != "PowerA Xbox Series Controller" || m.Guide(315) || !m.Guide(316) {
+		t.Fatalf("mapping %q guide(315)=%v guide(316)=%v", m.Mapping(), m.Guide(315), m.Guide(316))
+	}
+	if got := mapButton(t, m, 315); got != remoteinput.ButtonStart {
+		t.Fatalf("BTN_START = %v, want Start", got)
+	}
+}

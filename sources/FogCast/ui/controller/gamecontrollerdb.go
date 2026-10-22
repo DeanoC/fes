@@ -154,8 +154,10 @@ func sdlLayout(e sdlEntry, keys, abs []byte) layout {
 		}
 	}
 	// A generic HID pad reports Guide in the BTN_TRIGGER range, and on some
-	// pads BTN_MODE is another control. The launcher asks the layout.
-	if n, ok := sdlIndex(e.bindings["guide"], "b"); ok && n < len(buttons) {
+	// pads BTN_MODE is another control. The launcher asks the layout. A guide
+	// binding on a button the kit forwards leaves that button to the core:
+	// PowerA's 0x200f entry binds guide and start both to b7.
+	if n, ok := sdlIndex(e.bindings["guide"], "b"); ok && n < len(buttons) && l.buttons[buttons[n]] == "" {
 		l.guide = buttons[n]
 	} else if hasBit(keys, btnMode) && !sdlBindsCode(e, buttons, btnMode) {
 		l.guide = btnMode

@@ -1003,3 +1003,30 @@ func TestMappedGuideFollowsTheDB(t *testing.T) {
 		}
 	})
 }
+
+// PowerA's 0x200f entry binds guide and start both to its BTN_START. Start
+// reaches a kit-local core and does not stop it.
+func TestStartSharingAGuideBindingReachesLocalCore(t *testing.T) {
+	keys := make([]byte, 96)
+	for _, code := range []int{304, 305, 307, 308, 310, 311, 314, 315, 316, 317, 318} {
+		keys[code/8] |= 1 << uint(code%8)
+	}
+	a, fake := runningLocalApp(t)
+	feed := &localPadRecorder{}
+	a.mu.Lock()
+	a.localFeed = feed
+	a.mu.Unlock()
+	inputs, poll := pollNative(t, nativeTestEvent(1, 315, 1), nativeTestEvent(1, 315, 0))
+	inputs.devices[0].mapper = controller.NewMapper(controller.Device{Bus: 3, Vendor: 0x20d6, Product: 0x200f, Version: 0x0101, Keys: keys})
+	poll(a)
+	if len(feed.events) != 2 || feed.events[0].Code != remoteinput.ButtonStart || feed.events[0].Action != remoteinput.ActionPress ||
+		feed.events[1].Code != remoteinput.ButtonStart || feed.events[1].Action != remoteinput.ActionRelease {
+		t.Fatalf("local events: %#v", feed.events)
+	}
+	a.mu.Lock()
+	phase := a.localPhase
+	a.mu.Unlock()
+	if phase != localPhaseRunning || fake.stopCount() != 0 {
+		t.Fatalf("Start stopped the core: phase %q", phase)
+	}
+}
