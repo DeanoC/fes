@@ -25,10 +25,11 @@ before replacing `LoadIdle()`, the locked idle RBF, or kit HDMI chrome.
   [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md)
 - Launch composition (slots, not idle):
   [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md)
-- Later mesh (draft, does not reopen this lock): kit-as-Shell stays the
-  same host binary:
-  [`docs/mesh-lan.md`](mesh-lan.md),
-  [`docs/mesh-node-protocol.md`](mesh-node-protocol.md)
+- Kit-as-host is the product since 22 October 2026 (#863), with the same
+  host binary: [`docs/mesh-kit-host.md`](mesh-kit-host.md). The older mesh
+  drafts [`docs/mesh-lan.md`](mesh-lan.md) and
+  [`docs/mesh-node-protocol.md`](mesh-node-protocol.md) are historical for
+  the kit side.
 - Native image: no Main process; splash installed as `idle.rbf`:
   [`docs/bootable-media.md`](bootable-media.md),
   [`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)
@@ -182,9 +183,10 @@ The base software supervisor `S40fes-kit-software` starts `fogcast-tenfoot`
 as the only on-kit UI; the `fogcast-kit` grid catalog was removed (#728). Do
 not add an offline cache UI or a second library on the kit.
 
-Kit-as-host is optional. It does not replace the sofa host for the usual
-living-room setup. It exists so a kit alone still runs **the same** host
-and renderer rather than a distinct product.
+Kit-as-host is the product (Deano, 18 October 2026; #863). Every kit runs
+**the same** host and renderer on the kit itself; a sofa or PC is a library
+source and a remote client, not the kit's owner. See
+[`docs/mesh-kit-host.md`](mesh-kit-host.md).
 
 Physical transitions stay in libmister-runtime. Network/session
 coordination stays in the FogCast agent. Image assembly stays in FES
@@ -236,10 +238,10 @@ v1 means through phase 4 unless a later PR reopens the table.
 Prefer the strawman. Change the sentence in this document rather than
 forking a parallel design.
 
-**Single thing / kit-as-host.** Default: sofa/PC host remains the usual
-living-room topology; a kit without that host may run the same FogCast
-host and tenfoot as a deployment mode. Not a trimmed kit-only catalog.
-Deano can rewrite this paragraph if the kit should never host.
+**Single thing / kit-as-host.** Rewritten 22 October 2026: the kit always
+runs its own FogCast host and tenfoot, and sofa/PC hosts are library sources
+and remote clients (#863, [`docs/mesh-kit-host.md`](mesh-kit-host.md)). Not a
+trimmed kit-only catalog: it is the same host.
 
 No other product question is left open by this lock. Attract ABI opcodes,
 splash RBF source tree, and the exact phase-2 Stop bitstream are
@@ -260,6 +262,7 @@ implementation follow-ups inside the classes above.
 | [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md) | Rooms UI; Stop restores room on the sofa |
 | [`sources/libmister-runtime/ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | `LoadIdle()` MENU + HPS fb sequence |
 | [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not implemented accelerator |
-| [`docs/mesh-lan.md`](mesh-lan.md) | Later mesh draft; kit-as-Shell stays this lock's same host binary |
+| [`docs/mesh-kit-host.md`](mesh-kit-host.md) | Kit-as-host decision record; the kit runs this lock's same host binary |
+| [`docs/mesh-lan.md`](mesh-lan.md) | Earlier mesh draft; its kit-side placement and pairing are historical |
 
 FES parent merges stay Deano’s.
