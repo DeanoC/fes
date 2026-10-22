@@ -328,9 +328,12 @@ struct MenuDisplayStatus {
  MenuRect picture;
  bool launcher_focus=false;
  std::uint32_t displayed_sequence=0,underflows=0;
- // The grant also covers the blitter's command lists and texture heap, and
- // only the blitter draws its slots. Reported in the grant, not in status.
+ // The grant also covers the blitter's command lists and texture heap.
+ // Reported in the grant, not in status.
  bool blitter=false;
+ // A list frame has run on this blitter grant. The grant takes CPU frames
+ // until then and only lists after. Not reported.
+ bool blitted=false;
  Error error;
 };
 constexpr std::size_t kMenuWrittenMaxRects=16;

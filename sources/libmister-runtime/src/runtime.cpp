@@ -254,9 +254,9 @@ public:
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
-   // Only the blitter draws a blitter grant's slots.
-   if(frame.draw_.blit!=status_.menu_display.blitter)
-    return Invalid(frame.draw_.blit?"menu grant has no blitter":"menu blitter grant needs a command list");
+   // A list needs the blitter's grant, which takes only lists once one has run.
+   if(frame.draw_.blit?!status_.menu_display.blitter:status_.menu_display.blitted)
+    return Invalid(frame.draw_.blit?"menu grant has no blitter":"menu grant takes only lists after its first list");
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
@@ -286,6 +286,7 @@ public:
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
    status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
+   if(frame.draw_.blit)status_.menu_display.blitted=true;
   }
   condition_.notify_all();return {};
  }

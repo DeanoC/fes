@@ -64,9 +64,10 @@ A menu package with `fes.video.menu-blitter` gets a larger grant, and its
 "blitter":{"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
 ```
 
-Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0. The client writes
-command lists and BGRA textures there; only the blitter draws that grant's
-slots, and it writes X as 0, which idle MENU ignores. Any socket peer may take
+Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0 to use the blitter.
+The client writes command lists and BGRA textures there, and the blitter
+writes X as 0, which idle MENU ignores. A client that draws only CPU frames
+can ignore `blitter` and map the slots as on any grant. Any socket peer may take
 the grant, as any peer may present, launch or Stop. The mapping covers both
 slots, so the slot rules below are the client's contract: the runtime checks a
 slot only when a commit names it, and refuses the displayed one.
@@ -88,7 +89,7 @@ after each presented frame. Commit names the same slot and, optionally, the
 whole frame counts as written. The client tracks what each slot holds: a slot
 two frames old needs this frame's changes and the previous frame's.
 
-On a blitter grant the commit names a command list instead, and the heap
+On a blitter grant the commit can name a command list instead, and the heap
 bytes it uploaded since its last frame as 1–16 `[offset,bytes]` window ranges
 inside the heap:
 
@@ -101,9 +102,17 @@ writes back the list's commands and the uploads, checks that the blitter is
 idle, runs it into the slot, waits for its completed count, then submits the
 slot as below. The completed count and busy state use separate GP reads, so a
 completion between those reads is confirmed with another sample before it can
-be reported as a mismatch. A list commit with `written`, a list on a grant without the
-blitter, and a CPU commit on a blitter grant are refused without touching the
-display. Nothing reads the list or the heap once commit returns.
+be reported as a mismatch. Nothing reads the list or the heap once commit
+returns.
+
+A blitter grant takes CPU frames until its first list commit. That list is
+the client's opt-in: from then on the grant takes only lists, and the blitter
+alone draws its slots. A CPU frame's write-back leaves its lines valid in the
+PL310, so a CPU write over what the blitter drew could carry those stale bytes
+back over it. The rule ends with the grant: a later activation's grant takes
+CPU frames again. A list commit with `written`, a list on a grant without the
+blitter, and a CPU commit after a list on the same grant are refused without
+touching the display.
 
 fpga2sdram reads DDR past the CPU caches, so the runtime writes back the
 written regions (`FES_WINDOW_CLEAN`) before it submits the slot. Commit
@@ -236,7 +245,9 @@ Patterns alternate full-color bars, fine pixel/row boundaries, a top-row
 sequence marker and a final-column row/sequence marker. It maps the grant once
 and draws every frame whole into its slot. On a blitter grant it writes the
 same pattern as 819 FILL commands and commits that list, and it reports
-`blitter=1` and the average `blit_avg_ms`. The client checks generation,
+`blitter=1` and the average `blit_avg_ms`. Its first list switches that grant
+to lists, so a CPU client on the same generation, such as tenfoot, has its
+commits refused until the next activation. The client checks generation,
 geometry, format, the grant, completion sequence and an underflow delta of at
 most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately

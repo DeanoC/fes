@@ -1686,9 +1686,12 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
  // Scanout is reading the other slot, so a wrong slot is a client error,
  // refused before it can reach the display.
  if(slot!=std::uint8_t(menu_slot_^1))return {ErrorCode::invalid_request,"menu commit names the displayed slot","menu"};
- // Only the blitter draws a blitter grant's slots.
- if(draw.blit!=menu_status_.blitter)
-  return {ErrorCode::invalid_request,draw.blit?"menu grant has no blitter":"menu blitter grant needs a command list","menu"};
+ // A list needs the blitter's grant. That grant takes CPU frames until a list
+ // has run, then only lists: a CPU frame's write-back leaves its lines valid
+ // in the PL310, and a CPU write over what the blitter drew could make such a
+ // stale line dirty and evict it over the blitter's pixels.
+ if(draw.blit?!menu_status_.blitter:menu_status_.blitted)
+  return {ErrorCode::invalid_request,draw.blit?"menu grant has no blitter":"menu grant takes only lists after its first list","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  MenuDisplayInfo info;Error error=menu_display_->ReadInfo(deadline,&info);
  // History accumulated before this present is not a reason to reject it.
@@ -1751,6 +1754,7 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
+   if(draw.blit)menu_status_.blitted=true;
    info.clean_us=micros(clean_start,blit_start);info.blit_us=micros(blit_start,submit_start);
    info.submit_us=micros(submit_start,wait_start);
    info.scanout_wait_us=micros(wait_start,Steady::now());

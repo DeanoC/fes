@@ -153,8 +153,12 @@ any socket peer the grant's descriptor; `MenuBackSlot` names the slot scanout
 is not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
 regions the client wrote (`FES_WINDOW_CLEAN`, L1 by address then the PL310)
 and only then submits the slot, because fpga2sdram reads DDR past the caches.
-On a blitter grant only the blitter draws slots: a frame is a command list,
-and a CPU frame is refused, as is a list without a blitter. The runtime writes
+A blitter grant takes CPU frames until the client's first list frame. From
+then on only the blitter draws its slots and a CPU frame is refused, as a list
+is on a grant without a blitter. A CPU frame's write-back leaves its lines
+valid in the PL310; once the blitter has drawn over them, a CPU write could
+make such a stale line dirty and evict it over the blitter's pixels. The next
+activation's grant takes CPU frames again. For a list frame the runtime writes
 back the list's commands and the heap bytes the client uploaded, checks the
 blitter idle, runs it into the back slot and polls its completed count before
 submitting. The completed count and busy state are separate GP reads; if the

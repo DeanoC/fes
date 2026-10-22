@@ -1850,43 +1850,56 @@ void TestNativeMenuBlitterPresent()
  // The client's grant covers the slots, the lists and the heap.
  assert(result.error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
  assert((operations.granted==std::vector<std::uint64_t>{8388608,83886080})&&operations.Granted()&&operations.cleans==0);
- // Only the blitter draws a blitter grant's slots.
+ // Until its first list, a blitter grant takes CPU frames as tenfoot draws
+ // them: the slot's frame is written back and submitted, and the blitter
+ // never runs.
  mister::MenuDisplayInfo displayed;const auto before_cpu=mmio.writes.size();
- assert(hardware.PresentMenuSlot(1,{},&displayed).code==mister::ErrorCode::invalid_request);
- assert(mmio.writes.size()==before_cpu&&hardware.menu_display().available);
- // The list and the uploads reach DDR, the blitter draws slot 1 from them,
+ gp_script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1);
+ assert(BlitRequests(mmio,before_cpu).empty()&&!hardware.menu_display().blitted);
+ assert(operations.cleans==1&&operations.cleaned[0].offset==4194304&&operations.cleaned[0].width==3686400&&
+  operations.cleaned[0].height==1&&operations.cleaned[0].stride==5120);
+ // The list and the uploads reach DDR, the blitter draws slot 0 from them,
  // and only once that run completes is the slot submitted.
  mister::MenuDraw draw;draw.blit=true;draw.first=100;draw.count=3;draw.uploaded={{16777216,8192},{83886076,4}};
- gp_script.Info(3,0,0);gp_script.BlitState(0,0);
+ gp_script.Info(3,1,0);gp_script.BlitState(0,0);
  gp_script.Reply();gp_script.Reply();gp_script.Reply();
  // The run completes between the count and state reads: the first pair looks
  // like the old count with idle state, then the confirming sample sees it done.
  gp_script.BlitState(0,0);gp_script.BlitState(0,1);
- gp_script.Reply();gp_script.Reply();gp_script.Reply();gp_script.Info(3,1,0);
+ gp_script.Reply();gp_script.Reply();gp_script.Reply();gp_script.Info(3,2,0);
  const auto before_blit=mmio.writes.size();
- assert(hardware.PresentMenuSlot(1,draw,&displayed).ok()&&displayed.displayed_sequence==1);
+ assert(hardware.PresentMenuSlot(0,draw,&displayed).ok()&&displayed.displayed_sequence==2);
  assert((BlitRequests(mmio,before_blit)==std::vector<std::pair<unsigned,unsigned>>{
-  {4,0},{3,0},{0,100},{1,3},{2,1},{4,0},{3,0},{4,0},{3,0}}));
- assert(operations.cleans==3);
- assert(operations.cleaned[0].offset==8388608+100*32&&operations.cleaned[0].width==96&&operations.cleaned[0].height==1);
- assert(operations.cleaned[1].offset==16777216&&operations.cleaned[1].width==8192);
- assert(operations.cleaned[2].offset==83886076&&operations.cleaned[2].width==4);
- std::uint8_t back=9;assert(hardware.MenuBackSlot(&back).ok()&&back==0);
+  {4,0},{3,0},{0,100},{1,3},{2,0},{4,0},{3,0},{4,0},{3,0}}));
+ assert(operations.cleans==4&&hardware.menu_display().blitted);
+ assert(operations.cleaned[1].offset==8388608+100*32&&operations.cleaned[1].width==96&&operations.cleaned[1].height==1);
+ assert(operations.cleaned[2].offset==16777216&&operations.cleaned[2].width==8192);
+ assert(operations.cleaned[3].offset==83886076&&operations.cleaned[3].width==4);
+ std::uint8_t back=9;assert(hardware.MenuBackSlot(&back).ok()&&back==1);
+ // After a list only the blitter draws this grant's slots. A CPU frame is
+ // refused before any GP traffic or write-back, and the menu keeps running.
+ const auto before_refused=mmio.writes.size();
+ assert(hardware.PresentMenuSlot(1,{},&displayed).code==mister::ErrorCode::invalid_request);
+ assert(mmio.writes.size()==before_refused&&operations.cleans==4&&hardware.menu_display().available);
  // A fault is a failed present: the grant is revoked, the slot is never
  // submitted, and the package is kept for bounded reactivation.
  draw.uploaded.clear();
- gp_script.Info(3,1,0);gp_script.BlitState(0,1);
+ gp_script.Info(3,2,0);gp_script.BlitState(0,1);
  gp_script.Reply();gp_script.Reply();gp_script.Reply();
  gp_script.BlitState(0x0302,1);
  const auto before_fault=mmio.writes.size();
- const auto faulted=hardware.PresentMenuSlot(0,draw,&displayed);
+ const auto faulted=hardware.PresentMenuSlot(1,draw,&displayed);
  assert(faulted.code==mister::ErrorCode::io_failed&&faulted.message=="menu blitter fault 3");
  for(std::size_t i=before_fault;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeMenuSubmit);
- assert(!hardware.menu_display().available&&!operations.Granted());
+ assert(!hardware.menu_display().available&&!operations.Granted()&&operations.cleans==5);
+ // The reactivated menu's new grant takes CPU frames again.
  gp_script.QuiesceRunningMenu();gp_script.BringUp(true);
  assert(hardware.LoadIdle().error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
- assert(operations.Granted()&&operations.granted.back()==83886080);
+ assert(operations.Granted()&&operations.granted.back()==83886080&&!hardware.menu_display().blitted);
+ gp_script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1&&operations.cleans==6);
 }
 
 void TestMenuUnderflowPolicyReactivatesThenSplashes()
