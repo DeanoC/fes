@@ -1,8 +1,9 @@
 # Idle MENU → rooms (design lock)
 
-**Status:** design lock (2026-09-21). This document records product decisions
-Deano already made. It is not an implementation claim. Deano owns FES parent
-merge.
+**Status:** idle and room design lock (2026-09-21), with the host-ownership
+decision updated on 2026-10-22. It records the target product, not the
+currently deployed topology. The kit-as-host implementation remains open under
+[#863](https://github.com/DeanoC/fes/issues/863). Deano owns FES parent merge.
 
 **Audience:** FES parent, FogCast (host/tenfoot/rooms/kit), libmister-runtime
 idle lifecycle, and later mister-packages / misteross ABI work. Read this
@@ -101,17 +102,17 @@ consideration, not v1.
 
 This attract ABI is not FC2D and is not the graphics-accelerator ABI.
 
-### 3. Kit without host
+### 3. Kit host ownership
 
-Prefer **one thing**, not a sofa host plus a separate kit-cache runner.
-With Linux, a kit may **run the same host** as a deployment mode. Do not
-design a second offline catalog UI.
+Product decision (Deano, 18 October 2026; #863): every kit runs the same
+FogCast host and tenfoot renderer on the kit. A sofa or PC is a remote client
+and library/content source, not the kit's owner. Do not design a second
+offline catalog UI. The on-kit grid launcher has been removed (#728); tenfoot
+is the only kit UI.
 
-Strawman default (edit here if wrong): the usual living-room topology stays
-a sofa/PC FogCast host plus a kit that is the FPGA/target. When there is no
-sofa/PC, the kit may run that same host/tenfoot process locally. That is a
-deployment mode of the existing host, not a new catalog product.
-The on-kit grid launcher has been removed (#728); tenfoot is the only kit UI.
+This is the approved target, not deployed behavior: #863 remains open with no
+implementation or acceptance evidence. The existing separate-host path stays
+the current implementation until its slices land.
 
 ### 4. Video ownership
 
@@ -130,15 +131,17 @@ Do not claim the accelerator or FC2D HDMI path is implemented.
 
 ## Visible contract
 
-What HDMI / the sofa should show. “Today” is tip `306d0e77`. “Target” is
-the locked product, reached across the phases below.
+What the kit HDMI / tenfoot surface should show. The left column is the
+historical software snapshot at tip `306d0e77` (before #728), not the current
+implementation. “Target” is the locked product, reached across the phases
+below.
 
-| Moment | Today | Target |
+| Moment | Snapshot at `306d0e77` | Target |
 | --- | --- | --- |
 | **Cold boot** | U-Boot programs FAT `/menu.rbf` (sealed Menu). Linux then `LoadIdle()`s the same bytes as `/usr/share/mister-runtime/idle.rbf`. | U-Boot loading splash RBF: logo + movement. Board firmware, not rooms, not a play package. |
 | **Idle / attract** | MENU core + HPS framebuffer. Sofa: tenfoot rooms (and optional host attract playlist). Kit HDMI: `fogcast-kit` cover grid / kit attract stills on linuxfb. | Factory default attract ABI package on the FPGA. Rooms may later override with their own attract package. Not stock MENU chrome. |
 | **Between games / Stop** | Runtime `LoadIdle()` → MENU + HPS fb. Sofa restores the room and unparks tenfoot. Kit HDMI returns to MENU + kit grid, not the room. | Same rooms surface as before launch, through one tenfoot renderer. Runtime Stop idle is a defined idle (splash or attract), not Menu’s file browser. Renderer yields during play and restarts after Stop. |
-| **Host-down** | Kit needs the workstation host for catalogue/launch. HDMI still has MENU; launcher shows connecting/retry. Sofa without a kit is the host UI only. | No second offline catalog. Sofa topology: connecting/retry on the existing renderer, not a kit-cache UI. Kit-as-host topology: the kit *is* the host, so “host-down” is that process down — splash/defined idle, then the same tenfoot once it is back. |
+| **Host-down** | In this snapshot the kit needs the workstation host for catalogue/launch. HDMI still has MENU; launcher shows connecting/retry. | No second offline catalog. The kit's own host and tenfoot run on the kit. If that host is down, show splash/defined idle, then resume the same tenfoot when it returns. Sofa/PC sources are optional; their absence only makes their content unavailable. |
 | **Debug fb** | Production kit UI is `/dev/fb0` over MENU (`LinuxFramebuffer`, `gfx.OpenLinuxFB`). Overlay is flaky. | Near term: tenfoot may still use linuxfb where HDMI UI has no other path. Long term: `/dev/fb0` is debug-only once a graphics-accelerator ABI owns the framebuffer. |
 
 ## Artifact classes
@@ -158,34 +161,29 @@ installed idle. The image pins `sealed/fes-splash.rbf` as `/idle.rbf`.
 
 ## Process model
 
-One FogCast host, one tenfoot renderer, rooms as the product UI.
+One FogCast host per kit, one tenfoot renderer, rooms as the product UI.
 
 ```text
-Today, sofa topology
-  tenfoot/rooms (SDL, host machine) --HTTP--> FogCast host
-                                            --network--> mister-agent
-                                            --socket--> mister-runtime
-  kit HDMI: MENU + fogcast-kit linuxfb grid (second UI)
+Historical software snapshot (tip 306d0e77; before #728 and #863)
+  tenfoot/rooms --HTTP--> workstation FogCast host
+                           --network--> kit mister-agent --socket--> runtime
+  kit HDMI: MENU + legacy fogcast-kit grid
 
-Today, kit HDMI after Stop
-  LoadIdle() -> MENU; fogcast-kit paints the catalog again
-
-Target, sofa topology (usual living room)
-  tenfoot/rooms (same renderer) --HTTP--> FogCast host --> agent --> runtime
-  kit HDMI: splash / attract ABI / play package; no kit catalog UI
-
-Target, kit-as-host (no sofa/PC)
-  same host + tenfoot binaries run on the kit
-  still one catalog: rooms, not fogcast-kit
+Target product after #863 implementation (not deployed yet)
+  each kit: tenfoot/rooms --HTTP localhost--> its own fogcast-api
+                                              --> its agent --> runtime
+  desktop clients use the authenticated launcher listener
+  sofa/PC/NAS: library and content sources, not owners
 ```
 
 The base software supervisor `S40fes-kit-software` starts `fogcast-tenfoot`
 as the only on-kit UI; the `fogcast-kit` grid catalog was removed (#728). Do
 not add an offline cache UI or a second library on the kit.
 
-Kit-as-host is the product (Deano, 18 October 2026; #863). Every kit runs
-**the same** host and renderer on the kit itself; a sofa or PC is a library
-source and a remote client, not the kit's owner. See
+Kit-as-host is the approved target (Deano, 18 October 2026; #863), not the
+currently deployed topology. Every kit will run **the same** host and renderer
+on the kit itself; a sofa or PC is a library source and a remote client, not
+the kit's owner. Implementation and acceptance remain open. See
 [`docs/mesh-kit-host.md`](mesh-kit-host.md).
 
 Physical transitions stay in libmister-runtime. Network/session
@@ -210,10 +208,9 @@ Phase 2 may still enable a framebuffer if tenfoot has no other HDMI path.
 That is a temporary Stop-idle surface, not a commitment to MENU or to
 linuxfb as the product.
 
-Phase 3 is the dual-UI kill. If kit-as-host is not ready, sofa rooms plus
-defined kit idle (splash/attract) is still better than MENU plus a second
-grid — but the locked end state is one renderer, not a permanent
-host-grid / kit-grid split.
+Phase 3 removes the dual-UI paths and makes each kit's renderer use that
+kit's host. Until #863 lands, the existing separate-host path remains the
+current implementation; that transition delay does not change the target.
 
 Phase 4’s attract ABI is specified in mister-packages and built in
 misteross when that work is scheduled. This lock only requires that it is

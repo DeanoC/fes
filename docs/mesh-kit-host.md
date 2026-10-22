@@ -1,8 +1,9 @@
 # Mesh under kit-as-host
 
-**Status:** decision record, 22 October 2026. Implementation is
-[#863](https://github.com/DeanoC/fes/issues/863); its slices build against the
-decisions below. This page supersedes the kit-side placement, pairing and
+**Status:** approved target architecture, 22 October 2026; not deployed.
+[#863](https://github.com/DeanoC/fes/issues/863) remains open with no
+implementation or acceptance evidence. This page supersedes the kit-side
+placement, pairing and
 paired-listener designs in [`mesh-lan.md`](mesh-lan.md),
 [`mesh-node-protocol.md`](mesh-node-protocol.md),
 [`mesh-phase2.md`](mesh-phase2.md), [`mesh-phase3.md`](mesh-phase3.md) and
@@ -12,25 +13,29 @@ marked *proposed* are not yet decided.
 ## What changes
 
 - Each kit runs its own `fogcast-api` on `127.0.0.1:8787` and is its own
-  owner. `fogcast-tenfoot` is an unpaired client of that host. The kit-local
-  launch path (`internal/localcores`, the local cartridge loader, the agent's
-  `-local-control` launch, kit-local catalog serving) and the paired launcher
-  listener (`launcher-host.json` pairings, `X-FogCast-Target-ID`, the
-  launcher bearer, P4a) are deleted in #863 slice 7, with their tests and
-  docs.
+  owner. Its `fogcast-tenfoot` is an unpaired client of that loopback API. The
+  kit-local launch path (`internal/localcores`, the local cartridge loader,
+  the agent's `-local-control` launch, kit-local catalog serving) is deleted
+  in #863 slice 7, with its tests and docs. The separate, authenticated
+  launcher listener remains the only LAN control surface; it is not used by
+  the kit-local tenfoot client.
 - Powerboat, a NAS and desktops are library and content sources. A source is
   never an owner; a second owning host is still refused (Q16).
 - The kit host has exactly one executor: its own agent at `127.0.0.1:8182`.
   `[[targets]]` is one loopback row. Placement (`mesh-lan.md` §7 Decision 7,
   `mesh-phase3.md` slices 1–8), `display_preference`, `placement_override` and
   last-sink memory do not apply on a kit. A desktop client that can see several
-  kits chooses one by addressing that kit's host; nothing on a kit places onto
-  another kit.
-- Security (Deano, 18 October): FES is a local-LAN game machine. No PAKE
-  pairing, no bearer rotation, no origin pinning (#396). The kit host binds to
-  all interfaces, without authentication and without the Host-header
-  restriction that the loopback host keeps on Powerboat. Existing agent tokens
-  are reused where that is cheap.
+  kits chooses one through that kit's authenticated launcher listener; nothing
+  on a kit places onto another kit.
+- Security (updated 22 October): a local LAN is not an authorization boundary.
+  Keep the general host API loopback-only; `fogcast-api` currently enforces
+  this in `normalizeListenAddress`. Never expose that API on all interfaces
+  without authentication. Remote control uses the separate launcher listener,
+  which requires a per-kit bearer and `X-FogCast-Target-ID` and exposes only
+  its allowlisted operations (no settings, filesystem, or development-RBF
+  routes; see [`launcher-host.md`](../sources/FogCast/docs/launcher-host.md)).
+  Keep the general API's Host-header restriction. Discovery does not grant
+  access. Do not reuse the host-to-agent token as a launcher credential.
 
 ## Decisions (22 October 2026)
 
@@ -53,8 +58,9 @@ marked *proposed* are not yet decided.
    to the running session through the restarted host. A host or UI restart
    never ends a game. A desktop launch goes through the kit host and gets the
    same treatment.
-5. **LAN exposure.** The kit profile binds the host to all interfaces with
-   no authentication; see Security above.
+5. **LAN exposure.** The general host API stays on loopback. Remote control
+   uses only the separate authenticated launcher listener and its allowlisted
+   operations. An unauthenticated all-interface host API is unsupported.
 
 ## What stays
 
@@ -85,7 +91,10 @@ marked *proposed* are not yet decided.
 
 - *Proposed:* static source configuration on the kit first; a source
   advertising Catalog/Content capabilities on its LAN listener can follow.
-- *Proposed:* no desktop browser change beyond pointing at a kit host URL.
+- Remote desktop control uses the authenticated launcher listener, not the
+  unrestricted host API. Define the kit-host pairing and credential delivery
+  before enabling that client path; pointing a browser at the host URL alone
+  does not authorize it.
 - Powerboat `host_only` RetroArch sessions and casting onto a kit are not a
   supported path once slice 6 lands; whether host emulation stays in the
   product at all is the re-opened #871 decision.
@@ -96,4 +105,7 @@ marked *proposed* are not yet decided.
 roots; a kit HIL under the kit-sharing rules with Powerboat unplugged (boot to
 Home, import firmware, launch a ZX81 and an SMS title, Stop and return) and
 with Powerboat up (a remote-source title is listed and plays); frame timings
-within the existing tenfoot budgets under #811 tracing.
+within the existing tenfoot budgets under #811 tracing. Security checks must
+also show that the general API is not reachable on a LAN interface, the
+launcher listener rejects missing or mismatched bearers, and unlisted routes
+such as settings remain unavailable there.
