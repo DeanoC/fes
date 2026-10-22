@@ -226,11 +226,12 @@ public:
   }
   condition_.notify_all();return {};
  }
- Error ShareMenuWindow(std::uint64_t generation,int* fd)
+ Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter)
  {
-  if(!fd)return Invalid("missing menu window output");
+  if(!fd||!blitter)return Invalid("missing menu window output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  *blitter=status_.menu_display.blitter;
   return hardware_.ShareMenuWindow(fd);
  }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
@@ -253,11 +254,14 @@ public:
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
+   // A list needs the blitter's grant, which takes only lists once one has run.
+   if(frame.draw_.blit?!status_.menu_display.blitter:status_.menu_display.blitted)
+    return Invalid(frame.draw_.blit?"menu grant has no blitter":"menu grant takes only lists after its first list");
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
   }
-  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.written_,&info);
+  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.draw_,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
    if(session) {
@@ -282,13 +286,15 @@ public:
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
    status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
+   if(frame.draw_.blit)status_.menu_display.blitted=true;
   }
   condition_.notify_all();return {};
  }
 
- Error SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible)
+ Error SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible,bool launcher_focus)
  {
-  if(!ValidPackageId(package_id)||!generation)return Invalid("invalid session display request");
+  if(!ValidPackageId(package_id)||!generation||(!visible&&launcher_focus))return Invalid("invalid session display request");
+  bool shown=false;std::uint64_t shown_generation=0;
   {
    std::unique_lock<std::mutex> lock(mutex_);
    WaitForMenuFrame(lock);
@@ -303,25 +309,23 @@ public:
      interface.major==1&&interface.minor==0)
      capable=true;
    if(!capable)return {ErrorCode::unsupported_interface,"session display is unavailable","menu"};
-   if(visible&&status_.menu_display.available)return {};
-   if(visible&&next_menu_generation_==std::numeric_limits<std::uint64_t>::max())return Invalid("menu generation exhausted");
-   busy_=true;preparation_.reset();
+   shown=status_.menu_display.available;shown_generation=status_.menu_display.generation;
+   if(visible&&shown&&status_.menu_display.launcher_focus==launcher_focus)return {};
+   if(visible&&!shown&&next_menu_generation_==std::numeric_limits<std::uint64_t>::max())return Invalid("menu generation exhausted");
+   // Moving focus on a shown plane keeps its generation and preparation.
+   busy_=true;if(!visible||!shown)preparation_.reset();
   }
-  const Error error=hardware_.SetSessionDisplay(visible);
+  const Error error=hardware_.SetSessionDisplay(visible,launcher_focus);
   {
    std::lock_guard<std::mutex> lock(mutex_);
+   // Hardware owns the focus gate. A close or failure that cannot prove the
+   // plane drained keeps launcher focus, so machine input stays suppressed
+   // until a later request succeeds.
    status_.menu_display=hardware_.menu_display();
    status_.menu_display.session=true;status_.menu_display.core_generation=generation;
    status_.menu_display.package_id=package_id;status_.menu_display.generation=0;
-   if(error.ok()&&visible) {
-    status_.menu_display.generation=++next_menu_generation_;session_display_focused_=true;
-   } else if(error.ok())session_display_focused_=false;
-   else {
-    status_.menu_display.available=false;status_.menu_display.error=error;
-    // A failed close does not prove the UI plane has left HDMI. Require a
-    // successful close before machine input becomes eligible again.
-    session_display_focused_=true;
-   }
+   if(status_.menu_display.available)
+    status_.menu_display.generation=shown?shown_generation:++next_menu_generation_;
    busy_=false;
   }
   condition_.notify_all();return error;
@@ -711,7 +715,7 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			if (busy_ || !started_ || status_.state != State::running_development)
 				return Busy("FES computer is not running");
-   if(session_display_focused_&&matrix!=((std::uint64_t(1)<<40)-1))return {};
+   if(status_.menu_display.launcher_focus&&matrix!=((std::uint64_t(1)<<40)-1))return {};
 			busy_ = true;
 		}
 		const Error error = hardware_.SetComputerKeyboard(matrix);
@@ -925,7 +929,7 @@ public:
 					"keyboard HID requires fes.computer with fes.keyboard.hid", "compatibility"};
 			bool neutral = true;
 			for (const std::uint16_t row : rows) if (row != 0) neutral = false;
-			if (session_display_focused_ && !neutral) return {};
+			if (status_.menu_display.launcher_focus && !neutral) return {};
 			busy_ = true;
 		}
 		const Error error = hardware_.SetKeyboardHid(rows);
@@ -1285,7 +1289,7 @@ public:
 
 	Status FreshStatus(State state)
 	{
-  if(state!=State::idle){preparation_.reset();session_display_focused_=false;}
+  if(state!=State::idle)preparation_.reset();
 		Status result;
 		result.state = state;
 		result.capabilities = hardware_.capabilities();
@@ -1463,7 +1467,6 @@ public:
 	std::deque<HardwareFault> faults_;
 	bool busy_;
 	bool menu_frame_busy_=false;
- bool session_display_focused_=false;
 	unsigned menu_mutation_waiters_=0;
 	bool started_;
 	bool stopping_;
@@ -1482,9 +1485,9 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
-Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd) {return impl_->ShareMenuWindow(generation,fd);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter) {return impl_->ShareMenuWindow(generation,fd,blitter);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
-Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible) {return impl_->SetSessionDisplay(package_id,generation,visible);}
+Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible,bool launcher_focus) {return impl_->SetSessionDisplay(package_id,generation,visible,launcher_focus);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}
 
 Status Runtime::status() const { return impl_->status(); }

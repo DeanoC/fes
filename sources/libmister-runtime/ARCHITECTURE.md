@@ -115,12 +115,16 @@ verify construction and reject old mutation authority.
 ## Menu presentation primitives
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
-is admitted only alongside fixed video and HPS DDR, with those three interfaces.
-Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
+is admitted only alongside fixed video and HPS DDR. The only other interface a
+menu package may declare is `fes.video.menu-blitter` 1.0 (bit 10), which
+requires the menu display. Live identity must match the declared capabilities
+exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;
-without one, startup remains splash. Menu activation reuses ordinary package
+without one, startup remains splash. The interfaces `CheckMenu` admits are
+listed in `src/native/menu_admission.hpp` and carried in the binary's
+`.fes_menu_interfaces` section, where kit software packing reads them. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
@@ -137,14 +141,30 @@ failure is logged; menu activation then fails to grant and the idle path
 falls back to splash.
 
 `MenuWindow` (`native/linux/menu_window.cpp`) owns one grant of both 4 MiB
-slots at `0x30000000` per menu or session-plane activation. Activation revokes
-any earlier grant, grants the slots, fills both frames black through a cached
-mapping and writes them back for the fabric; a re-shown session plane is
+slots at `0x30000000` per menu or session-plane activation. A menu with the
+blitter's grant also covers its command lists and texture heap, 80 MiB in all.
+Activation revokes any earlier grant and fills both frames black through a
+separate slots-only grant, which it revokes before granting the client's.
+That revoke writes back and invalidates every slot line, where a clean would
+leave valid lines in the PL310. No stale slot line is then cached for a CPU
+write to carry over what the blitter drew. A re-shown session plane is
 granted again without clearing, so its pixels survive. `ShareMenuWindow` hands
 any socket peer the grant's descriptor; `MenuBackSlot` names the slot scanout
 is not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
 regions the client wrote (`FES_WINDOW_CLEAN`, L1 by address then the PL310)
 and only then submits the slot, because fpga2sdram reads DDR past the caches.
+A blitter grant takes CPU frames until the client's first list frame. From
+then on only the blitter draws its slots and a CPU frame is refused, as a list
+is on a grant without a blitter. A CPU frame's write-back leaves its lines
+valid in the PL310; once the blitter has drawn over them, a CPU write could
+make such a stale line dirty and evict it over the blitter's pixels. The next
+activation's grant takes CPU frames again. For a list frame the runtime writes
+back the list's commands and the heap bytes the client uploaded, checks the
+blitter idle, runs it into the back slot and polls its completed count before
+submitting. The completed count and busy state are separate GP reads; if the
+count is still old when the state is idle, the runtime confirms the sample
+again within the same deadline before rejecting a stable mismatch. A blitter
+fault fails the present like any other completion fault.
 Revoke ends every process's mapping and writes back and invalidates the
 grant's lines. It runs before any lifecycle operation quiesces menu firmware
 or programs another core, when a session plane is hidden, and on any failed
@@ -219,11 +239,15 @@ plane once, then publishes active machine status with `session: true`, its
 package and `core_generation`, but `available: false`.
 
 `SetSessionDisplay` binds the active package/generation and serializes with the
-same busy fence and bounded frame wait. Open neutralizes the keyboard, enables
-the reader and grants a distinct display generation; FPGA scanout waits for a
-complete submitted frame before switching HDMI pixels. Close drains the plane
+same busy fence and bounded frame wait. It sets visibility and launcher focus
+separately. Open enables the reader and grants a distinct display generation;
+FPGA scanout waits for a complete submitted frame before switching HDMI pixels.
+Taking launcher focus neutralizes the keyboard first. Moving focus on a shown
+plane keeps its generation, grant and preparation. Close drains the plane
 without execution hold and revokes the display generation and preparation.
-Navigation key snapshots are suppressed while session display focus is held.
+Navigation key snapshots are suppressed while the launcher holds focus. The
+native adapter owns that gate: a close or failure that cannot prove the plane
+drained keeps launcher focus, and status reports it as `menu_display.focus`.
 Stop/replacement drain the display before their existing execution hold.
 
 A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.

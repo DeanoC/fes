@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Board simulation through the fes.computer mailbox: identity advertises the
-// Spectrum tape unit, a .tap image can be committed while the machine runs,
-// and a USB HID 'A' becomes the Spectrum matrix after the settle window.
+// Spectrum tape unit and the session display, a .tap image can be committed
+// while the machine runs, a USB HID 'A' becomes the Spectrum matrix after the
+// settle window, and controller port 1 is Sinclair joystick 1.
 #include "Vtop.h"
 #include "Vtop___024root.h"
 #include "verilated.h"
@@ -12,11 +13,8 @@
 
 namespace {
 
-#if SPECTRUM_FAST_CPU
-constexpr uint64_t kSysHalfPs = 8929;  // nominal 56 MHz, rounded to ps
-#else
-constexpr uint64_t kSysHalfPs = 9574;  // nominal 52.224 MHz, rounded to ps
-#endif
+constexpr uint64_t kSysHalfPs = 9574;    // nominal 52.224 MHz, rounded to ps
+constexpr uint64_t kPixelHalfPs = 6734;  // nominal 74.25 MHz, rounded to ps
 
 [[noreturn]] void fail(const std::string& message) {
     std::cerr << "fes.spectrum board: " << message << '\n';
@@ -41,6 +39,7 @@ struct Board {
     Vtop___024root& root;
     uint64_t now = 0;
     uint64_t next_sys = 0;
+    uint64_t next_pixel = 0;
     bool toggle = false;
     explicit Board() : root(*dut.rootp) {
         dut.FPGA_CLK1_50 = 0;
@@ -49,15 +48,23 @@ struct Board {
         root.top__DOT__hps_gp__DOT__gp_out = 0;
         dut.eval();
     }
-    void step() {
+    // Advance to the next edge of either unrelated clock.
+    bool step() {
+        if (next_pixel < next_sys) {
+            now = next_pixel;
+            next_pixel += kPixelHalfPs;
+            root.top__DOT__video_clock__DOT__outclk_0 = !root.top__DOT__video_clock__DOT__outclk_0;
+            dut.eval();
+            return false;
+        }
         now = next_sys;
         next_sys += kSysHalfPs;
-        const uint8_t level = !root.top__DOT__system_clock__DOT__outclk_0;
-        root.top__DOT__system_clock__DOT__outclk_0 = level;
+        root.top__DOT__system_clock__DOT__outclk_0 = !root.top__DOT__system_clock__DOT__outclk_0;
         dut.eval();
+        return true;
     }
     void run_clocks(int clocks) {
-        for (int i = 0; i < clocks * 2; ++i) step();
+        for (int i = 0; i < clocks * 2;) i += step();
     }
     uint32_t gpi() const { return root.top__DOT__hps_gp__DOT__observed_gpi; }
     uint32_t request(uint32_t opcode, uint32_t index, uint32_t argument) {
@@ -90,8 +97,9 @@ int main(int argc, char** argv) {
     board.run_clocks(8);
     require(board.ok(1, 0, 0, "magic") == 0x4546, "identity magic");
     require(board.ok(1, 4, 0, "tag") == 4, "ABI tag");
-    // video, keyboard, gamepad, audio, spectrum tape: bits 0, 1, 2, 3 and 5.
-    require(board.ok(1, 7, 0, "capabilities") == 0x002f, "capability word");
+    // video, keyboard, gamepad, audio, spectrum tape (bits 0-3 and 5), HPS DDR
+    // and the session display (bits 12 and 13).
+    require(board.ok(1, 7, 0, "capabilities") == 0x302f, "capability word");
     require(board.ok(5, 0, 0, "min lo") == 1, "tape minimum");
     require(board.ok(5, 1, 0, "min hi") == 0, "tape minimum high");
     require(board.ok(5, 2, 0, "max lo") == 0, "tape maximum low");
@@ -119,6 +127,13 @@ int main(int argc, char** argv) {
     const uint64_t matrix = board.root.top__DOT__matrix;
     require((matrix & 0xffffffffffULL) == (0xffffffffffULL & ~(1ULL << 5)),
             "HID A did not land on the Spectrum A key");
+    board.ok(3, 0, 0, "keys up");
+    // Port 1 Up/Fire: Sinclair joystick 1 is keys 9 and 0.
+    board.ok(4, 1, 0x11, "pad 1");
+    board.run_clocks(60000);
+    const uint64_t joystick = board.root.top__DOT__matrix;
+    require((joystick & 0xffffffffffULL) == (0xffffffffffULL & ~(1ULL << 21) & ~(1ULL << 20)),
+            "Sinclair joystick 1 did not press 9 and 0");
     std::cout << "fes.spectrum board: ok\n";
     return 0;
 }

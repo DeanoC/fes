@@ -53,6 +53,9 @@ RULES = [
     # falls through to kit-go+host below.
     # Imported only by cmd/target-image-lock, which no overlay artifact runs.
     ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
+    # Imported only by cmd/fes-update, the host appliance update client, to read
+    # a release image's software base record. No overlay artifact runs it.
+    ('sources/FogCast/internal/ext4image/**', 'full', 'fogcast-unmapped-command'),
     # The immutable bundle producer and stable base supervisor share this code;
     # replacing the Go kit services cannot validate or replace those consumers.
     ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),

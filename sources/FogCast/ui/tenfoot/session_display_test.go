@@ -108,10 +108,7 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		mu.Lock()
 		visible = append(visible, req.Visible)
 		mu.Unlock()
@@ -223,10 +220,7 @@ func TestKitDisplayOpenCloseFailureAndFreshInput(t *testing.T) {
 		if !ok || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || b.Target != prior.Target || b.TargetID != prior.TargetID || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID || feed.closes.Load() == 0 {
 			t.Error("display opened without captured identity or local-input neutralization")
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		mu.Lock()
 		visible = append(visible, req.Visible)
 		mu.Unlock()
@@ -343,10 +337,7 @@ func TestKitLostOpenResponseKeepsGuardedReturnReachable(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		if req.Visible {
 			opens.Add(1)
 			conn, _, err := w.(http.Hijacker).Hijack()
@@ -763,10 +754,7 @@ func TestKitHostStopClearsReturningToPlay(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		if !req.Visible {
 			close(returning)
 			<-gate
@@ -819,4 +807,19 @@ func TestKitReturnToPlayClearsStatus(t *testing.T) {
 	if s := app.Snapshot().Status; s == sessionDisplayReturningStatus || s == playingHardwareRoomStatus {
 		t.Fatalf("host stop left play copy %q", s)
 	}
+}
+
+// decodeSessionDisplay reads a strict display request. The launcher's controls
+// take launcher focus; a return closes the plane.
+func decodeSessionDisplay(t *testing.T, r *http.Request) bool {
+	t.Helper()
+	var request protocol.SessionDisplayRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&request)
+	display, ok := request.Display()
+	if err != nil || !ok || display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+		t.Errorf("display request %+v: %v", request, err)
+	}
+	return display.Visible
 }

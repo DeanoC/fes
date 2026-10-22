@@ -1,7 +1,7 @@
 {
-  "description": "Synthetic wire oracle; not hardware acceptance.",
+  "description": "Synthetic wire oracle; not hardware acceptance. The run stages commands 0 and 1 into slot 1, which the submit then shows; they keep the blitter busy until the blit-complete event.",
   "build_id": "00112233445566778899aabbccddeeff",
-  "capabilities": 770,
+  "capabilities": 1794,
   "initial_request_toggle": false,
   "exchanges": [
     {
@@ -80,8 +80,8 @@
         2164719616,
         17235968
       ],
-      "gpi": 4110418690,
-      "data": 770,
+      "gpi": 4110419714,
+      "data": 1794,
       "error": false
     },
     {
@@ -305,6 +305,26 @@
       "error": true
     },
     {
+      "name": "blit-state-idle",
+      "gpo": [
+        369295360,
+        2516779008
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "blit-disabled-rejected",
+      "gpo": [
+        2516582400,
+        369098752
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
       "name": "release",
       "gpo": [
         33554433,
@@ -333,6 +353,167 @@
       "gpi": 4123000836,
       "data": 4,
       "error": true
+    },
+    {
+      "name": "blit-index-rejected",
+      "gpo": [
+        2516910080,
+        369426432
+      ],
+      "gpi": 4114612226,
+      "data": 2,
+      "error": true
+    },
+    {
+      "name": "blit-state-argument-rejected",
+      "gpo": [
+        369295361,
+        2516779009
+      ],
+      "gpi": 4123000835,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "blit-first-range-rejected",
+      "gpo": [
+        2516615168,
+        369131520
+      ],
+      "gpi": 4114612227,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "blit-run-without-fields-rejected",
+      "gpo": [
+        369229825,
+        2516713473
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "blit-count-without-first-rejected",
+      "gpo": [
+        2516647937,
+        369164289
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "blit-first",
+      "gpo": [
+        369098752,
+        2516582400
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "blit-count-zero-rejected",
+      "gpo": [
+        2516647936,
+        369164288
+      ],
+      "gpi": 4114612227,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "blit-count-past-region-rejected",
+      "gpo": [
+        369197057,
+        2516680705
+      ],
+      "gpi": 4123000835,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "blit-count",
+      "gpo": [
+        2516647938,
+        369164290
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "blit-slot-rejected",
+      "gpo": [
+        369229826,
+        2516713474
+      ],
+      "gpi": 4123000835,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "blit-run",
+      "gpo": [
+        2516713473,
+        369229825
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "blit-busy",
+      "gpo": [
+        369295360,
+        2516779008
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "blit-busy-rejected",
+      "gpo": [
+        2516582400,
+        369098752
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "blit-not-completed",
+      "gpo": [
+        369360896,
+        2516844544
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "blit-completed",
+      "gpo": [
+        2516844544,
+        369360896
+      ],
+      "gpi": 4110417921,
+      "data": 1,
+      "error": false,
+      "event_before": "blit-complete"
+    },
+    {
+      "name": "blit-idle",
+      "gpo": [
+        369295360,
+        2516779008
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
     },
     {
       "name": "hold-before-drain-rejected",
@@ -465,6 +646,16 @@
       "gpi": 4110417929,
       "data": 9,
       "error": false
+    },
+    {
+      "name": "blit-quiesced-rejected",
+      "gpo": [
+        369098752,
+        2516582400
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
     }
   ]
 }

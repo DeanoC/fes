@@ -66,9 +66,11 @@ changing execution reset, CPU, RAM, ROM, cassette state or expansion state.
 Display faults return machine pixels and permit drained quiescence even when
 the reader's fault bit is sticky. The runtime retains the error and disables
 frame admission; it never recovers a session display by reprogramming the
-machine or activating idle firmware. Input focus belongs to FogCast; the
-runtime additionally neutralizes the matrix on open and suppresses navigation
-keys while the plane owns focus. Stop and replacement drain the display before
+machine or activating idle firmware. Input focus belongs to FogCast and is
+separate from visibility: a shown plane can leave input with the machine, as a
+surround does. The runtime additionally neutralizes the matrix when the
+launcher takes focus and suppresses navigation keys while the launcher holds
+it. Stop and replacement drain the display before
 their ordinary execution hold and programming. A sticky display fault does not
 prove drain: the guard must report no queued commands or outstanding/returned
 DDR responses before Close or execution Hold acknowledges. If the pixel clock
@@ -76,7 +78,9 @@ stops permanently, GP completion and this drain proof are unavailable; the
 runtime reports failure and retains focus rather than replacing the core.
 
 The runtime's local `session_display` operation binds the active package and
-core generation. Each opening grants a separate nonzero display generation;
+core generation, and names both `visible` and `focus` (`machine` or
+`launcher`). Each opening grants a separate nonzero display generation, which
+focus changes on the shown plane keep;
 close, Stop, replacement and display failure revoke old preparations. Existing
 immutable `menu_frame_begin` / `menu_frame_commit` descriptors carry that display
 generation. Closed active-core status retains its package and core generation,

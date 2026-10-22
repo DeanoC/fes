@@ -49,8 +49,8 @@ These are the choices already in the tree at `6d9939c2`.
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
    not a second product CPU. TV80/T80 is the historical selection still
-   instantiated by Coleco and SMS. ZX81, SG-1000 and the default Spectrum
-   producer select `fes_z80_nmos`. A sibling already on the first-party
+   instantiated by Coleco and SMS. ZX81, SG-1000 and the Spectrum models
+   select `fes_z80_nmos`. A sibling already on the first-party
    CPU does not qualify the others. There is no newer first-party 6502 or
    68000; `cpu6502` and `fx68k` stay until a replacement exists. Do not add a
    third Z80.
@@ -88,10 +88,11 @@ The bootstrap image installs `fes.menu` only (#919, 20 October 2026).
 Playable packages are catalog installations through the core library, and
 `config/core-library.toml` registers them with a standing: supported
 (`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.ramtest`), experimental (`fes.spectrum`, `fes.atari-st`, `fes.c64`,
-`fes.apple2`, `fes.riscv`) and demo (`fes.catch`). Registration is not
-acceptance, and no playable package is in the image. The first table below
-is the former nine-package image set; its evidence limits are unchanged.
+`fes.ramtest`), experimental (`fes.spectrum`, `fes.spectrum128`,
+`fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.c64`, `fes.apple2`,
+`fes.riscv`) and demo (`fes.catch`). Registration is not acceptance, and no
+playable package is in the image. The first table below is the former
+nine-package image set; its evidence limits are unchanged.
 
 | Package | Usable as | Matches | Does not match |
 | --- | --- | --- | --- |
@@ -101,7 +102,7 @@ is the former nine-package image set; its evidence limits are unchanged.
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Current lock: `cores/fes-sg1000/toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
-| `fes.spectrum` 0.2.0 | Library standing experimental; no longer in the image. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | The 28 Sep notes do not accept a shared-pin seal. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
+| `fes.spectrum` 0.3.0, `fes.spectrum128` 0.1.0, `fes.spectrum-plus3` 0.1.0, `fes.pentagon` 0.1.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation. Kit A diagnostics booted each named ROM and ran a typed BASIC line; the 128K, +3 and Pentagon models also flashed every 16 frames. Tape, joysticks, audio and expansion remain untested on kit. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Factory ships 100 MHz. | Current lock: `cores/fes-ramtest/toolchain.lock`. | 130 MHz remains open. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | Library standing experimental; no longer in the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3. Current lock: `cores/fes-atari-st/toolchain.lock`. | The October kit notes do not accept a shared-pin seal. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
@@ -118,10 +119,10 @@ registered game on that shell. Splash is `sources/misteross/sealed/fes-splash.rb
 `fes.pong`. There is no NES, SNES or Mega Drive package.
 
 What a person can use, with those evidence limits: Pong, then ZX81 inside its
-1 KiB / `.p` / bus 2.0 contract. Coleco, SMS and SG-1000 are factory slices,
-not cartridge-compatible machines. Spectrum is a pathfinder in the library.
+1 KiB / `.p` / bus 2.0 contract. Coleco, SMS and SG-1000 are fixed-map slices,
+not cartridge-compatible machines. The Spectrum models are package-only.
 Atari ST boots GEM and moves disks on named builds. RISC-V closed on its own
-newer pin (`8f453ebc`, #945) and is package-only. C64 is
+newer pin (`8f453ebc`, #945) and remains package-only. C64 is
 the strongest package-only computer diagnostic. Its shared-pin retirement
 is complete. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated to that pin.
@@ -177,7 +178,7 @@ miss is known and is not a private pin.
 
 ### 3. One Z80
 
-SG-1000 is the pattern. ZX81 and the default Spectrum producer also select
+SG-1000 is the pattern. ZX81 and the Spectrum producer also select
 `fes_z80_nmos`. That does not qualify a sibling still on TV80.
 
 1. SMS. Fixed cartridge, no expansion bus.

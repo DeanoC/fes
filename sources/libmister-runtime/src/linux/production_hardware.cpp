@@ -99,10 +99,10 @@ public:
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
  HardwareResult ConfigureMenuPackage(const std::string& path,const std::string& id) override {return hardware_.ConfigureMenuPackage(path,id);}
  MenuDisplayStatus menu_display() const override {return hardware_.menu_display();}
- Error SetSessionDisplay(bool visible) override {return hardware_.SetSessionDisplay(visible);}
+ Error SetSessionDisplay(bool visible,bool launcher_focus) override {return hardware_.SetSessionDisplay(visible,launcher_focus);}
  Error ShareMenuWindow(int* fd) override {return hardware_.ShareMenuWindow(fd);}
  Error MenuBackSlot(std::uint8_t* slot) const override {return hardware_.MenuBackSlot(slot);}
- Error PresentMenuSlot(std::uint8_t slot,const std::vector<MenuRect>& written,MenuDisplayInfo* info) override {return hardware_.PresentMenuSlot(slot,written,info);}
+ Error PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,MenuDisplayInfo* info) override {return hardware_.PresentMenuSlot(slot,draw,info);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
 	Error FlushFaultSave() override { return hardware_.FlushFaultSave(); }
 	Error RestoreInput(std::uint64_t generation) override

@@ -29,7 +29,7 @@ std::string Controller::Handle(const std::string& line)
  case Operation::configure_menu:
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
  case Operation::session_display:
-  result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible);break;
+  result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible,request.launcher_focus);break;
  case Operation::menu_frame_grant:
  case Operation::menu_frame_begin:
  case Operation::menu_frame_commit:
@@ -185,8 +185,8 @@ std::string Controller::Handle(const std::string& line)
 std::string Controller::GrantMenuWindow(const Request& request,int* fd)
 {
  *fd=-1;
- const auto error=runtime_.ShareMenuWindow(request.expected_generation,fd);
  MenuFrameReply reply;reply.kind=MenuFrameReply::Kind::granted;reply.generation=request.expected_generation;
+ const auto error=runtime_.ShareMenuWindow(request.expected_generation,fd,&reply.blitter);
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 std::string Controller::BeginMenuFrame(const Request& request,std::unique_ptr<MenuFrame>* frame)
@@ -200,11 +200,11 @@ std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame)
 {
  Error error;MenuDisplayInfo info;
  if(request.menu_slot!=frame.slot())error={ErrorCode::invalid_request,"menu commit names another slot than its preparation","request"};
- frame.SetWritten(request.menu_written);
+ frame.SetDraw(request.menu_draw);
  if(error.ok())error=runtime_.PresentMenuFrame(request.expected_generation,frame,&info);
  MenuFrameReply reply;reply.generation=request.expected_generation;reply.slot=frame.slot();
  reply.displayed_sequence=info.displayed_sequence;reply.underflows=info.underflows;
- reply.clean_us=info.clean_us;reply.submit_us=info.submit_us;reply.scanout_wait_us=info.scanout_wait_us;
+ reply.clean_us=info.clean_us;reply.blit_us=info.blit_us;reply.submit_us=info.submit_us;reply.scanout_wait_us=info.scanout_wait_us;
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 

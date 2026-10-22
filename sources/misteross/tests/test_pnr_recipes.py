@@ -36,6 +36,9 @@ LOCK_SHA256 = {
     "fes.apple2": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.c64": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.spectrum": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.spectrum128": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.spectrum-plus3": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
+    "fes.pentagon": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
@@ -86,7 +89,10 @@ GOLDENS = {
     "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
     "fes.apple2": ("57406311d69ef2e121f002c7cf0afbbbfb7b1c26d114acf88e1664a4b482ddd3", "66f49fb8cf973ded993aff3540cba1c3dc01c5d58c2e1c8353eb10003aaee65b"),
     "fes.c64": ("6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
-    "fes.spectrum": ("780de931801b08dcc4df525763a573165a6baf3a3241c6161fd8cdc6d312938a", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum128": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.spectrum-plus3": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.pentagon": ("09c8a0e75e87113ac9cfd5a05071d62431ce8427b4d7b95c38897d5e95305c29", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
     "fes.riscv": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
     "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
@@ -106,6 +112,9 @@ ARGV_MATRIX_GOLDENS = {
     "fes.apple2": "9810f5f4a5870d854ad0e9c5d364d587e95f75ae9d7316f2772683ee1f8395fb",
     "fes.c64": "ed1c7847679e3d9d18654e7e32892c2e585cc1317dd058a865668bb8860223f1",
     "fes.spectrum": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.spectrum128": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.spectrum-plus3": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.pentagon": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
     "fes.riscv": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
     "fes.ramtest": "159f755b9a023c72346c869160555cb102132b77c7ca714bd0b52980be3d4079",
     "fes.atari-st": "36c86eaedd189ac95d79f18c08cd140d6def21d83613e863d6dae20567ab6d84",
@@ -681,10 +690,19 @@ class PnrRecipeTests(unittest.TestCase):
                      if isinstance(node, ast.Call)
                      and isinstance(node.func, ast.Name)
                      and node.func.id == "route_after_synth"]
-            ids = [ast.literal_eval(keyword.value) for call in calls
-                   for keyword in call.keywords if keyword.arg == "core_id"]
+            values = [keyword.value for call in calls
+                      for keyword in call.keywords if keyword.arg == "core_id"]
             self.assertTrue(calls, entry["producer_script"])
-            self.assertEqual(ids, [entry["core_id"]] * len(calls), entry["producer_script"])
+            self.assertEqual(len(values), len(calls), entry["producer_script"])
+            if all(isinstance(value, ast.Constant) for value in values):
+                self.assertEqual([value.value for value in values], [entry["core_id"]] * len(calls),
+                                 entry["producer_script"])
+            else:
+                # A producer shared by several cores selects the core with a
+                # recipe option and names each core it builds.
+                self.assertIn("producer_options", entry, entry["producer_script"])
+                self.assertIn(entry["core_id"], {node.value for node in ast.walk(tree)
+                                                 if isinstance(node, ast.Constant)}, entry["producer_script"])
             for call in calls:
                 env_kw = next((keyword for keyword in call.keywords if keyword.arg == "env"), None)
                 env_dict = any(keyword.arg is None and isinstance(keyword.value, ast.Dict)

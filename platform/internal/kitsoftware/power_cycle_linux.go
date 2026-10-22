@@ -63,10 +63,8 @@ func preparePowerCycle(ctx context.Context, repo *FileRepository, req Acknowledg
 	if state.Selected != req.Selected || state.Generation != req.Generation {
 		return result, ErrConflict
 	}
-	if _, exists, err := repo.readAcknowledgment(req.Action); err != nil {
+	if err := repo.repairActionTaken(req.Action, "power-cycle"); err != nil {
 		return result, err
-	} else if exists {
-		return result, ErrConflict
 	}
 	entries, err := repo.entries()
 	if err != nil {
