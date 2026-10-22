@@ -66,7 +66,8 @@ json::Value Exchange(const std::string& socket,const std::string& request){
  if(!response.fds.empty())throw std::runtime_error("unexpected response descriptor");
  return Response(response);
 }
-// Draws straight into a granted slot, in its B,G,R,X byte order.
+// Draws opaque pixels straight into a granted slot, in its B,G,R,X byte
+// order. X is alpha to a session plane.
 void Paint(unsigned char* pixels,std::uint32_t sequence) {
  for(std::uint32_t y=0;y<FesApplicationMenuHeight;++y)for(std::uint32_t x=0;x<FesApplicationMenuWidth;++x){
   const auto offset=y*FesApplicationMenuStride+x*4;
@@ -80,7 +81,7 @@ void Paint(unsigned char* pixels,std::uint32_t sequence) {
   if(y>=64&&((x%32)==0||(y%32)==0)){r=255;g=255;b=255;}
   if(y<64){const bool bit=(sequence>>(x/40))&1;r=bit?255:0;g=bit?255:0;b=bit?255:0;}
   if(x==FesApplicationMenuWidth-1){r=y&255;g=y>>8;b=sequence&255;}
-  pixels[offset]=b;pixels[offset+1]=g;pixels[offset+2]=r;pixels[offset+3]=0;
+  pixels[offset]=b;pixels[offset+1]=g;pixels[offset+2]=r;pixels[offset+3]=255;
  }
 }
 std::uint64_t Argument(const char* text,std::uint64_t maximum){

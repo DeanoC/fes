@@ -16,6 +16,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_display_plane.hpp"
 #include "native/input.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
@@ -685,8 +686,11 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesSimpleComputerInterfaceMediaBlobStreamMinor}};
 		if (fpga_.BootHpsDdrLayout())
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceMemoryHpsDdrID,1,0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_) {
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceVideoSessionDisplayID,1,0});
+			computer.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
@@ -757,13 +761,17 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
 		// DDR follows the latched boot layout. Session display also needs both
-		// presentation adapters, matching admission of each interface.
+		// presentation adapters, matching admission of each interface. Its
+		// shared plane is advertised with it.
 		if (fpga_.BootHpsDdrLayout())
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_) {
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
+			computer_io.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
@@ -1434,6 +1442,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
    // count here is a fault in this image, not history from the previous core.
    if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
+   if(error.ok()&&info.pixel_format!=generated::FesApplicationMenuPixelFormat)
+    error={ErrorCode::io_failed,"idle menu must scan the XRGB format","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
    menu_status_.geometry=info.geometry;menu_slot_=0;
@@ -1441,9 +1451,13 @@ HardwareResult NativeHardware::LoadCoreInternal(
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
+   // Admission required the declared shared plane; the live bitstream must be it.
+   if(error.ok()&&info.pixel_format!=generated::FesDisplayPlanePixelFormatPremultipliedRgba)
+    error={ErrorCode::io_failed,"session display must blend premultiplied RGBA","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
    menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.picture=info.picture;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,

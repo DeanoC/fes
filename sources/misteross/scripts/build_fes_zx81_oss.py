@@ -47,14 +47,18 @@ PLACER_WEIGHTS = tuple(PNR['search_weights'])
 PLACER_FIRST_PASS_WEIGHTS = tuple(PNR['timing_weights'])
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = pnr_recipe.required_clocks('fes.zx81')
-RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_display_cdc.v', 'cores/fes-zx81/rtl/zx81_session_display.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
-PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
+RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-common/rtl/fes_display_cdc.v', 'cores/fes-common/rtl/fes_display_plane.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
+PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
-ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
+# The session-display plane blends with three unsigned 9x9 products. Unsigned
+# 9x9 sets no DSP sign bits, so it does not depend on DeanoC/nextpnr#219.
+DSP_RESOURCES = frozenset({'MISTRAL_MUL9X9'})
+PLANE_PRODUCTS = 3
+ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1, 'cyclonev_hps_interface_fpga2sdram': 1}
 AUDIO_PINS = {'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
               'HDMI_LRCLK': 'PIN_T11', 'HDMI_I2S0': 'PIN_T13'}
-FORBIDDEN_RESOURCES = frozenset({'MISTRAL_MLAB', 'MISTRAL_MUL9X9', 'MISTRAL_MUL18X18', 'MISTRAL_MUL18X19', 'MISTRAL_MUL18X19_COMBINED', 'MISTRAL_MUL27X27'})
+FORBIDDEN_RESOURCES = frozenset({'MISTRAL_MLAB', 'MISTRAL_MUL18X18', 'MISTRAL_MUL18X19', 'MISTRAL_MUL18X19_COMBINED', 'MISTRAL_MUL27X27'})
 REQUIRED_ZERO_RESOURCES = frozenset({'cyclonev_oscillator'})
 HEX32_RE = re.compile('[0-9a-f]{32}\\Z')
 HEX40_RE = re.compile('[0-9a-f]{40}\\Z')
@@ -123,7 +127,7 @@ def build_commands(root: Path, output: Path, build_id: str, tools: Mapping[str, 
     if set(tools) != {'yosys', 'nextpnr-mistral'}:
         raise BuildError('build commands require authenticated Yosys and nextpnr-mistral paths')
     sources = ' '.join(RTL_SOURCES)
-    yosys_program = f"read_verilog -lib {DDR_ATOM}; read_verilog -sv -DFES_ZX81_ROM_LINK=1 -I cores/fes-zx81/generated -I cores/fes-common/generated -I cores/fes-zx81/rtl {sources}; chparam -set BUILD_ID 128'h{build_id} {TOP}; " + f'chparam -set EXPANSION_SOCKET 1 {TOP}; ' + f'synth_intel_alm -nolutram -nodsp -top {TOP}; stat; write_json {relative.as_posix()}/synth.json'
+    yosys_program = f"read_verilog -lib {DDR_ATOM}; read_verilog -sv -DFES_ZX81_ROM_LINK=1 -I cores/fes-zx81/generated -I cores/fes-common/generated -I cores/fes-zx81/rtl {sources}; chparam -set BUILD_ID 128'h{build_id} {TOP}; " + f'chparam -set EXPANSION_SOCKET 1 {TOP}; ' + f'synth_intel_alm -nolutram -top {TOP}; stat; write_json {relative.as_posix()}/synth.json'
     yosys = (str(tools['yosys']), '-p', yosys_program)
     nextpnr = (str(tools['nextpnr-mistral']), '--json', f'{relative.as_posix()}/synth.json', '--device', TARGET, '--qsf', f'{relative.as_posix()}/socket.qsf', '--sdc', SDC, '--freq', '74.25', '--seed', str(seed), '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT), '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT), '--router', 'gpu', '--timing-allow-fail', '--rbf', f'{relative.as_posix()}/core.rbf', '--compress-rbf', '--write', f'{relative.as_posix()}/routed.json', '--report', f'{relative.as_posix()}/timing.json', '--detailed-timing-report')
     return (yosys, nextpnr)
@@ -293,10 +297,23 @@ def _session_display_evidence(design: dict, label: str, source_root: Path) -> di
     if any(ports.get(port) not in grounds for port in unused) or ports.get('cmd_data_0', [])[1:2] not in grounds:
         raise BuildError('session display DDR writes and unused ports must be tied low')
     for name, cell in cells.items():
-        if (name.startswith('display.video.reader.') and cell.get('type') == 'MISTRAL_M10K'
+        if (name.startswith('display.scanout.reader.') and cell.get('type') == 'MISTRAL_M10K'
                 and int(str(cell.get('parameters', {}).get('CFG_ASYNC_READ', '0')), 2)):
             raise BuildError('session display FIFO requires synchronous M10K reads')
     return {**evidence, 'read_only': True, 'unused_ports_disabled': True}
+
+
+def _plane_dsp_evidence(design: dict) -> None:
+    products = [(name, cell) for name, cell in design['modules'][TOP].get('cells', {}).items()
+                if cell.get('type') in DSP_RESOURCES]
+    if len(products) != PLANE_PRODUCTS or not all(name.startswith('display.') for name, _ in products):
+        raise BuildError(f'synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products')
+    for name, cell in products:
+        parameters = cell.get('parameters', {})
+        for sign in ('A_SIGNED', 'B_SIGNED'):
+            text = str(parameters.get(sign, '')).strip()
+            if not text or set(text) - {'0', '1'} or int(text, 2) != 0:
+                raise BuildError(f'display-plane product {name} must be unsigned ({sign}={text!r})')
 
 
 def validate_build_evidence(output: Path, source_root: Path=ROOT, *, gpu_backend: str=FES_GPU_BACKEND) -> dict:
@@ -319,6 +336,7 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT, *, gpu_backend
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0) != 0:
             raise BuildError(f'forbidden synthesis cell {name} is in use')
+    _plane_dsp_evidence(synthesis)
     route_log = output / 'nextpnr.log'
     if route_log.is_symlink() or not route_log.is_file():
         raise BuildError(f'missing route log: {route_log}')
@@ -357,7 +375,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     rbf = evidence['rbf']
     record_fields = json.loads(record)
     toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
-    fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'Zx81', 'description': 'ZX81 on the FES computer ABI', 'version': '1.5.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
+    fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'Zx81', 'description': 'ZX81 on the FES computer ABI', 'version': '1.6.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.fabric.video.display-plane', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
     if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v2':
         fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 2, 'minor': 0, 'required': False})
     fields['format'] = 3

@@ -26,7 +26,9 @@ has been configured or has unavailable/error evidence. Its generation is
 independent of gameplay `generation`; absent means no menu configuration.
 Geometry is fixed: 1280×720, stride 5120, `byte_count` 3,686,400, two (`slots`)
 4 MiB (`slot_bytes`) slots in `format` `bgrx8888`: XRGB8888 words, bytes
-B, G, R, X. The client draws straight into the slots; the runtime copies no
+B, G, R, X. X is the pixel's alpha: idle MENU ignores it, and a session plane
+blends with it as premultiplied alpha, so clients write 255 where a pixel is
+opaque. The client draws straight into the slots; the runtime copies no
 frame.
 
 ### Grant
@@ -120,19 +122,26 @@ splash reload both fail. Stop from splash idle remains idempotent. A present
 that misses completion or trips the underflow limit reactivates the menu within
 the budget above before using the splash path. Failed containment requires reboot.
 
-## In-session simple-computer display
+## In-session display
 
-An active package with required `fes.video.session-display` and
-`fes.memory.hps-ddr` 1.0 exposes the same frame transport. Open/return uses the
-active core identity, not the frame generation:
+An active simple-computer or computer package with required
+`fes.video.session-display` 1.0, its shared plane
+`fes.fabric.video.display-plane` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the
+same frame transport. The plane blends the slot pixels over the machine
+picture, with X as premultiplied alpha; an opaque frame replaces it. Open/return uses the active
+core identity, not the frame generation:
 
 ```json
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true}
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false}
 ```
 
-Status carries `session: true` and `core_generation: 7` in `menu_display`,
-alongside the active package ID and fixed geometry, while the plane is closed.
+Status carries `session: true`, `core_generation: 7` and the machine picture
+rectangle `picture: [x, y, width, height]` in `menu_display`, alongside the
+active package ID and fixed geometry, while the plane is closed. Admission
+refuses a session display that does not declare the shared plane, such as ZX81
+1.5.0, before programming. Load then requires the plane to report pixel format
+2 and a picture inside the frame; idle MENU must report format 1.
 `available` becomes true only after successful open, which grants the plane's
 slots afresh, keeping their pixels, under a fresh nonzero
 `menu_display.generation`. A repeated open is idempotent. Close sets

@@ -1211,7 +1211,8 @@ local `ui/menudisplay` client reads the runtime's menu generation and fixed
 1280×720 geometry, maps the generation's grant of both slots once, and per
 frame writes into the slot the runtime names: this frame's damage and the
 previous frame's when that slot holds the frame before, otherwise the whole
-frame, converted to the scanout's BGRX order. It commits the rectangles it
+frame, converted to the scanout's BGRX order with the pixel's alpha as X,
+which a session plane blends with. It commits the rectangles it
 wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a

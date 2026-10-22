@@ -160,8 +160,9 @@ Quartus oracle RBFs, when a recipe has one, are
 `build/fes-<name>-quartus/core.rbf`. They are not a fallback when the OSS
 producer fails.
 
-The ZX81 1.5.0 source includes a runtime-owned DDR plane for in-session HDMI
-controls. Opening and returning preserve CPU, RAM, firmware, expansion, capture
+The ZX81 1.6.0 source drives HDMI through the shared `fes.video.session-display`
+plane, which blends runtime-owned DDR frames over the machine picture for
+in-session HDMI controls. Opening and returning preserve CPU, RAM, firmware, expansion, capture
 and audio. Simulation covers complete-frame presentation, asynchronous display
 control, live cassette operations and ordered drain/fault handling. A scoped
 zero-build-ID route demonstrates three-clock feasibility with the locked ZX81

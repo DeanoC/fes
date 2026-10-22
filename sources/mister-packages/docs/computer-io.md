@@ -33,6 +33,10 @@ removable media by unit.
 | fes.memory.hps-ddr | 12 | Reserved DDR window for launcher frames. Advertised only when the boot DDR layout and menu adapters exist |
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
 
+A session display is also declared with the manifest-only
+`fes.fabric.video.display-plane` 1.0, which has no capability bit; see
+[session display](session-display.md).
+
 Admission requires video. Every other interface is independently composable.
 The writable extension requires the base ST floppy interface; it changes its
 write-protection behavior while preserving its size and upload contract.

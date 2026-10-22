@@ -196,8 +196,14 @@ func emitPath(path string) (string, error) {
 			return "", err
 		}
 		return emitcpp.GenerateProgrammingProfiles(profiles)
+	case "fabric":
+		fabric, err := pack.LoadFabric(path)
+		if err != nil {
+			return "", err
+		}
+		return emitcpp.GenerateFabric(fabric)
 	default:
-		return "", fmt.Errorf("%s: emit-cpp expects kind platform, abi, or programming_profiles, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-cpp expects kind platform, abi, fabric, or programming_profiles, got %q", path, kind)
 	}
 }
 
