@@ -208,6 +208,9 @@ func (a *App) invalidateSessionDisplayLocked() {
 	a.roomDuringPlay = false
 	a.playPadChordSince = time.Time{}
 	a.playPadChordFired = false
+	// Releases outside a session are not tracked, so a pair held now
+	// counts only when it is pressed again.
+	a.playPadPair = chordPairs{}
 	a.suppressHeldPlayKeysLocked()
 	a.suppressHeldSessionPadLocked()
 	// The epoch bump drops any pending open or return, including one ended

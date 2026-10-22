@@ -340,7 +340,7 @@ func (s *controllerPortsSink) releaseLocalPlayerLocked(ctx context.Context, play
 		}
 		return nil
 	}
-	// The hub sends this after the departed pad's releases and zero axes.
+	// Tenfoot sends this after the departed pad's releases.
 	// Keep the remaining source state: a physical keyboard can also contribute
 	// shaped controls on this player, and it has not disconnected.
 	s.localClaim[player] = false
@@ -416,7 +416,9 @@ func (s *controllerPortsSink) shapeLocked(source inputSource, f protocol.InputFr
 		return f, true
 	}
 	event := frameEvent(f)
-	if source == sourceLocal && s.binding == nil && !(s.localMatrixRouteLocked() && event.Device == remoteinput.DeviceGamepad) {
+	// Kit-local pads keep their players on every route: the joystick matrix
+	// and the legacy pad merge union them per player.
+	if source == sourceLocal && s.binding == nil && event.Device != remoteinput.DeviceGamepad {
 		event.Player = 0
 	}
 	shaped, ok := playhid.StreamEvent(event, s.keyboardModeLocked())
@@ -449,6 +451,10 @@ func (s *controllerPortsSink) applyUnboundLocked(ctx context.Context, source inp
 		return s.pads.ApplyFrom(source, f)
 	}
 	if s.fallback != nil {
+		// Without the merge there is one pad for every kit-local player.
+		if source == sourceLocal {
+			f.Player = 0
+		}
 		return s.fallback.Apply(f)
 	}
 	return nil

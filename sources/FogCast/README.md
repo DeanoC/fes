@@ -72,9 +72,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts
-  zero-based `Player` (default 0). The kit's physical-controller hub assigns
-  stable ports, releases only an unplugged controller, and keeps the surviving
-  controller's port. Stop releases both. These interfaces use full snapshots
+  zero-based `Player` (default 0). On the kit, tenfoot gives the first two
+  pads it opens ports 1 and 2, releases only an unplugged pad, and keeps the
+  surviving pad's port. Stop releases both. These interfaces use full snapshots
   bound to the active package generation through the native runtime; legacy
   single-pad cores retain their existing uinput path. See
   [shared controller ports](docs/ARCHITECTURE.md#shared-controller-ports).
