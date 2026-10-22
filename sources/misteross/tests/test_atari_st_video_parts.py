@@ -23,7 +23,8 @@ def fixture(routed=False):
     with patch.object(shared,"video_parts",layout):
         top=shared.video_boundary_fixture(routed=routed)
     if routed:
-        shared.add_boundary_route_throughs(top)
+        shared.add_boundary_route_throughs(
+            top, nextpnr_commit=layout.pnr_recipe.nextpnr_pin("fes.atari-st"))
         cpu=frozen_shell()["modules"]["top"]
         for name,cell in cpu["cells"].items():
             if name=="machine.keep":continue

@@ -155,7 +155,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                 gpu_devices=(0,), env=env, audit_source_root=root)
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
+        coleco_expansion.validate_routed_shell(
+            output / "routed.json", version=2,
+            nextpnr_commit=socket.pnr_recipe.nextpnr_pin("fes.coleco"))
         reject_async_m10k_reads(json.loads((output / "routed.json").read_text()))
         evidence = factory.validate_build_evidence(output, root)
         mapping, map_evidence = rom_map.build_rom_map(

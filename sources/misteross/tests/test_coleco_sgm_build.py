@@ -60,6 +60,29 @@ class BoundaryRouteThroughTest(unittest.TestCase):
                 self.assertEqual(coleco_expansion.boundary_route_through_cells(
                     top, {"anchor": ff_bel}), {"anchor$ROUTETHRU"})
 
+    def test_compiler_pin_selects_the_exact_legacy_or_remapped_input(self):
+        cases = (
+            (coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.56", "C", coleco_expansion.NEXTPNR_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.58", "D", coleco_expansion.NEXTPNR_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+        )
+        for commit, ff_bel, input_pin, wrong_commit in cases:
+            with self.subTest(commit=commit, ff_bel=ff_bel):
+                half = 0 if ff_bel.endswith(".56") else 1
+                buffer_bel = "MISTRAL_COMB.24.4." + ("54" if half == 0 else "55")
+                top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel,
+                                            pin=input_pin)
+                self.assertEqual(coleco_expansion.boundary_route_through_cells(
+                    top, {"anchor": ff_bel}, nextpnr_commit=commit), {"anchor$ROUTETHRU"})
+                with self.assertRaisesRegex(ValueError, "pin map changed"):
+                    coleco_expansion.boundary_route_through_cells(
+                        top, {"anchor": ff_bel}, nextpnr_commit=wrong_commit)
+
     def test_older_snapshot_without_buffer_is_accepted(self):
         top = route_through_fixture()
         del top["cells"]["anchor$ROUTETHRU"]
