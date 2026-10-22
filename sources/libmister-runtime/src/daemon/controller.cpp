@@ -29,7 +29,7 @@ std::string Controller::Handle(const std::string& line)
  case Operation::configure_menu:
   result=runtime_.ConfigureMenuPackage(request.package_path,request.package_id);break;
  case Operation::session_display:
-  result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible);break;
+  result=runtime_.SetSessionDisplay(request.expected_package_id,request.expected_generation,request.visible,request.launcher_focus);break;
  case Operation::menu_frame_grant:
  case Operation::menu_frame_begin:
  case Operation::menu_frame_commit:

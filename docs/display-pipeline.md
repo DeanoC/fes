@@ -98,12 +98,24 @@ package, like any other shell change.
 
 ## Focus and visibility
 
-The runtime's `session_display` operation currently couples the plane's
-visibility with launcher input focus: opening shows launcher frames and moves
-input to the launcher, and closing restores machine pixels and machine input.
-A surround needs the plane composited while the machine keeps input.
-Separating the two is planned work in FogCast and libmister-runtime. It does
-not change the FPGA contract.
+The runtime's `session_display` operation sets the plane's visibility and
+launcher input focus separately. Each runtime request names both. Requests
+between FogCast's host and kit omit `focus` when it is the one visibility
+implies, so a host and kit software that ship separately still agree on
+everything except the surround:
+
+| `visible` | `focus` | Shows | Input |
+| --- | --- | --- | --- |
+| `false` | `machine` | Machine pixels | Machine |
+| `true` | `machine` | Plane over the machine (surround) | Machine |
+| `true` | `launcher` | Plane over the machine (overlay) | Launcher |
+
+A closed plane with launcher focus is rejected. Taking launcher focus posts a
+neutral keyboard first. Moving focus on a shown plane keeps its display
+generation, grant and frames. A close or display failure that cannot prove
+the plane drained keeps launcher focus, so machine keys stay suppressed until a
+later request succeeds. Focus is a runtime and FogCast concern; the FPGA plane
+composites the same way whoever has input.
 
 ## References
 

@@ -60,10 +60,14 @@ public:
  unsigned menu_present_calls=0;
  mister::Error menu_present_result;
  std::function<void()> on_menu_present;
- mister::Error SetSessionDisplay(bool visible) override {
+ // A failure models a plane whose drain is not proved: launcher focus stays.
+ mister::Error SetSessionDisplay(bool visible,bool launcher_focus) override {
   ++session_display_calls;if(on_session_display)on_session_display();
-  if(!session_display_result.ok()){menu_status.available=false;menu_status.error=session_display_result;return session_display_result;}
-  menu_status.available=visible;if(visible)menu_status.error={};return {};
+  if(!session_display_result.ok()){
+   menu_status.available=false;menu_status.launcher_focus=true;menu_status.error=session_display_result;
+   return session_display_result;
+  }
+  menu_status.available=visible;menu_status.launcher_focus=launcher_focus;if(visible)menu_status.error={};return {};
  }
  unsigned session_display_calls=0;
  mister::Error session_display_result;

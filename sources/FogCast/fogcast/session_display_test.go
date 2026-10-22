@@ -15,7 +15,7 @@ type displayServiceClient struct {
 	err   error
 }
 
-func (c *displayServiceClient) SetSessionDisplay(_ context.Context, _ bool, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+func (c *displayServiceClient) SetSessionDisplay(_ context.Context, _ protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	c.calls++
 	return c.statusResult, c.err
 }
@@ -31,22 +31,25 @@ func TestDisplayAndLiveIdentityStayOnCapturedKitWhenForegroundChanges(t *testing
 		targetClients: map[string]serviceClient{"kit-a": a, "kit-b": bClient},
 		plays:         map[string]targetPlay{"kit-a": {execution: ExecutionFPGADevelopment, gameID: "rom-zx81", system: "zx81", packageID: id, packageGeneration: 9}}}
 	b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-a", TargetID: "target-a"}
-	for _, visible := range []bool{true, false} {
-		got, err := s.SetSessionDisplay(context.Background(), visible, b)
+	for _, display := range []protocol.SessionDisplay{protocol.SessionDisplayFocused, protocol.SessionDisplayClosed} {
+		got, err := s.SetSessionDisplay(context.Background(), display, b)
 		if err != nil || got.GameID == nil || *got.GameID != "rom-zx81" || !b.MatchesSessionDisplay(got) {
-			t.Fatalf("display=%v err=%v status=%+v", visible, err, got)
+			t.Fatalf("display=%+v err=%v status=%+v", display, err, got)
 		}
+	}
+	if _, err := s.SetSessionDisplay(context.Background(), protocol.SessionDisplay{Focus: protocol.SessionFocusLauncher}, b); err == nil {
+		t.Fatal("closed display with launcher focus reached the kit")
 	}
 	if a.calls != 2 || bClient.calls != 0 || s.activeTarget != "kit-b" {
 		t.Fatal("display followed or replaced foreground")
 	}
 	b.Generation++
-	if _, err := s.SetSessionDisplay(context.Background(), true, b); err == nil || a.calls != 2 {
+	if _, err := s.SetSessionDisplay(context.Background(), protocol.SessionDisplayFocused, b); err == nil || a.calls != 2 {
 		t.Fatal("stale core generation reached physical client")
 	}
 	b.Generation--
 	a.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Phase: "display"}
-	if _, err := s.SetSessionDisplay(context.Background(), false, b); err == nil || s.plays["kit-a"].packageGeneration != 9 {
+	if _, err := s.SetSessionDisplay(context.Background(), protocol.SessionDisplayClosed, b); err == nil || s.plays["kit-a"].packageGeneration != 9 {
 		t.Fatal("display failure retired play")
 	}
 }
