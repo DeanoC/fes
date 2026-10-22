@@ -1092,3 +1092,59 @@ dependency members and exact complete proof reproduction. The initial
 extraction into the full shared `/tmp` filesystem stopped before replay;
 that infrastructure failure is retained separately from the passing replay
 on the task disk. Archive verification adds zero route charge.
+
+
+## Expanded ordinary-LUT search and MDA margin gain
+
+Compiler `02ffa3aa6a74b71debbb23da24e5332b541cf742` extends the explicit
+ordinary-LUT permutation budget from four to sixteen; default zero, candidate
+ordering and every transaction/coverage/timing guard remain unchanged. All
+45 native and six CLI checks pass, with byte-exact default/zero preparation
+controls. The native transaction executable omits the unused orchestration
+through LTO; retained compile/link evidence distinguishes those transaction
+checks from CLI admission and the fresh route execution below.
+
+Fresh CPU16-plus-permutation routes with frozen binary
+`ff2174157ae425d4b8c106bb22120be740230ac02b28e8a198010124f3b433e3`
+compare budgets four and sixteen. The control reproduces the earlier CGA
+135 ps improvement. The first four trials and preceding repairs match exactly.
+One additional MDA ALUT3 A/C permutation is retained at trial six. Four setup
+margins improve by 62 ps; the two failing MDA outputs improve -327 to -265 ps
+and -328 to -266 ps. All other 17,190 checked setup margins and all 17,194 hold
+margins are exact. There remain ten setup failures, whole-system worst -434 ps,
+zero hold failures and minimum hold +822 ps. The CPU D/C and D/B alternatives
+reject native clock-margin regressions; D/A was outside these sixteen trials.
+
+The complete graph proof covers all 12,397 cells and 15,546 aliases and all
+eight raw truth rows of the MDA ALUT3. Only canonical input trees 57715/57717
+change. An initial offline checker rejected the M10K vector output: the exact
+native frontend names both bits of a width-two B1DATA port with brackets,
+including index zero. The corrected selection bridge follows the pinned parser,
+requires a complete one-to-one name mapping and the actual saved physical map,
+and retains the raw driver/user identities. Original scalar checker bytes and
+failure evidence are retained. Two actual indexed outputs, scalar-name
+preservation and eight malformed cases pass; an independent review verifies
+that all other graph/function logic is unchanged.
+
+The unchanged frozen native reader verifies the actual memory bit-port IDs,
+source wires and complete four-net frontier. Two stationary users preserve
+nineteen original wire/PIP/strength tuples. Independent root execution reproduces
+both native outputs byte for byte. Independent review reproduces eight complete
+proof outputs, including all 17,199 endpoint rows, clock guards and graph/parser
+corruption controls. This does not infer timing from reloaded checkpoints.
+
+Completed route charges are 768.3349105152301 and 845.7753356420435 seconds.
+The journal now has 42 subsequent receipts and cumulative charge
+**43258.85106730693887 seconds**. Complete local artifacts are under
+`out/lut-permutation-budget16-20261022/`. A fresh experiment combining the
+second CPU round with these CGA/MDA repairs is running separately; its results
+are not inferred from the separate gains. The best completed eight-failure CPU
+recipe remains distinct from this ten-failure display-improvement recipe.
+No RTL, constraints, clocks, locks, shared contracts or hardware changed.
+
+The second CPU round now also has an [immutable capture](https://github.com/DeanoC/nextpnr/tree/bfa6904b/docs/validation/2026-10-22-pcxt-lut6-rounds)
+with archive SHA-256
+`86105f2089992e257032b32b10c818b14e59c74a72bca14ba871c5cad890f5a8`.
+Root independently extracts all 234 members, verifies all 261 dependency
+members and reproduces the complete proofs. All physical, same-recipe seed,
+production and exact-artifact hardware gates remain open.
