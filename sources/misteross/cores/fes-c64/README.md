@@ -612,7 +612,7 @@ shell and both card profiles need fresh shell/card timing and hardware
 validation.
 The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
-the exact physical pin map and a dedicated connection to that flip-flop;
+a buffer input dedicated to that half (C/D, E or F) and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket
 is rejected.
 The first sixteen firmware lanes are synchronous 1024x10 M10Ks on the system

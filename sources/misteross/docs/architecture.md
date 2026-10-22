@@ -1764,7 +1764,8 @@ The shell QSF adds the four named `FES_RESERVED_RECT` regions of
 `scripts/apple2_slots.py`. Socket validation admits a compiler-inserted
 `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of an already
 pinned boundary flip-flop. The shared `coleco_expansion` check requires the
-paired COMB/MCOMB half, the exact physical pin map, and a dedicated buffer
+paired COMB/MCOMB half, a buffer pin map whose input is dedicated to that half
+(C/D, E or F), and a dedicated buffer
 output connected only to that flip-flop's data input. Clock-coverage outputs
 must remain unused. A matching name or the same tile is not enough. Every
 other shell cell inside a socket is rejected, and every firmware destination
@@ -1852,7 +1853,8 @@ from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
 Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
 verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
 The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
-exact physical pin map and ports, and a dedicated buffer output connected
+a buffer pin map whose input is dedicated to that half (C/D, E or F), exact
+ports, and a dedicated buffer output connected
 only to that flip-flop's data input. Clock-coverage outputs must remain
 unused, and each effective boundary data input must have exactly one driver
 or a direct defined constant. Older clock-only anchors may have disconnected

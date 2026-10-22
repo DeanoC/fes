@@ -180,8 +180,9 @@ same media/expansion contracts. The seal gates every actual clock domain:
 Fast audio timing belongs to the 56 MHz domain; its pin rates are measured by
 the audio regression. The producer cannot publish a below-target route.
 It checks every pinned socket boundary and admits compiler-inserted
-route-through buffers only at the paired combinational half, with the exact
-physical pin map and a dedicated connection to the boundary flip-flop.
+route-through buffers only at the paired combinational half, with a buffer
+input dedicated to that half (C/D, E or F) and a dedicated connection to the
+boundary flip-flop.
 Clock-coverage outputs remain unused; unrelated cells inside the sockets
 are rejected.
 

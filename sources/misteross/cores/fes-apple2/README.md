@@ -190,7 +190,8 @@ September kit notes do not accept those bytes.
 
 The shell admits a route-through buffer only when it is the paired
 `$ROUTETHRU` companion of a pinned boundary flip-flop: matching combinational
-BEL, physical pin map, and a dedicated connection into that flip-flop.
+BEL, a buffer input dedicated to that half (C/D, E or F), and a dedicated
+connection into that flip-flop.
 Clock-coverage outputs stay unused. The build record uses the audited static
 source closure in `scripts/source_closures.json` rather than the broad
 `scripts` and `cores/fes-common` roots. A compiler-read derive of that closure
