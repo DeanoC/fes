@@ -111,6 +111,13 @@ Cold reset does not establish a storage-retention guarantee.
 
 The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
 refresh and the established additional fabric stage after input capture.
+Its output-register mode adds one aligned cycle to command/address, write data
+and output enable, with the matching read-capture count adjustment. Plain
+command/address registers can pack into the pads without moving the controller
+state/enable muxes there. This configuration still needs routed and hardware
+qualification. The digital cold-reset model allows already-issued commands to
+drain until CKE falls, then requires a fresh initialization sequence; it retains
+bank recovery state and RAM contents across FPGA reset.
 `clk_pin` is the phase-0 controller clock used for the inverted SDRAM clock
 output. The board diagnostic supplies captured `dq_rise/dq_fall`, bidirectional
 pads and PLL phases; their physical setup/hold constraints remain unqualified. The diagnostic synthesis retains
