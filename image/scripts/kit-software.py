@@ -135,16 +135,22 @@ def base_contract(target, executables):
 
 
 def menu_requirements(target):
-    """Interfaces the image's sealed menu package declares, as menu.<id> keys.
-
-    The runtime counts every declared interface when it admits the menu, so
-    optional declarations are required of the software too.
-    """
+    """Interfaces the image's sealed menu package declares, as menu.<id> keys."""
     selection = tomllib.loads((target / MENU_SELECTION).read_text())
     package = selection.get('package_id')
     if not isinstance(package, str) or not re.fullmatch('[0-9a-f]{64}', package):
         raise ValueError('invalid menu package selection')
-    manifest = target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml'
+    return menu_package_requirements(
+        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml')
+
+
+def menu_package_requirements(manifest):
+    """Interfaces a menu package manifest declares, as menu.<id> keys.
+
+    The runtime counts every declared interface when it admits the menu, so
+    optional declarations are required of the software too. Bootstrap artifact
+    selection (scripts/image_artifacts.py) applies the same check.
+    """
     interfaces = tomllib.loads(manifest.read_text()).get('interfaces')
     if not isinstance(interfaces, list) or not interfaces:
         raise ValueError('menu package declares no interfaces')
