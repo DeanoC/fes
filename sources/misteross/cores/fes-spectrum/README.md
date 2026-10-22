@@ -130,9 +130,10 @@ make sim-fes-spectrum-rom ROM_MEM_SIM=/path/to/yosys/share/yosys/intel_alm/commo
 The machine simulation runs the open diagnostic firmware
 (`diagnostic/firmware.py`) on each model: paging through `$7FFD`, AY register
 read-back, the keyboard matrix, Kempston port, probe id and scratch register,
-a red border and a black ink pixel, and then polls EAR as the ROM's edge loop
-does, which must start the diagnostic tape and show its 2168 T pilot. It also
-checks the
+a red border and a black ink pixel. Its own turbo loader, which counts port
+`$FE` reads in B as tape loaders do, must start the diagnostic tape through
+the deck's loader detection, see its 1200 T pilot and decode the four bytes of
+its 350/700 T turbo block. It also checks the
 frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
 attribute swaps ink and paper every 16 frames. The video simulation
@@ -142,8 +143,9 @@ is one whole source frame at the 3x3 geometry. The board simulation drives
 (`cores/fes-common/sim/hps_ddr_media_model.v`, which refuses commands and
 delays data at random): identity capability bits 5, 12 and 13, tape limits
 10..16 MiB, the diagnostic tape committed in two chunks so a byte pair
-straddles two DDR words, its bytes in the DDR window, the 2168 T pilot played
-back from DDR, no DDR protocol or window violation, HID usage `A` landing on
+straddles two DDR words, its bytes in the DDR window, the 1200 T pilot played
+back from DDR and the bytes the firmware's loader decodes from it, no DDR
+protocol or window violation, HID usage `A` landing on
 the Spectrum A key and controller port 1 pressing Sinclair keys. The tape
 simulation plays PZX images through the deck from a stream that stalls at
 random and compares EAR, T state for T state, with an independent expansion

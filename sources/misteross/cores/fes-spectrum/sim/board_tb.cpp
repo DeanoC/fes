@@ -2,8 +2,8 @@
 // Board simulation through the fes.computer mailbox: identity advertises the
 // Spectrum tape unit and the session display, a PZX image committed in two
 // chunks while the machine runs lands in HPS DDR (a byte pair straddling a
-// DDR word), the firmware's edge loop plays it back from DDR as 2168 T pilot
-// edges, a USB HID 'A' becomes the Spectrum matrix after the settle window,
+// DDR word), the firmware's turbo loader plays it back from DDR (its 1200 T
+// pilot edges and the four bytes it decodes), a USB HID 'A' becomes the Spectrum matrix after the settle window,
 // and controller port 1 is Sinclair joystick 1.
 #include "Vtop.h"
 #include "Vtop___024root.h"
@@ -141,8 +141,9 @@ int main(int argc, char** argv) {
         require(((word >> (8 * (i % 8))) & 0xff) == tape[i], "DDR byte " + std::to_string(i) + " differs");
     }
 
-    // The diagnostic's edge loop starts the deck, which streams the image back
-    // from DDR: three successive pilot edges 2168 T apart.
+    // The diagnostic's loader starts the deck, which streams the image back
+    // from DDR: three successive pilot edges 1200 T apart, then the four bytes
+    // the loader decodes into $8100.
     int matched = 0;
     bool seen_edge = false, last_ear = false, last_tick = false;
     uint32_t since = 0;
@@ -153,12 +154,22 @@ int main(int argc, char** argv) {
         last_tick = tick;
         const bool ear = board.root.top__DOT__ear;
         if (ear != last_ear) {
-            matched = seen_edge && since == 2168 ? matched + 1 : seen_edge ? 0 : matched;
+            matched = seen_edge && since == 1200 ? matched + 1 : seen_edge ? 0 : matched;
             seen_edge = true;
             since = 0;
             last_ear = ear;
         }
         require(clocks < 8000000, "no tape pilot from DDR (" + std::to_string(matched) + " edges)");
+    }
+    // The 48K top keeps Spectrum bank 2 ($8000) as its second stored bank.
+    const uint8_t loaded[4] = {0xa5, 0x3c, 0x81, 0x7e};
+    auto ram = [&](unsigned offset) { return board.root.top__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem[offset]; };
+    for (uint64_t clocks = 0;; ++clocks) {
+        bool done = true;
+        for (unsigned i = 0; i < 4; ++i) done &= ram(0x100 + i) == loaded[i];
+        if (done) break;
+        require(clocks < 20000000, "the loader did not decode the tape from DDR");
+        board.run_clocks(1);
     }
     require(!board.root.top__DOT__memory__DOT__f2sdram__DOT__violation_media &&
             !board.root.top__DOT__memory__DOT__f2sdram__DOT__violation_plane,
