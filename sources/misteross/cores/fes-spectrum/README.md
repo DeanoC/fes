@@ -163,6 +163,10 @@ producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
 
+The 2026-10-22 host seals of all four packages, with their package
+identities, clock results and resources, are in
+[the seal record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
+
 Firmware lanes 0-15 are column 5 rows 32-47, 16-23 rows 48-55, 24-31 rows
 73-80 and 32-63 column 14 rows 32-63. Each is a blank 1024x10 M10K with a
 registered read address; the lane selector is registered alongside it and the
