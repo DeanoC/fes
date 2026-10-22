@@ -37,11 +37,13 @@ module spectrum_ula #(
     input  wire [7:0]  screen_data,
     input  wire [2:0]  border,
     output reg  [7:0]  floating = 8'hff,
-    // 8 pixels of 4-bit {bright, green, red, blue}, leftmost in [31:28].
+    // One 8-pixel chunk as the ULA sees it: {bitmap[7:0], ink[3:0],
+    // paper[3:0]} with 4-bit {bright, green, red, blue} colours, FLASH
+    // already resolved; a border chunk has bitmap 0 and the border as paper.
     output reg         pixel_we = 1'b0,
     output reg  [7:0]  pixel_row = 8'd0,
     output reg  [5:0]  pixel_chunk = 6'd0,
-    output reg  [31:0] pixel_data = 32'd0,
+    output reg  [15:0] pixel_data = 16'd0,
     output reg         frame_done = 1'b0
 );
     localparam integer T_LINE   = (MODEL == 1 || MODEL == 2) ? 228 : 224;
@@ -251,16 +253,12 @@ module spectrum_ula #(
     reg [2:0] border_q = 3'd7;
     reg screen7_q = 1'b0;
 
-    function [31:0] paper_pixels(input [7:0] bits, input [7:0] attr, input flash_on);
-        integer i;
+    function [15:0] paper_word(input [7:0] bits, input [7:0] attr, input flash_on);
         reg swap;
-        reg [3:0] ink, paper;
         begin
             swap = attr[7] && flash_on;
-            ink = {attr[6], swap ? attr[5:3] : attr[2:0]};
-            paper = {attr[6], swap ? attr[2:0] : attr[5:3]};
-            for (i = 0; i < 8; i = i + 1)
-                paper_pixels[31 - 4*i -: 4] = bits[7 - i] ? ink : paper;
+            paper_word = {bits, attr[6], swap ? attr[5:3] : attr[2:0],
+                          attr[6], swap ? attr[2:0] : attr[5:3]};
         end
     endfunction
 
@@ -276,9 +274,9 @@ module spectrum_ula #(
             pixel_we <= 1'b1;
             pixel_row <= row;
             pixel_chunk <= chunk;
-            pixel_data <= paper_chunk ? paper_pixels(screen7_q ? bitmap7 : bitmap5,
-                                                     screen7_q ? attr7 : attr5, flash)
-                                      : {8{1'b0, border_q}};
+            pixel_data <= paper_chunk ? paper_word(screen7_q ? bitmap7 : bitmap5,
+                                                   screen7_q ? attr7 : attr5, flash)
+                                      : {8'h00, 4'h0, 1'b0, border_q};
             frame_done <= row == 8'd239 && chunk == 6'd39;
         end
     end

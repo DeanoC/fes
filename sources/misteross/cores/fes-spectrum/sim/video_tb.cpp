@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Frame-bank video: 50 Hz frames written on the 52.224 MHz system clock and
-// shown 3x3 in 720p60 on an unrelated 74.25 MHz clock. Source frame n has
-// colour n mod 15 + 1 everywhere except a geometry mark. Every HDMI frame
+// shown 3x3 in 720p60 on an unrelated 74.25 MHz clock. Chunks are
+// {bitmap, ink, paper} words. Source frame n has paper colour n mod 15 + 1
+// everywhere except a geometry mark chunk whose first pixel is paper 0 and
+// whose other seven are bright white ink. Every HDMI frame
 // must show one whole source frame (no tear) with the mark at its scaled
 // position and black side bars, and the shown frame must keep advancing.
 #include "Vspectrum_video.h"
@@ -59,7 +61,7 @@ int main(int argc, char** argv) {
                     dut.pixel_we = 1;
                     dut.pixel_row = row;
                     dut.pixel_chunk = chunk;
-                    dut.pixel_data = mark ? 0x0fffffffu : 0x11111111u * colour;
+                    dut.pixel_data = mark ? 0x7ff0u : colour;
                     dut.frame_done = row == 239 && chunk == 39;
                     if (++chunk == 40) { chunk = 0; if (++row == 240) { row = 0; ++source; } }
                 }

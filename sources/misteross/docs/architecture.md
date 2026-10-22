@@ -1884,9 +1884,10 @@ bus cycle, and the ULA holds `ce_n` and the following `ce_p` for the delay
 decided where the CPU first asks. The NMOS core exports its presented cycle
 kind and T state for this; it exposes no other new state.
 
-The ULA renders two pixels per T state in the system domain into one of three
-320x240 frame banks; `spectrum_video.v` shows the newest complete bank 3x3 in
-720p60 through the shared session-display plane. The 128K-class models add
+The ULA renders each 8-pixel chunk (bitmap byte, ink, paper) in the system
+domain into one of three 320x240 frame banks; `spectrum_video.v` shows the
+newest complete bank 3x3 in 720p60 through the shared session-display plane.
+The 128K-class models add
 paged 128 KiB RAM and the `zonx_ay` AY-3-8912. The timing model matches Fuse
 1.6.0: the Fuse Z80 core tests' contention points, model boot traces and
 fetch-point race sweeps are recorded in the README; they are simulations.

@@ -2,9 +2,10 @@
 // ZX Spectrum picture: complete 50 Hz frames captured from the ULA and shown
 // 3x3 in 1280x720p60.
 //
-// The ULA writes 8 pixels of 4-bit colour per clock into one of three frame
-// banks (320x240, 40 words per line). HDMI shows the newest complete bank
-// from its next frame start, so 50 Hz frames repeat whole and never tear.
+// The ULA writes one 8-pixel chunk per clock, as {bitmap, ink, paper} with
+// 4-bit colours, into one of three frame banks (320x240, 40 words per line).
+// HDMI shows the newest complete bank from its next frame start, so 50 Hz
+// frames repeat whole and never tear.
 // The 960x720 picture is centred at x=160; the side bars are black for the
 // display plane's surround.
 module spectrum_video (
@@ -12,7 +13,7 @@ module spectrum_video (
     input  wire        pixel_we,
     input  wire [7:0]  pixel_row,
     input  wire [5:0]  pixel_chunk,
-    input  wire [31:0] pixel_data,
+    input  wire [15:0] pixel_data,
     input  wire        frame_done,
     input  wire        pixel_clk,
     output reg  [7:0]  red = 8'd0,
@@ -32,7 +33,7 @@ module spectrum_video (
     localparam [9:0] V_TOTAL = 10'd750;
     localparam [10:0] LEFT = 11'd160;
 
-    (* ramstyle = "M10K" *) reg [31:0] frames [0:28799];
+    (* ramstyle = "M10K" *) reg [15:0] frames [0:28799];
 
     function [14:0] word_address(input [1:0] bank, input [7:0] row, input [5:0] chunk);
         reg [14:0] base;
@@ -81,10 +82,11 @@ module spectrum_video (
     reg [1:0] sub_x = 2'd0, sub_y = 2'd0;
     reg [2:0] pixel = 3'd0;
     reg [7:0] sy = 8'd0;
-    reg [31:0] word = 32'd0;
-    reg [31:0] next_word = 32'd0;
+    reg [7:0] bits = 8'd0;
+    reg [3:0] ink = 4'd0, paper = 4'd0;
+    reg [15:0] next_word = 16'd0;
     reg [14:0] read_address = 15'd0;
-    reg [31:0] read_data = 32'd0;
+    reg [15:0] read_data = 16'd0;
     reg fetching = 1'b0;
     reg [4:0] fetch_phase = 5'd0;
     reg [5:0] fetch_word = 6'd0;
@@ -148,20 +150,21 @@ module spectrum_video (
             end
         end
 
-        // Three output pixels per source pixel, eight pixels per word.
+        // Three output pixels per source pixel, eight pixels per chunk.
         if (h == LEFT - 11'd1) begin
             sub_x <= 2'd0;
             pixel <= 3'd0;
-            word <= next_word;
+            {bits, ink, paper} <= next_word;
         end else if (in_picture) begin
             if (sub_x == 2'd2) begin
                 sub_x <= 2'd0;
                 pixel <= pixel + 3'd1;
-                word <= pixel == 3'd7 ? next_word : {word[27:0], 4'd0};
+                if (pixel == 3'd7) {bits, ink, paper} <= next_word;
+                else bits <= {bits[6:0], 1'b0};
             end else sub_x <= sub_x + 2'd1;
         end
 
-        rgb = in_picture ? palette(word[31:28]) : 24'h000000;
+        rgb = in_picture ? palette(bits[7] ? ink : paper) : 24'h000000;
         red <= rgb[23:16];
         green <= rgb[15:8];
         blue <= rgb[7:0];

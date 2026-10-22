@@ -109,7 +109,7 @@ MODELS = {model.key: model for model in (
 # Exact synthesized block counts: (MISTRAL_M10K, MISTRAL_M10K_TDP). M10K is the
 # firmware lanes, the three 320x240 frame banks and the display-plane FIFO;
 # TDP is the CPU/ULA RAM and the 64 KiB tape image.
-EXPECTED_M10K = {"48": (136, 112), "128": (152, 192), "plus3": (184, 192), "pentagon": (152, 192)}
+EXPECTED_M10K = {"48": (78, 112), "128": (94, 192), "plus3": (126, 192), "pentagon": (94, 192)}
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 QSF = "cores/fes-spectrum/constraints-oss.qsf"

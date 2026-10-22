@@ -107,7 +107,11 @@ int main(int argc, char** argv) {
     require(marker_t == SPECTRUM_MARKER_T,
             "timing marker at T " + std::to_string(marker_t) + " (frame " + std::to_string(marker_frame) +
             "), expected " + std::to_string(SPECTRUM_MARKER_T));
-    auto pixel = [&](int x, int y) { return (frame[y * 40 + x / 8] >> (28 - 4 * (x % 8))) & 15; };
+    // A chunk word is {bitmap, ink, paper}; a set bitmap bit shows ink.
+    auto pixel = [&](int x, int y) {
+        const uint32_t word = frame[y * 40 + x / 8];
+        return (word >> (15 - x % 8)) & 1 ? (word >> 4) & 15 : word & 15;
+    };
     require(pixel(0, 0) == 2, "border pixel is not red");
     require(pixel(32, 24) == 0 && pixel(39, 24) == 0, "first paper byte is not black ink");
     require(pixel(32, 25) == 7, "paper below the ink byte is not white (bitmap " + hex(bank(5, 0x100)) +

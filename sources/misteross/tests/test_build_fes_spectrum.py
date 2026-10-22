@@ -352,7 +352,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
             stack.enter_context(patch.object(
                 producer, "validate_synth_evidence",
                 return_value={"synthesis_cells": {
-                    "MISTRAL_M10K": 152, "MISTRAL_M10K_TDP": 192, "MISTRAL_FF": 1}}))
+                    "MISTRAL_M10K": 94, "MISTRAL_M10K_TDP": 192, "MISTRAL_FF": 1}}))
 
             def run(argv):
                 authenticate.reset_mock()

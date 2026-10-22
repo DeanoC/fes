@@ -131,18 +131,23 @@ public:
         for (size_t i = 0; i < rom.size(); ++i) memory[i] = rom[i];
     }
     void load_state(const std::string &path);
+    // A chunk word is {bitmap, ink, paper}; a set bitmap bit shows ink.
+    unsigned colour_at(int x, int y) const {
+        const uint32_t word = frame[y * 40 + x / 8];
+        return (word >> (15 - x % 8)) & 1 ? (word >> 4) & 15 : word & 15;
+    }
     std::vector<uint8_t> indices() const {
         std::vector<uint8_t> out(320 * 240);
         for (int y = 0; y < 240; ++y)
             for (int x = 0; x < 320; ++x)
-                out[y * 320 + x] = (frame[y * 40 + x / 8] >> (28 - 4 * (x % 8))) & 15;
+                out[y * 320 + x] = colour_at(x, y);
         return out;
     }
     std::vector<uint8_t> rgb() const {
         std::vector<uint8_t> out(320 * 240 * 3);
         for (int y = 0; y < 240; ++y)
             for (int x = 0; x < 320; ++x) {
-                const unsigned colour = (frame[y * 40 + x / 8] >> (28 - 4 * (x % 8))) & 15;
+                const unsigned colour = colour_at(x, y);
                 const uint8_t level = colour & 8 ? 0xff : 0xcd;
                 uint8_t *p = &out[(y * 320 + x) * 3];
                 p[0] = colour & 2 ? level : 0;

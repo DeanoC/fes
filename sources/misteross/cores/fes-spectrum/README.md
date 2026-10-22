@@ -65,14 +65,15 @@ models. These are simulation comparisons, not hardware measurements.
 
 ## Video and audio
 
-The ULA renders each T state's two pixels in the system domain, so border and
-attribute changes land on the exact 8-pixel chunk the hardware shows. A chunk
-shows memory written by a cycle whose T1 began by its first T state, and the
-border written by an OUT whose T2 began by its last. The visible picture is
-320x240: 32 border pixels left and right, 24 lines above and below the
-256x192 paper. `rtl/spectrum_video.v` keeps three frame banks; HDMI shows the
-newest complete one from its next frame start, so the 50 Hz picture repeats
-whole frames in 720p60 and never tears. The picture is scaled 3x3 to 960x720
+The ULA renders each 8-pixel chunk in the system domain, so border and
+attribute changes land on the exact chunk the hardware shows. A chunk shows
+memory written by a cycle whose T1 began by its first T state, and the border
+written by an OUT whose T2 began by its last. The visible picture is 320x240:
+32 border pixels left and right, 24 lines above and below the 256x192 paper.
+`rtl/spectrum_video.v` keeps three frame banks of 16-bit chunks (bitmap byte,
+ink and paper, FLASH already applied); HDMI shows the newest complete bank
+from its next frame start, so the 50 Hz picture repeats whole frames in
+720p60 and never tears. The picture is scaled 3x3 to 960x720
 and centred, and the shared session-display plane (`fes_display_plane`,
 backed by HPS DDR) blends launcher frames over it.
 
@@ -153,8 +154,8 @@ and lanes, RAM banks, CPU clock and frame length are bound into its build
 identity, and each core has its own FES recipe row. Every model seals only
 after the 52.224, 74.25 and 12.288 MHz domains pass. Synthesis must keep the
 exact block counts per model (firmware lanes, three frame banks and the plane
-FIFO as M10K; RAM and the tape image as TDP blocks: 136/112 for the 48K,
-152/192 for the 128K and Pentagon, 184/192 for the +2A/+3), exactly three
+FIFO as M10K; RAM and the tape image as TDP blocks: 78/112 for the 48K,
+94/192 for the 128K and Pentagon, 126/192 for the +2A/+3), exactly three
 unsigned display-plane DSP products and the read-only plane DDR port. The
 producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
