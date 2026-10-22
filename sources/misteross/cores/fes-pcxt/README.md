@@ -335,24 +335,14 @@ symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
-The full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
-feed one OR level; the measured BIU-return and immediate groups use fast inputs.
-ADD operand 0 uses a separate `pcxt_add_operand0_mux` and
-`synth/add_operand0_map.v`. Its current source mask leaves twelve products per
-bit, mapped as four LUT6 groups and one OR LUT4. This replaces the observed
-three-level inferred cone with two data levels without adding a register or
-changing selectors, source order, carry reconstruction or writeback. ADD operand
-1 remains independently inferred. Board and CPU/machine fixture synthesis apply
-both maps after generic synthesis and include them in the source receipt.
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
 
-The generic helpers and mapped LUT truth tables are equivalent for every data
-and selector vector, including zero and multiple simultaneous selects. Focused
-checks cover zero through sixteen active sources, per-bit constants, exact
-primitive ports and native packing. Reduced depth is a structural result;
-complete routed timing and hardware qualification remain required.
-
-The native maps disconnect inputs whose AND product is provably zero from
+The native map disconnects inputs whose AND product is provably zero from
 compile-time pin constants, preserving the Boolean result while avoiding
 spurious primitive timing arcs through unused status data or selectors.
 Each ISA boundary preserves its one-bit request-reset register separately

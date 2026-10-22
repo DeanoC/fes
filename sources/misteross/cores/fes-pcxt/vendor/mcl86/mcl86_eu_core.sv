@@ -386,9 +386,7 @@ module mcl86_eu_core
         eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
         eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax};
     assign eu_operand0 = select16(eu_op0_select, eu_sources0);
-    pcxt_add_operand0_mux u_add_operand0_mux (
-        .sel(eu_add_select0 & FES_MC_ADD_OP0_MASK), .data(eu_sources0), .out(eu_add_operand0)
-    );
+    assign eu_add_operand0 = select16(eu_add_select0 & FES_MC_ADD_OP0_MASK, eu_sources0);
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -402,8 +400,8 @@ module mcl86_eu_core
         eu_register_r2, eu_register_r1, eu_register_r0, PFQ_ADDR_OUT,
         BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
         BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES};
-    // Logic operand 1 and ADD operand 0 have separate native two-level maps.
-    // ADD operand 1 keeps its independently inferred timing cone.
+    // Only the full logic operand-1 mux uses the native two-level map.
+    // The ADD-specific muxes keep their independently inferred timing cones.
     pcxt_logic_operand1_mux u_operand1_mux (
         .sel(eu_op1_select), .data(eu_sources1), .out(eu_operand1)
     );

@@ -23,7 +23,7 @@ from fes_build_common import (
     _authenticate_tools, _require_gpu_backend, _run_command,
     cuda_toolchain_configuration, gpu_backend_for_router,
 )
-from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAPS, board_inputs, verify_vendor
+from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
@@ -51,7 +51,7 @@ def yosys_program(output, mda, scanlines, synthesis):
             ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
             ' '.join(str(ROOT / s) for s in RTL) + '; ' +
             f'chparam -set MDA {int(mda)} -set SCANLINES {int(scanlines)} top; ' +
-            synthesis + ''.join('; techmap -map ' + str(ROOT / path) for path in CPU_MUX_MAPS) +
+            synthesis + '; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
             '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
 
 
@@ -93,7 +93,7 @@ def main():
     output.mkdir(parents=True)
     print(output, flush=True)
     # Headers, microcode and assembly are part of the diagnostic source record.
-    inputs = sorted(set(RTL) | set(CPU_MUX_MAPS) | {QSF, SDC, ROM_CLOCK_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
+    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-pcxt/vendor').rglob('*')
