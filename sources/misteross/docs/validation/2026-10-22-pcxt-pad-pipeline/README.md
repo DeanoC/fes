@@ -952,3 +952,65 @@ so no board route is admitted from this host result. A separate narrowly scoped
 opt-in for proven unused arithmetic leaves is under validation. The retained
 board result remains ten setup failures, worst -434 ps, with all physical,
 seed and hardware gates open. No RTL, clocks, contracts or locks change here.
+
+
+## Unused arithmetic coverage and a retained CGA margin gain
+
+Compiler `18663701` adds the explicit default-false
+`--critical-unobserved-arith-outputs` option for the ordinary-LUT and private-pair
+repairs. It admits only characterized, internal ARITH SO/CO leaves with no
+users, routed wires or external observer. A complete live-port scan rejects
+missing indexed observers; every live branch still needs full coverage and a
+real capture. The LUT6 repair keeps its strict wrapper. All 173 native and 24
+CLI checks pass, with exact default/zero preparation controls and independent
+actual-target host replays. These are admission checks, not routed timing.
+
+The [immutable host capture](https://github.com/DeanoC/nextpnr/tree/7c270647/docs/validation/2026-10-22-pcxt-unobserved-arithmetic-host)
+has 173 members and SHA-256
+`bb96052b78d487b127e105a326be221c7c6e5e1b0082d68a2418b89af0c4cce1`.
+Root independently checks all members, all 907 dependency members and exact
+proof reproduction. The original compile error and checker revision remain
+recorded separately. All 29 source blobs match the committed compiler.
+
+Fresh routes use frozen binary
+`7faa854df524d0dd3a69cf90622b589692d2db078c031a36ac2c7a5d0deadf12`
+and the unchanged original synthesis, constraints, seed and clocks. The CPU16
+control reproduces the prior ten-failure RBF, timing and endpoint files exactly;
+the complete routed serialization differs only in creator. Adding permutation
+budget 4 and the unused-output option finds eight eligible groups and runs four
+trials. One CGA ALUT5 D/E transposition is retained:
+
+| Final routed metric | Fresh CPU16 control | Plus permutation4 |
+| --- | ---: | ---: |
+| CGA `rgbi_MISTRAL_FF_Q_3/DATAIN` setup | -369 ps | -234 ps |
+| All setup failures | 10 | 10 |
+| Whole-system worst setup | -434 ps | -434 ps |
+| CPU worst setup | -72 ps | -72 ps |
+| Hold failures | 0 | 0 |
+| Minimum checked hold | +822 ps | +822 ps |
+
+Exactly one checked setup margin improves by 135 ps; the other 17,193 checked
+setup margins and all 17,194 checked hold margins are exact. All 17,199 endpoint
+identities, windows, flags, metadata and complete clock guards pass. The other
+trials reject changed stationary selector state, a 4 ps regression on an already
+positive CGA endpoint, or a native clock-margin regression. No guard is waived.
+
+The independent complete graph proof covers all 12,397 cells and 15,546 aliases,
+including all 32 function rows of the changed ALUT5. Only the logged input/mask
+permutation and canonical route trees 54479/54480 change. Native readback checks
+all six selected input/output trees and preserves all 16 stationary users' paths
+and strengths. Root reruns both proof-checker suites: 40 ordinary-LUT and 38
+private-pair corruption cases reject. These checks do not substitute restored
+checkpoint timing for the original fresh-route reports.
+
+The completed control and candidate charges are 875.8208838431165 and
+908.4442155929282 seconds. The journal contains 37 subsequent receipts and
+cumulative charge **39632.26751609938157 seconds**. The separate private-pair
+route is still running and is not charged or claimed complete here. Local
+receipts and complete comparisons are under
+`out/unobserved-arith-coverage-20261022/`.
+
+The 135 ps gain is retained as a local diagnostic improvement, with ten setup
+failures, 105 unsupported boundaries and `complete=false` still open. There is
+no same-recipe seed qualification, production seal or hardware acceptance. No
+FES RTL, constraints, clocks, toolchain lock or module/shared contract changes.
