@@ -235,6 +235,8 @@ func (e *Engine) Run(ctx context.Context) error {
 			// starts. The selection keeps running and no service is touched,
 			// unless something else runs, as the factory software still does
 			// after an image change. Recovery below then starts the selection.
+			// The receipt reuses "recovered" so a supervisor from an older
+			// image can still read this state after a rollback.
 			reason, from = "held back: "+err.Error(), "queued"
 			if id, err := e.prepareSelection(ctx, op.Previous); err == nil && id == e.Controller.Active() {
 				if err := complete(e.Repository, op, "queued", "recovered", reason); err != nil {
