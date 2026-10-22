@@ -61,7 +61,11 @@ func applyGPUPark(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 		if !parked {
 			destroyTextures(dev, labels)
 		}
-		drawNowPlaying(dev, snap, textures, labels)
+		if snap.Surround.Active {
+			drawSurround(dev, snap, labels)
+		} else {
+			drawNowPlaying(dev, snap, textures, labels)
+		}
 		return true
 	}
 	syncTextures(dev, snap, textures)

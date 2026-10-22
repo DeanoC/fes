@@ -59,8 +59,9 @@ On the capable kit display and on a separate host display, the live room is avai
 the **Hardware room** button, keyboard **Home**, or a single controller
 **Select/View** press opens the room without stopping the machine. The letter
 H remains a computer key. Arrows/d-pad navigate; Enter/A confirms; Escape/B
-returns. **Return to play** or Back first closes the display plane before restoring
-machine input. Held keys are neutralized when the controls open and require a
+returns. **Return to play** or Back first closes the display plane, or with
+the TV surround keeps it shown with machine focus, before restoring machine
+input. Held keys are neutralized when the controls open and require a
 release and fresh press after return. Select+Start held for one second retains
 the ordinary Stop action. An unconfirmed close keeps input focused on the UI
 and offers retry; it never silently stops or restarts BASIC.

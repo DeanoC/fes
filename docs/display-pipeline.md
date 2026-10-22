@@ -68,6 +68,26 @@ Each shell reports where its machine picture lands in the 1280×720 raster
 (x, y, width and height). FogCast uses that rectangle to cut the surround's
 window, so one piece of art can fit cores with different picture sizes.
 
+## TV surround
+
+On a kit, tenfoot draws a TV surround while a running machine has input:
+
+- an opaque cabinet with a rounded bezel;
+- the game title and system on the left, and the hardware-room hint on the right;
+- a clear window over the shell's picture rectangle, whose edges are shaded
+  like a tube.
+
+It opens the plane with machine focus when a plane-capable session becomes
+active. It draws a fully clear frame until the runtime reports the picture
+rectangle. The hardware room takes launcher focus on the same plane and draws
+over the surround. Returning gives input back with the surround still shown.
+Neither move rebinds the plane or grants a new display generation.
+
+A plane that refuses the surround is closed. The session then keeps machine
+pixels only, and the room opens and closes the plane as before. The **TV
+surround · kit HDMI** setting (`surround` in `tenfoot.json`, on by default)
+turns it off. Per-system and theme art are later work.
+
 A disabled, faulted or not-yet-visible plane returns machine pixels
 unchanged. A display failure never stops, resets or reprograms the machine.
 

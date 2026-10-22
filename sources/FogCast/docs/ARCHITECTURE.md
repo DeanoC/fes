@@ -3261,7 +3261,22 @@ package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher
 pixels only after a full completed frame on its shared 720p raster. CPU, RAM,
 audio and the expansion socket continue. Back/Return closes and drains the plane
-before input resumes. UI navigation is suppressed at both launcher and target;
+before input resumes, unless the TV surround keeps it shown.
+
+With the **TV surround** setting on (`surround` in `tenfoot.json`, the
+default), tenfoot opens a capable session's plane with machine focus as soon as
+the session is active. The parked frame becomes `drawSurround`:
+
+- an opaque cabinet and bezel;
+- the title, system and room hint;
+- a clear window over the runtime's `menu_display.picture`, which
+  `gfx.MenuDisplay.SessionPicture` reports, with shaded edges.
+
+Until the picture is known, the frame is fully clear. Home/Select and Back move
+focus on that shown plane without pausing or rebinding the presenter. Input
+handoff (releasing held keys and closing the local feed) happens only when
+focus moves. A refused surround closes the plane, and the setting stays off
+for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
 or retryable. Failed close retains

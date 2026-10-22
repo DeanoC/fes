@@ -41,7 +41,7 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 	// while the retry-Stop lock continues to block other controller input.
 	if a.sessionDisplayUncertain && !a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.playHIDFailClosedLocked() &&
 		e.Code == remoteinput.ButtonB && down && !a.playPadSuppressed[e.Code] {
-		a.beginSessionDisplayLocked(false, false)
+		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return true, nil
 	}
 	if a.playHIDFailClosedLocked() || a.stopPhase == "stopping" || a.retryStopLock {

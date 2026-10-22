@@ -118,6 +118,9 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			app.Tick(scheduled)
 			ticked := time.Now()
 			snap := app.Snapshot()
+			if display, ok := dev.(*gfx.MenuDisplay); ok && snap.Surround.Active {
+				snap.Surround.Picture = display.SessionPicture()
+			}
 			snapped := time.Now()
 			skip, pauseErr := hold.skip(ctx, dev, snap)
 			if pauseErr != nil {

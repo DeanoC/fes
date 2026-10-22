@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"image"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -321,7 +322,7 @@ func TestKitDisplayStaleCompletionCannotRestoreOldRoom(t *testing.T) {
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if !samePlayHIDSession(app.session, next) || app.sessionDisplayVisible {
+	if !samePlayHIDSession(app.session, next) || app.sessionDisplay.Visible {
 		t.Fatal("stale display completion replaced the current machine")
 	}
 }
@@ -809,17 +810,154 @@ func TestKitReturnToPlayClearsStatus(t *testing.T) {
 	}
 }
 
-// decodeSessionDisplay reads a strict display request. The launcher's controls
-// take launcher focus; a return closes the plane.
+// decodeSessionDisplay reads a strict display request without a surround. The
+// launcher's controls take launcher focus; a return closes the plane.
 func decodeSessionDisplay(t *testing.T, r *http.Request) bool {
+	t.Helper()
+	display := readSessionDisplay(t, r)
+	if display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+		t.Errorf("display request without a surround: %+v", display)
+	}
+	return display.Visible
+}
+
+func readSessionDisplay(t *testing.T, r *http.Request) protocol.SessionDisplay {
 	t.Helper()
 	var request protocol.SessionDisplayRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(&request)
 	display, ok := request.Display()
-	if err != nil || !ok || display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+	if err != nil || !ok {
 		t.Errorf("display request %+v: %v", request, err)
 	}
-	return display.Visible
+	return display
+}
+
+// surroundKit serves the session display route for a ZX81-style session and
+// reports each confirmed plane state to the fake runtime presenter.
+type surroundKit struct {
+	mu        sync.Mutex
+	displays  []protocol.SessionDisplay
+	refuse    func(protocol.SessionDisplay) bool
+	presenter *countingSessionMenu
+}
+
+func (k *surroundKit) requests() []protocol.SessionDisplay {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return append([]protocol.SessionDisplay(nil), k.displays...)
+}
+
+func newSurroundKit(t *testing.T, prior hostclient.SessionResult) (*surroundKit, *App, *gfx.MenuDisplay) {
+	t.Helper()
+	kit := &surroundKit{presenter: &countingSessionMenu{}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		display := readSessionDisplay(t, r)
+		kit.mu.Lock()
+		kit.displays = append(kit.displays, display)
+		refuse := kit.refuse != nil && kit.refuse(display)
+		kit.mu.Unlock()
+		if refuse {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		status := menudisplay.Status{Available: display.Visible, Session: true, PackageID: prior.CorePackage.PackageID,
+			CoreGeneration: prior.CorePackage.Generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes,
+			Picture: []int{312, 90, 656, 540}}
+		if display.Visible {
+			status.Generation = 4
+		}
+		kit.presenter.set(status)
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	display, err := gfx.NewMenuDisplayWithPresenter(kit.presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.SetSurround(true)
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	return kit, app, display
+}
+
+// A surround shows the plane while the machine keeps input. The hardware room
+// moves focus on that plane and returning gives input back with the
+// surround still shown.
+func TestKitSurroundKeepsMachineInputWhileTheRoomMovesFocus(t *testing.T) {
+	kit, app, display := newSurroundKit(t, computerTapeDisplaySession())
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active && s.GPUParked })
+	if got := kit.requests(); len(got) != 1 || got[0] != protocol.SessionDisplayShown {
+		t.Fatalf("surround requests = %+v", got)
+	}
+	if !app.coreOwnsPadInput() || !app.ForwardsPlayHID() {
+		t.Fatal("surround took input from the machine")
+	}
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, n := kit.presenter.snapshot(); calls != 1 || n != menudisplay.FrameBytes {
+		t.Fatalf("surround frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	if got := display.SessionPicture(); got != image.Rect(312, 90, 968, 630) {
+		t.Fatalf("picture = %v", got)
+	}
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "room over the surround", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked && !s.Surround.Active })
+	if app.coreOwnsPadInput() {
+		t.Fatal("hardware room left input with the machine")
+	}
+	// Focus moves keep the binding, so the room frame needs no new picture.
+	if got := display.SessionPicture(); got != image.Rect(312, 90, 968, 630) {
+		t.Fatalf("focus move rebound the plane: %v", got)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "surround after the room", func(s Snapshot) bool { return !s.Room.DuringPlay && s.Surround.Active })
+	if !app.coreOwnsPadInput() {
+		t.Fatal("return kept input from the machine")
+	}
+	want := []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayFocused, protocol.SessionDisplayShown}
+	if got := kit.requests(); len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("display requests = %+v", got)
+	}
+}
+
+// A plane that refuses the surround is closed, which also releases any input
+// fence the kit kept, and the session does not ask again.
+func TestKitSurroundFailureClosesThePlaneOnce(t *testing.T) {
+	kit, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	kit.mu.Lock()
+	kit.refuse = func(d protocol.SessionDisplay) bool { return d == protocol.SessionDisplayShown }
+	kit.mu.Unlock()
+	waitFor(t, app, "closed after refusal", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.surroundFailed && !app.sessionDisplayBusy && !app.sessionDisplayUncertain
+	})
+	for i := 0; i < 5; i++ {
+		app.Tick(time.Now())
+	}
+	if got := kit.requests(); len(got) != 2 || got[0] != protocol.SessionDisplayShown || got[1] != protocol.SessionDisplayClosed {
+		t.Fatalf("display requests = %+v", got)
+	}
+	if snap := app.Snapshot(); snap.Surround.Active || !app.coreOwnsPadInput() {
+		t.Fatalf("refused surround kept the plane or input: %+v", snap.Surround)
+	}
+	// The hardware room still opens the plane and returns it closed.
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "machine", func(s Snapshot) bool { return !s.Room.DuringPlay && s.GPUParked && !s.Surround.Active })
+	if got := kit.requests(); len(got) != 4 || got[2] != protocol.SessionDisplayFocused || got[3] != protocol.SessionDisplayClosed {
+		t.Fatalf("display requests after refusal = %+v", got)
+	}
 }

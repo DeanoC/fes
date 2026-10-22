@@ -116,6 +116,9 @@ type tenfootPrefs struct {
 	PinnedRooms []string `json:"pinned_rooms,omitempty"`
 	// ReducedMotion skips decorative room animation.
 	ReducedMotion bool `json:"reduced_motion,omitempty"`
+	// Surround draws the TV surround around a running machine on kit HDMI.
+	// Unset is on.
+	Surround *bool `json:"surround,omitempty"`
 	// RoomsDir overrides the room pack directory.
 	RoomsDir string `json:"rooms_dir,omitempty"`
 }

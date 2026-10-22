@@ -266,8 +266,8 @@ func (a *App) openTapePickerLocked() {
 	if a.tapePickerBusy {
 		return
 	}
-	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
-		a.beginSessionDisplayLocked(true, true)
+	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
+		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, true)
 		return
 	}
 	a.releasePlayHIDLocked()

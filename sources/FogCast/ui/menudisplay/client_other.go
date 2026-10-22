@@ -28,6 +28,7 @@ type Status struct {
 	Slots                                       int
 	Format                                      string
 	DisplayedSequence, Underflows               uint64
+	Picture                                     []int
 }
 type Result struct {
 	Generation, DisplayedSequence, Underflows uint64
