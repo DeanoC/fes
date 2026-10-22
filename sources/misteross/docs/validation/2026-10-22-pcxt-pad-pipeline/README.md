@@ -500,3 +500,113 @@ All results remain host diagnostics. No kit, RTL, clock constraint, core lock,
 production recipe, seal or shared contract changed in this continuation. Timing
 closure, complete physical coverage, the same-recipe seed gate and fresh
 producer/exact-artifact hardware qualification remain required.
+
+## Native-window RAM placement and rejected ADD mapping
+
+The default-off compiler policy at nextpnr `a361eac0` assigns the complete
+eligible RAM bucket using native launch/capture windows and a bounded global
+matching. It preserves ordinary placement when disabled or when the complete
+bucket fails eligibility. All four seed-1 runs below use identical raw input,
+100 MHz system target, weight 2000 and exponent 5. The overflow variant uses
+the independently proved private four-LUT reduction.
+
+| Recipe | Setup failures | Worst setup | Microcode address failures / worst |
+| --- | ---: | ---: | ---: |
+| Default | 369 | -1.602 ns | 148 / -1.406 ns |
+| Native windows | 247 | -1.307 ns | 100 / -0.674 ns |
+| Windows and corrected spreading | 110 | -0.967 ns | 3 / -0.199 ns |
+| Windows, corrected spreading and overflow balancing | 14 | -0.434 ns | 0 / +0.124 ns |
+
+The last route's 14 failures comprise seven CPU, three CGA, two MDA and two
+PIC endpoints. CPU destination WNS is -0.173 ns; microcode return is +1.257 ns
+and pixel setup is +2.005 ns. Native reported system Fmax is 95.8405 MHz.
+The same recipe fails with 358 endpoints at seed 2 and 56 at seed 3; zero of
+three seeds qualifies. Every route retains all 17,199 native endpoint/clock
+tuples, unchanged windows/contracts and 105 unsupported boundaries. Complete
+per-artifact graph and helper checks pass, including mutation rejections.
+Neither matching identities nor positive related-hold margins supplies the
+missing physical coverage.
+
+The ADD operand-0 mapping in FES `53b8fc1a` was tested and withdrawn by
+`d2e19b13`. It replaces the actual three-level cone with two LUT levels and
+passes the actual emitted truth-table, selector-state and CPU regression
+checks. Fresh synthesis changes placement enough to regress both matched
+route comparisons:
+
+| Pair | Baseline setup failures / system WNS | ADD candidate failures / system WNS |
+| --- | ---: | ---: |
+| Windows and corrected spreading | 111 / -0.967 ns | 366 / -2.227 ns |
+| Same, with each build's independently proved overflow root | 14 / -0.434 ns | 211 / -1.637 ns |
+
+The source pair is `2a1cedf4` versus `53b8fc1a`, with identical tool, firmware,
+ROM, QSF, SDC and PLL configuration. Complete endpoint sets and changed
+identities are retained; no intersection stands in for qualification. All
+original functions, aliases, pin polarities and private route helpers are
+checked separately against each run's exact native preparation. Whole-board
+sequential equivalence, physical encoding and hardware acceptance are not
+claimed. The committed experiment passed `make check` and `make test-changed`
+(842 parent tests, 1,275 component tests with one skip, the initial 18/26-test
+lanes and all PC/XT simulation suites). These functional results do not
+override its timing regression. After withdrawal, every misteross source byte
+matches `2a1cedf4`; parent consistency passes again.
+
+Adding only `--arrival-pin-assignment` to the best frozen recipe also fails:
+14 setup failures remain, system WNS becomes -0.497 ns and CPU WNS -0.358 ns;
+two microcode address rows now fail by up to 0.108 ns. All complete native
+identities/windows/contracts and 105 unsupported rows are unchanged. This
+does not replace the original recipe. The separate density and reciprocal
+RAM-swap captures also retain their failed whole-design outcomes, including
+the beta-0.75 route that exits 125 before producing final artifacts.
+
+A separate default-off hard-block cost adds native criticality and fanout to
+the phase-window weight. Its own formula, rollback and complete preparation
+tests pass, but its full route regresses to 295 setup failures: system WNS
+-1.655 ns, CPU WNS -1.621 ns, 33 address failures and two return failures.
+All five previously failing display endpoints become worse. The complete
+17,199-row identity/window/flag inventory and contracts remain preserved.
+This option is excluded from the best working diagnostic recipe.
+
+An immutable source experiment moves the microcode read onto the system edge,
+retaining the registered output cadence, PLL parameters and ROM contents.
+The source transport, CPU regressions, 192 actual mapped address functions,
+90 registered outputs and removed 48 local address copies pass their stated
+proofs. This is conditional state correspondence, not whole-board sequential
+or physical equivalence. The actual new overflow cone has five LUTs and is
+correctly rejected by the existing bounded four-LUT transform; no guard is
+relaxed. These routes therefore use the unbalanced 111-failure reference.
+With the original window cost, the new source has 407 setup failures, system
+WNS -1.990 ns and 191 failing ROM-address rows. Adding the new criticality cost
+increases failures to 515 and system WNS to -2.556 ns; 145 address rows and one
+return row fail. Neither route has a related hold failure; both retain 105
+unsupported boundaries. Full graph proofs and deliberate corruption checks
+pass independently for each route. No tracked RTL adopts the retiming.
+
+[Compiler captures through `c2e9cb77`](https://github.com/DeanoC/nextpnr/tree/c2e9cb77/docs/validation)
+include the complete native-window four-way comparison, fixed-recipe seeds,
+density, RAM swaps, bare ADD, balanced ADD, arrival-pin and failed cost results. Archives
+retain original failures and exact input/source/tool/command identities with
+full readback. `continued-runs.jsonl` preserves 25 subsequent completed run
+receipts and per-clock results. Their charges bring the campaign total to
+**30806.77144498564237 seconds**. This includes all five completed placement
+weight/exponent sweep cases and excludes the still-running local route repair.
+Only completed receipts are charged. The earlier sandbox-denied sweep launch
+never started nextpnr: its five wrapper failures add zero GPU/full-route charge;
+0.5072072022594512 seconds of wrapper elapsed time is retained separately. Synthesis, compiler builds and CPU-only preparation add
+no full-route charges. There is no total route cap; native iteration bounds
+and shared GPU leases remain.
+
+The completed sweep keeps raw synthesis, compiler, seed 1, native windows,
+corrected spreading and overflow balancing frozen. Weight/exponent cases
+300/2, 300/5, 1000/2, 1000/5 and 2000/2 produce 537, 148, 48, 91 and 309 setup
+failures respectively; every case is worse than the existing 2000/5 reference.
+Their complete 17,199-row identity/window/flag inventories match. Changed
+native physical details are retained, not presumed equivalent. Related hold
+has no failing row and coverage remains incomplete in every case.
+
+The next test uses the frozen best recipe with the existing guarded
+`--critical-route-budget 32` repair. Separate out-only work evaluates exact
+PIC event decode, while a default-off private two-LUT display decomposition
+is being implemented with placement, native legality and full rollback guards.
+Neither qualifies timing. CPU/system remains 100 MHz, pixel
+remains 74.25 MHz, no shared/module contract or production lock changes, and
+no hardware ran. Both PRs remain draft and #840 remains open.
