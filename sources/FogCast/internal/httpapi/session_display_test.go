@@ -37,10 +37,11 @@ func TestSessionDisplayRequiresLeaseExplicitBooleanAndFocus(t *testing.T) {
 	}{
 		{`{"visible":true,"focus":"launcher"}`, "", 403}, {`{}`, grant.Token, 400}, {`{"visible":null,"focus":"machine"}`, grant.Token, 400},
 		{`{"visible":true,"focus":"launcher"} {}`, grant.Token, 400}, {`{"visible":true,"focus":"launcher","reset":true}`, grant.Token, 400},
-		{`{"visible":true}`, grant.Token, 400}, {`{"visible":true,"focus":"menu"}`, grant.Token, 400},
-		{`{"visible":true,"focus":null}`, grant.Token, 400}, {`{"visible":false,"focus":"launcher"}`, grant.Token, 400},
+		{`{"visible":true,"focus":"menu"}`, grant.Token, 400}, {`{"visible":false,"focus":"launcher"}`, grant.Token, 400},
 		{`{"visible":true,"focus":"launcher"}`, grant.Token, 200}, {`{"visible":true,"focus":"machine"}`, grant.Token, 200},
-		{`{"visible":false,"focus":"machine"}`, grant.Token, 200},
+		// A host that predates focus sends visibility alone.
+		{`{"visible":true}`, grant.Token, 200}, {`{"visible":false,"focus":"machine"}`, grant.Token, 200},
+		{`{"visible":false}`, grant.Token, 200},
 	} {
 		r := httptest.NewRequest(http.MethodPost, "/v1/session/display", strings.NewReader(tc.body))
 		r.Header.Set("Authorization", "Bearer bearer")
@@ -53,7 +54,7 @@ func TestSessionDisplayRequiresLeaseExplicitBooleanAndFocus(t *testing.T) {
 			t.Fatalf("body=%s status=%d response=%s", tc.body, w.Code, w.Body)
 		}
 	}
-	if c.calls != 3 || c.display != protocol.SessionDisplayClosed {
+	if c.calls != 5 || c.display != protocol.SessionDisplayClosed {
 		t.Fatalf("calls=%d display=%+v", c.calls, c.display)
 	}
 }
