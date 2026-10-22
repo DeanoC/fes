@@ -258,7 +258,7 @@ def create_build_record(
         "parameters": {
             "core_id": machine.core_id,
             "model": machine.key,
-            "model_define": machine.define or "",
+            "model_define": machine.define or "none",
             "device": TARGET,
             "top": TOP,
             "router": pnr["router"],
