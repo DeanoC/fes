@@ -351,3 +351,96 @@ Evidence is CPU-reference host diagnostic only. No hardware ran and no RTL,
 clocks, locks, recipes, seals or shared contracts changed. Compiler #266 and FES
 #979 remain draft; timing #840 stays open with the existing coverage, multi-seed,
 producer and exact-artifact hardware gates.
+
+## Continued compiler closure experiments
+
+The user subsequently removed the total route cap. All earlier charges remain
+recorded; shared GPU phase leases and native search bounds still apply. The
+former remaining-time figures above describe earlier checkpoints, not a current
+limit. CPU/system and microcode remain 100 MHz and pixel remains 74.25 MHz.
+
+Compiler `66c97e49` preserves stationary sink branches during local LUT moves,
+checks physical ALM halves and refreshes changed ALM modes. All eight trials now
+route, versus four previously, but none passes the unchanged native retention
+guards: six regress clock setup and two reduce positive hold margins. The
+retained final artifact bytes equal the immutable baseline. Three native guard,
+half/mode and rollback tests pass; subsequent independent physical encoding
+regressions cover emitted RBFs. This fixes a search limitation without claiming
+a timing winner.
+
+Compiler `692a1c37` adds exact two-LUT factor reassociation. The first PC/XT trial
+improves system setup WNS from -1.638 to -1.301 ns and setup failures from 343 to
+295, while preserving complete endpoint identities and proving the selected
+consumer truth table over all 1024 assignments. Two further cumulative factors
+perform worse. Native pure/backend/CLI tests, complete graph proofs and mutation
+checks pass; positive hold-margin reductions and 105 unsupported boundaries
+still prevent acceptance.
+
+Separate native-qualified placement diagnostics move two or fourteen microcode
+RAMs. Fourteen RAM moves reduce setup failures to 217, but still miss system,
+microcode-return and pixel setup. Combining them with the first factor has 247
+failures. Full graph checks preserve all 12,605 cells, 15,736 named nets and
+17,199 endpoint identities; geometry alone is not used as timing proof. These
+experiments start from the same frozen placed checkpoint. A fresh raw-synthesis
+baseline is a different execution model and is reported separately.
+
+[Branch, factor and RAM evidence](https://github.com/DeanoC/nextpnr/tree/cb76e894/docs/validation)
+retains commands, source/binary identities, inputs, failures, RBFs, timing and
+endpoint reports, proofs and SHA256-verified archives. Cumulative renewed route
+accounting through those runs and the fresh baseline is 9940.813688 seconds.
+
+Compiler `cbb1e1f1` expands the existing explicitly selected, private four-LUT
+reduction rewrite from sixteen literals to thirteen through eighteen, keeping
+the sixteen-literal result unchanged. Eight focused native tests and the CLI
+regression pass. Independent complete unpacked-graph proofs exhaust the actual
+17-bit overflow and 16-bit last-result predicates, preserving all outside cells,
+connections, aliases, polarity and metadata. Old/new sixteen-literal exports are
+identical with the feature disabled and enabled.
+
+| Fresh raw-synthesis seed 1 | Baseline | Overflow only | Both reductions |
+| --- | ---: | ---: | ---: |
+| System setup WNS, ns | -1.602 | -1.232 | -1.349 |
+| CPU subtree setup WNS, ns | -1.602 | -1.232 | -1.126 |
+| CPU-to-ROM address WNS, ns | -1.406 | -0.598 | -0.760 |
+| Microcode-return WNS, ns | +0.001 | +0.397 | -0.046 |
+| Pixel setup WNS, ns | +0.675 | +0.370 | -0.664 |
+| Setup failures | 369 | 150 | 318 |
+| Related hold failures | 0 | 0 | 0 |
+| Unsupported boundaries | 105 | 105 | 105 |
+
+The combined rewrite's worst system path is CGA, not CPU. The overflow-only
+rewrite gives the best overall seed-1 result. The disabled fresh baseline
+reproduces the earlier fresh producer candidate's RBF, timing, endpoint and
+routed JSON bytes exactly. Complete timed endpoint identities and constraints
+match, but static/constant/unsupported physical records and route-through
+inventories change with fresh placement. The unpacked Boolean proof is not a
+complete final routed or physical encoding proof.
+
+Compiler `36b9e372` adds debug-only placement tracing. Four parent/new runs with
+tracing on/off produce byte-identical placed JSON. The selected HeAP iteration
+solves the sixteen ROMs near column 14, then spreads all sixteen to column 41;
+the strict legalizer largely follows those displaced targets. Related-clock
+phase and M10K setup timing are present. Legalizer priority alone would not
+address the observed spreading stage.
+
+[Reduction and placement-stage evidence](https://github.com/DeanoC/nextpnr/tree/eab8b15f/docs/validation)
+retains the three complete routes, exhaustive proofs, compatibility exports and
+debug trace. The route charge is 634.416549 seconds, taking cumulative renewed
+accounting to 10575.230237 seconds through these three runs. Placement-only
+tracing has no route charge.
+
+Source review identifies two concrete cut-spreader indexing defects: small
+partitions use an absolute vector index instead of their local rank, and a
+rightward pivot transfer charges the previous cell's bucket. Compiler
+`be4c5d34` corrects both behind default-off `--placer-heap-correct-spread`.
+All ten focused tests pass; restoring either defect makes regressions fail.
+The existing control-set/congestion and new spreader CTest targets pass.
+Native placement with the option absent preserves the entire previous module,
+with only the top-level build-version label differing. Further full-route and
+seed comparisons are required; the correction is not a timing-closure claim.
+
+No FPGA kit was contacted. These are host diagnostics; no production RTL,
+recipe, clock, toolchain lock, seal or shared contract changes. Draft compiler
+#266 and FES #979 stay open with timing #840. The next integration step remains
+a passing same-recipe multi-seed result, complete timing/physical contracts,
+a fresh producer and exact-artifact hardware acceptance.
