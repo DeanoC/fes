@@ -120,3 +120,36 @@ logs and replay inputs are retained in the compiler commit's
 
 No route or hardware ran. The incident route allowance remains 607.674011 seconds.
 FES RTL, recipes, toolchain lock, seals and shared contracts remain unchanged.
+
+## Exact shared-data LUT replication
+
+Compiler [c8d4a1d3](https://github.com/DeanoC/nextpnr/commit/c8d4a1d3)
+adds default-off selective replication of ordinary shared data LUTs. With this
+same placed checkpoint, 32 native STA trials (135 geometries) retain three
+copies. Independent whole-netlist substitution verifies exact LUT functions,
+inputs and polarities, all 10,448 original cells and original nets, including
+unchanged registers and initial state. Worst predicted clock slack is unchanged.
+All 55 native cohort tests and 17 CLI tests pass.
+
+The subsequent route experiment does **not** establish a timing improvement.
+The baseline completes with CPU/system setup WNS -1.638 ns, microcode -0.358 ns,
+pixel -0.228 ns, 343 failing setup rows and 105 unsupported boundaries. The
+candidate times out at 270 seconds during analogue repair, with no final timing
+or RBF. Its interim results do not count as a final comparison.
+
+Both attempts were accidentally unleased: the experiment driver renamed the
+binary `compiler`, bypassing FES's `nextpnr-mistral` basename recognition. They
+are not managed-GPU qualification evidence. Compiler repair
+[f6a234dd](https://github.com/DeanoC/nextpnr/commit/f6a234dd) preserves that name,
+rejects unrecognised commands before dispatch and requires grant evidence for
+completed GPU receipts. All 28 retention/runner tests pass, including three new
+host dispatch regressions; the actual FES recognition helpers also pass a host
+check. The fixed runner has not yet had a live leased route.
+
+All spent time remains charged: 467.207891 seconds, leaving **140.466120 seconds**
+in the incident allowance. No further route was attempted. Full failed captures,
+source identity, replay inputs, proof and tests are retained in nextpnr's
+`docs/validation/2026-10-22-pcxt-replication/capture.tar.gz`, SHA256
+`29689164ccf7593855d90331f8df3cee5d29a0a7e20a542cfd513aa393ffba05`.
+No hardware ran. FES RTL, recipes, clocks, toolchain lock, seals and shared
+contracts remain unchanged. Draft #979 and timing issue #840 remain open.
