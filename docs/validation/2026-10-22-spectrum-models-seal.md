@@ -1,12 +1,12 @@
-# 2026-10-22: Spectrum models, Fuse-matched timing and host seals
+# 2026-10-22: Spectrum models, Fuse-matched timing, host seals and a kit A check
 
-Host-only record of the four Spectrum model packages built from one shell:
+Record of the four Spectrum model packages built from one shell:
 `fes.spectrum` 0.3.0 (48K), `fes.spectrum128` 0.1.0 (128K/+2),
 `fes.spectrum-plus3` 0.1.0 (+2A/+3 without a disk drive) and `fes.pentagon`
-0.1.0 (Pentagon 128). It records routed, timing-closed bitstreams and the
-host simulations behind them. It is not a kit diagnostic and not hardware
-acceptance; no bitstream was loaded on a board, and no earlier Spectrum kit
-note accepts these bytes.
+0.1.0 (Pentagon 128). It records routed, timing-closed bitstreams, the host
+simulations behind them and a kit A check of the sealed archives. It is not
+acceptance of an image or release, and no earlier Spectrum kit note accepts
+these bytes.
 
 ## Artifacts
 
@@ -87,20 +87,60 @@ loop stores `$C3` is 14,950 (48K), 14,960 (128K), 14,955 (+2A/+3) and 14,946
   frame-bank video (31 source frames in 40 HDMI frames, no tearing), the
   board shell through the mailbox (capability bits, tape limits, HID and
   Sinclair joystick input) and the tape player.
-- `make sim-fes-z80`, `make sim-fes-sg1000` and `make sim-fes-zx81`, which
-  share the NMOS core.
-- `python3 -m unittest tests.test_build_fes_spectrum tests.test_pnr_recipes
-  tests.test_fes_hip_lane tests.test_spectrum_socket_route_through` in
-  `sources/misteross`; `make check` and `scripts/test_changed.py --base
-  origin/main` in FES.
+- `scripts/test_changed.py --base origin/main` at `1e289e7c` (the sealed RTL
+  with `main` merged and this record's seal sections): every lane passed,
+  including the RTL simulations of every core family (SG-1000 and ZX81 share
+  the NMOS Z80) and the misteross and FES Python tests.
+- `make check`.
+
+## Kit A check
+
+On 2026-10-22 the four sealed archives above ran on kit A through an
+isolated private host (`~/tmp/c982/hil982.py` driving a local `fogcast-api`
+container). The image was not changed; the kit software was replaced for
+the second run only and then restored.
+
+- The kit's baseline software `f48b11f1` predates the session display plane
+  (#956). It imported the 48K, +2A/+3 and Pentagon packages but refused them
+  at compatibility, "required computer interface is unsupported", as it
+  refuses any core that declares `fes.video.session-display` (run `c982a`,
+  10:47–10:49).
+- Run `c982b` (11:13–11:24) installed this branch's kit software
+  (`kit-hil982-1e289e7c-r1`, bundle `272eef4e…`; it is `main`'s, the branch
+  changes none) on the running baseline image `5af6162b`, activated it, ran
+  the four sessions and restored `f48b11f1` (previous `7a65cc3e`). Image
+  fingerprints before and after match, and the kit was released on its
+  recorded baseline.
+
+Each model imported, passed compatibility, linked its ROM from local media
+(`48.rom`, `128.rom`, `plus3.rom`, and `128.rom` for the Pentagon; nothing
+stored), launched, was reported by the kit as running that core on three
+status samples, and stopped back to idle. Frames recorded during each
+session showed:
+
+| Core | Boot | Keyboard (USB HID through the private host) |
+| --- | --- | --- |
+| `fes.spectrum` | "© 1982 Sinclair Research Ltd", K cursor | `P` (PRINT), `2`, Control+`K` (+), `2`, Enter printed `4` and `0 OK, 0:1` |
+| `fes.spectrum128` | 128 menu (Tape Loader highlighted), "© 1986 Sinclair Research Ltd" | Down, Enter opened 128 BASIC; `print 2+2` printed `4` and `0 OK, 0:1` |
+| `fes.spectrum-plus3` | "128 +2A" menu, "©1982, 1986, 1987 Amstrad Plc.", "Drive M: available." | Down, Enter opened +3 BASIC; `print 2+2` printed `4` and `0 OK, 0:1` |
+| `fes.pentagon` | 128 menu, "© 1986 Sinclair Research Ltd" | Down, Enter opened 128 BASIC; `print 2+2` printed `4` and `0 OK, 0:1` |
+
+Each picture filled the 960x720 plane window: white border and paper, black
+ink, and the 128 menus' coloured stripes and highlight. The audio capture
+lost about 70% of its samples in every session (13 s of 44 s), so audio is
+only partly observed: on the three 128K-class models the captured audio
+holds beeper edges shortly after boot (two-unit steps decaying in 1.1 ms,
+the speaker filter's 4,096 T states); the 48K's captured audio is silent,
+and its key clicks were not caught. The frames and recordings are in
+`~/tmp/c982/fr` on Powerboat.
 
 ## Not established
 
-Anything on a kit. No kit was free on the day (A held by another HIL, B
-awaiting operator recovery), so HDMI output through the display plane,
-keyboard and joystick input, tape loading, beeper and AY audio, and any game
-or demo on hardware remain open. The simulation comparisons are against
-Fuse's model of the machines, not against ULA captures. No image was built:
-`fes.spectrum` stays one of the image selector's IDs, the other three are
-registered for `make core-dev` only, and the default image profile selects
-none of them.
+Tape loading, the Kempston and Sinclair joysticks, AY music, the 48K's
+beeper, expansion cards, and any game or demo on hardware. Kit A's recorded
+baseline software, and any kit still on `f48b11f1`, refuses these packages
+until it runs kit software that includes #956. The simulation comparisons
+are against Fuse's model of the machines, not against ULA captures. No image
+was built: `fes.spectrum` stays one of the image selector's IDs, the other
+three are registered for `make core-dev` only, and the default image profile
+selects none of them.
