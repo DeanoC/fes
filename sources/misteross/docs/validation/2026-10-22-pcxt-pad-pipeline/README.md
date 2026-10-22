@@ -231,3 +231,47 @@ No hardware ran. RTL, clocks, toolchain locks, recipes, seals and shared contrac
 are unchanged. Draft #979 and timing issue #840 remain open. Production
 integration still requires a passing full routed comparison, complete coverage,
 the unchanged multi-seed gate, a fresh producer and exact-artifact kit acceptance.
+
+## Native-ranked route generation and bounded feedback
+
+Compiler [0c02e81a](https://github.com/DeanoC/nextpnr/commit/0c02e81a)
+reserves whole-tree candidate slots and ranks proposals using native delay at
+every sink, including branch loading and terminal LUT input delay. The opt-in
+pass requires a 20 ps predicted worst-sink gain before full-design STA; existing
+setup/hold, clock, coverage and rollback guards remain mandatory. The first
+same-binary CPU-reference comparison generates 12 alternatives, all worse by
+99–2017 ps. No distinct whole-tree alternative is emitted on this cohort, and
+nothing is accepted.
+
+Compiler [687ebf55](https://github.com/DeanoC/nextpnr/commit/687ebf55)
+adds one bounded feedback generation using native pip delays measured in rejected
+routes. The original fallback timing table is restored before evaluation and
+signoff; learned costs guide search only. A fresh same-binary comparison learns
+92 additional pip observations and generates one additional distinct route,
+which still loses 1202 ps. All 13 distinct proposals fail the native prefilter;
+none reaches full-design STA and none is retained.
+
+Both baselines reproduce prior RBF/timing/endpoint bytes and normalized routed
+graphs. The final feedback candidate reproduces its baseline's RBF/timing/endpoint
+bytes. Independent comparison verifies all 12,605 cells and 15,736 nets unchanged,
+with identical margins at all 17,199 endpoint rows. CPU setup WNS remains
+-1.638 ns, microcode -0.358 ns and pixel -0.228 ns, with 343 failing setup rows
+and 105 unsupported boundaries. This is a completed negative timing result.
+
+Twelve focused ranking/route/rollback tests and 29 retention/runner tests pass;
+the three focused ranking/guard/rollback tests pass again on the feedback build.
+[Compiler evidence](https://github.com/DeanoC/nextpnr/blob/b79bd884/docs/validation/2026-10-22-pcxt-native-ranking/README.md)
+contains both verified captures, commands, inputs, source identities, tests and
+comparison scripts. The final feedback archive SHA256 is
+`ad5ca04daed70ed9a7efd44022475924a978cacc71a66dd9d6075ecead4e3bc3`.
+These comparisons charge 1221.163890 seconds, leaving **15045.954862 seconds**
+(about 4 h 11 min) in the renewed allowance. All earlier charges remain preserved.
+
+Evidence is CPU-reference host diagnostic only. No hardware ran; RTL, clocks,
+locks, recipes, seals and shared contracts remain unchanged. These bounded trials
+do not justify a larger route-only search on this placement. The next useful
+experiment is moving and rerouting the critical CPU result-to-microcode cone
+together while preserving unrelated routes and the same final timing guards.
+Draft #979 and timing issue #840 remain open; production integration still needs
+complete routed coverage, the unchanged seed gate, a fresh producer and exact
+artifact hardware qualification.
