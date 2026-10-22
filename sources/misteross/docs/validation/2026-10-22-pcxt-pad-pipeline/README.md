@@ -626,3 +626,30 @@ decomposition is being prepared with placement, native legality and rollback
 guards. CPU/system remains 100 MHz, pixel remains 74.25 MHz, no shared/module
 contract or production lock changes, and no hardware ran. Both PRs remain
 draft and #840 remains open.
+
+
+## PIC source-equivalence and board mapping rejection
+
+Two isolated PIC event-decode rewrites pass the complete arbitrary-state
+module transition/reset/output proof, including invalid state encodings.
+Actual source mutations for invalid-state handling, poll edge and reset are
+rejected. The smaller acknowledge-plus-poll rewrite also passes the standalone
+all-eight-service-bit depth screen. Neither retains that benefit after full
+board synthesis against immutable source `2a1cedf4`.
+
+For service bits 0 through 7, actual baseline reset-to-DATAIN LUT depths are
+`[7,8,7,7,7,7,7,7]`. Changing all three event expressions gives
+`[7,7,7,8,8,7,8,8]`; changing acknowledge and poll only gives
+`[8,8,8,8,8,8,8,8]`. The all-three rewrite deepens the failing bit 3 path and
+does not improve failing bit 0; the smaller rewrite deepens seven paths.
+All 318 RAM parameter/INIT records and both PLL parameter/clock-role records
+remain exact, with unchanged FF and arithmetic-LUT counts. Complete mapped
+cell-name unions and all 93 source-provenance PIC FF input cones are retained.
+This is structural mapping evidence, not a candidate routed measurement or
+whole mapped-board equivalence proof.
+
+Both candidates are rejected before routing. [The complete PIC captures](pic-direct-events/README.md)
+retain source snapshots, proofs, negative witnesses, synthesis commands and
+outputs, full comparisons and independently verified archive manifests.
+The host syntheses take 361.68976250104606 and 400.9227558299899 seconds;
+GPU/full-route charge is zero. No tracked PIC RTL or production contract changes.
