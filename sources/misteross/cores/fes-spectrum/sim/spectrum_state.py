@@ -102,7 +102,8 @@ def read_z80(data: bytes) -> dict:
     hardware = hx[2]
     version3 = extra >= 54
     if version3:
-        model = {0: '48', 1: '48', 3: '128', 4: '128', 5: '128', 6: '128', 7: '+3', 8: '+3',
+        # Version 3 inserted 48K + M.G.T. as type 3, moving 128K to 4.
+        model = {0: '48', 1: '48', 3: '48', 4: '128', 5: '128', 6: '128', 7: '+3', 8: '+3',
                  9: 'pentagon', 12: '+2', 13: '+2A'}.get(hardware)
     else:
         model = {0: '48', 1: '48', 3: '128', 4: '128', 7: '+3', 8: '+3', 9: 'pentagon',
