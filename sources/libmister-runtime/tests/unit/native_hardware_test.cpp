@@ -1712,6 +1712,21 @@ void TestMenuInterfaceRecordsMatchMenuAdmission()
   auto newer=menu;++newer.interfaces[index].minor;
   assert(!CheckMenu(newer).ok());
  }
+ // The list is complete: an application interface CheckMenu admits beside
+ // the listed ones must itself be listed, or an image whose menu declares
+ // it would hold back a runtime that accepts it.
+ for(const char* id:{generated::FesApplicationInterfaceGamepadID,generated::FesApplicationInterfaceVideoFixed720p60ID,
+  generated::FesApplicationInterfaceMediaBlobID,generated::FesApplicationInterfaceMediaBlobStreamID,
+  generated::FesApplicationInterfaceAudioPcmS16Stereo48kID,generated::FesApplicationInterfaceGamepadPortsID,
+  generated::FesApplicationInterfaceKeypadPortsID,generated::FesApplicationInterfaceFirmwareBlobID,
+  generated::FesApplicationInterfaceMemoryHpsDdrID,generated::FesApplicationInterfaceVideoMenuDisplayID,
+  generated::FesApplicationInterfaceVideoMenuBlitterID}){
+  bool named=false;
+  for(const auto& interface:listed)named=named||interface.id==id;
+  if(named)continue;
+  auto extra=menu;extra.interfaces.push_back({id,1,0,true});
+  assert(!CheckMenu(extra).ok());
+ }
 }
 
 void TestNativeMenuActivationAndCompletion()

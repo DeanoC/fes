@@ -68,6 +68,11 @@ bool HasMenu(const CoreDescriptor& descriptor) {
   if(interface.id==generated::FesApplicationInterfaceVideoMenuDisplayID)return true;
  return false;
 }
+bool HasMenuBlitter(const CoreDescriptor& descriptor) {
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesApplicationInterfaceVideoMenuBlitterID)return true;
+ return false;
+}
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
   descriptor.abi.id!=generated::FesComputerABIID)return false;
@@ -97,7 +102,7 @@ const char kMenuInterfaceRecords[] MISTER_MENU_INTERFACE_SECTION =
 
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
-  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
+  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=(HasMenuBlitter(descriptor)?4u:3u)||!HasMenu(descriptor))
   return {ErrorCode::invalid_package,"idle menu requires the described fes.menu video/DDR/menu package","admission"};
  return CheckCoreCompatibility(descriptor);
 }
