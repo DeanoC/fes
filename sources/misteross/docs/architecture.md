@@ -181,9 +181,10 @@ The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
-nextpnr `552ba246` (fes#887), and Coleco's pins Yosys `5391eeb1`; each selects
-its own slot. The other per-core locks remain byte copies of `toolchain.lock`
-on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
+nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
+`8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1`; each selects its
+own slot. The other nine per-core locks remain byte copies of
+`toolchain.lock` on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
 weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
@@ -400,8 +401,8 @@ timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
 `CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
-`toolchain.lock` (nextpnr `9128800f`). Pong's own lock pins nextpnr
-`552ba246`, so Pong uses a separate slot.
+`toolchain.lock` (nextpnr `9128800f`). Pong, ZX81 and RISC-V pin their own
+nextpnr, so each uses a separate slot.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
@@ -578,9 +579,10 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Every lock except Coleco currently
-contains identical commits and shares one compiler-cache slot. Coleco pins
-Yosys `5391eeb1` and has its own slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. Nine locks contain identical
+commits and share one compiler-cache slot; Pong (nextpnr `552ba246`), ZX81
+(`1eecf877`), RISC-V (`8f453ebc`) and Coleco (Yosys `5391eeb1`) each have
+their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
