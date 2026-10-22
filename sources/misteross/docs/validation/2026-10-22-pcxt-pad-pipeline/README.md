@@ -796,3 +796,43 @@ retains the complete pair and frozen source/tests. Independent readback verifies
 all 103 members and reruns five offline checks from a fresh extraction,
 reproducing all proof JSON bytes. Archive SHA-256:
 `1b9642742873e2c6d4c14aba4d234fdddea2bd9e0b3f1b1ee030cbfd5230d4f6`.
+
+## Route-through cache correction: host validation
+
+The LUT6 eligibility rejection exposed stale native FF input metadata. Inserting
+1,949 route-through BUFs rewires the FF DATAIN ports but leaves their old cached
+net pointers. Native route preparation then reports 309 illegal LABs, 411 illegal
+ALMs and 188 overfull cached LAB counts. The intended CPU OR6 LAB rises from
+42 to 47 inputs; its five stale FF caches account for the complete discrepancy.
+
+Compiler `972d8ea6` refreshes each changed FF cache before helper binding recounts
+the ALM. The full-board native probe then has zero stale entries or illegal
+LABs/ALMs, and its complete observed snapshot equals the old diagnostic cache
+refresh. All three previously blocked CPU LABs remain at 42 inputs. Legality
+rules, physical pins and control semantics are unchanged.
+
+Eight new regressions fail with the old code and pass with the correction.
+The same frozen compiler passes the 33-case LUT6/coverage suite, 77-case
+private-pair suite and both six-case CLI suites. Suite counts include overlapping
+coverage tests. Default/zero placements are byte-identical and match the prior
+complete graph and predicted timing apart from the creator label. The separate
+post-route private-pair implementation is `7b8556ad`, compiled but disabled in
+these controls. No full route has run with this build.
+
+A further native counterexample exposes an existing LUT6 admission gap: an
+essential missing-clock or undriven upstream input can disappear from propagated
+timing tags, leaving the same complete-looking downstream row as a fully known
+control. Enabled LUT6 routes are held until an explicit bounded upstream-source
+check rejects these omitted origins. This is separate from the confirmed cache
+correction; no coverage or timing guard is waived.
+
+The [compiler host capture](https://github.com/DeanoC/nextpnr/tree/6d02e632/docs/validation/2026-10-22-pcxt-routethrough-cache)
+retains 85 members with SHA-256
+`121dd4407e48945bd49ed19a9bfdfee791d05d6483ae8548f5ec5b119d2e6caa`.
+Fresh readback verifies every retained hash, source identity, test-log count,
+complete native snapshot and placement control. Executables and build objects
+are recorded by identity and omitted from the archive. This is host-only
+structural/model evidence with zero added route charge. The retained timing
+result remains 13 setup failures/-434 ps; CPU remains seven failures/-173 ps.
+There is no timing closure, seed qualification, production seal or hardware
+acceptance, and no RTL, clock, lock or shared contract changes.
