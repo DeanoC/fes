@@ -41,7 +41,8 @@ suppress Back or the system menu.
 
 SDL gamepads use a **positional** face-button layout (Xbox-style). FogCast
 maps those positions after SDL normalization (`CommandFromButton`,
-`commandFromSDLButton`). `-input-profile identity|swap-ab|/path.json` remaps
+`commandFromSDLButton`). Kit evdev pads get the same positions from their SDL
+GameControllerDB entry (`ui/controller`). `-input-profile identity|swap-ab|/path.json` remaps
 buttons after that step; GUIDE / `CmdSettings` is not remapped.
 
 | Logical action | Tenfoot command | Room `on_input` name | Tap / click route exists? |
@@ -119,7 +120,7 @@ essential action.
 | Favorite | hold North / Y (library browse only) | Toggle favorite |
 | Filters | hold West / X (library browse only) | Filter overlay |
 | Stop a live session | East / B, or `s`, while now-playing | Session Stop (not a room explore action) |
-| Stop a kit-local core | hold Select + Start (1 s) | Same Stop as the single-press F12 / Guide routes, which are taps |
+| Stop a kit-local core | hold Select + Start (1 s) on one pad | Same Stop as the single-press F12 / Guide routes, which are taps |
 
 System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row:
 Left/Right still chooses the start screen; Confirm goes Home now, so a

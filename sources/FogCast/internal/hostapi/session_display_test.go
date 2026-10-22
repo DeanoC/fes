@@ -216,6 +216,7 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 		{observed.ID, protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-b", TargetID: launcherID}, `{"visible":true,"focus":"launcher"}`, 403},
 		{observed.ID, b, `{"visible":null}`, 400}, {observed.ID, b, `{"visible":true,"focus":"launcher"} {}`, 400},
 		{observed.ID, b, `{"visible":false,"focus":"launcher"}`, 400},
+		{observed.ID, b, `{"visible":true,"focus":null}`, 400}, {observed.ID, b, `{"visible":true,"focus":""}`, 400},
 		{observed.ID, b, `{"visible":true,"focus":"menu"}`, 400}, {observed.ID, b, `{"visible":true}`, 200},
 		{observed.ID, b, `{"visible":true,"focus":"machine"}`, 200},
 	} {
