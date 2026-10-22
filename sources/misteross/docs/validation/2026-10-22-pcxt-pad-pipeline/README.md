@@ -275,3 +275,42 @@ together while preserving unrelated routes and the same final timing guards.
 Draft #979 and timing issue #840 remain open; production integration still needs
 complete routed coverage, the unchanged seed gate, a fresh producer and exact
 artifact hardware qualification.
+
+## Bounded placement and incident-net rerouting
+
+Compiler [43960506](https://github.com/DeanoC/nextpnr/commit/43960506)
+adds default-off `--critical-move-route-budget` (0..16). It moves one ordinary
+LUT to an empty legal site and reroutes only its incident data nets, keeping
+unrelated routes bound. Routing has a shared 500,000-node limit. Full native
+setup/hold, clock and endpoint guards remain mandatory, with transactional
+placement, route and physical mux rollback.
+
+The same-binary eight-trial CPU-reference comparison accepts zero moves.
+Four trials route but fail the clock setup/hold guard; four cannot complete
+bounded routing. Candidate RBF, routed JSON, timing and endpoint reports are
+byte-identical to baseline. Independent checking verifies all 12,605 cells,
+15,736 nets and 17,199 endpoint rows unchanged. CPU setup WNS stays -1.638 ns,
+microcode -0.358 ns and pixel -0.228 ns; 343 setup failures and 105 unsupported
+boundaries remain. Default-off RBF/timing/endpoint bytes reproduce prior evidence.
+
+Two focused native tests, the CLI boundary test and all 30 retention/runner
+tests pass. Tests cover inverted-input routing, successful connectivity,
+rejection/exception/exhaustion rollback, protected cells, occupied targets and
+candidate-only dispatch. The independent graph checker also rejects a deliberate
+cell-function mutation.
+
+[Compiler capture and reproduction](https://github.com/DeanoC/nextpnr/blob/f956382e/docs/validation/2026-10-22-pcxt-move-route/README.md)
+retain inputs, commands, receipts, test logs and comparisons. The 35-member
+archive passes SHA256 readback; archive SHA256 is
+`a256bc1a29201c83d97d40134c8989e3da15a3e7e85554bea651dd3de7e78906`.
+This comparison charges 582.528400 seconds, leaving **14463.426462 seconds**
+(about 4 h 1 min) of the renewed allowance.
+
+This is a bounded single-LUT experiment, not simultaneous placement of the
+entire critical cone. Only four of 32 examined cells yield positive geometric
+gain proposals. Next, identify the exact regressing clock and margin per trial
+before choosing a coordinated placement footprint; this capture does not justify
+simply increasing trial counts. No hardware ran. RTL, clocks, locks, recipes,
+seals and shared contracts are unchanged. Draft #979 and timing issue #840 stay
+open; complete routed coverage, the seed gate, a fresh producer and exact-artifact
+hardware acceptance remain required.
