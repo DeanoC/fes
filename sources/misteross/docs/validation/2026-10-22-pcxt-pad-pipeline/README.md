@@ -1014,3 +1014,18 @@ The 135 ps gain is retained as a local diagnostic improvement, with ten setup
 failures, 105 unsupported boundaries and `complete=false` still open. There is
 no same-recipe seed qualification, production seal or hardware acceptance. No
 FES RTL, constraints, clocks, toolchain lock or module/shared contract changes.
+
+The private-pair trial has now completed on the same frozen compiler. It admits
+one MDA group and attempts one candidate, then rejects local routing of
+`mda_font_address[11]`. The present error combines unreachable routing and node
+budget exhaustion, so this result does not identify which caused the rejection.
+No decomposition is retained. The RBF, complete timing and endpoint files are
+byte-identical to CPU16. Routed JSON differs in six route-attribute orderings;
+all canonical wire/PIP/strength maps, cells, aliases and LAB state remain exact.
+All 17,194 setup and hold margins are unchanged. The independent private-pair
+full graph proof passes and requires no changed-tree native readback.
+
+This completed route costs 608.085521012079 seconds. The shared CPU16 control
+is charged once. The journal now has 38 subsequent receipts and cumulative
+charge **40240.35303711146057 seconds**. The CGA 135 ps improvement remains the
+best retained local result; this rejected private-pair trial adds no gain.
