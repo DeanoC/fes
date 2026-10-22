@@ -2130,9 +2130,12 @@ for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
 Native input admits devices through `ui/controller` and maps them with
-`controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
-(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
-axis until it returns to centre. Logical codes are remapped with a JSON
+`controller.Mapper`. The mapper identifies a pad by its evdev bus, vendor,
+product, version and name CRC, and reads it through the matching embedded SDL
+GameControllerDB Linux entry. If the DB does not list the pad, it uses the
+Linux gamepad-API codes plus a generic `BTN_TRIGGER`-range layout. Left stick
+and D-pad share `left-x`/`left-y`, and a held D-pad hat or D-pad axis owns
+that axis until it returns to centre. Logical codes are remapped with a JSON
 profile from `ui/inputmap` (default identity).
 
 See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host.md)

@@ -75,8 +75,10 @@ A successful local launch returns its exact execution-lease generation, which
 tenfoot keeps for Stop and status reconciliation. `POST /v1/local/stop`
 requires `expected_generation`; missing or stale generations are refused before
 the runtime is called. Select+Start held for one second on one pad stops a
-kit-local core instead of posting the host session stop. Keyboard F12 or a pad's Guide button
-also stops it with one press; neither is forwarded to the core. The first
+kit-local core instead of posting the host session stop. Keyboard F12 or a pad's
+Guide button also stops it with one press; neither is forwarded to the core.
+Guide is the pad's GameControllerDB `guide` binding, or `BTN_MODE` when that
+mapping leaves the code free. The first
 loading frame shows phase and elapsed time. Tenfoot waits until that frame
 has been presented, pauses menu display, then dispatches the launch request.
 A failed or unpresented frame aborts dispatch. Late adoption of a core that
@@ -118,9 +120,17 @@ evdev devices that `ui/controller` admits: `controller.Eligible` for gamepads
 and `controller.EligibleMouse` for mice. The virtual FogCast device
 (`BUS_VIRTUAL` / `FogCast Virtual Gamepad`), other virtual-bus nodes and
 devices without gamepad buttons are excluded. `controller.NewMapper`
-normalizes standard Linux gamepad buttons and the kit's 081f:e401 USB pad, with
-axis ranges from EVIOCGABS, including unsigned 0–255 fixture axes. Left stick
-and D-pad hat share `left-x`/`left-y`; a held hat owns that axis until it
+identifies each pad from its EVIOCGID bus, vendor, product and version and
+its EVIOCGNAME name CRC. It reads the pad through the matching
+[SDL GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) Linux
+entry, embedded as `ui/controller/gamecontrollerdb.txt`, and numbers the
+pad's EVIOCGBIT keys, hats and axes the way SDL's Linux driver does. A pad
+the DB does not list uses a fallback layout: Linux gamepad-API codes
+(`BTN_SOUTH`…), plus the generic HID order for `BTN_TRIGGER`-range keys
+(1 West, 2 South, 3 East, 4 North, 5/6 shoulders, 9 Select, 10 Start).
+Tenfoot logs each pad's identity and the mapping it got. Axis ranges come
+from EVIOCGABS, including unsigned 0–255 axes. Left stick and D-pad share
+`left-x`/`left-y`; a D-pad on a hat or a full axis owns that axis until it
 returns to centre. Keyboard events carry the key's USB HID usage;
 mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
 matrix or native gamepad keys for the other cores.
