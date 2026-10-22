@@ -1185,3 +1185,45 @@ and all acceptance guards are unchanged; the optional maximum is 2,000,000.
 The 81 native and nine CLI checks pass, and default/zero preparation controls
 reproduce the parent exactly. Fresh default/2,000,000 route trials are running;
 host validation is not a claim that the rewrite improves final routed timing.
+
+
+## Private-pair local search bound: routing succeeds, timing rejects
+
+Fresh default-500,000 and explicit-2,000,000 node routes using compiler
+`f5c6b90df4b8a36a6a8f631998d52ef160c2044b`, binary
+`d1abff2e8eae7021a1bc291634b45d7bb290e4391b87d6380542c14e6120ce80`,
+now complete. Both keep the original one-round CPU16/private4 recipe and clocks;
+this pair does not include the separate second CPU round or display permutations.
+The default control reproduces the earlier private4 route exactly and rejects
+local routing of `mda_font_address[11]` at the original search bound. The larger
+search reaches full native timing for the same MDA rewrite, then rejects a hold
+margin regression at `dot_MISTRAL_FF_Q` DATAIN, from +942 to +936 ps. The existing
+nonregression guard remains unchanged; neither trial retains a decomposition.
+The rejected trial's complete live timing inventory was not emitted, so this
+result does not establish its other setup/hold margins or a path-level cause.
+
+Complete final routed JSON, RBF, timing and endpoint files are byte-identical
+between the two runs. The complete 12,397-cell/15,546-alias graph proof has no
+changed route tree or route-attribute ordering. All 17,199 endpoint identities,
+windows, flags and metadata match; all 17,194 checked setup and hold margins are
+exact. Both retain the baseline ten setup failures, worst -434 ps, zero hold
+failures and minimum hold +822 ps. No changed-tree native readback is needed. Independent review reproduces all
+seven full proof outputs, including 38 graph/log and eleven node-ledger
+corruption cases, and independently compares the four final artifact bytes.
+The eight-failure combined CPU/display result remains the best retained recipe.
+
+Completed route charges are 899.2859137370251 and 913.594029861968 seconds.
+The journal now contains 46 subsequent receipts and cumulative charge
+**46816.44684049067957 seconds**. Artifacts are under
+`out/private-pair-node-budget-20261022/`. This is a completed rejected host
+experiment with exact rollback, not timing closure or hardware acceptance.
+All physical/coverage, same-recipe seed, production and hardware gates remain
+open. No RTL, constraints, clocks, lock, shared contracts or hardware changed.
+
+The combined CPU/display route now has its own
+[immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/b2ae8ec3/docs/validation/2026-10-23-pcxt-cpu-display-combination),
+archive SHA-256
+`3333e2524c928aec6704c3fd8374b45208cc4964ff3598c5fdfac4604971d22b`.
+Independent root extraction verifies all 100 members, all 256/234 members of
+the two explicit dependencies, and exact full proof and review reproduction.
+Archive replay incurs no route charge.
