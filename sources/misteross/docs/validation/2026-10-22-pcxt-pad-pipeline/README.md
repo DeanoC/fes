@@ -1307,3 +1307,73 @@ experiment with no additional improvement; a larger trial ceiling alone has
 no further candidates in this discovery. Timing closure, the 105 unsupported
 boundaries, same-recipe seed, production and hardware gates remain open.
 No RTL, clocks, constraints, lock, shared contracts or hardware changed.
+
+
+The completed budget32 result now has an
+[immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/f3549d6c/docs/validation/2026-10-23-pcxt-lut-permutation-budget32),
+archive SHA-256
+`5c8771558434c8713f8ba79cd1afce75c6398315012058f27c96df4d0d2b3b02`.
+Root fresh extraction verifies all 284 members and complete 245/100-member
+private-node/combined dependencies, reproducing every portable proof and the
+independent review. It runs no historical routes or native timing.
+
+## Preserved source exits reach native timing but retain no new gain
+
+Compiler `1ba2e289f5bf4e584a8539f185d6f15383650c26`, binary
+`04c5ade4b55f8b7b48a4e79d8cf85e38d08a08bfd2819f1dbf9ec6a9c40cb868`,
+adds the explicit default-off `--critical-lut-permute-retain-source-exits`.
+It retains only original directly rooted COMB-output exit tuples with complete
+native driver, owner, half, wire/PIP and strength identities. It preserves the
+stationary LAB/FF configuration guard and every setup/hold/coverage predicate.
+Host admission passed 57 native tests and eight CLI tests, plus exact default
+and explicit-zero controls. The isolated low-level probes are structural
+rollback evidence; the fresh routes below provide the timing evidence.
+
+Both raw seed1 routes retain the original 100 MHz system/CPU/microcode and
+74.25 MHz pixel constraints, two CPU LUT6 discovery rounds and permutation32.
+The option-off control reproduces the preceding budget32 artifacts apart from
+the recorded JSON creator. Each route attempts 23 permutations and keeps the
+same two previously accepted CGA/MDA permutations.
+
+The intended CGA D/E, D/C and D/B trials now pass the previously blocking
+stationary-selector check, then reject on native setup regression at
+`system.machine.isa.rgbi_MISTRAL_FF_Q_1.DATAIN`: -26 ps becomes -39, -37 and
+-37 ps respectively. The D/E trial improves whole-clock setup from -434 to
+-369 ps, but that aggregate improvement does not override the individual loss.
+No rejected candidate is retained.
+
+All four final artifacts (RBF, routed JSON, timing report and endpoint inventory)
+are byte-identical between option-off and option-on. All 17,199 endpoint
+identities/windows/flags/metadata and all 17,194 setup and hold margins match.
+Eight setup failures remain: two CPU, three CGA, two MDA and one PIC. CPU worst
+setup is -25 ps; whole-system worst is -434 ps. Related hold has zero failures
+and minimum +822 ps. Each complete 12,397-cell/15,546-alias graph is proved
+separately against the common CPU2 graph using its own complete accepted ledger.
+
+Fresh route charges are 1304.8248345819302 seconds for the control and
+1298.359501537867 seconds for retention, total 2603.1843361197972 seconds.
+The 52-receipt journal cumulative charge is 53488.10083870170587 seconds.
+No hardware ran. The 105 unsupported boundaries and complete=false remain;
+there is no timing closure, same-recipe seed qualification, seal or hardware
+acceptance. No RTL, clocks, constraints, toolchain lock or shared contracts changed.
+The next routing experiment uses the option-off baseline because this option
+provides no retained benefit on this recipe.
+
+Native saved-tree readbacks independently decode each common-CPU2 comparison:
+ten nets, eighteen stationary users and 65 retained original wire tuples.
+Fourteen complete graph/ledger/parser/topology/timing outputs replay exactly;
+independent review SHA-256 is
+`45516c79bd4c4febdb063ed202b46d3d2d68e1f022241a7c5b0919620649c030`.
+The initial replay stopped because a parser-control output had not been generated;
+that failure is retained, the existing parser controls then pass, and the complete
+replay succeeds. This is saved native topology evidence, not a new STA run.
+Evidence is under `out/cga-source-exit-retention-20261023/`.
+
+The next default-off compiler candidate,
+`626e368b0529c4516aa3a7a4bb4bcdd034011e30`, rebuilds timing and discovers critical
+routes after the LUT repairs. Its 31 focused native and nine CLI tests and exact
+default/zero controls pass. A fresh control/final-route32 pair is running under
+`out/final-critical-route-rediscovery-20261023/`; no routed result is claimed here.
+CPU/system/microcode remain 100 MHz and pixel remains 74.25 MHz. Both PRs remain
+draft. Final timing, complete coverage, same-recipe seed, fresh producer and
+exact-artifact hardware gates remain open.
