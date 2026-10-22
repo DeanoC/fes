@@ -865,7 +865,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	}
 	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape"}) {
 		auto mixed = atari;
-		mixed.interfaces.push_back({medium, 1, 0, true});
+		mixed.interfaces.push_back({medium, static_cast<std::uint16_t>(std::string(medium) == "fes.media.spectrum-tape" ? 2 : 1), 0, true});
 		assert(check(mixed).code == mister::ErrorCode::unsupported_interface);
 	}
 	auto atari_optional = atari;

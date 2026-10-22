@@ -23,7 +23,7 @@ removable media by unit.
 | fes.gamepad.ports | 2 | Two eight-button controller ports, as in `fes.application` |
 | fes.audio.pcm-s16-stereo-48k | 3 | Fixed 48 kHz stereo PCM over I2S, as in `fes.application` |
 | fes.media.apple2-floppy | 4 | Media unit 0: one Apple II 5.25-inch DOS 3.3 order disk image |
-| fes.media.spectrum-tape | 5 | Media unit 0: one ZX Spectrum `.tap` image, 1..65536 bytes |
+| fes.media.spectrum-tape 2.0 | 5 | Media unit 0: one ZX Spectrum tape as a PZX 1.0 stream, 10..16777216 bytes |
 | fes.media.c64-disk | 6 | Media unit 0: one Commodore 1541 D64 disk image |
 | fes.media.atari-st-floppy | 7 | Media unit 0: one read-only 720 KiB raw ST disk image |
 | fes.mouse.relative | 8 | Relative signed movement and two mouse buttons |
@@ -224,14 +224,35 @@ only: the drive reports write protect and writes are not returned to the host.
 ProDOS order (`.po`) and nibble (`.nib`) images are different formats; a host
 may convert `.po` to DOS order before transfer, but must not send it as is.
 
-### fes.media.spectrum-tape 1.0
+### fes.media.spectrum-tape 2.0
 
-Unit 0. The unit accepts 1..65,536 bytes: a `.tap` image, a sequence of
-blocks each stored as a little-endian uint16 length followed by that many
-payload bytes. The core plays complete blocks into the EAR bit while the
-machine runs (header pilot 8063 edges, data pilot 3223, sync 667/735, bit
-pulses 855 or 1710 T-states, then a one-second pause). A trailing partial
-block is not played. Version 1.0 does not return MIC writes to the host.
+Unit 0. The unit accepts 10..16,777,216 bytes: a
+[PZX 1.0](http://zxds.raxoft.cz/docs/pzx.txt) stream, starting with its
+PZXT block. The core keeps the stream in its HPS DDR window and plays it into
+the EAR bit while the machine runs. PULS, DATA, PAUS and STOP blocks play;
+every other block is skipped. Durations are T states of the machine, as PZX
+allows for the 128K. A pulse holds its level for its duration and the next
+pulse starts toggled. PULS starts low; DATA and PAUS start at the level in
+bit 31 of their first word. Zero-length pulses only move the level, so EAR
+never shows an intermediate level. STOP stops the tape (flag 1 only on a 48K)
+and leaves EAR at the level the next pulse would start at; the end of the
+stream does the same and rewinds to the first block. Ejecting drops EAR low.
+
+The tape starts and stops itself, as Fuse 1.6.0's loader detection does.
+After each read of a ULA port the core compares the T states since the
+previous read and the change in register B. While the tape is stopped, 10
+successive reads at most 500 T apart, each with B one up or one down, start
+it. While it plays, 2 successive reads more than 1000 T apart, or with B
+changed by more than one, stop it. Version 2.0 does not return MIC writes to
+the host.
+
+Hosts convert `.tzx`, `.tap`, `.csw` and `.pzx` images to this stream so that
+it plays as libspectrum 1.5 plays the original: the same levels for the same T
+states, and the same stops. FogCast's `internal/spectrumtapes` package does
+this and is checked against libspectrum on fixtures of every block type.
+Version 1.0 (a `.tap` image of at most 64 KiB held in M10K) is withdrawn; a
+1.0 package is refused at compatibility.
+
 A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
 floppy, or the ZX81 tape, and only one unit-0 media interface.
 

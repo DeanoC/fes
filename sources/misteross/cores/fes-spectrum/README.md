@@ -99,19 +99,27 @@ and A1 low is also `$7FFD`, so the diagnostic addresses the probe as `$80E0`.
 
 ## Cassette
 
-Media unit 0 (`fes.media.spectrum-tape`) holds 1..65,536 bytes of `.tap`.
-While the unit is ready the player emits EAR edges: 2168 T pilot pulses
-(8063 for flags below `$80`, otherwise 3223), sync 667/735, and two 855 or
-1710 T pulses per bit, most significant bit first, then a one-second pause.
-The next byte is prefetched so byte boundaries retain the same pulse widths.
-These are the standard ROM timings recorded in the original
-[TZX specification, blocks 10/11](https://worldofspectrum.net/TZXformat.html).
-A trailing partial block is not played. MIC writes are not returned to the host.
+Media unit 0 (`fes.media.spectrum-tape` 2.0) holds a PZX stream of up to
+16 MiB in HPS DDR, at window offset 16 MiB on port 1 (`fes_media_ddr`). The
+host converts `.tzx`, `.tap`, `.csw` and `.pzx` images to that stream so it
+plays as the original plays in Fuse 1.6.0 (FogCast `internal/spectrumtapes`);
+turbo and custom loaders, generalized data, direct and CSW recordings play
+as recorded. `rtl/spectrum_tape.v` decodes the stream a byte at a time through
+a four-event queue and plays each pulse on the free-running T-state clock, so
+contention does not slow the tape and every edge lands on a T-state edge.
+DATA pulse tables (up to 255 pulses per bit) are held in one M10K.
+
+The tape starts and stops by Fuse's loader detection: 10 successive reads of
+a ULA port at most 500 T apart, with B counting one up or down each time,
+start it, and 2 reads more than 1000 T apart or with B jumping stop it. A
+tape therefore waits at its start until a loader runs, and pauses when the
+program stops loading. STOP blocks stop it (flag 1 only on the 48K) and the
+end of the tape stops and rewinds it. MIC writes are not returned to the host.
 
 ## Simulation
 
 ```sh
-make sim-fes-spectrum              # every model's machine, video, board mailbox, tape
+make sim-fes-spectrum              # every model's machine, video, board mailbox and DDR tape, deck
 make sim-fes-spectrum-machine      # diagnostic firmware on all four models, frame-bank video
 make sim-fes-spectrum-board
 make sim-fes-spectrum-tape
@@ -122,21 +130,32 @@ make sim-fes-spectrum-rom ROM_MEM_SIM=/path/to/yosys/share/yosys/intel_alm/commo
 The machine simulation runs the open diagnostic firmware
 (`diagnostic/firmware.py`) on each model: paging through `$7FFD`, AY register
 read-back, the keyboard matrix, Kempston port, probe id and scratch register,
-the 2168 T pilot, a red border and a black ink pixel. It also checks the
+a red border and a black ink pixel, and then polls EAR as the ROM's edge loop
+does, which must start the diagnostic tape and show its 2168 T pilot. It also
+checks the
 frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
 attribute swaps ink and paper every 16 frames. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
-`top.v` through the mailbox: identity capability bits 5, 12 and 13, tape
-limits 1..65536, a 3-byte commit, HID usage `A` landing on the Spectrum A key
-and controller port 1 pressing Sinclair keys. The cassette regression decodes
-every EAR pulse for flags `$00`, `$7F`, `$80` and `$FF`, mixed adjacent bytes,
-consecutive blocks, partial tails and live eject/replacement.
+`top.v` through the mailbox and a model of the fpga2sdram ports
+(`cores/fes-common/sim/hps_ddr_media_model.v`, which refuses commands and
+delays data at random): identity capability bits 5, 12 and 13, tape limits
+10..16 MiB, the diagnostic tape committed in two chunks so a byte pair
+straddles two DDR words, its bytes in the DDR window, the 2168 T pilot played
+back from DDR, no DDR protocol or window violation, HID usage `A` landing on
+the Spectrum A key and controller port 1 pressing Sinclair keys. The tape
+simulation plays PZX images through the deck from a stream that stalls at
+random and compares EAR, T state for T state, with an independent expansion
+of the format: ROM blocks with a full header pilot, every PULS encoding, DATA
+pulse tables of up to 255 pulses with zero-length entries and partial bytes,
+PAUS levels, skipped blocks, both STOP flags (once as a 48K), the end and
+rewind, eject, the loader-detection thresholds and a heavily stalled stream.
 
 `sim/run_tb.cpp` is a development runner for a model's machine. It loads a
-ROM file and a machine state converted from a `.sna` or `.z80` snapshot by
-`sim/spectrum_state.py`, presses keys by frame, writes captured frames as PNG
+ROM file, a machine state converted from a `.sna` or `.z80` snapshot by
+`sim/spectrum_state.py` and a PZX tape (`--tape`), reports when the tape
+starts and stops, presses keys by frame, writes captured frames as PNG
 and palette-index files and can print an instruction trace with frame T
 states. These are host simulations, not an RBF, timing or kit result.
 
@@ -156,10 +175,11 @@ and lanes, RAM banks, CPU clock and frame length are bound into its build
 identity, and each core has its own FES recipe row. Every model seals only
 after the 52.224, 74.25 and 12.288 MHz domains pass. Synthesis must keep the
 exact block counts per model (firmware lanes, three frame banks, the plane
-FIFO and the CPU-only RAM banks as M10K; the screen banks and the tape image
-as TDP blocks: 110/80 for the 48K, 190/96 for the 128K and Pentagon, 222/96
-for the +2A/+3), exactly three
-unsigned display-plane DSP products and the read-only plane DDR port. The
+FIFO, the CPU-only RAM banks, the tape's prefetch ring and the deck's pulse
+tables as M10K; the screen banks as TDP blocks: 113/16 for the 48K, 193/32
+for the 128K and Pentagon, 225/32 for the +2A/+3), exactly three
+unsigned display-plane DSP products, a read-only plane DDR port 0, the tape
+on port 1 and port 2 tied off. The
 producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
@@ -176,7 +196,7 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-The +3 disk drive, TR-DOS, `.tzx` tapes and tape write-back, snapshot
+The +3 disk drive, TR-DOS, tape write-back, turbo loading (#999), snapshot
 loading through the mailbox, ULAplus, Timex video modes and the IR-register
 snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of

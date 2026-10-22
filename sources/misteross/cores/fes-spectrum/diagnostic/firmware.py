@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Open ZX Spectrum diagnostic firmware (16, 32 or 64 KiB) and a 3-byte .tap.
+"""Open ZX Spectrum diagnostic firmware (16, 32 or 64 KiB) and a PZX tape.
 
 Nothing here is derived from a Sinclair or Amstrad ROM. Hand-assembled; the
 program at $0100:
@@ -12,6 +12,8 @@ program at $0100:
   - waits for a frame interrupt (IM1; $0038 is EI/RET), delays into the
     paper area and writes 64 contended screen bytes, then $C3 to $8006 so
     the simulation can check the T state of that write;
+  - polls EAR through port $FE 600 times with B counting up, as the ROM's
+    edge loop does, so the tape deck's loader detection plays the tape;
   - loops reading the keyboard A row, the Kempston port, probe socket 1's id
     and its scratch register into $8001-$8004. The probe ports use high byte
     $80: on 128K-class models a low port with A15 and A1 clear is $7FFD.
@@ -69,6 +71,15 @@ SETUP = bytes([
     0x10, 0xFC,              # djnz -4
     0x3E, 0xC3,              # ld a,$C3
     0x32, 0x06, 0x80,        # ld ($8006),a       timing marker
+    0x21, 0x58, 0x02,        # ld hl,600
+    0x06, 0x00,              # ld b,0
+    0x04,                    # inc b              edge loop: B counts reads
+    0x3E, 0x7F,              # ld a,$7F
+    0xDB, 0xFE,              # in a,($FE)         EAR in bit 6
+    0x2B,                    # dec hl
+    0x7C,                    # ld a,h
+    0xB5,                    # or l
+    0x20, 0xF6,              # jr nz,-10
 ])
 LOOP = ORG + len(SETUP)
 PROGRAM = SETUP + bytes([
@@ -89,8 +100,23 @@ PROGRAM = SETUP + bytes([
     0xC3, LOOP & 0xFF, LOOP >> 8,  # jp LOOP
 ])
 
-# One data block: length 1, flag/data $FF. The player uses the data pilot.
-TAPE = bytes([0x01, 0x00, 0xFF])
+
+
+def pzx_block(tag: bytes, body: bytes) -> bytes:
+    return tag + len(body).to_bytes(4, "little") + body
+
+
+def u16s(*values: int) -> bytes:
+    return b"".join(value.to_bytes(2, "little") for value in values)
+
+
+# A ROM data block of one byte, flag/data $FF: the data pilot, sync pulses,
+# the byte in ROM bit timing with its 945 T tail, then a second of silence.
+TAPE = (pzx_block(b"PZXT", bytes([1, 0]))
+        + pzx_block(b"PULS", u16s(0x8000 | 3223, 2168, 667, 735))
+        + pzx_block(b"DATA", (0x80000008).to_bytes(4, "little") + u16s(945) + bytes([2, 2])
+                    + u16s(855, 855, 1710, 1710) + bytes([0xFF]))
+        + pzx_block(b"PAUS", (3500000).to_bytes(4, "little")))
 
 
 def page() -> bytes:
@@ -112,9 +138,7 @@ def main() -> None:
         (args.output_dir / f"firmware{suffix}.hex").write_text(
             "\n".join(f"{byte:02x}" for byte in image) + "\n", encoding="ascii")
         (args.output_dir / f"firmware{suffix}.rom").write_bytes(image)
-    (args.output_dir / "tape.hex").write_text(
-        "\n".join(f"{byte:02x}" for byte in TAPE) + "\n", encoding="ascii")
-    (args.output_dir / "tape.tap").write_bytes(TAPE)
+    (args.output_dir / "tape.pzx").write_bytes(TAPE)
 
 
 if __name__ == "__main__":

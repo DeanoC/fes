@@ -972,7 +972,8 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
 	cores/fes-menu/rtl/fes_menu_control.v cores/fes-menu/rtl/fes_menu_video.v \
 	cores/fes-menu/rtl/fes_menu_reader.v cores/fes-common/rtl/fes_hps_ddr.v \
-	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-menu/sim/ddr_model.v
+	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-common/rtl/fes_media_ddr.v \
+	cores/fes-common/sim/hps_ddr_media_model.v
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 .PHONY: sim-fes-spectrum-contention sim-fes-spectrum-rom
@@ -996,14 +997,21 @@ sim-fes-spectrum-contention:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --download
 
-sim-fes-spectrum-tape: spectrum-diagnostic
+# The PZX deck against a reference expansion; the 48K build also stops at
+# STOP blocks flagged 48K-only.
+sim-fes-spectrum-tape:
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-spectrum-tape
+	@mkdir -p build/sim/fes-spectrum-tape build/sim/fes-spectrum-tape-48k
 	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-tape" \
 		cores/fes-spectrum/rtl/spectrum_tape.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
+	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall -GIS_48K=1\'b1 \
+		-CFLAGS -DTAPE_IS_48K=1 --Mdir "$(CURDIR)/build/sim/fes-spectrum-tape-48k" \
+		cores/fes-spectrum/rtl/spectrum_tape.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
+	@build/sim/fes-spectrum-tape-48k/Vspectrum_tape
 
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)
