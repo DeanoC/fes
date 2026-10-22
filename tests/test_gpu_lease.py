@@ -469,6 +469,46 @@ class GpuLeaseTests(unittest.TestCase):
         # A user client nextpnr opened on the leased GPU is evidence by itself.
         self.assertEqual(status_for([], opened=True, captured=False)[0], 0)
 
+    def test_short_shell_metal_route_refreshes_ioreg_for_redirected_output(self):
+        started = self.root / 'route-started'
+        route_log = self.root / 'route.log'
+        nextpnr = self.root / 'nextpnr-mistral'
+        nextpnr.write_text('#!/bin/sh\n: > "$ROUTE_STARTED"\n'
+                           'echo "Info: backend metal:0000000100000563:Apple M5 Max ready"\n'
+                           'sleep 0.16\nexit 0\n')
+        nextpnr.chmod(0o755)
+        command = ['/bin/sh', '-c', '"%s" --router gpu > "%s" 2>&1' %
+                   (nextpnr, route_log)]
+        nextpnr_pid = 4242
+
+        def mock_ioreg(_argv):
+            clients = (nextpnr_pid,) if started.exists() else ()
+            return ioreg_accelerators((APPLE_REGISTRY_ID, clients))
+
+        cache = gpu_lease._apple_accelerator_cache
+        old_cache = cache.copy()
+        cache.update(checked=None, accelerators=[])
+        self.addCleanup(cache.update, old_cache)
+        fd = os.open(self.root / 'lease-fd', os.O_CREAT | os.O_RDWR, 0o600)
+        with patch.dict(os.environ, {'ROUTE_STARTED': str(started)}), \
+             patch.object(gpu_lease, 'run_tool', side_effect=mock_ioreg) as ioreg, \
+             patch.object(gpu_lease, 'process_tree_pids', return_value=[nextpnr_pid]), \
+             patch.object(gpu_lease, 'process_cmdline',
+                          return_value='/tools/nextpnr-mistral --router gpu'), \
+             patch.object(gpu_lease, 'process_cmdline_args',
+                          return_value=['/tools/nextpnr-mistral', '--router', 'gpu']):
+            # Match inventory detection before launch: the cache has the GPU,
+            # but not the nextpnr process's user client.
+            self.assertEqual(gpu_lease.apple_accelerators(), [(APPLE_REGISTRY_ID, set())])
+            output = io.StringIO()
+            with redirect_stderr(output):
+                status = gpu_lease.execute('apple', [('0', fd)], command)
+
+        self.assertEqual(status, 0, output.getvalue())
+        self.assertTrue(started.exists())
+        self.assertIn('backend metal:', route_log.read_text())
+        self.assertGreaterEqual(ioreg.call_count, 2)
+
     def test_nextpnr_help_and_version_with_gpu_flags_do_not_require_gpu_access(self):
         command = self.root / 'nextpnr-mistral'
         command.write_text('#!/bin/sh\nexit 0\n')

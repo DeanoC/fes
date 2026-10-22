@@ -377,16 +377,15 @@ def parse_ioreg_accelerators(text):
 _apple_accelerator_cache = {'checked': None, 'accelerators': []}
 
 
-def apple_accelerators():
+def apple_accelerators(refresh=False):
     """Metal accelerators and their user-client pids from ioreg.
 
-    ioreg runs at most once per APPLE_CLIENT_POLL. The route monitor polls
-    until it sees nextpnr on the leased GPU, and the backend-ready log covers
-    a route shorter than that.
+    Normal callers reuse the snapshot for APPLE_CLIENT_POLL. Active route
+    monitoring can refresh it to avoid reusing a pre-launch inventory result.
     """
     now = time.monotonic()
     checked = _apple_accelerator_cache['checked']
-    if checked is None or now - checked >= APPLE_CLIENT_POLL:
+    if refresh or checked is None or now - checked >= APPLE_CLIENT_POLL:
         _apple_accelerator_cache['accelerators'] = parse_ioreg_accelerators(
             run_tool(['ioreg', '-l', '-r', '-c', 'IOAccelerator', '-d', '2', '-a']))
         _apple_accelerator_cache['checked'] = now
@@ -410,10 +409,10 @@ def apple_device_names(accelerators):
     return {'0': metal_device_name(accelerators[0][0])}
 
 
-def apple_gpu_clients():
+def apple_gpu_clients(refresh=False):
     """Map each Metal device name to the pids with a user client open on it."""
     return {metal_device_name(registry_id): creators
-            for registry_id, creators in apple_accelerators()}
+            for registry_id, creators in apple_accelerators(refresh=refresh)}
 
 
 _darwin_libc = None
@@ -670,7 +669,8 @@ def process_tree_nextpnr_fd_targets(root_pid, proc_root=None):
     return targets
 
 
-def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
+def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None,
+                          refresh_apple_clients=False):
     """Check that nextpnr itself opened a leased hardware node.
 
     Metal has no device nodes. On Apple the evidence is a user client of the
@@ -690,7 +690,8 @@ def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
         if not nextpnr_pids:
             return False
         return any(creators & nextpnr_pids
-                   for device, creators in apple_gpu_clients().items()
+                   for device, creators in apple_gpu_clients(
+                       refresh=refresh_apple_clients).items()
                    if first_node is None or device in mapped_nodes)
     targets = process_tree_nextpnr_fd_targets(root_pid, proc_root)
     if vendor == 'amd':
@@ -1797,7 +1798,10 @@ def execute(vendor, chosen, command):
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
             if requires_gpu and not opened_gpu:
-                opened_gpu = process_tree_uses_gpu(pid, vendor, device_nodes)
+                opened_gpu = process_tree_uses_gpu(
+                    pid, vendor, device_nodes,
+                    refresh_apple_clients=(vendor == 'apple' and evidence.backend is None
+                                           and not evidence.cpu_fallback))
             if output_pipes is not None:
                 selector.select(GPU_MONITOR_INTERVAL)
                 drain_route_output(selector, evidence)
