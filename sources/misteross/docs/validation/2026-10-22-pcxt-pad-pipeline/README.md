@@ -153,3 +153,38 @@ source identity, replay inputs, proof and tests are retained in nextpnr's
 `29689164ccf7593855d90331f8df3cee5d29a0a7e20a542cfd513aa393ffba05`.
 No hardware ran. FES RTL, recipes, clocks, toolchain lock, seals and shared
 contracts remain unchanged. Draft #979 and timing issue #840 remain open.
+
+## Leased comparisons after budget reset
+
+The user renewed the six-hour incident allowance. The repaired runner completed
+properly leased baseline, three-copy and four-copy routes, with grant evidence
+and unchanged constraints. The new baseline reproduces every prior baseline
+RBF/report/graph byte. The three-copy candidate improves CPU setup WNS from
+-1.638 to -1.516 ns and pixel from -0.228 to +0.269 ns, but introduces 18 new
+setup failures; total failing rows decrease from 343 to 252. The four-copy
+candidate reaches CPU -1.532 ns, microcode -0.080 ns and pixel -0.035 ns, with
+59 new failures and 337 total failing rows. Neither is accepted.
+
+All inventories retain 17,199 matching endpoint identities and 105 unsupported
+boundaries, with no related-hold failures. Positive-margin regressions also
+remain disqualifying. No coverage or timing gate was relaxed. The four-copy
+host result passes exact netlist substitution; it provides no hardware proof.
+
+A CPU-reference baseline times out at 600 seconds. The CPU-reference three-copy
+candidate completes and exactly matches the live GPU RBF, timing and endpoint
+reports. Routed graphs match after bijective bit renumbering and the backend
+setting are accounted for. No hardware ran; RTL, locks, recipes, clocks, seals
+and shared contracts are unchanged.
+
+Compiler evidence is in
+`docs/validation/2026-10-22-pcxt-replication/leased.md`; the accompanying
+`leased-capture.tar.gz` SHA256 is
+`3c4c87f5542d406f6c7570515b29f009ffce54f246640022f38f99331903f403`.
+The renewed ledger charges 2703.542323 seconds, including queue time and CPU
+reference attempts, leaving **18896.457677 seconds**. Baseline reuse is not
+charged twice. Older incident captures and charges remain preserved.
+
+The remaining CPU path still spends 8.413 ns in routing. These trials support
+investigating local route preservation with full-design rollback guards, rather
+than simply raising replication count. That repair is not yet implemented.
+Draft #979 and timing issue #840 remain open.
