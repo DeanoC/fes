@@ -836,3 +836,88 @@ structural/model evidence with zero added route charge. The retained timing
 result remains 13 setup failures/-434 ps; CPU remains seven failures/-173 ps.
 There is no timing closure, seed qualification, production seal or hardware
 acceptance, and no RTL, clock, lock or shared contract changes.
+
+
+## Source-complete routed CPU swap: 13 to 10 setup failures
+
+Compiler `243c829c` closes the omitted-origin admission gap with a bounded
+structural walk through characterized LUT, buffer and arithmetic arcs to actual
+FF/M10K launches. It checks complete clock/edge identities against native
+relationships, before and after each trial in both timing frames. Six new
+source-coverage tests, 33 native regressions and six CLI tests pass. All three
+actual CPU candidates pass source/downstream coverage and native legality;
+default and explicit-zero complete placement/report controls match. Independent
+replay confirms every source origin and the complete native probe bytes.
+
+The fresh paired routes use one frozen compiler, the original synthesis and
+constraints, seed 1, the existing placement recipe and route-repair budget 32.
+The selected case adds only LUT6 swap budget 16. The cache correction makes
+seven input pairs on three CPU LUT6s eligible. Three trials run: ALU E/D cannot
+route its first input within the bounded transaction; the lane-10 operand OR6
+B/A swap is retained; the other ALU D/E swap fails the required 20 ps gain.
+Remaining proposals on the already changed OR6 are skipped by the one-swap-per-
+cell rule.
+
+| Final routed metric | Matched default | Retained CPU swap |
+| --- | ---: | ---: |
+| Setup failures | 13 | 10 |
+| CPU setup failures | 7 | 4 |
+| CPU worst setup | -173 ps | -72 ps |
+| Whole-system worst setup | -434 ps | -434 ps |
+| Hold failures | 0 | 0 |
+| Minimum checked hold | +822 ps | +822 ps |
+| Unsupported boundaries | 105 | 105 |
+
+The complete 17,199-row inventory, flags and metadata are preserved. Sixteen
+checked setup margins improve and 17,178 remain equal; all 17,194 checked hold
+margins remain equal. Both complete clock comparisons pass. The default RBF,
+timing and endpoint files match the previous 13-failure route byte for byte.
+
+The full graph proof covers all 12,397 cells and 15,546 aliases. Only the logged
+OR6 input transposition and its two canonical route trees change; all 64 Boolean
+rows match. Independent native interpretation validates each saved pip's source
+and destination, ownership, driver root and every physical sink. A second root
+replay reproduces both native topology outputs byte for byte. These checks do
+not reload timing as a substitute for the original fresh-route reports.
+
+The [immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/7635c002/docs/validation/2026-10-22-pcxt-lut6-source-coverage)
+contains 494 verified members with archive SHA-256
+`2b2240ddd347411dc22a695cb5db0e53544b873e75183acf299ebc230101c8f1`.
+Independent extraction reruns all six offline checks and reproduces every proof
+JSON byte for byte. Native execution and offline evidence replay remain distinct.
+
+Completed route charges are 715.8551598787308 and 769.3148755207658 seconds.
+The journal now contains 34 subsequent receipts and a cumulative charge of
+**37355.07422350114147 seconds**. This becomes the retained local diagnostic
+improvement. Four CPU, three CGA, two MDA and one PIC-capture setup failures
+remain. Coverage is still incomplete, and the same-recipe seed and physical
+acceptance gates remain open. There is no hardware evidence, production seal,
+clock reduction, timing waiver, RTL change, lock change or shared-contract change.
+
+
+## Post-route private pair: unused arithmetic-output boundary
+
+A separate fresh route with the same frozen `243c829c` compiler adds only
+private-pair budget 4 to the matched default recipe; LUT6 swaps remain disabled
+for this isolated comparison. The six private-pair CLI checks pass on this exact
+binary. The 77 native tests retain their original `972d8ea6` provenance, with
+all private-pair implementation and test files proven unchanged.
+
+Five producer witnesses are found. The intended MDA pair rejects because its
+source fanout reaches an untimed or unused output boundary; the other four
+witnesses fail the existing consumer, direct-source or single-consumer guards.
+There are zero eligible groups and zero trials. The RBF, complete routed graph,
+timing and endpoint files all match the fresh default byte for byte, retaining
+13 setup failures and no hold failures. This isolated result does not replace
+the improved 10-failure CPU recipe.
+
+The route charge is 492.9281931621954 seconds. The already charged matched
+default is not charged again. The journal contains 35 subsequent receipts and
+cumulative charge **37848.00241666333687 seconds**. A separate complete graph trace and
+native structural probe identify two internal arithmetic SO/CO outputs with
+zero users and route wires, valid driver backreferences and no public, global
+or clock observer. The live branches still reach exactly 64 saved FF captures.
+The corresponding CGA input fanout has six such unused arithmetic outputs and
+66 FF captures. This corrects an earlier structural audit that silently stopped
+at empty branches. No coverage rule has changed and no private-pair or CGA
+permutation timing gain is established.
