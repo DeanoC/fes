@@ -34,7 +34,7 @@ module cyclonev_hps_interface_peripheral_i2c (
     end
 endmodule
 
-module spectrum_system_pll #(parameter bit FAST_CPU = 1'b0) (
+module spectrum_system_pll (
     input wire refclk,
     input wire rst,
     output reg outclk_0,
@@ -45,11 +45,13 @@ module spectrum_system_pll #(parameter bit FAST_CPU = 1'b0) (
     initial outclk_0 = 1'b0;
 endmodule
 
-module pixel_pll (
+module spectrum_pixel_pll (
     input wire refclk,
     input wire rst,
-    output reg outclk_0
+    output reg outclk_0,
+    output wire locked
 );
+    assign locked = 1'b1;
     initial outclk_0 = 1'b0;
 endmodule
 /* verilator lint_on UNUSEDSIGNAL */

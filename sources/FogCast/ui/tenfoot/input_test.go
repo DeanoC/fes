@@ -8,28 +8,20 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
-func TestCommandFromLogicalIdentityAndSwapAB(t *testing.T) {
+func TestCommandFromLogical(t *testing.T) {
 	t.Parallel()
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if CommandFromLogical(a) != CmdSelect {
-		t.Fatalf("identity A %s", CommandFromLogical(a))
+		t.Fatalf("A %s", CommandFromLogical(a))
 	}
 	if LogicalFromButton(ButtonSouth) != remoteinput.ButtonA || ButtonFromLogical(remoteinput.ButtonA) != ButtonSouth {
 		t.Fatal("south/A roundtrip")
 	}
-	r, err := inputmap.NewRemapper(inputmap.SwapAB())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if CommandFromLogical(r.Apply(a)) != CmdBack {
-		t.Fatalf("swap A %s", CommandFromLogical(r.Apply(a)))
-	}
 	b, _ := remoteinput.NormalizeGamepad("b", true)
-	if CommandFromLogical(r.Apply(b)) != CmdSelect {
-		t.Fatalf("swap B %s", CommandFromLogical(r.Apply(b)))
+	if CommandFromLogical(b) != CmdBack {
+		t.Fatalf("B %s", CommandFromLogical(b))
 	}
 	start, _ := remoteinput.NormalizeGamepad("start", true)
 	if CommandFromLogical(start) != CmdQuit {

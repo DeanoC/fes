@@ -5,9 +5,12 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
@@ -27,54 +30,12 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	if err := acknowledgmentMachine(ctx, req); err != nil {
-		return result, err
-	}
-	raw, err := os.ReadFile("/etc/fes/software-base.json")
+	repair, err := openOperatorRepair(ctx, req)
 	if err != nil {
 		return result, err
 	}
-	var base software.Compatibility
-	if err := json.Unmarshal(raw, &base); err != nil {
-		return result, err
-	}
-	store, err := software.OpenPersistent(base)
-	if err != nil {
-		return result, err
-	}
-	control := filepath.Join(store.Root(), "control")
-	for _, name := range []string{initializedMarker, "state.json", "admission.key"} {
-		info, err := os.Lstat(filepath.Join(control, name))
-		if err != nil {
-			return result, err
-		}
-		if !info.Mode().IsRegular() {
-			return result, errors.New("repair state is not regular")
-		}
-	}
-	repo, err := OpenRepository(control, req.Selected)
-	if err != nil {
-		return result, err
-	}
-	defer repo.Close()
-	const factoryPath = "/usr/share/fes/software"
-	manifestFile, err := os.Open(filepath.Join(factoryPath, "manifest.json"))
-	if err != nil {
-		return result, err
-	}
-	manifest, err := software.DecodeManifest(io.LimitReader(manifestFile, software.MaxManifestSize+1))
-	manifestFile.Close()
-	if err != nil {
-		return result, err
-	}
-	factoryID, err := manifest.ID()
-	if err != nil {
-		return result, err
-	}
-	factory := software.Release{ID: factoryID, Manifest: manifest}
-	c := &ProcessController{RunDir: acknowledgmentRunDir, Resolve: func(ctx context.Context, id string) (string, error) {
-		return ResolveRelease(ctx, id, factoryPath, factory, base, store)
-	}}
+	defer repair.repo.Close()
+	c := &ProcessController{RunDir: acknowledgmentRunDir, Resolve: repair.resolve}
 	if err := c.Verify(ctx, req.Selected); err != nil {
 		return result, err
 	}
@@ -82,9 +43,9 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 	if err != nil {
 		return result, err
 	}
-	return preparePowerCycle(ctx, repo, req, func(ctx context.Context, op Operation) (powerCycleEvidence, func(), error) {
+	return preparePowerCycle(ctx, repair.repo, req, func(ctx context.Context, op Operation) (powerCycleEvidence, func(), error) {
 		var evidence powerCycleEvidence
-		held, unlock, err := lockPowerCycleMaintenance(ctx, "/run/fogcast/kit-maintenance.lock", "/run/fogcast/kit-maintenance.json", filepath.Join(control, "admission.key.grant-"+req.Operation), req, op)
+		held, unlock, err := lockMaintenanceReservation(ctx, maintenanceLockPath, maintenanceMarkerPath, filepath.Join(repair.control, "admission.key.grant-"+req.Operation), req.Operation, req.Boot, op.Requester, "blocked")
 		if err != nil {
 			return evidence, nil, err
 		}
@@ -142,6 +103,10 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 	})
 }
 
+// The target agent keeps its maintenance reservation here. Boot clears /run.
+const maintenanceLockPath = "/run/fogcast/kit-maintenance.lock"
+const maintenanceMarkerPath = "/run/fogcast/kit-maintenance.json"
+
 type powerCycleMarker struct {
 	Schema int `json:"schema"`
 	MaintenanceStatus
@@ -174,7 +139,12 @@ func readPrivatePowerCycleJSON(path string, out any) error {
 	}
 	return nil
 }
-func lockPowerCycleMaintenance(ctx context.Context, lockPath, markerPath, grantPath string, req AcknowledgeRequest, op Operation) (MaintenanceStatus, func(), error) {
+
+// lockMaintenanceReservation holds the agent's marker lock and authenticates the
+// stored grant against the persisted reservation of one operation, in one of
+// the accepted states. It reads both files and writes neither; the caller
+// releases the lock.
+func lockMaintenanceReservation(ctx context.Context, lockPath, markerPath, grantPath, operation, boot, owner string, states ...string) (MaintenanceStatus, func(), error) {
 	var empty MaintenanceStatus
 	fd, err := unix.Open(lockPath, unix.O_RDWR|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	if err != nil {
@@ -224,8 +194,13 @@ func lockPowerCycleMaintenance(ctx context.Context, lockPath, markerPath, grantP
 		return fail(err)
 	}
 	held := marker.MaintenanceStatus
-	if marker.Schema != 1 || held.State != "blocked" || held.OperationID != req.Operation || held.BootID != req.Boot || held.Owner != op.Requester || held.Purpose != "kit-software-activation" || !software.ValidID(held.Generation) || !software.ValidID(marker.Token) || !software.ValidID(marker.StartToken) || grant.Status.OperationID != held.OperationID || grant.Status.Generation != held.Generation || grant.Status.BootID != held.BootID || grant.Status.Owner != held.Owner || grant.Status.Purpose != held.Purpose || subtle.ConstantTimeCompare([]byte(marker.Token), []byte(grant.Token)) != 1 {
-		return fail(errors.New("stored grant does not authenticate this blocked maintenance reservation"))
+	accepted := strings.Join(states, " or ")
+	// A reservation in another state is a state mismatch, not a bad grant.
+	if marker.Schema == 1 && held.OperationID == operation && held.BootID == boot && !slices.Contains(states, held.State) {
+		return fail(fmt.Errorf("maintenance reservation of this operation is %s, not %s", held.State, accepted))
+	}
+	if marker.Schema != 1 || !slices.Contains(states, held.State) || held.OperationID != operation || held.BootID != boot || held.Owner != owner || held.Purpose != "kit-software-activation" || !software.ValidID(held.Generation) || !software.ValidID(marker.Token) || !software.ValidID(marker.StartToken) || grant.Status.OperationID != held.OperationID || grant.Status.Generation != held.Generation || grant.Status.BootID != held.BootID || grant.Status.Owner != held.Owner || grant.Status.Purpose != held.Purpose || subtle.ConstantTimeCompare([]byte(marker.Token), []byte(grant.Token)) != 1 {
+		return fail(fmt.Errorf("stored grant does not authenticate this %s maintenance reservation", accepted))
 	}
 	return held, unlock, nil
 }

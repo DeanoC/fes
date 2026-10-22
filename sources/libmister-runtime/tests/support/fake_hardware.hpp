@@ -29,12 +29,13 @@ public:
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
  }
  mister::MenuDisplayStatus menu_display() const override {return menu_status;}
- // The grant is ordinary memory here: both 4 MiB slots, mappable by clients.
+ // The grant is ordinary memory here: both 4 MiB slots, plus the lists and
+ // heap with a blitter, mappable by clients.
  mister::Error ShareMenuWindow(int* fd) override {
   ++menu_share_calls;if(!menu_status.available)return {mister::ErrorCode::busy,"menu presentation unavailable","menu"};
   if(menu_window<0) {
    menu_window=memfd_create("fake-menu-window",MFD_CLOEXEC);
-   if(menu_window<0||ftruncate(menu_window,8388608)<0)return {mister::ErrorCode::io_failed,"fake window","menu"};
+   if(menu_window<0||ftruncate(menu_window,menu_status.blitter?83886080:8388608)<0)return {mister::ErrorCode::io_failed,"fake window","menu"};
   }
   *fd=fcntl(menu_window,F_DUPFD_CLOEXEC,0);return *fd<0?mister::Error{mister::ErrorCode::io_failed,"fake window","menu"}:mister::Error{};
  }
@@ -43,8 +44,8 @@ public:
   if(!menu_status.available)return {mister::ErrorCode::busy,"menu presentation unavailable","menu"};
   *slot=std::uint8_t(menu_slot^1);return {};
  }
- mister::Error PresentMenuSlot(std::uint8_t slot,const std::vector<mister::MenuRect>& written,mister::MenuDisplayInfo* info) override {
-  ++menu_present_calls;menu_present_slots.push_back(slot);menu_present_written.push_back(written);if(on_menu_present)on_menu_present();
+ mister::Error PresentMenuSlot(std::uint8_t slot,const mister::MenuDraw& draw,mister::MenuDisplayInfo* info) override {
+  ++menu_present_calls;menu_present_slots.push_back(slot);menu_present_draws.push_back(draw);if(on_menu_present)on_menu_present();
   if(!menu_present_result.ok()) {
    if(menu_status.session){menu_status.available=false;menu_status.error=menu_present_result;}
    return menu_present_result;
@@ -53,17 +54,21 @@ public:
  }
  std::uint8_t menu_slot=0;
  std::vector<std::uint8_t> menu_present_slots;
- std::vector<std::vector<mister::MenuRect>> menu_present_written;
+ std::vector<mister::MenuDraw> menu_present_draws;
  unsigned menu_share_calls=0;
  bool menu_configured=false;
  mister::MenuDisplayStatus menu_status;
  unsigned menu_present_calls=0;
  mister::Error menu_present_result;
  std::function<void()> on_menu_present;
- mister::Error SetSessionDisplay(bool visible) override {
+ // A failure models a plane whose drain is not proved: launcher focus stays.
+ mister::Error SetSessionDisplay(bool visible,bool launcher_focus) override {
   ++session_display_calls;if(on_session_display)on_session_display();
-  if(!session_display_result.ok()){menu_status.available=false;menu_status.error=session_display_result;return session_display_result;}
-  menu_status.available=visible;if(visible)menu_status.error={};return {};
+  if(!session_display_result.ok()){
+   menu_status.available=false;menu_status.launcher_focus=true;menu_status.error=session_display_result;
+   return session_display_result;
+  }
+  menu_status.available=visible;menu_status.launcher_focus=launcher_focus;if(visible)menu_status.error={};return {};
  }
  unsigned session_display_calls=0;
  mister::Error session_display_result;

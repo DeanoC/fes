@@ -89,8 +89,8 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81',),
-    'fes_display_cdc.v': ('zx81',),
+    'fes_display_plane.v': ('zx81', 'spectrum'),
+    'fes_display_cdc.v': ('zx81', 'spectrum'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -116,6 +116,8 @@ def fpga_cores(path):
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
+    if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
+        return ('zx81', 'atari-st', 'spectrum'), 'shared AY/YM sound engine consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
@@ -124,7 +126,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -143,7 +145,7 @@ def fpga_cores(path):
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81'), 'idle and running-session display consumers'
+            return ('menu', 'zx81', 'spectrum'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -174,8 +176,8 @@ def fpga_cores(path):
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:
             return ('c64',), 'Commodore 64 socket/card recipe'
-        if parts[1] == 'sim_fes_spectrum_turbo.py':
-            return ('spectrum',), 'Spectrum turbo simulation and performance recipe'
+        if parts[1] == 'sim_fes_spectrum.py':
+            return ('spectrum',), 'Spectrum model simulation recipe'
         if parts[1] in SPECTRUM_SCRIPTS:
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:

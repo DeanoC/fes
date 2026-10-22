@@ -165,7 +165,8 @@ module sg1000_machine (
         .illegal(cpu_illegal), .retired(), .retire_pc(),
         .debug_pc(), .debug_sp(), .debug_af(), .debug_bc(),
         .debug_de(), .debug_hl(), .debug_ix(), .debug_iy(),
-        .debug_ir(), .debug_iff()
+        .debug_ir(), .debug_iff(),
+        .cycle_present(), .cycle_kind(), .cycle_t()
     );
 
     coleco_vdp vdp (
