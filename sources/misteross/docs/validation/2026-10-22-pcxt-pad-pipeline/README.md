@@ -1423,3 +1423,67 @@ not timing or hardware qualification; shared RTL is unchanged.
 Both PRs remain draft. The 105 unsupported boundaries and `complete=false`,
 final timing, same-recipe seed, fresh producer and exact-artifact hardware gates
 remain open. No clocks, constraints, toolchain lock or shared contracts changed.
+
+## Display packet clears its timed paths; CPU remains dominant
+
+The preceding final-route no-gain evidence is now available as an
+[immutable capture](https://github.com/DeanoC/nextpnr/tree/6a467579/docs/validation/2026-10-23-pcxt-final-route-rediscovery).
+Fresh extraction checks 294 members plus the exact 418-member source-exit
+capture and reproduces all eight proof outputs. Root independently obtains the
+same readback hash `6be0566ed9eecc3feba42d978a9600064a6e37b5654d4588d24e64b4b5d7a356`.
+
+The isolated display packet now has a completed full-board route comparison.
+Both routes use frozen compiler `626e368b`, binary `52dda57c`, seed 1 and the
+original 100/74.25 MHz constraints, with route32, two LUT6 rounds and
+permutation32. The candidate uses literal synthesized JSON `8962f247`; the
+source-verified original uses `1d31765e`. No net names or source paths are
+rewritten. The old named 17-input CPU reduction root is absent in the new
+mapping, so that transform is removed from both cases. The balanced eight-failure
+recipe remains a separate reference; these are independent new placements.
+
+| Final native result | Original RTL, fresh control | Display packet |
+| --- | ---: | ---: |
+| Setup failures | 82 | 59 |
+| Worst setup margin | -967 ps | -1196 ps |
+| Related hold failures | 0 | 0 |
+| Minimum related hold | +781 ps | +785 ps |
+| Complete endpoint rows | 17199 | 17369 |
+| Untimed rows | 5 | 5 |
+| Unsupported obligations | 105 | 105 |
+
+The candidate has 45 CPU and 14 other failing rows; CGA, MDA and PIC attributed
+rows have none. Source-derived packet queries find every mapped capture:
+CGA RAM-to-packet minimum +2245 ps, MDA RAM-to-packet +1699 ps,
+CGA packet-to-RGBI +3864 ps and the exact MDA packet-to-ISA status capture
++2237 ps (hold +2648 ps). The positive MDA status row has no bounded reported
+path witness, which is retained as a reporting limit. Other display paths are
+less comfortable: CGA CRTC enable minimum is only +4 ps and MDA minimum +185 ps.
+
+All 59 failing candidate rows have reported path witnesses. Thirty-six launch
+from CPU `eu_register_r0_MISTRAL_FF_Q_8`; the worst path contains 6.780 ns of
+routing and 3.880 ns of logic. Eleven launch from the ISA bridge response
+register. The display change therefore warrants further fixed-seed diagnostics,
+but this result does not improve the retained eight-failure whole-board recipe.
+
+The full comparison enumerates 1606 added and 1436 removed endpoint identities
+and every common row, clock, native report and graph inventory. All ten clock
+constraints and physical-obligation records are exact. Unsupported count stays
+105 but serialized identities change, so equal counts are not a coverage or
+semantic-equivalence proof. No fixed-placement attribution is made.
+
+Local evidence is in `out/display-packet-route-20261023/`, with host admission
+in the separate packet, consumer and synthesis folders. The two completed
+charges are 1044.5264138458297 and 925.1706512258388 seconds, total
+1969.6970650716685. The journal now has 56 subsequent receipts, preserving the
+exact prior 54-entry prefix, and cumulative charge **57716.42643078602797 seconds**.
+The source change remains isolated: shared core RTL, contracts, lock, clocks
+and constraints are unchanged. No hardware ran and both PRs remain draft.
+
+Independent actual review
+`a84e9f195dc24df3ccc319b23a41b5a73328faaec4d946402333a624a36e7c0e`
+reproduces all 24 complete analysis outputs and verifies the new receipt charges
+and exact journal prefix. Twenty focused comparator controls pass. Fixed seeds
+2 and 3 of the identical packet recipe are now running under selection
+`38e6fa4ddf96cf03a9dd5a3e002dc0776f6ad01059ba11e753b33f8843d1b28b`;
+only the seed changes. They are not yet charged or reported as completed.
+If the same CPU launch cone remains dominant, that cone is the next repair target.
