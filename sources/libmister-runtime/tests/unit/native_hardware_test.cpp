@@ -15,6 +15,7 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
@@ -36,6 +37,7 @@
 #include <sys/stat.h>
 
 #include <cstdint>
+#include <cstring>
 #include <chrono>
 #include <functional>
 #include <fstream>
@@ -1608,13 +1610,32 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  const auto open_plane=[&] {
   for(unsigned row=0;row<8;++row){script.Reply();}
   script.Reply();script.Info(3,hardware.menu_display().displayed_sequence);
-  assert(hardware.SetSessionDisplay(true).ok()&&hardware.menu_display().available);
+  assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().available);
+  assert(hardware.menu_display().launcher_focus);
  };
  open_plane();
  const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
  script.Present(0,0,0);mister::MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok());
- script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false).ok());
- assert(!hardware.menu_display().available&&fpga.calls==1);
+ script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
+ assert(!hardware.menu_display().available&&!hardware.menu_display().launcher_focus&&fpga.calls==1);
+ // A closed plane never holds launcher focus.
+ assert(hardware.SetSessionDisplay(false,true).code==mister::ErrorCode::invalid_request);
+ // A surround shows the plane while the machine keeps input: no neutral post,
+ // and machine keys still reach the core.
+ script.Reply();script.Info(3,1);
+ assert(hardware.SetSessionDisplay(true,false).ok()&&hardware.menu_display().available);
+ assert(!hardware.menu_display().launcher_focus);
+ auto keys=mmio.writes.size();for(unsigned row=0;row<8;++row){script.Reply();}
+ assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()>keys);
+ // Taking focus on the shown plane neutralizes keys without touching the plane.
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus&&operations.Granted());
+ keys=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==keys);
+ // Returning focus is local, and the plane stays shown.
+ assert(hardware.SetSessionDisplay(true,false).ok()&&mmio.writes.size()==keys);
+ assert(hardware.menu_display().available&&!hardware.menu_display().launcher_focus&&operations.Granted());
+ script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
+ assert(!hardware.menu_display().available&&!operations.Granted());
  open_plane();
  // Completion with a bad underflow delta invokes only plane quiesce.
  script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
@@ -1624,7 +1645,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  for(std::size_t i=begin;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);
  // A session plane can prove drained while its sticky reader fault remains.
- script.Reply();script.Info(25,2);assert(hardware.SetSessionDisplay(false).ok());
+ script.Reply();script.Info(25,2);assert(hardware.SetSessionDisplay(false,false).ok());
  for(unsigned row=0;row<8;++row){script.Reply();}
  assert(hardware.SetComputerKeyboard(0).ok());
  // Stop still drains first, then uses the ordinary lifecycle execution hold.
@@ -1680,6 +1701,53 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
  assert(loaded.error.code==mister::ErrorCode::io_failed&&loaded.error.phase=="menu");
  assert(loaded.error.message=="session display must blend premultiplied RGBA");
  assert(loaded.mutation_attempted&&fpga.calls==1&&!hardware.menu_display().session);
+}
+
+// Kit software packing publishes these records so an image can refuse a
+// runtime that would reject its menu. Each listed interface is admitted by
+// CheckMenu together with the others, at its listed minor and every older
+// one, and the listed minor is the newest admitted.
+void TestMenuInterfaceRecordsMatchMenuAdmission()
+{
+ using namespace mister::native;
+ std::vector<CoreInterface> listed;
+ for(const char* record=kMenuInterfaceRecords;*record!='\0';record+=std::strlen(record)+1){
+  const std::string text(record);
+  const auto equals=text.find('='),dot=text.rfind('.');
+  assert(equals!=std::string::npos&&equals>0&&dot!=std::string::npos&&dot>equals+1&&dot+1<text.size());
+  listed.push_back({text.substr(0,equals),static_cast<std::uint16_t>(std::stoul(text.substr(equals+1,dot-equals-1))),
+   static_cast<std::uint16_t>(std::stoul(text.substr(dot+1))),true});
+ }
+ assert(!listed.empty());
+ CoreDescriptor menu;
+ menu.format=2;menu.core.id="fes.menu";
+ menu.target.platform="de10_nano";menu.target.device="5CSEBA6U23I7";menu.target.programming_profile="fes-gp-v1";
+ menu.abi={generated::FesApplicationABIID,generated::FesApplicationABIMajor,generated::FesApplicationABIMinor};
+ menu.interfaces=listed;
+ assert(CheckMenu(menu).ok());
+ for(std::size_t index=0;index<listed.size();++index){
+  for(std::uint16_t minor=0;minor<listed[index].minor;++minor){
+   auto older=menu;older.interfaces[index].minor=minor;
+   assert(CheckMenu(older).ok());
+  }
+  auto newer=menu;++newer.interfaces[index].minor;
+  assert(!CheckMenu(newer).ok());
+ }
+ // The list is complete: an application interface CheckMenu admits beside
+ // the listed ones must itself be listed, or an image whose menu declares
+ // it would hold back a runtime that accepts it.
+ for(const char* id:{generated::FesApplicationInterfaceGamepadID,generated::FesApplicationInterfaceVideoFixed720p60ID,
+  generated::FesApplicationInterfaceMediaBlobID,generated::FesApplicationInterfaceMediaBlobStreamID,
+  generated::FesApplicationInterfaceAudioPcmS16Stereo48kID,generated::FesApplicationInterfaceGamepadPortsID,
+  generated::FesApplicationInterfaceKeypadPortsID,generated::FesApplicationInterfaceFirmwareBlobID,
+  generated::FesApplicationInterfaceMemoryHpsDdrID,generated::FesApplicationInterfaceVideoMenuDisplayID,
+  generated::FesApplicationInterfaceVideoMenuBlitterID}){
+  bool named=false;
+  for(const auto& interface:listed)named=named||interface.id==id;
+  if(named)continue;
+  auto extra=menu;extra.interfaces.push_back({id,1,0,true});
+  assert(!CheckMenu(extra).ok());
+ }
 }
 
 void TestNativeMenuActivationAndCompletion()
@@ -3904,6 +3972,7 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestSessionDisplayRejectsPlaneWithoutBlend();
+ TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
  TestNativeMenuBlitterPresent();
  TestMenuUnderflowPolicyReactivatesThenSplashes();

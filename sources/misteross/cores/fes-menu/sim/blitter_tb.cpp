@@ -230,6 +230,11 @@ int main(int argc, char** argv) {
 	std::vector<Case> cases = {
 		{"reserved word 3", reserved3, 5}, {"reserved op bits", reserved0, 5}, {"reserved source bits", reserved2, 5},
 		{"op 5", Command::make(5, 0, 0, 0, 1, 1), 2}, {"op 0x81", Command::make(0x81, 0, 0, 0, 1, 1), 2},
+		{"op 0x08 with a colour", Command::make(0x08, 0xff, 0, 0, 1, 1), 2},
+		// END has no colour, rectangle or source: any of them set is reserved.
+		{"END colour", Command::make(END, 0xff000000u, 0, 0, 0, 0), 5}, {"END rectangle outside", Command::make(END, 0, W, 0, 1, 1), 5},
+		{"END rectangle inside", Command::make(END, 0, 0, 0, 1, 1), 5}, {"END source", Command::make(END, 0, 0, 0, 0, 0, HEAP), 5},
+		{"END stride", Command::make(END, 0, 0, 0, 0, 0, 0, 4), 5},
 		{"zero width", Command::make(FILL, 0, 0, 0, 0, 1), 3}, {"zero height", Command::make(FILL, 0, 0, 0, 1, 0), 3},
 		{"right edge", Command::make(FILL, 0, 1200, 0, 81, 1), 3}, {"bottom edge", Command::make(FILL, 0, 0, 700, 1, 21), 3},
 		{"x high bits", Command::make(FILL, 0, 0x800, 0, 1, 1), 3}, {"y high bits", Command::make(FILL, 0, 0, 0x400, 1, 1), 3},
@@ -280,7 +285,35 @@ int main(int argc, char** argv) {
 		check(b.t.completed == 1 && std::memcmp(b.memory.data(), expected.data(), 2 * SLOT) == 0, "run after halt");
 		completed = 1;
 	}
-	std::puts("PASS blitter halt at row boundary and restart");
+	// halt during a run's last row or its END leaves nothing to stop: every
+	// write was issued, so the run finishes and counts. halt during an
+	// earlier command's last row stops the run before the next command.
+	{
+		struct HaltCase { const char* name; std::vector<Command> list; bool at_fetch, counts; };
+		const std::vector<HaltCase> halts = {
+			{"last row", {Command::make(FILL, 0x445566, 0, 0, W, 1)}, false, true},
+			{"END fetch", {Command::make(FILL, 0x556677, 0, 1, W, 1), Command{}, Command::make(FILL, 0, 0, 2, W, 1)}, true, true},
+			{"before a later command", {Command::make(FILL, 0x667788, 0, 3, W, 1), Command::make(FILL, 0, 0, 4, W, 1)}, false, false},
+		};
+		for (const HaltCase& c : halts) {
+			b.put(LIST, c.list); b.run_list = c.list; b.run_slot = 0;
+			while (!b.t.run_ready) b.tick();
+			b.t.run_valid = 1; b.t.list_offset = LIST; b.t.list_count = uint16_t(c.list.size()); b.t.target_slot = 0; b.tick(); b.t.run_valid = 0;
+			// Fills read no source, so the next source read is the next command's fetch.
+			while (!b.t.d_write) b.tick();
+			if (c.at_fetch) while (!b.t.s_read) b.tick();
+			b.t.halt = 1;
+			while (!b.t.idle) b.tick();
+			b.t.halt = 0;
+			reference(expected, c.counts ? c.list : std::vector<Command>{c.list[0]}, 0);
+			if (c.counts) ++completed;
+			if (b.t.completed != completed || b.t.faulted || std::memcmp(b.memory.data(), expected.data(), 2 * SLOT) != 0 ||
+			    !b.d.pending.empty() || !b.s.pending.empty() || b.d.write_left != 0) {
+				std::fprintf(stderr, "FAIL halt during %s\n", c.name); return 1;
+			}
+		}
+	}
+	std::puts("PASS blitter halt at row boundary and restart, finished runs count");
 
 	// Throughput with a ready port and a fixed latency.
 	b.wait_percent = 0; b.gap_percent = 0; b.min_latency = b.max_latency = 24;

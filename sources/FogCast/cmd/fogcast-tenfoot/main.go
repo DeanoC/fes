@@ -143,7 +143,6 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 	layout := fs.String("layout", "grid", "sofa layout: grid, shelf, or list")
 	envNoAttract := envTruthy("FOGCAST_TENFOOT_NO_ATTRACT")
 	noAttract := fs.Bool("no-attract", envNoAttract, "disable attract mode")
-	inputProfile := fs.String("input-profile", envOr("FOGCAST_INPUT_PROFILE", ""), "identity, swap-ab, or JSON profile path (default identity)")
 	themeSpec := fs.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
 	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, fpga-stub, linuxfb, or menu-display")
 	fb := fs.String("fb", "/dev/fb0", "framebuffer node for -gfx linuxfb")
@@ -205,7 +204,6 @@ func parseArgsWithEnv(args []string, getenv func(string) string) (tenfoot.Option
 		LayoutSet:     layoutSet,
 		NoAttract:     *noAttract,
 		NoAttractSet:  noAttractSet,
-		InputProfile:  *inputProfile,
 		Theme:         *themeSpec,
 		GFX:           *gfxName,
 		Framebuffer:   *fb,

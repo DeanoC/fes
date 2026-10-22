@@ -717,6 +717,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"package_id\":");AppendIdentity(&output,menu.package_id);
   if(menu.session) {
    output.Append(",\"session\":true,\"core_generation\":");output.Append(std::to_string(menu.core_generation));
+   output.Append(",\"focus\":");output.Append(menu.launcher_focus?"\"launcher\"":"\"machine\"");
    const auto& picture=menu.picture;
    output.Append(",\"picture\":[");output.Append(std::to_string(picture.x));output.Append(",");
    output.Append(std::to_string(picture.y));output.Append(",");output.Append(std::to_string(picture.w));
@@ -838,13 +839,17 @@ Error ParseRequest(const std::string& line, Request* request)
    if(!Path(*path)||!PackageID(*id))return Invalid("invalid menu package request");
    parsed.operation=Operation::configure_menu;parsed.package_path=*path;parsed.package_id=*id;
   } else if(operation->string_value=="session_display") {
-   const char* const fields[]={"protocol","operation","expected_package_id","expected_generation","visible"};
-   if(!HasOnly(root,fields,5,&error))return error;
-   const std::string* id=nullptr;const auto* visible=Find(root,"visible");
-   if(!StringMember(root,"expected_package_id",&id,&error))return error;
+   const char* const fields[]={"protocol","operation","expected_package_id","expected_generation","visible","focus"};
+   if(!HasOnly(root,fields,6,&error))return error;
+   const std::string *id=nullptr,*focus=nullptr;const auto* visible=Find(root,"visible");
+   if(!StringMember(root,"expected_package_id",&id,&error)||!StringMember(root,"focus",&focus,&error))return error;
+   // A closed plane always leaves input with the machine.
    if(!PackageID(*id)||!Generation(Find(root,"expected_generation"),&parsed.expected_generation)||
-    !visible||visible->type!=json::Type::boolean)return Invalid("invalid session display binding or visibility");
-   parsed.operation=Operation::session_display;parsed.expected_package_id=*id;parsed.visible=visible->boolean_value;
+    !visible||visible->type!=json::Type::boolean||(*focus!="machine"&&*focus!="launcher")||
+    (*focus=="launcher"&&!visible->boolean_value))
+    return Invalid("invalid session display binding, visibility or focus");
+   parsed.operation=Operation::session_display;parsed.expected_package_id=*id;
+   parsed.visible=visible->boolean_value;parsed.launcher_focus=*focus=="launcher";
   } else if(operation->string_value=="menu_frame_grant"||operation->string_value=="menu_frame_begin") {
    const char* const fields[]={"protocol","operation","expected_generation"};
    if(!HasOnly(root,fields,3,&error))return error;

@@ -72,9 +72,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts
-  zero-based `Player` (default 0). The kit's physical-controller hub assigns
-  stable ports, releases only an unplugged controller, and keeps the surviving
-  controller's port. Stop releases both. These interfaces use full snapshots
+  zero-based `Player` (default 0). On the kit, tenfoot gives the first two
+  pads it opens ports 1 and 2, releases only an unplugged pad, and keeps the
+  surviving pad's port. Stop releases both. These interfaces use full snapshots
   bound to the active package generation through the native runtime; legacy
   single-pad cores retain their existing uinput path. See
   [shared controller ports](docs/ARCHITECTURE.md#shared-controller-ports).
@@ -352,9 +352,9 @@ The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
 session/input ownership path, or the kit-local catalog and local-control
 socket when the kit has its own playable shelf. Select + Start held for one
-second requests Stop. Kit input applies a JSON remap profile from
-`ui/inputmap` (default **identity** preserves A=launch and
-Select+Start=stop). `cmd/fogcast-kit` is only a stub that answers
+second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
+under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
+bindings). `cmd/fogcast-kit` is only a stub that answers
 `--print-kit-ui` with `tenfoot` for bases whose supervisor still probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.

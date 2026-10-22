@@ -1871,68 +1871,63 @@ of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
 
-Spectrum's sixteen blank firmware lanes use synchronous 1024x10 M10K reads
-on the live system clock, with reads enabled and active-low writes disabled.
-The bank selector is registered with the M10K read address; a combinational
-bank mux and the existing final data register preserve two-stage latency.
-The ROM-map producer explicitly requires `CFG_ASYNC_READ=0`. Synthesized
-control ports are checked separately: every lane must share
-a live `CLK1`, hold `B1EN` high and active-low `A1EN` high, and keep clears
-inactive without secondary-clock or byte-enable connections. Lane BELs and
-INIT encoding are unchanged, but each newly built RBF needs its own map/base
-hash. The optional `sim-fes-spectrum-rom` target exercises the production
-branch with the selected Yosys `mem_sim.v` and nonzero linked-image contents;
-the normal Verilator branch alone does not test primitive wiring.
+`cores/fes-spectrum` builds four described cores from one shell on the
+`fes.computer` 1.0 mailbox: `fes.spectrum` 0.3.0 (48K), `fes.spectrum128`
+0.1.0 (128K/+2), `fes.spectrum-plus3` 0.1.0 (+2A/+3 without a disk drive) and
+`fes.pentagon` 0.1.0 (Pentagon 128). The `SPECTRUM_MODEL_*` define selects the
+model; [its README](../cores/fes-spectrum/README.md) lists each model's
+memory map, timing and firmware. The machine runs `fes_z80_nmos` on clock
+enables from `spectrum_ula.sv`, which owns the model's T-state rate, frame
+interrupt, contention, screen fetch, floating bus and rendering. Contention
+stretches the CPU clock: `spectrum_contention.sv` classifies the presented
+bus cycle, and the ULA holds `ce_n` and the following `ce_p` for the delay
+decided where the CPU first asks. The NMOS core exports its presented cycle
+kind and T state for this; it exposes no other new state.
 
-`cores/fes-spectrum` is `fes.spectrum` 0.2.0, a 48K ZX Spectrum on the same
-`fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
-built-in Kempston port, `.tap` player and four edge sockets are described in
-[its README](../cores/fes-spectrum/README.md). It reuses
-`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and selects the
-first-party NMOS CPU at native 3.5 MHz cadence by default. The explicit
-`--cpu fast` producer / `make build-fes-spectrum-fast` development lane uses
-the documented-only transaction CPU at 56 MHz, a registered memory/socket
-bridge and independent 3.5 MHz peripheral ticks. WAIT holds phase four until
-readiness and selected read data are captured together; phase five delivers
-the captured byte to the CPU. Internal writes commit once at that delivery,
-while socket STROBE launches once. One inactive clock rearms edge consumers.
-Both modes retain the ROM map and frozen 32/28-bit socket ABI. Normal mode
-uses system/audio and video PLLs. Fast mode uses system and video PLLs, with
-the audio serializer running on the 56 MHz system clock. Rational enables
-produce 48 kHz stereo frames and an average 12.288 MHz MCLK pin waveform;
-MCLK half-periods are two or three system clocks, and BCLK half-periods are
-nine or ten. These outputs do not clock fabric logic. The fast timing gate
-checks the actual 56 and 74.25 MHz domains. CPU mode, clocks, audio schedule
-and resource expectations enter build identity. No Sinclair ROM bytes are in the tree.
+The ULA renders each 8-pixel chunk (bitmap byte, ink, paper) in the system
+domain into one of three 320x240 frame banks; `spectrum_video.v` shows the
+newest complete bank 3x3 in 720p60 through the shared session-display plane.
+The 128K-class models add
+paged 128 KiB RAM and the `zonx_ay` AY-3-8912. The timing model matches Fuse
+1.6.0: the Fuse Z80 core tests' contention points, model boot traces and
+fetch-point race sweeps are recorded in the README; they are simulations.
+
+Firmware is 16, 32 or 64 blank synchronous 1024x10 M10K lanes (column 5 rows
+32-55 and 73-80, column 14 rows 32-63) on the live system clock, with reads
+enabled and active-low writes disabled. The lane selector is registered with
+the M10K read address and the final data register supplies stage two. The
+ROM-map producer requires `CFG_ASYNC_READ=0`, and every lane of the model must
+share a live `CLK1`, hold `B1EN` and active-low `A1EN` high, and keep clears
+inactive without secondary-clock or byte-enable connections; no lane beyond
+the model's may exist. The optional `sim-fes-spectrum-rom` target exercises
+the production branch with the selected Yosys `mem_sim.v`.
+
+`make build-fes-spectrum` and its model siblings (`scripts/build_fes_spectrum_oss.py
+--model`, `cores/fes-spectrum/toolchain.lock`, `make toolchain-fes-spectrum`)
+are the format-3 seals. Each model has its own FES recipe row; the shared
+producer names the core it builds in its record, so each P&R recipe digest
+enters that core's identity. Synthesis must keep exact block counts, three
+unsigned display-plane DSP products and the read-only plane DDR port, and the
+52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the four
+`FES_RESERVED_RECT` regions from `scripts/spectrum_slots.py`
+(`fes.spectrum-bus.sockets/1`, sockets 1–4). Socket validation admits a
+compiler-inserted `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of
+an already pinned boundary flip-flop. The shared `coleco_expansion` check
+requires the paired COMB/MCOMB half, exact physical pin map and ports, and a
+dedicated buffer output connected only to that flip-flop's data input.
+Clock-coverage outputs must remain unused, and each effective boundary data
+input must have exactly one driver or a direct defined constant. Every other
+shell cell inside a socket is rejected.
+
 The cassette player selects its pilot length from flag bit 7 and prefetches
 the next byte so each encoded half-pulse keeps its standard ROM width.
-`make sim-fes-spectrum-tape`, included in the aggregate, decodes all pilot,
-sync and data edges across mixed bytes and consecutive blocks, then checks
-partial tails and live eject/replacement.
-
-`make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
-`cores/fes-spectrum/toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
-seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
-lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
-from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
-Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
-verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
-The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
-exact physical pin map and ports, and a dedicated buffer output connected
-only to that flip-flop's data input. Clock-coverage outputs must remain
-unused, and each effective boundary data input must have exactly one driver
-or a direct defined constant. Older clock-only anchors may have disconnected
-data inputs. Every other shell cell inside a socket is rejected. The helper
-is a pinned functional source input; socket placement and CRAM fences retain
-their existing identities.
-Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
-RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
-frame timing in both modes. Every clock must close before either shell seals.
+Simulation is `make sim-fes-spectrum`: every model's machine with the open
+diagnostic firmware, the frame-bank video, the board mailbox and the tape
+decoder. `make sim-fes-spectrum-contention` replays the pinned Fuse Z80 tests.
 The previous TV80 shell seal is recorded in
-`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit link of the
-48K BASIC ROM is recorded in
-`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
-checks, and tape checks remain open.
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md` and a kit link of the
+48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`; neither
+accepts these models.
 
 ## FES Commodore 64
 
@@ -3444,10 +3439,8 @@ physical-chip equivalence.
 The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
 records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
-misses the requested clock, after preserving the reports. The CPU contract
-records the selected 56 MHz route and the limits of its 16-times clock ratio.
-SG-1000, ZX81 and the default Spectrum producer select the NMOS variant; Spectrum has a separate
-documented-fast development producer. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
+misses the requested clock, after preserving the reports.
+SG-1000, ZX81 and the Spectrum models select the NMOS variant. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
 software vectors, synthetic waveforms or a timing-passing FPGA build.
@@ -3476,10 +3469,12 @@ separate evidence schema.
 ## Native menu display
 
 `python3 scripts/sim_fes_menu.py` checks exact frame length, burst bounds,
-stalls, pixel ordering, cancellation drain, switching and underflow recovery.
-The shared DDR wrapper owns port wiring and holds; menu scanout adds no second
-bridge or memory reservation policy. The described menu package is selected
-by the FES native image; exact image and kit acceptance are tracked separately.
+stalls, pixel ordering, cancellation drain, switching and underflow recovery,
+and the blitter's ops, faults and halt against the gfx reference.
+The shared DDR wrapper owns port wiring and holds; menu scanout and the
+blitter add no second bridge or memory reservation policy. The described menu
+package is selected by the FES native image; exact image and kit acceptance are
+tracked separately.
 
 ### Menu scanout diagnostics
 
@@ -3499,16 +3494,26 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 ### Described menu display producer
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
-with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
+with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
+`fes.video.menu-blitter` 1.0, no playable system identity. FES now selects it
+as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
-while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists. The package routes a first-pass
-pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
+while diagnostics retain their no-GP gate. DDR layout and per-port write checks
+remain mandatory in both netlists: only port 1, the blitter's destination
+port, may write. Port 0 and port 2 commands have their write bit tied low,
+and write FIFOs 0, 1 and 3 and ports 3 to 5 are tied low. The diagnostics
+still require every write and ports 1 to 5 tied low. The package routes a
+first-pass pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7,
+8.
 
-The optional shared GP hook delegates menu requests to `fes_menu_control` in
-the same pixel-clock domain. Configuration selects fixed slots; sequence ACK
-means pending acceptance and completion is separately readable. Quiesce ACK
-waits for drain before execution hold. Runtime buffer transport/admission and
-exact-artifact menu acceptance are not established by source simulations.
+The optional shared GP hook delegates menu requests to `fes_menu_control` and
+MenuBlit requests to `fes_menu_blit_control` in the same pixel-clock domain.
+Configuration selects fixed slots; sequence ACK means pending acceptance and
+completion is separately readable. `fes_menu_blitter` runs command lists from
+the window into a slot: it reads and writes destinations on port 1, so a blend
+reads what earlier commands wrote, and reads commands and textures on port 2.
+Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
+both blitter ports to drain before execution hold. Runtime buffer
+transport/admission and exact-artifact menu acceptance are not established by
+source simulations.

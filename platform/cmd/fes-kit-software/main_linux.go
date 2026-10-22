@@ -55,10 +55,12 @@ func main() {
 		err = acknowledge(os.Args[2:])
 	case "prepare-power-cycle":
 		err = preparePowerCycle(os.Args[2:])
+	case "select-factory":
+		err = selectFactory(os.Args[2:])
 	case "run":
 		err = run()
 	default:
-		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle")
+		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle|select-factory")
 	}
 	if err != nil {
 		log.Print(err)
@@ -299,7 +301,13 @@ func supervise(ctx context.Context, output io.Writer) error {
 		}
 	}()
 	defer httpServer.Close()
-	engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate}
+	engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate, Factory: factory.ID}
+	// The engine holds back a selection this image cannot run and starts the
+	// factory software in its place; status reports which selection and why.
+	publish := func() {
+		server.HeldBack, server.HeldBackReason = engine.HeldBack, engine.HeldBackReason
+		server.PublishStatus()
+	}
 	var startupErr error
 	var startupDelay time.Duration
 	var startupRetryAt time.Time
@@ -317,7 +325,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 		startupDelay = kitsoftware.NextSupervisorBackoff(0)
 		startupRetryAt = time.Now().Add(startupDelay)
 	}
-	server.PublishStatus()
+	publish()
 	server.Mu.Unlock()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -365,7 +373,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 						startupDelay = 0
 					}
 				}
-				server.PublishStatus()
+				publish()
 				server.Mu.Unlock()
 				continue
 			}
@@ -391,7 +399,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 								server.StorageError = err.Error()
 								_ = oldAdmission.Release(ctx, reconcile)
 							} else {
-								engine = &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate}
+								engine = &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate, Factory: factory.ID}
 								trialHold = oldAdmission
 								trialRequest = reconcile
 							}
@@ -440,7 +448,7 @@ func supervise(ctx context.Context, output io.Writer) error {
 					log.Printf("software activation: %v", err)
 				}
 			}
-			server.PublishStatus()
+			publish()
 			server.Mu.Unlock()
 		}
 	}

@@ -115,13 +115,16 @@ verify construction and reject old mutation authority.
 ## Menu presentation primitives
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
-is admitted only alongside fixed video and HPS DDR, with those three interfaces,
-or with `fes.video.menu-blitter` 1.0 as a fourth.
-Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
+is admitted only alongside fixed video and HPS DDR. The only other interface a
+menu package may declare is `fes.video.menu-blitter` 1.0 (bit 10), which
+requires the menu display. Live identity must match the declared capabilities
+exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;
-without one, startup remains splash. Menu activation reuses ordinary package
+without one, startup remains splash. The interfaces `CheckMenu` admits are
+listed in `src/native/menu_admission.hpp` and carried in the binary's
+`.fes_menu_interfaces` section, where kit software packing reads them. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
@@ -230,11 +233,15 @@ plane once, then publishes active machine status with `session: true`, its
 package and `core_generation`, but `available: false`.
 
 `SetSessionDisplay` binds the active package/generation and serializes with the
-same busy fence and bounded frame wait. Open neutralizes the keyboard, enables
-the reader and grants a distinct display generation; FPGA scanout waits for a
-complete submitted frame before switching HDMI pixels. Close drains the plane
+same busy fence and bounded frame wait. It sets visibility and launcher focus
+separately. Open enables the reader and grants a distinct display generation;
+FPGA scanout waits for a complete submitted frame before switching HDMI pixels.
+Taking launcher focus neutralizes the keyboard first. Moving focus on a shown
+plane keeps its generation, grant and preparation. Close drains the plane
 without execution hold and revokes the display generation and preparation.
-Navigation key snapshots are suppressed while session display focus is held.
+Navigation key snapshots are suppressed while the launcher holds focus. The
+native adapter owns that gate: a close or failure that cannot prove the plane
+drained keeps launcher focus, and status reports it as `menu_display.focus`.
 Stop/replacement drain the display before their existing execution hold.
 
 A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.

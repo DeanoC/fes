@@ -36,12 +36,14 @@ struct Tape {
         dut.clk = 0;
         dut.eval();
     }
-    // Leave a system clock for the synchronous tape RAM between CPU enables.
+    // Leave two system clocks between CPU enables: the tape RAM read and the
+    // byte register after its output mux.
     bool tick() {
         dut.cen = 1;
         clock();
         const bool level = dut.ear;
         dut.cen = 0;
+        clock();
         clock();
         return level;
     }

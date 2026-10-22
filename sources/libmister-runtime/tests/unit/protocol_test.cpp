@@ -1118,22 +1118,30 @@ void TestSessionDisplayRequestAndBoundStatus()
 {
  const std::string prefix="{\"protocol\":2,\"operation\":\"session_display\",\"expected_package_id\":\""+std::string(64,'a')+"\",\"expected_generation\":7,";
  Request request;
- assert(Parse(prefix+"\"visible\":true}",&request).ok());
- assert(request.operation==Operation::session_display&&request.visible&&request.expected_generation==7);
+ assert(Parse(prefix+"\"visible\":true,\"focus\":\"launcher\"}",&request).ok());
+ assert(request.operation==Operation::session_display&&request.visible&&request.launcher_focus&&request.expected_generation==7);
  assert(request.expected_package_id==std::string(64,'a'));
- assert(Parse(prefix+"\"visible\":false}",&request).ok()&&!request.visible);
- for(const auto& suffix:{"\"visible\":0}","\"visible\":\"true\"}","\"visible\":null}","\"visible\":true,\"extra\":1}","\"other\":true}"})
+ assert(Parse(prefix+"\"visible\":true,\"focus\":\"machine\"}",&request).ok()&&request.visible&&!request.launcher_focus);
+ assert(Parse(prefix+"\"visible\":false,\"focus\":\"machine\"}",&request).ok()&&!request.visible&&!request.launcher_focus);
+ for(const auto& suffix:{"\"visible\":0,\"focus\":\"machine\"}","\"visible\":\"true\",\"focus\":\"machine\"}",
+  "\"visible\":null,\"focus\":\"machine\"}","\"visible\":true,\"focus\":\"machine\",\"extra\":1}","\"other\":true}",
+  "\"visible\":true}","\"visible\":true,\"focus\":null}","\"visible\":true,\"focus\":\"menu\"}",
+  "\"visible\":true,\"focus\":true}","\"visible\":false,\"focus\":\"launcher\"}"})
   ExpectError(prefix+suffix,ErrorCode::invalid_request);
- ExpectError(R"({"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":0,"visible":true})",ErrorCode::invalid_request);
+ ExpectError(R"({"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":0,"visible":true,"focus":"launcher"})",ErrorCode::invalid_request);
  Status status;status.menu_display.session=true;status.menu_display.core_generation=7;status.menu_display.package_id=std::string(64,'a');
  status.menu_display.picture={312,90,656,540};
- const auto response=mister::daemon::EncodeResponse(2,true,status,"test");
- assert(response.find("\"session\":true,\"core_generation\":7,\"picture\":[312,90,656,540]")!=std::string::npos);
+ auto response=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(response.find("\"session\":true,\"core_generation\":7,\"focus\":\"machine\",\"picture\":[312,90,656,540]")!=std::string::npos);
+ status.menu_display.launcher_focus=true;
+ response=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(response.find("\"core_generation\":7,\"focus\":\"launcher\",")!=std::string::npos);
+ status.menu_display.launcher_focus=false;
  assert(response.find("\"menu_display\":{\"available\":false")!=std::string::npos);
  status.menu_display.session=false;status.menu_display.core_generation=0;status.menu_display.available=true;
  const auto idle=mister::daemon::EncodeResponse(2,true,status,"test");
  assert(idle.find("\"session\"")==std::string::npos&&idle.find("\"core_generation\"")==std::string::npos&&
-  idle.find("\"picture\"")==std::string::npos);
+  idle.find("\"picture\"")==std::string::npos&&idle.find("\"focus\"")==std::string::npos);
 }
 
 std::vector<std::string> PartsResponseFixtures() {

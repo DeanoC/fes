@@ -67,7 +67,7 @@ struct Request {
  std::uint8_t menu_slot=0;
  // What a menu commit drew.
  MenuDraw menu_draw;
- bool visible=false;
+ bool visible=false,launcher_focus=false;
 	std::uint8_t media_unit = 0;
 	MediaDataBinding media_binding;
 	KeyboardHidRows keyboard_rows{};
