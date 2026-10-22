@@ -246,8 +246,9 @@ sequence marker and a final-column row/sequence marker. It maps the grant once
 and draws every frame whole into its slot. On a blitter grant it writes the
 same pattern as 819 FILL commands and commits that list, and it reports
 `blitter=1` and the average `blit_avg_ms`. Its first list switches that grant
-to lists, so a CPU client on the same generation, such as tenfoot, has its
-commits refused until the next activation. The client checks generation,
+to lists, so a client that draws only CPU frames on the same generation has
+its commits refused until the next activation. tenfoot draws lists on a
+blitter grant, so it keeps drawing after the pattern client. The client checks generation,
 geometry, format, the grant, completion sequence and an underflow delta of at
 most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately
