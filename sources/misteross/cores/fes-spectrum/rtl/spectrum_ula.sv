@@ -136,8 +136,17 @@ module spectrum_ula #(
             delay_now = amstrad_x[2:0] == 3'd0 ? 3'd1 : amstrad_x[2:0] == 3'd1 ? 3'd0 :
                         3'd9 - amstrad_x[2:0];
     end
+    // The CPU's presented cycle and the slot position are stable from ce_p to
+    // the middle of the T state, so both are registered a clock ahead of
+    // tick_n; ce_n then depends only on registers.
+    reg request_q = 1'b0;
+    reg [2:0] delay_q = 3'd0;
+    always @(posedge clk) begin
+        request_q <= contend_request;
+        delay_q <= delay_now;
+    end
     reg [2:0] stall = 3'd0;
-    wire start_hold = stall == 3'd0 && contend_request && delay_now != 3'd0;
+    wire start_hold = stall == 3'd0 && request_q && delay_q != 3'd0;
     wire hold_now = stall != 3'd0 || start_hold;
     reg held = 1'b0;
     always @(posedge clk) begin
@@ -147,7 +156,7 @@ module spectrum_ula #(
         end else if (tick_n) begin
             held <= hold_now;
             if (stall != 3'd0) stall <= stall - 3'd1;
-            else if (start_hold) stall <= delay_now - 3'd1;
+            else if (start_hold) stall <= delay_q - 3'd1;
         end
     end
     assign cpu_ce_p = tick_p && !held;

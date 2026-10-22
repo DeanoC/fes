@@ -84,9 +84,15 @@ Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
 then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
-ZX Spectrum 48K requires an exact 16 KiB `spectrum-firmware` image covering
-`$0000–$3FFF`. Its edge cards and `.tap` cassette are separate inputs (see the
-[ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
+The ZX Spectrum models each require their exact firmware: the 48K
+(`fes.spectrum`) a 16 KiB `spectrum-firmware` image covering `$0000–$3FFF`,
+the 128K/+2 (`fes.spectrum128`) a 32 KiB `spectrum128-firmware` (editor ROM,
+then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
+`spectrum-plus3-firmware` (ROMs 0–3 in order) and the Pentagon 128
+(`fes.pentagon`) a 32 KiB `pentagon-firmware` (128, then 48 BASIC). Their edge
+cards and `.tap` cassette are separate inputs (see the
+[ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
+and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate

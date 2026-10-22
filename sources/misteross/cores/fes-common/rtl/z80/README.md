@@ -59,8 +59,16 @@ independent corpus's cycle observations. The INI timing tuple on p298 lists
 resolve that subcycle discrepancy. Primary physical traces for block-input
 subcycles and prefixed/multi-byte IM0 remain qualification requirements.
 
-`ce_p` and `ce_n` must alternate and must never coincide. All storage uses
-`posedge clk`; there are no generated clocks. `reset` is an active-high,
+`ce_p` and `ce_n` must alternate and must never coincide. Holding both off
+stretches the current half-cycle with all state preserved. `cycle_present`,
+`cycle_kind` (the `bus_kind` numbering below) and `cycle_t` observe the
+presented bus cycle and its T state, from T1's high half onward, so a shell
+can stretch particular T states the way the ZX Spectrum ULA holds the clock
+high for contention. During internal T states the address bus keeps the
+cycle's address: the refresh address after an M1, the transfer address of a
+read or write extension, or the idle address of an internal cycle (DE during
+the LDIR/LDDR repeat, HL for CPIR and INIR, BC for OTIR, as the chip does).
+All storage uses `posedge clk`; there are no generated clocks. `reset` is an active-high,
 system-clock synchronous integration reset. It does not emulate the physical
 chip's analog RESET input or its phase-dependent release delay. The enclosing
 bus mux must disconnect address/data while `busak_n` is low: FPGA fabric
