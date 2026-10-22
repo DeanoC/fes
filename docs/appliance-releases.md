@@ -145,8 +145,11 @@ make -C /absolute/path/to/FogCast build-fes-update
 ```
 
 Software goes before the image. Before uploading, `update` reads the image's
-`/etc/fes/software-base.json` and refuses an image the kit's selected software
-bundle cannot run; install and activate a bundle that accepts the image first
+`/etc/fes/software-base.json` and refuses an image whose menu interfaces the
+kit's selected software bundle does not accept; install and activate a bundle
+that accepts them first. A bundle built for another base contract cannot go
+first, so that update proceeds with a notice and the image runs its factory
+software until a bundle built for it is activated
 ([image compatibility](kit-software-releases.md#image-compatibility)).
 
 The client acquires and renews the existing lease. Activation stops the runtime,

@@ -159,9 +159,10 @@ func imageSoftwareBase(image io.ReaderAt) (software.Compatibility, error) {
 	return base, nil
 }
 
-// requireSelectedSoftware refuses an image the kit's selected software bundle
-// cannot run, before anything is uploaded. The image would hold that bundle
-// back and run its own factory software, so the bundle has to go first.
+// requireSelectedSoftware refuses, before anything is uploaded, an image whose
+// menu interfaces the kit's selected software bundle does not accept. The
+// image would hold that bundle back and run its own factory software, so a
+// bundle that accepts them has to go first.
 func requireSelectedSoftware(ctx context.Context, client *targetclient.Client, targetID string, base software.Compatibility, log io.Writer) error {
 	if _, err := client.InspectAppliance(ctx, targetID, discovery.Resolve); err != nil {
 		return err

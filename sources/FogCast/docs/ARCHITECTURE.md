@@ -1285,8 +1285,10 @@ hold-reset `load_media`.
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
 `cmd/fes-update`. Before uploading, `fes-update` reads the image's
-`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image the
-kit's selected software bundle cannot run. Online releases replace
+`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image
+whose menu interfaces the kit's selected software bundle does not accept. A
+bundle built for another base contract cannot go first, so it only reports
+that the image will hold that bundle back. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
