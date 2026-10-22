@@ -8,10 +8,10 @@ import (
 )
 
 type sessionDisplayRuntime interface {
-	SetSessionDisplay(context.Context, bool, protocol.DevelopmentMediaBinding) *protocol.APIError
+	SetSessionDisplay(context.Context, protocol.SessionDisplay, protocol.DevelopmentMediaBinding) *protocol.APIError
 }
 
-func (c *Coordinator) SetSessionDisplay(parent context.Context, visible bool, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
+func (c *Coordinator) SetSessionDisplay(parent context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
@@ -29,5 +29,5 @@ func (c *Coordinator) SetSessionDisplay(parent context.Context, visible bool, b 
 	ctx, cancel := context.WithTimeout(c.operationContext, 5*time.Second)
 	defer cancel()
 	// A display error never starts a recovery or replaces this active session.
-	return c.Status(), runtime.SetSessionDisplay(ctx, visible, b)
+	return c.Status(), runtime.SetSessionDisplay(ctx, display, b)
 }

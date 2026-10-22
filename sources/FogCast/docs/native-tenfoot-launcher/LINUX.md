@@ -211,7 +211,7 @@ controller explicitly with `-input /dev/input/event3,/dev/input/event5`.
 Keyboard navigation uses the usual tenfoot shortcuts (`o` for Settings,
 `q` to quit); alphanumeric entry uses a US key layout, including Shift.
 Gamepad face/shoulder/Start/Back/Guide buttons and digital hat or button D-pads
-use the shared remapper, merged held state, and short/long press behavior.
+use each pad's saved profile, merged held state, and short/long press behavior.
 Guide opens Settings. Analog sticks, pointer input, and keyboard layout
 discovery are not read.
 In automatic mode, a disconnected device or lost evdev events drop that

@@ -97,9 +97,8 @@ runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. SG-1000, ZX81 and Spectrum select the NMOS variant.
-Spectrum also has an explicit documented-only 56 MHz development build;
-`make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
+Cyclone V timing diagnostic. SG-1000, ZX81 and the Spectrum models select the
+NMOS variant; the Spectrum ULA stretches its clock enables for contention.
 Coleco and SMS still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
 schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
 not landed for those two packages.
@@ -127,7 +126,10 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | factory image |
 | `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | factory image |
-| `fes.spectrum` | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | factory image |
+| `fes.spectrum` (48K) | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | package-only |
+| `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | package-only |
+| `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | package-only |
+| `fes.pentagon` (Pentagon 128) | `make sim-fes-spectrum` | `make build-fes-pentagon` | none | package-only |
 | `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | factory utility, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | registered, not in the factory image |

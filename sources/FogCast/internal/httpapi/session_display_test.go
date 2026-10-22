@@ -16,16 +16,16 @@ import (
 type displayHTTPController struct {
 	fakeDevelopmentController
 	calls   int
-	visible bool
+	display protocol.SessionDisplay
 }
 
-func (c *displayHTTPController) SetSessionDisplay(_ context.Context, visible bool, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
+func (c *displayHTTPController) SetSessionDisplay(_ context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	c.calls++
-	c.visible = visible
+	c.display = display
 	return protocol.Status{State: protocol.StateActive, Development: true}, nil
 }
 
-func TestSessionDisplayRequiresLeaseAndExplicitBoolean(t *testing.T) {
+func TestSessionDisplayRequiresLeaseExplicitBooleanAndFocus(t *testing.T) {
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	defer manager.Close()
 	grant := claimKit(t, manager)
@@ -35,9 +35,16 @@ func TestSessionDisplayRequiresLeaseAndExplicitBoolean(t *testing.T) {
 		body, lease string
 		want        int
 	}{
-		{`{"visible":true}`, "", 403}, {`{}`, grant.Token, 400}, {`{"visible":null}`, grant.Token, 400},
-		{`{"visible":true} {}`, grant.Token, 400}, {`{"visible":true,"reset":true}`, grant.Token, 400},
-		{`{"visible":true}`, grant.Token, 200}, {`{"visible":false}`, grant.Token, 200},
+		{`{"visible":true,"focus":"launcher"}`, "", 403}, {`{}`, grant.Token, 400}, {`{"visible":null,"focus":"machine"}`, grant.Token, 400},
+		{`{"visible":true,"focus":"launcher"} {}`, grant.Token, 400}, {`{"visible":true,"focus":"launcher","reset":true}`, grant.Token, 400},
+		{`{"visible":true,"focus":"menu"}`, grant.Token, 400}, {`{"visible":false,"focus":"launcher"}`, grant.Token, 400},
+		// Only an omitted focus takes the default.
+		{`{"visible":true,"focus":null}`, grant.Token, 400}, {`{"visible":true,"focus":""}`, grant.Token, 400},
+		{`{"visible":false,"focus":null}`, grant.Token, 400}, {`{"visible":false,"focus":""}`, grant.Token, 400},
+		{`{"visible":true,"focus":"launcher"}`, grant.Token, 200}, {`{"visible":true,"focus":"machine"}`, grant.Token, 200},
+		// A host that predates focus sends visibility alone.
+		{`{"visible":true}`, grant.Token, 200}, {`{"visible":false,"focus":"machine"}`, grant.Token, 200},
+		{`{"visible":false}`, grant.Token, 200},
 	} {
 		r := httptest.NewRequest(http.MethodPost, "/v1/session/display", strings.NewReader(tc.body))
 		r.Header.Set("Authorization", "Bearer bearer")
@@ -50,7 +57,7 @@ func TestSessionDisplayRequiresLeaseAndExplicitBoolean(t *testing.T) {
 			t.Fatalf("body=%s status=%d response=%s", tc.body, w.Code, w.Body)
 		}
 	}
-	if c.calls != 2 || c.visible {
-		t.Fatalf("calls=%d visible=%v", c.calls, c.visible)
+	if c.calls != 5 || c.display != protocol.SessionDisplayClosed {
+		t.Fatalf("calls=%d display=%+v", c.calls, c.display)
 	}
 }

@@ -6,11 +6,15 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
-func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
-	m := NewMapper(0x081f, 0xe401, map[uint16]Range{0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255}})
+// The kit's SNES-style pad reports its D-pad on unsigned ABS_X/ABS_Y and its
+// buttons in the BTN_TRIGGER range; GameControllerDB names both.
+func TestSuperFamicomPadUnsignedAxisAndButtons(t *testing.T) {
+	m := NewMapper(superFamicomPad(0x0110))
+	if got := m.Mapping(); got != "Super Famicom Controller" {
+		t.Fatalf("mapping %q", got)
+	}
 	for _, tt := range []struct{ raw, want int32 }{{0, -32768}, {127, 0}, {128, 0}, {255, 32767}} {
 		e, ok := m.Map(3, 0, tt.raw)
 		if !ok || e.Value != tt.want || e.Code != remoteinput.AxisLeftX {
@@ -33,7 +37,7 @@ func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
 // A resting stick keeps reporting near centre; that jitter must not cancel a
 // held D-pad hat direction on the shared left-x axis (#473).
 func TestStickJitterDoesNotCancelHeldHat(t *testing.T) {
-	m := NewMapper(0x054c, 0x0ce6, map[uint16]Range{0: {Min: 0, Max: 255}, 16: {Min: -1, Max: 1}})
+	m := NewMapper(Device{Vendor: 0x054c, Product: 0x0ce6, Axes: map[uint16]Range{0: {Min: 0, Max: 255}, 16: {Min: -1, Max: 1}}})
 	axis := func(code uint16, raw int32) (remoteinput.Event, bool) {
 		t.Helper()
 		e, ok := m.Map(3, code, raw)
@@ -88,7 +92,7 @@ func TestKeyboardMapperPostsHIDUsages(t *testing.T) {
 }
 
 func TestInitialHeldButtonRequiresRelease(t *testing.T) {
-	m := NewMapper(0, 0, nil)
+	m := NewMapper(Device{})
 	m.Suppress(304)
 	if _, ok := m.Map(1, 304, 1); ok {
 		t.Fatal("initial held confirm fired")
@@ -98,22 +102,6 @@ func TestInitialHeldButtonRequiresRelease(t *testing.T) {
 	}
 	if _, ok := m.Map(1, 304, 1); !ok {
 		t.Fatal("fresh press lost")
-	}
-}
-
-func TestPhysicalEvdevOverrideBeatsDefaultSouth(t *testing.T) {
-	r, err := inputmap.NewRemapper(inputmap.Profile{Name: "evdev-select", Bindings: map[string]string{"evdev:304": "select"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := NewMapper(0, 0, nil)
-	e, ok := m.mapWith(r, 1, 304, 1)
-	if !ok || e.Code != remoteinput.ButtonSelect {
-		t.Fatalf("physical override %+v %v", e, ok)
-	}
-	e, ok = m.mapWith(nil, 1, 304, 1)
-	if !ok || e.Code != remoteinput.ButtonA {
-		t.Fatalf("default south %+v %v", e, ok)
 	}
 }
 

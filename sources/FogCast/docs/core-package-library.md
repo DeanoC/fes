@@ -498,9 +498,11 @@ package version 0.4.0: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB, then
 1541 drive ROM 16 KiB; versions 0.2.0/0.3.0 declare 20 KiB and 0.1.0 declares
 16 KiB). The selected package declares the exact required size
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
-media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
-(16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536
-bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
+`fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
+`spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3`) or `pentagon-firmware`
+(32 KiB, `fes.pentagon`), and role `cassette` for `fes.media.spectrum-tape`
+1.0: 1..65,536 bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
 role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
 unit 0. A previously saved `blob` selection for that package still launches.
 Persist a Spectrum or ZX81 selection with role `cassette`:

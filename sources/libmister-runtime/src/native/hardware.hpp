@@ -76,11 +76,13 @@ public:
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;
- MenuDisplayStatus menu_display() const override {return menu_status_;}
- Error SetSessionDisplay(bool visible) override;
+ MenuDisplayStatus menu_display() const override {
+  MenuDisplayStatus status=menu_status_;status.launcher_focus=session_display_focused_;return status;
+ }
+ Error SetSessionDisplay(bool visible,bool launcher_focus) override;
  Error ShareMenuWindow(int*) override;
  Error MenuBackSlot(std::uint8_t*) const override;
- Error PresentMenuSlot(std::uint8_t,const std::vector<MenuRect>&,MenuDisplayInfo*) override;
+ Error PresentMenuSlot(std::uint8_t,const MenuDraw&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;

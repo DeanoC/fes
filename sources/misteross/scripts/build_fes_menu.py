@@ -23,7 +23,8 @@ SOURCES = ('cores/fes-splash/rtl/pixel_pll.v', 'cores/fes-menu/rtl/fes_menu_read
            'cores/fes-menu/rtl/top.v')
 DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-common/rtl/fes_hps_ddr_guard.v',
-               'cores/fes-menu/rtl/fes_menu_ddr.v')
+               'cores/fes-menu/rtl/fes_menu_blend.v', 'cores/fes-menu/rtl/fes_menu_blit_read.v',
+               'cores/fes-menu/rtl/fes_menu_blitter.v', 'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
 TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
 TOOLCHAIN_ROOT = 'build/toolchain/fes-menu'
@@ -154,11 +155,19 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
                     and len(c['connections']['Q']) == 1]
             connections = next(c['connections'] for c in cells
                 if c.get('type') == 'cyclonev_hps_interface_fpga2sdram')
-            inactive = tuple(f'cmd_valid_{port}' for port in range(1,6)) + tuple(
-                f'wr_valid_{port}' for port in range(4))
+            if menu_gp:
+                # Scanout reads port 0; the blitter reads and writes port 1
+                # (write FIFO 2) and only reads port 2.
+                inactive = tuple(f'cmd_valid_{port}' for port in range(3,6)) + (
+                    'wr_valid_0', 'wr_valid_1', 'wr_valid_3')
+                read_only = ('cmd_data_0', 'cmd_data_2')
+            else:
+                inactive = tuple(f'cmd_valid_{port}' for port in range(1,6)) + tuple(
+                    f'wr_valid_{port}' for port in range(4))
+                read_only = ('cmd_data_0',)
             if any(connections.get(port) not in grounds for port in inactive):
                 raise board.BuildError('menu DDR writes and unused ports must be tied low')
-            if connections.get('cmd_data_0', [])[1:2] not in grounds:
+            if any(connections.get(port, [])[1:2] not in grounds for port in read_only):
                 raise board.BuildError('menu DDR command write bit must be tied low')
     return result
 
