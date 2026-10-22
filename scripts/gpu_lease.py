@@ -48,9 +48,11 @@ PROC_ROOT = Path('/proc')
 # and sysctl, and the lease directory's filesystem from statfs(2).
 DARWIN = sys.platform == 'darwin'
 VENDORS = ('amd', 'nvidia', 'apple')
-# Seconds between ioreg scans for Metal user clients while a route has not
-# yet been seen on the leased GPU. The backend-ready log covers short routes.
+# Normal ioreg refresh interval after the initial Metal client discovery window.
 APPLE_CLIENT_POLL = 0.5
+# Force scans briefly after launch/grant so short redirected routes can prove
+# Metal use even when inventory detection cached a pre-launch snapshot.
+APPLE_CLIENT_DISCOVERY_WINDOW = 0.5
 METADATA_LIMIT = 65536
 QUEUE = 'queue'
 # Phase tickets of these owners wait here and are served only after every
@@ -1784,6 +1786,7 @@ def execute(vendor, chosen, command):
             os.close(stdout_write)
             os.close(stderr_write)
         exec_command(chosen, command, env)
+    apple_discovery_deadline = time.monotonic() + APPLE_CLIENT_DISCOVERY_WINDOW
     selector = selectors.DefaultSelector()
     evidence = GpuRouteOutput(vendor)
     if output_pipes is not None:
@@ -1801,7 +1804,8 @@ def execute(vendor, chosen, command):
                 opened_gpu = process_tree_uses_gpu(
                     pid, vendor, device_nodes,
                     refresh_apple_clients=(vendor == 'apple' and evidence.backend is None
-                                           and not evidence.cpu_fallback))
+                                           and not evidence.cpu_fallback
+                                           and time.monotonic() < apple_discovery_deadline))
             if output_pipes is not None:
                 selector.select(GPU_MONITOR_INTERVAL)
                 drain_route_output(selector, evidence)
@@ -2068,6 +2072,7 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
     chosen = None
     granted_ids = []
     opened_gpu = False
+    apple_discovery_deadline = None
     status = None
 
     def reap():
@@ -2105,12 +2110,13 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
                 return False
 
     def answer(request):
-        nonlocal chosen
+        nonlocal chosen, apple_discovery_deadline
         if request == 'RELEASE':
             if chosen is None:
                 return 'ERR not-held'
             release(chosen)
             chosen = None
+            apple_discovery_deadline = None
             return 'OK'
         match = ACQUIRE_RE.fullmatch(request)
         if match is None:
@@ -2128,6 +2134,7 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
         if got is None:
             return None
         chosen = got
+        apple_discovery_deadline = time.monotonic() + APPLE_CLIENT_DISCOVERY_WINDOW
         granted_ids.extend(gpu_id for gpu_id, _ in got if gpu_id not in granted_ids)
         return 'GRANT ' + got[0][0]
 
@@ -2135,9 +2142,13 @@ def execute_phase_lease(directory, ids, vendor, owner, label, command, cap, slot
         while True:
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
-            if requires_gpu and granted_ids and not opened_gpu:
+            if requires_gpu and chosen is not None and granted_ids and not opened_gpu:
                 opened_gpu = process_tree_uses_gpu(
-                    pid, vendor, [gpu_device_path(vendor, gpu_id) for gpu_id in granted_ids])
+                    pid, vendor, [gpu_device_path(vendor, gpu_id) for gpu_id in granted_ids],
+                    refresh_apple_clients=(vendor == 'apple' and evidence.backend is None
+                                           and not evidence.cpu_fallback
+                                           and apple_discovery_deadline is not None
+                                           and time.monotonic() < apple_discovery_deadline))
             wait_for_input(GPU_MONITOR_INTERVAL)
             for request in connection.requests():
                 reply = answer(request)

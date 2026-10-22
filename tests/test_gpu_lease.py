@@ -509,6 +509,107 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertIn('backend metal:', route_log.read_text())
         self.assertGreaterEqual(ioreg.call_count, 2)
 
+    def test_long_unverified_metal_route_respects_ioreg_poll_interval(self):
+        started = self.root / 'route-started'
+        route_log = self.root / 'route.log'
+        nextpnr = self.root / 'nextpnr-mistral'
+        nextpnr.write_text('#!/bin/sh\n: > "$ROUTE_STARTED"\nsleep 0.6\nexit 0\n')
+        nextpnr.chmod(0o755)
+        command = ['/bin/sh', '-c', '"%s" --router gpu > "%s" 2>&1' %
+                   (nextpnr, route_log)]
+        nextpnr_pid = 4242
+
+        def mock_ioreg(_argv):
+            return ioreg_accelerators((APPLE_REGISTRY_ID, ()))
+
+        cache = gpu_lease._apple_accelerator_cache
+        old_cache = cache.copy()
+        cache.update(checked=None, accelerators=[])
+        self.addCleanup(cache.update, old_cache)
+        fd = os.open(self.root / 'lease-fd', os.O_CREAT | os.O_RDWR, 0o600)
+        with patch.dict(os.environ, {'ROUTE_STARTED': str(started)}), \
+             patch.object(gpu_lease, 'run_tool', side_effect=mock_ioreg) as ioreg, \
+             patch.object(gpu_lease, 'GPU_MONITOR_INTERVAL', 0.01), \
+             patch.object(gpu_lease, 'APPLE_CLIENT_DISCOVERY_WINDOW', 0.05), \
+             patch.object(gpu_lease, 'APPLE_CLIENT_POLL', 0.15), \
+             patch.object(gpu_lease, 'process_tree_pids', return_value=[nextpnr_pid]), \
+             patch.object(gpu_lease, 'process_cmdline',
+                          return_value='/tools/nextpnr-mistral --router gpu'), \
+             patch.object(gpu_lease, 'process_cmdline_args',
+                          return_value=['/tools/nextpnr-mistral', '--router', 'gpu']):
+            self.assertEqual(gpu_lease.apple_accelerators(), [(APPLE_REGISTRY_ID, set())])
+            output = io.StringIO()
+            with redirect_stderr(output):
+                status = gpu_lease.execute('apple', [('0', fd)], command)
+
+        self.assertEqual(status, 70, output.getvalue())
+        self.assertTrue(started.exists())
+        # Includes the pre-launch inventory scan and periodic checks after
+        # discovery. It must stay far below one scan per monitor iteration.
+        self.assertGreaterEqual(ioreg.call_count, 7)
+        self.assertLess(ioreg.call_count, 20)
+
+    def test_phase_lease_refreshes_metal_clients_after_grant(self):
+        started = self.root / 'phase-route-started'
+        route_log = self.root / 'phase-route.log'
+        nextpnr = self.root / 'nextpnr-mistral'
+        nextpnr.write_text('#!/bin/sh\n: > "$PHASE_ROUTE_STARTED"\nsleep 0.18\nexit 0\n')
+        nextpnr.chmod(0o755)
+        driver = self.root / 'phase-route.py'
+        driver.write_text(textwrap.dedent('''\
+            import os, socket, subprocess, sys
+            lease = socket.socket(fileno=int(os.environ['GPU_LEASE_FD']))
+            lease.sendall(b'ACQUIRE 1\\n')
+            reply = b''
+            while not reply.endswith(b'\\n'):
+                reply += lease.recv(1)
+            if reply != b'GRANT 0\\n':
+                raise RuntimeError('unexpected grant: ' + repr(reply))
+            with open(sys.argv[1], 'w') as route_log:
+                result = subprocess.run([sys.argv[2], *sys.argv[3:]],
+                                        stdout=route_log, stderr=subprocess.STDOUT)
+            lease.sendall(b'RELEASE\\n')
+            reply = b''
+            while not reply.endswith(b'\\n'):
+                reply += lease.recv(1)
+            if reply != b'OK\\n':
+                raise RuntimeError('unexpected release: ' + repr(reply))
+            sys.exit(result.returncode)
+        '''))
+        command = [sys.executable, str(driver), str(route_log), str(nextpnr),
+                   '--router', 'gpu']
+        nextpnr_pid = 4242
+
+        def mock_ioreg(_argv):
+            clients = (nextpnr_pid,) if started.exists() else ()
+            return ioreg_accelerators((APPLE_REGISTRY_ID, clients))
+
+        cache = gpu_lease._apple_accelerator_cache
+        old_cache = cache.copy()
+        cache.update(checked=None, accelerators=[])
+        self.addCleanup(cache.update, old_cache)
+        gpu_lease.ensure_lease_dir(self.lease)
+        slot = gpu_lease.acquire_job_slot(self.lease, 'apple', 'alice', 'phase-metal',
+                                          command, 1)
+        with patch.dict(os.environ, {'PHASE_ROUTE_STARTED': str(started)}), \
+             patch.object(gpu_lease, 'run_tool', side_effect=mock_ioreg) as ioreg, \
+             patch.object(gpu_lease, 'GPU_MONITOR_INTERVAL', 0.01), \
+             patch.object(gpu_lease, 'process_tree_requires_gpu', return_value=True), \
+             patch.object(gpu_lease, 'process_tree_pids', return_value=[nextpnr_pid]), \
+             patch.object(gpu_lease, 'process_cmdline',
+                          return_value='/tools/nextpnr-mistral --router gpu'):
+            # Simulate automatic inventory detection caching the empty,
+            # pre-grant user-client list.
+            self.assertEqual(gpu_lease.apple_accelerators(), [(APPLE_REGISTRY_ID, set())])
+            output = io.StringIO()
+            with redirect_stderr(output):
+                status = gpu_lease.execute_phase_lease(
+                    self.lease, ['0'], 'apple', 'alice', 'phase-metal', command, None, slot)
+
+        self.assertEqual(status, 0, output.getvalue())
+        self.assertTrue(started.exists())
+        self.assertGreaterEqual(ioreg.call_count, 2)
+
     def test_nextpnr_help_and_version_with_gpu_flags_do_not_require_gpu_access(self):
         command = self.root / 'nextpnr-mistral'
         command.write_text('#!/bin/sh\nexit 0\n')
