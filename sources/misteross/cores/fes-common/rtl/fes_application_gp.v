@@ -12,7 +12,9 @@ module fes_application_gp #(
     parameter bit ENABLE_FIRMWARE = 0,
     // The core drives the fes.memory.hps-ddr port layout (fes_hps_ddr).
     parameter bit ENABLE_HPS_DDR = 0,
-    parameter bit ENABLE_MENU = 0
+    parameter bit ENABLE_MENU = 0,
+    // The menu also runs the blitter's MenuBlit requests (requires ENABLE_MENU).
+    parameter bit ENABLE_MENU_BLITTER = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -52,7 +54,8 @@ module fes_application_gp #(
         (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0) |
         (ENABLE_FIRMWARE ? `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK : 32'd0) |
         (ENABLE_HPS_DDR ? `FES_APPLICATION_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0);
+        (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_MENU && ENABLE_MENU_BLITTER ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_BLITTER_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_APPLICATION_IDENTITY_TRANSPORT_MAJOR_INDEX;
@@ -323,8 +326,9 @@ module fes_application_gp #(
                 `FES_APPLICATION_OPCODE_MENU_INFO,
                 `FES_APPLICATION_OPCODE_MENU_CONFIGURE,
                 `FES_APPLICATION_OPCODE_MENU_CONTROL,
-                `FES_APPLICATION_OPCODE_MENU_SUBMIT: begin
-                    if (!ENABLE_MENU)
+                `FES_APPLICATION_OPCODE_MENU_SUBMIT,
+                `FES_APPLICATION_OPCODE_MENU_BLIT: begin
+                    if (!ENABLE_MENU || (command_opcode == `FES_APPLICATION_OPCODE_MENU_BLIT && !ENABLE_MENU_BLITTER))
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
                     else begin
                         // Keep the old ACK until the menu finishes this request.

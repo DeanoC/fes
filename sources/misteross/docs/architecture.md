@@ -3469,10 +3469,12 @@ separate evidence schema.
 ## Native menu display
 
 `python3 scripts/sim_fes_menu.py` checks exact frame length, burst bounds,
-stalls, pixel ordering, cancellation drain, switching and underflow recovery.
-The shared DDR wrapper owns port wiring and holds; menu scanout adds no second
-bridge or memory reservation policy. The described menu package is selected
-by the FES native image; exact image and kit acceptance are tracked separately.
+stalls, pixel ordering, cancellation drain, switching and underflow recovery,
+and the blitter's ops, faults and halt against the gfx reference.
+The shared DDR wrapper owns port wiring and holds; menu scanout and the
+blitter add no second bridge or memory reservation policy. The described menu
+package is selected by the FES native image; exact image and kit acceptance are
+tracked separately.
 
 ### Menu scanout diagnostics
 
@@ -3492,16 +3494,26 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 ### Described menu display producer
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
-with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
+with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
+`fes.video.menu-blitter` 1.0, no playable system identity. FES now selects it
+as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
-while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists. The package routes a first-pass
-pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
+while diagnostics retain their no-GP gate. DDR layout and per-port write checks
+remain mandatory in both netlists: only port 1, the blitter's destination
+port, may write. Port 0 and port 2 commands have their write bit tied low,
+and write FIFOs 0, 1 and 3 and ports 3 to 5 are tied low. The diagnostics
+still require every write and ports 1 to 5 tied low. The package routes a
+first-pass pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7,
+8.
 
-The optional shared GP hook delegates menu requests to `fes_menu_control` in
-the same pixel-clock domain. Configuration selects fixed slots; sequence ACK
-means pending acceptance and completion is separately readable. Quiesce ACK
-waits for drain before execution hold. Runtime buffer transport/admission and
-exact-artifact menu acceptance are not established by source simulations.
+The optional shared GP hook delegates menu requests to `fes_menu_control` and
+MenuBlit requests to `fes_menu_blit_control` in the same pixel-clock domain.
+Configuration selects fixed slots; sequence ACK means pending acceptance and
+completion is separately readable. `fes_menu_blitter` runs command lists from
+the window into a slot: it reads and writes destinations on port 1, so a blend
+reads what earlier commands wrote, and reads commands and textures on port 2.
+Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
+both blitter ports to drain before execution hold. Runtime buffer
+transport/admission and exact-artifact menu acceptance are not established by
+source simulations.

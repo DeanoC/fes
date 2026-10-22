@@ -14,7 +14,8 @@
 #define MISTER_MENU_INTERFACES(X) \
 	X("fes.video.fixed-720p60", 1, 0) \
 	X("fes.memory.hps-ddr", 1, 0) \
-	X("fes.video.menu-display", 1, 0)
+	X("fes.video.menu-display", 1, 0) \
+	X("fes.video.menu-blitter", 1, 0)
 
 namespace mister {
 namespace native {
