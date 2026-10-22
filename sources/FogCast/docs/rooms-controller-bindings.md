@@ -119,7 +119,7 @@ essential action.
 | Favorite | hold North / Y (library browse only) | Toggle favorite |
 | Filters | hold West / X (library browse only) | Filter overlay |
 | Stop a live session | East / B, or `s`, while now-playing | Session Stop (not a room explore action) |
-| Stop a kit-local core | hold Select + Start (1 s) | Same Stop as the single-press F12 / Guide routes, which are taps |
+| Stop a kit-local core | hold Select + Start (1 s) on one pad | Same Stop as the single-press F12 / Guide routes, which are taps |
 
 System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row:
 Left/Right still chooses the start screen; Confirm goes Home now, so a
