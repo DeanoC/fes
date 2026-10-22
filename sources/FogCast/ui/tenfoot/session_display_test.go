@@ -961,3 +961,43 @@ func TestKitSurroundFailureClosesThePlaneOnce(t *testing.T) {
 		t.Fatalf("display requests after refusal = %+v", got)
 	}
 }
+
+// When the fallback close is unconfirmed too, the plane stays uncertain:
+// machine input is held back and Back retries the close until it is confirmed.
+func TestKitSurroundUnconfirmedCloseKeepsARetry(t *testing.T) {
+	kit, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	closes := 0
+	kit.mu.Lock()
+	kit.refuse = func(d protocol.SessionDisplay) bool {
+		if d == protocol.SessionDisplayClosed {
+			closes++
+			return closes == 1
+		}
+		return true
+	}
+	kit.mu.Unlock()
+	waitFor(t, app, "unconfirmed close", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.surroundFailed && !app.sessionDisplayBusy && len(kit.requests()) == 2
+	})
+	app.mu.Lock()
+	uncertain := app.sessionDisplayUncertain
+	app.mu.Unlock()
+	if !uncertain || app.ForwardsPlayHID() {
+		t.Fatal("unconfirmed close released machine input or lost its retry")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "confirmed close", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !app.sessionDisplayBusy && !app.sessionDisplayUncertain
+	})
+	want := []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayClosed, protocol.SessionDisplayClosed}
+	if got := kit.requests(); len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("display requests = %+v", got)
+	}
+	if !app.ForwardsPlayHID() {
+		t.Fatal("confirmed close kept machine input")
+	}
+}

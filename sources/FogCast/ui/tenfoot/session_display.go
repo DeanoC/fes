@@ -215,8 +215,10 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 				// An unconfirmed request can leave input fenced at the kit,
 				// so the surround stays off for this session and the plane
 				// closes, which also ends a return from the hardware room.
-				// The machine keeps its input meanwhile.
+				// Until a close is confirmed the plane is uncertain: Back
+				// retries the close if this one fails too.
 				a.surroundFailed = true
+				a.sessionDisplayUncertain = true
 				a.beginSessionDisplayLocked(protocol.SessionDisplayClosed, false)
 				a.status = fmt.Sprintf("TV surround unavailable: %s", err)
 				return

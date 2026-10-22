@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
 )
@@ -66,6 +67,62 @@ func TestSurroundWithoutAPictureLeavesTheMachineUncovered(t *testing.T) {
 				t.Fatalf("picture %v left a covered pixel at byte %d", picture, i)
 			}
 		}
+	}
+}
+
+type revisionPainter struct {
+	*gfx.Software
+	revisions []uint64
+}
+
+func (p *revisionPainter) PresentRevision(revision uint64) {
+	p.revisions = append(p.revisions, revision)
+}
+
+// A static surround is one complete scene, so FrameCache reuses it instead of
+// rasterising the cabinet on every 30 Hz tick.
+func TestUnchangedSurroundIsReusedByTheFrameCache(t *testing.T) {
+	software, err := gfx.NewSoftware(menudisplay.Width, menudisplay.Height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	painter := &revisionPainter{Software: software}
+	cache := gfx.NewFrameCache(painter)
+	snap := Snapshot{Surround: SurroundSnapshot{Active: true, Picture: image.Rect(312, 90, 968, 630)}}
+	snap.Session.Title, snap.Session.System, snap.Session.HardwareRoom = "Mazogs", "ZX81", true
+	labels := map[string]gpuTexture{}
+	for range 4 {
+		drawSurround(cache, snap, labels)
+	}
+	r := painter.revisions
+	if len(r) != 4 || r[3] != r[2] || r[2] != r[1] {
+		t.Fatalf("unchanged surround was rasterised again: revisions %v", r)
+	}
+}
+
+// A failed Stop keeps its parked retry page instead of the cabinet.
+func TestSurroundGivesWayToStopAndItsRetry(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	display, err := gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	app.gpuParked, app.sessionDisplay = true, protocol.SessionDisplayShown
+	if !app.surroundShownLocked() {
+		t.Fatal("shown plane drew no surround")
+	}
+	app.stopPhase = "stopping"
+	if app.surroundShownLocked() {
+		t.Fatal("surround hid the stopping page")
+	}
+	app.stopPhase, app.retryStopLock = "error", true
+	if app.surroundShownLocked() {
+		t.Fatal("surround hid the failed Stop's retry page")
 	}
 }
 

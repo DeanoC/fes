@@ -20,9 +20,10 @@ type SurroundSnapshot struct {
 }
 
 // surroundShownLocked draws the surround while the machine has input on a
-// shown plane. Stop draws the parked status instead.
+// shown plane. Stop and a failed Stop's retry draw the parked status instead.
 func (a *App) surroundShownLocked() bool {
-	return a.menuDisplay != nil && a.gpuParked && a.sessionDisplay == protocol.SessionDisplayShown && a.stopPhase != "stopping"
+	return a.menuDisplay != nil && a.gpuParked && a.sessionDisplay == protocol.SessionDisplayShown &&
+		a.stopPhase != "stopping" && !a.retryStopLock
 }
 
 const (
@@ -40,9 +41,9 @@ func drawSurround(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture) {
 	frame := image.Rect(0, 0, menudisplay.Width, menudisplay.Height)
 	picture := snap.Surround.Picture
 	dev.SetBlend(gfx.BlendNone)
-	if picture.Empty() || !picture.In(frame) || picture == frame {
-		dev.Clear(gfx.RGBA(0, 0, 0, 0))
-	} else {
+	// Every frame starts with a clear so FrameCache can reuse an unchanged one.
+	dev.Clear(gfx.RGBA(0, 0, 0, 0))
+	if !picture.Empty() && picture.In(frame) && picture != frame {
 		drawSurroundCabinet(dev, frame, picture, drawTheme(snap).SofaBackground)
 		drawSurroundLabels(dev, snap, labels, used, frame, picture)
 	}
