@@ -180,17 +180,23 @@ fes-kit-software acknowledge \
 ```
 
 This command verifies the bundle, running supervisor and its complete service
-group, then requires ten seconds of native idle and launcher readiness. It resumes
-and completes only that operation's existing maintenance reservation. A separate
-durable acknowledgment retains the original failure and operator action identity;
-selection and generation remain unchanged. It neither starts a service nor
-retries the candidate. Missing services, changed identities, another operation or
-failed readiness leave execution blocked. Inspect status after an uncertain
-reply; repeat only the same action and exact identities to reconcile it.
+group. It checks that the failed operation still holds this boot's maintenance
+reservation, then requires ten seconds of native idle and launcher readiness
+before it changes anything. Only then does it record the acknowledgment and end
+that reservation with the operation's stored grant; it never resumes the
+reservation. A separate durable acknowledgment retains the original failure and
+operator action identity; selection and generation remain unchanged. It neither
+starts a service nor retries the candidate. Missing services, changed
+identities, another operation or failed readiness leave the journal and the
+reservation as they were, so execution stays blocked and
+`prepare-power-cycle` still applies. Inspect status after an uncertain reply;
+repeat only the same action and exact identities to reconcile it.
 
 If the previous service group is absent or unhealthy, this command cannot repair
-it. Preserve the journal and plan a separate operator recovery rather than editing
-selection state or resetting the automatic recovery phase.
+it. Do not edit selection state or reset the automatic recovery phase. Prepare a
+power cycle as below when the runtime reports `reboot_required`. Otherwise a
+hard power-supply cycle leaves the kit in [recovery
+exhausted](#leave-recovery-exhausted), which the factory selection there repairs.
 
 ### Prepare a required physical power cycle
 
@@ -206,19 +212,61 @@ fes-kit-software prepare-power-cycle \
 ```
 
 This root-only action verifies the native runtime and existing reservation
-without retrying cleanup. It preserves the original failure in a durable audit,
-cancels that failed software request, and leaves the current boot fenced in its
-existing maintenance reservation. It does not release maintenance, restart a
-service, change the committed selection or initiate a reboot. Its result is
+without retrying cleanup. The reservation must still be blocked; one in any
+other state is reported as that state, not as a grant that does not match. It
+preserves the original failure in a durable audit, cancels that failed software
+request, and leaves the current boot fenced in its existing maintenance
+reservation. It does not release maintenance, restart a service, change the
+committed selection or initiate a reboot. Its result is
 `prepared-awaiting-physical-cycle`, not successful recovery.
 
 The operator must then perform the [documented hard power-supply
-cycle](../sources/FogCast/docs/DEVELOPMENT.md#restarting-target-services).
+cycle](../sources/FogCast/docs/DEVELOPMENT.md#updating-target-software).
 After boot, verify the actual base, committed/active bundle, generation, native
 idle readiness and free admission. A changed boot ID alone does not prove power
 removal. Preserve any newer queued operation; preparation and delayed retries
 cannot cancel it or restore an older selection. If another update activates,
 report its new generation instead of treating the earlier selection as current.
+
+### Leave recovery exhausted
+
+A boot that finds the failed operation still blocked starts nothing. The
+supervisor reports `software recovery exhausted; operator intervention
+required` and keeps retrying, but the kit has no launcher, video, agent or
+local control. An unprepared hard power-supply cycle after a failed recovery
+leaves a kit here. Read the identities from `fes-kit-software status` and
+`/proc/sys/kernel/random/boot_id`, then on the kit, as root:
+
+```sh
+fes-kit-software select-factory \
+  --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
+  --selected COMMITTED_SELECTED_BUNDLE_ID \
+  --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
+  --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
+```
+
+This root-only journal action selects the running image's own factory software,
+the one release that image is built to run. It verifies that software as the
+supervisor starts it, and requires the retained copy that lets a later image
+resolve the selection. It refuses while any supervised process runs, or while
+this boot still holds a maintenance reservation; perform the [documented hard
+power-supply cycle](../sources/FogCast/docs/DEVELOPMENT.md#updating-target-software)
+first. It preserves the original failure in a durable audit and cancels the
+failed request. It commits the factory software as the selection with the next
+generation, and the earlier selection becomes the previous bundle; when the
+factory software is already selected, only the failed request ends. It never
+starts, stops or signals a service, calls the agent, mints a credential or
+changes the image. Its result is `factory-selected`.
+
+The waiting supervisor retries startup at most 30 seconds apart. Its next
+attempt starts the factory software with a fresh boot admission and the usual
+readiness checks. Verify that status reports the factory software as active and
+selected, nothing pending and no storage error. Inspect status after an uncertain reply; repeat only the same
+action and exact identities to reconcile it. From there use the ordinary paths:
+activating another bundle keeps its one automatic recovery, which now returns to
+the factory software. To return to an earlier image, roll back through the
+[appliance update path](appliance-releases.md#update-and-recover), then activate
+a bundle that image runs.
 
 ## API and evidence
 
