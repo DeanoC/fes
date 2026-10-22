@@ -46,15 +46,18 @@ symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
-Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+The full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
-feed one OR level; the measured BIU-return and immediate groups use fast
-inputs. ADD-specific muxes remain independently inferred. The generic helper
-and mapped LUT truth tables are equivalent for every data/select vector,
-including non-one-hot selects; structural checks require two data levels.
+feed one OR level; the measured BIU-return and immediate groups use fast inputs.
+ADD operand 0 has a separate `pcxt_add_operand0_mux` and
+`synth/add_operand0_map.v`: the current mask leaves twelve products per bit,
+implemented as four LUT6 groups and an OR LUT4. ADD operand 1 remains inferred.
+Both maps preserve arbitrary data and selector vectors, including zero and
+multiple simultaneous selects, without changing cycles or sequential state.
+Structural checks require two data levels; complete routed timing remains open.
 
-The native map also disconnects provably zero product inputs using tool-supplied
-constant masks; exhaustive partial-constant proofs cover those transformations.
+The native maps disconnect provably zero products using tool-supplied constant
+masks; exhaustive partial-constant proofs cover those transformations.
 
 
 

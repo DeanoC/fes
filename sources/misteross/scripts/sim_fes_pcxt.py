@@ -19,6 +19,7 @@ SOURCES = (
 )
 CPU_SOURCES = (
     'cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv',
+    'cores/fes-pcxt/rtl/pcxt_add_operand0_mux.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv',
@@ -30,7 +31,10 @@ CPU_SOURCES = (
     'cores/fes-pcxt/sim/cpu_tb.cpp',
 )
 
-CPU_MUX_MAP = 'cores/fes-pcxt/synth/logic_operand1_map.v'
+CPU_MUX_MAPS = (
+    'cores/fes-pcxt/synth/logic_operand1_map.v',
+    'cores/fes-pcxt/synth/add_operand0_map.v',
+)
 
 CHIPSET_SOURCES = (
     'cores/fes-pcxt/vendor/kf8259/KF8259.sv',

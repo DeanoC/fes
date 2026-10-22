@@ -62,7 +62,8 @@ class CpuSelectionTest(unittest.TestCase):
         start = source.index('    function automatic [15:0] select16(')
         function = source[start:source.index('    endfunction', start) + len('    endfunction')]
         vectors = '\n'.join(re.search(r'    wire \[255:0\] eu_sources' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
-        adds = '\n'.join(re.search(r'    assign eu_add_operand' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
+        adds = re.search(r'    pcxt_add_operand0_mux u_add_operand0_mux \(.*?    \);', source, re.S)[0]
+        adds += '\n' + re.search(r'    assign eu_add_operand1 = .*?;', source, re.S)[0]
         expressions = '\n'.join(re.search(r'    assign eu_operand' + str(i) + r' = select16\(.*?;',
                                            source, re.S).group(0) for i in (0,))
         expressions += '\n' + re.search(r'    pcxt_logic_operand1_mux u_operand1_mux \(.*?    \);', source, re.S)[0]
@@ -94,7 +95,9 @@ class CpuSelectionTest(unittest.TestCase):
             (work / 'proof.sv').write_text(fixture)
             result = subprocess.run([YOSYS, '-Q', '-p',
                 'read_verilog -sv ' + str(ROOT / 'cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv') +
-                ' proof.sv; setattr -mod -unset keep_hierarchy pcxt_logic_operand1_mux; prep -top proof -flatten; '
+                ' ' + str(ROOT / 'cores/fes-pcxt/rtl/pcxt_add_operand0_mux.sv') +
+                ' proof.sv; setattr -mod -unset keep_hierarchy pcxt_logic_operand1_mux pcxt_add_operand0_mux; '
+                'prep -top proof -flatten; '
                 'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
