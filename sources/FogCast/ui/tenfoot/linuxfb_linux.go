@@ -353,7 +353,11 @@ devices:
 					continue
 				}
 				if typ == 1 {
-					if in.mapper != nil && code != 316 {
+					guide := code == 316
+					if in.mapper != nil {
+						guide = in.mapper.Guide(code)
+					}
+					if in.mapper != nil && !guide {
 						if e, ok := in.mapper.Map(typ, code, value); ok {
 							if e.Kind == remoteinput.KindButton {
 								in.button(app, ButtonFromLogical(e.Code), value, now)
@@ -364,7 +368,7 @@ devices:
 						}
 						continue
 					}
-					if code == 316 {
+					if guide {
 						if value == 1 && app.Snapshot().Session.HardwareRoom {
 							app.Press(CmdHome, now)
 						} else if app.coreOwnsPadInput() {
@@ -378,9 +382,9 @@ devices:
 							}
 						} else if value == 1 {
 							app.NoteInput(InputGamepad, in.fd)
-							in.setButton(316, CmdSettings, true)
+							in.setButton(code, CmdSettings, true)
 						} else if value == 0 {
-							in.setButton(316, CmdSettings, false)
+							in.setButton(code, CmdSettings, false)
 						}
 					} else if button := nativeButton(code); button != ButtonNone {
 						in.button(app, button, value, now)
@@ -389,14 +393,12 @@ devices:
 							return true, nil
 						}
 					}
-				} else if typ == 3 && (code == 0 || code == 1 || code == 16 || code == 17) {
+				} else if typ == 3 {
 					if in.mapper != nil {
 						if e, ok := in.mapper.Map(typ, code, value); ok && e.Kind == remoteinput.KindAxis {
 							in.axis(app, e.Code, e.Value, now)
-							if code == 0 || code == 1 {
-								if ins.applyButtons(app, now) {
-									return true, nil
-								}
+							if ins.applyButtons(app, now) {
+								return true, nil
 							}
 						}
 					} else if code == 16 || code == 17 {
@@ -404,7 +406,7 @@ devices:
 					}
 				}
 				// Preserve quick down/up pairs even when drained in one render frame.
-				if (typ == 1 && code >= 256) || (typ == 3 && (code == 16 || code == 17)) {
+				if (typ == 1 && code >= 256) || (typ == 3 && in.mapper == nil && (code == 16 || code == 17)) {
 					if ins.applyButtons(app, now) {
 						return true, nil
 					}
@@ -761,11 +763,10 @@ func nativeDeviceKind(fd int) InputKind {
 	if relErr == 0 && controller.EligibleMouse(bus, name, relative[0]&3 == 3, nativeHasKey(keys[:], 272) || nativeHasKey(keys[:], 273)) {
 		return InputMouse
 	}
-	return nativeKindWithIdentity(keys[:], bus, name, binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]))
+	return nativeKindWithIdentity(keys[:], bus, name)
 }
-func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, product uint16) InputKind {
-	fixture := vendor == 0x081f && product == 0xe401
-	buttons := nativeHasKey(keys, 304) || nativeHasKey(keys, 305) || (fixture && nativeHasKey(keys, 288))
+func nativeKindWithIdentity(keys []byte, bus uint16, name string) InputKind {
+	buttons := nativeHasKey(keys, 304) || nativeHasKey(keys, 305)
 	if controller.Eligible(bus, name, buttons) {
 		return InputGamepad
 	}
@@ -776,8 +777,8 @@ func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, produc
 		return InputNone
 	}
 	// Some physical pads expose the older BTN_TRIGGER/BTN_THUMB family but
-	// lack the BTN_SOUTH/EAST capabilities used by the known-device matcher.
-	// Their readable, non-virtual identity is enough to admit those game keys.
+	// lack BTN_SOUTH/EAST. Their readable, non-virtual identity is enough to
+	// admit those game keys; the controller mapper identifies the layout.
 	if bus != 0 && name != "" && nativeHasJoystickKeys(keys) {
 		return InputGamepad
 	}
@@ -809,6 +810,9 @@ func nativeDeviceName(fd int) string {
 	}
 	return strings.TrimRight(string(name[:]), "\x00")
 }
+
+// nativeGamepadMapper gives the controller mapper the pad's identity, its
+// EVIOCGBIT key/axis capabilities and the range of every reported axis.
 func nativeGamepadMapper(fd int) *controller.Mapper {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
@@ -816,15 +820,38 @@ func nativeGamepadMapper(fd int) *controller.Mapper {
 	if err != 0 {
 		return nil
 	}
-	axes := map[uint16]controller.Range{}
-	for _, code := range []uint16{0, 1, 16, 17} {
+	device := controller.Device{
+		Name:    nativeDeviceName(fd),
+		Bus:     binary.LittleEndian.Uint16(id[0:2]),
+		Vendor:  binary.LittleEndian.Uint16(id[2:4]),
+		Product: binary.LittleEndian.Uint16(id[4:6]),
+		Version: binary.LittleEndian.Uint16(id[6:8]),
+		Keys:    make([]byte, 96),
+		Abs:     make([]byte, 8),
+		Axes:    map[uint16]controller.Range{},
+	}
+	const keysRequest = uintptr(0x80000000 | (96 << 16) | ('E' << 8) | 0x21)
+	const absRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x23)
+	unix.Syscall(unix.SYS_IOCTL, uintptr(fd), keysRequest, uintptr(unsafe.Pointer(&device.Keys[0])))
+	unix.Syscall(unix.SYS_IOCTL, uintptr(fd), absRequest, uintptr(unsafe.Pointer(&device.Abs[0])))
+	for code := uint16(0); code < 64; code++ {
+		if !nativeHasKey(device.Abs, int(code)) {
+			continue
+		}
 		var info [24]byte
 		request := uintptr(0x80000000|(24<<16)|('E'<<8)) | uintptr(0x40+code)
 		if _, _, e := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), request, uintptr(unsafe.Pointer(&info[0]))); e == 0 {
-			axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
+			device.Axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
 		}
 	}
-	return controller.NewMapper(binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]), axes)
+	mapper := controller.NewMapper(device)
+	mapping := mapper.Mapping()
+	if mapping == "" {
+		mapping = "fallback layout"
+	}
+	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d: %s\n",
+		device.Name, device.Vendor, device.Product, device.Version, device.Bus, mapping)
+	return mapper
 }
 func nativeKindFromKeys(keys []byte) InputKind {
 	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
