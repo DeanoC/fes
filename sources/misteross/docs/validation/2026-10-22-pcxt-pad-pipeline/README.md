@@ -188,3 +188,46 @@ The remaining CPU path still spends 8.413 ns in routing. These trials support
 investigating local route preservation with full-design rollback guards, rather
 than simply raising replication count. That repair is not yet implemented.
 Draft #979 and timing issue #840 remain open.
+
+## Route-preserving compiler trials
+
+Compiler [5d35f171](https://github.com/DeanoC/nextpnr/commit/5d35f171)
+implements default-off bounded post-route data-net repair. Other nets stay bound;
+each candidate is checked against full native setup/hold, clock and coverage
+contracts, with physical route/cache rollback on rejection. The diagnostic
+follow-up [0c590466](https://github.com/DeanoC/nextpnr/commit/0c590466)
+reports the rejection reason without changing those acceptance predicates.
+
+A properly leased baseline/candidate comparison completes with eight proposals
+and zero accepted changes. All 17,199 endpoint rows retain identical margins.
+Independent graph comparison verifies all 12,605 cells and 15,736 nets, with
+no changed routes or other content after bijective bit renumbering. The baseline
+also reproduces all four prior baseline artifact bytes. CPU setup WNS remains
+-1.638 ns, microcode -0.358 ns and pixel -0.228 ns, with 343 failing setup rows,
+zero failing related-hold rows and 105 unsupported boundaries. This does not
+close timing or coverage.
+
+An eight-trial CPU-reference replay also rejects every proposal and reproduces
+the RBF, timing and endpoint report bytes; routed graph content matches after
+bit renumbering and backend normalization. A 32-budget CPU attempt times out at
+600 seconds after 17 rejected trials, with no final artifacts. The compiler
+passes 62 focused native, 18 CLI and 29 retention/runner tests; both native
+guard/rollback tests also pass on the diagnostic follow-up.
+
+The diagnostic replay identifies CPU/system setup regression as the reason for
+all eight rejections. Its final RBF and reports again match the baseline exactly.
+This points the next investigation at analogue-aware candidate generation and
+branch load/delay, rather than increasing the trial count.
+
+[Compiler evidence and reproduction](https://github.com/DeanoC/nextpnr/blob/3e518286/docs/validation/2026-10-22-pcxt-route-preservation/README.md)
+include every completed and failed capture. The 61-member archive was verified
+by SHA256 readback; its SHA256 is
+`b027aa5717877e9b8c215c9dc02ef785badb2da8ae2427a8f05f4c0499c0cb62`.
+The renewed ledger now charges 5332.881248 seconds and leaves
+**16267.118752 seconds** (about 4 h 31 min), including queue waits
+and all CPU-reference attempts.
+
+No hardware ran. RTL, clocks, toolchain locks, recipes, seals and shared contracts
+are unchanged. Draft #979 and timing issue #840 remain open. Production
+integration still requires a passing full routed comparison, complete coverage,
+the unchanged multi-seed gate, a fresh producer and exact-artifact kit acceptance.
