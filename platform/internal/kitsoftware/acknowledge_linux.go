@@ -82,6 +82,9 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 	if state.Selected != req.Selected || state.Generation != req.Generation {
 		return result, ErrConflict
 	}
+	if err := repo.repairActionTaken(req.Action, "acknowledgment"); err != nil {
+		return result, err
+	}
 	entries, err := repo.entries()
 	if err != nil {
 		return result, err
@@ -170,6 +173,28 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation fai
 	}
 	result.Completed = true
 	return result, nil
+}
+
+// repairActionTaken refuses an action identifier that another operator repair
+// has already recorded. One identifier names one operator act.
+func (r *FileRepository) repairActionTaken(action, own string) error {
+	if !software.ValidID(action) {
+		return ErrConflict
+	}
+	for _, kind := range []string{"acknowledgment", "power-cycle", "factory-selection"} {
+		if kind == own {
+			continue
+		}
+		var st unix.Stat_t
+		err := unix.Fstatat(int(r.dir.Fd()), kind+"-"+action+".json", &st, unix.AT_SYMLINK_NOFOLLOW)
+		if err == nil {
+			return ErrConflict
+		}
+		if !errors.Is(err, unix.ENOENT) {
+			return err
+		}
+	}
+	return nil
 }
 func (r *FileRepository) readAcknowledgment(action string) (acknowledgmentAudit, bool, error) {
 	var audit acknowledgmentAudit

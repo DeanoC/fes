@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 type acknowledgmentTransport func(*http.Request) (*http.Response, error)
@@ -151,7 +153,7 @@ func TestRunningPriorProofUsesRealChildrenAndReadiness(t *testing.T) {
 }
 
 func TestAcknowledgmentHeldOnlyReadsExactReservation(t *testing.T) {
-	for _, scenario := range []string{"blocked", "ready", "preparing", "finishing", "replaced", "other-boot", "grant-boot"} {
+	for _, scenario := range []string{"blocked", "ready", "preparing", "finishing", "replaced", "other-boot", "grant-boot", "bad-token"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := t.TempDir()
 			a, err := NewUnixAdmission(filepath.Join(dir, "absent.sock"), filepath.Join(dir, "key"))
@@ -159,11 +161,33 @@ func TestAcknowledgmentHeldOnlyReadsExactReservation(t *testing.T) {
 				t.Fatal(err)
 			}
 			r := req()
-			g := maintenanceGrant{Token: "private-token", Status: MaintenanceStatus{State: "ready", OperationID: r.ID, Generation: strings.Repeat("f", 64), BootID: a.bootID, Owner: r.Requester, Purpose: "kit-software-activation"}}
+			g := maintenanceGrant{Token: strings.Repeat("a", 64), Status: MaintenanceStatus{State: "ready", OperationID: r.ID, Generation: strings.Repeat("f", 64), BootID: a.bootID, Owner: r.Requester, Purpose: "kit-software-activation"}}
 			if scenario == "grant-boot" {
 				g.Status.BootID = "other"
 			}
 			if err := a.saveGrant(r.ID, g); err != nil {
+				t.Fatal(err)
+			}
+			held := g.Status
+			held.BootID = a.bootID
+			switch scenario {
+			case "blocked", "preparing", "finishing":
+				held.State = scenario
+			case "replaced":
+				held.Generation = strings.Repeat("e", 64)
+			case "other-boot":
+				held.BootID = "22222222-3333-4444-5555-666666666666"
+			}
+			record := powerCycleMarker{Schema: 1, MaintenanceStatus: held, Token: g.Token, StartToken: strings.Repeat("b", 64)}
+			if scenario == "bad-token" {
+				record.Token = strings.Repeat("c", 64)
+			}
+			marker, lock := filepath.Join(dir, "kit-maintenance.json"), filepath.Join(dir, "kit-maintenance.lock")
+			mb, _ := json.Marshal(record)
+			if err := os.WriteFile(marker, mb, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(lock, nil, 0600); err != nil {
 				t.Fatal(err)
 			}
 			before, _ := os.ReadFile(a.keyPath + ".grant-" + r.ID)
@@ -173,26 +197,28 @@ func TestAcknowledgmentHeldOnlyReadsExactReservation(t *testing.T) {
 					t.Fatal("reservation check made a mutation", request.URL.Path)
 				}
 				statuses++
-				held := g.Status
-				held.BootID = a.bootID
-				switch scenario {
-				case "blocked", "preparing", "finishing":
-					held.State = scenario
-				case "replaced":
-					held.Generation = strings.Repeat("e", 64)
-				case "other-boot":
-					held.BootID = "22222222-3333-4444-5555-666666666666"
-				}
 				b, _ := json.Marshal(AdmissionStatus{Maintenance: held})
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(b))), Header: make(http.Header)}, nil
 			})}
-			err = (acknowledgmentAdmission{admission: a, boot: a.bootID}).Held(context.Background(), r)
+			err = (acknowledgmentAdmission{admission: a, boot: a.bootID, lockPath: lock, markerPath: marker}).Held(context.Background(), r)
 			if (err == nil) != (scenario == "blocked" || scenario == "ready") {
 				t.Fatalf("%s: %v", scenario, err)
 			}
+			if scenario == "bad-token" && err.Error() != "stored grant does not authenticate this blocked or ready maintenance reservation" {
+				t.Fatal(err)
+			}
 			after, _ := os.ReadFile(a.keyPath + ".grant-" + r.ID)
-			if string(before) != string(after) {
-				t.Fatal("reservation check rewrote private grant")
+			afterMarker, _ := os.ReadFile(marker)
+			if string(before) != string(after) || string(afterMarker) != string(mb) {
+				t.Fatal("reservation check rewrote private grant or marker")
+			}
+			f, err := os.OpenFile(lock, os.O_RDWR, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+				t.Fatal("reservation check kept the marker lock", err)
 			}
 			if scenario == "grant-boot" && statuses != 0 {
 				t.Fatal("invalid grant contacted admission")
@@ -272,7 +298,7 @@ func TestFailedAcknowledgmentLeavesBlockedReservationForPowerCycle(t *testing.T)
 	}
 	agent := &maintenanceAgent{t: t, marker: marker}
 	a.client = &http.Client{Transport: agent}
-	reservation := acknowledgmentAdmission{admission: a, boot: a.bootID}
+	reservation := acknowledgmentAdmission{admission: a, boot: a.bootID, lockPath: lock, markerPath: marker}
 	missing := errors.New("open /run/fogcast/software/launcher-ready.json: no such file or directory")
 	if _, err := acknowledgePrior(context.Background(), r, reservation, request, func(context.Context) error {
 		return fmt.Errorf("prior release cannot be acknowledged: %w", missing)
@@ -286,7 +312,7 @@ func TestFailedAcknowledgmentLeavesBlockedReservationForPowerCycle(t *testing.T)
 	if state.Pending == nil || *state.Pending != failed || len(state.Receipts) != 0 {
 		t.Fatal("failed acknowledgment changed the journal", state)
 	}
-	got, unlock, err := lockPowerCycleMaintenance(context.Background(), lock, marker, a.keyPath+".grant-"+failed.ID, request, failed)
+	got, unlock, err := lockMaintenanceReservation(context.Background(), lock, marker, a.keyPath+".grant-"+failed.ID, request.Operation, request.Boot, failed.Requester, "blocked")
 	if err != nil || got.State != "blocked" {
 		t.Fatal("power-cycle preparation lost the blocked reservation", got, err)
 	}

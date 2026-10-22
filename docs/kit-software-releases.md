@@ -169,7 +169,9 @@ does not replenish its attempt budget. If the previous bundle's complete service
 group is already running, an operator can explicitly acknowledge that group
 without restarting it. Inspect the failed operation, selection generation, active
 bundle, base identity and boot ID first. On the kit, as root, use a fresh action
-identifier and those exact observed values:
+identifier and those exact observed values. An action identifier names one
+operator act: each repair below refuses one that another repair already
+recorded.
 
 ```sh
 fes-kit-software acknowledge \
@@ -181,14 +183,15 @@ fes-kit-software acknowledge \
 
 This command verifies the bundle, running supervisor and its complete service
 group. It checks that the failed operation still holds this boot's maintenance
-reservation, then requires ten seconds of native idle and launcher readiness
-before it changes anything. Only then does it record the acknowledgment and end
-that reservation with the operation's stored grant; it never resumes the
-reservation. A separate durable acknowledgment retains the original failure and
-operator action identity; selection and generation remain unchanged. It neither
-starts a service nor retries the candidate. Missing services, changed
-identities, another operation or failed readiness leave the journal and the
-reservation as they were, so execution stays blocked and
+reservation and that the stored grant authenticates against the agent's
+persisted copy. It then requires ten seconds of native idle and launcher
+readiness before it changes anything. Only then does it record the
+acknowledgment and end that reservation with the operation's stored grant; it
+never resumes the reservation. A separate durable acknowledgment retains the
+original failure and operator action identity; selection and generation remain
+unchanged. It neither starts a service nor retries the candidate. Missing
+services, changed identities, another operation or failed readiness leave the
+journal and the reservation as they were, so execution stays blocked and
 `prepare-power-cycle` still applies. Inspect status after an uncertain reply;
 repeat only the same action and exact identities to reconcile it.
 
@@ -261,8 +264,10 @@ changes the image. Its result is `factory-selected`.
 The waiting supervisor retries startup at most 30 seconds apart. Its next
 attempt starts the factory software with a fresh boot admission and the usual
 readiness checks. Verify that status reports the factory software as active and
-selected, nothing pending and no storage error. Inspect status after an uncertain reply; repeat only the same
-action and exact identities to reconcile it. From there use the ordinary paths:
+selected, nothing pending and no storage error. Inspect status after a failed or
+uncertain reply. While the operation is still blocked, repeat the same action
+and identities, or use a fresh action identifier, which also works after a
+reboot; only one action ends the operation. From there use the ordinary paths:
 activating another bundle keeps its one automatic recovery, which now returns to
 the factory software. To return to an earlier image, roll back through the
 [appliance update path](appliance-releases.md#update-and-recover), then activate

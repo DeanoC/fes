@@ -175,7 +175,7 @@ func TestPowerCycleMaintenanceProofIsReadOnlyAndRetainsFence(t *testing.T) {
 			if err := os.WriteFile(grantPath, gb, 0600); err != nil {
 				t.Fatal(err)
 			}
-			got, unlock, err := lockPowerCycleMaintenance(context.Background(), lock, markerPath, grantPath, request, op)
+			got, unlock, err := lockMaintenanceReservation(context.Background(), lock, markerPath, grantPath, request.Operation, request.Boot, op.Requester, "blocked")
 			switch scenario {
 			case "matching":
 				if err != nil || got.State != "blocked" {

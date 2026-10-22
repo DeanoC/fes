@@ -132,6 +132,48 @@ func TestFactorySelectionRefusesActionOfAnotherRepair(t *testing.T) {
 	}
 }
 
+// One action identifier names one operator act. A later repair of another
+// operation cannot take an identifier an earlier repair recorded, so a replay
+// keeps reporting the outcome that identifier made.
+func TestRepairActionIdentifiersStayUniqueAcrossRepairs(t *testing.T) {
+	r, request := acknowledgmentFixture(t)
+	first, err := selectFactory(context.Background(), r, request, testImageFactoryID, nothingRunning)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := Request{ID: strings.Repeat("9", 64), Candidate: testCandidateID, Requester: "host1", Generation: first.Generation}
+	if err := Queue(r, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Update(func(s *State) error { s.Pending.Phase = "blocked"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	reused := AcknowledgeRequest{Operation: next.ID, Generation: first.Generation, Selected: testImageFactoryID, Base: request.Base, Boot: request.Boot, Action: request.Action}
+	unreached := func(context.Context) error { t.Fatal("reused action reached readiness"); return nil }
+	a := &fakeReservation{}
+	if _, err := acknowledgePrior(context.Background(), r, a, reused, unreached); !errors.Is(err, ErrConflict) || a.helds != 0 {
+		t.Fatal("acknowledgment took a factory-selection action", err, a)
+	}
+	if _, err := preparePowerCycle(context.Background(), r, reused, func(context.Context, Operation) (powerCycleEvidence, func(), error) {
+		t.Fatal("reused action reached the power-cycle proof")
+		return powerCycleEvidence{}, nil, nil
+	}); !errors.Is(err, ErrConflict) {
+		t.Fatal("power-cycle preparation took a factory-selection action", err)
+	}
+	state, _ := r.Read()
+	cycled := reused
+	cycled.Action = strings.Repeat("8", 64)
+	if err := r.writePowerCycleAudit(powerCycleAudit{Request: cycled, Failed: *state.Pending, Previous: state.Previous, Evidence: fakePowerCycleEvidence(cycled, *state.Pending)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := acknowledgePrior(context.Background(), r, a, cycled, unreached); !errors.Is(err, ErrConflict) || a.helds != 0 {
+		t.Fatal("acknowledgment took a power-cycle action", err, a)
+	}
+	if again, err := selectFactory(context.Background(), r, request, testImageFactoryID, nothingRunning); err != nil || again != first {
+		t.Fatal("factory-selection replay lost its outcome", again, err)
+	}
+}
+
 func TestFactorySelectionRequiresExactBlockedOperation(t *testing.T) {
 	for _, field := range []string{"operation", "generation", "selected", "queued", "applying", "recovering"} {
 		t.Run(field, func(t *testing.T) {
@@ -166,7 +208,7 @@ func TestFactorySelectionRequiresExactBlockedOperation(t *testing.T) {
 }
 
 func TestFactorySelectionFaultsKeepBlockedAndReplayAudit(t *testing.T) {
-	for _, fault := range []string{"idle", "audit", "journal", "cancelled-context"} {
+	for _, fault := range []string{"idle", "audit", "journal", "journal-then-reboot", "cancelled-context"} {
 		t.Run(fault, func(t *testing.T) {
 			r, request := acknowledgmentFixture(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -177,7 +219,7 @@ func TestFactorySelectionFaultsKeepBlockedAndReplayAudit(t *testing.T) {
 					return errors.New("this boot still holds the blocked maintenance reservation")
 				case "audit":
 					return os.Mkdir(filepath.Join(r.root, "factory-selection-"+request.Action+".json"), 0700)
-				case "journal":
+				case "journal", "journal-then-reboot":
 					return os.Mkdir(filepath.Join(r.root, "state.tmp"), 0700)
 				case "cancelled-context":
 					cancel()
@@ -191,7 +233,7 @@ func TestFactorySelectionFaultsKeepBlockedAndReplayAudit(t *testing.T) {
 			if state.Pending == nil || state.Pending.Phase != "blocked" || len(state.Receipts) != 0 || state.Selected != testFactoryID || state.Generation != 0 {
 				t.Fatal(state)
 			}
-			if fault != "journal" {
+			if fault != "journal" && fault != "journal-then-reboot" {
 				return
 			}
 			if _, exists, err := r.readFactorySelectionAudit(request.Action); err != nil || !exists {
@@ -200,13 +242,23 @@ func TestFactorySelectionFaultsKeepBlockedAndReplayAudit(t *testing.T) {
 			if err := os.Remove(filepath.Join(r.root, "state.tmp")); err != nil {
 				t.Fatal(err)
 			}
-			changed := request
-			changed.Action = strings.Repeat("e", 64)
-			if _, err := selectFactory(ctx, r, changed, testImageFactoryID, nothingRunning); !errors.Is(err, ErrConflict) {
-				t.Fatal("conflicting operator action accepted", err)
+			// The same boot repeats the exact action. After a reboot that boot
+			// identity can never be repeated, so a fresh action must still work.
+			retry, other := request, request
+			if fault == "journal-then-reboot" {
+				retry.Boot, retry.Action = "22222222-3333-4444-5555-666666666666", strings.Repeat("e", 64)
+			} else {
+				other.Action = strings.Repeat("e", 64)
 			}
-			if result, err := selectFactory(ctx, r, request, testImageFactoryID, nothingRunning); err != nil || result.Generation != 1 {
-				t.Fatal("audit retry failed", result, err)
+			if result, err := selectFactory(ctx, r, retry, testImageFactoryID, nothingRunning); err != nil || result.Generation != 1 {
+				t.Fatal("retry after the failed journal write was refused", result, err)
+			}
+			if _, err := selectFactory(ctx, r, other, testImageFactoryID, nothingRunning); !errors.Is(err, ErrConflict) {
+				t.Fatal("a second action reported the completed selection", err)
+			}
+			state, _ = r.Read()
+			if state.Pending != nil || state.Selected != testImageFactoryID || state.Generation != 1 || !strings.Contains(state.Receipts[request.Operation].Reason, retry.Action) {
+				t.Fatal(state)
 			}
 		})
 	}

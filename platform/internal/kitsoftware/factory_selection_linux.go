@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DeanoC/FogCast/appliance/software"
 	"golang.org/x/sys/unix"
@@ -65,34 +64,14 @@ func selectFactory(ctx context.Context, repo *FileRepository, req AcknowledgeReq
 	if err != nil {
 		return result, err
 	}
-	// An action identifier names one operator act across every repair.
-	if _, exists, err := repo.readAcknowledgment(req.Action); err != nil {
-		return result, err
-	} else if exists {
-		return result, ErrConflict
-	}
-	if _, exists, err := repo.readPowerCycleAudit(req.Action); err != nil {
-		return result, err
-	} else if exists {
-		return result, ErrConflict
-	}
-	entries, err := repo.entries()
-	if err != nil {
+	if err := repo.repairActionTaken(req.Action, "factory-selection"); err != nil {
 		return result, err
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, "factory-selection-") && strings.HasSuffix(name, ".json") {
-			action := strings.TrimSuffix(strings.TrimPrefix(name, "factory-selection-"), ".json")
-			prior, _, err := repo.readFactorySelectionAudit(action)
-			if err != nil {
-				return result, err
-			}
-			if prior.Request.Operation == req.Operation && prior.Request.Action != req.Action {
-				return result, ErrConflict
-			}
-		}
-	}
+	// An attempt whose journal write never happened leaves only its audit. This
+	// command is the one that runs after a reboot, when that attempt's boot
+	// identity can no longer be repeated, so a fresh action may follow it. The
+	// journal update below still lets only one action end the operation, and a
+	// replay must match the receipt that action wrote.
 	audit, exists, err := repo.readFactorySelectionAudit(req.Action)
 	if err != nil {
 		return result, err

@@ -110,7 +110,8 @@ func AcknowledgeRunningPrior(ctx context.Context, req AcknowledgeRequest) (Ackno
 	}
 	// The worker lock is acquired before any reservation read or journal write.
 	// The running group may not be replaced between samples or during acknowledgment.
-	return acknowledgePrior(ctx, repair.repo, acknowledgmentAdmission{admission: admission, boot: req.Boot}, req, func(ctx context.Context) error {
+	reservation := acknowledgmentAdmission{admission: admission, boot: req.Boot, lockPath: maintenanceLockPath, markerPath: maintenanceMarkerPath}
+	return acknowledgePrior(ctx, repair.repo, reservation, req, func(ctx context.Context) error {
 		return stableAcknowledgment(ctx, func(ctx context.Context) error {
 			if err := acknowledgmentMachine(ctx, req); err != nil {
 				return err
@@ -323,13 +324,15 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 // authority. Only the existing durable grant from this exact failed operation
 // may end it. The grant never leaves this process or enters public output.
 type acknowledgmentAdmission struct {
-	admission *UnixAdmission
-	boot      string
+	admission            *UnixAdmission
+	boot                 string
+	lockPath, markerPath string
 }
 
 // Held reads the agent's reservation and never changes it. The stored grant
-// must name this boot's reservation of the failed operation. /end finishes a
-// blocked or ready reservation, and the agent authenticates the grant then.
+// must name this boot's reservation of the failed operation and authenticate
+// against the agent's persisted marker. /end finishes a blocked or ready
+// reservation.
 func (a acknowledgmentAdmission) Held(ctx context.Context, r Request) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -352,6 +355,13 @@ func (a acknowledgmentAdmission) Held(ctx context.Context, r Request) error {
 	if held.State != "blocked" && held.State != "ready" {
 		return fmt.Errorf("failed maintenance reservation is %s, not blocked or ready", held.State)
 	}
+	// The agent checks the grant itself only at /end, after the journal records
+	// the acknowledgment. Authenticate it against the persisted reservation first.
+	_, unlock, err := lockMaintenanceReservation(ctx, a.lockPath, a.markerPath, a.admission.keyPath+".grant-"+r.ID, r.ID, a.boot, r.Requester, "blocked", "ready")
+	if err != nil {
+		return err
+	}
+	unlock()
 	return nil
 }
 func (a acknowledgmentAdmission) Release(ctx context.Context, r Request) error {
