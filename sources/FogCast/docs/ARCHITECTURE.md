@@ -547,9 +547,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
-evidence, including a failed menu and optional `"damage":true`, so physical
-idle can still be confirmed for appliance maintenance. Any other `damage`
-shape is rejected. `underflows` on that object and on a frame completion
+evidence, including a failed menu, so physical idle can still be confirmed
+for appliance maintenance. A `menu_display` field it does not define is
+rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The runtime and this agent must ship in the same image because decoding is
@@ -1175,7 +1175,7 @@ Benchmark recipes and measurement limits are in
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. `nativeInputs.poll` takes those
+and applies each pad's saved profile and the shared hold gate. `nativeInputs.poll` takes those
 axes from `ui/controller.Mapper`. A held D-pad hat owns each shared
 left axis: stick reports on that axis are dropped until the hat returns to
 centre, which restores the stick's latest position. Automatic discovery filters keyboard
@@ -1196,34 +1196,39 @@ is separate from the broader SDL smoke.
 | Software | `gfx.NewSoftware` (`ui/gfx/software.go`) | CGO-free RGBA8 rasterizer with portable Go and an optional ARM NEON alpha-fill kernel (no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Shared remap lives in `ui/inputmap`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
 | menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-The kit display loop records an always-on frame trace (`ui/tenfoot/frame_trace.go`): per tick the poll, `Tick` with that iteration's room Lua async/update/draw time (zero when the room did not step), `Snapshot` and render; per input the command; per menu frame the worker's copy, queue, status and present phases plus the runtime's DDR copy, submit and scanout wait from `menu_frame.timing`. Tick time starts when the loop begins the iteration. Each `SIGUSR1` writes a new JSON Lines file. `scripts/frame-trace-summary.py` reports where displayed frames spend their time and counts failed presents separately. See [frame trace](frame-trace.md).
+The kit display loop records an always-on frame trace (`ui/tenfoot/frame_trace.go`): per tick the poll, `Tick` with that iteration's room Lua async/update/draw time (zero when the room did not step), `Snapshot` and render; per input the command; per menu frame the worker's copy, queue, status and present phases plus the runtime's write-back, submit and scanout wait from `menu_frame.timing`. Tick time starts when the loop begins the iteration. Each `SIGUSR1` writes a new JSON Lines file. `scripts/frame-trace-summary.py` reports where displayed frames spend their time and counts failed presents separately. See [frame trace](frame-trace.md).
 
 `gfx.MenuDisplay` rasters RGBA8888 in
 software and queues only the
 newest complete frame. Its
 local `ui/menudisplay` client reads the runtime's menu generation and fixed
-1280×720 geometry, fills the runtime-created memfd, seals it and waits for
-displayed-sequence completion through protocol 2. The UI receives no DDR
-address or FPGA register access; stale generations and unavailable menu
-firmware reject frames at the runtime. Submission runs off the pad loop.
+1280×720 geometry, maps the generation's grant of both slots once, and per
+frame writes into the slot the runtime names: this frame's damage and the
+previous frame's when that slot holds the frame before, otherwise the whole
+frame, converted to the scanout's BGRX order with the pixel's alpha as X,
+which a session plane blends with. It commits the rectangles it
+wrote and waits for displayed-sequence completion through protocol 2. The UI
+receives no DDR address or FPGA register access; stale generations and
+unavailable menu firmware reject frames at the runtime, and a fault from a
+grant revoked mid-frame fails that frame. Submission runs off the pad loop.
 `fogcast-tenfoot -gfx menu-display` is the client of that socket and
 opts into change-driven presents. An unchanged frame reads menu status once
 a second and is submitted again when the generation changes. Status errors,
 underflow, and present failures back off from 250ms to 5s. An unavailable
 menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
-wait. When the runtime advertises `damage`, a change-driven worker also skips
+wait. A change-driven worker with a damage-capable client also skips
 the per-frame status read for up to a second after a successful present, and
-stages only the row bands that differ from the frame the runtime is showing
-(at most 16 rectangles). If the runtime refuses either shortcut, for example
-a new generation or a stale base, the frame is retried once with fresh status
-and complete pixels; Pause, Resume, rebinding and any failure drop both
+hands the client only the row bands that differ from the frame the runtime is
+showing (at most 16 rectangles). If a shortcut no longer holds, for example
+after a new generation, the frame is retried once with fresh status and
+complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
@@ -1279,7 +1284,11 @@ hold-reset `load_media`.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
-`cmd/fes-update`. Online releases replace
+`cmd/fes-update`. Before uploading, `fes-update` reads the image's
+`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image
+whose menu interfaces the kit's selected software bundle does not accept. A
+bundle built for another base contract cannot go first, so it only reports
+that the image will hold that bundle back. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -2125,10 +2134,13 @@ for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
 Native input admits devices through `ui/controller` and maps them with
-`controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
-(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
-axis until it returns to centre. Logical codes are remapped with a JSON
-profile from `ui/inputmap` (default identity).
+`controller.Mapper`. The mapper identifies a pad by its evdev bus, vendor,
+product, version and name CRC, and reads it through the matching embedded SDL
+GameControllerDB Linux entry. If the DB does not list the pad, it uses the
+Linux gamepad-API codes plus a generic `BTN_TRIGGER`-range layout. Left stick
+and D-pad share `left-x`/`left-y`, and a held D-pad hat or D-pad axis owns
+that axis until it returns to centre. Logical codes are then remapped with the
+profile `tenfoot.json` saves under the pad's GUID (`ui/inputmap`).
 
 See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host.md)
 for setup, controls, exact routes, timeouts and ownership. The existing browser
@@ -2139,7 +2151,12 @@ listener remains loopback-only.
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
 and selected kit launcher as one userspace group. Immutable bundles declare the
 board, architecture, base-system contract, interfaces and executable/asset
-digests. Installation and selection live on verified FESDATA3 independently of
+digests. Their interfaces include `menu.<interface>` versions the runtime admits.
+The base image records the interfaces its sealed menu declares as `requires` in
+`/etc/fes/software-base.json`. Install and activation refuse a bundle that does
+not accept them or fits another base contract. At boot and in recovery the
+supervisor holds such a selection back and runs the image's factory software in
+its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
 
@@ -2477,10 +2494,20 @@ with `keypad:0`.
 
 ### Shared controller ports
 
-The kit input hub forwards physical keyboards on player 0 without reserving a
-gamepad port. Only physical gamepads occupy the two stable controller slots;
-keyboard connection or removal does not shift either controller. Keyboard
-disconnect releases its held keys independently.
+Tenfoot forwards physical keyboards on player 0 without reserving a gamepad
+port. Only physical gamepads occupy the two stable controller slots: the first
+two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
+order, later ones as they are plugged in, each taking the lowest free port) and
+keep them until unplugged, and a later pad that finds both taken never reaches a machine: it
+drives the menu where a pad with a port would, and its Guide button still stops
+a kit-local core. A `-input` node the classifier cannot place also takes a
+port. Keyboard
+connection or removal does not shift either controller. Keyboard disconnect
+releases its held keys independently.
+
+If an HDMI control transition leaves display ownership uncertain, a portless
+pad's B uses the same guarded return-to-play operation as a ported pad. Other
+menu commands stay blocked until display ownership is known.
 
 An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
 `fes.computer` 1.0) attaches the ordinary host session
@@ -2504,7 +2531,7 @@ carry the same event. For example, this presses player 2 Right; changing
 Gamepad codes 100–107 remain Up, Down, Left, Right, A, B, Start, Select.
 Keypad codes 120–129 mean digits 0–9; 130 means `*` and 131 means `#`.
 These are semantic gamepad-button events, independent of a keyboard layout.
-Input profiles can bind spare physical controls to `keypad-0` through
+A kit pad's saved profile can bind its spare buttons to `keypad-0` through
 `keypad-9`, `keypad-star`, and `keypad-hash`. Keypad events require the observed
 keypad interface. For packages advertising `fes.keypad.ports`, gamepad Start
 also asserts keypad `1` (the common one-player game-select key), and Select also
@@ -2514,13 +2541,22 @@ Host snapshots and reconnect replay retain each player's buttons and axes
 separately. Axis directions use an 8000 deadzone and combine with held digital
 directions, so centering a stick cannot release a held D-pad.
 
-On the local socket each player index is its own claim. A final departure event releases that player's claim without closing the shared feed or
-releasing the surviving pad. The departure marker is a gamepad button release
-with code and value zero; it is consumed only on the local route and rejected
-by the host stream. At most two pads contribute.
-The kit keeps Select+Start stop chords separate per controller. When the active
-core has only the legacy single-pad contract, the kit retains the prior merged
-port-0 behavior, including input from a surviving second physical pad. Browser
+On the local socket each player index is its own claim. When a pad is
+unplugged, tenfoot sends the releases for that pad's held buttons and then a
+departure event, which releases that player's claim without closing the shared
+feed or releasing the surviving pad. The departure marker is a gamepad button
+release with code and value zero; it is consumed only on the local route and
+rejected by the host stream. At most two pads contribute.
+The kit keeps Select+Start stop chords separate per controller: tenfoot tracks
+held and sent buttons per pad, and a chord needs both buttons on one pad. If
+the pad that started the one-second hold lets go while the other pad still
+holds its pair, the hold counts from when that other pad completed it. When the
+active core has only the legacy single-pad contract, the kit retains the prior
+merged port-0 behavior, including input from a surviving second physical pad:
+the agent's pad merge keeps each kit pad's holds separately and unions them, so
+one pad's release leaves the other's holds in place. A departure changes
+nothing there, because a keyboard shaped onto player 0 may still hold
+controls. Browser
 and SDL physical-device assignment are unchanged; clients can submit explicit
 players through the shared API without room or renderer changes.
 
@@ -3228,8 +3264,21 @@ The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
 `fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Home/Select first
-requests `POST /api/v1/session/display` with `visible: true`, the captured session ID and
-existing target/package/core-generation headers. The paired listener admits only
+requests `POST /api/v1/session/display` with `visible: true`, the captured
+session ID and existing target/package/core-generation headers. `visible`
+composites the plane over the machine picture, and `focus` says whether the
+launcher or the machine receives input. An omitted focus is the one
+visibility implies: launcher when shown, machine when closed. Requests name
+it only otherwise, so a host and a kit that ship separately still agree on
+opening and closing the room. A null or empty focus is refused, not
+defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
+surround around the picture needs, and a peer that predates focus refuses
+it. A closed plane requires machine focus. Moving focus on a shown plane
+keeps its display generation. The agent's input fence holds delivery during
+each transition, but only a launcher-focus request retires held keys and
+neutralizes the mouse. The fence ends focused when the runtime confirms
+launcher focus. After a refusal it follows the focus that the session's reply
+reports, and after an unconfirmed failure it stays focused. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
 These do not change the library's next-start media selection.

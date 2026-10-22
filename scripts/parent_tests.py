@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run parent regressions with component groups and routine/extended modes.
 
-Without changed paths every group runs. Component-only paths select integration
-groups; parent/shared/unknown inputs retain all groups. Routine callers pass false flags,
+Without changed paths every group runs. Reviewed component and parent paths select
+integration groups; shared/unknown inputs retain all groups. Routine callers pass false flags,
 which omit the full-device video producer/publication classes and the
 real-media container drivers while every lightweight class in the same
 modules still runs. Disabled modes are reported, not silently skipped; media
@@ -105,8 +105,8 @@ def main(argv=None):
     report = {'format': 1, 'video': video, 'media': media,
               'selected': selected_ids, 'omitted': omitted_ids,
               'groups': sorted(groups) if groups is not None else 'all',
-              'selection_reason': ('component integration groups' if groups is not None else
-                                   'full run, parent/shared/unknown inputs or no path list')}
+              'selection_reason': ('reviewed input integration groups' if groups is not None else
+                                   'full run, shared/unknown inputs or no path list')}
     if args.plan_only:
         report['status'] = 'planned'
         print(json.dumps(report, indent=2))

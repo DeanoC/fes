@@ -33,7 +33,7 @@
 //
 // Description:
 //   4K x 32 microcode store for mcl86_eu_core. Single synchronous read port,
-//   inferred as a block ROM on every target. Each word is one microinstruction;
+//   split into four byte-wide block ROMs. Each word is one microinstruction;
 //   the field layout lives in mcl86_eu_core.sv, which decodes it.
 //
 //   The read is REGISTERED, and that one clock of latency is what gives the EU
@@ -48,10 +48,9 @@
 //   through those tools, not by hand.
 //
 // Limitations:
-//   - $readmemh resolves its path against the SIMULATOR's working directory, not
-//     this file's. Testbenches must either run from a directory containing
-//     mcl86_ucode.mem or drop a copy beside the executable (sim/sst/Makefile
-//     does the latter). A missing file loads all-X and the core simply spins.
+//   - $readmemh resolves both control-ROM paths against the working directory.
+//     FES cpu_roms copies mcl86_ucode.mem and emits its four byte lanes
+//     beside the executable/netlist. All four lane images must exist there.
 //   - Synthesis relies on the initial block for ROM contents. That is supported
 //     by Quartus, Vivado and yosys, but it is not a reset value - the array is
 //     never re-initialized after power-up.
@@ -60,54 +59,51 @@
 `default_nettype none
 `timescale 1ns/1ps
 
-module mcl86_ucode
-    (
-        // System Interface
-        input  wire         clk,   // Core clock; read is registered on the rising edge
-        // ROM Read Port
-        input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
-        output logic [31:0] dout,      // Microword, valid one clock after addr
-        output logic  [7:0] dout_sel   // Copy of the operand selects, dout[23:16]
-    );
-
-    //--------------------------------------------------------------------------
-    // ROM Storage
-    //--------------------------------------------------------------------------
-    logic [31:0] mem[0:4095];
-
-    //--------------------------------------------------------------------------
-    // ROM Initialization (Vivado / Others)
-    //--------------------------------------------------------------------------
-    initial begin
-        $readmemh("mcl86_ucode.mem", mem);
+module mcl86_ucode (
+    input wire clk,
+    // One read edge between successive system edges; the board uses +90 deg.
+    input wire clk_rom,
+    input wire reset,
+    // Same next-PC value that the EU captures on this system edge.
+    input wire [11:0] next_addr,
+    output logic [31:0] dout,
+    output logic [15:0] operand_select0, operand_select1,
+    output logic [15:0] add_select0, add_select1
+);
+    logic [31:0] data_half;
+    // Four independent address registers give each 8-bit ROM lane a local
+    // driver. They capture the EU's next PC on the same edge as the real PC;
+    // no additional address/read cycle is introduced.
+    generate for (genvar lane = 0; lane < 4; lane = lane + 1) begin: bytes
+        reg [11:0] read_address;
+        (* keep *) always_ff @(posedge clk) begin : read_address_output
+            if (reset) read_address <= 12'h020;
+            else read_address <= next_addr;
+        end
+        logic [7:0] rom[0:4095];
+        initial begin
+            if (lane == 0) $readmemh("mcl86_ucode_byte0.mem", rom);
+            else if (lane == 1) $readmemh("mcl86_ucode_byte1.mem", rom);
+            else if (lane == 2) $readmemh("mcl86_ucode_byte2.mem", rom);
+            else $readmemh("mcl86_ucode_byte3.mem", rom);
+        end
+        always_ff @(posedge clk_rom) begin : read_mem
+            data_half[lane*8 +: 8] <= rom[read_address];
+        end
+    end endgenerate
+    always_ff @(posedge clk) begin : read_data_output
+        dout <= data_half;
     end
-
-    //--------------------------------------------------------------------------
-    // ROM Read Port
-    //--------------------------------------------------------------------------
-    // Registered read - the EU's 2-word sequencer lead depends on this latency.
-    always_ff @(posedge clk) begin : read_mem
-        dout <= mem[addr];
+    // Decode the same immutable microword before the system output registers.
+    // Separate kept processes preserve local controls for ADD and logic uses.
+    wire [31:0] select_half = {(16'h1 << data_half[23:20]),
+                             (16'h1 << data_half[19:16])};
+    (* keep *) always_ff @(posedge clk) begin : read_select_output
+        {operand_select0, operand_select1} <= select_half;
     end
-
-    //--------------------------------------------------------------------------
-    // Operand Select Copy
-    //--------------------------------------------------------------------------
-    // The operand select fields drive both 16-bit operand multiplexer trees,
-    // more than ninety loads per bit, at the start of the core clock's
-    // critical path. A second, narrow copy of the ROM serves only those trees
-    // so the main ROM outputs keep a small fanout. Same contents, address and
-    // registered read, so dout_sel always equals dout[23:16].
-    logic [31:0] mem_sel[0:4095];
-
-    initial begin
-        $readmemh("mcl86_ucode.mem", mem_sel);
+    (* keep *) always_ff @(posedge clk) begin : read_add_select_output
+        {add_select0, add_select1} <= select_half;
     end
-
-    always_ff @(posedge clk) begin : read_mem_sel
-        dout_sel <= mem_sel[addr][23:16];
-    end
-
 endmodule
 
 `default_nettype wire

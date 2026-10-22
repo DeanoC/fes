@@ -349,7 +349,9 @@ module mcl86_biu_max
     assign pfq_depth = IS8086 ? 4'd6 : 4'd4;
     assign pfq_used  = pfq_addr_in[3:0] - pfq_addr_out[3:0];
     assign pfq_full  = (pfq_used >= pfq_depth) ? 1'b1 : 1'b0;
-    assign pfq_empty = (pfq_used == 4'd0)      ? 1'b1 : 1'b0;
+    // The four-bit difference is zero exactly when its pointers match.
+    // Keep that test off the subtractor feeding the other queue flags.
+    assign pfq_empty = (pfq_addr_in[3:0] == pfq_addr_out[3:0]);
 
     // Whether the NEXT prefetch may be issued as one wide cycle instead of two
     // byte cycles, and where the data comes back on.

@@ -23,10 +23,12 @@ MENU_TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
 CONTRACT = 'cores/fes-common/generated/fes_application.vh'
 SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_SOURCES + (
     'cores/fes-common/rtl/fes_application_gp.v', 'cores/fes-menu/rtl/fes_menu_control.v',
+    'cores/fes-menu/rtl/fes_menu_blit_control.v',
     'cores/fes-menu/rtl/fes_menu_endpoint.v', 'cores/fes-menu/rtl/menu_top.v')
 INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in (
     menu.RECIPE, 'cores/fes-menu/rtl/top.v')) + (RECIPE, menu.RECIPE,
-    'scripts/core_package.py', 'scripts/export_core_package.py', 'scripts/pnr_recipe.py', *SOURCES)))
+    'scripts/core_package.py', 'scripts/export_core_package.py', 'scripts/pnr_recipe.py',
+    'cores/fes-common/generated/fes_display_plane.vh', *SOURCES)))
 OUTPUTS = (*menu.OUTPUTS, 'manifest.toml', 'qor-ranking.json')
 PNR = pnr_recipe.recipe_for('fes.menu')
 PLACER_SEEDS = tuple(PNR['seeds'])
@@ -80,7 +82,7 @@ def create_manifest(root, repository, revision, record):
         'payload':{'file':'core.rbf','size':payload.stat().st_size,'sha256':board._sha256(payload)},
         'abi':{'id':'fes.application','major':1,'minor':0},
         'interfaces':[{'id':name,'major':1,'minor':0,'required':True} for name in (
-            'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display')],
+            'fes.video.fixed-720p60','fes.memory.hps-ddr','fes.video.menu-display','fes.video.menu-blitter')],
         'build':{'id':build_identity(record),'repository':repository,'revision':revision,
             'recipe_sha256':fields['recipe_sha256'],
             'toolchain':'; '.join(f'{name} {identity}' for name,identity in sorted(fields['tools'].items()))}})

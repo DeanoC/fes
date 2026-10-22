@@ -272,24 +272,30 @@ void Server::HandleConnection(int descriptor)
  else if(ExtraBytes(descriptor))response=controller_.InvalidRequest("unexpected bytes after request newline");
  else {
   Request request;error=ParseRequest(incoming.line,&request);
+  if(error.ok()&&request.operation==Operation::menu_frame_grant) {
+   int window=-1;response=controller_.GrantMenuWindow(request,&window);
+   (void)SendFrame(descriptor,response,window,Deadline());
+   if(window>=0)(void)close(window);
+   return;
+  }
   if(error.ok()&&request.operation==Operation::menu_frame_begin) {
    std::unique_ptr<MenuFrame> frame;const auto preparation_deadline=Deadline();
    response=controller_.BeginMenuFrame(request,&frame);
    if(frame) {
-    error=SendFrame(descriptor,response,frame->fd(),preparation_deadline);if(!error.ok())return;
+    // The client draws into the slot until it commits on this connection.
+    // Lifecycle operations wait for the preparation, then revoke the window.
+    error=SendFrame(descriptor,response,-1,preparation_deadline);if(!error.ok())return;
     ReceivedFrame commit;error=ReceiveFrame(descriptor,preparation_deadline,&commit);
     Request committed;
     if(!error.ok())response=controller_.InvalidRequest(error.message);
-    else if(commit.fds.size()!=1)response=controller_.InvalidRequest("menu commit requires exactly one descriptor");
+    else if(!commit.fds.empty())response=controller_.InvalidRequest("unexpected commit descriptors");
     else if(ExtraBytes(descriptor))response=controller_.InvalidRequest("unexpected bytes after commit newline");
     else {
      error=ParseRequest(commit.line,&committed);
      if(!error.ok()||committed.operation!=Operation::menu_frame_commit)
       response=controller_.InvalidRequest("expected same-connection menu_frame_commit");
-     else response=controller_.CommitMenuFrame(committed,*frame,commit.fds[0]);
+     else response=controller_.CommitMenuFrame(committed,*frame);
     }
-    // Keep the immutable frame and all received descriptors through completion
-    // or verified containment, including a disconnected response recipient.
     (void)SendFrame(descriptor,response,-1,Deadline());return;
    }
   } else response=controller_.Handle(incoming.line);

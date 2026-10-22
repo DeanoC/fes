@@ -1,99 +1,101 @@
 # FES ZX Spectrum
 
-This directory is the described core `fes.spectrum`: a ZX Spectrum 48K on the
+This directory builds four described cores from one shell, each on the
 `fes.computer` 1.0 mailbox
-([home-computer I/O](../../../mister-packages/docs/computer-io.md)). It follows
-the Apple II pathfinder: late-bound firmware, removable media while the
-machine runs, and independently linked expansion cards. The cross-component
-contract is the
+([home-computer I/O](../../../mister-packages/docs/computer-io.md)):
+
+| Core | Model | Firmware | RAM | Frame | Contention | Sound |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fes.spectrum` | 48K | `spectrum-firmware`, 16 KiB | 48 KiB | 224 x 312 = 69,888 T, 3.5 MHz | ULA, from T 14,335 | beeper |
+| `fes.spectrum128` | 128K / +2 | `spectrum128-firmware`, 32 KiB (editor, then 48 BASIC) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | ULA, from T 14,361, odd banks | beeper, AY |
+| `fes.spectrum-plus3` | +2A / +3 (no disk drive) | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
+| `fes.pentagon` | Pentagon 128 | `pentagon-firmware`, 32 KiB (128, then 48 BASIC) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
+
+It follows the Apple II pathfinder: late-bound firmware, removable media while
+the machine runs, and independently linked expansion cards. The original
+cross-component contract is the
 [ZX Spectrum pathfinder design](../../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md).
+No Sinclair or Amstrad ROM is in this repository or a package; FogCast links
+the selected firmware image into the blank ROM lanes at download time.
 
 ## Machine
 
-- The first-party clean-room `fes_z80_nmos` runs at a 3.5 MHz average:
-  875/13056 of the 52.224 MHz system clock. This is the default build and
-  uses the original Zilog NMOS behavior. There is no ULA contention and no
-  floating bus.
-- Compile-time `FAST_CPU=1` selects the documented-only transaction engine
-  in a 56 MHz development shell. Undefined encodings trap; this variant has
-  no original CPU pin timing or undocumented instruction compatibility
-  guarantee. CPU progress is independent of the 3.5 MHz peripheral tick.
-  Tape, frame interrupt, flash and beeper decay keep that tick through an
-  exact divide by 16. A 56 MHz CPU clock is 16 times the nominal 48K CPU
-  clock; elapsed instruction speedup depends on instructions and bus stalls.
-- 48 KiB RAM at `$4000–$FFFF`. The 16 KiB ROM window `$0000–$3FFF` is sixteen
-  blank 1024×10 M10K lanes (column 5, rows 32–47). FogCast links a selected
-  16,384-byte `spectrum-firmware` image at download time. No Sinclair ROM is
-  in this repository or the package.
-  Each M10K uses a registered read address on the system clock. The bank
-  selector is registered alongside that read, and the final data register
-  preserves the same two-stage latency as the behavioral simulation.
-  A binary indexed lane vector selects the registered bank. This avoids
-  a decoded sixteen-way case mux while retaining the same read pipeline. Legacy
-  10-bit M10K write enable is active low; tying A1EN high protects linked ROM
-  contents. The sealed map requires registered read mode and retains the
-  existing lane names, BELs and INIT bit layout.
-  Before sealing, the synthesis gate checks every lane has the shared live
-  read clock, enabled reads, disabled writes and inactive clears, with no
-  secondary-clock or byte-enable connections.
-- Port `$FE` (A0 low, the original incomplete decode): border, MIC/beeper,
-  keyboard half-rows and EAR. Port `$1F` is a built-in Kempston joystick fed
-  by controller port 0. Other unclaimed I/O reads `$FF`.
-- Maskable interrupt is low for 32 T-states every 69,888 T-states. That frame
-  is not the 60 Hz HDMI raster.
+- The CPU is the first-party clean-room `fes_z80_nmos` with the original
+  Zilog NMOS behavior, including undocumented instructions and flags.
+- `rtl/spectrum_ula.sv` owns the T-state clock. It derives each model's CPU
+  rate from the 52.224 MHz system clock by a rational enable (875/13056 for
+  3.5 MHz, 11823/174080 for 3.5469 MHz) and stretches the CPU clock for
+  contended accesses exactly as the ULA holds its clock high.
+- `rtl/spectrum_contention.sv` decides which T states may be stretched, from
+  the CPU's presented bus cycle. A Sinclair ULA checks T1 of every memory or
+  fetch cycle and every internal T state that keeps a contended address on
+  the bus; I/O cycles check T1, T2 and, with A0 high, T3/T4, and a ULA port
+  (A0 low) is checked at T2. The +2A/+3 gate array contends only memory T1.
+  A stretch is decided where the CPU first asks and lasts its whole length.
+- Each model's frame length, interrupt length and first paper pixel follow
+  Fuse's libspectrum timing table. The interrupt is accepted at instruction
+  boundaries 0 to 31 (35 on the 128K and Pentagon), as on the hardware.
+- Memory is ROM pages plus 16 KiB RAM banks, each its own memory; only the
+  screen banks (5 and 7) carry the ULA's fetch port. The 128K and Pentagon page
+  through `$7FFD` (A15 and A1 low): bits 2:0 bank at `$C000`, bit 3 shadow
+  screen in bank 7, bit 4 ROM, bit 5 lock. The +2A/+3 decodes `$7FFD` with
+  A15:A14 = 01 and `$1FFD` with A15:A12 = 0001; `$1FFD` bit 0 selects the
+  all-RAM configurations {0,1,2,3}, {4,5,6,7}, {4,5,6,3} and {4,7,6,3}, and
+  bit 2 is the high ROM bit. The 128K/+2 also latches the data of any read
+  that decodes as `$7FFD`, as the hardware does.
+- Port `$FE` (A0 low): border, MIC, beeper, keyboard half-rows and EAR. With
+  no tape signal bit 6 reads back OUT bit 4 (Issue 3 and 128K), or 0 on the
+  +2A/+3. Port `$1F` (A7:A5 low) is a built-in Kempston joystick. The AY is
+  `$FFFD` (select and read) and `$BFFD` (write) with A1 low.
+- Reading an unattached port returns the ULA's floating bus: the bitmap and
+  attribute bytes it is fetching, or `$FF` between fetches. The +2A/+3 shows
+  it only on ports 1 + 4n up to `$1000`, one T state later and with bit 0
+  set; the Pentagon only on port `$FF`, as Fuse models them.
 - USB HID key state is mapped by the core. Rows must be quiet for about 1 ms
   before they take effect. Shift is CAPS SHIFT, Control is SYMBOL SHIFT.
+  Controller port 0 is the Kempston joystick (A or B fire), with Start as
+  ENTER and Select as SPACE; port 1 is Sinclair joystick 1 (keys 6-0).
+
+The timing model was checked against Fuse 1.6.0. All 1,356 Fuse Z80 core
+tests produce the same contention points per T state through the NMOS core,
+which also fixed the LDIR/LDDR repeat address (DE, as on the chip). Booting
+each model's ROM matches Fuse's instruction trace T state for T state over
+100 frames, and border, bitmap, attribute, floating-bus and shadow-screen
+races sweep the ULA's fetch points pixel-exactly against Fuse on all four
+models. These are simulation comparisons, not hardware measurements.
 
 ## Video and audio
 
-`spectrum_video.v` scans the bitmap and attributes from RAM port B in the
-74.25 MHz HDMI domain. The 256×192 picture is scaled 4× by 3× to 1024×576 and
-centred in 1280×720p60; the rest of the active raster is the border. The
-beeper is mixed with the saturated sum of every socket's PCM into the shared
-48 kHz I2S path. A card can play without asserting DRIVE. Normal mode pairs
-52.224 MHz system and 12.288 MHz audio outputs in one fractional PLL. Fast
-mode uses one 56 MHz system PLL and keeps its entire local audio serializer
-in that domain. Both modes have a second, independent 74.25 MHz video PLL.
+The ULA renders each 8-pixel chunk in the system domain, so border and
+attribute changes land on the exact chunk the hardware shows. A chunk shows
+memory written by a cycle whose T1 began by its first T state, and the border
+written by an OUT whose T2 began by its last. The visible picture is 320x240:
+32 border pixels left and right, 24 lines above and below the 256x192 paper.
+`rtl/spectrum_video.v` keeps three frame banks of 16-bit chunks (bitmap byte,
+ink and paper, FLASH already applied); HDMI shows the newest complete bank
+from its next frame start, so the 50 Hz picture repeats whole frames in
+720p60 and never tears. The picture is scaled 3x3 to 960x720
+and centred, and the shared session-display plane (`fes_display_plane`,
+backed by HPS DDR) blends launcher frames over it.
 
-`spectrum_fast_audio.sv` toggles the MCLK output pin on 384/875 rational
-enables. Each rising MCLK event advances a serializer quarter; 256 quarters
-produce one stereo frame. The average rates are exactly 12.288 MHz MCLK,
-3.072 MHz BCLK and 48 kHz samples relative to the nominal 56 MHz clock. MCLK
-is a pin waveform, never a fabric clock or a claimed 12.288 MHz timing domain.
-Its high/low intervals are 2 or 3 system ticks (35.714/53.571 ns); BCLK
-high/low intervals are 9 or 10 ticks (160.714/178.571 ns). LRCLK halves are
-583 or 584 ticks. This quantization is specific to the development variant.
-
-Both variants use the existing external-MCLK ADV7513 configuration. The
-[ADV7513 hardware guide](https://www.analog.com/media/en/technical-documentation/user-guides/adv7513_hardware_user_guide.pdf)
-permits a 40–60% SCLK duty cycle for the selected 16-bit PCM with N=6144;
-the fast schedule stays within 47.4–52.6%. That specification and host
-serialization tests do not prove physical audio acceptance. Fast mode needs
-an exact-artifact hardware diagnostic for MCLK pulse timing, automatic CTS
-stability, sample rate, FIFO behavior and output audio before it can inherit
-any production acceptance.
+The beeper level is OUT bit 4 plus MIC low or an EAR input, filtered as a
+coupled speaker. The 128K-class AY-3-8912 (`zonx_ay` in AY mode) runs at half
+the CPU clock and is DC-blocked. Socket PCM is summed with saturation. Audio
+leaves through the shared 48 kHz I2S path on the paired 12.288 MHz PLL.
 
 ## Edge sockets
 
 Sockets 1–4 share one request word (`rtl/spectrum_bus.vh`). Each socket pins
 32 request and 28 response flip-flops in the same column-24 bands the Apple II
 shell uses, so a frozen shell routes both horizontal clock segments into every
-socket row. The Go linker layout is `fes.spectrum-bus.sockets/1`.
-
-`spectrum_fast_bus.sv` holds each CPU transaction across the request register,
-card action and response register. Phase 4 samples external readiness and
-read data together into a capture register; WAIT extends this phase with
-stable address, data and controls. Phase 5 delivers the captured byte to the
-CPU, then one inactive clock separates transactions. WAIT asserted after the
-phase-4 acceptance cannot retract that accepted transaction or change its
-captured byte. STROBE remains one launch event, including during WAIT.
-Internal RAM and ULA writes commit once at phase-5 CPU delivery. The 32/28-bit
-socket ABI, ROM map, slot placement and expansion response priority are the
-same in both builds; an expansion receives the selected system clock.
+socket row. The Go linker layout is `fes.spectrum-bus.sockets/1`. WAIT delays
+CPU completion and STROBE is one launch event per access; an expansion
+receives the system clock.
 
 `expansions/probe.v` is the open probe card (module `cart`). Socket N owns
 ports `$E0+(N-1)*4`: id `$F5`, a scratch register, an access counter and the
-socket index. The machine simulation links it into sockets 1 and 3.
+socket index, decoded on the low byte. On 128K-class models a port with A15
+and A1 low is also `$7FFD`, so the diagnostic addresses the probe as `$80E0`.
 
 ## Cassette
 
@@ -109,121 +111,75 @@ A trailing partial block is not played. MIC writes are not returned to the host.
 ## Simulation
 
 ```sh
-make sim-fes-spectrum
-make sim-fes-spectrum-machine
+make sim-fes-spectrum              # every model's machine, video, board mailbox, tape
+make sim-fes-spectrum-machine      # diagnostic firmware on all four models, frame-bank video
 make sim-fes-spectrum-board
 make sim-fes-spectrum-tape
-make sim-fes-spectrum-turbo
-python3 scripts/sim_fes_spectrum_turbo.py --cpu fast
+make sim-fes-spectrum-contention   # downloads the pinned Fuse Z80 tests
 make sim-fes-spectrum-rom ROM_MEM_SIM=/path/to/yosys/share/yosys/intel_alm/common/mem_sim.v
 ```
 
-The optional ROM primitive regression undefines Verilator's automatic
-`VERILATOR` macro to exercise the production branch against the selected
-Yosys memory model. It compares three nonzero images with the two-stage
-reference over every address, forward and backward sweeps, bank transitions
-and 65,536 changing addresses per image. This detects bank misalignment,
-extra or missing read stages and accidental writes. Its source/model digests
-and result are under `build/sim/fes-spectrum-rom/`; it is a host simulation,
-not physical memory acceptance. Ordinary machine simulations use the
-behavioral branch and cannot validate primitive wiring.
-
-The machine simulation boots the open diagnostic, checks the keyboard matrix,
-Kempston port, probe id and scratch register, the 2168 T pilot, a red border
-and a black ink pixel. The board simulation drives `top.v` through the
-mailbox: identity capability bit 5, tape limits 1..65536, a 3-byte commit and
-HID usage `A` landing on the Spectrum A key. The cassette regression decodes
+The machine simulation runs the open diagnostic firmware
+(`diagnostic/firmware.py`) on each model: paging through `$7FFD`, AY register
+read-back, the keyboard matrix, Kempston port, probe id and scratch register,
+the 2168 T pilot, a red border and a black ink pixel. It also checks the
+frame T state at which a contended timing loop finishes, against the value
+Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
+attribute swaps ink and paper every 16 frames. The video simulation
+streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
+is one whole source frame at the 3x3 geometry. The board simulation drives
+`top.v` through the mailbox: identity capability bits 5, 12 and 13, tape
+limits 1..65536, a 3-byte commit, HID usage `A` landing on the Spectrum A key
+and controller port 1 pressing Sinclair keys. The cassette regression decodes
 every EAR pulse for flags `$00`, `$7F`, `$80` and `$FF`, mixed adjacent bytes,
-consecutive blocks, partial tails and live eject/replacement. These are host
-simulations, not an RBF, timing or kit result.
+consecutive blocks, partial tails and live eject/replacement.
 
-The turbo regression runs the open diagnostic machine and board mailbox in
-both modes. Its registered expansion fixture checks a write held by WAIT,
-stable controls, exactly one card and RAM write, ROMCS data, an NMI edge
-pending through WAIT, HALT wake-up, 69,888 peripheral ticks per frame and a
-32-tick interrupt pulse. A separate bridge regression changes readiness and
-data after acceptance, verifies the delivered byte stays stable, and checks
-a second read returns fresh data. It measures three manually encoded workloads of
-128 loop iterations between RAM marker writes. The reported intervals include
-loop setup, result stores and markers; they are not isolated instruction CPI.
-
-| Workload | NMOS system clocks / time | Fast system clocks / time | Elapsed speedup |
-| --- | --- | --- | --- |
-| Register arithmetic and branch | 48,583 / 930.28 µs | 3,948 / 70.50 µs | 13.20× |
-| RAM write, increment, read and branch | 73,353 / 1404.58 µs | 7,014 / 125.25 µs | 11.21× |
-| Expansion OUT, IN, arithmetic and branch | 78,977 / 1512.27 µs | 7,002 / 125.04 µs | 12.09× |
-
-These host measurements assume 52.224 and 56 MHz system clocks. The runner
-writes its counters, source hashes, tool version and derived times to
-`build/sim/fes-spectrum-turbo/summary.json`. A separate pin-level audio test
-checks changing stereo words, I2S delay/padding, hold and reset recovery. Each
-35,000 system clocks must contain 7,680 MCLK cycles, 1,920 BCLK cycles and
-30 stereo frames, with the high/low intervals listed above. The full selected
-shell must pass
-placement and routing at its clocks before those clocks are realizable on the
-FPGA. No hardware acceptance is implied by these measurements.
+`sim/run_tb.cpp` is a development runner for a model's machine. It loads a
+ROM file and a machine state converted from a `.sna` or `.z80` snapshot by
+`sim/spectrum_state.py`, presses keys by frame, writes captured frames as PNG
+and palette-index files and can print an instruction trace with frame T
+states. These are host simulations, not an RBF, timing or kit result.
 
 ## Build variants
 
 ```sh
-make build-fes-spectrum
-python3 scripts/build_fes_spectrum_oss.py --cpu fast
+make build-fes-spectrum            # 48K
+make build-fes-spectrum128
+make build-fes-spectrum-plus3
+make build-fes-pentagon
+python3 scripts/build_fes_spectrum_oss.py --model 128 --synth-only
 ```
 
-The producer defaults to `--cpu nmos` and writes `build/fes-spectrum-oss`.
-`--cpu fast` writes `build/fes-spectrum-fast-oss` and labels the package as a
-documented-only development build. CPU selection, system clock, PLL count and the fast audio rational schedule
-are bound into its build identity. Both packages retain `fes.spectrum`, version
-0.2.0, `fes.computer` 1.0, the same linked `spectrum-firmware` resource and the
-same media/expansion contracts. The seal gates every actual clock domain:
-52.224/74.25/12.288 MHz for normal mode, and 56/74.25 MHz for fast mode.
-Fast audio timing belongs to the 56 MHz domain; its pin rates are measured by
-the audio regression. The producer cannot publish a below-target route.
-It checks every pinned socket boundary and admits compiler-inserted
+`scripts/build_fes_spectrum_oss.py --model {48,128,plus3,pentagon}` selects
+the model by the `SPECTRUM_MODEL_*` define. The model, its firmware id, size
+and lanes, RAM banks, CPU clock and frame length are bound into its build
+identity, and each core has its own FES recipe row. Every model seals only
+after the 52.224, 74.25 and 12.288 MHz domains pass. Synthesis must keep the
+exact block counts per model (firmware lanes, three frame banks, the plane
+FIFO and the CPU-only RAM banks as M10K; the screen banks and the tape image
+as TDP blocks: 110/80 for the 48K, 190/96 for the 128K and Pentagon, 222/96
+for the +2A/+3), exactly three
+unsigned display-plane DSP products and the read-only plane DDR port. The
+producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with a buffer
 input dedicated to that half (C/D, E or F) and a dedicated connection to the
 boundary flip-flop.
-Clock-coverage outputs remain unused; unrelated cells inside the sockets
-are rejected.
 
-Both variants sealed from `792b24805` on 2026-10-03 with these reported Fmax
-values. The configured system clocks remain 52.224 MHz and 56 MHz respectively.
+The 2026-10-22 host seals of all four packages, with their package
+identities, clock results and resources, are in
+[the seal record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
 
-| Mode | Sealed package ID | System / pixel / audio Fmax, MHz |
-| --- | --- | --- |
-| Native NMOS | `8de30934b534a22d5c1a3ee003c019d2348dd32367cbed1e2222c43e50494cd4` | 53.048 / 84.911 / 160.746 |
-| Documented fast | `632ef162039ae3fa025249b27d16713ef45497707673eeb169e7ea0d3bb015a4` | 56.796 / 86.896 / system domain |
-
-Each package passed a separate leased, volatile development load on the
-designated kit with an original open 16 KiB stripe/beeper ROM. The admitted
-package, BUILD_ID and linked ROM identities matched. Captures showed the
-expected stripes and red border, with the native tone near 16.43 Hz and fast
-tone at 227.76 Hz. Both captures had stable audio without clipping, Stop left
-the final second exactly zero, and each lease was released. These are
-exact-package development diagnostics; MCLK pulse timing, jitter and automatic
-CTS behavior were not instrumented. They do not establish assembled-image or
-general software compatibility. Genuine NMOS pin captures remain a separate
-CPU qualification requirement.
-
-[nextpnr PR 115](https://github.com/DeanoC/nextpnr/pull/115) closes the legacy
-router plateau qualification in issue 114. Both native Spectrum fixtures
-complete twice with matching final RBF hashes after the `53e1ad42` fix is
-backported onto `0259c6dc`. The retained fixture passes all three clock gates;
-the reconstructed fixture routes legally but still misses the system target.
-These are compiler replay results, not new sealed packages or kit diagnostics.
-The historical fixtures used `CFG_ASYNC_READ=1` ROM lanes rejected by the
-maintained packer; the current producer uses registered ROM reads. The compatible
-backport remains a local qualification commit, and the producer retains its
-qualified `0259c6dc` pin. [FES issue 603](https://github.com/DeanoC/fes/issues/603)
-tracks bounded-search timeout evidence and qualification of a maintained
-compiler pin; the current pin still produces a fully gated sealed package.
+Firmware lanes 0-15 are column 5 rows 32-47, 16-23 rows 48-55, 24-31 rows
+73-80 and 32-63 column 14 rows 32-63. Each is a blank 1024x10 M10K with a
+registered read address; the lane selector is registered alongside it and the
+output register is stage two. A define, not a generate block, selects the
+lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-ULA contention, a floating bus, 128K paging, AY sound, Interface 1 / DivMMC,
-and tape write-back. The previous TV80 shell is recorded in
-`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit ROM link of
-the 48K BASIC ROM is recorded in
-`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
-checks, and tape checks in those historical records do not constitute hardware
-acceptance for the native CPU variants.
+The +3 disk drive, TR-DOS, `.tzx` tapes and tape write-back, snapshot
+loading through the mailbox, ULAplus, Timex video modes and the IR-register
+snow effect. The previous TV80 shell is recorded in
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
+the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
+records and the 2026-10-03 native-CPU diagnostics do not accept these models.

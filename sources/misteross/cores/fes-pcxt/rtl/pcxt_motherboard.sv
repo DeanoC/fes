@@ -48,7 +48,7 @@ module pcxt_motherboard (
                ISA_SEND=3'd3, ISA_WAIT=3'd4, LOCAL=3'd5, DONE=3'd6;
     reg [2:0] state;
     reg [4:0] phase;
-    reg select_pic, select_pit, select_ppi, select_dma, select_page, select_inta;
+    reg select_pit, select_ppi, select_dma, select_page, select_inta;
     reg source_dma, inta_pending;
     reg [1:0] pit_divider;
     wire dma_valid, dma_ready, dma_done, dma_write, dma_tc, dma_hold;
@@ -78,7 +78,27 @@ module pcxt_motherboard (
     // Setup, eight active clocks, then nine release clocks. Keeping CS and
     // address stable through release lets the imported edge detectors retire
     // writes and read side effects exactly once before completion.
-    wire strobe = local_active && phase >= 1 && phase <= 8;
+    reg strobe_q, pic_selected, pit_selected, ppi_selected;
+    // Predict the next cycle's pins from the request/setup and release edges.
+    // This preserves all eight active and nine release clocks while keeping
+    // the state/phase decoder out of the imported devices' same-cycle logic.
+    always @(posedge clk) begin
+        if (reset) begin
+            strobe_q <= 0;
+            pic_selected <= 0; pit_selected <= 0; ppi_selected <= 0;
+        end else begin
+            strobe_q <= state == LOCAL && phase < 8;
+            if (state == IDLE && request_valid) begin
+                pic_selected <= pic; pit_selected <= pit; ppi_selected <= ppi;
+            end else if (state == LOCAL && phase == 17) begin
+                pic_selected <= 0; pit_selected <= 0; ppi_selected <= 0;
+            end
+        end
+    end
+    wire strobe = strobe_q && !reset;
+    wire pic_cs_n = !(pic_selected && !reset);
+    wire pit_cs_n = !(pit_selected && !reset);
+    wire ppi_cs_n = !(ppi_selected && !reset);
     wire rd_n = !(strobe && !write_cycle && !select_inta);
     wire wr_n = !(strobe && write_cycle && !select_inta);
     wire [7:0] pic_data, pit_data, ppi_data;
@@ -122,7 +142,7 @@ module pcxt_motherboard (
             source_dma<=0; aen<=0; dma_channel<=0; terminal_count<=0;
             state <= IDLE;
             phase <= 0;
-            select_pic <= 0; select_pit <= 0; select_ppi <= 0; select_dma <= 0; select_page <= 0; select_inta <= 0;
+            select_pit <= 0; select_ppi <= 0; select_dma <= 0; select_page <= 0; select_inta <= 0;
             address <= 0; wdata <= 0; kind <= 0;
             write_cycle <= 0; locked <= 0;
             cycle_rdata <= 8'hff; cycle_fault <= 0;
@@ -133,7 +153,7 @@ module pcxt_motherboard (
                 address <= request_address; wdata <= request_wdata;
                 kind <= request_kind; write_cycle <= request_write;
                 locked <= !dma_owner && cycle_lock;
-                select_pic <= pic; select_pit <= pit; select_ppi <= ppi; select_dma <= dma; select_page <= page_select; select_inta <= inta;
+                select_pit <= pit; select_ppi <= ppi; select_dma <= dma; select_page <= page_select; select_inta <= inta;
                 phase <= 0; cycle_rdata <= 8'hff; cycle_fault <= 0;
                 if (rom && request_write) state <= DONE;
                 else if (ram || rom) state <= MEMORY_SEND;
@@ -172,7 +192,7 @@ module pcxt_motherboard (
     end
 
     pcxt_xtio xtio (
-        .clk(clk), .reset(reset), .chip_select_n(!(local_active && select_ppi)),
+        .clk(clk), .reset(reset), .chip_select_n(ppi_cs_n),
         .read_enable_n(rd_n), .write_enable_n(wr_n), .address(address[1:0]),
         .wdata(wdata), .rdata(ppi_data), .switches(switches),
         .parity_error(parity_error), .channel_error(channel_error),
@@ -191,7 +211,7 @@ module pcxt_motherboard (
     /* verilator lint_off PINCONNECTEMPTY */
     KF8259 pic_device (
         .clock(clk), .reset(reset),
-        .chip_select_n(!(local_active && select_pic)),
+        .chip_select_n(pic_cs_n),
         .read_enable_n(rd_n), .write_enable_n(wr_n), .address(address[0]),
         .data_bus_in(wdata), .data_bus_out(pic_data), .data_bus_io(pic_bus_input),
         .cascade_in(3'b0), .cascade_out(), .cascade_io(), .slave_program_n(1'b1),
@@ -202,7 +222,7 @@ module pcxt_motherboard (
     /* verilator lint_on PINCONNECTEMPTY */
     KF8253 pit_device (
         .clock(clk), .reset(reset),
-        .chip_select_n(!(local_active && select_pit)),
+        .chip_select_n(pit_cs_n),
         .read_enable_n(rd_n), .write_enable_n(wr_n), .address(address[1:0]),
         .data_bus_in(wdata), .data_bus_out(pit_data),
         .counter_0_clock(pit_clock), .counter_0_gate(1'b1), .counter_0_out(pit_out[0]),

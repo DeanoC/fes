@@ -41,8 +41,9 @@ suppress Back or the system menu.
 
 SDL gamepads use a **positional** face-button layout (Xbox-style). FogCast
 maps those positions after SDL normalization (`CommandFromButton`,
-`commandFromSDLButton`). `-input-profile identity|swap-ab|/path.json` remaps
-buttons after that step; GUIDE / `CmdSettings` is not remapped.
+`commandFromSDLButton`). Kit evdev pads get the same positions from their SDL
+GameControllerDB entry (`ui/controller`). A kit pad's saved profile remaps
+buttons after that step (`ui/inputmap`); GUIDE / `CmdSettings` is never remapped.
 
 | Logical action | Tenfoot command | Room `on_input` name | Tap / click route exists? |
 | --- | --- | --- | --- |
@@ -64,10 +65,10 @@ Sort so those buttons fire on tap. Back still accepts an optional long-press
 ## Binding table (common pads)
 
 PlayStation names below are the **SDL Western** layout (Cross = bottom =
-South, Circle = right = East). Japanese Circle-confirm pads use
-`-input-profile swap-ab`. Nintendo pads are also positional: South is
-Nintendo B, East is Nintendo A — same `swap-ab` profile if the player wants
-Nintendo A = Confirm.
+South, Circle = right = East). On the kit, a player who confirms with Circle
+can save the `swap-ab` preset for the pad ([kit launcher](kit-launcher.md)).
+Nintendo pads are also positional: South is Nintendo B, East is Nintendo A —
+the same preset makes Nintendo A Confirm.
 
 | Logical action | Xbox-style | PlayStation-style | Generic SDL gamepad | Keyboard | Pointer |
 | --- | --- | --- | --- | --- | --- |
@@ -119,7 +120,7 @@ essential action.
 | Favorite | hold North / Y (library browse only) | Toggle favorite |
 | Filters | hold West / X (library browse only) | Filter overlay |
 | Stop a live session | East / B, or `s`, while now-playing | Session Stop (not a room explore action) |
-| Stop a kit-local core | hold Select + Start (1 s) | Same Stop as the single-press F12 / Guide routes, which are taps |
+| Stop a kit-local core | hold Select + Start (1 s) on one pad | Same Stop as the single-press F12 / Guide routes, which are taps |
 
 System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row:
 Left/Right still chooses the start screen; Confirm goes Home now, so a
@@ -174,4 +175,4 @@ binding drive-by:
 | `ui/tenfoot/room.go` | room delivery; Home vs unconsumed Back |
 | `ui/tenfoot/pointer.go` | compact destination strip hit → Details |
 | `ui/tenfoot/hints.go` | affinity prompt words (A / B / GUIDE / Enter / Esc) |
-| `ui/inputmap` | optional `swap-ab` and JSON remaps |
+| `ui/inputmap` | a kit pad's saved profile: the `swap-ab` preset and single-control bindings |

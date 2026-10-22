@@ -46,6 +46,7 @@ help:
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock" \
+		"  toolchain-fes-pcxt  Provision the PC/XT diagnostic toolchain (PCXT_GPU_ROUTER=HIP or CUDA)" \
 		"  toolchain-fes-menu  Provision the FES menu HIP toolchain (per-core lock)" \
 		"  toolchain-fes-catch  Provision the FES Catch HIP toolchain (per-core lock)" \
 		"  toolchain-fes-pong  Provision the FES Pong HIP toolchain (per-core lock)" \
@@ -83,6 +84,7 @@ help:
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
+		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
 		"  sim-fes-native-socket  Test both native parts through their physical socket wrapper" \
 		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
@@ -130,6 +132,7 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -178,7 +181,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -218,6 +221,11 @@ sim-fes-demo:
 sim-fes-video-parts:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_video_parts.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-display-plane
+sim-fes-display-plane:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_display_plane.py --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-native-video
 sim-fes-native-video:
@@ -348,7 +356,7 @@ sim-fes-zx81-rom:
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
@@ -953,30 +961,40 @@ SPECTRUM_DIAGNOSTIC := build/diagnostics/fes-spectrum
 SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
-	-Wno-BLKSEQ \
+	-Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 	-Icores/fes-spectrum/rtl -Icores/fes-common/generated -Icores/fes-common/rtl
-SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ram.v \
+SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ula.sv \
+	cores/fes-spectrum/rtl/spectrum_contention.sv cores/fes-spectrum/rtl/spectrum_ram.v \
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
 	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
-	$(FES_Z80_NMOS_RTL) cores/fes-common/rtl/z80/fes_z80_fast.sv \
-	cores/fes-spectrum/rtl/spectrum_fast_bus.sv cores/fes-spectrum/rtl/spectrum_fast_audio.sv
+	cores/fes-zx81/expansions/zonx_ay.v $(FES_Z80_NMOS_RTL)
+SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
+	cores/fes-menu/rtl/fes_menu_control.v cores/fes-menu/rtl/fes_menu_video.v \
+	cores/fes-menu/rtl/fes_menu_reader.v cores/fes-common/rtl/fes_hps_ddr.v \
+	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-menu/sim/ddr_model.v
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
+.PHONY: sim-fes-spectrum-contention sim-fes-spectrum-rom
 spectrum-diagnostic:
 	@mkdir -p $(SPECTRUM_DIAGNOSTIC)
 	$(PYTHON) cores/fes-spectrum/diagnostic/firmware.py --output-dir $(SPECTRUM_DIAGNOSTIC)
 
-sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape sim-fes-spectrum-turbo
+sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 
-.PHONY: sim-fes-spectrum-turbo sim-fes-spectrum-rom
 sim-fes-spectrum-rom:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum_rom.py --verilator "$(VERILATOR)" --mem-sim "$(ROM_MEM_SIM)"
 
-sim-fes-spectrum-turbo:
+# Every model's machine with the open diagnostic firmware.
+sim-fes-spectrum-machine:
 	$(require_local_sim)
-	$(PYTHON) scripts/sim_fes_spectrum_turbo.py --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)"
+
+# Fuse's per-instruction contention points; fetches the pinned fixtures.
+sim-fes-spectrum-contention:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --download
 
 sim-fes-spectrum-tape: spectrum-diagnostic
 	$(require_local_sim)
@@ -987,25 +1005,14 @@ sim-fes-spectrum-tape: spectrum-diagnostic
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
 
-sim-fes-spectrum-machine: spectrum-diagnostic
-	$(require_local_sim)
-	@mkdir -p build/sim/fes-spectrum-machine
-	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_sim_top $(SPECTRUM_VERILATOR_FLAGS) \
-		--Mdir "$(CURDIR)/build/sim/fes-spectrum-machine" \
-		-Icores/fes-spectrum/expansions \
-		cores/fes-spectrum/sim/spectrum_sim_top.sv $(SPECTRUM_RTL) \
-		cores/fes-spectrum/expansions/probe.v \
-		"$(CURDIR)/cores/fes-spectrum/sim/machine_tb.cpp"
-	@build/sim/fes-spectrum-machine/Vspectrum_sim_top
-
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-spectrum-board
 	$(VERILATOR) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-board" \
 		cores/fes-spectrum/sim/board_models.v cores/fes-spectrum/rtl/top.v $(SPECTRUM_RTL) \
-		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-common/rtl/fes_audio_i2s.v \
+		$(SPECTRUM_PLANE_RTL) cores/fes-common/rtl/fes_computer_mailbox.v \
+		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
 
@@ -1529,12 +1536,18 @@ build-fes-apple2:
 build-fes-c64:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-.PHONY: build-fes-spectrum build-fes-spectrum-fast
+.PHONY: build-fes-spectrum build-fes-spectrum128 build-fes-spectrum-plus3 build-fes-pentagon
 build-fes-spectrum:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model 48$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-build-fes-spectrum-fast:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --cpu fast$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+build-fes-spectrum128:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model 128$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-spectrum-plus3:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model plus3$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-pentagon:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model pentagon$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sms-diagnostic
 sms-diagnostic:
@@ -2539,3 +2552,14 @@ sim-fes-pcxt:
 synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
+
+# Autonomous board diagnostic; no package export or programming.
+PCXT_GPU_ROUTER ?= HIP
+.PHONY: build-fes-pcxt toolchain-fes-pcxt
+toolchain-fes-pcxt:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-pcxt/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-pcxt") \
+	FES_TOOLCHAIN_GPU_ROUTER="$(PCXT_GPU_ROUTER)" \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+build-fes-pcxt:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)

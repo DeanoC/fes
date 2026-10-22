@@ -39,8 +39,14 @@ digest of these sources that is also the module's `MODULE_VERSION`.
 On start, the runtime loads its release's module with the window from the
 generated `fes.memory.hps-ddr` contract. It keeps an already loaded copy only
 when the version and window match, and otherwise unloads it and loads its own
-(`sources/libmister-runtime/src/native/linux/window_driver.cpp`). Nothing maps
-through the driver yet.
+(`sources/libmister-runtime/src/native/linux/window_driver.cpp`). The OS image's
+factory software carries the same driver, built in its post-build step with the
+same script (`image/scripts/build-fes-window.sh`).
+
+The runtime grants both menu slots per activation and hands the grant to
+tenfoot, which draws each frame straight into the slot scanout is not showing;
+the runtime writes back the regions tenfoot wrote and submits the slot
+([menu presentation](../../../sources/libmister-runtime/docs/menu-display.md)).
 
 ## Kit evidence
 

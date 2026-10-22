@@ -52,7 +52,10 @@ func TestCommandsKeepFabricSeparateFromHostABI(t *testing.T) {
 	if _, err := emitGoPath(path); err == nil {
 		t.Fatal("fabric unexpectedly accepted as a host Go ABI")
 	}
-	if _, err := emitPath(path); err == nil {
-		t.Fatal("fabric unexpectedly accepted as a host C++ ABI")
+	// C++ carries the constants a runtime reads, never ABI identity or capabilities.
+	cpp, err := emitPath(path)
+	if err != nil || !strings.Contains(cpp, "FesVideoPartRequestBits = 0x20u") ||
+		strings.Contains(cpp, "ABIID") || strings.Contains(cpp, "Capability") {
+		t.Fatalf("emit-cpp fabric = %q, %v", cpp, err)
 	}
 }

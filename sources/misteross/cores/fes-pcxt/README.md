@@ -5,10 +5,79 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, BIOS, board top, physical socket map or package producer.
+HID keyboard frontend, disk controller, BIOS, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
-command interface in host simulation. Board pads and clock phases remain unqualified.
+command interface in host simulation. The CGA Direct board diagnostic has no
+accepted timing result: the earlier native signoff was rejected by the
+[Quartus cross-check](https://github.com/DeanoC/fes/issues/840).
+SDRAM pad timing and hardware remain unqualified.
+The existing RAM Tester
+[external timing model](../../docs/architecture.md#sdram-external-timing-model)
+is the starting point for pad qualification. PC/XT's current board shell uses
+fabric capture registers and an inverted forwarded SDRAM clock; its frozen
+timing fixture has no external input-delay constraints. Applying the existing
+model requires this shell's clock-route arrival and matching board/pad bounds,
+not the RAM Tester example's unmeasured flight intervals. The two-stage reset
+release chains also do not by themselves supply asynchronous recovery/removal
+timing or metastability qualification.
+The board synthesis recipe copies `async_reg` intent to registers before Intel
+FF mapping, preserving the metadata on the mapped FFs instead of their polarity
+inverters. This does not add timing exceptions or change reset behavior. The
+[21 October board netlist comparison](../../../../docs/validation/2026-10-21-pcxt-reset-metadata/summary.md)
+finds every variant's mapped netlist unchanged apart from that attribute on
+the four reset-chain and six video-crossing FFs.
+A scoped reset exception would additionally require validation of the complete
+chain, its synchronous consumers and timed interstage paths; the attribute alone
+is not a timing waiver.
+
+### Physical timing inputs
+
+The diagnostic's synthetic IO constraints exercise compiler coverage. They
+cannot serve as the board's acceptance constraints. Prepare the following
+inputs for the selected kit before generating physical budgets:
+
+The operator identified Kit A as MiSTer Pi and Kit B as SuperStation One,
+both using standard MiSTer SDRAM (2026-10-20). Target Kit A first and retain
+separate qualification for Kit B. This identifies the platform family, not
+the fitted memory speed grade or measured board delays. The
+[MiSTer XSDS reference design](https://github.com/MiSTer-devel/Hardware_MiSTer/tree/master/Addons/SDRAM_xsds)
+provides board design files; equivalence to either fitted board still needs
+establishing before deriving board-specific bounds.
+
+| Interface | Required evidence |
+| --- | --- |
+| SDRAM | Addon revision, actual memory part/speed grade, clock/write/read flight-time intervals, any chip-select inversion delay, output loads and uncertainty. Use the current routed forwarded-clock arrival and the actual capture-clock phase. |
+| HDMI video | Board clock/data skew and loads, ADV7513 capture configuration, and the complete clock/data pad models. Bind the budget to the runtime register recipe actually used by the diagnostic. |
+| HPS I²C | HPS peripheral-clock and controller configuration, characterized hard-IP launch/capture bounds, fabric/pad delays, pull-ups and bus capacitance. Constant-zero output data does not qualify the separately controlled output enables or feedback inputs. |
+| Reset | Validated chain topology and intent, timed interstage/consumer paths, reset pulse and PLL lock/relock behavior, and metastability qualification. A structural chain proof does not supply the physical requirements. |
+
+The [ADV7513 Rev. B datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf)
+lists video setup/hold requirements of 1.8/1.3 ns and a programmable clock/data
+relationship. These receiver requirements alone do not include board skew or
+FPGA pad delays. The runtime's
+[`adv7513.hpp`](../../../libmister-runtime/src/native/adv7513.hpp) owns the
+register recipe; a source default is not readback of the selected kit.
+The [Cyclone V HPS I²C signal definition](https://www.intel.com/content/www/us/en/docs/programmable/683126/21-2/i2c-controller-signal-description.html)
+places the open-drain output enables in the HPS peripheral-clock domain.
+Neither the 100 MHz system clock nor the 74.25 MHz pixel clock supplies their
+launch timing.
+
+The RAM Tester budget generator is specific to its EM63B165 -6 reference and
+registered-pad timing boundary. PC/XT retains fabric DQ capture and unregistered
+DQ data/OE paths, so those directions need matching pad bounds before reusing
+its formulas. Recompute the forwarded-clock-dependent budgets after routing
+changes, and check both setup/hold and the chip's pulse-width and turnaround
+requirements. Missing board inputs remain unknown; do not substitute the
+example flight intervals or the 30 pF reference load as measurements.
+
+The [21 October budget preflight](../../../../docs/validation/2026-10-21-pcxt-interface-budget/summary.md)
+shows why this is also a compiler-model gap: independent SDRAM clock pad
+envelopes cannot prove the reference chip's 2 ns high/low pulse requirement
+at 100 MHz, even with ideal upstream clock and board assumptions. Nonzero
+minima pooled across 0/30 pF observations alone still do not close that gap.
+The preflight retains the arithmetic, HPS launch-source gap and dedicated
+mask-output coverage distinction; it supplies no physical SDC or timing waiver.
 
 ## SDRAM storage
 
@@ -43,8 +112,8 @@ Cold reset does not establish a storage-retention guarantee.
 The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
 refresh and the established additional fabric stage after input capture.
 `clk_pin` is the phase-0 controller clock used for the inverted SDRAM clock
-output. The future board supplies captured `dq_rise/dq_fall`, bidirectional
-pads, PLL phases and timing constraints. The diagnostic synthesis retains
+output. The board diagnostic supplies captured `dq_rise/dq_fall`, bidirectional
+pads and PLL phases; their physical setup/hold constraints remain unqualified. The diagnostic synthesis retains
 `altddio_out` as a technology primitive; it does not qualify a mapped pad or
 clock network. This is host-only evidence, with no routed timing or kit load.
 
@@ -57,10 +126,14 @@ boots the 8088 from `FFFF0`, programs CGA/MDA through ISA, verifies complete
 raw frames and repeats a warm boot without reloading firmware. It checks new
 guest success writes on each boot. Both suites run with zero-, one- and two-cycle model DQM delays in the default
 matrix, checking neighbour preservation and boot behavior with delayed masks.
+The memory suite also injects an FPGA driver on the CAS-2 return cycle after a
+legal READ. The model rejects this overlap during NOP and deselection, as well
+as checking OE at READ admission. These are sampled digital
+checks; they do not bound the chip's tLZ/tHZ or the FPGA's enable/disable tails.
 The SDRAM model checks digital command timing at 100 MHz, not analog setup/hold,
 refresh retention or board routing. Other suites retain independent variable-
-latency testbench storage. Full CPU/DMA storage and Direct/Scanlines integration
-into one board shell remains a subsequent qualification step.
+latency testbench storage. The `system` and `system-mda` suites below integrate CPU/DMA storage and
+Direct/Scanlines in the reusable board system.
 
 `python3 scripts/synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 runs the locked Cyclone V diagnostic frontend and `check -assert`, writing
@@ -152,7 +225,11 @@ last complete frame. Guest clocks and CRTC timing are never stretched to 60 Hz.
 Malformed active geometry or an early EOL aborts capture until the next source
 SOF. HOLD aborts partial capture and mutes RGB, preserving complete banks and
 output timing; releasing it may repeat the last complete frame until new capture.
-System and pixel resets must be asserted together and released synchronously
+Capture registers retain write address, data and enable together before the
+framebuffer; the last byte commits before a published frame can be adopted.
+A pixel-clock register separates the framebuffer read mux from subpixel/palette
+conversion; all raster fields receive that same extra cycle. System and pixel
+resets must be asserted together and released synchronously
 in their respective domains. Independent in-flight domain resets are unsupported.
 
 CGA packs two four-bit pixels per byte; MDA losslessly packs its three levels
@@ -160,9 +237,9 @@ as four two-bit pixels per byte. Each profile reserves three 64 KiB banks
 (192 KiB total). `MDA` and `SCANLINES` are elaboration-time selections. A future
 PC/XT shell selects one output profile; the simulation-only two-output machine
 fixture does not demonstrate that two full pipelines fit the FPGA. Fonts remain
-separate card inputs. Physical video sockets, clocks/HDMI pads, a PC/XT board
-producer, timing closure, sealed Direct/Scanlines archives and kit acceptance
-remain integration work. The inline path provides concrete raster output for
+separate card inputs. Physical video sockets, timing closure, sealed Direct/Scanlines archives and kit
+acceptance remain integration work. The autonomous diagnostic below supplies
+board clocks, SDRAM capture/pads and inline HDMI output. The inline path provides concrete raster output for
 that shell; it does not register another core's physical slot layout as PC/XT.
 
 Run `--suite video`, `--suite video-mda` or `--suite video-machine` with
@@ -182,6 +259,199 @@ with `--scanlines` selecting the second effect. Outputs and source/tool receipts
 are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synthesize
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
+
+## Assembled board diagnostic
+
+`rtl/pcxt_machine.sv` owns the real 8088, motherboard and eight registered
+logical slots. `pcxt_display_bus.sv` keeps CGA and MDA in separate ISA cards;
+its diagnostic configuration also puts the DMA loopback probe in slot 1.
+The older display/memory/video fixtures now use this same machine wiring.
+`pcxt_system.sv` connects it to the real SDRAM backend and exactly one selected
+CGA or MDA capture/Direct/Scanlines pipeline. CPU firmware accesses and DMA
+storage share the motherboard byte port; video memory and registers stay on ISA.
+
+`pcxt_boot.sv` copies an original 64 KiB diagnostic image into SDRAM through
+the firmware port. Its ROM reads continuously into a clocked output; the
+completion-to-next-offer gap supplies the read cycle without delaying a valid
+offer. A focused test checks every byte under backpressure and a cold restart.
+Motherboard I/O strobes and PIC/PIT/PPI chip selects are predicted at the
+preceding edge, preserving setup, eight active clocks and nine release clocks.
+An unbounded induction proof checks their original state/phase equations on
+the actual motherboard after reset, with arbitrary bus inputs and later resets.
+`pcxt_system` admits sequential addresses starting at zero,
+counts completed writes and releases the machine only after the final DONE.
+Execution reset is registered in the system domain, so startup decode does not
+feed combinationally through the motherboard reset fanout. Warm reset/HOLD
+requests take effect at that register; cold reset independently resets storage.
+Cold reset restarts initialization/loading; warm reset and HOLD drain storage
+without reinitializing it or reloading firmware. HOLD resets the machine and
+mutes the video, while the raster, complete framebuffer ownership and physical
+refresh continue. The two video domains receive coordinated cold resets.
+
+`firmware/diagnostic.S` is assembled with GNU x86 `as`/`ld` at build time.
+It programs both display cards, checks VRAM mirrors, transfers eight bytes
+from ISA to SDRAM and four distinct bytes back to the same probe, and enables
+PIT1/DMA0 refresh before enabling either display. The cold-start pattern thus
+requires DMA success; warm HOLD may still repeat the previous complete frame
+until new capture, as described above. A RAM success marker is checked by simulation. Each font
+address supplies the original diagnostic glyph byte `81` (two vertical strokes),
+so no IBM ROM/font is bundled. The reusable system retains an explicit firmware
+byte port for a later user-selected loader; no production HPS loader or sealed
+firmware map is claimed.
+
+`rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
+fabric input capture clock, a dedicated +90-degree 100 MHz CPU ROM clock,
+inverted DDR SDRAM clock pin, bidirectional SDRAM
+pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
+PLL lock asserts both domain resets; each domain releases through two registers.
+The retained `altddio_out` is passed to the locked nextpnr native output packer.
+The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
+it connects a constant/undefined unused ROM write clock to the registered read
+clock only when writes are provably disabled. This supplies the native packer
+with a real clock without changing INIT, registered read latency or writable RAM.
+The CPU import splits its unchanged microcode into four byte-wide ROMs, each
+with a local system-edge address register driven by the same next PC and reset
+as the CPU PC. A separate +90-degree PLL output reads the ROMs; the next system
+edge captures the word and decoded operand controls. Read and instruction
+latency are preserved. The shorter 2.5 ns address path and longer 7.5 ns ROM
+output path both require qualification; SDRAM capture remains at +180 degrees.
+
+The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
+operand muxes retain only sources used by ADD words; other operations use the
+full muxes. The adder sum and carry flags are consumed only for ADD, so this
+specialization covers arbitrary guest firmware and register values. A reserved
+jump-source hold is retained automatically if the image uses it. Exhaustive
+table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
+preserved through synthesis, to separate their physical fanout from the full
+logic-operation muxes. The copies capture the same ROM stage on the same edge;
+symbolic read-alignment checks include both copies. DMA arbitration evaluates
+all four circular priority masks in parallel; whole-DMA sequential equivalence
+checks its state and interface against the original indexed priority loop.
+
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
+
+The native map disconnects inputs whose AND product is provably zero from
+compile-time pin constants, preserving the Boolean result while avoiding
+spurious primitive timing arcs through unused status data or selectors.
+Each ISA boundary preserves its one-bit request-reset register separately
+from the payload process, preventing cross-slot reset-flop merging without
+changing request/response latency. Whole-boundary equivalence proves all 80
+original state/interface bits for arbitrary request, response and reset streams.
+
+
+The PIC import uses formally checked parallel
+priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
+with parallel digit borrows. Both imports document the formally checked changes
+in their vendor READMEs. The PIT precomputes both encodings between sampled
+falling count-clock edges; induction checks freshness whenever a candidate is
+consumed. Scalar terminal-count flags are evaluated alongside data and selected
+in parallel with next-count data. Guest-visible count/output updates and bus
+timing are unchanged.
+HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
+power-on diagnostic has no runtime ABI, host session control or audio pins.
+
+```sh
+# From sources/misteross; no shared compiler cache environment for simulations.
+make toolchain-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
+python3 scripts/sim_fes_pcxt.py --suite system
+python3 scripts/sim_fes_pcxt.py --suite system-mda
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
+FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
+# Optional frontend/resource probe; no route:
+make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
+```
+
+The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with per-pin
+nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Without
+`CACHE_ROOT`, the toolchain and build commands both use the repository-local
+`build/toolchain/fes-pcxt` install. Select
+`PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and
+CUDA routes have equal standing. Neither backend's timing pass substitutes for
+the separate Quartus cross-check.
+
+Each invocation retains a separate directory beneath
+`build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
+assembled firmware, microcode, synthesis/netlist/resource counts and a
+`diagnostic.json` source/tool receipt. The normal command attempts one seed-1
+GPU route with a bounded 1800-second timeout and retains failures. Placement
+uses fixed timing weight 2000 and criticality exponent 5, as in the existing
+Coleco socket lane; there is no placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
+synthesis outside the lease. Invoke the producer directly; an outer `gpu-run`
+is rejected. GPU queue waits do not consume the 1800-second route work budget.
+The receipt records the route command, timeout, wall duration, initial visibility
+restrictions and the backend/device identities reported by nextpnr. A completed
+route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
+`diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
+clock-domain pair so remaining failures can be traced without rerouting.
+A route is diagnostic: SDRAM pad setup/hold, retention,
+physical containment, package sealing and hardware acceptance require separate
+qualification. There is no automatic Quartus fallback or kit programming.
+No factory package selection or shared contract changes are made.
+
+The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`
+reports a nextpnr-only setup/hold pass with the old pre-per-pin timer
+(`9128800f`), but **fails the Quartus STA cross-check and is not timing-qualified**.
+It uses 6,280 routed `MISTRAL_COMB` cells, 3,628 FFs,
+333 of 553 M10Ks, two PLLs and no DSPs. Its retained run is
+`build/diagnostic/fes-pcxt/cga/direct/20261018T204544Z-89efeae9/`.
+
+| Domain | Required MHz | Old nextpnr MHz | Old setup WNS ns | Old hold WNS ns |
+| --- | ---: | ---: | ---: | ---: |
+| System | 100 | 100.412 | +0.041 | +0.756 |
+| Pixel | 74.25 | 78.119 | +0.667 | +0.721 |
+| Capture/ROM phase | 100 | 119.190 | +0.805 | +5.940 |
+
+RBF SHA-256: `92277530eeb51924e54ed57e231f34aac7fee0c362086294757c7ed1922820d3`.
+Timing-report SHA-256: `195393ce0ed5591951a48ae8f5b68a555861c9c4c301cd328f5083a0e37ea751`.
+The receipt records clean source inputs and the HIP backend; all input hashes
+match this source revision. The [Quartus 17.0.2 cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615)
+reconstructs the sampled paths at the same sites, pins and routes, at Slow
+1100 mV 100 °C. Its worst sampled system path reaches 93.23 MHz (−0.726 ns)
+with nextpnr launch/setup values. With TimeQuest's own launch/setup cells,
+the sampled pixel and ROM-phase paths reach 73.30 and 83.26 MHz respectively.
+These are sampled-path upper bounds, not whole-design Quartus signoff; clock
+uncertainty is also excluded. The old timer undercharges physical LUT pins
+and M10K clock-to-output. Timing closure remains open in [#840](https://github.com/DeanoC/fes/issues/840).
+The next check reroutes with per-pin nextpnr `552ba246` and requires a Quartus
+pass at unchanged clocks. Other display profiles, SDRAM pad timing/retention,
+package sealing and hardware acceptance remain open.
+
+Both system suites run in the default simulation family. They check interrupted
+cold loading, a pause near the end of loading, reset during an issued CPU
+SDRAM read, reset release, both real DMA
+directions, guest and physical refresh, two complete boots without firmware
+reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
+CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
+registers its read address before M10K fanout. Each of its three 64 KiB banks
+has a separate RAM read mux and local output register; bank selection then
+occurs alongside palette selection. Bank/subpixel/raster fields have matching
+latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
+all-input Yosys SAT checks, as do the PIT decrements. CPU checks reconstruct every
+control-ROM word from its four byte lanes, prove the PC/call-stack/stall
+projection and local address-copy invariant, check read alignment at
+90/180/270 degrees, and compare real operand
+selection against the imported equations;
+`cpu_roms` derives four byte-lane images from the unchanged raw image. The display's fractional
+clock enable compares the current phase directly with its wrap threshold and
+updates with parallel add/subtract candidates. SAT proves this is cycle-exact
+for every phase value and both CGA/MDA rates. The CPU pin-clock divider decodes its wrap threshold directly from phase bits
+before selecting `phase+21` or `phase-199`. It predicts the next enable from
+phase 178..198 and registers it on the phase-update edge. This preserves the
+original enable cycle while removing the comparator from DMA control fanout.
+Sequential equivalence checks phase, pin clock and guest enable against the
+original add-then-compare logic:
+
+```sh
+YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p 'test_pcxt_*.py' -v
+```
+
+Existing video suites retain detailed frame-ownership, overrun/drop and malformed-source
+coverage. Digital SDRAM simulation does not establish pad timing or retention.
 
 ## Implemented path
 
@@ -475,6 +745,11 @@ files beneath `build/synth/fes-pcxt/cpu/`. The machine variant adds the
 motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 `build/synth/fes-pcxt/machine/`. The receipt records the locked compiler identity
 and mapped cell counts.
+Both CPU and machine synthesis regenerate the original microcode and its
+derived operand-select ROM through the same verified helper as simulation.
+The CPU/machine synthesis fixtures expose a separate `clk_rom` input, which
+must be 100 MHz shifted 180 degrees from `clk`; simulation derives it from
+the opposite edge. Board builds supply the existing memory PLL phase.
 The display variant synthesizes both ISA cards, their VRAM and the registered
 backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
 None of these variants synthesizes the testbench RAM or diagnostic system ROM.

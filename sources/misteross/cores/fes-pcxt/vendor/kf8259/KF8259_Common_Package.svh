@@ -47,6 +47,32 @@ package KF8259_Common_Package;
         else                            resolv_priority = 8'b00000000;
     endfunction
 
+    // Per-level masks depend only on the rotation register. Keeping requests
+    // in their physical bit positions avoids two barrel muxes in series with
+    // priority selection. The loop bounds and rank arithmetic fold to constants.
+    function logic [7:0] higher_priority_mask(input integer level, input [2:0] rotate);
+        reg [7:0] mask;
+        integer r, j;
+        begin
+            higher_priority_mask = 0;
+            for (r = 0; r < 8; r = r + 1) begin
+                mask = 0;
+                for (j = 0; j < 8; j = j + 1)
+                    if (((j + 7 - r) % 8) < ((level + 7 - r) % 8)) mask[j] = 1'b1;
+                if (rotate == 3'(r)) higher_priority_mask = mask;
+            end
+        end
+    endfunction
+
+    function logic [7:0] resolve_rotated_priority(input [7:0] request, input [2:0] rotate);
+        integer i;
+        begin
+            for (i = 0; i < 8; i = i + 1)
+                resolve_rotated_priority[i] = request[i] &&
+                    !(|(request & higher_priority_mask(i, rotate)));
+        end
+    endfunction
+
     function logic [7:0] num2bit (input [2:0] source);
         casez (source)
             3'b000:  num2bit = 8'b00000001;

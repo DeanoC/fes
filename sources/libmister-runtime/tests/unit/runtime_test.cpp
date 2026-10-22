@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <fcntl.h>
+#include <unistd.h>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -1257,13 +1258,16 @@ void TestMenuGenerationAndPreparationFencing()
  std::unique_ptr<mister::MenuFrame> second;
  assert(f.runtime.BeginMenuFrame(menu.generation,&second).code==ErrorCode::busy);
  mister::MenuDisplayInfo info;
- assert(!f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==0);
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
- f.hardware.admission_result={ErrorCode::invalid_package,"bad package"};
- assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==menu.generation);
+ assert(f.hardware.menu_present_slots.empty());
  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
- frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ f.hardware.admission_result={ErrorCode::invalid_package,"bad package"};
+ frame.reset();assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==menu.generation);
+ assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ // The client draws into the window until it commits: a launch waits out the
+ // preparation for its bound, then revokes the window and proceeds.
+ const auto launch_start=std::chrono::steady_clock::now();
  f.hardware.admission_result={};assert(f.runtime.LoadCore("/game",id).ok());
+ assert(std::chrono::steady_clock::now()-launch_start>=std::chrono::milliseconds(1900));
  assert(!f.runtime.status().menu_display.available);
  assert(!f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
  assert(f.runtime.Stop().ok());const auto fresh=f.runtime.status().menu_display;
@@ -1277,14 +1281,13 @@ void TestMenuIdleStopAndPreMutationFailurePreserveFences()
 {
  Fixture f;const std::string id(64,'a');assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  const auto generation=f.runtime.status().menu_display.generation;
- std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
  f.hardware.core_result={{ErrorCode::invalid_package,"recheck failed"},false,""};
  assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==generation);
+ // Stop waits out the outstanding preparation for its bound, then revokes it.
+ std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
  assert(f.runtime.Stop().ok());assert(f.runtime.status().menu_display.generation>generation);
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
  mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(generation,*frame,&info).ok());frame.reset();
  const auto fresh=f.runtime.status().menu_display.generation;assert(f.runtime.BeginMenuFrame(fresh,&frame).ok());
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
  f.hardware.on_menu_present=[&]{assert(f.runtime.Stop().code==ErrorCode::busy);assert(f.runtime.ConfigureMenuPackage("/menu",id).code==ErrorCode::busy);};
  assert(f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
 }
@@ -1295,7 +1298,6 @@ void TestMenuPresentationFailureUsesIdleRecovery()
  assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  auto generation=f.runtime.status().menu_display.generation;
  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
  f.hardware.menu_present_result={ErrorCode::io_failed,"display timeout"};
  f.hardware.idle_result={{ErrorCode::io_failed,"containment failed"},true,""};
  mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(generation,*frame,&info).ok());
@@ -1313,8 +1315,6 @@ void TestMenuFrameYieldsToCoreDataAndLaunch()
   const auto generation = f.runtime.status().menu_display.generation;
   std::unique_ptr<mister::MenuFrame> frame;
   assert(f.runtime.BeginMenuFrame(generation, &frame).ok());
-  assert(fcntl(frame->fd(), F_ADD_SEALS,
-   F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
   std::mutex mutex; std::condition_variable condition;
   bool presenting = false; bool release = false;
   bool mutation_started = false; bool mutation_finished = false;
@@ -1378,8 +1378,6 @@ void TestMenuFrameWaitIsBounded()
  const auto generation = f.runtime.status().menu_display.generation;
  std::unique_ptr<mister::MenuFrame> frame;
  assert(f.runtime.BeginMenuFrame(generation, &frame).ok());
- assert(fcntl(frame->fd(), F_ADD_SEALS,
-  F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
  f.hardware.on_menu_present = [&] {
   const auto start = std::chrono::steady_clock::now();
   const auto result = f.runtime.LoadCore("/game", id);
@@ -1395,12 +1393,10 @@ void TestMenuFrameWaitIsBounded()
  assert(f.runtime.Stop().ok());
 }
 
-void SealMenuFrame(mister::Runtime& runtime, std::uint64_t generation,
+void PrepareMenuFrame(mister::Runtime& runtime, std::uint64_t generation,
 	std::unique_ptr<mister::MenuFrame>* frame)
 {
 	assert(runtime.BeginMenuFrame(generation, frame).ok());
-	assert(fcntl((*frame)->fd(), F_ADD_SEALS,
-		F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) == 0);
 }
 
 void TestMenuFrameYieldsToLifecycleOps()
@@ -1414,7 +1410,7 @@ void TestMenuFrameYieldsToLifecycleOps()
 		const auto generation = f.runtime.status().menu_display.generation;
 		const auto idle_before = f.hardware.idle_calls;
 		std::unique_ptr<mister::MenuFrame> frame;
-		SealMenuFrame(f.runtime, generation, &frame);
+		PrepareMenuFrame(f.runtime, generation, &frame);
 		std::mutex mutex;
 		std::condition_variable condition;
 		bool presenting = false, release = false, mutation_started = false;
@@ -1503,7 +1499,7 @@ void TestMenuLifecycleWaitIsBounded()
 		const auto generation = f.runtime.status().menu_display.generation;
 		const auto idle_before = f.hardware.idle_calls;
 		std::unique_ptr<mister::MenuFrame> frame;
-		SealMenuFrame(f.runtime, generation, &frame);
+		PrepareMenuFrame(f.runtime, generation, &frame);
 		f.hardware.on_menu_present = [&] {
 			const auto start = std::chrono::steady_clock::now();
 			mister::Error result;
@@ -1532,14 +1528,14 @@ void TestStaleMenuErrorIsNotPromotedOntoIdleStatus()
 	assert(f.runtime.Start().ok());
 	assert(f.runtime.ConfigureMenuPackage("/menu", id).ok());
 	assert(f.runtime.LoadCore("/game", id).ok());
-	f.hardware.menu_status.error = {ErrorCode::io_failed, "stale menu map", "menu_memory"};
+	f.hardware.menu_status.error = {ErrorCode::io_failed, "stale menu map", "menu_window"};
 	f.hardware.menu_configured = true;
 	assert(f.runtime.Stop().ok());
 	assert(f.runtime.status().error.ok());
 	assert(f.runtime.status().state == State::idle);
 	assert(f.runtime.status().menu_display.available);
 	assert(f.runtime.status().menu_display.error.code == ErrorCode::io_failed);
-	assert(f.runtime.status().menu_display.error.phase == "menu_memory");
+	assert(f.runtime.status().menu_display.error.phase == "menu_window");
 	assert(f.runtime.status().menu_display.error.message == "stale menu map");
 }
 
@@ -1549,10 +1545,11 @@ void StartSessionDisplayFixture(Fixture& f,const std::string& id)
  f.hardware.core_info.descriptor.interfaces={
   {"fes.keyboard",1,0,true},{"fes.video.fixed-720p60",1,0,true},
   {"fes.media.blob",1,0,true},{"fes.memory.hps-ddr",1,0,true},
-  {"fes.video.session-display",1,0,true}};
+  {"fes.video.session-display",1,0,true},{"fes.fabric.video.display-plane",1,0,true}};
  f.hardware.supported.abis={{"fes.simple-computer",1,0,{
   {"fes.keyboard",1,0},{"fes.video.fixed-720p60",1,0},
-  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0}}}};
+  {"fes.media.blob",1,0},{"fes.memory.hps-ddr",1,0},{"fes.video.session-display",1,0},
+  {"fes.fabric.video.display-plane",1,0}}}};
  assert(f.runtime.Start().ok());assert(f.runtime.LoadCore("/zx81",id).ok());
 }
 
@@ -1564,11 +1561,11 @@ void StartComputerSessionDisplayFixture(Fixture& f, const std::string& id)
 	f.hardware.core_info.descriptor.interfaces = {
 		{"fes.keyboard.hid", 1, 0, true}, {"fes.video.fixed-720p60", 1, 0, true},
 		{"fes.media.zx81-tape", 1, 0, true}, {"fes.memory.hps-ddr", 1, 0, true},
-		{"fes.video.session-display", 1, 0, true}};
+		{"fes.video.session-display", 1, 0, true}, {"fes.fabric.video.display-plane", 1, 0, true}};
 	f.hardware.supported.abis.push_back({"fes.computer", 1, 0, {
 		{"fes.keyboard.hid", 1, 0}, {"fes.video.fixed-720p60", 1, 0},
 		{"fes.media.zx81-tape", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
-		{"fes.video.session-display", 1, 0}}});
+		{"fes.video.session-display", 1, 0}, {"fes.fabric.video.display-plane", 1, 0}}});
 	assert(f.runtime.Start().ok());
 	assert(f.runtime.LoadCore("/zx81", id).ok());
 }
@@ -1591,7 +1588,7 @@ void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
 	assert(f.hardware.keyboard_hid_calls == 1);
 	const auto idle_before = f.hardware.idle_calls;
 	const auto core_before = f.hardware.core_calls;
-	assert(f.runtime.SetSessionDisplay(id, generation, true).ok());
+	assert(f.runtime.SetSessionDisplay(id, generation,true,true).ok());
 	const auto opened = f.runtime.status().menu_display;
 	assert(opened.available && opened.session && opened.generation != 0);
 	assert(opened.package_id == id && opened.core_generation == generation);
@@ -1602,11 +1599,11 @@ void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
 	assert(f.runtime.SetKeyboardHid(id, generation, {}).ok());
 	assert(f.hardware.keyboard_hid_calls == 2);
 	std::unique_ptr<mister::MenuFrame> frame;
-	SealMenuFrame(f.runtime, opened.generation, &frame);
+	PrepareMenuFrame(f.runtime, opened.generation, &frame);
 	mister::MenuDisplayInfo info;
 	assert(f.runtime.PresentMenuFrame(opened.generation, *frame, &info).ok());
 	assert(f.hardware.menu_present_calls == 1);
-	assert(f.runtime.SetSessionDisplay(id, generation, false).ok());
+	assert(f.runtime.SetSessionDisplay(id, generation,false,false).ok());
 	const auto closed = f.runtime.status();
 	assert(closed.state == State::running_development && closed.generation == generation);
 	assert(closed.menu_display.session && !closed.menu_display.available);
@@ -1625,26 +1622,26 @@ void TestSessionDisplayBindingsFocusAndFrameRevocation()
  assert(active.menu_display.session&&!active.menu_display.available);
  assert(active.menu_display.package_id==id&&active.menu_display.core_generation==core_generation);
  assert(active.menu_display.generation==0);
- assert(f.runtime.SetSessionDisplay(id,0,true).code==ErrorCode::invalid_request);
- assert(f.runtime.SetSessionDisplay(id,core_generation+1,true).code==ErrorCode::invalid_request);
- assert(f.runtime.SetSessionDisplay(std::string(64,'b'),core_generation,true).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetSessionDisplay(id,0,true,true).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetSessionDisplay(id,core_generation+1,true,true).code==ErrorCode::invalid_request);
+ assert(f.runtime.SetSessionDisplay(std::string(64,'b'),core_generation,true,true).code==ErrorCode::invalid_request);
  assert(f.hardware.session_display_calls==0);
  assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
- assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  const auto opened=f.runtime.status().menu_display;
  assert(opened.available&&opened.generation&&opened.core_generation==core_generation);
- assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  assert(f.runtime.status().menu_display.generation==opened.generation&&f.hardware.session_display_calls==1);
  assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
  assert(f.runtime.SetComputerKeyboard((std::uint64_t(1)<<40)-1).ok()&&f.hardware.keyboard_calls==2);
  assert(f.runtime.SetComputerKeyboard(std::uint64_t(1)<<40).code==ErrorCode::invalid_request);
- std::unique_ptr<mister::MenuFrame> old;SealMenuFrame(f.runtime,opened.generation,&old);
- assert(f.runtime.SetSessionDisplay(id,core_generation,false).ok());
+ std::unique_ptr<mister::MenuFrame> old;PrepareMenuFrame(f.runtime,opened.generation,&old);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,false,false).ok());
  assert(!f.runtime.status().menu_display.available&&f.runtime.status().menu_display.generation==0);
  assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==3);
- assert(f.runtime.SetSessionDisplay(id,core_generation,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
  const auto fresh=f.runtime.status().menu_display.generation;assert(fresh>opened.generation);
- std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,fresh,&frame);
+ std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,fresh,&frame);
  mister::MenuDisplayInfo info;
  assert(!f.runtime.PresentMenuFrame(opened.generation,*old,&info).ok());
  assert(!f.runtime.PresentMenuFrame(fresh,*old,&info).ok());
@@ -1657,24 +1654,54 @@ void TestSessionDisplayBindingsFocusAndFrameRevocation()
  assert(f.runtime.ReplaceLiveComputerMedia("/next.p",id,core_generation).ok());
  assert(f.runtime.ClearComputerMedia(id,core_generation).ok());
  assert(f.runtime.status().generation==core_generation&&f.hardware.core_calls==1&&f.hardware.idle_calls==1);
- frame.reset();SealMenuFrame(f.runtime,fresh,&frame);
+ frame.reset();PrepareMenuFrame(f.runtime,fresh,&frame);
  assert(f.runtime.LoadCore("/replacement",id).ok());
  assert(!f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
  const auto replacement=f.runtime.status().generation;assert(replacement>core_generation);
- assert(!f.runtime.SetSessionDisplay(id,core_generation,true).ok());
- assert(f.runtime.SetSessionDisplay(id,replacement,true).ok());
- std::unique_ptr<mister::MenuFrame> next;SealMenuFrame(f.runtime,f.runtime.status().menu_display.generation,&next);
+ assert(!f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,replacement,true,true).ok());
+ std::unique_ptr<mister::MenuFrame> next;PrepareMenuFrame(f.runtime,f.runtime.status().menu_display.generation,&next);
  assert(f.runtime.Stop().ok());
  assert(!f.runtime.PresentMenuFrame(fresh,*next,&info).ok());
+}
+
+// A surround shows the plane while the machine keeps its keys. Moving focus on
+// the shown plane keeps the display generation that frames are bound to.
+void TestSessionDisplayMachineFocusKeepsInput()
+{
+ Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
+ const auto core_generation=f.runtime.status().generation;
+ assert(f.runtime.SetSessionDisplay(id,core_generation,false,true).code==ErrorCode::invalid_request);
+ assert(f.hardware.session_display_calls==0);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok());
+ const auto shown=f.runtime.status().menu_display;
+ assert(shown.available&&shown.generation&&!shown.launcher_focus&&f.hardware.session_display_calls==1);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok()&&f.hardware.session_display_calls==1);
+ std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,shown.generation,&frame);
+ mister::MenuDisplayInfo info;assert(f.runtime.PresentMenuFrame(shown.generation,*frame,&info).ok());
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,true).ok());
+ auto focused=f.runtime.status().menu_display;
+ assert(focused.available&&focused.launcher_focus&&focused.generation==shown.generation);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
+ frame.reset();PrepareMenuFrame(f.runtime,shown.generation,&frame);
+ assert(f.runtime.PresentMenuFrame(shown.generation,*frame,&info).ok());
+ assert(f.runtime.SetSessionDisplay(id,core_generation,true,false).ok());
+ focused=f.runtime.status().menu_display;
+ assert(focused.available&&!focused.launcher_focus&&focused.generation==shown.generation);
+ assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==2);
+ assert(f.runtime.SetSessionDisplay(id,core_generation,false,false).ok());
+ assert(!f.runtime.status().menu_display.available&&f.runtime.status().menu_display.generation==0);
+ assert(f.hardware.menu_present_calls==2&&f.hardware.idle_calls==1&&f.hardware.core_calls==1);
 }
 
 void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
 {
  Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
  const auto active=f.runtime.status();const auto generation=active.generation;
- assert(f.runtime.SetSessionDisplay(id,generation,true).ok());
+ assert(f.runtime.SetSessionDisplay(id,generation,true,true).ok());
  const auto display=f.runtime.status().menu_display.generation;
- std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,display,&frame);
+ std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,display,&frame);
  f.hardware.idle_result={{ErrorCode::io_failed,"idle must never be called"},true,""};
  f.hardware.menu_present_result={ErrorCode::io_failed,"session frame timed out","menu"};
  mister::MenuDisplayInfo info;assert(!f.runtime.PresentMenuFrame(display,*frame,&info).ok());
@@ -1685,13 +1712,13 @@ void TestSessionDisplayFailuresNeverReloadIdleOrRetireCore()
  assert(f.hardware.idle_calls==1&&f.hardware.core_calls==1&&f.hardware.flush_calls==0);
  assert(f.runtime.ClearComputerMedia(id,generation).ok());
  f.hardware.session_display_result={ErrorCode::io_failed,"drain not proved","menu"};
- assert(!f.runtime.SetSessionDisplay(id,generation,false).ok());
+ assert(!f.runtime.SetSessionDisplay(id,generation,false,false).ok());
  assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==0);
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
- f.hardware.session_display_result={};assert(f.runtime.SetSessionDisplay(id,generation,false).ok());
+ f.hardware.session_display_result={};assert(f.runtime.SetSessionDisplay(id,generation,false,false).ok());
  assert(f.runtime.SetComputerKeyboard(0).ok()&&f.hardware.keyboard_calls==1);
  f.hardware.session_display_result={ErrorCode::io_failed,"enable failed","menu"};
- assert(!f.runtime.SetSessionDisplay(id,generation,true).ok());
+ assert(!f.runtime.SetSessionDisplay(id,generation,true,true).ok());
  assert(f.runtime.status().generation==generation&&f.hardware.idle_calls==1);
 }
 
@@ -1700,9 +1727,9 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  for(bool stop:{false,true}) {
   Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
   const auto generation=f.runtime.status().generation;
-  assert(f.runtime.SetSessionDisplay(id,generation,true).ok());
+  assert(f.runtime.SetSessionDisplay(id,generation,true,true).ok());
   const auto display=f.runtime.status().menu_display.generation;
-  std::unique_ptr<mister::MenuFrame> frame;SealMenuFrame(f.runtime,display,&frame);
+  std::unique_ptr<mister::MenuFrame> frame;PrepareMenuFrame(f.runtime,display,&frame);
   std::mutex mutex;std::condition_variable ready;bool entered=false,release=false;
   f.hardware.on_menu_present=[&] {
    std::unique_lock<std::mutex> lock(mutex);entered=true;ready.notify_all();
@@ -1712,7 +1739,7 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
   std::thread present([&]{assert(f.runtime.PresentMenuFrame(display,*frame,&info).ok());});
   {std::unique_lock<std::mutex> lock(mutex);ready.wait(lock,[&]{return entered;});}
   mister::Error result;
-  std::thread mutation([&]{result=stop?f.runtime.Stop():f.runtime.SetSessionDisplay(id,generation,false);});
+  std::thread mutation([&]{result=stop?f.runtime.Stop():f.runtime.SetSessionDisplay(id,generation,false,false);});
   std::this_thread::sleep_for(std::chrono::milliseconds(25));
   assert(f.hardware.session_display_calls==1&&f.hardware.idle_calls==1);
   {std::lock_guard<std::mutex> lock(mutex);release=true;ready.notify_all();}
@@ -1722,33 +1749,51 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  }
 }
 
-void TestMenuDamageNeedsTheDisplayedBase()
+void TestMenuFramesAlternateSlots()
 {
  Fixture f;const std::string id(64,'a');
  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  const auto menu=f.runtime.status().menu_display;
- auto sealed=[&]{
-  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
-  assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);return frame;
- };
+ int window=-1;assert(f.runtime.ShareMenuWindow(menu.generation,&window).ok()&&window>=0);close(window);
+ assert(f.runtime.ShareMenuWindow(menu.generation+1,&window).code==ErrorCode::invalid_request);
  mister::MenuDisplayInfo info;
- auto frame=sealed();assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());frame.reset();
- // Without a matching shadow the runtime refuses before touching the display,
- // so the client resends a full frame and nothing is torn down.
- frame=sealed();frame->SetDamage({info.displayed_sequence,{{0,0,8,8}}});
- assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).code==ErrorCode::stale_revision);
- assert(f.hardware.menu_present_calls==1&&f.runtime.status().menu_display.available);frame.reset();
- f.hardware.accepts_damage=true;
- frame=sealed();frame->SetDamage({info.displayed_sequence+1,{{0,0,8,8}}});
- assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).code==ErrorCode::stale_revision);frame.reset();
- frame=sealed();frame->SetDamage({info.displayed_sequence,{{0,0,8,8}}});
- assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==2);
+ for(const std::uint8_t expected:{std::uint8_t(1),std::uint8_t(0),std::uint8_t(1)}) {
+  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+  assert(frame->slot()==expected);
+  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());
+ }
+ assert((f.hardware.menu_present_slots==std::vector<std::uint8_t>{1,0,1}));
+}
+
+// A preparation the client abandons, or keeps past the bound, never holds a
+// lifecycle operation for longer than kMenuFrameMutationWait.
+void TestMenuPreparationFencesLifecycle()
+{
+ Fixture f;const std::string id(64,'a');
+ assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto generation=f.runtime.status().menu_display.generation;
+ std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+ std::thread release([&]{std::this_thread::sleep_for(std::chrono::milliseconds(200));frame.reset();});
+ auto start=std::chrono::steady_clock::now();
+ assert(f.runtime.Stop().ok());
+ auto elapsed=std::chrono::steady_clock::now()-start;
+ release.join();
+ assert(elapsed>=std::chrono::milliseconds(150)&&elapsed<std::chrono::milliseconds(1500));
+ const auto fresh=f.runtime.status().menu_display.generation;
+ assert(fresh>generation&&f.runtime.BeginMenuFrame(fresh,&frame).ok());
+ start=std::chrono::steady_clock::now();
+ assert(f.runtime.Stop().ok());
+ elapsed=std::chrono::steady_clock::now()-start;
+ assert(elapsed>=std::chrono::milliseconds(1900)&&elapsed<std::chrono::seconds(4));
+ mister::MenuDisplayInfo info;
+ assert(!f.runtime.PresentMenuFrame(fresh,*frame,&info).ok());
 }
 
 int main()
 {
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
+ TestSessionDisplayMachineFocusKeepsInput();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();
  TestLibraryDiskPersistenceFailureRetainsSession();
@@ -1758,7 +1803,8 @@ int main()
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
- TestMenuDamageNeedsTheDisplayedBase();
+ TestMenuFramesAlternateSlots();
+ TestMenuPreparationFencesLifecycle();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();
 	TestComputerMouseBindingAndFaultRetirement();

@@ -8,8 +8,11 @@ import (
 
 // BeginSessionDisplay waits for local delivery and keyboard posts, then keeps
 // the same input lifecycle fence through the physical display transition.
-// It does not detach a host lease or program a core.
-func (c *TargetController) BeginSessionDisplay(ctx context.Context) (func(bool), error) {
+// Only a request for launcher focus retires held keys and neutralizes the
+// mouse, matching the runtime's neutral post; a surround shown or closed under
+// machine focus keeps held machine input. It does not detach a host lease or
+// program a core.
+func (c *TargetController) BeginSessionDisplay(ctx context.Context, launcher bool) (func(bool), error) {
 	if c == nil || ctx == nil || c.ports == nil || c.keyboard == nil {
 		return nil, errors.New("session display input focus is unavailable")
 	}
@@ -25,12 +28,14 @@ func (c *TargetController) BeginSessionDisplay(ctx context.Context) (func(bool),
 		c.lifecycle.Unlock()
 		return nil, errors.New("input controller is closed")
 	}
-	c.ports.setDisplayFocus(true)
-	if c.ports.mouse != nil {
-		if err := c.ports.mouse.neutral(ctx); err != nil {
-			c.ports.setDisplayFocus(false)
-			c.lifecycle.Unlock()
-			return nil, err
+	if launcher {
+		c.ports.setDisplayFocus(true)
+		if c.ports.mouse != nil {
+			if err := c.ports.mouse.neutral(ctx); err != nil {
+				c.ports.setDisplayFocus(false)
+				c.lifecycle.Unlock()
+				return nil, err
+			}
 		}
 	}
 	var once sync.Once

@@ -129,8 +129,11 @@ io_bad:
 io_ok:
         lda #$00
         sta $c001
-        sta $dc02
         sta $dc03
+        ; Read port 2 as the KERNAL leaves it: DDRA $FF, all columns high.
+        lda #$ff
+        sta $dc02
+        sta $dc00
         lda #$07
         sta $c000
         jsr show_stage
@@ -140,8 +143,6 @@ wait_joy:
         cmp #$1e
         bne wait_joy
 joy_ok:
-        lda #$ff
-        sta $dc02
         lda #$fd
         sta $dc00
         lda #$08

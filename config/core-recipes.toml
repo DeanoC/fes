@@ -892,6 +892,8 @@ core_id = "fes.spectrum"
 identity_version = 2
 producer_script = "scripts/build_fes_spectrum_oss.py"
 producer_module = "scripts.build_fes_spectrum_oss"
+producer_arguments = ["--model", "48"]
+producer_options = { model = "48" }
 authenticate = "_authenticate_spectrum_tools"
 lock_path = "cores/fes-spectrum/toolchain.lock"
 gpu_router = "HIP"
@@ -921,7 +923,301 @@ extra = []
 unset_env = ["CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "HIP_VISIBLE_DEVICES", "NEXTPNR_MISTRAL_PLACED_REDUCTION", "NEXTPNR_MISTRAL_PLACED_TIMEOUT", "NEXTPNR_MISTRAL_PLACED_TIMEOUT_REGION", "NEXTPNR_MISTRAL_RETAINED_ENABLE", "OMP_NUM_THREADS", "ROCR_VISIBLE_DEVICES"]
 compress_rbf = true
 detailed_timing_report = true
-clocks = [{ name = "*", mhz = 52.224 }, { name = "*", mhz = 74.25 }, { name = "*", mhz = 12.288 }, { name = "*", mhz = 56.0 }]
+clocks = [{ name = "*", mhz = 52.224 }, { name = "*", mhz = 74.25 }, { name = "*", mhz = 12.288 }]
+env = { PATH = "<TOOLCHAIN_BIN>:/usr/bin:/bin", HOME = "<PRIVATE_HOME>", LANG = "C", LC_ALL = "C", TZ = "UTC" }
+
+optional_env = { CUDA_DEVICE_ORDER = "PCI_BUS_ID" }
+[recipes.pnr.flags]
+randomize_seed = false
+placer = "heap"
+cstrweight = "unset"
+starttemp = "unset"
+pack_only = false
+no_route = false
+no_place = false
+no_pack = false
+ignore_loops = false
+ignore_rel_clk = false
+no_tmdriv = false
+sdf_cvc = false
+no_print_critical_path_source = false
+placer_heap_alpha = 0.1
+placer_heap_beta = 0.9
+placer_heap_cell_placement_timeout = 8
+placer_heap_no_ctrl_set = false
+static_dump_density = false
+parallel_refine = false
+router2_heatmap = "unset"
+tmg_ripup = false
+router2_tmg_ripup = false
+router2_alt_weights = false
+gpu_batches = "unset"
+gpu_cpu = false
+gpu_perf = false
+gpu_telemetry = "unset"
+gpu_opt = []
+timing_report_paths = 1
+seed_racing_contract = false
+fes_scaffold = false
+fes_cart = "unset"
+fes_cart_region = "unset"
+fes_slot_clock = "unset"
+fes_cram_region = "unset"
+mistral_ff4 = false
+mistral_clkb = false
+replicate_enables = 0
+remap_critical = "unset"
+remap_optimize_pins = false
+remap_preserve_ffs = false
+remap_plan = "unset"
+remap_post_plan = "unset"
+remap_comb_critical = "unset"
+remap_comb_candidate = "unset"
+remap_comb_plan = "unset"
+remap_decompose_critical = "unset"
+remap_decompose_candidate = "unset"
+remap_lut_pair_critical = "unset"
+remap_lut_pair_candidate = "unset"
+remap_lut_pair_compose_copy = false
+remap_lut_driver_critical = "unset"
+remap_lut_driver_candidate = "unset"
+remap_candidate = "unset"
+remap_groups = 1
+balance_reduction_root = []
+
+[[recipes]]
+core_id = "fes.spectrum128"
+identity_version = 2
+producer_script = "scripts/build_fes_spectrum_oss.py"
+producer_module = "scripts.build_fes_spectrum_oss"
+producer_arguments = ["--model", "128"]
+producer_options = { model = "128" }
+authenticate = "_authenticate_spectrum_tools"
+lock_path = "cores/fes-spectrum/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-spectrum128.package-selection.toml"
+package_dir_env = "FES_SPECTRUM128_PACKAGE_DIR"
+package_selection_env = "FES_SPECTRUM128_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
+
+
+[recipes.pnr]
+seeds = [5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
+timing_weights = [2000]
+search_weights = [2000]
+critexp = 5
+freq = "74.25"
+qsf = "cores/fes-spectrum/constraints-oss.qsf"
+sdc = "cores/fes-spectrum/clocks-oss.sdc"
+router = "gpu"
+backend = "HIP"
+gpu_device = "lease"
+timeout_s = 600
+threads = 1
+timing_allow_fail = true
+argv_style = "search"
+extra = []
+unset_env = ["CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "HIP_VISIBLE_DEVICES", "NEXTPNR_MISTRAL_PLACED_REDUCTION", "NEXTPNR_MISTRAL_PLACED_TIMEOUT", "NEXTPNR_MISTRAL_PLACED_TIMEOUT_REGION", "NEXTPNR_MISTRAL_RETAINED_ENABLE", "OMP_NUM_THREADS", "ROCR_VISIBLE_DEVICES"]
+compress_rbf = true
+detailed_timing_report = true
+clocks = [{ name = "*", mhz = 52.224 }, { name = "*", mhz = 74.25 }, { name = "*", mhz = 12.288 }]
+env = { PATH = "<TOOLCHAIN_BIN>:/usr/bin:/bin", HOME = "<PRIVATE_HOME>", LANG = "C", LC_ALL = "C", TZ = "UTC" }
+
+optional_env = { CUDA_DEVICE_ORDER = "PCI_BUS_ID" }
+[recipes.pnr.flags]
+randomize_seed = false
+placer = "heap"
+cstrweight = "unset"
+starttemp = "unset"
+pack_only = false
+no_route = false
+no_place = false
+no_pack = false
+ignore_loops = false
+ignore_rel_clk = false
+no_tmdriv = false
+sdf_cvc = false
+no_print_critical_path_source = false
+placer_heap_alpha = 0.1
+placer_heap_beta = 0.9
+placer_heap_cell_placement_timeout = 8
+placer_heap_no_ctrl_set = false
+static_dump_density = false
+parallel_refine = false
+router2_heatmap = "unset"
+tmg_ripup = false
+router2_tmg_ripup = false
+router2_alt_weights = false
+gpu_batches = "unset"
+gpu_cpu = false
+gpu_perf = false
+gpu_telemetry = "unset"
+gpu_opt = []
+timing_report_paths = 1
+seed_racing_contract = false
+fes_scaffold = false
+fes_cart = "unset"
+fes_cart_region = "unset"
+fes_slot_clock = "unset"
+fes_cram_region = "unset"
+mistral_ff4 = false
+mistral_clkb = false
+replicate_enables = 0
+remap_critical = "unset"
+remap_optimize_pins = false
+remap_preserve_ffs = false
+remap_plan = "unset"
+remap_post_plan = "unset"
+remap_comb_critical = "unset"
+remap_comb_candidate = "unset"
+remap_comb_plan = "unset"
+remap_decompose_critical = "unset"
+remap_decompose_candidate = "unset"
+remap_lut_pair_critical = "unset"
+remap_lut_pair_candidate = "unset"
+remap_lut_pair_compose_copy = false
+remap_lut_driver_critical = "unset"
+remap_lut_driver_candidate = "unset"
+remap_candidate = "unset"
+remap_groups = 1
+balance_reduction_root = []
+
+[[recipes]]
+core_id = "fes.spectrum-plus3"
+identity_version = 2
+producer_script = "scripts/build_fes_spectrum_oss.py"
+producer_module = "scripts.build_fes_spectrum_oss"
+producer_arguments = ["--model", "plus3"]
+producer_options = { model = "plus3" }
+authenticate = "_authenticate_spectrum_tools"
+lock_path = "cores/fes-spectrum/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-spectrum-plus3.package-selection.toml"
+package_dir_env = "FES_SPECTRUM_PLUS3_PACKAGE_DIR"
+package_selection_env = "FES_SPECTRUM_PLUS3_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
+
+
+[recipes.pnr]
+seeds = [5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
+timing_weights = [2000]
+search_weights = [2000]
+critexp = 5
+freq = "74.25"
+qsf = "cores/fes-spectrum/constraints-oss.qsf"
+sdc = "cores/fes-spectrum/clocks-oss.sdc"
+router = "gpu"
+backend = "HIP"
+gpu_device = "lease"
+timeout_s = 600
+threads = 1
+timing_allow_fail = true
+argv_style = "search"
+extra = []
+unset_env = ["CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "HIP_VISIBLE_DEVICES", "NEXTPNR_MISTRAL_PLACED_REDUCTION", "NEXTPNR_MISTRAL_PLACED_TIMEOUT", "NEXTPNR_MISTRAL_PLACED_TIMEOUT_REGION", "NEXTPNR_MISTRAL_RETAINED_ENABLE", "OMP_NUM_THREADS", "ROCR_VISIBLE_DEVICES"]
+compress_rbf = true
+detailed_timing_report = true
+clocks = [{ name = "*", mhz = 52.224 }, { name = "*", mhz = 74.25 }, { name = "*", mhz = 12.288 }]
+env = { PATH = "<TOOLCHAIN_BIN>:/usr/bin:/bin", HOME = "<PRIVATE_HOME>", LANG = "C", LC_ALL = "C", TZ = "UTC" }
+
+optional_env = { CUDA_DEVICE_ORDER = "PCI_BUS_ID" }
+[recipes.pnr.flags]
+randomize_seed = false
+placer = "heap"
+cstrweight = "unset"
+starttemp = "unset"
+pack_only = false
+no_route = false
+no_place = false
+no_pack = false
+ignore_loops = false
+ignore_rel_clk = false
+no_tmdriv = false
+sdf_cvc = false
+no_print_critical_path_source = false
+placer_heap_alpha = 0.1
+placer_heap_beta = 0.9
+placer_heap_cell_placement_timeout = 8
+placer_heap_no_ctrl_set = false
+static_dump_density = false
+parallel_refine = false
+router2_heatmap = "unset"
+tmg_ripup = false
+router2_tmg_ripup = false
+router2_alt_weights = false
+gpu_batches = "unset"
+gpu_cpu = false
+gpu_perf = false
+gpu_telemetry = "unset"
+gpu_opt = []
+timing_report_paths = 1
+seed_racing_contract = false
+fes_scaffold = false
+fes_cart = "unset"
+fes_cart_region = "unset"
+fes_slot_clock = "unset"
+fes_cram_region = "unset"
+mistral_ff4 = false
+mistral_clkb = false
+replicate_enables = 0
+remap_critical = "unset"
+remap_optimize_pins = false
+remap_preserve_ffs = false
+remap_plan = "unset"
+remap_post_plan = "unset"
+remap_comb_critical = "unset"
+remap_comb_candidate = "unset"
+remap_comb_plan = "unset"
+remap_decompose_critical = "unset"
+remap_decompose_candidate = "unset"
+remap_lut_pair_critical = "unset"
+remap_lut_pair_candidate = "unset"
+remap_lut_pair_compose_copy = false
+remap_lut_driver_critical = "unset"
+remap_lut_driver_candidate = "unset"
+remap_candidate = "unset"
+remap_groups = 1
+balance_reduction_root = []
+
+[[recipes]]
+core_id = "fes.pentagon"
+identity_version = 2
+producer_script = "scripts/build_fes_spectrum_oss.py"
+producer_module = "scripts.build_fes_spectrum_oss"
+producer_arguments = ["--model", "pentagon"]
+producer_options = { model = "pentagon" }
+authenticate = "_authenticate_spectrum_tools"
+lock_path = "cores/fes-spectrum/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-pentagon.package-selection.toml"
+package_dir_env = "FES_PENTAGON_PACKAGE_DIR"
+package_selection_env = "FES_PENTAGON_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
+
+
+[recipes.pnr]
+seeds = [5, 4, 2, 1, 3, 6, 7, 8, 9, 10]
+timing_weights = [2000]
+search_weights = [2000]
+critexp = 5
+freq = "74.25"
+qsf = "cores/fes-spectrum/constraints-oss.qsf"
+sdc = "cores/fes-spectrum/clocks-oss.sdc"
+router = "gpu"
+backend = "HIP"
+gpu_device = "lease"
+timeout_s = 600
+threads = 1
+timing_allow_fail = true
+argv_style = "search"
+extra = []
+unset_env = ["CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "HIP_VISIBLE_DEVICES", "NEXTPNR_MISTRAL_PLACED_REDUCTION", "NEXTPNR_MISTRAL_PLACED_TIMEOUT", "NEXTPNR_MISTRAL_PLACED_TIMEOUT_REGION", "NEXTPNR_MISTRAL_RETAINED_ENABLE", "OMP_NUM_THREADS", "ROCR_VISIBLE_DEVICES"]
+compress_rbf = true
+detailed_timing_report = true
+clocks = [{ name = "*", mhz = 52.224 }, { name = "*", mhz = 74.25 }, { name = "*", mhz = 12.288 }]
 env = { PATH = "<TOOLCHAIN_BIN>:/usr/bin:/bin", HOME = "<PRIVATE_HOME>", LANG = "C", LC_ALL = "C", TZ = "UTC" }
 
 optional_env = { CUDA_DEVICE_ORDER = "PCI_BUS_ID" }

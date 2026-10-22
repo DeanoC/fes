@@ -14,6 +14,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -23,8 +24,13 @@ const MaxBundleSize int64 = 512 << 20
 const MaxFiles = 4096
 const DefaultRoot = "/run/fogcast/fesdata3/software-releases"
 
+// ErrIncompatible marks a release a base cannot run. The supervisor holds such
+// a release back and runs the base image's own factory software instead.
+var ErrIncompatible = errors.New("incompatible software")
+
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var namePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}$`)
+var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$`)
 // Update bundles still carry bin/fogcast-kit for bases whose supervisor
 // probes it before starting tenfoot (#728); this base does not require it.
 var RequiredExecutables = []string{"bin/fogcast-tenfoot", "bin/mister-agent", "bin/mister-runtime"}
@@ -45,11 +51,20 @@ type Manifest struct {
 	Provenance   map[string]string `json:"provenance"`
 	Files        []File            `json:"files"`
 }
+
+// Compatibility is what a base image demands of a release. Board,
+// architecture, base contract and interfaces must match exactly. Requires
+// lists the interfaces the image's sealed menu package declares, as
+// "menu.<interface>" keys with "major.minor" values. A release accepts one when
+// its manifest interfaces carry the same key at the same major and at least
+// that minor. Those keys sit beside the base interfaces, where supervisors
+// that predate Requires ignore them.
 type Compatibility struct {
 	Board        string            `json:"board"`
 	Architecture string            `json:"architecture"`
 	BaseContract string            `json:"base_contract"`
 	Interfaces   map[string]string `json:"interfaces"`
+	Requires     map[string]string `json:"requires,omitempty"`
 }
 type Release struct {
 	ID       string   `json:"id"`
@@ -136,14 +151,37 @@ func (m Manifest) Compatible(c Compatibility) error {
 		return e
 	}
 	if m.Board != c.Board || m.Architecture != c.Architecture || m.BaseContract != c.BaseContract {
-		return errors.New("incompatible software base contract")
+		return fmt.Errorf("%w base contract", ErrIncompatible)
 	}
 	for k, v := range c.Interfaces {
 		if m.Interfaces[k] != v {
-			return fmt.Errorf("incompatible interface %s", k)
+			return fmt.Errorf("%w interface %s", ErrIncompatible, k)
+		}
+	}
+	return m.Accepts(c.Requires)
+}
+
+// Accepts reports the first required interface, in key order, that the
+// release does not accept at the same major and at least the required minor.
+func (m Manifest) Accepts(requires map[string]string) error {
+	keys := make([]string, 0, len(requires))
+	for k := range requires {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		provided, required := versionPattern.FindStringSubmatch(m.Interfaces[k]), versionPattern.FindStringSubmatch(requires[k])
+		if provided == nil || required == nil || provided[1] != required[1] || versionNumber(provided[2]) < versionNumber(required[2]) {
+			return fmt.Errorf("%w: release does not accept required interface %s %s", ErrIncompatible, k, requires[k])
 		}
 	}
 	return nil
+}
+
+// versionNumber parses a component that versionPattern bounded to nine digits.
+func versionNumber(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
 }
 func DecodeManifest(r io.Reader) (Manifest, error) {
 	var m Manifest

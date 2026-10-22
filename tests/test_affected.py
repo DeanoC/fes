@@ -138,13 +138,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
-            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
+            'scripts/sim_fes_display_plane.py': {'zx81'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum'},
+            'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -167,7 +172,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-atari-st/rtl/st_machine.sv': {'atari-st'},
             'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
-            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
+            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st', 'spectrum'},
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st', 'pcxt'},
             'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
@@ -185,7 +190,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st', 'pcxt'},
             'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st', 'pcxt'},
             'scripts/test_fes_z80_pin_trace.py': {'z80'},
-            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
+            'scripts/sim_fes_spectrum.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
@@ -261,6 +266,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
+                sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
             references = set(re.findall(r'cores/[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)

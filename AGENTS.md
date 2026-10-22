@@ -8,6 +8,8 @@ Never pin a GPU vendor.
 
 Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
+A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
+
 ## PR scope
 
 - One scope per PR. Don't bundle unrelated fixes.
@@ -30,12 +32,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -145,11 +152,15 @@ remaining OS, software and room installer separation.
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
   When the task installs a bundle, install that PR bundle on the kit's running
   image. A core-only run that does not change the bundle does not install one.
+  Software goes before the image: before an image change, activate a bundle
+  the new image accepts ([image compatibility](docs/kit-software-releases.md#image-compatibility)).
   After use, restore the designated baseline image and bundle named in the
   status file and log that restore. Activating the baseline bundle does not
   change the booted image. If the booted image is not the named baseline,
-  restore that image and verify the boot first, then activate a compatible
-  baseline bundle and verify it before logging the kit restored.
+  first activate the baseline bundle if the running image accepts it, then
+  restore that image and verify the boot; otherwise restore and verify the
+  image, then activate the baseline bundle. Verify the active bundle before
+  logging the kit restored.
   Bundle install-then-restore is pre-approved. A successful selection stays
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.

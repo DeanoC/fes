@@ -59,6 +59,11 @@ cat >"$fixture/tools/readelf" <<'READELF'
 if [ "$1" = -h ]; then
   printf '%s\n' 'Class: ELF32' 'Machine: ARM' 'Data: little endian' 'Flags: Version5 EABI'
 fi
+if [ "$1" = --string-dump=.fes_menu_interfaces ]; then
+  printf '%s\n' "String dump of section '.fes_menu_interfaces':" \
+    '  [     0]  fes.video.fixed-720p60=1.0' '  [    1b]  fes.memory.hps-ddr=1.0' \
+    '  [    32]  fes.video.menu-display=1.0'
+fi
 READELF
 chmod 0755 "$fixture/tools/readelf"
 PATH=$fixture/tools:$PATH
@@ -195,6 +200,12 @@ package_fixture() {
   printf "core_id = 'fes.%s'\npackage_id = '%s'\n" \
     "$package_core" "$package_id" >"$package_dir/manifest.toml"
   printf '%s package payload\n' "$package_core" >"$package_dir/core.rbf"
+  if [ "$package_core" = menu ]; then
+    for interface in fes.video.fixed-720p60 fes.memory.hps-ddr fes.video.menu-display; do
+      printf "\n[[interfaces]]\nid = '%s'\nmajor = 1\nminor = 0\nrequired = true\n" \
+        "$interface" >>"$package_dir/manifest.toml"
+    done
+  fi
   if [ "$package_core" = ramtest ]; then
     cat >>"$package_dir/manifest.toml" <<EOF
 [core]
@@ -282,6 +293,14 @@ export FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION
 export FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION
 export FES_ATARI_ST_PACKAGE_DIR FES_ATARI_ST_PACKAGE_SELECTION
 
+# The factory build compiles fes-window; this fixture supplies its output.
+window_driver=$fixture/fes-window
+mkdir "$window_driver"
+printf '%s\n' fixture-module >"$window_driver/fes_window.ko"
+printf '%s\n' 0123456789abcdef >"$window_driver/version"
+FES_WINDOW_DRIVER_DIR=$window_driver
+export FES_WINDOW_DRIVER_DIR
+
 cache=$fixture/cache
 mkdir "$cache"
 cp "$idle" "$cache/idle.rbf"
@@ -309,6 +328,11 @@ python3 "$repo/scripts/kit-software.py" --base-root "$target" --payload "$update
   --output "$fixture/update.tar" --version test-update --fogcast "$fogcast" \
   --runtime-revision 1111111111111111111111111111111111111111 >"$fixture/update.json"
 "$fogcast/bin/fes-kit-bundle-linux-amd64" inspect --bundle "$fixture/update.tar" >/dev/null
+# The image records its sealed menu's interfaces; both bundles list what their runtime admits.
+grep -Fq '"requires":{"menu.fes.memory.hps-ddr":"1.0","menu.fes.video.fixed-720p60":"1.0","menu.fes.video.menu-display":"1.0"}' \
+  "$target/etc/fes/software-base.json"
+grep -Fq '"menu.fes.video.menu-display":"1.0"' "$target/usr/share/fes/software/manifest.json"
+grep -Fq '"menu.fes.video.menu-display": "1.0"' "$fixture/update.json"
 test "$factory_before" = "$(sha256sum "$target/usr/share/fes/software/manifest.json")"
 test "$payload_before" = "$(sha256sum "$update_payload/bin/mister-agent")"
 archive_before=$(sha256sum "$fixture/update.tar")
@@ -329,6 +353,8 @@ test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/share/fes/software/bin/fogcast-kit"
+cmp "$window_driver/fes_window.ko" "$target/usr/share/fes/software/share/fes-window/fes_window.ko"
+cmp "$window_driver/version" "$target/usr/share/fes/software/share/fes-window/version"
 test -x "$target/usr/share/fes/software/bin/fogcast-tenfoot"
 test -x "$target/etc/init.d/S40fes-kit-software"
 grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/share/fes/software/bin/fogcast-tenfoot" | awk '{print $1}')" \

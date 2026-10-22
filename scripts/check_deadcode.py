@@ -35,6 +35,40 @@ LANES = (
 )
 U1000 = re.compile(r'^(.+?):(\d+):(\d+): (.+) \(U1000\)$')
 
+# These trees cannot change the tracked Go program graph. Module roots take
+# precedence: platform and shared definitions remain conservative, as do Go
+# source/dependency files added anywhere. Unknown roots always run the check.
+NON_GO_ROOTS = ('scripts', 'tests', 'image', 'containers', 'profiles',
+                'sources/libmister-runtime', 'sources/misteross')
+CHECKER_INPUTS = frozenset({'scripts/check_deadcode.py', 'tests/test_check_deadcode.py',
+                          'tests/test_ci_workflow.py'})
+
+
+def required(paths):
+    """No list means full analysis; explicit paths may prove it unnecessary."""
+    if paths is None:
+        return True
+    if not isinstance(paths, list) or any(not isinstance(p, str) or not p for p in paths):
+        raise ValueError('changed paths must be an array of nonempty strings')
+    def under(path, root):
+        return path == root or path.startswith(root + '/')
+    for path in paths:
+        parts = Path(path).parts
+        if '..' in parts or path.startswith('/'):
+            return True
+        if path in CHECKER_INPUTS or path.endswith('.go') or Path(path).name in (
+                'go.mod', 'go.sum', 'go.work', 'go.work.sum'):
+            return True
+        # Match the outer CI planner's documentation-only policy.
+        if 'docs' in parts or path.endswith('.md'):
+            continue
+        if any(under(path, module) for module in MODULES):
+            return True
+        if any(under(path, root) for root in NON_GO_ROOTS):
+            continue
+        return True
+    return False
+
 
 def module_path(root, module):
     for line in (root / module / 'go.mod').read_text().splitlines():
@@ -99,7 +133,22 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--positions', action='store_true',
                         help='print absolute file:line:col only, for deletion tooling')
+    parser.add_argument('--paths-json', help='changed paths; omitted runs the full check')
+    parser.add_argument('--plan-only', action='store_true', help='report selection without installing tools')
     args = parser.parse_args(argv)
+    try:
+        paths = json.loads(args.paths_json) if args.paths_json is not None else None
+        if args.paths_json is not None and paths is None:
+            raise ValueError('changed paths must be an array of nonempty strings')
+        selected = required(paths)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.plan_only:
+        print(json.dumps({'selected': selected, 'paths': paths}))
+        return 0
+    if not selected:
+        print('Dead-code analysis skipped: no Go module, checker or unknown inputs changed.', file=sys.stderr)
+        return 0
     root = Path(__file__).resolve().parent.parent
     with tempfile.TemporaryDirectory(prefix='fes-deadcode-') as tmp:
         tools = install_tools(root, Path(tmp))

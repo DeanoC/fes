@@ -5,10 +5,11 @@ package menudisplay
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,120 +17,259 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestStatusAndSealedPresentation(t *testing.T) {
+// fakeRuntime answers status, grants an ordinary 8 MiB file as the window,
+// and alternates slots the way scanout does.
+type fakeRuntime struct {
+	t          *testing.T
+	listener   *net.UnixListener
+	generation uint64
+	underflows uint64
+	window     int
+	mu         sync.Mutex
+	grants     int
+	shown      int
+	sequence   uint64
+	commits    []map[string]any
+	done       chan struct{}
+}
+
+func newFakeRuntime(t *testing.T) (*fakeRuntime, string) {
+	t.Helper()
 	path := testsock.Path(t, "runtime.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
-	done := make(chan error, 1)
-	go func() {
-		conn, err := listener.AcceptUnix()
+	window, err := unix.MemfdCreate("test-menu-window", unix.MFD_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Ftruncate(window, Slots*SlotBytes); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeRuntime{t: t, listener: listener, generation: 7, window: window, done: make(chan struct{})}
+	go f.serve()
+	t.Cleanup(func() {
+		listener.Close()
+		<-f.done
+		unix.Close(window)
+	})
+	return f, path
+}
+
+func (f *fakeRuntime) serve() {
+	defer close(f.done)
+	for {
+		conn, err := f.listener.AcceptUnix()
 		if err != nil {
-			done <- err
 			return
 		}
-		if _, _, err = readLine(conn); err != nil {
-			done <- err
-			return
-		}
-		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_display":{"available":true,"generation":7,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"displayed_sequence":3,"underflows":0}}`+"\n"), nil, nil)
+		f.handle(conn)
 		conn.Close()
-		if err != nil {
-			done <- err
+	}
+}
+
+func (f *fakeRuntime) handle(conn *net.UnixConn) {
+	line, fds, err := readLine(conn)
+	if err != nil || len(fds) != 0 {
+		return
+	}
+	var request map[string]any
+	if json.Unmarshal(line, &request) != nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	write := func(reply string, fd int) {
+		var rights []byte
+		if fd >= 0 {
+			rights = unix.UnixRights(fd)
+		}
+		_, _, _ = conn.WriteMsgUnix([]byte(reply+"\n"), rights, nil)
+	}
+	switch request["operation"] {
+	case "status":
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_display":{"available":true,"generation":%d,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":%d,"underflows":0}}`, f.generation, f.sequence), -1)
+	case "menu_frame_grant":
+		if request["expected_generation"] != float64(f.generation) {
+			write(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":"menu generation changed"}}`, -1)
 			return
 		}
-		conn, err = listener.AcceptUnix()
-		if err != nil {
-			done <- err
+		f.grants++
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304}}`, f.generation), f.window)
+	case "menu_frame_begin":
+		slot := f.shown ^ 1
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d}}`, f.generation, slot), -1)
+		line, fds, err := readLine(conn)
+		if err != nil || len(fds) != 0 || json.Unmarshal(line, &request) != nil ||
+			request["operation"] != "menu_frame_commit" || request["slot"] != float64(slot) {
+			write(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":"bad commit"}}`, -1)
 			return
 		}
-		defer conn.Close()
-		begin, fds, err := readLine(conn)
-		if err != nil || len(fds) != 0 {
-			done <- err
-			return
+		f.commits = append(f.commits, request)
+		f.shown = slot
+		f.sequence++
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"displayed_sequence":%d,"underflows":%d,"timing":{"clean_us":700,"submit_us":12,"scanout_wait_us":9000}}}`, f.generation, slot, f.sequence, f.underflows), -1)
+	}
+}
+
+func (f *fakeRuntime) grantCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.grants
+}
+
+func (f *fakeRuntime) commit(i int) map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.commits[i]
+}
+
+// slot reads back slot s of the granted window.
+func (f *fakeRuntime) slot(s int) []byte {
+	pixels := make([]byte, FrameBytes)
+	if _, err := unix.Pread(f.window, pixels, int64(s*SlotBytes)); err != nil {
+		f.t.Fatal(err)
+	}
+	return pixels
+}
+
+func filled(r, g, b byte) []byte {
+	pix := make([]byte, FrameBytes)
+	for i := 0; i < len(pix); i += 4 {
+		pix[i], pix[i+1], pix[i+2], pix[i+3] = r, g, b, 0xff
+	}
+	return pix
+}
+
+func fillRect(pix []byte, rect Rect, r, g, b byte) {
+	for y := rect.Y; y < rect.Y+rect.H; y++ {
+		for x := rect.X; x < rect.X+rect.W; x++ {
+			at := y*Stride + x*4
+			pix[at], pix[at+1], pix[at+2] = r, g, b
 		}
-		var request map[string]any
-		if err = json.Unmarshal(begin, &request); err != nil {
-			done <- err
-			return
-		}
-		if request["operation"] != "menu_frame_begin" || request["expected_generation"] != float64(7) {
-			done <- errUnexpected
-			return
-		}
-		fd, err := unix.MemfdCreate("test-menu", unix.MFD_ALLOW_SEALING)
-		if err != nil {
-			done <- err
-			return
-		}
-		file := os.NewFile(uintptr(fd), "test-menu")
-		defer file.Close()
-		if err = file.Truncate(FrameBytes); err != nil {
-			done <- err
-			return
-		}
-		staging := []byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"staging_format":"rgba8888","displayed_sequence":null,"underflows":0}}` + "\n")
-		_, _, err = conn.WriteMsgUnix(staging[:60], unix.UnixRights(fd), nil)
-		if err == nil {
-			_, _, err = conn.WriteMsgUnix(staging[60:], nil, nil)
-		}
-		if err != nil {
-			done <- err
-			return
-		}
-		commit, fds, err := readLine(conn)
-		if err != nil || len(fds) != 1 {
-			done <- errUnexpected
-			return
-		}
-		defer unix.Close(fds[0])
-		if err = json.Unmarshal(commit, &request); err != nil {
-			done <- err
-			return
-		}
-		if request["operation"] != "menu_frame_commit" || request["generation"] != float64(7) {
-			done <- errUnexpected
-			return
-		}
-		seals, err := unix.FcntlInt(uintptr(fds[0]), unix.F_GET_SEALS, 0)
-		if err != nil {
-			done <- err
-			return
-		}
-		if seals&(unix.F_SEAL_WRITE|unix.F_SEAL_GROW|unix.F_SEAL_SHRINK|unix.F_SEAL_SEAL) != unix.F_SEAL_WRITE|unix.F_SEAL_GROW|unix.F_SEAL_SHRINK|unix.F_SEAL_SEAL {
-			done <- errUnexpected
-			return
-		}
-		buf := make([]byte, 4)
-		if _, err = file.ReadAt(buf, 0); err != nil || string(buf) != "RGBA" {
-			done <- errUnexpected
-			return
-		}
-		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":0,"timing":{"copy_us":41000,"submit_us":12,"scanout_wait_us":9000}}}`+"\n"), nil, nil)
-		done <- err
-	}()
+	}
+}
+
+func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
+	runtime, path := newFakeRuntime(t)
 	client := New(path)
+	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	status, err := client.Status(ctx)
-	if err != nil || !status.Available || status.Generation != 7 {
+	if err != nil || !status.Available || status.Generation != 7 || status.Format != Format {
 		t.Fatalf("status=%+v err=%v", status, err)
 	}
-	pix := make([]byte, FrameBytes)
-	copy(pix, "RGBA")
-	result, err := client.Present(ctx, status.Generation, pix)
-	if err != nil || result.DisplayedSequence != 4 {
+	result, err := client.Present(ctx, 7, filled(0x11, 0x22, 0x33))
+	if err != nil || result.DisplayedSequence != 1 {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	// The runtime's timing is passed through; the client's phases are measured.
-	if tm := result.Timing; tm.RuntimeCopyUS != 41000 || tm.RuntimeSubmitUS != 12 || tm.RuntimeScanoutWaitUS != 9000 || tm.BeginUS <= 0 || tm.StageUS <= 0 || tm.CommitUS <= 0 {
+	// B, G, R, then the pixel's alpha: the XRGB8888 word 0xff112233 the menu
+	// scanout reads, opaque to a session plane.
+	if got := runtime.slot(1)[:4]; string(got) != "\x33\x22\x11\xff" {
+		t.Fatalf("slot pixel % x", got)
+	}
+	if _, partial := runtime.commit(0)["written"]; partial {
+		t.Fatal("a whole frame named written regions")
+	}
+	if tm := result.Timing; tm.RuntimeCleanUS != 700 || tm.RuntimeSubmitUS != 12 || tm.RuntimeScanoutWaitUS != 9000 ||
+		tm.StagedPixels != Width*Height || tm.BeginUS <= 0 || tm.StageUS <= 0 || tm.CommitUS <= 0 {
 		t.Fatalf("timing=%+v", tm)
 	}
-	if err = <-done; err != nil {
+	if _, err := client.Present(ctx, 7, filled(0x44, 0x55, 0x66)); err != nil {
 		t.Fatal(err)
+	}
+	if got := runtime.slot(0)[:4]; string(got) != "\x66\x55\x44\xff" || runtime.grantCount() != 1 {
+		t.Fatalf("second slot % x after %d grants", got, runtime.grantCount())
+	}
+	// A new generation is a new grant.
+	runtime.mu.Lock()
+	runtime.generation = 8
+	runtime.mu.Unlock()
+	if _, err := client.Present(ctx, 7, filled(0, 0, 0)); err == nil {
+		t.Fatal("stale generation presented")
+	}
+	if _, err := client.Present(ctx, 8, filled(0, 0, 0)); err != nil || runtime.grantCount() != 2 {
+		t.Fatalf("regrant: %v after %d grants", err, runtime.grantCount())
+	}
+}
+
+func TestPresentDamageWritesWhatTheSlotMissed(t *testing.T) {
+	runtime, path := newFakeRuntime(t)
+	client := New(path)
+	defer client.Close()
+	ctx := context.Background()
+	a := Rect{X: 96, Y: 50, W: 32, H: 10}
+	b := Rect{X: 640, Y: 300, W: 16, H: 4}
+	frame := filled(0x10, 0x10, 0x10)
+	for _, want := range []uint64{1, 2} {
+		if result, err := client.Present(ctx, 7, frame); err != nil || result.DisplayedSequence != want {
+			t.Fatalf("whole frame %d: %+v %v", want, result, err)
+		}
+	}
+	if _, err := client.PresentDamage(ctx, 7, frame, Damage{BaseSequence: 2}); err == nil {
+		t.Fatal("empty damage accepted")
+	}
+	// Slot 1 holds frame 1 and frame 2 was whole, so frame 3 goes whole.
+	fillRect(frame, a, 0xa0, 0xa1, 0xa2)
+	if result, err := client.PresentDamage(ctx, 7, frame, Damage{BaseSequence: 2, Rects: []Rect{a}}); err != nil ||
+		result.Timing.StagedPixels != Width*Height {
+		t.Fatalf("frame 3: %+v %v", result, err)
+	}
+	// Slot 0 holds frame 2: write frame 4's damage and frame 3's.
+	fillRect(runtime.slotView(0), Rect{0, 0, Width, Height}, 0, 0, 0) // poison what must not be rewritten
+	fillRect(frame, b, 0xb0, 0xb1, 0xb2)
+	result, err := client.PresentDamage(ctx, 7, frame, Damage{BaseSequence: 3, Rects: []Rect{b}})
+	if err != nil || result.Timing.StagedPixels != int64(a.W*a.H+b.W*b.H) {
+		t.Fatalf("frame 4: %+v %v", result, err)
+	}
+	body, _ := json.Marshal(runtime.commit(3)["written"])
+	if string(body) != `[[640,300,16,4],[96,50,32,10]]` {
+		t.Fatalf("written %s", body)
+	}
+	slot := runtime.slot(0)
+	for _, check := range []struct {
+		x, y int
+		want string
+	}{{100, 55, "\xa2\xa1\xa0\xff"}, {645, 302, "\xb2\xb1\xb0\xff"}, {0, 0, "\x00\x00\x00\xff"}} {
+		at := check.y*Stride + check.x*4
+		if got := string(slot[at : at+4]); got != check.want {
+			t.Fatalf("slot pixel %d,%d = % x", check.x, check.y, got)
+		}
+	}
+	// A base that is not the frame shown goes whole.
+	if result, err := client.PresentDamage(ctx, 7, frame, Damage{BaseSequence: 2, Rects: []Rect{b}}); err != nil ||
+		result.Timing.StagedPixels != Width*Height {
+		t.Fatalf("stale base: %+v %v", result, err)
+	}
+}
+
+// slotView poisons through a second mapping of the window.
+func (f *fakeRuntime) slotView(s int) []byte {
+	mapping, err := unix.Mmap(f.window, int64(s*SlotBytes), SlotBytes, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.t.Cleanup(func() { unix.Munmap(mapping) })
+	return mapping
+}
+
+func TestRevokedWindowFaultIsAnError(t *testing.T) {
+	runtime, path := newFakeRuntime(t)
+	client := New(path)
+	defer client.Close()
+	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err != nil {
+		t.Fatal(err)
+	}
+	// A revoked grant leaves the mapping without pages, so the next access
+	// faults; truncating the window does the same. Unmapping it instead
+	// would free the range for the next thread stack the runtime maps.
+	if err := unix.Ftruncate(runtime.window, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err == nil {
+		t.Fatal("present into a revoked window succeeded")
 	}
 }
 
@@ -143,60 +283,17 @@ func TestPresentUnderflowCap(t *testing.T) {
 		{TransientUnderflowCap + 1, false},
 	} {
 		t.Run(u64(tc.underflows), func(t *testing.T) {
-			path := testsock.Path(t, "runtime.sock")
-			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer listener.Close()
-			done := make(chan error, 1)
-			go func() {
-				conn, err := listener.AcceptUnix()
-				if err != nil {
-					done <- err
-					return
-				}
-				defer conn.Close()
-				if _, fds, err := readLine(conn); err != nil || len(fds) != 0 {
-					done <- errUnexpected
-					return
-				}
-				fd, err := unix.MemfdCreate("test-menu", unix.MFD_ALLOW_SEALING)
-				if err != nil {
-					done <- err
-					return
-				}
-				file := os.NewFile(uintptr(fd), "test-menu")
-				defer file.Close()
-				if err = file.Truncate(FrameBytes); err != nil {
-					done <- err
-					return
-				}
-				staging := []byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"staging_format":"rgba8888","displayed_sequence":null,"underflows":0}}` + "\n")
-				if _, _, err = conn.WriteMsgUnix(staging, unix.UnixRights(fd), nil); err != nil {
-					done <- err
-					return
-				}
-				_, fds, err := readLine(conn)
-				if err != nil || len(fds) != 1 {
-					done <- errUnexpected
-					return
-				}
-				unix.Close(fds[0])
-				reply := []byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":` + u64(tc.underflows) + `}}` + "\n")
-				_, _, err = conn.WriteMsgUnix(reply, nil, nil)
-				done <- err
-			}()
-			result, err := New(path).Present(context.Background(), 7, make([]byte, FrameBytes))
+			runtime, path := newFakeRuntime(t)
+			runtime.underflows = tc.underflows
+			client := New(path)
+			defer client.Close()
+			result, err := client.Present(context.Background(), 7, make([]byte, FrameBytes))
 			if tc.ok {
-				if err != nil || result.Underflows != tc.underflows || result.DisplayedSequence != 4 {
+				if err != nil || result.Underflows != tc.underflows || result.DisplayedSequence != 1 {
 					t.Fatalf("result=%+v err=%v", result, err)
 				}
 			} else if err == nil {
 				t.Fatal("underflow above the cap accepted")
-			}
-			if err = <-done; err != nil {
-				t.Fatal(err)
 			}
 		})
 	}
@@ -250,103 +347,7 @@ func readLine(conn *net.UnixConn) ([]byte, []int, error) {
 			return line[:len(line)-1], fds, nil
 		}
 		if len(line) > 65536 {
-			return nil, nil, &unexpected{}
+			return nil, nil, errUnexpected
 		}
-	}
-}
-
-func TestPresentDamageStagesOnlyRects(t *testing.T) {
-	path := testsock.Path(t, "runtime.sock")
-	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	type seen struct {
-		commit  map[string]any
-		staging []byte
-	}
-	got := make(chan seen, 1)
-	done := make(chan error, 1)
-	go func() {
-		conn, err := listener.AcceptUnix()
-		if err != nil {
-			done <- err
-			return
-		}
-		defer conn.Close()
-		if _, _, err = readLine(conn); err != nil {
-			done <- err
-			return
-		}
-		fd, err := unix.MemfdCreate("test-menu", unix.MFD_ALLOW_SEALING)
-		if err != nil {
-			done <- err
-			return
-		}
-		file := os.NewFile(uintptr(fd), "test-menu")
-		defer file.Close()
-		if err = file.Truncate(FrameBytes); err != nil {
-			done <- err
-			return
-		}
-		staging := `{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"staging_format":"rgba8888","displayed_sequence":null,"underflows":0}}` + "\n"
-		if _, _, err = conn.WriteMsgUnix([]byte(staging), unix.UnixRights(fd), nil); err != nil {
-			done <- err
-			return
-		}
-		line, fds, err := readLine(conn)
-		if err != nil || len(fds) != 1 {
-			done <- errUnexpected
-			return
-		}
-		unix.Close(fds[0])
-		var request map[string]any
-		if err = json.Unmarshal(line, &request); err != nil {
-			done <- err
-			return
-		}
-		pixels := make([]byte, FrameBytes)
-		if _, err = file.ReadAt(pixels, 0); err != nil {
-			done <- err
-			return
-		}
-		got <- seen{request, pixels}
-		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":5,"underflows":0,"timing":{"copy_us":900,"submit_us":12,"scanout_wait_us":9000,"stored_pixels":320}}}`+"\n"), nil, nil)
-		done <- err
-	}()
-	pix := make([]byte, FrameBytes)
-	for i := range pix {
-		pix[i] = 0xee
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-	client := New(path)
-	if _, err := client.PresentDamage(ctx, 7, pix, Damage{BaseSequence: 4}); err == nil {
-		t.Fatal("empty damage accepted")
-	}
-	damage := Damage{BaseSequence: 4, Rects: []Rect{{X: 96, Y: 50, W: 32, H: 10}}}
-	result, err := client.PresentDamage(ctx, 7, pix, damage)
-	if err != nil || result.DisplayedSequence != 5 {
-		t.Fatalf("result=%+v err=%v", result, err)
-	}
-	if tm := result.Timing; tm.StagedPixels != 320 || tm.RuntimeStoredPixels != 320 {
-		t.Fatalf("timing=%+v", tm)
-	}
-	s := <-got
-	body, _ := json.Marshal(s.commit["damage"])
-	if string(body) != `{"base_sequence":4,"rects":[[96,50,32,10]]}` {
-		t.Fatalf("damage %s", body)
-	}
-	for y := 0; y < Height; y++ {
-		for x := 0; x < Width; x++ {
-			inside := x >= 96 && x < 128 && y >= 50 && y < 60
-			if v := s.staging[y*Stride+x*4]; (v == 0xee) != inside {
-				t.Fatalf("staging pixel %d,%d = %#x", x, y, v)
-			}
-		}
-	}
-	if err = <-done; err != nil {
-		t.Fatal(err)
 	}
 }
