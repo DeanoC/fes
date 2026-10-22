@@ -45,6 +45,16 @@ TEST_CONSUMER_GROUPS = {
     'test_package_acceptance': frozenset({'packages'}),
 }
 
+# Modules that assert against repository guides, rather than temporary Markdown
+# fixtures. Retain them for mixed code/docs edits without selecting all packages.
+DOCUMENTATION_MODULES = names('''check_doc_links image_assembly consistency
+    coordination core_build bundle''')
+
+
+def documentation(path):
+    # Same classification as the outer affected planner.
+    return 'docs' in PurePosixPath(path).parts or path.endswith('.md')
+
 
 def parent_groups(path):
     if path in PARENT_INPUT_GROUPS:
@@ -68,11 +78,12 @@ def select_groups(paths, video=False, media=False):
         return None
     groups = {'policy', 'build'}
     for path in paths:
-        # Restrict pruning to known first-party component trees. Even docs in
-        # a mixed change are conservative: tests may read embedded Markdown.
         parts = PurePosixPath(path).parts
         if '..' in parts or path.startswith('/'):
             return None
+        # Documentation adds its readers at module selection, not every group.
+        if documentation(path):
+            continue
         parent = parent_groups(path)
         if parent is not None:
             groups.update(parent)
@@ -114,9 +125,10 @@ def select_groups(paths, video=False, media=False):
     return groups
 
 
-def selected_modules(groups, available):
+def selected_modules(groups, available, paths=None):
     if groups is None:
         return set(available)
     assigned = set().union(*GROUPS.values())
     # A new/unclassified test is never silently omitted.
-    return set().union(*(GROUPS[group] for group in groups)) | (set(available) - assigned)
+    readers = DOCUMENTATION_MODULES if any(documentation(path) for path in paths or ()) else set()
+    return set().union(*(GROUPS[group] for group in groups)) | readers | (set(available) - assigned)
