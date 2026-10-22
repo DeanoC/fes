@@ -277,6 +277,10 @@ func (a *App) invalidateSessionDisplayLocked() {
 	a.sessionDisplayUncertain = false
 	a.sessionDisplayBinding = hostclient.SessionResult{}
 	a.roomDuringPlay = false
+	// The notice describes this session's plane, which no longer exists.
+	if a.roomSessionNotice == sessionDisplayUnavailableNotice {
+		a.roomSessionNotice = ""
+	}
 	a.playPadChordSince = time.Time{}
 	a.playPadChordFired = false
 	a.suppressHeldPlayKeysLocked()

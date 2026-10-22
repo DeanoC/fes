@@ -1631,7 +1631,8 @@ func (a *App) Tick(now time.Time) Command {
 	a.tickLocalCoreLocked(now)
 	a.tickSessionPadLocked(now)
 	a.syncSurroundLocked()
-	if a.sessionDisplay.Visible && !a.sessionDisplayBusy && a.menuDisplay != nil {
+	// Stop drains a shown plane, so its frames fail without a display fault.
+	if a.sessionDisplay.Visible && !a.sessionDisplayBusy && a.stopPhase != "stopping" && a.menuDisplay != nil {
 		if err := a.menuDisplay.LastError(); err != nil {
 			a.roomSessionNotice = sessionDisplayUnavailableNotice
 		} else if a.roomSessionNotice == sessionDisplayUnavailableNotice {
