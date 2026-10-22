@@ -86,7 +86,6 @@ module spectrum_machine #(
     reg [7:0] port_7ffd = 8'h00;
     reg [2:0] port_1ffd = 3'b000;
     wire paging_locked = port_7ffd[5];
-    wire [2:0] screen_bank = PAGED && port_7ffd[3] ? 3'd7 : 3'd5;
 
     // Memory slot a[15:14] -> {ROM, ROM page or RAM bank}.
     function [3:0] slot_map(input [1:0] slot);
@@ -124,13 +123,15 @@ module spectrum_machine #(
         .mem_point(), .ula_io_point(), .request(contend_request)
     );
 
+    wire [2:0] screen_bank;
     wire [13:0] screen_addr;
     wire [7:0] screen_data, floating;
     reg [2:0] border_q = 3'd7;
     spectrum_ula #(.MODEL(MODEL)) ula (
         .clk(clk_sys), .reset(reset), .tick_p(tick_p), .tick_n(tick_n),
         .contend_request(contend_request), .cpu_ce_p(cpu_ce_p), .cpu_ce_n(cpu_ce_n),
-        .int_n(int_n), .screen_addr(screen_addr), .screen_read(),
+        .int_n(int_n), .screen7(port_7ffd[3]), .screen_bank(screen_bank),
+        .screen_addr(screen_addr),
         .screen_data(screen_data), .border(border_q), .floating(floating),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done)
@@ -283,10 +284,11 @@ module spectrum_machine #(
         (row_select[7] ? matrix[39:35] : 5'h1f);
     wire ear_bit = (AMSTRAD ? 1'b0 : ear_default) ^ tape_ear;
     wire [7:0] ula_read = {1'b1, ear_bit, 1'b1, keys};
-    // +2A/+3: only ports 1+4n up to $1000 see the floating bus.
+    // +2A/+3: only ports 1+4n up to $1000 see the floating bus. The
+    // Pentagon returns the video data only on port $FF.
     wire amstrad_float_port = cpu_a <= 16'h1000 && cpu_a > 16'h0001 && cpu_a[1:0] == 2'b01;
-    wire [7:0] unattached = STYLE == 2'd0 ? 8'hff :
-                            STYLE == 2'd2 && !amstrad_float_port ? 8'hff : floating;
+    wire [7:0] unattached = MODEL == 3 ? (cpu_a[7:0] == 8'hff ? floating : 8'hff) :
+                            AMSTRAD && !amstrad_float_port ? 8'hff : floating;
     wire mem_read = ~cpu_mreq_n & ~cpu_rd_n;
     wire io_read = io & ~cpu_rd_n;
     wire [7:0] rom_mux = (romcs && chosen[`SP_BUS_DRIVE]) ? chosen[`SP_BUS_RDATA] :

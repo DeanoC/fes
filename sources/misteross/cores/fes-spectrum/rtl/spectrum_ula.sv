@@ -28,9 +28,11 @@ module spectrum_ula #(
     output wire        cpu_ce_p,
     output wire        cpu_ce_n,
     output wire        int_n,
-    // Screen memory read port, 14-bit offset in the displayed 16 KiB bank.
+    // Screen memory read port: RAM bank and 14-bit offset. screen7 is the
+    // 128K-class shadow-screen select (port $7FFD bit 3).
+    input  wire        screen7,
+    output reg  [2:0]  screen_bank = 3'd5,
     output reg  [13:0] screen_addr = 14'd0,
-    output reg         screen_read = 1'b0,
     input  wire [7:0]  screen_data,
     input  wire [2:0]  border,
     output reg  [7:0]  floating = 8'hff,
@@ -50,6 +52,11 @@ module spectrum_ula #(
     // 0 none, 1 Sinclair 6,5,4,3,2,1,0,0 from TOP_LEFT-1, 2 Amstrad
     // 1,0,7,6,5,4,3,2 from TOP_LEFT-4.
     localparam integer CONTENTION = MODEL == 3 ? 0 : MODEL == 2 ? 2 : 1;
+    // Floating bus: 1 Sinclair ULA, 2 Amstrad (one T state later, bit 0
+    // set), 3 Pentagon port $FF (the Sinclair pattern four T states later,
+    // from its 36 T left border in Fuse's model).
+    localparam integer FLOATING = MODEL == 2 ? 2 : MODEL == 3 ? 3 : 1;
+    localparam bit SHADOW = MODEL != 0;
     // 48K and Pentagon run 3.5 MHz; 128K/+2A 3.5469 MHz, from 52.224 MHz.
     localparam integer PHASE_ADD = (MODEL == 1 || MODEL == 2) ? 11823 : 875;
     localparam integer PHASE_MOD = (MODEL == 1 || MODEL == 2) ? 174080 : 13056;
@@ -158,84 +165,67 @@ module spectrum_ula #(
     wire [8:0] d = hx - 9'd32;
     wire [8:0] d_late = hx - 9'd33;   // Amstrad: one T state later
     wire in_paper_t = paper_line && hx >= 9'd32 && hx < 9'd160;
-    wire [2:0] float_phase = CONTENTION == 2 ? d_late[2:0] : d[2:0];
-    wire float_live = CONTENTION != 0 && in_paper_t &&
-                      float_phase >= 3'd2 && float_phase <= 3'd5;
+    wire [2:0] float_phase = FLOATING == 2 ? d_late[2:0] :
+                             FLOATING == 3 ? d[2:0] + 3'd4 : d[2:0];
+    wire float_live = in_paper_t && float_phase >= 3'd2 && float_phase <= 3'd5;
     wire [4:0] float_column = {d[6:3], 1'b0} + {4'd0, float_phase >= 3'd4};
     wire float_attr = float_phase[0];
 
-    // Screen port schedule, one request per clock after tick_p:
-    //   +0 bitmap for chunk c (at hx = 34 + 4c), +1 its attribute,
-    //   +2 floating-bus byte for this T state.
-    localparam [2:0] S_IDLE = 3'd0, S_BITMAP = 3'd1, S_ATTR = 3'd2, S_FLOAT = 3'd3;
-    reg [2:0] issue = S_IDLE;
-    reg [2:0] issued_d1 = S_IDLE, issued_d2 = S_IDLE;
-    reg fetch_paper = 1'b0;
-    reg float_pending = 1'b0;
-    reg [4:0] fetch_column = 5'd0;
-    reg [7:0] fetch_y = 8'd0;
-    reg [7:0] bitmap_q = 8'd0, attr_q = 8'd0;
-    reg [7:0] bitmap_hold = 8'd0, attr_hold = 8'd0;
-    wire [8:0] fetch_x = hx - 9'd34;
-    wire fetch_now = tick_p_d && paper_line && hx >= 9'd34 && hx < 9'd162 && fetch_x[1:0] == 2'd0;
+    // A chunk's bitmap and attribute are read at the start of the T state
+    // two after the chunk begins (hx = 34 + 4c), so a write whose T1 began
+    // in the chunk's first T state is seen and a later one is not. 128K-class
+    // models read both screens then; the bank is chosen when the chunk ends,
+    // so an OUT to $7FFD with T2 up to its last T state switches it.
+    // Screen port schedule, one read per clock from the clock after tick_p:
+    //   0 floating-bus byte, 1/2 bank 5 bitmap/attribute, 3/4 bank 7.
     reg tick_p_d = 1'b0;
     always @(posedge clk) tick_p_d <= tick_p;
+    wire [8:0] fetch_x = hx - 9'd34;
+    wire fetch_now = paper_line && hx >= 9'd34 && hx < 9'd162 && fetch_x[1:0] == 2'd0;
+    localparam [2:0] S_IDLE = 3'd0, S_FLOAT = 3'd1, S_B5 = 3'd2, S_A5 = 3'd3,
+                     S_B7 = 3'd4, S_A7 = 3'd5;
+    reg [2:0] step = S_IDLE;
+    reg [2:0] issued_d1 = S_IDLE, issued_d2 = S_IDLE, issued_d3 = S_IDLE;
+    reg [4:0] fetch_column = 5'd0;
+    reg [7:0] fetch_y = 8'd0;
+    reg [7:0] bitmap5 = 8'd0, attr5 = 8'd0, bitmap7 = 8'd0, attr7 = 8'd0;
 
     always @(posedge clk) begin
-        screen_read <= 1'b0;
-        issued_d1 <= issue;
+        issued_d1 <= S_IDLE;
         issued_d2 <= issued_d1;
+        issued_d3 <= issued_d2;
         if (reset) begin
-            issue <= S_IDLE;
-            float_pending <= 1'b0;
+            step <= S_IDLE;
             floating <= 8'hff;
         end else begin
-            // Counters for the new slot are visible the clock after tick_p.
             if (tick_p_d) begin
-                fetch_paper <= fetch_now;
+                // Counters for the new slot are visible the clock after tick_p.
                 fetch_column <= fetch_x[6:2];
                 fetch_y <= vy[7:0];
-                float_pending <= 1'b1;
-                issue <= fetch_now ? S_BITMAP : S_FLOAT;
-                if (fetch_now) begin
-                    screen_addr <= bitmap_offset(vy[7:0], fetch_x[6:2]);
-                    screen_read <= 1'b1;
-                end else if (float_live) begin
+                if (float_live) begin
+                    screen_bank <= SHADOW && screen7 ? 3'd7 : 3'd5;
                     screen_addr <= float_attr ? attr_offset(vy[7:0], float_column)
                                               : bitmap_offset(vy[7:0], float_column);
-                    screen_read <= 1'b1;
-                end
-                if (!float_live) begin
-                    // Idle bus, settled for the whole slot.
-                    floating <= 8'hff;
-                    float_pending <= 1'b0;
-                    if (!fetch_now) issue <= S_IDLE;
-                end
-            end else if (issue == S_BITMAP) begin
-                screen_addr <= attr_offset(fetch_y, fetch_column);
-                screen_read <= 1'b1;
-                issue <= S_ATTR;
-            end else if (issue == S_ATTR) begin
-                issue <= float_pending ? S_FLOAT : S_IDLE;
-                if (float_pending) begin
-                    screen_addr <= float_attr ? attr_offset(fetch_y, float_column)
-                                              : bitmap_offset(fetch_y, float_column);
-                    screen_read <= 1'b1;
-                end
-            end else begin
-                issue <= S_IDLE;
+                    issued_d1 <= S_FLOAT;
+                end else floating <= 8'hff;
+                step <= fetch_now ? S_B5 : S_IDLE;
+            end else if (step != S_IDLE) begin
+                screen_bank <= step >= S_B7 ? 3'd7 : 3'd5;
+                screen_addr <= step[0] ? attr_offset(fetch_y, fetch_column)
+                                       : bitmap_offset(fetch_y, fetch_column);
+                issued_d1 <= step;
+                step <= step == S_A7 || (!SHADOW && step == S_A5) ? S_IDLE : step + 3'd1;
             end
-            // Screen data returns two clocks after its address.
-            if (issued_d2 == S_BITMAP) bitmap_q <= screen_data;
-            if (issued_d2 == S_ATTR) attr_q <= screen_data;
-            if (issued_d2 == S_FLOAT && float_pending) begin
-                floating <= CONTENTION == 2 ? (screen_data | 8'h01) : screen_data;
-                float_pending <= 1'b0;
-            end
-            if (issued_d2 == S_ATTR && fetch_paper) begin
-                bitmap_hold <= bitmap_q;
-                attr_hold <= screen_data;
-            end
+            // The address register, block read and bank select take three
+            // clocks; capture on the fourth edge.
+            case (issued_d3)
+                S_FLOAT: floating <= FLOATING == 2 ? (screen_data | 8'h01) : screen_data;
+                S_B5: bitmap5 <= screen_data;
+                S_A5: attr5 <= screen_data;
+                S_B7: bitmap7 <= screen_data;
+                S_A7: attr7 <= screen_data;
+                default: ;
+            endcase
         end
     end
 
@@ -249,6 +239,7 @@ module spectrum_ula #(
     wire paper_chunk = paper_line && chunk >= 6'd4 && chunk < 6'd36;
     wire [7:0] row = vy >= 9'(LINES - 24) ? 8'(vy - 9'(LINES - 24)) : 8'(vy + 9'd24);
     reg [2:0] border_q = 3'd7;
+    reg screen7_q = 1'b0;
 
     function [31:0] paper_pixels(input [7:0] bits, input [7:0] attr, input flash_on);
         integer i;
@@ -267,12 +258,16 @@ module spectrum_ula #(
         pixel_we <= 1'b0;
         frame_done <= 1'b0;
         // The border register is sampled with the T-state edge.
-        if (tick_p) border_q <= border;
+        if (tick_p) begin
+            border_q <= border;
+            screen7_q <= SHADOW && screen7;
+        end
         if (tick_p_d && chunk_end) begin
             pixel_we <= 1'b1;
             pixel_row <= row;
             pixel_chunk <= chunk;
-            pixel_data <= paper_chunk ? paper_pixels(bitmap_hold, attr_hold, flash)
+            pixel_data <= paper_chunk ? paper_pixels(screen7_q ? bitmap7 : bitmap5,
+                                                     screen7_q ? attr7 : attr5, flash)
                                       : {8{1'b0, border_q}};
             frame_done <= row == 8'd239 && chunk == 6'd39;
         end
