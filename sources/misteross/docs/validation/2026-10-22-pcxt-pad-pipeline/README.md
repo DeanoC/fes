@@ -1369,11 +1369,57 @@ that failure is retained, the existing parser controls then pass, and the comple
 replay succeeds. This is saved native topology evidence, not a new STA run.
 Evidence is under `out/cga-source-exit-retention-20261023/`.
 
-The next default-off compiler candidate,
-`626e368b0529c4516aa3a7a4bb4bcdd034011e30`, rebuilds timing and discovers critical
-routes after the LUT repairs. Its 31 focused native and nine CLI tests and exact
-default/zero controls pass. A fresh control/final-route32 pair is running under
-`out/final-critical-route-rediscovery-20261023/`; no routed result is claimed here.
-CPU/system/microcode remain 100 MHz and pixel remains 74.25 MHz. Both PRs remain
-draft. Final timing, complete coverage, same-recipe seed, fresh producer and
-exact-artifact hardware gates remain open.
+The source-exit result now has an
+[immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/e6ea2a6cf40a2236c4166b07591ca55e709393e2/docs/validation/2026-10-23-pcxt-source-exit-retention),
+archive SHA-256 `bb41b70758c9b2a2b09069ddcc7c3f5bde829a40f082dcf208310d1a5422f221`.
+Root fresh extraction verifies 418 members and complete 284/100-member
+budget32/combined dependencies. Separate portable checker copies change only
+three explicit path lookups; original live proofs remain unchanged. Only declared
+checker-digest provenance differs, and all substantive proof results are exact.
+No new native execution or historical route is claimed.
+
+## Final route rediscovery finds no improving proposal
+
+Compiler `626e368b0529c4516aa3a7a4bb4bcdd034011e30`, binary
+`52dda57ca0a9da4c57f9f5836764e791aced3e9efab9da9b1c64543c51a417f5`,
+adds the separate default-zero final-route budget. Its 31 native and nine CLI
+tests and exact default/zero controls pass. Two fresh routes retain the same raw
+synthesis, original 100 MHz CPU/system/microcode and 74.25 MHz pixel constraints,
+route32, two LUT6 rounds and permutation32. Source-exit retention stays disabled.
+Only the candidate adds `--critical-final-route-budget 32`.
+
+After the preceding repairs, fresh timing identifies 24 failing ordinary sink
+rows and selects 21 nets. Two bounded proposal generations log 17 candidates;
+every native gain is negative, with best -20 ps. None reaches the +20 ps trial
+threshold, so zero full trials run and nothing is retained. This bounded result
+does not establish that no legal improving route exists.
+
+RBF, timing and endpoints are byte-identical between the two results. The full
+12,397-cell/15,546-alias graph has no canonical tree or other state changes;
+routed JSON differs only in 15 routing-attribute serialization orders. No new
+native reader execution is required. All 17,199 endpoint identities and metadata,
+17,194 setup and hold margins, clock categories and constraints are exact.
+Eight setup failures remain, CPU worst -25 ps and overall worst -434 ps; related
+hold has no failures and minimum +822 ps. The control also reproduces the prior
+fixed result, with only its routed JSON creator label changed.
+
+Root's complete comparisons and the independent eight-output replay pass.
+The review includes 54 graph/log negatives, 24 topology negatives and three
+preserved checker corrections; SHA-256 is
+`110ee76bd47952b2b812f32ee3e2a9f7376d4a933a5cca741bd876b8ac931a89`. Evidence is under
+`out/final-critical-route-rediscovery-20261023/`.
+The two route charges are 1071.680669224821 and 1186.9478577878326 seconds;
+the 54-receipt cumulative charge is **55746.72936571435947 seconds**.
+
+An isolated display packet pipeline is the next full-board RTL diagnostic.
+Formal checks preserve the original dot sample and same-cycle ISA/MDA status
+while delaying the complete exported tuple one system edge. The three unchanged
+display integration suites pass. Ten additional consumer runs check 260 output
+frames and 192 HOLD edges, including queued publication; complete-frame skips
+or repeats remain allowed. Synthesis/path inspection must include the new
+packet-renderer-to-MDA-status path before routing. These tests are host evidence,
+not timing or hardware qualification; shared RTL is unchanged.
+
+Both PRs remain draft. The 105 unsupported boundaries and `complete=false`,
+final timing, same-recipe seed, fresh producer and exact-artifact hardware gates
+remain open. No clocks, constraints, toolchain lock or shared contracts changed.
