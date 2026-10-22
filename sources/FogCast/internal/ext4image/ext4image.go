@@ -162,8 +162,13 @@ func (img *image) inode(number uint64) (inode, error) {
 	if _, err := img.r.ReadAt(raw, offset+int64(index*img.inodeSize)); err != nil {
 		return inode{}, fmt.Errorf("read ext4 inode %d: %w", number, err)
 	}
-	return inode{mode: le.Uint16(raw[0:]), size: uint64(le.Uint32(raw[4:])) | uint64(le.Uint32(raw[0x6C:]))<<32,
-		flags: le.Uint32(raw[0x20:]), block: raw[0x28 : 0x28+60]}, nil
+	in := inode{mode: le.Uint16(raw[0:]), size: uint64(le.Uint32(raw[4:])), flags: le.Uint32(raw[0x20:]), block: raw[0x28 : 0x28+60]}
+	// Without largedir, which open refuses, only regular files use the high
+	// size word; older directories may hold another value there.
+	if in.mode&typeMask == typeRegular {
+		in.size |= uint64(le.Uint32(raw[0x6C:])) << 32
+	}
+	return in, nil
 }
 
 // content reads an extent-mapped inode. Holes and unwritten extents read as zeros.
