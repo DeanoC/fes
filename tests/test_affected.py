@@ -145,6 +145,11 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
+            'scripts/sim_fes_display_plane.py': {'zx81'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81'},
+            'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -261,6 +266,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
+                sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
             references = set(re.findall(r'cores/[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)

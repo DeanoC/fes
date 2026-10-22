@@ -17,7 +17,7 @@
 #include "native/hardware.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
-#include "native/linux/menu_memory.hpp"
+#include "native/linux/menu_window.hpp"
 #include "native/core_data.hpp"
 #include "native/media_data.hpp"
 #include "native/input.hpp"
@@ -1482,29 +1482,45 @@ void SetHpsDdrMirrors(mister_test::FakeMmio* mmio, bool matching)
 
 // Programming, the FES GP mailbox and the SDR registers share one bus, as in
 // production, so the fake records the complete activation write order.
-class MenuOperations final : public mister::native::MenuMemoryOperations {
+class MenuOperations final : public mister::native::MenuWindowOperations {
 public:
  std::vector<std::uint32_t> pixels=std::vector<std::uint32_t>(8388608/4,0xdeadbeef);
- bool reserved=true;unsigned barriers=0;
- mister::Error VerifyReservation(std::uint64_t base,std::uint64_t bytes) override {
-  assert(base==0x30000000&&bytes==0x10000000);
-  return reserved?mister::Error{}:mister::Error{mister::ErrorCode::io_failed,"no reservation"};
+ bool driver=true;unsigned grants=0,revokes=0,cleans=0;
+ struct Cleaned {std::uint64_t offset;std::uint32_t width,height,stride;};
+ std::vector<Cleaned> cleaned;
+ mister::Error Grant(std::uint64_t offset,std::uint64_t bytes,int* fd) override {
+  assert(offset==0&&bytes==8388608);
+  if(!driver)return {mister::ErrorCode::io_failed,"no fes-window driver"};
+  *fd=int(100+ ++grants);return {};
  }
- mister::Error Open(int* fd) override {*fd=7;return {};}
- mister::Error Map(int,std::uint64_t,std::size_t bytes,void** out) override {assert(bytes==8388608);*out=pixels.data();return {};}
+ mister::Error Map(int,std::size_t bytes,void** out) override {assert(bytes==8388608);*out=pixels.data();return {};}
  void Unmap(void*,std::size_t) override {}
+ mister::Error Clean(int,std::uint64_t offset,std::uint32_t width,std::uint32_t height,std::uint32_t stride) override {
+  cleaned.push_back({offset,width,height,stride});++cleans;return {};
+ }
+ mister::Error Revoke(int) override {++revokes;return {};}
+ mister::Error Duplicate(int fd,int* copy) override {*copy=fd+1000;return {};}
  void Close(int) override {}
- void VisibilityBarrier() override {++barriers;}
+ bool Granted() const {return grants>revokes;}
 };
+// The client draws into the slot the hardware names, then commits it.
+mister::Error PresentBackSlot(mister::native::NativeHardware& hardware,mister::MenuDisplayInfo* info)
+{
+ std::uint8_t slot=0;mister::Error error=hardware.MenuBackSlot(&slot);
+ return error.ok()?hardware.PresentMenuSlot(slot,{},info):error;
+}
 struct MenuGpScript {
  mister_test::FakeMmio* mmio;
  bool toggle=false;
+ // A session plane reports premultiplied RGBA and its picture rectangle.
+ bool session=false;
  void Reply(std::uint16_t value=0){toggle=!toggle;PushFesGpResponse(mmio,toggle,value);}
  void Info(std::uint16_t state,std::uint32_t sequence,std::uint32_t underflows=0){
-  const std::uint16_t words[]={1280,720,5120,16384,56,0,64,1,2,state,
+  const std::uint16_t words[]={1280,720,5120,16384,56,0,64,std::uint16_t(session?2:1),2,state,
    static_cast<std::uint16_t>(sequence),static_cast<std::uint16_t>(sequence>>16),
    static_cast<std::uint16_t>(underflows),static_cast<std::uint16_t>(underflows>>16)};
   for(auto word:words)Reply(word);
+  if(session)for(std::uint16_t word:{312,90,656,540})Reply(word);
  }
  void Identity(){
   using namespace mister::native::generated;
@@ -1528,13 +1544,13 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  TempDirectory package;
  auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
  ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
- for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display"})
+ for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
   manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
  package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
  OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
- MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
  FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
  TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
@@ -1545,11 +1561,16 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  fpga.boot_hps_ddr_layout=false;
  assert(!hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  fpga.boot_hps_ddr_layout=true;
- bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
-  if(abi.id==FesSimpleComputerABIID&&interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID)advertised=true;
- assert(advertised);
+ // The shared plane is advertised with session display, so FogCast sees every
+ // required interface of the package as supported.
+ bool advertised=false,plane=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(abi.id==FesSimpleComputerABIID) {
+   advertised|=interface.id==FesSimpleComputerInterfaceVideoSessionDisplayID;
+   plane|=interface.id==std::string(kDisplayPlaneInterfaceID)&&interface.major==1&&interface.minor==0;
+  }
+ assert(advertised&&plane);
  assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
- MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
+ MenuGpScript script{&mmio};script.session=true;auto words=FesGpIdentityWords();
  words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
  words[FesGpIdentityCapabilitiesIndex]=775;
  for(auto word:words)script.Reply(word);
@@ -1570,17 +1591,15 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  };
  open_plane();
  const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
- std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
- script.Present(0,0,0);mister::MenuDisplayInfo info;assert(hardware.PresentMenuFrame(*frame,&info).ok());
+ script.Present(0,0,0);mister::MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok());
  script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false).ok());
  assert(!hardware.menu_display().available&&fpga.calls==1);
  open_plane();
  // Completion with a bad underflow delta invokes only plane quiesce.
  script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&info).ok());
+ assert(!PresentBackSlot(hardware,&info).ok());
  assert(!hardware.menu_display().available&&hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
- assert(fpga.calls==1&&hardware.menu_display().core_generation==17&&memory.CopyCancelled());
+ assert(fpga.calls==1&&hardware.menu_display().core_generation==17&&!operations.Granted());
  for(std::size_t i=begin;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);
  // A session plane can prove drained while its sticky reader fault remains.
@@ -1593,6 +1612,55 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  assert(!hardware.menu_display().session);
 }
 
+// A session package built before the shared plane (ZX81 1.5.0) declares no
+// display plane, so inspection and admission refuse it before programming.
+// A package that declares the plane but whose bitstream still reports the
+// idle XRGB format fails closed after programming, so the runtime returns to idle.
+void TestSessionDisplayRejectsPlaneWithoutBlend()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ auto session_package=[](TempDirectory* package,bool plane,OpenedCorePackage* opened) {
+  auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+  ReplaceAll(&manifest,"fes.simple-game","fes.simple-computer");ReplaceAll(&manifest,"fes.gamepad","fes.keyboard");
+  for(const char* id:{"fes.media.blob","fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+   if(plane||std::string(id)!=kDisplayPlaneInterfaceID)
+    manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+  package->File("manifest.toml",manifest);package->File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+  assert(OpenCorePackage(package->path,"",opened).ok());
+ };
+ TempDirectory opaque,package;OpenedCorePackage opaque_opened,opened;
+ session_package(&opaque,false,&opaque_opened);session_package(&package,true,&opened);
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ mister::CorePackageInspection inspection;
+ assert(hardware.InspectCorePackage(opaque.path,opaque_opened.package_id,&inspection).ok());
+ assert(!inspection.compatible&&inspection.compatibility_error.code==mister::ErrorCode::unsupported_interface);
+ const auto refused=hardware.AdmitCorePackage(opaque.path,opaque_opened.package_id,&admitted);
+ assert(refused.code==mister::ErrorCode::unsupported_interface&&refused.phase=="compatibility");
+ assert(!admitted&&fpga.calls==0);
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};auto words=FesGpIdentityWords();
+ words[FesGpIdentityAbiTagIndex]=FesSimpleComputerAbiTag;
+ words[FesGpIdentityCapabilitiesIndex]=775;
+ for(auto word:words)script.Reply(word);
+ script.Info(8,0);script.Reply(); // configure
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ script.Reply(); // execution release
+ script.Info(9,0); // drained, but pixel format 1
+ const auto loaded=hardware.LoadCore(std::move(admitted),17);
+ assert(loaded.error.code==mister::ErrorCode::io_failed&&loaded.error.phase=="menu");
+ assert(loaded.error.message=="session display must blend premultiplied RGBA");
+ assert(loaded.mutation_attempted&&fpga.calls==1&&!hardware.menu_display().session);
+}
+
 void TestNativeMenuActivationAndCompletion()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -1603,7 +1671,7 @@ void TestNativeMenuActivationAndCompletion()
  assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
- MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
  FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
  const InputDeviceIdentity identity={"test",0,0,0,0};
@@ -1615,7 +1683,7 @@ void TestNativeMenuActivationAndCompletion()
  assert(hardware.ConfigureMenuPackage(package.path,std::string(64,'0')).error.code==mister::ErrorCode::invalid_package);
  fpga.boot_hps_ddr_layout=false;
  assert(hardware.ConfigureMenuPackage(package.path,opened.package_id).error.code==mister::ErrorCode::unsupported_interface);
- assert(fpga.calls==0&&operations.barriers==0&&mmio.writes.empty());fpga.boot_hps_ddr_layout=true;
+ assert(fpga.calls==0&&operations.cleans==0&&mmio.writes.empty());fpga.boot_hps_ddr_layout=true;
  bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
   if(interface.id==FesApplicationInterfaceVideoMenuDisplayID)advertised=true;
  assert(advertised);
@@ -1623,27 +1691,38 @@ void TestNativeMenuActivationAndCompletion()
  gp_script.BringUp();
  auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!result.error.ok())fprintf(stderr,"menu activation: %s\n",result.error.message.c_str());
- assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1&&operations.barriers==1);
- assert(!memory.CopyCancelled());
+ assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1&&operations.cleans==1);
+ assert(operations.Granted());
  assert(operations.pixels[0]==0&&operations.pixels[3686400/4]==0xdeadbeef);
- std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
+ // The first frame goes to slot 1; slot 0 is what scanout shows black.
+ // Committing the displayed slot is refused before any GP traffic.
+ std::uint8_t back=9;assert(hardware.MenuBackSlot(&back).ok()&&back==1);
+ mister::MenuDisplayInfo displayed;const auto before_wrong=mmio.writes.size();
+ assert(hardware.PresentMenuSlot(0,{},&displayed).code==mister::ErrorCode::invalid_request);
+ assert(mmio.writes.size()==before_wrong&&hardware.menu_display().available);
+ int shared=-1;assert(memory.Share(&shared).ok()&&shared==1101);
  gp_script.Present(0,0,0,true);
- mister::MenuDisplayInfo displayed;assert(hardware.PresentMenuFrame(*frame,&displayed).ok());
- assert(displayed.displayed_sequence==1&&displayed.underflows==0&&operations.barriers==2);
+ assert(PresentBackSlot(hardware,&displayed).ok());
+ // The client drew the slot; the runtime copied nothing and only wrote back
+ // that slot's frame for the fabric before submitting it.
+ assert(displayed.displayed_sequence==1&&displayed.underflows==0&&operations.cleans==2);
+ assert(operations.cleaned[0].offset==0&&operations.cleaned[0].height==2&&operations.cleaned[0].stride==4194304);
+ assert(operations.cleaned[1].offset==4194304&&operations.cleaned[1].width==3686400&&
+  operations.cleaned[1].height==1&&operations.cleaned[1].stride==5120);
+ assert(hardware.MenuBackSlot(&back).ok()&&back==0);
  // Generic game launch must reject the menu before touching the running display.
  std::unique_ptr<mister::AdmittedCorePackage> admitted;assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
  const auto programs=fpga.calls;assert(!hardware.LoadCore(std::move(admitted),1).error.ok());assert(fpga.calls==programs&&hardware.menu_display().available);
  // An uncertain live state does not copy. The package is kept so idle recovery
  // reactivates the menu instead of dropping straight to splash.
  gp_script.Info(7,1,0);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
- assert(operations.barriers==2);
+ assert(!PresentBackSlot(hardware,&displayed).ok());
+ assert(!operations.Granted());
  gp_script.QuiesceRunningMenu();gp_script.BringUp();
  assert(hardware.LoadIdle().error.ok());
  assert(hardware.menu_display().available&&hardware.menu_display().error.ok());
  assert(fpga.programmed.back()=="core.rbf");
- assert(!memory.CopyCancelled());
+ assert(operations.Granted());
 
 }
 
@@ -1657,7 +1736,7 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
- MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuMemory memory(operations);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
  FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
  const InputDeviceIdentity identity={"test",0,0,0,0};
@@ -1668,12 +1747,10 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  auto configured=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!configured.error.ok())fprintf(stderr,"menu underflow setup: %s\n",configured.error.message.c_str());
  assert(configured.error.ok());
- std::unique_ptr<mister::MenuFrame> frame;assert(mister::MenuFrame::Create(&frame).ok());
- assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);
  mister::MenuDisplayInfo displayed;
  auto show=[&](std::uint32_t sequence,std::uint32_t baseline,std::uint32_t final_underflows){
   script.Present(sequence,baseline,final_underflows);
-  return hardware.PresentMenuFrame(*frame,&displayed);
+  return PresentBackSlot(hardware,&displayed);
  };
  auto reactivate=[&]{
   script.QuiesceRunningMenu();script.BringUp();
@@ -1697,23 +1774,23 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
   assert(displayed.underflows==1);
  }
  script.Present(sequence,baseline,baseline+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  assert(!hardware.menu_display().available);
  assert(hardware.menu_display().error.message=="menu underflow persisted across presents");
  reactivate();
  script.Present(0,0,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
  reactivate();
  clock.now_+=kMenuReactivationWindowMs;
  script.Present(0,0,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
  script.Present(0,0,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
  script.Present(0,0,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  assert(!hardware.menu_display().available);
  assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
  const auto programs=fpga.calls;
@@ -1721,16 +1798,15 @@ void TestMenuUnderflowPolicyReactivatesThenSplashes()
  assert(!hardware.menu_display().available);
  assert(hardware.menu_display().error.message=="menu underflow exceeded the per-present cap");
  assert(fpga.programmed.back()=="idle.rbf"&&fpga.calls==programs+1);
- assert(memory.CopyCancelled());
- operations.pixels[10]=0xabcdefu;
- assert(!memory.CopyRgba(0,*frame).ok());
- assert(operations.pixels[10]==0xabcdefu);
+ assert(!operations.Granted());
+ // Revoked: no client can be handed the window until it is granted again.
+ int shared=-1;assert(!memory.Share(&shared).ok()&&shared==-1);
  script.toggle=false;script.BringUp();
  configured=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!configured.error.ok())fprintf(stderr,"menu reconfigure: %s\n",configured.error.message.c_str());
- assert(configured.error.ok()&&hardware.menu_display().available&&!memory.CopyCancelled());
+ assert(configured.error.ok()&&hardware.menu_display().available&&operations.Granted());
  script.Present(0,0,kMenuUnderflowPresentCap+1);
- assert(!hardware.PresentMenuFrame(*frame,&displayed).ok());
+ assert(!PresentBackSlot(hardware,&displayed).ok());
  reactivate();
 }
 
@@ -3303,7 +3379,7 @@ void TestDiskBindingRetiresAfterProgramming()
 		FesGpCoreDriver driver(gp);
 		MenuDisplayDriver display(gp, clock);
 		MenuOperations operations;
-		MenuMemory memory(operations);
+		MenuWindow memory(operations);
 		std::vector<std::string> events;
 		RecordingOpener opener(events);
 		RecordingFpga fpga(events);
@@ -3648,6 +3724,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 				"\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
+				"\n[[interfaces]]\nid = \"fes.fabric.video.display-plane\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
 		} else {
 			const auto first = manifest.find("[[interfaces]]");
@@ -3707,7 +3784,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 		FesGpCoreDriver driver(transport);
 		MenuDisplayDriver display(transport, clock);
 		MenuOperations operations;
-		MenuMemory memory(operations);
+		MenuWindow memory(operations);
 		RecordingI2c i2c(events);
 		RecordingVideo idle_video(events);
 		LedgerLog log(events);
@@ -3721,6 +3798,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 		const bool plane = item.layout && item.adapters;
 		assert(advertised(hardware, FesComputerInterfaceMemoryHpsDdrID) == item.layout);
 		assert(advertised(hardware, FesComputerInterfaceVideoSessionDisplayID) == plane);
+		assert(advertised(hardware, kDisplayPlaneInterfaceID) == plane);
 		assert(admitted(&hardware, display_package.path, display_opened.package_id) == plane);
 		assert(admitted(&hardware, ddr_package.path, ddr_opened.package_id) == item.layout);
 	}
@@ -3732,6 +3810,7 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
+ TestSessionDisplayRejectsPlaneWithoutBlend();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();

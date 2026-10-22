@@ -1,5 +1,6 @@
 """Parent integration boundaries and fail-safe suite filtering."""
 import contextlib
+import ast
 import io
 import json
 from pathlib import Path
@@ -58,7 +59,7 @@ class ParentAffectedTests(unittest.TestCase):
 
     def test_unknown_shared_parent_inputs_and_empty_plans_keep_all(self):
         for path in ('<new-branch>', 'scripts/build.py', 'scripts/target_acceptance.py',
-                     'tests/test_core_build.py', 'image/Makefile', 'platform/boot.go',
+                     'tests/test_parent_affected.py', 'image/Makefile', 'platform/boot.go',
                      'profiles/native-integration-dev.toml', 'sources/mister-packages/abi.yaml',
                      'sources/FogCast/go.mod', 'sources/FogCast/go.sum',
                      'sources/FogCast/new-area/source.go', 'sources/FogCast-other/api.go',
@@ -67,6 +68,50 @@ class ParentAffectedTests(unittest.TestCase):
                 self.assertIsNone(policy.select_groups([ROOM, path]))
         self.assertIsNone(policy.select_groups(None))
         self.assertIsNone(policy.select_groups([]))
+
+    def test_reviewed_parent_inputs_keep_owners_and_shared_test_consumers(self):
+        for path, expected in (
+                ('scripts/appliance.py', {'policy', 'build', 'media'}),
+                ('scripts/appliance_inside.py', {'policy', 'build', 'media'}),
+                ('tests/test_receipt.py', {'policy', 'build'}),
+                ('tests/test_core_build.py', {'policy', 'build', 'packages'}),
+                ('tests/test_package_acceptance.py', {'policy', 'build', 'packages', 'acceptance'})):
+            with self.subTest(path=path):
+                self.assertEqual(policy.select_groups([path]), expected)
+
+    def test_parent_mixed_paths_and_modes_union_coverage(self):
+        paths = ['scripts/appliance_media.py', 'tests/test_core_build.py']
+        self.assertEqual(policy.select_groups(paths), {'policy', 'build', 'media', 'packages'})
+        self.assertEqual(policy.select_groups(['tests/test_receipt.py'], video=True, media=True),
+                         {'policy', 'build', 'packages', 'media'})
+        for unknown in ('scripts/new.py', 'tests/test_new.py', 'tests/helpers.py',
+                        'scripts/appliance_extra.py', 'scripts/parent_affected.py',
+                        'scripts/parent_tests.py', 'scripts/test_policy.py'):
+            with self.subTest(path=unknown):
+                self.assertIsNone(policy.select_groups(paths + [unknown]))
+
+    def test_reviewed_script_paths_exist(self):
+        for path in policy.PARENT_INPUT_GROUPS:
+            self.assertTrue((ROOT / path).is_file(), path)
+
+    def test_cross_test_import_consumers_remain_selected(self):
+        # Guard fixture sharing when an existing test starts importing another
+        # group's helpers. Dynamic file/subprocess consumers still need review.
+        owners = {module: group for group, modules in policy.GROUPS.items()
+                  for module in modules}
+        for consumer, group in owners.items():
+            tree = ast.parse((ROOT / 'tests' / (consumer + '.py')).read_text())
+            dependencies = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    dependencies.update(alias.name.rsplit('.', 1)[-1] for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    dependencies.add((node.module or '').rsplit('.', 1)[-1])
+                    dependencies.update(alias.name for alias in node.names)
+            for dependency in dependencies & owners.keys():
+                selected = policy.select_groups(['tests/' + dependency + '.py'])
+                if selected is not None:
+                    self.assertIn(group, selected, f'{consumer} imports {dependency}')
 
     def test_renames_union_both_owners(self):
         self.assertEqual(policy.select_groups([ROOM, 'sources/FogCast/appliance/assets/room.lua']),
@@ -145,6 +190,13 @@ class ParentAffectedTests(unittest.TestCase):
         self.assertLess(len(room['selected']), len(full['selected']) // 2)
         self.assertTrue(any('test_parent_affected.' in test for test in room['selected']))
         self.assertEqual(plan(['<new-branch>'])['selected'], full['selected'])
+        receipt = plan(['tests/test_receipt.py'])
+        self.assertEqual(receipt['selected'], room['selected'])
+        appliance = plan(['scripts/appliance.py'])
+        self.assertTrue(any('test_appliance.' in test for test in appliance['selected']))
+        self.assertFalse(any('test_core_build.' in test for test in appliance['selected']))
+        self.assertEqual(sorted(appliance['selected'] + appliance['omitted']),
+                         sorted(full['selected'] + full['omitted']))
 
     def test_malformed_path_payload_is_rejected(self):
         for payload in ('null', '{}', '[1]', 'broken'):

@@ -72,21 +72,16 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
-The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
-through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
-The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
-and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
-and services PIT1 refresh with CPU LOCK/INTA arbitration; the storage lane loads its
-firmware through a reset-only byte loader and boots the ISA display diagnostic
-through the existing physical SDRAM controller in host simulation. Board
-capture/pads and routed memory timing remain unqualified. Separate ISA CGA and MDA cards
-produce independently timed RGBI guest rasters in host simulation; fonts and
-board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
-existing shared RGB888 Direct/Scanlines effects in host simulation; the board
-producer, routed shell and exact-shell parts are still unimplemented.
-`make sim-fes-pcxt` checks it on the host; see the
-[core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
-linkable PC/XT sockets remain unimplemented.
+The PC/XT development slice runs an original diagnostic ROM on a pinned 8088
+through its motherboard, SDRAM and separate ISA CGA/MDA cards. The assembled
+system also exercises DMA and refresh while one selected display crosses into
+the shared Direct/Scanlines 720p output. `make sim-fes-pcxt` checks this on the
+host. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds an
+autonomous board diagnostic with PLLs, SDRAM pads/capture and HDMI, retaining
+source/tool receipts and failed or completed routes under
+`build/diagnostic/fes-pcxt/`. See the [core README](cores/fes-pcxt/README.md).
+Routed timing, SDRAM pad qualification, a sealed package, physically linkable ISA
+sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
 
 ## What builds now
 
@@ -165,8 +160,9 @@ Quartus oracle RBFs, when a recipe has one, are
 `build/fes-<name>-quartus/core.rbf`. They are not a fallback when the OSS
 producer fails.
 
-The ZX81 1.5.0 source includes a runtime-owned DDR plane for in-session HDMI
-controls. Opening and returning preserve CPU, RAM, firmware, expansion, capture
+The ZX81 1.6.0 source drives HDMI through the shared `fes.video.session-display`
+plane, which blends runtime-owned DDR frames over the machine picture for
+in-session HDMI controls. Opening and returning preserve CPU, RAM, firmware, expansion, capture
 and audio. Simulation covers complete-frame presentation, asynchronous display
 control, live cassette operations and ordered drain/fault handling. A scoped
 zero-build-ID route demonstrates three-clock feasibility with the locked ZX81

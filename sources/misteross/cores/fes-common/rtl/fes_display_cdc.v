@@ -2,7 +2,7 @@
 // One held GP command crosses to the pixel clock with a toggle handshake.
 // Payload registers stay stable until the synchronized acknowledgement returns;
 // neither clock samples a changing multi-bit bus. No execution reset is used.
-module zx81_display_cdc (
+module fes_display_cdc (
     input wire clk_sys, pixel_clk,
     input wire request,
     input wire [6:0] opcode,

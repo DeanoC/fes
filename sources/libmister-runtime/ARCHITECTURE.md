@@ -126,62 +126,51 @@ release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
 [menu presentation](docs/menu-display.md).
 
-`MenuFrame` creates one exact-size sealable memfd per caller. Before mapping
-staging bytes, validation requires the same device/inode, 3,686,400-byte size
-and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
-sealing. The runtime reads sealed staging through a private, read-only mapping;
-the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
-`MenuMemory` keeps an XRGB8888 shadow of the last copied frame and converts
-RGBA to B,G,R,0 into that shadow. A full copy converts every pixel and stores
-the whole slot. A damaged copy converts only the changed rectangles, then
-stores those rectangles plus the pixels that slot still lacks, widened to
-8-pixel groups, so the slot matches a full present. The other slot records
-the rectangles it missed. The shadow is trusted only for the displayed
-sequence it was copied for; a failed or cancelled copy, black fill, or
-reconfiguration discards it. Stores are naturally aligned words. Host builds use
-volatile words. ARMv7 uses `ldmia`/`stmia` of eight words, which stays inside
-one 4KB page because a row and the slot are 32-byte aligned. The mapping
-stays `O_SYNC` (strongly ordered on the qualified kernel); it is not
-write-combined. Frame padding remains untouched. The copy checks a cancel
-flag every four rows and does not submit a partial frame. A lifecycle
-operation sets that flag before it quiesces menu firmware or programs
-another core, so the window is not written after teardown begins. Black fill
-still runs after the new image is programmed. `MenuMemory` owns an 8 MiB
-mapping at `0x30000000`,
-checks the entire shared 256 MiB window against effective `/proc/iomem`
-System RAM ranges, and rejects absent or redacted evidence.
-
-Production mapping currently requires ARM Linux kernel `5.15.1-MiSTer`,
-`/dev/mem` with `O_SYNC`, and an ARM `dsb sy` after writes. The selected
-[kernel's mapping implementation](https://raw.githubusercontent.com/MiSTer-devel/Linux-Kernel_MiSTer/d7adb20b4ca595838289406c083fff78f004a8c3/arch/arm/mm/mmu.c)
-uses noncached protection for PFNs outside Linux RAM. `O_SYNC` alone does not
-establish this: boot reservation and actual target mapping qualification
-remain prerequisites for physical acceptance. Host tests inject mapping
-operations and cannot establish DDR visibility on hardware.
-
-Before constructing production hardware, the runtime loads the
+The client draws each frame straight into a slot; the runtime copies no
+pixels. Before constructing production hardware, the runtime loads the
 [fes-window driver](../../image/kernel/fes-window/README.md) that its software
-release carries in `share/fes-window/`, beside `bin/mister-runtime`. The load
-uses the generated window base and size (`native/linux/window_driver.cpp`). A
-loaded copy is kept only when its `version` and window parameters match;
-otherwise the runtime unloads it, and a copy still in use is reported busy.
-Nothing maps through the driver yet, so a load failure is logged and startup
-continues. Menu frames still use the `O_SYNC` copy above.
+release carries in `share/fes-window/`, beside `bin/mister-runtime`, with the
+generated window base and size (`native/linux/window_driver.cpp`). A loaded
+copy is kept only when its `version` and window parameters match; otherwise
+the runtime unloads it, and a copy still in use is reported busy. A load
+failure is logged; menu activation then fails to grant and the idle path
+falls back to splash.
+
+`MenuWindow` (`native/linux/menu_window.cpp`) owns one grant of both 4 MiB
+slots at `0x30000000` per menu or session-plane activation. Activation revokes
+any earlier grant, grants the slots, fills both frames black through a cached
+mapping and writes them back for the fabric; a re-shown session plane is
+granted again without clearing, so its pixels survive. `ShareMenuWindow` hands
+any socket peer the grant's descriptor; `MenuBackSlot` names the slot scanout
+is not showing. `PresentMenuSlot` refuses the displayed slot, writes back the
+regions the client wrote (`FES_WINDOW_CLEAN`, L1 by address then the PL310)
+and only then submits the slot, because fpga2sdram reads DDR past the caches.
+Revoke ends every process's mapping and writes back and invalidates the
+grant's lines. It runs before any lifecycle operation quiesces menu firmware
+or programs another core, when a session plane is hidden, and on any failed
+present, so nothing writes the window, and no dirty line is evicted into it,
+once a core owns it. The grant does not isolate peers from one another: any
+peer can already present, launch or Stop, so the slot rules bind only
+cooperating clients. The runtime never reads the slots, so a write out of
+turn changes only the picture. Host tests inject the driver calls and cannot
+establish DDR visibility on hardware.
 
 Menu status carries its own nonzero generation, geometry and completion
-counters. `BeginMenuFrame` permits one preparation without retaining the
-lifecycle lock while its caller fills the file. Both the generation and
-runtime-created preparation identity bind `PresentMenuFrame`; immutable
-validation precedes any copy. Presentation holds the existing busy fence
-through copy, submission and displayed-sequence polling. ACK alone never
-releases the previous slot. Only one submission is pending. Launch,
-core-data, Stop, contained development load, idle recovery and menu
-configure share one named two-second wait (`kMenuFrameMutationWait`) when
-the only in-flight work is a menu frame. While any of them waits, new menu
-frames cannot enter. After the frame fence drops, the operation applies its
-existing busy checks and either claims the fence or returns busy. It does
-not quiesce or program until that fence is clear, so it cannot race the
-copy. A same-thread re-entry still returns busy after the bound, because the
+counters. `BeginMenuFrame` permits one preparation, naming the back slot,
+without retaining the lifecycle lock while its caller draws. Both the
+generation and runtime-created preparation identity bind `PresentMenuFrame`.
+Presentation holds the existing busy fence through write-back, submission and
+displayed-sequence polling. ACK alone never releases the previous slot. Only
+one submission is pending. Launch, core-data, Stop, contained development
+load, idle recovery, session-plane hiding and menu configure share one named
+two-second wait (`kMenuFrameMutationWait`) while a frame is being drawn or
+presented: from begin, whose expiry is polled because an abandoned
+preparation does not notify, to the end of its commit. While any of them
+waits, new menu frames cannot enter. After the frame fence drops, the
+operation applies its existing busy checks and either claims the fence or
+returns busy. It then revokes the window before it quiesces or programs, so a
+client still drawing past the bound faults instead of writing a core's
+memory. A same-thread re-entry still returns busy after the bound, because the
 frame cannot finish until the caller returns. Stop reactivates an explicitly
 configured menu with a fresh generation, including Stop from menu idle; that
 reprograms the FPGA and blips HDMI. Splash Stop stays idempotent. If both
@@ -192,7 +181,7 @@ preparation. Replacement and contained diagnostics revoke the old generation.
 Menu quiesce proves drained state before execution hold. The hardware
 underflow counter is cumulative and is not cleared by a GP command. It
 resets when the bitstream is programmed and when port reset is asserted.
-Each present records the counter before the copy and judges only the delta
+Each present records the counter before the submit and judges only the delta
 during that present. A delta of at most one scanline (1280 pixels) is
 displayed. Three consecutive presents with any positive delta, or one delta
 above that cap, fails the present. The failure keeps the configured package
@@ -204,9 +193,9 @@ that per-present delta, not the cumulative counter. Activation still
 requires a zero counter because programming reset it. A missing completion
 or uncertain drain uses the same bounded reactivation before splash.
 `menu_unsafe_` still skips a second GP quiesce on the splash path. Failed
-containment leaves reboot-required. Mapping remains owned by the production
-hardware adapter; new frame copies require `AllowCopies` after the new image
-is programmed. Menu activation failures report unavailable with the error on
+containment leaves reboot-required. The grant remains owned by the
+production hardware adapter; a new one is made after the new image is
+programmed. Menu activation failures report unavailable with the error on
 `menu_display` even when splash recovery succeeds. A later idle status does
 not copy that menu error into top-level `status.error`; the operation that
 failed assigns `status.error` itself. The runtime and the FogCast agent
@@ -217,10 +206,15 @@ tests do not establish physical scanout acceptance.
 ## In-session simple-computer presentation
 
 Simple-computer `fes.video.session-display` 1.0 reuses the menu driver and
-reserved DDR slots, with required `fes.memory.hps-ddr` 1.0. Its bit 9 and the
-DDR bit 8 are included in exact declared/live identity checks. Admission
-advertises this interface only when boot DDR layout and presentation adapters
-are available. Activation initializes black slots and configures the disabled
+reserved DDR slots, with required `fes.memory.hps-ddr` 1.0 and its shared plane
+`fes.fabric.video.display-plane` 1.0. The plane reports
+pixel format 2, premultiplied RGBA, and the machine picture rectangle; the
+client writes each pixel's alpha as the slot word's top byte, and status
+publishes the rectangle as `menu_display.picture`. Its bit 9 and the
+DDR bit 8 are included in exact declared/live identity checks; the plane
+grants no bit. Admission advertises this interface and the plane only when boot
+DDR layout and presentation adapters are available. Activation initializes
+black slots and configures the disabled
 plane once, then publishes active machine status with `session: true`, its
 package and `core_generation`, but `available: false`.
 
@@ -289,8 +283,10 @@ Atari ST media interfaces are independent and must be required when declared.
 Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
 core latched the port layout, including a kit without presentation adapters.
 Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is
-rejected without DDR, and a kit admits and advertises it only when that layout
-and both presentation adapters are present. A shell declares at most one
+rejected without DDR or without required `fes.fabric.video.display-plane` 1.0,
+which is rejected without it, and a kit admits and advertises both only when
+that layout and both presentation adapters are present. A shell declares at
+most one
 unit-0 medium. Recognized expansion buses must be
 optional, unknown optional declarations are ignored and `core.system`
 is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked

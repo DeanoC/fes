@@ -113,16 +113,43 @@ module pcxt_video #(parameter bit MDA = 0) (
     wire [1:0] read_bank = adopt ? published_bank : front;
     wire valid_bank = front_valid || adopt;
     wire [18:0] image_index = row_base + {9'b0,image_x};
-    wire [ABITS-1:0] read_address = {read_bank,{BANK_BITS{1'b0}}} +
-                                                  (image ? ABITS'(image_index >> SHIFT) : {ABITS{1'b0}});
-    wire [7:0] pair;
-    /* verilator lint_off PINCONNECTEMPTY */
-    coleco_video_dpram #(.DATAWIDTH(8), .ADDRWIDTH(ABITS), .NUMWORDS(STRIDE*3)) framebuffer (
-        .clock_a(clk_sys), .address_a(write_address), .data_a(packed_data),
-        .wren_a(store && packed_last), .q_a(), .clock_b(clk_pixel), .address_b(read_address),
-        .data_b(8'b0), .wren_b(1'b0), .q_b(pair)
-    );
-    /* verilator lint_on PINCONNECTEMPTY */
+    wire [BANK_BITS-1:0] read_offset = image ? BANK_BITS'(image_index >> SHIFT) : {BANK_BITS{1'b0}};
+    wire [ABITS-1:0] read_address = {read_bank, read_offset};
+    reg [ABITS-1:0] read_address_q;
+    // Keep capture geometry/decode out of the M10K write setup path. Retain
+    // address, data and enable together. The final byte commits no later than
+    // publication; the synchronized mailbox cannot expose an unwritten byte.
+    reg [ABITS-1:0] write_address_q;
+    reg [7:0] packed_data_q;
+    reg write_enable_q;
+    always @(posedge clk_sys) begin
+        if (reset_sys) begin write_address_q <= 0; packed_data_q <= 0; write_enable_q <= 0; end
+        else begin
+            write_address_q <= write_address;
+            packed_data_q <= packed_data;
+            write_enable_q <= store && packed_last;
+        end
+    end
+    // Keep each bank's RAM read mux local and register all three results
+    // before selecting the displayed bank. One 192 KiB mux otherwise sits
+    // between the M10K reads and the palette-stage register.
+    wire [7:0] bank_pair [0:2];
+    reg [7:0] bank_pair_r [0:2];
+    genvar bank;
+    generate for (bank = 0; bank < 3; bank = bank + 1) begin: framebuffer_banks
+        /* verilator lint_off PINCONNECTEMPTY */
+        coleco_video_dpram #(.DATAWIDTH(8), .ADDRWIDTH(BANK_BITS), .NUMWORDS(STRIDE)) framebuffer (
+            .clock_a(clk_sys), .address_a(write_address_q[BANK_BITS-1:0]), .data_a(packed_data_q),
+            .wren_a(write_enable_q && write_address_q[ABITS-1:BANK_BITS] == 2'(bank)), .q_a(),
+            .clock_b(clk_pixel), .address_b(read_address_q[BANK_BITS-1:0]),
+            .data_b(8'b0), .wren_b(1'b0), .q_b(bank_pair[bank])
+        );
+        /* verilator lint_on PINCONNECTEMPTY */
+        always @(posedge clk_pixel) begin
+            if (reset_pixel) bank_pair_r[bank] <= 0;
+            else bank_pair_r[bank] <= bank_pair[bank];
+        end
+    end endgenerate
     reg image_q, de_q, hs_q, vs_q, sof_q, eol_q, hold_q;
     reg [1:0] subpixel_q;
     always @(posedge clk_pixel) begin
@@ -130,6 +157,7 @@ module pcxt_video #(parameter bit MDA = 0) (
             horizontal <= 0; vertical <= 0; front <= 0; front_valid <= 0; received <= 0;
             sent_meta <= 0; sent_sync <= 0; hold_meta <= 0; hold_sync <= 0;
             x_error <= 0; y_error <= 0; image_x <= 0; row_base <= 0;
+            read_address_q <= 0;
             image_q <= 0; subpixel_q <= 0; de_q <= 0; hs_q <= 0; vs_q <= 0;
             sof_q <= 0; eol_q <= 0; hold_q <= 0;
         end else begin
@@ -153,6 +181,7 @@ module pcxt_video #(parameter bit MDA = 0) (
                     else x_error <= next_x_error[10:0];
                 end
             end
+            read_address_q <= read_address;
             image_q <= image && valid_bank;
             subpixel_q <= image_index[1:0];
             de_q <= visible; hs_q <= horizontal >= 1390 && horizontal < 1430;
@@ -160,9 +189,40 @@ module pcxt_video #(parameter bit MDA = 0) (
             sof_q <= output_sof; eol_q <= output_eol; hold_q <= hold_sync;
         end
     end
-    wire [1:0] mono_q = 2'(pair >> {subpixel_q,1'b0});
+    // Register the RAM address before its distributed M10K input fanout. This
+    // stage carries the matching raster/subpixel fields through the RAM read.
+    reg [1:0] subpixel_read, bank_read;
+    reg image_read, de_read, hs_read, vs_read, sof_read, eol_read, hold_read;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) begin
+            subpixel_read <= 0; bank_read <= 0; image_read <= 0; de_read <= 0; hs_read <= 0;
+            vs_read <= 0; sof_read <= 0; eol_read <= 0; hold_read <= 0;
+        end else begin
+            subpixel_read <= subpixel_q; bank_read <= read_address_q[ABITS-1:BANK_BITS]; image_read <= image_q;
+            de_read <= de_q; hs_read <= hs_q; vs_read <= vs_q;
+            sof_read <= sof_q; eol_read <= eol_q; hold_read <= hold_q;
+        end
+    end
+    // Align bank selection and raster fields with the three registered bank
+    // reads, then select the packed pixel/palette before the shared effect.
+    reg [1:0] bank_r;
+    wire [7:0] pair_r = bank_r == 0 ? bank_pair_r[0] :
+                        bank_r == 1 ? bank_pair_r[1] :
+                        bank_r == 2 ? bank_pair_r[2] : 8'b0;
+    reg [1:0] subpixel_r;
+    reg image_r, de_r, hs_r, vs_r, sof_r, eol_r, hold_r;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) begin
+            bank_r <= 0; subpixel_r <= 0; image_r <= 0; de_r <= 0;
+            hs_r <= 0; vs_r <= 0; sof_r <= 0; eol_r <= 0; hold_r <= 0;
+        end else begin
+            bank_r <= bank_read; subpixel_r <= subpixel_read; image_r <= image_read;
+            de_r <= de_read; hs_r <= hs_read; vs_r <= vs_read; sof_r <= sof_read; eol_r <= eol_read; hold_r <= hold_read;
+        end
+    end
+    wire [1:0] mono_q = 2'(pair_r >> {subpixel_r,1'b0});
     wire [3:0] colour = MDA ? (mono_q == 0 ? 4'd0 : mono_q[1] ? 4'd15 : 4'd7) :
-                             subpixel_q[0] ? pair[7:4] : pair[3:0];
+                             subpixel_r[0] ? pair_r[7:4] : pair_r[3:0];
     function automatic [23:0] palette(input [3:0] c);
         reg [7:0] r,g,b;
         begin
@@ -173,6 +233,6 @@ module pcxt_video #(parameter bit MDA = 0) (
             palette = {r,g,b};
         end
     endfunction
-    wire [23:0] rgb = image_q && !hold_q ? palette(colour) : 24'b0;
-    assign video_request = {1'b0,hold_q,eol_q,sof_q,1'b1,vs_q,hs_q,de_q,rgb};
+    wire [23:0] rgb = image_r && !hold_r ? palette(colour) : 24'b0;
+    assign video_request = {1'b0,hold_r,eol_r,sof_r,1'b1,vs_r,hs_r,de_r,rgb};
 endmodule

@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_application.vh"
+`include "fes_display_plane.vh"
 module fes_menu_control #(
     // A broken session plane can be disabled without resetting its machine.
     // Idle firmware retains its original fault containment behavior.
-    parameter [0:0] FAULT_QUIESCE_ACK = 1'b0
+    parameter [0:0] FAULT_QUIESCE_ACK = 1'b0,
+    // A session display plane reports premultiplied RGBA and the machine
+    // picture rectangle at indices 14-17. Idle firmware keeps format 1.
+    parameter [15:0] PIXEL_FORMAT = 16'(`FES_APPLICATION_MENU_PIXEL_FORMAT),
+    parameter [0:0] PICTURE_INFO = 1'b0,
+    parameter [15:0] PICTURE_LEFT = 16'd0,
+    parameter [15:0] PICTURE_TOP = 16'd0,
+    parameter [15:0] PICTURE_WIDTH = 16'd0,
+    parameter [15:0] PICTURE_HEIGHT = 16'd0
 ) (
     input wire clk, request, exec_reset, drained, faulted, submit_ready,
     input wire [6:0] opcode,
@@ -27,6 +36,9 @@ module fes_menu_control #(
     reg sequence_snapshot_valid = 1'b0, underflow_snapshot_valid = 1'b0;
     reg [15:0] sequence_snapshot = 16'd0, underflow_snapshot = 16'd0;
     wire [15:0] state_word = {11'd0, faulted, drained, pending, enable, configured};
+    localparam [7:0] LAST_INFO_INDEX = PICTURE_INFO ?
+        8'(`FES_DISPLAY_PLANE_INFO_PICTURE_HEIGHT_INDEX) :
+        8'(`FES_APPLICATION_MENU_INFO_UNDERFLOWS_HI_INDEX);
     task reject;
         input [15:0] code;
         begin response_valid <= 1'b1; response_error <= 1'b1; response_data <= code; end
@@ -53,7 +65,7 @@ module fes_menu_control #(
             response_valid <= 1'b1; response_error <= 1'b0; response_data <= 16'd0;
             case ({25'd0,opcode})
                 `FES_APPLICATION_OPCODE_MENU_INFO: begin
-                    if (index > 8'(`FES_APPLICATION_MENU_INFO_UNDERFLOWS_HI_INDEX))
+                    if (index > LAST_INFO_INDEX)
                         reject(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     else if (argument != 16'd0) reject(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
                     else case ({24'd0,index})
@@ -64,7 +76,7 @@ module fes_menu_control #(
                         `FES_APPLICATION_MENU_INFO_FRAME_BYTES_HI_INDEX: response_data <= 16'(`FES_APPLICATION_MENU_FRAME_BYTES >> 16);
                         `FES_APPLICATION_MENU_INFO_SLOT_BYTES_LO_INDEX: response_data <= 16'(`FES_APPLICATION_MENU_SLOT_BYTES);
                         `FES_APPLICATION_MENU_INFO_SLOT_BYTES_HI_INDEX: response_data <= 16'(`FES_APPLICATION_MENU_SLOT_BYTES >> 16);
-                        `FES_APPLICATION_MENU_INFO_PIXEL_FORMAT_INDEX: response_data <= 16'(`FES_APPLICATION_MENU_PIXEL_FORMAT);
+                        `FES_APPLICATION_MENU_INFO_PIXEL_FORMAT_INDEX: response_data <= PIXEL_FORMAT;
                         `FES_APPLICATION_MENU_INFO_SLOT_COUNT_INDEX: response_data <= 16'(`FES_APPLICATION_MENU_SLOT_COUNT);
                         `FES_APPLICATION_MENU_INFO_STATE_INDEX: response_data <= state_word;
                         `FES_APPLICATION_MENU_INFO_SEQUENCE_LO_INDEX: begin
@@ -81,6 +93,10 @@ module fes_menu_control #(
                             if (!underflow_snapshot_valid) reject(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                             else begin response_data <= underflow_snapshot; underflow_snapshot_valid <= 1'b0; end
                         end
+                        `FES_DISPLAY_PLANE_INFO_PICTURE_LEFT_INDEX: response_data <= PICTURE_LEFT;
+                        `FES_DISPLAY_PLANE_INFO_PICTURE_TOP_INDEX: response_data <= PICTURE_TOP;
+                        `FES_DISPLAY_PLANE_INFO_PICTURE_WIDTH_INDEX: response_data <= PICTURE_WIDTH;
+                        `FES_DISPLAY_PLANE_INFO_PICTURE_HEIGHT_INDEX: response_data <= PICTURE_HEIGHT;
                         default: reject(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     endcase
                 end

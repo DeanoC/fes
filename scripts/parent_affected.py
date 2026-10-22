@@ -1,6 +1,6 @@
-"""Parent regression groups for component-only changes.
+"""Parent regression groups for reviewed component and parent inputs.
 
-Parent implementation, configuration and unknown inputs remain full-suite. This
+Shared implementation, configuration and unknown inputs remain full-suite. This
 is an explicit integration boundary, not an inferred Python dependency graph.
 Unassigned new test modules always run until their ownership is reviewed.
 """
@@ -30,6 +30,33 @@ GROUPS = {
         package_acceptance_isolated ramtest_notices target_acceptance'''),
 }
 
+# These assembly entrypoints and their subprocess helpers are consumed by the
+# media suites. Build/policy coverage is always retained (including recipe hashes).
+# Do not infer this table from matching filenames: imports are not the only inputs.
+PARENT_INPUT_GROUPS = {
+    'scripts/' + name + '.py': frozenset({'media'})
+    for name in ('appliance', 'appliance_inside', 'appliance_media',
+                 'appliance_media_inside', 'appliance_expand_dry_run')
+}
+
+# Test modules may supply fixtures to another group. Keep their consumers too.
+# Other current cross-test imports stay within a group or in baseline policy.
+TEST_CONSUMER_GROUPS = {
+    'test_package_acceptance': frozenset({'packages'}),
+}
+
+
+def parent_groups(path):
+    if path in PARENT_INPUT_GROUPS:
+        return PARENT_INPUT_GROUPS[path]
+    for group, modules in GROUPS.items():
+        # Selection-policy tests keep full coverage of the selector itself.
+        if group != 'policy':
+            for module in modules:
+                if path == 'tests/' + module + '.py':
+                    return {group} | TEST_CONSUMER_GROUPS.get(module, set())
+    return None
+
 
 def under(path, prefix):
     return path == prefix or path.startswith(prefix + '/')
@@ -46,7 +73,10 @@ def select_groups(paths, video=False, media=False):
         parts = PurePosixPath(path).parts
         if '..' in parts or path.startswith('/'):
             return None
-        if under(path, 'sources/FogCast'):
+        parent = parent_groups(path)
+        if parent is not None:
+            groups.update(parent)
+        elif under(path, 'sources/FogCast'):
             known = ('ui', 'resources', 'host', 'hostclient', 'kitlease', 'librarymedia',
                      'libraryuser', 'protocol', 'remoteinput', 'romsource', 'targetclient',
                      'appliance', 'corepackage', 'corecatalog', 'catalog', 'fogcast',
@@ -75,7 +105,7 @@ def select_groups(paths, video=False, media=False):
             groups.update(('packages', 'acceptance'))
         else:
             # Includes shared contracts, root build/config inputs, parent
-            # scripts/tests, image/platform and newly introduced modules.
+            # unreviewed scripts/tests, image/platform and newly introduced modules.
             return None
     if video:
         groups.add('packages')

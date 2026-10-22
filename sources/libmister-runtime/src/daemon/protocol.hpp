@@ -11,7 +11,7 @@ namespace mister {
 namespace daemon {
 
 enum class Operation {
- configure_menu,menu_frame_begin,menu_frame_commit,session_display,
+ configure_menu,menu_frame_grant,menu_frame_begin,menu_frame_commit,session_display,
 	status,
 	inspect_core,
 	load_core,
@@ -64,10 +64,10 @@ struct Request {
 	std::string expected_package_id;
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
- std::uint32_t byte_count=0;
+ std::uint8_t menu_slot=0;
+ // Regions a menu commit wrote; empty for the whole frame.
+ std::vector<MenuRect> menu_written;
  bool visible=false;
- bool has_menu_damage=false;
- MenuDamage menu_damage;
 	std::uint8_t media_unit = 0;
 	MediaDataBinding media_binding;
 	KeyboardHidRows keyboard_rows{};
@@ -83,11 +83,14 @@ struct Request {
 };
 
 struct MenuFrameReply {
+ // A grant carries the window descriptor; a preparation names the slot to
+ // draw; a presentation reports completion.
+ enum class Kind {granted,prepared,presented} kind=Kind::presented;
  std::uint64_t generation=0;
- bool prepared=false;
+ std::uint8_t slot=0;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Present timing, encoded as menu_frame.timing on a commit reply.
- std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0,stored_pixels=0;
+ std::uint32_t clean_us=0,submit_us=0,scanout_wait_us=0;
 };
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and

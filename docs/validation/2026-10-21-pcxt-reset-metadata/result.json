@@ -1,0 +1,93 @@
+{
+  "classification": "host-only producer netlist comparison",
+  "plain_synthesis": "synth_intel_alm -nolutram -nodsp -top top",
+  "producer_synthesis": "synth_intel_alm -nolutram -nodsp -top top -run begin:map_ffs; attrmvcp -copy -attr async_reg; synth_intel_alm -nolutram -nodsp -top top -run map_ffs:",
+  "revision": "0e506fbe37766bf629b0bce13cb2cb21fa5d2da7",
+  "variants": {
+    "cga-direct": {
+      "cells": 10437,
+      "crossing_ffs": [
+        "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+        "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+        "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+        "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+        "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+        "system.video.adapter.sent_sync_MISTRAL_FF_Q"
+      ],
+      "mistral_ff": 3698,
+      "plain_sha256": "5c3891dbfe3244765c41c155427f1d434a35fb769d8946ffa0195e0c4256d278",
+      "reset_ffs": [
+        "locked_MISTRAL_FF_ACLR",
+        "locked_MISTRAL_FF_ACLR_1",
+        "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+        "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_DATAIN"
+      ],
+      "transfer_sha256": "d4440925ad9b9bc44353fbec1822f0ea95bb5cc5f12fd1ab848fe060ce38967e"
+    },
+    "cga-scanlines": {
+      "cells": 10472,
+      "crossing_ffs": [
+        "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+        "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+        "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+        "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+        "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+        "system.video.adapter.sent_sync_MISTRAL_FF_Q"
+      ],
+      "mistral_ff": 3707,
+      "plain_sha256": "6bfb020c3159a6d9f7e66fd9316ce3aedcf45666cf01478cd48055284beb990c",
+      "reset_ffs": [
+        "locked_MISTRAL_FF_ACLR",
+        "locked_MISTRAL_FF_ACLR_1",
+        "locked_MISTRAL_FF_ACLR_1_DATAIN_MISTRAL_FF_Q",
+        "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q"
+      ],
+      "transfer_sha256": "4dfa8aa0b1fa032e19ebe510efe966a6e7994d683ebca267d24488e17b90ef91"
+    },
+    "mda-direct": {
+      "cells": 10316,
+      "crossing_ffs": [
+        "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+        "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+        "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+        "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+        "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+        "system.video.adapter.sent_sync_MISTRAL_FF_Q"
+      ],
+      "mistral_ff": 3666,
+      "plain_sha256": "7fca29ff2e9ee15a3a9141d74e7cc07ab27c8375a8f0f3c7e2e82e9147cfcdda",
+      "reset_ffs": [
+        "locked_MISTRAL_FF_ACLR",
+        "locked_MISTRAL_FF_ACLR_1",
+        "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+        "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_DATAIN"
+      ],
+      "transfer_sha256": "68857df0e319940f9b8f41ce3b772b9ea52690b00ebec53b78b5f91125e7424a"
+    },
+    "mda-scanlines": {
+      "cells": 10355,
+      "crossing_ffs": [
+        "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+        "system.video.adapter.ack_sync_MISTRAL_FF_Q",
+        "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+        "system.video.adapter.hold_sync_MISTRAL_FF_Q",
+        "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+        "system.video.adapter.sent_sync_MISTRAL_FF_Q"
+      ],
+      "mistral_ff": 3675,
+      "plain_sha256": "fb459cda61e20e3cd94b98ccb473b1a23fc5aa9fd6e2b664bec95732b3877d9c",
+      "reset_ffs": [
+        "locked_MISTRAL_FF_ACLR",
+        "locked_MISTRAL_FF_ACLR_1",
+        "locked_MISTRAL_FF_ACLR_1_DATAIN_MISTRAL_FF_Q",
+        "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_DATAIN"
+      ],
+      "transfer_sha256": "7da0001204ab70558cf87fac501875ea9ecbed857796ae854e4bb219f7297bc2"
+    }
+  },
+  "working_tree_changes": [],
+  "yosys": {
+    "sha256": "71eb21e86017064c141bca25e0ecd7fd39dcb3671f3d560fbc467eb880b2a650",
+    "version": "Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]"
+  }
+}

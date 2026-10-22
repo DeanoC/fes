@@ -1,16 +1,19 @@
 # Local menu frame presentation
 
 This is an explicit diagnostic/library presentation path, with host software
-coverage and an [exact-artifact kit diagnostic pass](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md).
-Product-image acceptance remains pending. The FES image now installs and selects
+coverage and a [Kit A diagnostic](https://github.com/DeanoC/fes/pull/959#issuecomment-6316246790)
+of granted-slot presentation; the earlier
+[exact-artifact kit diagnostic pass](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md)
+covered the retired copy path. Product-image acceptance remains pending. The FES image now installs and selects
 a described menu package for daemon startup. The sealed splash remains the boot
 and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
 1.0 interfaces can be configured. It is idle firmware, not a game. Normal
 package programming, build identity and boot-latched DDR admission still apply.
-Linux must exclude the shared window from System RAM and use the qualified
-ARM mapping semantics described in [architecture](../ARCHITECTURE.md).
+The window is mapped through the [fes-window driver](../../../image/kernel/fes-window/README.md),
+which the runtime loads from its software release and which refuses a window
+overlapping System RAM (see [architecture](../ARCHITECTURE.md)).
 
 Protocol 2 uses the existing local Unix socket. Configure while idle:
 
@@ -21,65 +24,62 @@ Protocol 2 uses the existing local Unix socket. Configure while idle:
 The example identity is syntax only. Status adds `menu_display` when a menu
 has been configured or has unavailable/error evidence. Its generation is
 independent of gameplay `generation`; absent means no menu configuration.
-Geometry is fixed: 1280×720, stride 5120, 3,686,400-byte RGBA8888 staging,
-two 4 MiB XRGB8888 DDR slots. Clients never receive a DDR descriptor/address.
+Geometry is fixed: 1280×720, stride 5120, `byte_count` 3,686,400, two (`slots`)
+4 MiB (`slot_bytes`) slots in `format` `bgrx8888`: XRGB8888 words, bytes
+B, G, R, X. X is the pixel's alpha: idle MENU ignores it, and a session plane
+blends with it as premultiplied alpha, so clients write 255 where a pixel is
+opaque. The client draws straight into the slots; the runtime copies no
+frame.
+
+### Grant
+
+Each menu or session-plane activation grants both slots through fes-window and
+fills them black. A client asks for that grant once per generation:
+
+```json
+{"protocol":2,"operation":"menu_frame_grant","expected_generation":1}
+```
+
+The response carries one `SCM_RIGHTS` descriptor, the grant file, and
+`menu_frame` with the generation, `format`, `slots` and `slot_bytes`. Map it
+shared and read/write: slot *n* starts at *n* × `slot_bytes`. The mapping is
+cached. Every process's mapping of the grant ends when the runtime revokes it
+(see Lifecycle); a later access raises SIGBUS. A new generation needs a new
+grant. Any socket peer may take the grant, as any peer may present, launch or
+Stop. The mapping covers both slots, so the slot rules below are the client's
+contract: the runtime checks a slot only when a commit names it, and refuses
+the displayed one.
+
+### Frames
 
 A frame uses two JSON lines on **one connection**:
 
 ```json
-{"protocol":2,"operation":"menu_frame_begin","expected_generation":1,"byte_count":3686400}
-{"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400}
+{"protocol":2,"operation":"menu_frame_begin","expected_generation":1}
+{"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"written":[[96,50,32,10],[600,500,8,8]]}
 ```
 
-A successful begin response has one `SCM_RIGHTS` FD and `menu_frame` metadata
-with the request's generation, byte count and `staging_format: "rgba8888"`.
-Fill that exact runtime-created file. Remove all writable mappings, then apply
-`F_SEAL_WRITE`, `F_SEAL_GROW`, `F_SEAL_SHRINK` and `F_SEAL_SEAL`. Send that same
-file descriptor with commit; aliases of the same file are accepted, substitutions
-are rejected. Size, identity, immutable seals, preparation ownership and current
-generation are checked before copying. Pixels are not JSON fields.
+Begin returns `menu_frame` with the generation and `slot`, the one scanout is
+not showing. The client draws into that slot only between this response and
+its commit; the first frame after a grant goes to slot 1 and slots alternate
+after each presented frame. Commit names the same slot and, optionally, the
+1–16 `[x,y,w,h]` rectangles inside 1280×720 it wrote. Without `written` the
+whole frame counts as written. The client tracks what each slot holds: a slot
+two frames old needs this frame's changes and the previous frame's.
 
-Commit returns its own `menu_frame` generation, displayed sequence and
-underflow count. Those completion fields remain bound to this frame even if
-current status changes concurrently. Begin's displayed sequence is null.
-`underflows` is the per-present delta, not the cumulative hardware counter.
-Commit also returns `menu_frame.timing` with `copy_us` (converting and writing
-the frame into its DDR slot), `submit_us` (submitting the slot) and
-`scanout_wait_us` (waiting until scanout shows it). These are diagnostics for
-frame-time measurement; clients must not depend on them, and older runtimes
-omit them. `timing.stored_pixels` is how many pixels the copy wrote to DDR.
+fpga2sdram reads DDR past the CPU caches, so the runtime writes back the
+written regions (`FES_WINDOW_CLEAN`) before it submits the slot. Commit
+returns its own `menu_frame` generation, slot, displayed sequence and underflow
+count. Those completion fields remain bound to this frame even if current
+status changes concurrently. `underflows` is the per-present delta, not the
+cumulative hardware counter. Commit also returns `menu_frame.timing` with
+`clean_us` (writing back the client's lines), `submit_us` (submitting the
+slot) and `scanout_wait_us` (waiting until scanout shows it). These are
+diagnostics for frame-time measurement; clients must not depend on them.
+A commit naming the displayed slot is refused before any display access.
 
-### Damaged presents
-
-When status `menu_display` carries `"damage":true`, a commit may name only the
-rectangles that changed since the frame the runtime is showing:
-
-```json
-{"protocol":2,"operation":"menu_frame_commit","generation":1,"byte_count":3686400,
- "damage":{"base_sequence":41,"rects":[[96,50,32,10],[600,500,8,8]]}}
-```
-
-`base_sequence` (1..2³²−1) must be the displayed sequence of that frame, and
-`rects` holds 1–16 `[x,y,w,h]` rectangles inside 1280×720. The staging file
-keeps its full size, but only pixels inside the rectangles are read; the rest
-comes from the runtime's own copy of the base frame. Begin never takes
-`damage`.
-
-The runtime keeps an XRGB shadow of the last frame it copied, and records
-which pixels each DDR slot still lacks. A damaged copy converts the
-rectangles into the shadow, then stores to the target slot the rectangles plus
-whatever that slot missed from the previous frame, widened to 8-pixel (32-byte)
-store groups. A slot that has never held the base frame is stored whole.
-Either way the slot ends identical to a full present of the same frame.
-
-The shadow is trusted only for exactly the displayed sequence it was copied
-for. A failed or cancelled copy, black initialisation, a menu or session
-reconfiguration, or a game load discards it. A commit whose base is not the
-displayed frame with a valid shadow is rejected with `stale_revision` before
-any copy, without failing the display; the client then sends a complete frame.
-Older runtimes do not advertise `damage` and reject the field.
 A healthy present, including one whose counter was already nonzero before
-the copy, reports 0. A tolerated glitch reports the pixels missed during
+it, reports 0. A tolerated glitch reports the pixels missed during
 that present, at most one 720p scanline (1280). The counter increments once
 per missing active pixel. Three consecutive presents with any positive
 delta, or one delta above 1280, fails that present. The runtime then
@@ -95,48 +95,58 @@ A GP submit ACK is not completion: the runtime waits for displayed sequence
 before reusing the previous slot. Only one preparation/submission is outstanding.
 EOF or the fixed five-second preparation deadline releases an uncommitted
 frame. Accepted frames remain owned through completion or verified containment,
-even if the response recipient disconnects. A revoked preparation retains its
-allocation quota until its connection finishes; replacement never waits for it.
+even if the response recipient disconnects.
 
-All other operations remain one request/response and permit no FDs. Extra
-queued bytes after a request or commit newline are rejected rather than
-silently consumed. Split JSON and ancillary delivery remain in their request
-phase. Multiple, misplaced or truncated descriptors are rejected and closed.
+Grant is one request with one descriptor in its response. All other operations
+remain one request/response and permit no FDs, commit included. Extra queued
+bytes after a request or commit newline are rejected rather than silently
+consumed. Split JSON and ancillary delivery remain in their request phase.
+Multiple, misplaced or truncated descriptors are rejected and closed.
+
+### Lifecycle
 
 Game launch, contained diagnostics and Stop revoke old menu generations.
-Launch, core-data access, Stop, contained development load, idle recovery
-and `configure_menu` wait up to two seconds (`kMenuFrameMutationWait`) when
-a menu frame is the in-flight work. New frames are rejected while that wait
-holds. The operation then uses its normal busy checks. It does not quiesce
-or program until the frame fence is clear, and the copy stays inside that
-fence. The copy converts each row in a cached buffer and writes aligned
-words; it checks cancel every four rows. There is no client-visible cancel:
-a lifecycle operation does not abort the frame, it waits for it. Stop
-restores an explicitly configured menu with a new generation and requires
-a fresh complete frame. On a menu kit, Stop reprograms the FPGA, blips
-HDMI, and can end in `reboot_required` if the menu reload and the splash
-reload both fail. Stop from splash idle remains idempotent. A present that
-misses completion or trips the underflow limit reactivates the menu within
+Launch, core-data access, Stop, contained development load, idle recovery,
+session-plane hiding and `configure_menu` wait up to two seconds
+(`kMenuFrameMutationWait`) while a frame is being drawn or presented, from
+begin to the end of its commit. New frames are rejected while that wait holds.
+The operation then uses its normal busy checks. Before it quiesces menu
+firmware or programs another core it revokes the grant: every mapping ends and
+the grant's lines are written back, so no process writes the window, and no
+dirty line is evicted into it, once a core owns it. A client still drawing past
+the wait faults on its next access and fails that frame. A failed present
+revokes the grant too. Stop restores an explicitly configured menu with a new
+generation, a new grant and black slots. On a menu kit, Stop reprograms the
+FPGA, blips HDMI, and can end in `reboot_required` if the menu reload and the
+splash reload both fail. Stop from splash idle remains idempotent. A present
+that misses completion or trips the underflow limit reactivates the menu within
 the budget above before using the splash path. Failed containment requires reboot.
 
-## In-session simple-computer display
+## In-session display
 
-An active package with required `fes.video.session-display` and
-`fes.memory.hps-ddr` 1.0 exposes the same frame transport. Open/return uses the
-active core identity, not the frame generation:
+An active simple-computer or computer package with required
+`fes.video.session-display` 1.0, its shared plane
+`fes.fabric.video.display-plane` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the
+same frame transport. The plane blends the slot pixels over the machine
+picture, with X as premultiplied alpha; an opaque frame replaces it. Open/return uses the active
+core identity, not the frame generation:
 
 ```json
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true}
 {"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false}
 ```
 
-Status carries `session: true` and `core_generation: 7` in `menu_display`,
-alongside the active package ID and fixed geometry, while the plane is closed.
-`available` becomes true only after successful open, which grants a fresh
-nonzero `menu_display.generation` for immutable frame submissions. A repeated
-open is idempotent. Close sets availability false and generation zero, revokes
-the preparation immediately, and requires a new generation after the next
-open. Stop and replacement also revoke outstanding display ownership. The
+Status carries `session: true`, `core_generation: 7` and the machine picture
+rectangle `picture: [x, y, width, height]` in `menu_display`, alongside the
+active package ID and fixed geometry, while the plane is closed. Admission
+refuses a session display that does not declare the shared plane, such as ZX81
+1.5.0, before programming. Load then requires the plane to report pixel format
+2 and a picture inside the frame; idle MENU must report format 1.
+`available` becomes true only after successful open, which grants the plane's
+slots afresh, keeping their pixels, under a fresh nonzero
+`menu_display.generation`. A repeated open is idempotent. Close sets
+availability false and generation zero, revokes the grant and the preparation,
+and requires a new generation and grant after the next open. Stop and replacement also revoke outstanding display ownership. The
 frame generation never follows a replacement core automatically.
 
 Open neutralizes held ZX81 keys and suppresses navigation keys while the
@@ -173,9 +183,10 @@ The default is 120 frames at about 30 submissions/second. `--seconds` explicitly
 selects a sustained, bounded run (maximum one hour); it cannot combine with
 `--frames`. `--interval-ms 0` removes pacing for an explicit stress run.
 Patterns alternate full-color bars, fine pixel/row boundaries, a top-row
-sequence marker and a final-column row/sequence marker. Every frame covers the
-exact full staging area. The client checks generation, geometry, file size,
-completion sequence and an underflow delta of at most one scanline, and prints frame count, elapsed time,
+sequence marker and a final-column row/sequence marker. It maps the grant once
+and draws every frame whole into its slot. The client checks generation,
+geometry, format, the grant, completion sequence and an underflow delta of at
+most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately
 for hardware acceptance. The diagnostic does not restore idle configuration;
 the kit operator owns restoration and lease release.

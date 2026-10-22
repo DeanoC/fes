@@ -6,14 +6,12 @@
 #include <chrono>
 #include <algorithm>
 #include <cstring>
-#include <fcntl.h>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/un.h>
 #include <thread>
 #include <unistd.h>
@@ -68,9 +66,11 @@ json::Value Exchange(const std::string& socket,const std::string& request){
  if(!response.fds.empty())throw std::runtime_error("unexpected response descriptor");
  return Response(response);
 }
+// Draws opaque pixels straight into a granted slot, in its B,G,R,X byte
+// order. X is alpha to a session plane.
 void Paint(unsigned char* pixels,std::uint32_t sequence) {
  for(std::uint32_t y=0;y<FesApplicationMenuHeight;++y)for(std::uint32_t x=0;x<FesApplicationMenuWidth;++x){
-  const auto offset=(y*FesApplicationMenuWidth+x)*4;
+  const auto offset=y*FesApplicationMenuStride+x*4;
   const unsigned bar=x*6/FesApplicationMenuWidth;
   const bool alternate=sequence&1;
   unsigned char r=(bar==0||bar==3||bar==5)?255:0;
@@ -81,7 +81,7 @@ void Paint(unsigned char* pixels,std::uint32_t sequence) {
   if(y>=64&&((x%32)==0||(y%32)==0)){r=255;g=255;b=255;}
   if(y<64){const bool bit=(sequence>>(x/40))&1;r=bit?255:0;g=bit?255:0;b=bit?255:0;}
   if(x==FesApplicationMenuWidth-1){r=y&255;g=y>>8;b=sequence&255;}
-  pixels[offset]=r;pixels[offset+1]=g;pixels[offset+2]=b;pixels[offset+3]=255;
+  pixels[offset]=b;pixels[offset+1]=g;pixels[offset+2]=r;pixels[offset+3]=255;
  }
 }
 std::uint64_t Argument(const char* text,std::uint64_t maximum){
@@ -112,26 +112,39 @@ int main(int argc,char** argv){
   if(!package.empty())Exchange(socket,"{\"protocol\":2,\"operation\":\"configure_menu\",\"package_path\":"+Quote(package)+",\"package_id\":"+Quote(id)+"}");
   const auto status=Exchange(socket,"{\"protocol\":2,\"operation\":\"status\"}");const auto& menu=Field(status,"menu_display");
   const auto& available=Field(menu,"available");if(available.type!=json::Type::boolean||!available.boolean_value)throw std::runtime_error("idle menu unavailable");
-  for(const auto& pair:{std::pair<const char*,std::uint64_t>{"width",FesApplicationMenuWidth},{"height",FesApplicationMenuHeight},{"stride",FesApplicationMenuStride},{"byte_count",FesApplicationMenuFrameBytes},{"slot_bytes",FesApplicationMenuSlotBytes}})
+  for(const auto& pair:{std::pair<const char*,std::uint64_t>{"width",FesApplicationMenuWidth},{"height",FesApplicationMenuHeight},{"stride",FesApplicationMenuStride},{"byte_count",FesApplicationMenuFrameBytes},{"slot_bytes",FesApplicationMenuSlotBytes},{"slots",FesApplicationMenuSlotCount}})
    if(Number(Field(menu,pair.first))!=pair.second)throw std::runtime_error("unsupported menu geometry");
+  if(Field(menu,"format").string_value!="bgrx8888")throw std::runtime_error("unsupported menu format");
   const auto generation=Number(Field(menu,"generation"));if(!generation)throw std::runtime_error("zero menu generation");
+  // One grant per generation: both slots, mapped once, drawn in place.
+  const std::size_t window_bytes=std::size_t(FesApplicationMenuSlotCount)*FesApplicationMenuSlotBytes;
+  unsigned char* window=nullptr;
+  {
+   Connection connection(socket);
+   Check(SendFrame(connection.fd(),"{\"protocol\":2,\"operation\":\"menu_frame_grant\",\"expected_generation\":"+std::to_string(generation)+"}",-1,Deadline()));
+   ReceivedFrame granted;Check(ReceiveFrame(connection.fd(),Deadline(),&granted));
+   const auto reply=Response(granted);const auto& grant=Field(reply,"menu_frame");
+   if(granted.fds.size()!=1||Number(Field(grant,"generation"))!=generation||Field(grant,"format").string_value!="bgrx8888"||
+    Number(Field(grant,"slots"))!=FesApplicationMenuSlotCount||Number(Field(grant,"slot_bytes"))!=FesApplicationMenuSlotBytes)
+    throw std::runtime_error("invalid menu grant");
+   void* mapped=mmap(nullptr,window_bytes,PROT_READ|PROT_WRITE,MAP_SHARED,granted.fds[0],0);
+   if(mapped==MAP_FAILED)throw std::runtime_error("map menu window failed");
+   window=static_cast<unsigned char*>(mapped);
+  }
   auto last=Number(Field(menu,"displayed_sequence"));double total_ms=0,max_ms=0;std::uint64_t count=0,last_underflows=0;
   const auto start=std::chrono::steady_clock::now();auto tick=start;
   while(seconds?std::chrono::steady_clock::now()-start<std::chrono::seconds(seconds):count<frames){
    if(last>=std::numeric_limits<std::uint32_t>::max())throw std::runtime_error("menu sequence exhausted");
    Connection connection(socket);
-   const auto begin="{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":"+std::to_string(generation)+",\"byte_count\":"+std::to_string(FesApplicationMenuFrameBytes)+"}";
-   Check(SendFrame(connection.fd(),begin,-1,Deadline()));ReceivedFrame staging;Check(ReceiveFrame(connection.fd(),Deadline(),&staging));
-   const auto begun=Response(staging);const auto& prepared=Field(begun,"menu_frame");
-   if(staging.fds.size()!=1||Number(Field(prepared,"generation"))!=generation||Number(Field(prepared,"byte_count"))!=FesApplicationMenuFrameBytes||Field(prepared,"staging_format").string_value!="rgba8888")throw std::runtime_error("invalid staging response");
-   const int fd=staging.fds[0];struct stat info{};
-   if(fstat(fd,&info)<0||!S_ISREG(info.st_mode)||info.st_size!=FesApplicationMenuFrameBytes)throw std::runtime_error("invalid staging file");
-   auto mapped=mmap(nullptr,FesApplicationMenuFrameBytes,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-   if(mapped==MAP_FAILED)throw std::runtime_error("map staging failed");
-   Paint(static_cast<unsigned char*>(mapped),static_cast<std::uint32_t>(last+1));
-   if(munmap(mapped,FesApplicationMenuFrameBytes)<0||fcntl(fd,F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)<0)throw std::runtime_error("seal staging failed");
-   const auto commit="{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":"+std::to_string(generation)+",\"byte_count\":"+std::to_string(FesApplicationMenuFrameBytes)+"}";
-   const auto submitted=std::chrono::steady_clock::now();Check(SendFrame(connection.fd(),commit,fd,Deadline()));
+   const auto begin="{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":"+std::to_string(generation)+"}";
+   Check(SendFrame(connection.fd(),begin,-1,Deadline()));ReceivedFrame preparation;Check(ReceiveFrame(connection.fd(),Deadline(),&preparation));
+   const auto begun=Response(preparation);const auto& prepared=Field(begun,"menu_frame");
+   const auto slot=Number(Field(prepared,"slot"));
+   if(!preparation.fds.empty()||Number(Field(prepared,"generation"))!=generation||slot>=FesApplicationMenuSlotCount)throw std::runtime_error("invalid menu preparation");
+   Paint(window+slot*FesApplicationMenuSlotBytes,static_cast<std::uint32_t>(last+1));
+   // No written regions: the runtime writes back the whole frame.
+   const auto commit="{\"protocol\":2,\"operation\":\"menu_frame_commit\",\"generation\":"+std::to_string(generation)+",\"slot\":"+std::to_string(slot)+"}";
+   const auto submitted=std::chrono::steady_clock::now();Check(SendFrame(connection.fd(),commit,-1,Deadline()));
    ReceivedFrame completed;Check(ReceiveFrame(connection.fd(),Deadline(),&completed));const auto reply=Response(completed);const auto& displayed=Field(reply,"menu_frame");
    const auto underflows=Number(Field(displayed,"underflows"));
    if(!completed.fds.empty()||Number(Field(displayed,"generation"))!=generation||Number(Field(displayed,"displayed_sequence"))!=last+1||underflows>mister::native::kMenuUnderflowPresentCap)throw std::runtime_error("frame completion mismatch or underflow");

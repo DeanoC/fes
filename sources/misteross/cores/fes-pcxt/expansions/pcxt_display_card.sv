@@ -81,8 +81,11 @@ module pcxt_display_card #(
     end
     // Fractional master-dot enables: CGA 14.318180 MHz, MDA 16.257 MHz.
     reg [26:0] phase;
-    wire [27:0] phase_sum = {1'b0, phase} + (MDA ? 28'd16257000 : 28'd14318180);
-    wire dot_ce = phase_sum >= 28'd100000000;
+    localparam integer DOT_RATE = MDA ? 16257000 : 14318180;
+    localparam integer DOT_WRAP = 100000000 - DOT_RATE;
+    // Decode the wrap from the current phase, in parallel with both sums.
+    // This keeps a full-width add out of the CRTC clock-enable path.
+    wire dot_ce = phase >= 27'(DOT_WRAP);
     reg [3:0] dot;
     wire [3:0] last_dot = MDA ? 4'd8 : mode[0] ? 4'd7 : 4'd15;
     wire char_ce = dot_ce && dot == last_dot;
@@ -140,7 +143,7 @@ module pcxt_display_card #(
             phase <= 0; dot <= 0; pixel_ce <= 0; de <= 0; hs <= 0; vs <= 0;
             sof <= 0; eol <= 0; rgbi <= 0; first_pixel <= 1; blink_frames <= 0;
         end else begin
-            phase <= dot_ce ? 27'(phase_sum - 28'd100000000) : phase_sum[26:0];
+            phase <= dot_ce ? phase - 27'(DOT_WRAP) : phase + 27'(DOT_RATE);
             pixel_ce <= dot_ce;
             sof <= 0; eol <= 0;
             if (dot_ce) begin

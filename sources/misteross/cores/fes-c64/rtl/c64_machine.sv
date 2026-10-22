@@ -286,15 +286,15 @@ module c64_machine #(
                        controller_buttons[1], controller_buttons[0]};
     wire [4:0] joy1 = {controller_buttons[12], controller_buttons[11], controller_buttons[10],
                        controller_buttons[9], controller_buttons[8]};
-    wire [4:0] pa1_low_lo = (cia1_ddra[4:0] & ~cia1_pa[4:0]) | (~cia1_ddra[4:0] & joy2);
-    wire [2:0] pa1_low_hi = cia1_ddra[7:5] & ~cia1_pa[7:5];
-    wire [7:0] pa1_low = {pa1_low_hi, pa1_low_lo};
+    // Joystick switches short CIA1 port pins to ground. The pins are
+    // wired-AND, so a closed switch reads low even where the DDR drives the
+    // pin high, as the KERNAL leaves DDRA at $FF.
+    wire [7:0] pa1_low = (cia1_ddra & ~cia1_pa) | {3'b000, joy2};
     wire [7:0] key_rows;
     c64_keyboard keyboard (
         .rows(keyboard_rows), .columns_low(pa1_low), .rows_low(key_rows)
     );
-    wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) |
-                         (~cia1_ddrb & {3'b000, joy1});
+    wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) | {3'b000, joy1};
     // The PAL power-supply TOD input is 50 Hz, independent of raster timing
     // and CPU RDY stalls. Accumulating on the free-running Phi enable retains
     // fractional periods at non-integral CPU clock rates.

@@ -26,7 +26,7 @@ func (r *damageRuntime) Status(context.Context) (menudisplay.Status, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status++
-	return menudisplay.Status{Available: true, Generation: r.generation, DisplayedSequence: r.seq, Damage: true}, nil
+	return menudisplay.Status{Available: true, Generation: r.generation, DisplayedSequence: r.seq}, nil
 }
 
 func (r *damageRuntime) Present(_ context.Context, generation uint64, pix []byte) (menudisplay.Result, error) {

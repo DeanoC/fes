@@ -2,7 +2,11 @@
   "repository": "https://github.com/spark2k06/PCXT_MiSTer",
   "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
   "license": "MIT",
-  "local_changes": [],
+  "local_changes": [
+    "Replace serial saturating one/two-step binary/BCD decrement with direct constant-step arithmetic and parallel BCD borrow prefixes; preserve all counter/register timing and behavior.",
+    "Precompute binary and BCD one/two-step decrements between falling count-clock edges. Preserve visible counter/output cycles; inactive/reset candidates clear with count, and selection uses current BCD configuration.",
+    "Precompute scalar terminal-count flags and select period/output conditions in parallel with next-count data; retain current control/preset selection and original count/output cycles."
+  ],
   "files": [
     {
       "path": "LICENSE",
@@ -22,7 +26,8 @@
     {
       "path": "KF8253_Counter.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv",
-      "sha256": "4c7ff9a11fe5d1207548bb3b67de46adb8defa6dd3541a0ab519d61a5b3ab660"
+      "sha256": "1b9a556831217b8daa21e4cdf83486bc6a4bda73439397477ed9479a2596b4e8",
+      "upstream_sha256": "4c7ff9a11fe5d1207548bb3b67de46adb8defa6dd3541a0ab519d61a5b3ab660"
     },
     {
       "path": "KF8253_Definitions.svh",

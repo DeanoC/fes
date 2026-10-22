@@ -111,6 +111,7 @@ module mcl86_eu_core
     (
         // System Interface
         input  wire        CORE_CLK_INT,          // High-speed core clock
+        input  wire        CORE_CLK_ROM,          // 180-degree ROM read clock
         input  wire        RESET_INT,             // Synchronous reset (active high)
         input  wire        TEST_N_INT,            // Test pin input (active low, can be tied high)
         input  wire        FAKE286_FLAGS,         // Make PUSHF expose 80286 reserved FLAGS bits
@@ -151,7 +152,7 @@ module mcl86_eu_core
     reg  [51:0] eu_calling_address;     // 4-deep call stack: four 13-bit return addresses, shifted
     reg         eu_stall_pipeline;      // Squash the 2 words already in flight behind a taken jump
     wire [31:0] eu_rom_data;            // Microword fetched from the ucode ROM (registered read)
-    wire  [7:0] eu_rom_sel;             // Copy of eu_rom_data[23:16] for the operand trees
+    wire [15:0] eu_op0_select, eu_op1_select; // Registered one-hot operand controls
     wire        new_instruction;        // uPC is in the opcode dispatch page -> a macro-op is starting
 
     //--------------------------------------------------------------------------
@@ -216,6 +217,8 @@ module mcl86_eu_core
     //--------------------------------------------------------------------------
     // Internal Signals - ALU and Adder
     //--------------------------------------------------------------------------
+    wire [15:0] eu_add_operand0, eu_add_operand1;
+    wire [15:0] eu_add_select0, eu_add_select1;
     wire [15:0] eu_operand0;            // Operand 0 mux output
     wire [15:0] eu_operand1;            // Operand 1 mux output
     wire [15:0] eu_alu2;                // ADD result
@@ -294,11 +297,35 @@ module mcl86_eu_core
     // Head of the dataflow, so it stays here rather than down with the other
     // instantiations: everything below decodes what this ROM hands back. The
     // read is registered, which is where the sequencer's 2-word lead comes from.
+    `include "mcl86_facts.vh"
+
+    reg [12:0] eu_rom_address_next;
+    always_comb begin : next_microcode_pc
+        eu_rom_address_next = eu_rom_address + 1'b1;
+        if (eu_stall_pipeline == 1'b0 && eu_opcode_type == 3'h1 && eu_jump_boolean == 1'b1) begin
+            case (eu_opcode_jump_src)
+                3'h0: eu_rom_address_next = eu_opcode_immediate[12:0];
+                3'h1: eu_rom_address_next = {4'b0, 1'b1, PFQ_TOP_BYTE};
+                3'h2: eu_rom_address_next = {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0};
+                3'h3: eu_rom_address_next = eu_calling_address[12:0];
+                3'h4: eu_rom_address_next = {eu_opcode_immediate[7:0], eu_biu_dataout[3:0], 1'b0};
+                3'h5: eu_rom_address_next = {eu_opcode_immediate[6:0], eu_biu_dataout[3:0], 2'b0};
+                3'h6: eu_rom_address_next = {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};
+                default: eu_rom_address_next = FES_MC_JUMP7_USED ? eu_rom_address : eu_rom_address + 1'b1;
+            endcase
+        end
+    end
+
     mcl86_ucode u_ucode_rom (
+        .add_select0 (eu_add_select0),
+        .add_select1 (eu_add_select1),
+        .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
-        .addr ( eu_rom_address[11:0] ),
+        .reset ( RESET_INT ),
+        .next_addr ( eu_rom_address_next[11:0] ),
         .dout     ( eu_rom_data          ),
-        .dout_sel ( eu_rom_sel           )
+        .operand_select0 ( eu_op0_select ),
+        .operand_select1 ( eu_op1_select )
     );
 
     //--------------------------------------------------------------------------
@@ -325,16 +352,15 @@ module mcl86_eu_core
     assign eu_opcode_jump_cond = eu_rom_data[19:16];
 
     //--------------------------------------------------------------------------
-    // 4:1 multiplexer used to build the operand selection trees
+    // One-hot operand multiplexer
     //--------------------------------------------------------------------------
-    function automatic [15:0] mux4(input [1:0] sel, input [15:0] d0, input [15:0] d1,
-                                   input [15:0] d2, input [15:0] d3);
-        case (sel)
-            2'd0:    mux4 = d0;
-            2'd1:    mux4 = d1;
-            2'd2:    mux4 = d2;
-            default: mux4 = d3;
-        endcase
+    function automatic [15:0] select16(input [15:0] sel, input [255:0] data);
+        integer i;
+        begin
+            select16 = 0;
+            for (i = 0; i < 16; i = i + 1)
+                select16 = select16 | (data[i*16 +: 16] & {16{sel[i]}});
+        end
     endfunction
 
     //--------------------------------------------------------------------------
@@ -353,21 +379,14 @@ module mcl86_eu_core
                               (eu_opcode_op1_sel   == 4'hF) &&
                               (eu_opcode_immediate == 16'hF002);
 
-    // Built as an explicit two-level tree of 4:1 multiplexers: each first-level
-    // group (selected by op0_sel[1:0]) fits one 6-input LUT per bit, and the
-    // second level (op0_sel[3:2]) is one more. The select comes straight out
-    // of the microcode ROM at the start of the core's critical path, so the
-    // tree depth matters; a priority chain synthesised to three levels.
-    wire [15:0] eu_op0_grp0 /* synthesis keep */;
-    wire [15:0] eu_op0_grp1 /* synthesis keep */;
-    wire [15:0] eu_op0_grp2 /* synthesis keep */;
-    wire [15:0] eu_op0_grp3 /* synthesis keep */;
-
-    assign eu_op0_grp0 = mux4(eu_rom_sel[5:4], eu_register_ax, eu_register_bx, eu_register_cx, eu_register_dx);
-    assign eu_op0_grp1 = mux4(eu_rom_sel[5:4], eu_register_sp, eu_register_bp, eu_register_si, eu_register_di);
-    assign eu_op0_grp2 = mux4(eu_rom_sel[5:4], eu_flags,       eu_register_r0, eu_register_r1, eu_register_r2);
-    assign eu_op0_grp3 = mux4(eu_rom_sel[5:4], eu_register_r3, eu_biu_command, system_signals, 16'h0);
-    assign eu_operand0 = mux4(eu_rom_sel[7:6], eu_op0_grp0, eu_op0_grp1, eu_op0_grp2, eu_op0_grp3);
+    // Each decoded select serves one 16-bit source without adding cycles.
+    wire [255:0] eu_sources0 = {
+        16'h0, system_signals, eu_biu_command, eu_register_r3,
+        eu_register_r2, eu_register_r1, eu_register_r0, eu_flags,
+        eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
+        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax};
+    assign eu_operand0 = select16(eu_op0_select, eu_sources0);
+    assign eu_add_operand0 = select16(eu_add_select0 & FES_MC_ADD_OP0_MASK, eu_sources0);
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -376,17 +395,17 @@ module mcl86_eu_core
     // returned bus data, the prefetch queue, or the microword's own immediate.
     // Select 0x4 is how the microcode consumes an instruction byte - it pulls
     // the top of the prefetch queue in zero-extended.
-    // Same two-level 4:1 tree as operand 0.
-    wire [15:0] eu_op1_grp0 /* synthesis keep */;
-    wire [15:0] eu_op1_grp1 /* synthesis keep */;
-    wire [15:0] eu_op1_grp2 /* synthesis keep */;
-    wire [15:0] eu_op1_grp3 /* synthesis keep */;
-
-    assign eu_op1_grp0 = mux4(eu_rom_sel[1:0], BIU_REGISTER_ES,       BIU_REGISTER_SS,  BIU_REGISTER_CS,  BIU_REGISTER_DS);
-    assign eu_op1_grp1 = mux4(eu_rom_sel[1:0], {8'h00, PFQ_TOP_BYTE}, BIU_REGISTER_RM,  BIU_REGISTER_REG, BIU_RETURN_DATA);
-    assign eu_op1_grp2 = mux4(eu_rom_sel[1:0], PFQ_ADDR_OUT,          eu_register_r0,   eu_register_r1,   eu_register_r2);
-    assign eu_op1_grp3 = mux4(eu_rom_sel[1:0], eu_register_r3,        eu_alu_last_result, system_signals, eu_opcode_immediate);
-    assign eu_operand1 = mux4(eu_rom_sel[3:2], eu_op1_grp0, eu_op1_grp1, eu_op1_grp2, eu_op1_grp3);
+    wire [255:0] eu_sources1 = {
+        eu_opcode_immediate, system_signals, eu_alu_last_result, eu_register_r3,
+        eu_register_r2, eu_register_r1, eu_register_r0, PFQ_ADDR_OUT,
+        BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
+        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES};
+    // Only the full logic operand-1 mux uses the native two-level map.
+    // The ADD-specific muxes keep their independently inferred timing cones.
+    pcxt_logic_operand1_mux u_operand1_mux (
+        .sel(eu_op1_select), .data(eu_sources1), .out(eu_operand1)
+    );
+    assign eu_add_operand1 = select16(eu_add_select1 & FES_MC_ADD_OP1_MASK, eu_sources1);
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic
@@ -405,11 +424,15 @@ module mcl86_eu_core
     //   word IDIV (uPC 0x0F02): quotient overflows if DX is nonzero or AX[15] set
     //
     // Taking the jump vectors into the divide-overflow (INT 0) microcode.
-    assign eu_jump_boolean = ((idiv_opcode == 'h1) && (eu_rom_address == 'h0E76) && ( eu_register_ax[15:7] != 'h0))                                 ? 1'b1 :
-                             ((idiv_opcode == 'h1) && (eu_rom_address == 'h0F02) && ((eu_register_dx       != 'h0) || (eu_register_ax[15] != 'h0))) ? 1'b1 :
-                             (eu_opcode_jump_cond  == 4'h0)                                                                                         ? 1'b1 : // unconditional jump
-                             (eu_opcode_jump_cond  == 4'h1 && eu_alu_last_result != 16'h0)                                                          ? 1'b1 :
-                             (eu_opcode_jump_cond  == 4'h2 && eu_alu_last_result == 16'h0)                                                          ? 1'b1 : 1'b0 ;
+    wire eu_last_zero = eu_alu_last_result == 16'h0000;
+    wire eu_simple_jump = (eu_opcode_jump_cond[3:2] == 2'b00) &&
+        ((eu_opcode_jump_cond[1:0] == 2'b00) ||
+         ((eu_opcode_jump_cond[1] ^ eu_opcode_jump_cond[0]) &&
+          (eu_last_zero == eu_opcode_jump_cond[1])));
+    wire eu_divide_jump = (idiv_opcode == 'h1) &&
+        (((eu_rom_address == 'h0E76) && (eu_register_ax[15:7] != 'h0)) ||
+         ((eu_rom_address == 'h0F02) && ((eu_register_dx != 'h0) || eu_register_ax[15])));
+    assign eu_jump_boolean = eu_divide_jump || eu_simple_jump;
 
     //--------------------------------------------------------------------------
     // System Signals Consolidation
@@ -508,9 +531,13 @@ module mcl86_eu_core
     // clk_100 closed at 88 MHz against its 100 MHz constraint.
     // mcl86_adder computes the same function bit for bit, with the intermediate
     // carries recovered from the sum instead of produced ahead of it.
+    // The generated masks include every ADD-word source in the control ROM.
+    // Other operations retain the full operand lookup. The sum and carries
+    // are observed only by ADD writeback/flag updates, so unused ADD sources
+    // can leave this timing cone without restricting guest firmware or data.
     mcl86_adder u_adder (
-        .a      (eu_operand0),
-        .b      (eu_operand1),
+        .a      (eu_add_operand0),
+        .b      (eu_add_operand1),
         .sum    (adder_out),
         .carry  (carry)
     );
@@ -609,6 +636,7 @@ module mcl86_eu_core
             idiv_opcode         <=   '0;
         end
         else begin
+            eu_rom_address <= eu_rom_address_next;
             // Delay the INTR enable flag until after the next instruction begins.
             // No delay when it is disabled.
             //
@@ -904,23 +932,11 @@ module mcl86_eu_core
                     eu_calling_address[51:0] <= {eu_calling_address[38:0], eu_rom_address[12:0]};  // 4 deep calling addresses
                 end
 
-                case (eu_opcode_jump_src)  // synthesis parallel_case
-                    3'h0: eu_rom_address <= eu_opcode_immediate[12:0];
-                    3'h1: eu_rom_address <= {4'b0, 1'b1, PFQ_TOP_BYTE};                                             // If only used for primary opcode jump, maybe make fixed prepend rather than immediate value prepend?
-                    3'h2: eu_rom_address <= {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0}; // Rearranged mod_reg_rm byte - imm,MOD,RM,000
-                    3'h3: begin
-                        eu_rom_address           <= eu_calling_address[12:0];
-                        eu_calling_address[38:0] <= eu_calling_address[51:13];
-                    end
-                    3'h4: eu_rom_address <= {eu_opcode_immediate[7:0],  eu_biu_dataout[3:0], 1'b0};  // Jump table for EA register fetch decoding.  Jump Addresses decoded from biu_dataout.
-                    3'h5: eu_rom_address <= {eu_opcode_immediate[6:0],  eu_biu_dataout[3:0], 2'b0};  // Jump table for EA register writeback decoding.  Jump Addresses decoded from biu_dataout.
-                    3'h6: eu_rom_address <= {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};        // Jump table for instructions that share same opcode and decode using the REG field.
-                    default:;
-                endcase
+                if (eu_opcode_jump_src == 3'h3)
+                    eu_calling_address[38:0] <= eu_calling_address[51:13];
             end
             else begin
                 eu_stall_pipeline <= 1'b0; // Debounce the pipeline stall
-                eu_rom_address    <= eu_rom_address + 1'b1;
             end
         end
     end

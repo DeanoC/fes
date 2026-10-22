@@ -16,8 +16,10 @@ class Controller {
 public:
 	Controller(Runtime& runtime, std::string version);
 	std::string Handle(const std::string& line);
+ // The response, and in *fd a window descriptor the caller sends and closes.
+ std::string GrantMenuWindow(const Request&,int* fd);
  std::string BeginMenuFrame(const Request&,std::unique_ptr<MenuFrame>*);
- std::string CommitMenuFrame(const Request&,MenuFrame&,int);
+ std::string CommitMenuFrame(const Request&,MenuFrame&);
 	std::string InvalidRequest(const std::string& message);
 
 private:

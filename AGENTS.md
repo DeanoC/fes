@@ -8,6 +8,8 @@ Never pin a GPU vendor.
 
 Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
+A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
+
 ## PR scope
 
 - One scope per PR. Don't bundle unrelated fixes.
