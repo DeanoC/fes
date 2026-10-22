@@ -57,7 +57,7 @@ func runningLocalCoreApp(feed localPadSender) *App {
 // and does not take a port that frees up later; the next pad opened does.
 func TestAutoInputGivesPadsPortsInConnectionOrder(t *testing.T) {
 	dir := t.TempDir()
-	inputs, err := openNativeInputsDir("auto", "menu-display", dir)
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestUnpluggedPortlessPadSendsNothing(t *testing.T) {
 // port, as its buttons reached the core before pads had ports.
 func TestExplicitUnclassifiedInputTakesAPort(t *testing.T) {
 	dir := t.TempDir()
-	inputs, err := openNativeInputsDir(pipePad(t, dir, "event0"), "menu-display", dir)
+	inputs, err := openNativeInputsDir(pipePad(t, dir, "event0"), "menu-display", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

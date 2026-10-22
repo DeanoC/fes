@@ -228,9 +228,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 const (
@@ -771,7 +769,6 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		prevStick = stick.cmd
 	}
 	stickCmd := CmdNone
-	remap := app.remapper()
 	active := make([]int, 0, len(pads))
 	for id, pad := range pads {
 		if pad == nil {
@@ -794,7 +791,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 			C.SDL_GAMEPAD_BUTTON_GUIDE,
 		} {
 			if bool(C.SDL_GetGamepadButton(pad, C.SDL_GamepadButton(button))) {
-				pressed[remapSDLCommand(remap, commandFromSDLButton(button))] = true
+				pressed[commandFromSDLButton(button)] = true
 				used = true
 			}
 		}
@@ -986,54 +983,6 @@ func seedSDLMice(app *App) {
 	slice := unsafe.Slice(ids, int(count))
 	for _, id := range slice {
 		app.SeedInput(InputMouse, int(id))
-	}
-}
-
-func remapSDLCommand(remap *inputmap.Remapper, cmd Command) Command {
-	if cmd == CmdNone || cmd == CmdSettings || remap == nil {
-		return cmd
-	}
-	button := buttonFromCommand(cmd)
-	if button == ButtonNone {
-		return cmd
-	}
-	e := remoteinput.Event{
-		Device: remoteinput.DeviceGamepad,
-		Kind:   remoteinput.KindButton,
-		Action: remoteinput.ActionPress,
-		Code:   LogicalFromButton(button),
-	}
-	return CommandFromLogical(remap.Apply(e))
-}
-
-func buttonFromCommand(cmd Command) Button {
-	switch cmd {
-	case CmdUp:
-		return ButtonDPadUp
-	case CmdDown:
-		return ButtonDPadDown
-	case CmdLeft:
-		return ButtonDPadLeft
-	case CmdRight:
-		return ButtonDPadRight
-	case CmdSelect:
-		return ButtonSouth
-	case CmdBack:
-		return ButtonEast
-	case CmdQuit:
-		return ButtonStart
-	case CmdLayoutCycle:
-		return ButtonBack
-	case CmdSortCycle:
-		return ButtonWest
-	case CmdSearch:
-		return ButtonNorth
-	case CmdFilterPrev:
-		return ButtonLeftShoulder
-	case CmdFilterNext:
-		return ButtonRightShoulder
-	default:
-		return ButtonNone
 	}
 }
 
