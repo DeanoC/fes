@@ -1272,3 +1272,38 @@ Root fresh extraction verifies all 245 members and both complete 261/256-member
 dependencies, reproduces all seven proof outputs and the independent review,
 and confirms all four final artifacts remain byte-identical. Replay incurs no
 route charge.
+
+
+## Expanded ordinary-LUT search exhausts eligible trials without another gain
+
+Compiler `134b858165a4dd0c00c8b5d5371fbf90fdac63a3`, binary
+`aba33a3cc6b3a322f98c22853efc0d1d9fe4d781707932c6249640cd5395662c`,
+raises the explicit ordinary-permutation ceiling to 32, preserving default zero,
+ordering and every native acceptance guard. All 45 native and six CLI tests pass;
+default/zero preparation remains exact apart from the recorded creator label.
+
+The fresh budget16 control reproduces the previous combined CPU/display result.
+The budget32 candidate exhausts all 23 eligible trials. Its first sixteen complete
+decisions match the control; all seven additional trials reject at the native
+clock margin/coverage guard. Neither the extra budget nor the rejected trials
+produce a retained gain. Eight setup failures remain, CPU worst -25 ps and
+whole-system worst -434 ps, with zero hold failures and minimum hold +822 ps.
+
+Every one of the 17,199 endpoint identities, windows, flags and metadata entries
+is accounted for. All 17,194 setup margins and all 17,194 hold margins are exact,
+as are the native clock summaries. Complete graph proof covers all 12,397 cells
+and 15,546 aliases, with no changed canonical route tree. RBF, timing and endpoint
+files are byte-identical. Routed JSON differs only in five routing-attribute
+serialization orders; every source, sink, wire, PIP, strength and other JSON
+field is unchanged. No native tree-reader execution is needed. Independent
+replay reproduces eight complete proof/control outputs; review SHA-256 is
+`fe19edc97c03cb03ed8d0cc1a52c3a9bc8f446063681fe0cc7e94bff5fa7290a`.
+
+Completed route charges are 862.5985456877388 and 933.8916614698246 seconds.
+The journal contains 50 subsequent receipts and cumulative charge
+**50884.91650258190867 seconds**. Evidence is under
+`out/lut-permutation-budget32-20261023/`. This completes the bounded host
+experiment with no additional improvement; a larger trial ceiling alone has
+no further candidates in this discovery. Timing closure, the 105 unsupported
+boundaries, same-recipe seed, production and hardware gates remain open.
+No RTL, clocks, constraints, lock, shared contracts or hardware changed.
