@@ -3,6 +3,7 @@
 package tenfoot
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"golang.org/x/sys/unix"
 )
@@ -191,6 +194,58 @@ func TestPortlessPadDrivesTheRoomDuringPlay(t *testing.T) {
 	in.button(app, ButtonDPadDown, 0, now)
 	if len(in.controls) != 0 {
 		t.Fatalf("release left a menu control: %v", in.controls)
+	}
+}
+
+func TestPortlessPadBReturnsAfterLostHDMIOpen(t *testing.T) {
+	prior := kitDisplaySession()
+	var opens, closes atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		var req struct {
+			Visible bool `json:"visible"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			return
+		}
+		if req.Visible {
+			opens.Add(1)
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			conn.Close() // The physical open may have succeeded before its reply was lost.
+			return
+		}
+		closes.Add(1)
+		b, ok := protocol.DevelopmentMediaHeaders(r.Header)
+		if !ok || b.Generation != prior.CorePackage.Generation || b.Target != prior.Target || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
+			t.Error("portless return lost the original display binding")
+		}
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "lost HDMI open response", func(s Snapshot) bool {
+		return strings.Contains(s.Status, "HDMI controls unavailable")
+	})
+
+	in := &nativeInput{fd: 9, kind: InputGamepad, player: noLocalPlayer}
+	in.button(app, ButtonEast, 1, time.Now()) // B is the guarded return, not a menu command.
+	if len(in.controls) != 0 {
+		t.Fatalf("portless recovery B reached menu controls: %v", in.controls)
+	}
+	waitFor(t, app, "portless HDMI return", func(s Snapshot) bool {
+		return s.GPUParked && app.ForwardsPlayHID() && !s.Room.DuringPlay
+	})
+	if opens.Load() != 1 || closes.Load() != 1 || app.Snapshot().Session.State != "active" {
+		t.Fatalf("portless pad did not make one guarded return: opens=%d closes=%d session=%q", opens.Load(), closes.Load(), app.Snapshot().Session.State)
 	}
 }
 

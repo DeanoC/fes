@@ -2496,6 +2496,10 @@ port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
 releases its held keys independently.
 
+If an HDMI control transition leaves display ownership uncertain, a portless
+pad's B uses the same guarded return-to-play operation as a ported pad. Other
+menu commands stay blocked until display ownership is known.
+
 An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
 `fes.computer` 1.0) attaches the ordinary host session
 input stream and reports `core_package.gamepad: true`. It has two digital ports;

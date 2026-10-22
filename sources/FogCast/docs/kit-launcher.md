@@ -99,9 +99,9 @@ not take a port that frees up later. It drives the menu wherever a pad with a
 port would, including the room shown during play, and its Guide button still
 stops a kit-local core like any pad's. Every pad event
 carries its port as `Player`, so a `fes.gamepad.ports` core sees two players
-and the kit's Select+Start stop needs both buttons on the same pad. The current
-Coleco package has two controller ports, so each pad is its own player. SMS,
-SG-1000 and Coleco packages that still declare `fes.keyboard` take their
+and the kit's Select+Start stop needs both buttons on the same pad. Use two pads
+with the current `fes.coleco` package for an independent-player hardware check.
+SMS, SG-1000 and older Coleco packages that declare `fes.keyboard` take their
 joystick through the keyboard matrix: mister-agent turns both pads' directions
 and A (and Coleco's B) into that one joystick, so both pads steer the same
 player. A core with only the single-pad `fes.gamepad` interface (Catch, Pong)

@@ -167,7 +167,9 @@ func (a *App) suppressPadLocked(player uint8) {
 // press a menu control now. It may wherever a pad with a port would reach
 // the menu (HandleLocalPad returning false): whenever no machine owns the
 // pads, and in the room shown over a running session, where Select returns
-// to the game and Start is never the menu's Quit (sessionPadLocked).
+// to the game and Start is never the menu's Quit (sessionPadLocked). During
+// an uncertain display transition, B uses the same guarded return as a
+// ported pad without enabling ordinary menu commands.
 func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	if a == nil {
 		return false
@@ -180,6 +182,12 @@ func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	if !a.needsSessionDisplayLocked() || a.session.State != "active" {
 		return true
 	}
+	if a.sessionDisplayUncertain {
+		if code == remoteinput.ButtonB && !a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.playHIDFailClosedLocked() {
+			a.beginSessionDisplayLocked(false, false)
+		}
+		return false
+	}
 	return a.roomDuringPlay && code != remoteinput.ButtonStart && code != remoteinput.ButtonSelect &&
-		!a.sessionDisplayBusy && !a.sessionDisplayUncertain && a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked()
+		!a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.retryStopLock && !a.playHIDFailClosedLocked()
 }
