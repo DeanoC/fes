@@ -10,6 +10,26 @@ import (
 	"time"
 )
 
+// fakeReservation is the failed operation's maintenance reservation. Held only
+// reads it; Release is the one call that ends it.
+type fakeReservation struct {
+	heldErr         error
+	failRelease     bool
+	helds, releases int
+}
+
+func (f *fakeReservation) Held(context.Context, Request) error {
+	f.helds++
+	return f.heldErr
+}
+func (f *fakeReservation) Release(context.Context, Request) error {
+	f.releases++
+	if f.failRelease {
+		return errors.New("agent down")
+	}
+	return nil
+}
+
 func acknowledgmentFixture(t *testing.T) (*FileRepository, AcknowledgeRequest) {
 	r, _, _, _ := setup(t)
 	if err := Queue(r, req()); err != nil {
@@ -26,7 +46,7 @@ func acknowledgmentFixture(t *testing.T) (*FileRepository, AcknowledgeRequest) {
 }
 func TestAcknowledgmentPreservesFailureAndReplaysLostRelease(t *testing.T) {
 	r, request := acknowledgmentFixture(t)
-	a := &fakeAdmission{failRelease: true}
+	a := &fakeReservation{failRelease: true}
 	checks := 0
 	stable := func(context.Context) error { checks++; return nil }
 	if _, err := acknowledgePrior(context.Background(), r, a, request, stable); err == nil {
@@ -49,7 +69,7 @@ func TestAcknowledgmentPreservesFailureAndReplaysLostRelease(t *testing.T) {
 	if err != nil || !result.Completed {
 		t.Fatal(result, err)
 	}
-	if checks != 1 || a.acquires != 1 {
+	if checks != 1 || a.helds != 2 {
 		t.Fatal("replay repeated repair", checks, a)
 	}
 	if _, err := acknowledgePrior(context.Background(), r, a, request, stable); err != nil {
@@ -67,7 +87,7 @@ func TestAcknowledgmentFailureBeforeCompletionKeepsBlocked(t *testing.T) {
 	for _, fault := range []string{"health", "audit", "journal"} {
 		t.Run(fault, func(t *testing.T) {
 			r, request := acknowledgmentFixture(t)
-			a := &fakeAdmission{}
+			a := &fakeReservation{}
 			stable := func(context.Context) error {
 				switch fault {
 				case "health":
@@ -98,6 +118,33 @@ func TestAcknowledgmentFailureBeforeCompletionKeepsBlocked(t *testing.T) {
 		})
 	}
 }
+func TestAcknowledgmentReadsReservationAroundReadiness(t *testing.T) {
+	for _, when := range []string{"before", "after"} {
+		t.Run(when, func(t *testing.T) {
+			r, request := acknowledgmentFixture(t)
+			a := &fakeReservation{}
+			if when == "before" {
+				a.heldErr = errors.New("failed operation no longer owns this boot's maintenance reservation")
+			}
+			probes := 0
+			_, err := acknowledgePrior(context.Background(), r, a, request, func(context.Context) error {
+				probes++
+				a.heldErr = errors.New("failed maintenance reservation is finishing, not blocked or ready")
+				return nil
+			})
+			if err == nil {
+				t.Fatal("changed reservation acknowledged")
+			}
+			if (when == "before") != (probes == 0) {
+				t.Fatal("readiness probe ran out of order", when, probes)
+			}
+			state, _ := r.Read()
+			if _, exists, _ := r.readAcknowledgment(request.Action); exists || state.Pending == nil || state.Pending.Phase != "blocked" || len(state.Receipts) != 0 || a.releases != 0 {
+				t.Fatal("unheld reservation reached the journal", state, a)
+			}
+		})
+	}
+}
 func TestAcknowledgmentRejectsStaleIdentityAndConflictingAction(t *testing.T) {
 	for _, field := range []string{"operation", "generation", "selected", "action"} {
 		t.Run(field, func(t *testing.T) {
@@ -117,11 +164,11 @@ func TestAcknowledgmentRejectsStaleIdentityAndConflictingAction(t *testing.T) {
 			case "action":
 				request.Action = strings.Repeat("e", 64)
 			}
-			a := &fakeAdmission{}
+			a := &fakeReservation{}
 			if _, err := acknowledgePrior(context.Background(), r, a, request, func(context.Context) error { return nil }); err == nil {
 				t.Fatal("conflicting repair accepted")
 			}
-			if a.acquires != 0 || a.releases != 0 {
+			if a.helds != 0 || a.releases != 0 {
 				t.Fatal("conflicting request touched maintenance")
 			}
 		})
@@ -129,7 +176,7 @@ func TestAcknowledgmentRejectsStaleIdentityAndConflictingAction(t *testing.T) {
 }
 func TestAcknowledgmentCannotUndoNewerSelection(t *testing.T) {
 	r, request := acknowledgmentFixture(t)
-	a := &fakeAdmission{}
+	a := &fakeReservation{}
 	if _, err := acknowledgePrior(context.Background(), r, a, request, func(context.Context) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +207,7 @@ func TestAcknowledgeProductionRequiresRoot(t *testing.T) {
 
 func TestAcknowledgmentSerializesWorkerAndRejectsChangedPending(t *testing.T) {
 	r, request := acknowledgmentFixture(t)
-	a := &fakeAdmission{}
+	a := &fakeReservation{}
 	_, err := acknowledgePrior(context.Background(), r, a, request, func(context.Context) error {
 		if unlock, err := r.WorkerLock(); err == nil {
 			unlock()
