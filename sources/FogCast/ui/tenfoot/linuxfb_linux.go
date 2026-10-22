@@ -149,16 +149,19 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 }
 
 type nativeInput struct {
-	fd       int
-	path     string
-	kind     InputKind
+	fd   int
+	path string
+	kind InputKind
+	// player is this pad's controller port, or noLocalPlayer. Keyboards and
+	// mice never hold one.
+	player   int8
 	pending  []byte
 	shifts   map[uint16]bool
 	commands map[uint16]Command
 	axes     map[uint16]Command
 	controls map[uint16]Command
 	hatHeld  map[uint16]Button
-	padHeld  map[remoteinput.Code]remoteinput.Event
+	padHeld  map[padKey]remoteinput.Event
 	keysHeld map[uint16]string
 	mapper   *controller.Mapper
 }
@@ -244,7 +247,21 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		unix.Close(fd)
 		return nil
 	}
-	in := &nativeInput{fd: fd, path: path, kind: kind}
+	in := &nativeInput{fd: fd, path: path, kind: kind, player: noLocalPlayer}
+	// A pad takes a controller port. So does a node named with -input that
+	// the classifier could not place; automatic mode never keeps one.
+	if kind == InputGamepad || kind == InputNone {
+		what := "gamepad"
+		if kind == InputNone {
+			what = "input"
+		}
+		in.player = ins.freePlayer()
+		if in.player == noLocalPlayer {
+			fmt.Fprintf(os.Stderr, "%s: %s %s: both controller ports are taken; menu only\n", ins.label, what, path)
+		} else {
+			fmt.Fprintf(os.Stderr, "%s: %s %s: controller port %d\n", ins.label, what, path, in.player+1)
+		}
+	}
 	if kind == InputMouse {
 		in.mapper = controller.NewMouseMapper()
 	}
@@ -263,6 +280,24 @@ func (ins *nativeInputs) deviceKind(fd int) InputKind {
 		return ins.kindOf(fd)
 	}
 	return nativeDeviceKind(fd)
+}
+
+// freePlayer is the lowest controller port no connected pad holds. Ports
+// follow the order pads are opened (path order at startup, then hotplug) and
+// stay with a pad until it is unplugged.
+func (ins *nativeInputs) freePlayer() int8 {
+	var taken [localControllerPorts]bool
+	for _, in := range ins.devices {
+		if in.player != noLocalPlayer && int(in.player) < len(taken) {
+			taken[in.player] = true
+		}
+	}
+	for player, held := range taken {
+		if !held {
+			return int8(player)
+		}
+	}
+	return noLocalPlayer
 }
 
 func (ins *nativeInputs) hasPath(path string) bool {
@@ -511,13 +546,27 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	if remap := app.remapper(); remap != nil {
 		e = remap.Apply(e)
 	}
+	if in.player == noLocalPlayer {
+		// Both controller ports belong to other pads. This pad never reaches
+		// a machine. It presses menu controls only where a pad with a port
+		// would, and its releases always clear them.
+		if value == 0 || app.portlessPadReachesMenu(e.Code) {
+			in.setButton(uint16(button), CommandFromLogical(e), value != 0)
+		}
+		if value != 0 {
+			app.NoteInput(InputGamepad, in.fd)
+		}
+		return
+	}
+	e.Player = uint8(in.player)
+	key := padKey{e.Player, e.Code}
 	if in.padHeld == nil {
-		in.padHeld = make(map[remoteinput.Code]remoteinput.Event)
+		in.padHeld = make(map[padKey]remoteinput.Event)
 	}
 	if value != 0 {
-		in.padHeld[e.Code] = e
+		in.padHeld[key] = e
 	} else {
-		delete(in.padHeld, e.Code)
+		delete(in.padHeld, key)
 	}
 	if app.HandleLocalPad(e, now) {
 		if value != 0 {
@@ -903,41 +952,32 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
-	remainingPads, remainingKeys := map[remoteinput.Code]bool{}, map[string]bool{}
+	remainingKeys := map[string]bool{}
 	for _, in := range ins.devices {
-		for code := range in.padHeld {
-			remainingPads[code] = true
-		}
 		for _, name := range in.keysHeld {
 			remainingKeys[name] = true
 		}
 	}
 	app.mu.Lock()
 	var padEvents, keyEvents []remoteinput.Event
-	for code, event := range lost.padHeld {
-		if remainingPads[code] {
-			continue
+	if lost.player != noLocalPlayer {
+		// The port was this pad's alone, so everything held on it comes up.
+		player := uint8(lost.player)
+		for _, event := range lost.padHeld {
+			event.Action = remoteinput.ActionRelease
+			event.Value = 0
+			padEvents = append(padEvents, event)
 		}
-		delete(app.playPadHeld, code)
-		delete(app.playPadSuppressed, code)
-		if code == remoteinput.ButtonSelect {
-			app.playPadSelectDown = false
-			app.localSelectDown = false
-		}
-		if code == remoteinput.ButtonStart {
-			app.playPadStartDown = false
-			app.localStartDown = false
-		}
-		delete(app.localSent, code)
-		event.Action = remoteinput.ActionRelease
-		event.Value = 0
-		padEvents = append(padEvents, event)
+		app.forgetPadLocked(player, time.Now())
+		// After its releases, the pad gives its port back. mister-agent
+		// drops that player's claim and leaves the other pad alone.
+		padEvents = append(padEvents, remoteinput.LocalPlayerDeparture(player))
 	}
-	if !app.playPadSelectDown || !app.playPadStartDown {
+	if !app.playPadPair.anyHeld() {
 		app.playPadChordSince = time.Time{}
 		app.playPadChordFired = false
 	}
-	if !app.localSelectDown || !app.localStartDown {
+	if !app.localPair.anyHeld() {
 		app.localChordSince = time.Time{}
 		app.localChordFired = false
 	}
