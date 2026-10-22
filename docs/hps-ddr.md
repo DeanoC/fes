@@ -79,6 +79,21 @@ firmware or programming another core.
    with `hps_ddr_layout_evidence` in `scripts/fes_de10nano_evidence.py`, as
    the RAM tester and splash recipes do.
 
+## Sharing the window
+
+The session-display plane (`fes_display_plane`) is one DDR client, not the
+owner of the ports. A shell instantiates `fes_hps_ddr`, gives the plane port
+0, passes the plane's `ddr_hold` as the wrapper's `hold`, and keeps ports 1
+and 2 for itself. The plane reads its two 4 MiB slots at window offsets 0
+and `0x00400000`; the rest of the window belongs to the core.
+
+`cores/fes-common/rtl/fes_media_ddr.v` keeps one `fes.computer` media unit in
+the window on a 64-bit port: the mailbox's held media writes (with
+`ENABLE_MEDIA_BACKPRESSURE`) become byte-enabled writes, acknowledged once the
+port takes them, and a stream reader prefetches the unit back in order. The
+ZX Spectrum keeps its tape there, at window offset `0x01000000` on port 1.
+Other cores' tapes and disks move onto it in turn (#998).
+
 ## Testing it
 
 `fes.ramtest` scans the whole window on all three ports with seven patterns,
