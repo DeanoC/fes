@@ -93,3 +93,30 @@ protected, before another route is spent.
 results and original report indices to reproduce the selected guidance. No RTL,
 compiler implementation, clock, lock, seal or shared contract changed. No GPU
 route time was spent: the incident allowance remains 607.674011 seconds.
+
+## Atomic connected-LUT pairs
+
+Compiler follow-up [d133140a](https://github.com/DeanoC/nextpnr/commit/d133140a)
+adds an explicit default-off paired-LUT experiment to draft nextpnr #266. It
+moves two connected ordinary LUTs and their displaced occupants atomically,
+retaining all legality, clock, endpoint and hold guards. Registers, carry chains
+and logic functions remain unchanged.
+
+On this retained PC/XT placement, 32 STA trials (2080 geometry checks) retain
+zero moves. The first blocking setup rows reveal competing consumers of shared
+next-address logic: a CPU microcode-PC row goes from +0.264 ns to -2.370 ns in
+one rejected trial. These are placement-model margins. Selective replication
+of the combinational address-selection logic is the next candidate to investigate;
+this is not evidence that replication will close timing.
+
+The original compiler, new disabled mode, and rejected pair search produce
+byte-identical placement and timing JSON. All 49 existing native cohort tests,
+three new corrected pair tests, 16 CLI tests and 25 routed-retention tests pass.
+The initial new fixture coordinate and a build/test executable race were corrected;
+only the final successful checks count as validation. Full commands, hashes,
+logs and replay inputs are retained in the compiler commit's
+`docs/validation/2026-10-22-pcxt-pair-swaps/capture.tar.gz` (SHA256
+`ed82d9bab6a2574d7d8d874f650d25f4cb0515fdfdd978a2a9913fee0e52d792`).
+
+No route or hardware ran. The incident route allowance remains 607.674011 seconds.
+FES RTL, recipes, toolchain lock, seals and shared contracts remain unchanged.
