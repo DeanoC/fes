@@ -321,8 +321,11 @@ struct MenuDisplayStatus {
  std::string package_id;
  std::uint64_t generation=0;
  MenuGeometry geometry;
- // Session planes only: the machine picture inside the launcher frame.
+ // Session planes only: the machine picture inside the launcher frame, and
+ // whether the launcher holds input. A shown plane may leave input with the
+ // machine, as a surround does.
  MenuRect picture;
+ bool launcher_focus=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  Error error;
 };
@@ -419,7 +422,7 @@ public:
   return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
  }
  virtual MenuDisplayStatus menu_display() const {return {};}
- virtual Error SetSessionDisplay(bool) {
+ virtual Error SetSessionDisplay(bool,bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }
  // A new descriptor, owned by the caller, for the grant of both menu slots.
@@ -569,7 +572,7 @@ public:
 	Error Start();
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
-  std::uint64_t expected_generation,bool visible);
+  std::uint64_t expected_generation,bool visible,bool launcher_focus);
  Error ShareMenuWindow(std::uint64_t,int*);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);

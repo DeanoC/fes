@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
@@ -139,7 +140,11 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 		}
 		var result hostclient.SessionResult
 		if err == nil {
-			result, err = a.client.SetSessionDisplayForSession(ctx, prior, visible)
+			request := protocol.SessionDisplayClosed
+			if visible {
+				request = protocol.SessionDisplayFocused
+			}
+			result, err = a.client.SetSessionDisplayForSession(ctx, prior, request)
 		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -241,7 +246,7 @@ func (a *App) returnSessionDisplayOnExit() {
 			return
 		}
 	}
-	if _, err := client.SetSessionDisplayForSession(ctx, prior, false); err != nil {
+	if _, err := client.SetSessionDisplayForSession(ctx, prior, protocol.SessionDisplayClosed); err != nil {
 		fmt.Fprintf(os.Stderr, "tenfoot: returning HDMI on exit: %v\n", err)
 	}
 }

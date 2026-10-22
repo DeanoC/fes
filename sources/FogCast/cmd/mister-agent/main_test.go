@@ -148,7 +148,7 @@ func (*compositionInput) Detach(context.Context, uint64) error     { return nil 
 func (*compositionInput) OpenStream(context.Context, uint64) (net.Conn, error) {
 	return nil, errors.New("unused")
 }
-func (*compositionInput) BeginSessionDisplay(context.Context) (func(bool), error) {
+func (*compositionInput) BeginSessionDisplay(context.Context, bool) (func(bool), error) {
 	return func(bool) {}, nil
 }
 

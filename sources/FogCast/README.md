@@ -352,9 +352,9 @@ The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
 session/input ownership path, or the kit-local catalog and local-control
 socket when the kit has its own playable shelf. Select + Start held for one
-second requests Stop. Kit input applies a JSON remap profile from
-`ui/inputmap` (default **identity** preserves A=launch and
-Select+Start=stop). `cmd/fogcast-kit` is only a stub that answers
+second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
+under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
+bindings). `cmd/fogcast-kit` is only a stub that answers
 `--print-kit-ui` with `tenfoot` for bases whose supervisor still probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.

@@ -147,7 +147,11 @@ inspected card, shelf page and focus. Physical transitions remain in runtime;
 the shared display contract is defined in
 [session display](../sources/mister-packages/docs/session-display.md).
 `POST /api/v1/session/display` carries an explicit `visible` boolean with the
-captured session/target/package/generation headers. The target operation requires
+captured session/target/package/generation headers. It names `focus`
+(`"launcher"` or `"machine"`) only when it differs from the default, which is
+launcher focus for a shown plane and machine focus for a closed one. The
+hardware room takes launcher focus, and a closed plane always returns focus to
+the machine. The target operation requires
 the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace

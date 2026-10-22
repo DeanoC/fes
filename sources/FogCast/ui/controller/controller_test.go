@@ -6,7 +6,6 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 // The kit's SNES-style pad reports its D-pad on unsigned ABS_X/ABS_Y and its
@@ -103,22 +102,6 @@ func TestInitialHeldButtonRequiresRelease(t *testing.T) {
 	}
 	if _, ok := m.Map(1, 304, 1); !ok {
 		t.Fatal("fresh press lost")
-	}
-}
-
-func TestPhysicalEvdevOverrideBeatsDefaultSouth(t *testing.T) {
-	r, err := inputmap.NewRemapper(inputmap.Profile{Name: "evdev-select", Bindings: map[string]string{"evdev:304": "select"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := NewMapper(Device{})
-	e, ok := m.mapWith(r, 1, 304, 1)
-	if !ok || e.Code != remoteinput.ButtonSelect {
-		t.Fatalf("physical override %+v %v", e, ok)
-	}
-	e, ok = m.mapWith(nil, 1, 304, 1)
-	if !ok || e.Code != remoteinput.ButtonA {
-		t.Fatalf("default south %+v %v", e, ok)
 	}
 }
 
