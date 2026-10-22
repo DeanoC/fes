@@ -32,15 +32,30 @@ func (d SessionDisplay) Valid() bool {
 
 // SessionDisplayRequest changes the launcher plane on an existing core
 // generation. A pointer distinguishes an explicit close from an omitted or
-// null field.
+// null field. An omitted focus is the one visibility implies, launcher for a
+// shown plane and machine for a closed one, so the hosts and kits that ship
+// separately agree on every request but a surround's.
 type SessionDisplayRequest struct {
 	Visible *bool        `json:"visible"`
-	Focus   SessionFocus `json:"focus"`
+	Focus   SessionFocus `json:"focus,omitempty"`
 }
 
+// defaultSessionFocus is the focus a request without one asks for.
+func defaultSessionFocus(visible bool) SessionFocus {
+	if visible {
+		return SessionFocusLauncher
+	}
+	return SessionFocusMachine
+}
+
+// NewSessionDisplayRequest names focus only when it differs from the default.
 func NewSessionDisplayRequest(d SessionDisplay) SessionDisplayRequest {
 	visible := d.Visible
-	return SessionDisplayRequest{Visible: &visible, Focus: d.Focus}
+	r := SessionDisplayRequest{Visible: &visible}
+	if d.Focus != defaultSessionFocus(d.Visible) {
+		r.Focus = d.Focus
+	}
+	return r
 }
 
 // Display returns the requested state, or false for an omitted visibility,
@@ -50,6 +65,9 @@ func (r SessionDisplayRequest) Display() (SessionDisplay, bool) {
 		return SessionDisplay{}, false
 	}
 	d := SessionDisplay{Visible: *r.Visible, Focus: r.Focus}
+	if d.Focus == "" {
+		d.Focus = defaultSessionFocus(d.Visible)
+	}
 	return d, d.Valid()
 }
 

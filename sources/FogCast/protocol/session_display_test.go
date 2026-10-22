@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -42,5 +43,40 @@ func TestSessionDisplayRequiresObservedCapabilityAndExactLiveBinding(t *testing.
 	computer.ActiveInterfaces = computer.ActiveInterfaces[:1]
 	if SessionDisplayCapable(computer) || b.MatchesSessionDisplay(cs) {
 		t.Fatal("tape unit alone granted launcher display")
+	}
+}
+
+// Hosts and kits ship separately. A request names focus only for a surround,
+// so a launcher open or a close reads the same to a peer that predates focus,
+// and a request without focus means what visibility alone used to mean.
+func TestSessionDisplayFocusDefaultsFromVisibility(t *testing.T) {
+	for _, c := range []struct {
+		display SessionDisplay
+		wire    string
+	}{
+		{SessionDisplayFocused, `{"visible":true}`},
+		{SessionDisplayClosed, `{"visible":false}`},
+		{SessionDisplayShown, `{"visible":true,"focus":"machine"}`},
+	} {
+		raw, err := json.Marshal(NewSessionDisplayRequest(c.display))
+		if err != nil || string(raw) != c.wire {
+			t.Fatalf("%+v encoded %s, want %s", c.display, raw, c.wire)
+		}
+		var request SessionDisplayRequest
+		if err := json.Unmarshal(raw, &request); err != nil {
+			t.Fatal(err)
+		}
+		if got, ok := request.Display(); !ok || got != c.display {
+			t.Fatalf("%s decoded %+v %v", raw, got, ok)
+		}
+	}
+	for _, wire := range []string{`{}`, `{"visible":false,"focus":"launcher"}`, `{"visible":true,"focus":"menu"}`} {
+		var request SessionDisplayRequest
+		if err := json.Unmarshal([]byte(wire), &request); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := request.Display(); ok {
+			t.Fatalf("%s admitted", wire)
+		}
 	}
 }
