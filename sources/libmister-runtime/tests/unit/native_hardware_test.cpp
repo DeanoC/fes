@@ -15,6 +15,7 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
@@ -36,6 +37,7 @@
 #include <sys/stat.h>
 
 #include <cstdint>
+#include <cstring>
 #include <chrono>
 #include <functional>
 #include <fstream>
@@ -1659,6 +1661,38 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
  assert(loaded.error.code==mister::ErrorCode::io_failed&&loaded.error.phase=="menu");
  assert(loaded.error.message=="session display must blend premultiplied RGBA");
  assert(loaded.mutation_attempted&&fpga.calls==1&&!hardware.menu_display().session);
+}
+
+// Kit software packing publishes these records so an image can refuse a
+// runtime that would reject its menu. Each listed interface is admitted by
+// CheckMenu together with the others, at its listed minor and every older
+// one, and the listed minor is the newest admitted.
+void TestMenuInterfaceRecordsMatchMenuAdmission()
+{
+ using namespace mister::native;
+ std::vector<CoreInterface> listed;
+ for(const char* record=kMenuInterfaceRecords;*record!='\0';record+=std::strlen(record)+1){
+  const std::string text(record);
+  const auto equals=text.find('='),dot=text.rfind('.');
+  assert(equals!=std::string::npos&&equals>0&&dot!=std::string::npos&&dot>equals+1&&dot+1<text.size());
+  listed.push_back({text.substr(0,equals),static_cast<std::uint16_t>(std::stoul(text.substr(equals+1,dot-equals-1))),
+   static_cast<std::uint16_t>(std::stoul(text.substr(dot+1))),true});
+ }
+ assert(!listed.empty());
+ CoreDescriptor menu;
+ menu.format=2;menu.core.id="fes.menu";
+ menu.target.platform="de10_nano";menu.target.device="5CSEBA6U23I7";menu.target.programming_profile="fes-gp-v1";
+ menu.abi={generated::FesApplicationABIID,generated::FesApplicationABIMajor,generated::FesApplicationABIMinor};
+ menu.interfaces=listed;
+ assert(CheckMenu(menu).ok());
+ for(std::size_t index=0;index<listed.size();++index){
+  for(std::uint16_t minor=0;minor<listed[index].minor;++minor){
+   auto older=menu;older.interfaces[index].minor=minor;
+   assert(CheckMenu(older).ok());
+  }
+  auto newer=menu;++newer.interfaces[index].minor;
+  assert(!CheckMenu(newer).ok());
+ }
 }
 
 void TestNativeMenuActivationAndCompletion()
@@ -3811,6 +3845,7 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestSessionDisplayRejectsPlaneWithoutBlend();
+ TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();

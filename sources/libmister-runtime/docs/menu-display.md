@@ -11,6 +11,12 @@ and failure fallback. A daemon started without a menu selection stays on splash.
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
 1.0 interfaces can be configured. It is idle firmware, not a game. Normal
 package programming, build identity and boot-latched DDR admission still apply.
+`src/native/menu_admission.hpp` lists the interfaces `CheckMenu` admits. The
+binary carries that list in its `.fes_menu_interfaces` section, and kit
+software packing publishes it in the bundle manifest, so an image can refuse a
+runtime that would reject its menu
+([image compatibility](../../../docs/kit-software-releases.md#image-compatibility)).
+Admit and list a new menu interface in the same change.
 The window is mapped through the [fes-window driver](../../../image/kernel/fes-window/README.md),
 which the runtime loads from its software release and which refuses a window
 overlapping System RAM (see [architecture](../ARCHITECTURE.md)).

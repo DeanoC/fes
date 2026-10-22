@@ -146,6 +146,14 @@ make -C /absolute/path/to/FogCast build-fes-update
 /absolute/path/to/FogCast/bin/fes-update --action rollback
 ```
 
+Software goes before the image. Before uploading, `update` reads the image's
+`/etc/fes/software-base.json` and refuses an image whose menu interfaces the
+kit's selected software bundle does not accept; install and activate a bundle
+that accepts them first. A bundle built for another base contract cannot go
+first, so that update proceeds with a notice and the image runs its factory
+software until a bundle built for it is activated
+([image compatibility](kit-software-releases.md#image-compatibility)).
+
 The client acquires and renews the existing lease. Activation stops the runtime,
 persists supported saves, neutralizes input/cast and records the pending image
 before reboot. It observes the changed authenticated boot and expected image,

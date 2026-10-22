@@ -17,7 +17,8 @@ For ordinary updates, use the [parent build command](#build-an-update-without-re
 to compile and package the complete software release from committed sources.
 
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
-board, architecture, required base contract, interface versions and provenance.
+board, architecture, required base contract, interface versions, including the
+[menu interfaces](#image-compatibility) its runtime admits, and provenance.
 Its payload includes `bin/mister-agent`, `bin/mister-runtime`,
 `bin/fogcast-tenfoot` and the required assets beneath `share/`, including the
 [fes-window kernel driver](../image/kernel/fes-window/README.md) at
@@ -36,9 +37,61 @@ go run ./cmd/fes-kit-bundle pack --manifest /absolute/path/release.json \
 go run ./cmd/fes-kit-bundle inspect --bundle /absolute/path/kit-software.tar
 ```
 
-The supervisor verifies the installed bundle against the active base contract.
-Equal host and kit Git revisions are not required. Retained earlier bundles are
-recovery inputs subject to the same contract checks.
+The supervisor verifies the installed bundle against the active base contract
+and the image's menu requirements. Equal host and kit Git revisions are not
+required. Retained earlier bundles are recovery inputs subject to the same
+checks.
+
+## Image compatibility
+
+A bundle runs only on a base image it fits. Board, architecture, base ELF
+contract and the base interfaces must match exactly. The image also records
+the interfaces its sealed menu package declares in the `requires` object of
+`/etc/fes/software-base.json`, as `menu.<interface>` keys with `major.minor`
+values. The runtime counts every interface the menu declares, so optional ones
+are required too. Beside its base interfaces, a bundle manifest lists the
+`menu.<interface>` versions its runtime admits. The packer reads them from the
+runtime binary's `.fes_menu_interfaces` section, which
+`sources/libmister-runtime/src/native/menu_admission.hpp` defines next to
+`CheckMenu`. A bundle accepts a required interface when it lists the same major
+version and at least the required minor. Supervisors that predate these keys
+ignore them, so a newer bundle still installs and runs on an older image. The
+image build fails when its own factory runtime does not accept its menu.
+
+The base image's supervisor checks this at install, activation, boot and
+recovery:
+
+- Install and activation refuse a bundle the image cannot run.
+- At boot and in recovery, a selection the image cannot run is held back. The
+  image's own factory software starts in its place instead of blocking. The
+  selection stays recorded for an image that can run it, and
+  `GET /v1/kit/software` reports `held_back` and `held_back_reason`. A
+  selection built for another base contract is held back the same way after
+  an image change.
+- A queued activation of such a bundle never starts it and spends no
+  recovery attempt. It completes as `recovered` with a `held back:` reason and
+  leaves the running group alone. If the factory software is still running
+  after an image change, the selection starts first while the request stays
+  queued, so an interrupted start leaves the next boot to start it. Only a
+  selection that then fails to start blocks.
+
+Running the factory software in place of a held-back selection is a deliberate
+exception to the no-fallbacks rule in `AGENTS.md`, approved by Deano on
+2026-10-22.
+
+### Software before the image
+
+Change software first. Before an image update, install and activate a bundle
+that both the running image and the new image accept, normally one built from
+the new image's sources. `fes-update --action update` reads the new image's
+`/etc/fes/software-base.json` before uploading anything. It refuses the image
+when the kit's selected bundle does not accept every interface that image
+requires. A new base contract cannot go first, because no bundle installs on
+the old base and runs on the new one. In that case `fes-update` reports that
+the image will hold the selection back and continues; the image runs its
+factory software until you activate a bundle built for it. Returning to an
+older image needs no reordering while the selected bundle still accepts that
+image's menu, as a newer bundle normally does.
 
 ## Install and queue activation
 
@@ -148,7 +201,9 @@ cannot pass readiness or reopen execution admission. A dependent service failure
 therefore cannot terminate normal native initialization midway.
 
 A failed startup permits one automatic attempt to restore the recorded prior
-bundle. That attempt is recorded durably before the prior bundle starts. A
+bundle. That attempt is recorded durably before the prior bundle starts. If the
+image cannot run that bundle, the attempt starts the image's factory software
+instead and holds the prior bundle back. A
 reboot cannot reset the attempt budget. Failed recovery or an unkillable old
 runtime leaves explicit recovery-required status and keeps execution blocked.
 Recovery changes only the matching software selection; it preserves the host,
@@ -157,10 +212,12 @@ compatible configuration and persistent data formats for prior recovery.
 
 During an appliance trial boot, the supervisor uses the factory software group
 and preserves the data gate. After confirmation it reconciles persistent storage
-and queued intent. A pending OS image change defers software activation. Software
-installation joins appliance-operation draining; the stable supervisor also
-serializes installation and activation and checks the appliance gate itself.
-Queue and cancellation remain available while execution is deferred.
+and queued intent. A selection the confirmed image cannot run stays held back
+while the factory software keeps running. A pending OS image change defers
+software activation. Software installation joins appliance-operation draining;
+the stable supervisor also serializes installation and activation and checks
+the appliance gate itself. Queue and cancellation remain available while
+execution is deferred.
 
 ### Acknowledge a failed recovery
 
@@ -281,7 +338,7 @@ They do not require an execution lease:
 
 | Route | Effect |
 | --- | --- |
-| `GET /v1/kit/software` | Active, selected, pending and completed operation state |
+| `GET /v1/kit/software` | Active, selected, pending and completed operation state, and a held-back selection with its reason |
 | `GET /v1/kit/software/releases` | Installed immutable bundle inventory |
 | `POST /v1/kit/software/releases` | Install a bounded `application/octet-stream` tar |
 | `POST /v1/kit/software/activate` | Queue `{id,candidate,requester,expected_generation}` |
@@ -297,13 +354,17 @@ staging files, taking maintenance or stopping services. Returning to an earlier
 installed bundle is another explicit activation with the current generation;
 there is no automatic stock restoration after a successful update. On a shared
 kit, when the task installs a bundle, install the PR bundle on the running
-image. After use, if the booted image is not the baseline named in the
-Powerboat status file, restore that image through the appliance update or
-rollback path and verify the boot before activating software. Then explicitly
-activate the designated baseline bundle against the current generation, as
-[kit sharing](kit-sharing.md) requires. That activation does not change the
-booted image and leaves the successful selection installed. Verify the active
-bundle before logging the kit restored. A core-only run that does not
+image. Software goes before the image: before an image update, activate a
+bundle the new image accepts. After use, if the booted image is not the
+baseline named in the Powerboat status file, explicitly activate the
+designated baseline bundle against the current generation first when the
+running image accepts it, then restore the baseline image through the
+appliance update or rollback path and verify the boot. When the running image
+refuses the baseline bundle, restore and verify the image first, then
+activate the baseline bundle, as [kit sharing](kit-sharing.md) requires.
+Activating a bundle does not change the booted image and leaves the
+successful selection installed. Verify the active bundle before logging the
+kit restored. A core-only run that does not
 change the bundle does not install one. Do not cancel another owner's pending activation to
 clean up. Kits take no file or configuration overlays.
 [Kit sharing](kit-sharing.md) describes execution ownership;
@@ -346,6 +407,9 @@ receipt is not a substitute for the reviewed image identity. The command hashes
 a private image copy before extracting the factory and system-library trees,
 then validates factory integrity and the new software's architecture, dynamic
 library dependencies and versioned symbols against the retained base contract.
+It also refuses a runtime that does not accept every interface the base
+image's menu requires, and lists the runtime's menu interfaces in the bundle
+manifest.
 The supplied image stays unchanged.
 
 The default output is the new directory `out/kit-software/<version>/`, containing
@@ -361,8 +425,9 @@ commit, release and boot kernel digest it was built for. It explicitly records
 Install `bundle.tar` through the software-release client and request activation
 separately. Build receipts do not establish hardware acceptance. If the retained
 base cannot satisfy the new software's ABI, change its dependencies or plan an
-explicit base-image upgrade. Host software and installed core packages remain
-independently managed.
+explicit base-image upgrade; that image runs its factory software until you
+activate a bundle built for it. Host software and installed core packages
+remain independently managed.
 
 For producers that already have a closed payload, the lower-level
 `image/scripts/kit-software.py --base-root ... --payload ... --output ...
