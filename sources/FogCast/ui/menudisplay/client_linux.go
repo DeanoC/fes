@@ -27,7 +27,9 @@ const (
 	FrameBytes = Stride * Height
 	SlotBytes  = 4 << 20
 	Slots      = 2
-	// Format is the slot pixel layout: XRGB8888 words, B, G, R, X bytes.
+	// Format is the slot pixel layout: XRGB8888 words, B, G, R, X bytes. The
+	// client writes each pixel's alpha as X: idle MENU ignores it and a session
+	// plane blends with it as premultiplied alpha.
 	Format   = "bgrx8888"
 	maxReply = 64 << 10
 )

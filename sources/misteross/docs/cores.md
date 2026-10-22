@@ -183,10 +183,17 @@ cancellation, physical refresh and two 8088 ISA display boots without a second
 firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 emits a diagnostic backend/controller netlist; capture/pads are external and
 its DDR clock primitive remains unmapped.
-This is a simulation family, not a package producer.
-Media, HID keyboard translation, production video output, physical socket
-routing and kit hardware acceptance remain open; no `build-fes-pcxt` target
-exists.
+The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
+DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
+firmware copied through a gated boot loader. `make build-fes-pcxt
+CACHE_ROOT=/absolute/cache` attempts one bounded locked HIP board route; add
+`PCXT_BUILD_ARGS='--mda --scanlines'` for MDA Scanlines or `--synth-only` for a
+frontend probe. Separate run directories under `build/diagnostic/fes-pcxt/`
+retain firmware, source/tool receipts and synthesis/route evidence, including
+failures. The board top supplies PLLs, capture registers, SDRAM pads and HDMI.
+This is a diagnostic builder, not a package producer. Routed timing and SDRAM
+pad qualification, media, HID keyboard translation, physical socket routing and
+kit hardware acceptance remain open.
 
 ## Original RV32I
 

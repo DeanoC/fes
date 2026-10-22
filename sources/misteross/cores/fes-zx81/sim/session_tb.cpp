@@ -4,6 +4,7 @@
 #include <verilated.h>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
 #include <iostream>
 #include <string>
 
@@ -17,12 +18,20 @@ struct Bench {
     unsigned last_sequence = 0;
     uint64_t full_frame_pixels = 0;
     bool last_ui = false;
+    std::deque<uint32_t> history;
     Bench() {
         t.clk_sys=0; t.pixel_clk=0; t.reset_hold=1; t.gpo=0;
         t.force_media_busy=0; t.peek_addr=0x5000; t.eval();
+        // The launcher draws opaque frames today.
+        t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__alpha=0xff;
         for(unsigned i=0;i<100;++i) tick();
         t.reset_hold=0;
+        // The plane composites only after a whole frame confirms the raster.
+        for(unsigned i=0;i<4000000 && !t.rootp->zx81_session_harness__DOT__display__DOT__locked;++i) tick();
+        check(t.rootp->zx81_session_harness__DOT__display__DOT__locked,"plane did not lock to the ZX81 raster");
     }
+    // The output carries the machine word captured two edges ago.
+    bool machine_output() const { return history.size()==3 && t.hdmi_word==history.front(); }
     void tick() {
         // Unrelated 52.224/74.25 MHz clocks; request timing walks across phases.
         sys_phase += 52224000;
@@ -31,16 +40,22 @@ struct Bench {
             t.clk_sys=0; t.eval(); t.clk_sys=1; t.eval();
         }
         const auto h=t.raster_h, v=t.raster_v;
-        check(t.de==(h<1280 && v<720), "DE changed during UI switching");
-        check(t.hs==(h>=1390 && h<1430), "HS changed during UI switching");
-        check(t.vs==(v>=725 && v<730), "VS changed during UI switching");
+        // Plane coordinate of the word it holds, one clock behind the machine.
+        const auto ph=t.rootp->zx81_session_harness__DOT__display__DOT__raster_h, pv=t.rootp->zx81_session_harness__DOT__display__DOT__raster_v;
+        check(t.de==(h<1280 && v<720), "machine DE changed during UI switching");
+        check(t.hs==(h>=1390 && h<1430), "machine HS changed during UI switching");
+        check(t.vs==(v>=725 && v<730), "machine VS changed during UI switching");
         if (t.de) ++full_frame_pixels;
+        history.push_back(t.machine_word);
+        if (history.size()>3) history.pop_front();
         t.pixel_clk=0; t.eval(); t.pixel_clk=1; t.eval();
+        if (history.size()==3)
+            check((t.hdmi_word>>24)==(history.front()>>24),"HDMI sync lost its fixed latency");
         if (watch_reset) check(!t.exec_reset, "display operation reset the Z80");
         if (last_ui!=bool(t.ui_active))
-            check(h==1649 && v==749, "normal plane switch happened inside a frame");
+            check(ph==1649 && pv==749, "normal plane switch happened inside a frame");
         if (last_sequence!=t.displayed_sequence && t.displayed_sequence!=0) {
-            check(h==1279 && v==719, "frame ACK preceded the final pixel");
+            check(ph==1279 && pv==719, "frame ACK preceded the final pixel");
             check(full_frame_pixels>=921600, "frame ACK lacked a full frame");
         }
         last_sequence=t.displayed_sequence;
@@ -102,9 +117,9 @@ struct Bench {
         if(t.displayed_sequence!=seq) std::cerr << "seq=" << t.displayed_sequence << " requested=" << seq
             << " underflow=" << t.underflows << " fault=" << unsigned(t.faulted)
             << " raster=" << t.raster_h << "," << t.raster_v
-            << " state=" << unsigned(t.rootp->zx81_session_harness__DOT__display__DOT__video__DOT__state)
-            << " pending=" << unsigned(t.rootp->zx81_session_harness__DOT__display__DOT__video__DOT__pending)
-            << " fetchseq=" << t.rootp->zx81_session_harness__DOT__display__DOT__video__DOT__fetch_sequence << '\n';
+            << " state=" << unsigned(t.rootp->zx81_session_harness__DOT__display__DOT__scanout__DOT__state)
+            << " pending=" << unsigned(t.rootp->zx81_session_harness__DOT__display__DOT__scanout__DOT__pending)
+            << " fetchseq=" << t.rootp->zx81_session_harness__DOT__display__DOT__scanout__DOT__fetch_sequence << '\n';
         check(t.displayed_sequence==seq,"full frame did not complete");
         for(unsigned i=0;i<1300000 && !t.ui_active;++i) tick();
         check(t.ui_active,"completed frame did not become visible");
@@ -133,9 +148,10 @@ int main(int argc,char **argv) {
     check(b.t.underflows==0 && !b.t.faulted,"initial scanout underflowed");
     check(b.t.cpu_writes>writes,"Z80 stopped while launcher was active");
     check(b.peek(0x5000)==0x5a,"opening altered retained RAM");
-    // Verify real color order at a full frame's origin.
+    // Verify real color order at a full frame's origin, three clocks later.
     while(b.t.raster_h!=0 || b.t.raster_v!=0) b.tick();
-    check(b.t.rgb==0x22,"slot 0 pixels missing from HDMI selection");
+    b.cycles(3);
+    check((b.t.hdmi_word&0xffffff)==0x22,"slot 0 pixels missing from HDMI selection");
     b.t.force_media_busy=1;
     check(b.command(4,0,1)==0x400004,"busy LOAD accepted media replacement");
     check(b.command(4,1,0)==0x400004,"busy LOAD accepted eject");
@@ -147,7 +163,8 @@ int main(int argc,char **argv) {
     check(b.peek(0x5000)==0x5a,"live media reset the machine");
     b.submit(2,1); b.wait_sequence(2);
     while(b.t.raster_h!=0 || b.t.raster_v!=0) b.tick();
-    check(b.t.rgb==0x77,"slot 1 pixels missing from HDMI selection");
+    b.cycles(3);
+    check((b.t.hdmi_word&0xffffff)==0x77,"slot 1 pixels missing from HDMI selection");
     // A held DDR response must postpone quiesce ACK and drain before return.
     auto &remaining=b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining;
     while(!remaining) b.tick();
@@ -159,7 +176,7 @@ int main(int argc,char **argv) {
     for(unsigned i=0;i<2000000 && bool(b.t.gpi&0x800000)!=b.toggle;++i) b.tick();
     check(bool(b.t.gpi&0x800000)==b.toggle && !(b.t.gpi&0x400000),"quiesce did not drain");
     check(!b.t.ui_active && b.t.quiesced,"quiesce ACK preceded machine return");
-    check(b.t.rgb==b.t.machine_rgb,"return failed to select continuing ZX81 video");
+    check(b.machine_output(),"return failed to select continuing ZX81 video");
     check(b.peek(0x5000)==0x5a,"closing altered retained RAM");
     b.cycles(50);
     auto commands=b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__accepted;
@@ -174,7 +191,8 @@ int main(int argc,char **argv) {
     b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     for(unsigned i=0;i<1500000 && !b.t.faulted;++i) b.tick();
     check(b.t.faulted,"visible underflow did not contain the display");
-    check(b.t.rgb==b.t.machine_rgb,"display fault did not restore machine pixels");
+    b.cycles(3);
+    check(b.machine_output(),"display fault did not restore machine pixels");
     b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     check(b.command(20)==0,"faulted plane could not be closed");
     check(b.peek(0x5000)==0x5a,"display fault reset retained state");
@@ -217,10 +235,10 @@ int main(int argc,char **argv) {
     hard.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     auto hard_writes=hard.t.cpu_writes;
     hard.t.reset_hold=1; hard.cycles(20);
-    check(hard.t.faulted && hard.t.rgb==hard.t.machine_rgb,"PLL hold failed to contain the plane");
+    check(hard.t.faulted && hard.machine_output(),"PLL hold failed to contain the plane");
     check(hard.command(2,0,0)==0x400004,"Stop hold abandoned hard-faulted DDR ownership");
     hard.begin_close(); hard.cycles(1300000);
-    check(!hard.t.ui_active && hard.t.rgb==hard.t.machine_rgb,
+    check(!hard.t.ui_active && hard.machine_output(),
           "hard-fault close failed to restore machine video at the frame boundary");
     check(!hard.acknowledged() && !hard.t.quiesced && hard.guard_busy(),
           "hard-fault close acknowledged while accepted responses were stalled");

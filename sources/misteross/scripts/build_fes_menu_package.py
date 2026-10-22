@@ -27,7 +27,8 @@ SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_
     'cores/fes-menu/rtl/fes_menu_endpoint.v', 'cores/fes-menu/rtl/menu_top.v')
 INPUTS = tuple(dict.fromkeys(tuple(p for p in menu.inputs_for('ddr') if p not in (
     menu.RECIPE, 'cores/fes-menu/rtl/top.v')) + (RECIPE, menu.RECIPE,
-    'scripts/core_package.py', 'scripts/export_core_package.py', 'scripts/pnr_recipe.py', *SOURCES)))
+    'scripts/core_package.py', 'scripts/export_core_package.py', 'scripts/pnr_recipe.py',
+    'cores/fes-common/generated/fes_display_plane.vh', *SOURCES)))
 OUTPUTS = (*menu.OUTPUTS, 'manifest.toml', 'qor-ranking.json')
 PNR = pnr_recipe.recipe_for('fes.menu')
 PLACER_SEEDS = tuple(PNR['seeds'])

@@ -1,0 +1,90 @@
+{
+  "nextpnr_commit": "dee2b36890255a3c9c9b85ceff74e83095d7c9d0",
+  "status": "blocked-before-physical-budget",
+  "physical_signoff": false,
+  "new_routes": 0,
+  "reference_part_only": "EM63B165 -6; not identification of Kit A SDRAM",
+  "reference_high_low_requirement_ps": 2000,
+  "ideal_upstream_and_board_assumption": true,
+  "pulse_cases": {
+    "current_model": {
+      "rise_interval_ps": [
+        0,
+        5380
+      ],
+      "fall_interval_ps": [
+        0,
+        5400
+      ],
+      "high_min_ps": -380,
+      "low_min_ps": -400,
+      "minimum_margin_to_reference_2ns_ps": -2400
+    },
+    "observations_at_0pf_only": {
+      "rise_interval_ps": [
+        2040,
+        4160
+      ],
+      "fall_interval_ps": [
+        2040,
+        4170
+      ],
+      "high_min_ps": 2880,
+      "low_min_ps": 2870,
+      "minimum_margin_to_reference_2ns_ps": 870
+    },
+    "observations_at_30pf_only": {
+      "rise_interval_ps": [
+        2600,
+        5380
+      ],
+      "fall_interval_ps": [
+        2600,
+        5400
+      ],
+      "high_min_ps": 2220,
+      "low_min_ps": 2200,
+      "minimum_margin_to_reference_2ns_ps": 200
+    },
+    "pooled_0_and_30pf_observations": {
+      "rise_interval_ps": [
+        2040,
+        5380
+      ],
+      "fall_interval_ps": [
+        2040,
+        5400
+      ],
+      "high_min_ps": 1660,
+      "low_min_ps": 1640,
+      "minimum_margin_to_reference_2ns_ps": -360
+    }
+  },
+  "mask_outputs": {
+    "SDRAM_DQML": {
+      "pin": "PIN_AG13",
+      "type": "MISTRAL_OB",
+      "boundary": "routing only; external board connectivity unverified"
+    },
+    "SDRAM_DQMH": {
+      "pin": "PIN_AF13",
+      "type": "MISTRAL_OB",
+      "boundary": "routing only; external board connectivity unverified"
+    }
+  },
+  "hps_launch_relation": null,
+  "unverified_kit_inputs": [
+    "memory part/speed grade and module revision",
+    "clock/data/read flight intervals and CS inverter delay",
+    "pad loads and uncertainty",
+    "high-Z bus turnaround",
+    "HPS peripheral clock/configuration and hard-IP boundary timing",
+    "I2C pullups, capacitance and receiver timing"
+  ],
+  "source_sha256": {
+    "docs/validation/2026-10-20-unregistered-pads-265/host-final.json.gz": "67e3d807664ccf13e16e6e98723e5fc775b011853c99bdaa7c18e21f0d60ed79",
+    "docs/validation/2026-10-20-unregistered-pads-265/hps-reference.json": "4518f25c9de5fe757c2721055396618849d8d062e7de0f3d4456b9b254873f0c",
+    "mistral/tests/gpio-timing/ramtest-pad-reference0.json": "e57ebbda2bf0c23661fe9c67ec1cbbf068341f7b6f180484ecdde8187afe3b53",
+    "mistral/tests/gpio-timing/ramtest-pad-reference30.json": "1ad2c9e2d443e3d805810332677904eb5d5b5f51cc6a24d6ef893e969d05d7bc"
+  }
+}

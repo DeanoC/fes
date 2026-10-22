@@ -1098,12 +1098,14 @@ void TestSessionDisplayRequestAndBoundStatus()
   ExpectError(prefix+suffix,ErrorCode::invalid_request);
  ExpectError(R"({"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":0,"visible":true})",ErrorCode::invalid_request);
  Status status;status.menu_display.session=true;status.menu_display.core_generation=7;status.menu_display.package_id=std::string(64,'a');
+ status.menu_display.picture={312,90,656,540};
  const auto response=mister::daemon::EncodeResponse(2,true,status,"test");
- assert(response.find("\"session\":true,\"core_generation\":7")!=std::string::npos);
+ assert(response.find("\"session\":true,\"core_generation\":7,\"picture\":[312,90,656,540]")!=std::string::npos);
  assert(response.find("\"menu_display\":{\"available\":false")!=std::string::npos);
  status.menu_display.session=false;status.menu_display.core_generation=0;status.menu_display.available=true;
  const auto idle=mister::daemon::EncodeResponse(2,true,status,"test");
- assert(idle.find("\"session\"")==std::string::npos&&idle.find("\"core_generation\"")==std::string::npos);
+ assert(idle.find("\"session\"")==std::string::npos&&idle.find("\"core_generation\"")==std::string::npos&&
+  idle.find("\"picture\"")==std::string::npos);
 }
 
 std::vector<std::string> PartsResponseFixtures() {

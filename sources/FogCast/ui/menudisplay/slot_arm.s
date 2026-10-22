@@ -3,8 +3,8 @@
 // ARMv7 NEON, gated by cpu.ARM.HasNEON in slot_arm.go. Go's ARM assembler
 // does not expose these NEON mnemonics, so their encodings are WORDs. Only
 // d0-d8 are used, which asynchronous preemption saves.
-// Each iteration turns eight RGBA pixels into XRGB8888 words: one table
-// lookup per two pixels picks B, G, R and a zero. Accesses are unaligned-safe.
+// Each iteration turns eight RGBA pixels into B, G, R, A words: one table
+// lookup per two pixels picks B, G, R and A. Accesses are unaligned-safe.
 TEXT ·writeRowNEON(SB), NOSPLIT, $0-28
 	MOVW dst_base+0(FP), R0
 	MOVW src_base+12(FP), R1

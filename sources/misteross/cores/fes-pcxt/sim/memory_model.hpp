@@ -49,8 +49,13 @@ public:
         // Physical MiSTer addon: chip masks share the high row-address pins.
         mask_history[0] = (dut.sdram_a >> 11) & 3;
         const unsigned mask = mask_history[mask_delay];
-        if (read_due == cycle)
+        if (read_due == cycle) {
             require(mask_history[mask_delay + 2] == 0, "READ output suppressed by delayed DQM", cycle);
+            // A later NOP or deselection does not cancel the pending CAS-2
+            // return. Check the actual data cycle as well as
+            // command admission. This is a digital overlap check, not tHZ/tLZ.
+            require(!dut.dq_oe, "READ return has output data contention", cycle);
+        }
         const uint16_t sample = read_due == cycle ? pending_read : 0xf13d;
         const unsigned command = (dut.sdram_nras << 2) | (dut.sdram_ncas << 1) | dut.sdram_nwe;
         // The controller sequences both chip-select phases. PC storage lives

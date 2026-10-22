@@ -43,7 +43,7 @@ module top #(
         .submit_valid(desired_sequence != displayed_sequence),
         .submit_slot(desired_sequence[0]), .submit_sequence(desired_sequence),
         .submit_ready(), .displayed_sequence(displayed_sequence),
-        .underflows(underflows), .quiesced(), .rgb(rgb), .de(de), .hs(hs), .vs(vs),
+        .underflows(underflows), .quiesced(), .rgb(rgb), .alpha(), .de(de), .hs(hs), .vs(vs),
         .address(), .burstcount(), .read(), .waitrequest(1'b0),
         .readdata(128'd0), .readdatavalid(1'b0)
     );

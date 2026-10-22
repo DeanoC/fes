@@ -1211,7 +1211,8 @@ local `ui/menudisplay` client reads the runtime's menu generation and fixed
 1280×720 geometry, maps the generation's grant of both slots once, and per
 frame writes into the slot the runtime names: this frame's damage and the
 previous frame's when that slot holds the frame before, otherwise the whole
-frame, converted to the scanout's BGRX order. It commits the rectangles it
+frame, converted to the scanout's BGRX order with the pixel's alpha as X,
+which a session plane blends with. It commits the rectangles it
 wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a
@@ -1283,7 +1284,11 @@ hold-reset `load_media`.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
-`cmd/fes-update`. Online releases replace
+`cmd/fes-update`. Before uploading, `fes-update` reads the image's
+`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image
+whose menu interfaces the kit's selected software bundle does not accept. A
+bundle built for another base contract cannot go first, so it only reports
+that the image will hold that bundle back. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -2129,9 +2134,12 @@ for the session that owns the play. A missing stream is an error to that
 caller. The kit pad does not fall back onto the host route.
 
 Native input admits devices through `ui/controller` and maps them with
-`controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
-(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
-axis until it returns to centre. Logical codes are remapped with a JSON
+`controller.Mapper`. The mapper identifies a pad by its evdev bus, vendor,
+product, version and name CRC, and reads it through the matching embedded SDL
+GameControllerDB Linux entry. If the DB does not list the pad, it uses the
+Linux gamepad-API codes plus a generic `BTN_TRIGGER`-range layout. Left stick
+and D-pad share `left-x`/`left-y`, and a held D-pad hat or D-pad axis owns
+that axis until it returns to centre. Logical codes are remapped with a JSON
 profile from `ui/inputmap` (default identity).
 
 See [kit launcher](kit-launcher.md) and [host connection contract](launcher-host.md)
@@ -2143,7 +2151,12 @@ listener remains loopback-only.
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
 and selected kit launcher as one userspace group. Immutable bundles declare the
 board, architecture, base-system contract, interfaces and executable/asset
-digests. Installation and selection live on verified FESDATA3 independently of
+digests. Their interfaces include `menu.<interface>` versions the runtime admits.
+The base image records the interfaces its sealed menu declares as `requires` in
+`/etc/fes/software-base.json`. Install and activation refuse a bundle that does
+not accept them or fits another base contract. At boot and in recovery the
+supervisor holds such a selection back and runs the image's factory software in
+its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
 
@@ -2481,10 +2494,20 @@ with `keypad:0`.
 
 ### Shared controller ports
 
-The kit input hub forwards physical keyboards on player 0 without reserving a
-gamepad port. Only physical gamepads occupy the two stable controller slots;
-keyboard connection or removal does not shift either controller. Keyboard
-disconnect releases its held keys independently.
+Tenfoot forwards physical keyboards on player 0 without reserving a gamepad
+port. Only physical gamepads occupy the two stable controller slots: the first
+two pads opened take ports 1 and 2 (pads present at startup in `/dev/input`
+order, later ones as they are plugged in, each taking the lowest free port) and
+keep them until unplugged, and a later pad that finds both taken never reaches a machine: it
+drives the menu where a pad with a port would, and its Guide button still stops
+a kit-local core. A `-input` node the classifier cannot place also takes a
+port. Keyboard
+connection or removal does not shift either controller. Keyboard disconnect
+releases its held keys independently.
+
+If an HDMI control transition leaves display ownership uncertain, a portless
+pad's B uses the same guarded return-to-play operation as a ported pad. Other
+menu commands stay blocked until display ownership is known.
 
 An observed `fes.gamepad.ports` 1.0 interface (under `fes.application` 1.0 or
 `fes.computer` 1.0) attaches the ordinary host session
@@ -2518,13 +2541,22 @@ Host snapshots and reconnect replay retain each player's buttons and axes
 separately. Axis directions use an 8000 deadzone and combine with held digital
 directions, so centering a stick cannot release a held D-pad.
 
-On the local socket each player index is its own claim. A final departure event releases that player's claim without closing the shared feed or
-releasing the surviving pad. The departure marker is a gamepad button release
-with code and value zero; it is consumed only on the local route and rejected
-by the host stream. At most two pads contribute.
-The kit keeps Select+Start stop chords separate per controller. When the active
-core has only the legacy single-pad contract, the kit retains the prior merged
-port-0 behavior, including input from a surviving second physical pad. Browser
+On the local socket each player index is its own claim. When a pad is
+unplugged, tenfoot sends the releases for that pad's held buttons and then a
+departure event, which releases that player's claim without closing the shared
+feed or releasing the surviving pad. The departure marker is a gamepad button
+release with code and value zero; it is consumed only on the local route and
+rejected by the host stream. At most two pads contribute.
+The kit keeps Select+Start stop chords separate per controller: tenfoot tracks
+held and sent buttons per pad, and a chord needs both buttons on one pad. If
+the pad that started the one-second hold lets go while the other pad still
+holds its pair, the hold counts from when that other pad completed it. When the
+active core has only the legacy single-pad contract, the kit retains the prior
+merged port-0 behavior, including input from a surviving second physical pad:
+the agent's pad merge keeps each kit pad's holds separately and unions them, so
+one pad's release leaves the other's holds in place. A departure changes
+nothing there, because a keyboard shaped onto player 0 may still hold
+controls. Browser
 and SDL physical-device assignment are unchanged; clients can submit explicit
 players through the shared API without room or renderer changes.
 

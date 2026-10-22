@@ -8,6 +8,7 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_display_plane.hpp"
 #include "native/sha256.hpp"
 
 #include <toml.hpp>
@@ -574,6 +575,19 @@ Error CompatibilityError(ErrorCode code, const char* message,
 		"compatibility", expected, observed};
 }
 
+// Session display is the shared premultiplied plane, so a package declares
+// both. A runtime without the plane, or a package from before it, is refused
+// here instead of after programming.
+static_assert(generated::FesDisplayPlaneMajor == 1 && generated::FesDisplayPlaneMinor == 0,
+	"admission accepts fes.fabric.video.display-plane 1.0");
+Error CheckDisplayPlanePairing(bool display, bool plane)
+{
+	if (display == plane) return {};
+	return CompatibilityError(ErrorCode::unsupported_interface, display ?
+		"session display requires the shared display plane" :
+		"display plane requires session display");
+}
+
 } // namespace
 
 Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
@@ -926,6 +940,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool video = false;
 		bool ddr = false;
 		bool display = false;
+		bool plane = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -947,6 +962,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
 				interface.id == FesComputerInterfaceMemoryHpsDdrID ||
 				interface.id == FesComputerInterfaceVideoSessionDisplayID ||
+				interface.id == kDisplayPlaneInterfaceID ||
 				media;
 			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
@@ -966,6 +982,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (interface.id == FesComputerInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;
+			if (interface.id == kDisplayPlaneInterfaceID) plane = true;
 			if (media) media_units++;
 		}
 		bool writable = false, geometry = false, st_medium = false;
@@ -977,6 +994,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (display && !ddr)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"session display requires HPS DDR");
+		Error pairing = CheckDisplayPlanePairing(display, plane);
+		if (!pairing.ok()) return pairing;
 		if ((writable || geometry) && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "Atari ST media extensions require the base floppy interface");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
@@ -995,6 +1014,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"FES GP packages must omit core.system");
 		bool keyboard = false, video = false, media = false, ddr = false, display = false;
+		bool plane = false;
 		for (const CoreInterface& interface : descriptor.interfaces) {
 			if (interface.id == FesSimpleComputerInterfaceKeyboardID) {
 				const bool supported =
@@ -1033,11 +1053,13 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					return CompatibilityError(ErrorCode::unsupported_interface,
 						"simple-computer audio must be required at version 1.0");
 			} else if (interface.id == FesSimpleComputerInterfaceMemoryHpsDdrID ||
-				interface.id == FesSimpleComputerInterfaceVideoSessionDisplayID) {
+				interface.id == FesSimpleComputerInterfaceVideoSessionDisplayID ||
+				interface.id == kDisplayPlaneInterfaceID) {
 				if (!interface.required || interface.major != 1 || interface.minor != 0)
 					return CompatibilityError(ErrorCode::unsupported_interface,
-						"simple-computer DDR and session display must be required at version 1.0");
+						"simple-computer DDR, session display and display plane must be required at version 1.0");
 				if (interface.id == FesSimpleComputerInterfaceMemoryHpsDdrID) ddr = true;
+				else if (interface.id == kDisplayPlaneInterfaceID) plane = true;
 				else display = true;
 			} else if (interface.required) {
 				return CompatibilityError(ErrorCode::unsupported_interface,
@@ -1047,6 +1069,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (display && !ddr)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"session display requires HPS DDR");
+		Error pairing = CheckDisplayPlanePairing(display, plane);
+		if (!pairing.ok()) return pairing;
 		const bool linked_cartridge = descriptor.format == 3 &&
 			descriptor.rom.role == "cartridge";
 		if (!keyboard || !video || (!media && !linked_cartridge))

@@ -26,7 +26,7 @@ def main():
         waivers.append('PROCASSINIT')
     sources = (
         'cores/fes-zx81/sim/session_harness.v', 'cores/fes-zx81/rtl/fes_computer_gp.v',
-        'cores/fes-zx81/rtl/zx81_display_cdc.v', 'cores/fes-zx81/rtl/zx81_session_display.v',
+        'cores/fes-common/rtl/fes_display_cdc.v', 'cores/fes-common/rtl/fes_display_plane.v',
         'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv',
         'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_dpram.v',
         'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv',

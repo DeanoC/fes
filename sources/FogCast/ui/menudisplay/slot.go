@@ -2,9 +2,9 @@ package menudisplay
 
 import "encoding/binary"
 
-// writeRect copies r from frame, straight-alpha RGBA bytes, into slot, whose
-// words are XRGB8888 (B, G, R, X bytes): the layout the menu scanout reads.
-// Both use Stride.
+// writeRect copies r from frame, premultiplied RGBA bytes, into slot, whose
+// words are B, G, R, A bytes. Idle MENU scans them as XRGB8888 and ignores
+// A; a session plane blends with A as premultiplied alpha. Both use Stride.
 func writeRect(slot, frame []byte, r Rect) {
 	for y := r.Y; y < r.Y+r.H; y++ {
 		at := y*Stride + r.X*4
@@ -12,11 +12,11 @@ func writeRect(slot, frame []byte, r Rect) {
 	}
 }
 
-// writeRowScalar converts one row of RGBA pixels into XRGB8888 words.
+// writeRowScalar converts one row of RGBA pixels into B, G, R, A words.
 func writeRowScalar(dst, src []byte) {
 	for i := 0; i < len(src); i += 4 {
 		v := binary.LittleEndian.Uint32(src[i:])
-		binary.LittleEndian.PutUint32(dst[i:], (v&0xff)<<16|v&0xff00|(v>>16)&0xff)
+		binary.LittleEndian.PutUint32(dst[i:], (v&0xff)<<16|v&0xff00ff00|(v>>16)&0xff)
 	}
 }
 

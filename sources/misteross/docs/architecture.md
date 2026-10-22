@@ -334,8 +334,9 @@ release it tests the SDRAM addon and all three HPS DDR ports at the memory clock
 100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
-OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
-because the pinned OSS packer cannot put DDR input registers on those pads.
+OSS rates select `RAM_OSS_HIGH_SPEED` and sample the bidirectional DQ pads
+with phase-shifted fabric registers. The compiler's later bidirectional DDR
+input support does not change that selected RTL path.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
 `build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
@@ -350,6 +351,39 @@ compares a baseline route with report-guided LUT remapping on the same
 synthesis. It retains the remap only when final memory timing improves without
 regressing the other clocks or reporting hold violations. Both routes remain
 host-only diagnostics; neither RBF is sealed or exported as a package.
+
+### SDRAM external timing model
+
+RAM Tester's external timing work lives in the nextpnr fork and is reusable
+by other FES cores. Start with the
+[IO-delay model and supported boundaries](https://github.com/DeanoC/nextpnr/blob/main/docs/mistral-io-delay.md),
+[GPIO characterization](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/gpio-timing/README.md)
+and [SDRAM board-budget fixture](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/ramtest-io/README.md).
+[nextpnr #153](https://github.com/DeanoC/nextpnr/pull/153) merged the compiler
+support and controlled hardware investigation;
+[#155](https://github.com/DeanoC/nextpnr/pull/155) records the subsequent
+placement study and incomplete external constraint coverage.
+
+The model has distinct boundaries. `set_input_delay` and `set_output_delay`
+provide external min/max requirements, reference edges and related-clock
+phases. The opt-in `QUARTUS_17_0_2_RAMTEST` profile supplies fitted pad
+envelopes for its documented device, pins, electrical settings and registered
+IO configurations. Unregistered fabric IO uses a routing-ingress/egress
+boundary and does not inherit that complete pad model or a characterized
+fast-corner hold bound.
+
+The existing `mistral/tests/ramtest-io/budget.py` combines the actual routed
+forwarded-clock arrival with Etron EM63B165 -6 timing and explicitly supplied
+board flight intervals and margin. Its example flight intervals are
+unmeasured assumptions. For the inverted SDRAM clock, the chip's rising edge
+corresponds to the controller clock's falling edge; the capture PLL phase
+must remain related. A changed clock route requires a fresh clock-arrival
+budget. Chip clock pulse width, load, turnaround and board/PVT qualification
+remain separate checks. Reuse this machinery with a core's actual primitive
+configuration and evidenced board inputs; neither internal Fmax nor a
+historical RAM Tester hardware pass supplies another core's external timing.
+
+### HPS DDR ports
 
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two
@@ -703,7 +737,11 @@ MHz machine clock to the 74.25 MHz output clock. It reports an overrun as an
 invalid token and retains the latest undelivered HOLD control. The generic
 `fes_native_video.v` owns packed double-buffer capture, complete-frame
 publication at output frame boundaries, centered 2x scaling, and optional
-scanlines. Source pauses repeat the last complete frame. HOLD keeps HDMI
+scanlines. Its packed RAM read address is combinational; scanout registers the
+returned pixel and matching raster metadata. The separate PC/XT adapter uses
+three banks and registers both the packed address and each bank's local RAM
+read before bank/palette selection, with matching metadata latency.
+Source pauses repeat the last complete frame. HOLD keeps HDMI
 timing running, mutes RGB and aborts incoming/pending frames.
 
 `make sim-fes-native-video` exercises the consumer and clock crossing;
@@ -722,7 +760,7 @@ linking requires fresh exact-shell placement, containment and timing evidence;
 the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
 defines token validation and the initial geometry/encoding. Future RGB, SMS,
-overlay, CRT and DDR profiles require separate implementation and evidence.
+CRT and DDR profiles require separate implementation and evidence.
 
 The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
 Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
@@ -811,8 +849,33 @@ digest/size. Compiler evidence and the frozen routed netlist remain in host
 caches; they are not installed on the target. Reuse validates the current
 functional inputs and original provenance, then independently checks the
 configuration header, actual CRAM fence, timing and clock/resource ownership.
-Other native geometries, DDR scanout, overlays, variable modes and audio parts
-remain subsequent work.
+Other native geometries, DDR scanout, variable modes and audio parts remain
+subsequent work. Launcher overlays and surrounds belong to the shell's
+[display plane](#display-plane), after the part.
+
+### Display plane
+
+`cores/fes-common/rtl/fes_display_plane.v` implements the
+`fes.video.session-display` plane and `fes.fabric.video.display-plane` 1.0
+([contract](../../mister-packages/docs/session-display.md)). A shell feeds it
+the finished 720p word in the video-part response layout (RGB888, DE, HS, VS,
+CE) after any part, and drives the HDMI pins from its output. The plane:
+
+- crosses GP opcodes 18–21 from the system clock in `fes_display_cdc`;
+- derives raster coordinates from the word's DE and VS edges and locks after a
+  whole frame matches the fixed 1650×750 timing with CE set;
+- reads premultiplied RGBA from the HPS DDR window through `fes_menu_video`;
+- blends `P + M × (256 − a − (a >> 7)) / 256` per channel with three unsigned
+  9×9 DSP products and saturation;
+- delays the whole word by three pixel clocks, so RGB and sync stay aligned;
+- reports the shell's machine picture rectangle through MENU_INFO 14–17.
+
+A closed, faulted, unlocked or reset-held plane returns the machine word
+unchanged. Losing lock or missing a pixel while visible is a scanout fault.
+`make sim-fes-display-plane` checks exact passthrough, the blend at alpha 255,
+128, 64 and 0 (saturating), the fixed latency, lock/relock and fault return.
+ZX81 is the only shell with a plane; [the display pipeline](../../../docs/display-pipeline.md)
+lists the remaining cores.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
@@ -1294,9 +1357,10 @@ and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects. Its optional session
 hook admits display opcodes 18–21 only in the ZX81 board shell and declares
 HPS DDR plus `fes.video.session-display`. A held command/response crosses
-52.224/74.25 MHz with `zx81_display_cdc` toggle handshakes and stable payload
+52.224/74.25 MHz with `fes_display_cdc` toggle handshakes and stable payload
 registers. Execution hold rejects while the session plane is not quiesced;
-normal show/return does not use execution hold.
+normal show/return does not use execution hold. The GP command crosses
+52.224/74.25 MHz in the shared `fes_display_cdc`.
 
 ## FES ZX81 machine simulation
 
@@ -1374,10 +1438,11 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
+`fes.zx81` 1.6.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. The issue-236 candidate profile uses setup-relative private LUT input assignment
+M10K allowed and MLAB forbidden. The only DSP cells are exactly three unsigned
+`MISTRAL_MUL9X9` display-plane products; wider multipliers are forbidden. The issue-236 candidate profile uses setup-relative private LUT input assignment
 (`--arrival-pin-assignment`), seeds 1, 3 and 10 in that order, and starts at
 timing weight 300 with criticality exponent 5. Other search weights remain
 available. A new compiler or profile requires a fresh producer build and exact
@@ -1402,12 +1467,14 @@ its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
-The session plane reuses `fes_menu_control`, `fes_menu_reader` and
-`fes_hps_ddr`. `fes_menu_video` selects its optional external-raster and
-complete-frame mode: ZX81 remains the only 1650×750 raster owner, and a
-submission completes only after every pixel of one frame arrived on time.
-`zx81_session_display` keeps the first launcher frame hidden, then selects
-its RGB at the next frame boundary. Closing waits for issued DDR responses to
+The ZX81 HDMI output passes through the shared
+`cores/fes-common/rtl/fes_display_plane.v`, the `fes.video.session-display`
+plane described under [display plane](#display-plane). It reuses
+`fes_menu_control`, `fes_menu_reader` and `fes_hps_ddr`. `fes_menu_video`
+selects its optional external-raster and complete-frame mode: ZX81 remains the
+only 1650×750 raster owner, and a submission completes only after every pixel
+of one frame arrived on time. The plane keeps the first launcher frame hidden,
+then blends it from the next frame boundary. Closing waits for issued DDR responses to
 drain and returns machine RGB at a frame boundary before acknowledging. A
 visible underflow contains the display and restores machine pixels; it never
 reprograms the FPGA or resets CPU/RAM/ROM, expansion, capture or audio. Unexpected
@@ -2672,6 +2739,54 @@ probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
+`cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
+Each lane has a kept local address register, driven by the same next-PC value
+and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
+ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
+7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
+PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+Operand selectors are decoded from the raw ROM read before independent
+system-edge output registers. Read latency, sequencer lead and instruction
+cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
+prove the original PC/call-stack/stall control equations, and prove local
+address-copy equality after reset. Symbolic checks retain the actual read and
+output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
+Both shorter address setup and longer ROM output paths require routed and
+Quartus qualification. The prefetch-empty flag compares its low pointer bits
+directly; all-input equivalence checks the original zero-difference equation.
+
+The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
+operand muxes retain only sources used by ADD words; other operations use the
+full muxes. The adder sum and carry flags are consumed only for ADD, so this
+specialization covers arbitrary guest firmware and register values. A reserved
+jump-source hold is retained automatically if the image uses it. Exhaustive
+table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
+preserved through synthesis, to separate their physical fanout from the full
+logic-operation muxes. The copies capture the same ROM stage on the same edge;
+symbolic read-alignment checks include both copies. DMA arbitration evaluates
+all four circular priority masks in parallel; whole-DMA sequential equivalence
+checks its state and interface against the original indexed priority loop.
+
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
+
+The native map disconnects inputs whose AND product is provably zero from
+compile-time pin constants, preserving the Boolean result while avoiding
+spurious primitive timing arcs through unused status data or selectors.
+Each ISA boundary preserves its one-bit request-reset register separately
+from the payload process, preventing cross-slot reset-flop merging without
+changing request/response latency. Whole-boundary equivalence proves all 80
+original state/interface bits for arbitrary request, response and reset streams.
+
+
+The CPU guest enable is predicted from phase 178..198 and registered on the
+phase-update edge, preserving its original cycle while removing divider
+comparison logic from DMA control fanout. Sequential equivalence checks phase,
+pin clock and enable against the original divider.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
@@ -2688,8 +2803,8 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, board-level HDMI integration, disk
-controller, physical socket layout, producer and sealed PC/XT package are not
+package identity. The remaining HID keyboard frontend, disk
+controller, physical socket layout, package producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
 remains closed until an exact shell and its physical sockets are qualified.
@@ -2811,9 +2926,20 @@ the PIC independently of address. The adapter supplies one setup, eight active a
 100 MHz clocks; address/CS remain stable through retirement of chip bus side
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
-and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+and HLT. Its saturating one/two-step binary/BCD decrement uses direct constant-step
+arithmetic and parallel digit borrows. SAT checks every 17-bit input against the
+original serial equations. Internal registers precompute both encodings between
+sampled falling count-clock edges; such edges cannot occur on adjacent fabric
+clocks. Reset/inactive counters clear these candidates, and current BCD selection
+applies at consumption. Induction checks candidate freshness at every consuming
+edge. Scalar terminal-count flags are precomputed in the same stage and selected
+in parallel with next-count data; original count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
+The imported PIC resolves circular priority using parallel per-level masks;
+Yosys SAT checks equivalence against its original rotation equations for
+arbitrary requests, service/mask vectors and nested modes. Register boundaries
+and the motherboard's bus setup/active/release timing are unchanged.
 
 Original `pcxt_dma.sv` implements the XT subset of the
 [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
@@ -2899,7 +3025,10 @@ See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exa
 ports, font layout, primary references and simulation coverage.
 
 At 100 MHz the independent guest streams use fractional master-dot enables:
-14.318180 MHz CGA and 16.257 MHz MDA. With standard IBM register values the
+14.318180 MHz CGA and 16.257 MHz MDA. Their clock-enable decode compares the
+current accumulator phase against the wrap threshold, without an addition on
+the CRTC enable path. SAT checks phase and enable equivalence at every phase
+value for both rates. With standard IBM register values the
 complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
@@ -2919,7 +3048,10 @@ three packed banks in the existing dual-clock framebuffer helper and transfers
 only stable publication/acknowledgement tokens across the 100/74.25 MHz domains.
 Capture never writes the displayed or published bank. Complete surfaces swap
 at output SOF; a pending third surface waits for ownership, and backpressure
-skips a whole source frame. Source pauses repeat the last complete frame.
+skips a whole source frame. The scanout registers the packed read address before distributed M10K fanout,
+then registers each 64 KiB bank's local RAM read before bank/palette selection.
+This removes the global three-bank read mux from the RAM-to-register path.
+Bank/subpixel/raster fields carry matching latency, preserving pixel timing. Source pauses repeat the last complete frame.
 HOLD mutes RGB/aborts partial capture while raster timing and complete-bank
 ownership continue. Coordinated resets are required in both domains.
 
@@ -2927,13 +3059,31 @@ CGA 640×200 RGBI and MDA 720×350 luminance scale by rational nearest-neighbour
 DDA to a centered 960×720 viewport in the existing fixed 1280×720p60 raster.
 CGA brown correction and MDA normal/bright luminance are applied before the
 shared effect. CGA stores four bits/pixel; MDA stores two, preserving its three
-levels. Both elaborated profiles reserve three 64 KiB banks. The board shell
-will select one output profile; the two-output machine simulation is not a
+levels. Both elaborated profiles reserve three 64 KiB banks. The diagnostic board shell
+selects one output profile; the two-output machine simulation is not a
 whole-device resource qualification. See the [core README](../cores/fes-pcxt/README.md#shared-directscanlines-output)
 for exact control/reset semantics, focused suites and diagnostic synthesis.
 
 Physical containment and exact-shell Direct/Scanlines parts still require a
-PC/XT board producer, reserved regions, clock/HDMI wiring and routed timing.
+reserved regions and routed timing. The diagnostic `fes_pcxt_top.sv` supplies
+100 MHz controller/capture clocks, a 74.25 MHz pixel PLL, coordinated reset
+release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
+assemble CPU/motherboard, separate ISA cards, real storage and one video
+pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
+through the sequential 64 KiB loader before machine release. Its continuous
+registered ROM read uses the existing completion-to-offer gap. Motherboard
+I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
+existing state/phase decode, preserving every active/release cycle while
+removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
+preserve storage/refresh; HOLD resets the machine and mutes video.
+`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
+synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
+Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
+unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+lease mask while removing only an identical redundant HIP mask; route settings
+and visibility are recorded in the diagnostic receipt.
+The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
+defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
 The new inline output changes neither linker/runtime policies nor the shared
 fabric definitions, and has no sealed RBF or hardware acceptance yet.

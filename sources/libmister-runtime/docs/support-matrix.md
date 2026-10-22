@@ -13,7 +13,7 @@ Hardware-supported package paths: 0.
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |
 | Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
-| Simple-computer session HDMI plane, bound show/return, focus neutralization, granted-slot frames revoked on hide, and fault isolation without reprogramming | covered by host tests | combined ZX81 exact-artifact acceptance pending |
+| Simple-computer session HDMI plane (premultiplied blend), bound show/return, focus neutralization, granted-slot frames revoked on hide, and fault isolation without reprogramming | covered by host tests | combined ZX81 exact-artifact acceptance pending |
 | Described-core library persistence and retry | covered | pending |
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |
@@ -24,7 +24,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
-| `fes.computer` session HDMI plane (show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
+| `fes.computer` session HDMI plane (premultiplied RGBA blend, picture rectangle, show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
 | Atari ST sector writes, frozen snapshot and explicit library disk records across Stop/eject/replacement, with binding retirement after successful menu/splash programming and same-daemon relaunch | covered by simulations and host tests, including save-failure ownership retention and removal of crash-orphaned save temporaries and write probes when the namespace is opened | none |
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |

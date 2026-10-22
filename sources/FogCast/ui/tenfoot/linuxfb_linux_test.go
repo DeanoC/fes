@@ -39,17 +39,26 @@ func TestNativeEvdevBothABIs(t *testing.T) {
 	}
 }
 
-func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
+// superFamicomPad is the kit's 081f:e401 USB pad as EVIOCGID/EVIOCGBIT report it.
+func superFamicomPad(axes map[uint16]controller.Range) controller.Device {
+	keys := make([]byte, 96)
+	for code := 288; code <= 297; code++ {
+		keys[code/8] |= 1 << uint(code%8)
+	}
+	return controller.Device{Name: "USB Gamepad ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+		Keys: keys, Abs: []byte{0x03, 0, 0, 0, 0, 0, 0, 0}, Axes: axes}
+}
+
+func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if controller.Eligible(6, "FogCast Virtual Gamepad", true) || controller.Eligible(3, "USB pad", false) {
 		t.Fatal("automatic selection admitted virtual/non-gamepad device")
 	}
 	if !controller.Eligible(3, "USB SNES Pad", true) {
 		t.Fatal("physical gamepad rejected")
 	}
-	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{
+	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{
 		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
-		16: {Min: -1, Max: 1}, 17: {Min: -1, Max: 1},
-	})
+	}))
 	for _, tc := range []struct {
 		code  uint16
 		value int32
@@ -70,7 +79,7 @@ func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
 		want  remoteinput.Code
 	}{
 		{0, 0, remoteinput.AxisLeftX}, {0, 255, remoteinput.AxisLeftX},
-		{1, 0, remoteinput.AxisLeftY}, {16, -1, remoteinput.AxisLeftX},
+		{1, 0, remoteinput.AxisLeftY},
 	} {
 		e, ok := mapper.Map(3, tc.code, tc.value)
 		if !ok || e.Code != tc.want {
@@ -420,7 +429,7 @@ func TestFramebufferPollPreservesQuickAxisTap(t *testing.T) {
 	if err := unix.SetNonblock(fd, true); err != nil {
 		t.Fatal(err)
 	}
-	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{0: {Min: -1, Max: 1}})
+	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{0: {Min: -1, Max: 1}}))
 	in := &nativeInput{fd: fd, mapper: mapper}
 	inputs := &nativeInputs{devices: []*nativeInput{in}}
 	a := NewApp(nil, 1280, 720, 10)
@@ -496,18 +505,18 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
 	keys := make([]byte, 96)
 	keys[304/8] |= 1 << uint(304%8)
-	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+	if got := nativeKindWithIdentity(keys, 0, ""); got != InputNone {
 		t.Fatalf("unknown identity classified as %v", got)
 	}
 	keys = make([]byte, 96)
 	keys[288/8] |= 1 << uint(288%8)
 	keys[289/8] |= 1 << uint(289%8)
-	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+	if got := nativeKindWithIdentity(keys, 0, ""); got != InputNone {
 		t.Fatalf("unknown BTN_GAMEPAD identity classified as %v", got)
 	}
 	keys = make([]byte, 96)
 	keys[304/8] |= 1 << uint(304%8)
-	if got := nativeKindWithIdentity(keys, 3, "physical pad", 1, 2); got != InputGamepad {
+	if got := nativeKindWithIdentity(keys, 3, "physical pad"); got != InputGamepad {
 		t.Fatalf("known physical pad classified as %v", got)
 	}
 }
@@ -516,7 +525,7 @@ func TestAutoInputAcceptsGenericPhysicalTriggerPad(t *testing.T) {
 	keys := make([]byte, 96)
 	keys[288/8] |= 1 << uint(288%8)
 	keys[289/8] |= 1 << uint(289%8)
-	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad", 0x1234, 0x5678); got != InputGamepad {
+	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad"); got != InputGamepad {
 		t.Fatalf("generic physical trigger pad classified as %v", got)
 	}
 }
@@ -529,7 +538,7 @@ func TestAutoInputRejectsVirtualGamepadIdentity(t *testing.T) {
 		bus  uint16
 		name string
 	}{{6, "USB Pad"}, {3, "FogCast Virtual Gamepad"}} {
-		if got := nativeKindWithIdentity(keys, tc.bus, tc.name, 0x1234, 0x5678); got != InputNone {
+		if got := nativeKindWithIdentity(keys, tc.bus, tc.name); got != InputNone {
 			t.Errorf("virtual identity (%d, %q) classified as %v", tc.bus, tc.name, got)
 		}
 	}
@@ -946,5 +955,78 @@ func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
 	poll(a)
 	if !a.Snapshot().Settings.Open {
 		t.Fatal("Guide no longer opens Settings in the menu")
+	}
+}
+
+// A DB-mapped Guide can sit on any evdev code. Without hid-playstation a
+// DualSense is a generic HID pad with PS on code 300 and nothing on BTN_MODE.
+func TestMappedGuideFollowsTheDB(t *testing.T) {
+	genericDualSense := func(t *testing.T) *controller.Mapper {
+		t.Helper()
+		keys := make([]byte, 96)
+		for code := 288; code <= 301; code++ {
+			keys[code/8] |= 1 << uint(code%8)
+		}
+		mapper := controller.NewMapper(controller.Device{Name: "Wireless Controller", Bus: 3, Vendor: 0x054c, Product: 0x0ce6, Version: 0x0111,
+			Keys: keys, Abs: []byte{0x3f, 0, 0x03, 0, 0, 0, 0, 0}})
+		if mapper.Mapping() != "PS5 Controller" {
+			t.Fatalf("mapping %q", mapper.Mapping())
+		}
+		return mapper
+	}
+	t.Run("BTN_MODE is not Guide on this pad", func(t *testing.T) {
+		a := NewApp(nil, 1280, 720, 10)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		if a.Snapshot().Settings.Open {
+			t.Fatal("an unmapped BTN_MODE opened Settings")
+		}
+	})
+	t.Run("mapped Guide opens Settings", func(t *testing.T) {
+		a := NewApp(nil, 1280, 720, 10)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 300, 1), nativeTestEvent(1, 300, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		if !a.Snapshot().Settings.Open {
+			t.Fatal("the DB's Guide did not open Settings")
+		}
+	})
+	t.Run("mapped Guide stops a kit-local core", func(t *testing.T) {
+		a, fake := runningLocalApp(t)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 300, 1), nativeTestEvent(1, 300, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		waitStops(t, fake, 1)
+		if a.Snapshot().Settings.Open {
+			t.Fatal("the stop press also reached the menu")
+		}
+	})
+}
+
+// PowerA's 0x200f entry binds guide and start both to its BTN_START. Start
+// reaches a kit-local core and does not stop it.
+func TestStartSharingAGuideBindingReachesLocalCore(t *testing.T) {
+	keys := make([]byte, 96)
+	for _, code := range []int{304, 305, 307, 308, 310, 311, 314, 315, 316, 317, 318} {
+		keys[code/8] |= 1 << uint(code%8)
+	}
+	a, fake := runningLocalApp(t)
+	feed := &localPadRecorder{}
+	a.mu.Lock()
+	a.localFeed = feed
+	a.mu.Unlock()
+	inputs, poll := pollNative(t, nativeTestEvent(1, 315, 1), nativeTestEvent(1, 315, 0))
+	inputs.devices[0].mapper = controller.NewMapper(controller.Device{Bus: 3, Vendor: 0x20d6, Product: 0x200f, Version: 0x0101, Keys: keys})
+	poll(a)
+	if len(feed.events) != 2 || feed.events[0].Code != remoteinput.ButtonStart || feed.events[0].Action != remoteinput.ActionPress ||
+		feed.events[1].Code != remoteinput.ButtonStart || feed.events[1].Action != remoteinput.ActionRelease {
+		t.Fatalf("local events: %#v", feed.events)
+	}
+	a.mu.Lock()
+	phase := a.localPhase
+	a.mu.Unlock()
+	if phase != localPhaseRunning || fake.stopCount() != 0 {
+		t.Fatalf("Start stopped the core: phase %q", phase)
 	}
 }

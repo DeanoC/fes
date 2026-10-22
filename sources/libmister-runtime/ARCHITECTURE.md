@@ -122,7 +122,9 @@ exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;
-without one, startup remains splash. Menu activation reuses ordinary package
+without one, startup remains splash. The interfaces `CheckMenu` admits are
+listed in `src/native/menu_admission.hpp` and carried in the binary's
+`.fes_menu_interfaces` section, where kit software packing reads them. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
@@ -208,10 +210,15 @@ tests do not establish physical scanout acceptance.
 ## In-session simple-computer presentation
 
 Simple-computer `fes.video.session-display` 1.0 reuses the menu driver and
-reserved DDR slots, with required `fes.memory.hps-ddr` 1.0. Its bit 9 and the
-DDR bit 8 are included in exact declared/live identity checks. Admission
-advertises this interface only when boot DDR layout and presentation adapters
-are available. Activation initializes black slots and configures the disabled
+reserved DDR slots, with required `fes.memory.hps-ddr` 1.0 and its shared plane
+`fes.fabric.video.display-plane` 1.0. The plane reports
+pixel format 2, premultiplied RGBA, and the machine picture rectangle; the
+client writes each pixel's alpha as the slot word's top byte, and status
+publishes the rectangle as `menu_display.picture`. Its bit 9 and the
+DDR bit 8 are included in exact declared/live identity checks; the plane
+grants no bit. Admission advertises this interface and the plane only when boot
+DDR layout and presentation adapters are available. Activation initializes
+black slots and configures the disabled
 plane once, then publishes active machine status with `session: true`, its
 package and `core_generation`, but `available: false`.
 
@@ -280,8 +287,10 @@ Atari ST media interfaces are independent and must be required when declared.
 Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
 core latched the port layout, including a kit without presentation adapters.
 Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is
-rejected without DDR, and a kit admits and advertises it only when that layout
-and both presentation adapters are present. A shell declares at most one
+rejected without DDR or without required `fes.fabric.video.display-plane` 1.0,
+which is rejected without it, and a kit admits and advertises both only when
+that layout and both presentation adapters are present. A shell declares at
+most one
 unit-0 medium. Recognized expansion buses must be
 optional, unknown optional declarations are ignored and `core.system`
 is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked

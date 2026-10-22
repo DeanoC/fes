@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 )
 
 func softwareFixture(t *testing.T, base string) (software.Release, string, []byte) {
@@ -151,6 +152,62 @@ func TestServerRejectsIncompatibleHistoryAndQueuesFactory(t *testing.T) {
 	}
 	if !errors.Is(Queue(repo, Request{ID: strings.Repeat("b", 64), Candidate: factory.ID, Requester: "host"}), ErrConflict) {
 		t.Fatal("factory displaced pending request")
+	}
+}
+
+func TestServerRefusesReleaseLackingRequiredInterfaceAndReportsHoldBack(t *testing.T) {
+	ctx := context.Background()
+	release, _, archive := softwareFixture(t, "base")
+	root := filepath.Join(t.TempDir(), "store")
+	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "base", Interfaces: map[string]string{"runtime": "1"}}
+	older, err := software.New(root, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := older.Install(ctx, bytes.NewReader(archive)); err != nil {
+		t.Fatal(err)
+	}
+	// The next image's menu needs an interface this release's runtime does not accept.
+	base.Requires = map[string]string{"menu.fes.video.menu-blitter": "1.0"}
+	store, err := software.New(root, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := OpenRepository(filepath.Join(t.TempDir(), "state"), release.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	admission, err := NewUnixAdmission(filepath.Join(t.TempDir(), "absent.sock"), filepath.Join(t.TempDir(), "key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := &ProcessController{active: release.ID, Resolve: func(ctx context.Context, id string) (string, error) { return store.Path(ctx, id) }}
+	server := &Server{Repository: repo, Store: store, Controller: controller, Admission: admission}
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/releases", bytes.NewReader(archive)))
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "menu.fes.video.menu-blitter 1.0") {
+		t.Fatal("install admitted a release this image cannot run", w.Code, w.Body.String())
+	}
+	body, _ := json.Marshal(Request{ID: strings.Repeat("a", 64), Candidate: release.ID, Requester: "host"})
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/activate", bytes.NewReader(body)))
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "menu.fes.video.menu-blitter 1.0") {
+		t.Fatal("activation queued a release this image cannot run", w.Code, w.Body.String())
+	}
+	if state, _ := repo.Read(); state.Pending != nil {
+		t.Fatal("refused activation was queued", state.Pending)
+	}
+	server.HeldBack, server.HeldBackReason = release.ID, "incompatible software: release does not accept required interface menu.fes.video.menu-blitter 1.0"
+	server.PublishStatus()
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/kit/software", nil))
+	var status softwarecontrol.Status
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.HeldBack != release.ID || status.HeldBackReason != server.HeldBackReason || status.Selected != release.ID {
+		t.Fatal("status does not report the held-back selection", status)
 	}
 }
 

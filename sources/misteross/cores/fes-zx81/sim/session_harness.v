@@ -12,8 +12,10 @@ module zx81_session_harness (
     output reg [31:0] cpu_writes = 32'd0,
     output wire [10:0] raster_h,
     output wire [9:0] raster_v,
-    output wire [23:0] machine_rgb, rgb,
-    output wire de, hs, vs, ui_active, faulted, quiesced,
+    output wire [23:0] machine_rgb,
+    output wire de, hs, vs,
+    output wire [27:0] machine_word, hdmi_word,
+    output wire ui_active, faulted, quiesced,
     output wire [31:0] displayed_sequence, underflows
 );
     wire request, response_valid, response_error;
@@ -54,12 +56,15 @@ module zx81_session_harness (
         .de(de), .hsync(hs), .vsync(vs), .frame_tick(),
         .raster_h(raster_h), .raster_v(raster_v), .src_x_max(), .src_y_max()
     );
-    zx81_session_display display (
+    assign machine_word = {1'b1, vs, hs, de, machine_rgb};
+    fes_display_plane #(
+        .PICTURE_LEFT(16'd312), .PICTURE_TOP(16'd90),
+        .PICTURE_WIDTH(16'd656), .PICTURE_HEIGHT(16'd540)
+    ) display (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(reset_hold), .exec_reset(exec_reset),
         .request(request), .opcode(opcode), .index(index), .argument(argument),
         .response_valid(response_valid), .response_error(response_error), .response_data(response_data),
-        .quiesced_sys(quiesced), .raster_h(raster_h), .raster_v(raster_v), .machine_rgb(machine_rgb),
-        .rgb(rgb), .ui_active(ui_active), .displayed_sequence(displayed_sequence),
-        .underflows(underflows), .faulted(faulted)
+        .quiesced_sys(quiesced), .machine(machine_word), .video(hdmi_word), .ui_active(ui_active), .locked(),
+        .displayed_sequence(displayed_sequence), .underflows(underflows), .faulted(faulted)
     );
 endmodule

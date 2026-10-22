@@ -1,0 +1,24 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "fb50c8bfb6e0c99eb47493eee09a974c98067e7e",
+    "file": "sources/libmister-runtime/src/native/generated/fes_display_plane.hpp",
+    "note": "Base runtime revision; the display-plane header and its runtime consumers (pixel format 2 admission and MENU_INFO picture indices) are the reviewed additions in the same FES issue 947 change. Software contract evidence, not hardware acceptance."
+  },
+  "fabric": {
+    "id": "fes.fabric.video.display-plane",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesDisplayPlaneMajor": 1,
+    "FesDisplayPlaneMinor": 0,
+    "FesDisplayPlaneWordBits": 28,
+    "FesDisplayPlaneLatencyCycles": 3,
+    "FesDisplayPlanePixelFormatPremultipliedRgba": 2,
+    "FesDisplayPlaneInfoPictureLeftIndex": 14,
+    "FesDisplayPlaneInfoPictureTopIndex": 15,
+    "FesDisplayPlaneInfoPictureWidthIndex": 16,
+    "FesDisplayPlaneInfoPictureHeightIndex": 17
+  }
+}
