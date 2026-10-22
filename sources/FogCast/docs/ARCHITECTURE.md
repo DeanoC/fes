@@ -3242,9 +3242,10 @@ composites the plane over the machine picture, and `focus` says whether the
 launcher or the machine receives input. An omitted focus is the one
 visibility implies: launcher when shown, machine when closed. Requests name
 it only otherwise, so a host and a kit that ship separately still agree on
-opening and closing the room. A shown plane with `focus: "machine"` keeps
-machine input, as a surround around the picture needs, and a peer that
-predates focus refuses it. A closed plane requires machine focus. Moving focus on a shown plane
+opening and closing the room. A null or empty focus is refused, not
+defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
+surround around the picture needs, and a peer that predates focus refuses
+it. A closed plane requires machine focus. Moving focus on a shown plane
 keeps its display generation. The agent's input fence holds delivery during
 each transition, but only a launcher-focus request retires held keys and
 neutralizes the mouse. The fence ends focused when the runtime confirms

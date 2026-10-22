@@ -70,10 +70,13 @@ func TestSessionDisplayFocusDefaultsFromVisibility(t *testing.T) {
 			t.Fatalf("%s decoded %+v %v", raw, got, ok)
 		}
 	}
-	for _, wire := range []string{`{}`, `{"visible":false,"focus":"launcher"}`, `{"visible":true,"focus":"menu"}`} {
+	// Only an omitted focus takes the default. A null or empty focus names no
+	// owner, so it is refused like an unknown one.
+	for _, wire := range []string{`{}`, `{"visible":false,"focus":"launcher"}`, `{"visible":true,"focus":"menu"}`,
+		`{"visible":true,"focus":null}`, `{"visible":true,"focus":""}`, `{"visible":false,"focus":null}`, `{"visible":false,"focus":""}`} {
 		var request SessionDisplayRequest
-		if err := json.Unmarshal([]byte(wire), &request); err != nil {
-			t.Fatal(err)
+		if json.Unmarshal([]byte(wire), &request) != nil {
+			continue
 		}
 		if _, ok := request.Display(); ok {
 			t.Fatalf("%s admitted", wire)

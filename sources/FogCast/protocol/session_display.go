@@ -1,5 +1,10 @@
 package protocol
 
+import (
+	"encoding/json"
+	"errors"
+)
+
 // SessionFocus names who receives input while a session display is shown.
 type SessionFocus string
 
@@ -7,6 +12,20 @@ const (
 	SessionFocusMachine  SessionFocus = "machine"
 	SessionFocusLauncher SessionFocus = "launcher"
 )
+
+// UnmarshalJSON refuses null and the empty string. A request reads the empty
+// focus as an omitted one, so a focus that is present must name an owner.
+func (f *SessionFocus) UnmarshalJSON(data []byte) error {
+	var name string
+	if err := json.Unmarshal(data, &name); err != nil {
+		return err
+	}
+	if name == "" {
+		return errors.New("session focus must not be null or empty")
+	}
+	*f = SessionFocus(name)
+	return nil
+}
 
 // SessionDisplay is the running machine's launcher plane: whether it is
 // composited over the machine picture, and who receives input. A closed
@@ -34,7 +53,8 @@ func (d SessionDisplay) Valid() bool {
 // generation. A pointer distinguishes an explicit close from an omitted or
 // null field. An omitted focus is the one visibility implies, launcher for a
 // shown plane and machine for a closed one, so the hosts and kits that ship
-// separately agree on every request but a surround's.
+// separately agree on every request but a surround's. A null or empty focus
+// is not an omitted one and does not decode.
 type SessionDisplayRequest struct {
 	Visible *bool        `json:"visible"`
 	Focus   SessionFocus `json:"focus,omitempty"`
