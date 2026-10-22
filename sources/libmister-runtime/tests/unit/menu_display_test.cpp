@@ -15,7 +15,8 @@ class TestClock : public Clock { public: std::uint64_t NowMs() const override {r
 class Endpoint : public Mmio {
 public:
  std::array<std::uint16_t,16> identity{{0x4546,0x3153,1,0,2,1,0,775,0x1100,0x3322,0x5544,0x7766,0x9988,0xbbaa,0xddcc,0xffee}};
- std::array<std::uint16_t,14> words{{1280,720,5120,16384,56,0,64,1,2,8,0x5678,0x1234,7,0}};
+ // Indices 14-17 are the picture rectangle a format-2 session plane reports.
+ std::array<std::uint16_t,18> words{{1280,720,5120,16384,56,0,64,1,2,8,0x5678,0x1234,7,0,312,90,656,540}};
  std::vector<std::array<unsigned,3>> commands;
  std::uint32_t response=0xf5000000;
  bool toggle=false;
@@ -79,9 +80,23 @@ void TestBlitRunAndState()
  }
  assert(!display.ReadBlit(1000,nullptr).ok());
 }
+void TestSessionPlaneReportsFormatAndPicture()
+{
+ Endpoint e;TestClock clock;FesGp gp(e,clock);MenuDisplayDriver display(gp,clock);MenuDisplayInfo info;
+ assert(display.ReadInfo(1000,&info).ok()&&info.pixel_format==1&&!info.picture.w);
+ assert(e.commands.size()==14);
+ e.words[7]=2;e.commands.clear();
+ assert(display.ReadInfo(1000,&info).ok()&&info.pixel_format==2);
+ assert(info.picture.x==312&&info.picture.y==90&&info.picture.w==656&&info.picture.h==540);
+ assert(e.commands.size()==18&&e.commands[14][1]==14&&e.commands[17][1]==17);
+ e.words[16]=1000;assert(!display.ReadInfo(1000,&info).ok());
+ e.words[16]=0;assert(!display.ReadInfo(1000,&info).ok());
+ e.words[16]=656;e.words[7]=3;assert(!display.ReadInfo(1000,&info).ok());
+}
 int main(){
  TestAmbiguousSessionSubmitOnlyRealignsAndQuiesces();
  TestBlitRunAndState();
+ TestSessionPlaneReportsFormatAndPicture();
  Endpoint e;TestClock clock;FesGp gp(e,clock);MenuDisplayDriver display(gp,clock);MenuDisplayInfo info;
  assert(display.ReadInfo(1000,&info).ok());assert(info.geometry.frame_bytes==3686400&&info.geometry.slot_bytes==4194304);
  assert(info.displayed_sequence==0x12345678u&&info.underflows==7&&info.quiesced&&!info.enabled);

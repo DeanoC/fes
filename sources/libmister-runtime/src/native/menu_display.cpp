@@ -3,10 +3,13 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_display_plane.hpp"
 #include <array>
 namespace mister { namespace native {
 namespace {
 using namespace generated;
+static_assert(FesDisplayPlaneInfoPictureHeightIndex==FesDisplayPlaneInfoPictureLeftIndex+3,
+ "picture indices are consecutive");
 static_assert(FesSimpleComputerOpcodeMenuInfo==FesApplicationOpcodeMenuInfo&&
  FesSimpleComputerOpcodeMenuConfigure==FesApplicationOpcodeMenuConfigure&&
  FesSimpleComputerOpcodeMenuControl==FesApplicationOpcodeMenuControl&&
@@ -39,9 +42,22 @@ Error MenuDisplayDriver::ReadInfo(std::uint64_t deadline,MenuDisplayInfo* output
  const auto& geometry=info.geometry;
  if(geometry.width!=FesApplicationMenuWidth||geometry.height!=FesApplicationMenuHeight||
     geometry.stride!=FesApplicationMenuStride||geometry.frame_bytes!=FesApplicationMenuFrameBytes||
-    geometry.slot_bytes!=FesApplicationMenuSlotBytes||words[7]!=FesApplicationMenuPixelFormat||
+    geometry.slot_bytes!=FesApplicationMenuSlotBytes||
+    (words[7]!=FesApplicationMenuPixelFormat&&words[7]!=FesDisplayPlanePixelFormatPremultipliedRgba)||
     words[8]!=FesApplicationMenuSlotCount||words[9]&~std::uint16_t(31))
   return Invalid("menu geometry or state does not match the supported fixed layout");
+ info.pixel_format=words[7];
+ if(info.pixel_format==FesDisplayPlanePixelFormatPremultipliedRgba) {
+  std::array<std::uint16_t,4> picture{};
+  for(std::uint8_t i=0;i<picture.size();++i){
+   Error error=gp_.Exchange(FesApplicationOpcodeMenuInfo,std::uint8_t(FesDisplayPlaneInfoPictureLeftIndex+i),0,deadline,&picture[i]);
+   if(!error.ok())return error;
+  }
+  info.picture={picture[0],picture[1],picture[2],picture[3]};
+  if(!picture[2]||!picture[3]||std::uint32_t(picture[0])+picture[2]>geometry.width||
+     std::uint32_t(picture[1])+picture[3]>geometry.height)
+   return Invalid("session display picture is outside the fixed layout");
+ }
  info.configured=words[9]&FesApplicationMenuStateConfigured;
  info.enabled=words[9]&FesApplicationMenuStateEnabled;
  info.pending=words[9]&FesApplicationMenuStatePending;

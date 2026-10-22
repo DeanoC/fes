@@ -69,7 +69,7 @@ path and not a fallback.
 | --- | --- | --- | --- | --- | --- | --- |
 | `fes.ramtest` | 1.1.0 | Package-only | `fes.application` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0 | — | ROM-less RAM testing utility for the SDRAM addon and all three HPS DDR ports. Ships the OSS 100 MHz variant using `sources/misteross/cores/fes-ramtest/toolchain.lock`; 130 MHz timing closure remains open (#264). No exact-image hardware acceptance is claimed. |
 | `fes.pong` | 1.1.0 | Package-only | `fes.simple-game` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.persistence.words` 1.0, `fes.pong.progress` 1.0 | — | ROM-less Pong. Paddle speed and best rally persist. Lock `toolchain.lock`. |
-| `fes.zx81` | 1.5.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX81. 1 KiB RAM, HID keyboard mapped to the 40-key matrix, exact 8192-byte `machine-rom` linked before download, and a 1..16384-byte `.p` media unit. The session-display plane presents launcher frames on HDMI and restores machine pixels on close. The 2 Oct note does not accept these bytes. Still the first-party NMOS Z80. Lock `toolchain.lock`. |
+| `fes.zx81` | 1.6.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0, `fes.fabric.video.display-plane` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX81. 1 KiB RAM, HID keyboard mapped to the 40-key matrix, exact 8192-byte `machine-rom` linked before download, and a 1..16384-byte `.p` media unit. HDMI passes through the shared [display plane](display-pipeline.md), which blends premultiplied launcher frames over the machine picture and restores machine pixels on close. The 2 Oct note does not accept these bytes. Still the first-party NMOS Z80. Lock `toolchain.lock`. |
 | `fes.coleco` | 1.2.0 | Package-only | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0 | `fes.expansion.coleco-bus` 2.0, `fes.fabric.video.native-pixels` 1.0 | Format 3 ColecoVision. One exact 16 KiB `cartridge-rom`, mirrored at `0x8000`; pad a shorter cart with `0xff`. Two gamepads, two 12-key keypads, SN76489, and an optional SGM socket. No blob, stream, or firmware mailbox. The factory shell is the native-pixel video lane and requires a linked part. Not a retail-complete core. Lock `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`; nextpnr `9128800f` and Mistral `8fcc4cb4` stay shared). |
 | `fes.sms` | 1.4.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Sega Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, shared PCM-to-I2S into the ADV7513. No host audio-stream mailbox or Sega mapper. Lock `toolchain.lock` (shared pin). |
 | `fes.catch` | 1.0.0 | Package-only | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | ROM-less paddle game on the shared application shell. No BIOS, cartridge, or factory-image entry. Lock `toolchain.lock`. |
@@ -264,6 +264,21 @@ in two bursts keep the rare palette anomaly open. The original image and
 populated free menu are restored, and the private host/credential copy removed.
 Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
+
+## PC/XT development diagnostic
+
+PC/XT is outside the factory/package set. Its assembled 8088, motherboard,
+SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
+coverage, including DMA and refresh. The autonomous diagnostic board builder
+supplies PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts
+under `sources/misteross/build/diagnostic/fes-pcxt/`. The CGA Direct diagnostic
+at `6df7e982` was rejected by the [Quartus cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615):
+system, pixel and ROM-phase paths miss the unchanged 100/74.25/100 MHz targets.
+Its old nextpnr-only pass does not establish timing closure; [#840](https://github.com/DeanoC/fes/issues/840)
+remains open. Other profiles,
+SDRAM pad qualification, physically linkable ISA cards, a runtime ABI/sealed package,
+BIOS/DOS/game compatibility and hardware acceptance remain open. See the
+[PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## Not implemented, or not this package
 

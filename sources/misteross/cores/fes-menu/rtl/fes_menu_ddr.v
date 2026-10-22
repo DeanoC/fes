@@ -51,7 +51,7 @@ module fes_menu_ddr #(
         .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
         .submit_ready(submit_ready), .displayed_sequence(displayed_sequence),
-        .underflows(underflows), .quiesced(drained), .rgb(rgb), .de(de), .hs(hs), .vs(vs),
+        .underflows(underflows), .quiesced(drained), .rgb(rgb), .alpha(), .de(de), .hs(hs), .vs(vs),
         .address(address), .burstcount(burstcount), .read(read), .waitrequest(waitrequest),
         .readdata(readdata), .readdatavalid(readdatavalid)
     );

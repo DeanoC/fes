@@ -49,7 +49,9 @@ These are the choices already in the tree at `6d9939c2`.
    CPU does not qualify the others. There is no newer first-party 6502 or
    68000; `cpu6502` and `fx68k` stay until a replacement exists. Do not add a
    third Z80.
-5. Two display contracts, not three.
+5. One display pipeline: machine source, then an optional video part, then the
+   shared display plane, then the HDMI pins. [The display pipeline](display-pipeline.md)
+   is the design and lists which shells have each stage.
    - An application or ROM-less shell uses shared `fes_video_720p`. That is
      Pong, Catch, the demos, RAM test and RISC-V. The optimizer-generated
      scaler is that module. Do not force video parts onto these shells.
@@ -57,8 +59,9 @@ These are the choices already in the tree at `6d9939c2`.
      parts and does not own HDMI timing. Coleco native is the standard: no
      built-in Direct fallback; a missing or invalid part blocks launch.
      Atari ST's built-in Direct fallback is a migration aid, not the end state.
-   - ZX81 `fes.video.session-display` stays a named capability until a separate
-     design says it is a video part.
+   - Launcher overlays and surrounds use `fes.video.session-display`, the
+     shared `fes_display_plane` after the part. It is not a video part. ZX81 is
+     the first shell with it; each other shell moves in its own change.
    - Splash remains the pinned idle bitstream. Menu scanout does not replace
      it until its own acceptance gate.
 6. An external ROM uses a sealed ROM map. Format 3 is that shape: ZX81, SMS,
@@ -87,7 +90,7 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Current lock: `cores/fes-menu/toolchain.lock`. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | `cores/fes-pong/toolchain.lock`, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, format 3. Current lock: `cores/fes-zx81/toolchain.lock`. | The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.6.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, shared display plane, format 3. Current lock: `cores/fes-zx81/toolchain.lock`. | The 2 Oct note covers the earlier opaque plane and does not accept a shared-pin seal. The 1.6.0 display plane, physical keyboard, expansion and audio are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Current lock: `cores/fes-sg1000/toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
@@ -188,7 +191,8 @@ then blocks launch.
 Do not retrofit video parts onto ZX81, SMS, SG-1000, Spectrum, C64 or Apple II
 in the same change as a pin move or a CPU swap. Those shells still own
 `fes.video.fixed-720p60`. A later design can move a raster source out of one
-shell. Session-display is not that design.
+shell. Adding the display plane to a shell is separate from adding a part
+socket.
 
 ### 5. Coleco cartridge shape
 

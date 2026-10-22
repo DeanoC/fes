@@ -28,7 +28,8 @@ Delete it once every kit runs a base whose supervisor starts tenfoot directly.
 ## Menu display
 
 With `-gfx menu-display`, tenfoot maps the runtime's grant of both menu slots
-and writes each frame, in the scanout's BGRX order, straight into the slot
+and writes each frame, in the scanout's BGRX order with each pixel's alpha as
+X, straight into the slot
 scanout is not showing; the runtime writes those lines back and submits the
 slot. The runtime gates every frame by the current menu generation, revokes
 the grant before a core owns the window, and alone controls the FPGA. When menu firmware is

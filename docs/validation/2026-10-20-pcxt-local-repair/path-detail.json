@@ -1,0 +1,390 @@
+[
+  {
+    "arc": {
+      "delay": 1.5190000534057617,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r2_MISTRAL_FF_Q",
+        "loc": [
+          46,
+          4
+        ],
+        "port": "Q"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.eu_register_r2[11]",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/timing-840-cpu-locality/candidate/mcl86_eu_core.sv:407.29-409.6",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/synth/logic_operand1_map.v:19.21-19.30"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].triples[3].masked_three",
+        "loc": [
+          36,
+          6
+        ],
+        "port": "E"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.div_flag_src_MISTRAL_FF_Q_12$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.43.7.18"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].triples[3].masked_three",
+        "port": "E",
+        "bel": "MISTRAL_COMB.36.6.30"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.idiv_opcode_MISTRAL_FF_Q_DATAIN_MISTRAL_ALUT5_Q_D_MISTRAL_ALUT6_E_F_MISTRAL_ALUT5_Q",
+        "port": "C",
+        "bel": "MISTRAL_MCOMB.39.9.37"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_flag_o_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT4_Q",
+        "port": "A",
+        "bel": "MISTRAL_COMB.50.7.55"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_operand1_mux.lanes[11].triples[3].masked_three",
+        "port": "E",
+        "bel": "MISTRAL_COMB.45.3.37"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand1_mux.lanes[11].triples[3].masked_three",
+        "port": "E",
+        "bel": "MISTRAL_COMB.36.4.7"
+      }
+    ],
+    "from_bel": "MISTRAL_FF.46.4.20",
+    "to_bel": "MISTRAL_COMB.36.6.30"
+  },
+  {
+    "arc": {
+      "delay": 0.9129999876022339,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].triples[3].masked_three",
+        "loc": [
+          36,
+          6
+        ],
+        "port": "Q"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].groups[3]",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/timing-840-cpu-locality/candidate/mcl86_eu_core.sv:389.29-391.6",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/synth/logic_operand1_map.v:17.20-17.26"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].combine",
+        "loc": [
+          37,
+          7
+        ],
+        "port": "C"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].combine",
+        "port": "C",
+        "bel": "MISTRAL_COMB.37.7.6"
+      }
+    ],
+    "from_bel": "MISTRAL_COMB.36.6.30",
+    "to_bel": "MISTRAL_COMB.37.7.6"
+  },
+  {
+    "arc": {
+      "delay": 1.9700000286102295,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_add_operand0_mux.lanes[11].combine",
+        "loc": [
+          37,
+          7
+        ],
+        "port": "Q"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.eu_add_operand0[11]",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/timing-840-cpu-locality/candidate/mcl86_eu_core.sv:220.17-220.32"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "B"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "port": "B",
+        "bel": "MISTRAL_MCOMB.39.4.31"
+      }
+    ],
+    "from_bel": "MISTRAL_COMB.37.7.6",
+    "to_bel": "MISTRAL_MCOMB.39.4.31"
+  },
+  {
+    "arc": {
+      "delay": 0,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CO"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv:98.24-98.45",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CI"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "port": "CI",
+        "bel": "MISTRAL_MCOMB.39.4.36"
+      }
+    ],
+    "from_bel": "MISTRAL_MCOMB.39.4.31",
+    "to_bel": "MISTRAL_MCOMB.39.4.36"
+  },
+  {
+    "arc": {
+      "delay": 0,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CO"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv:98.24-98.45",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CI"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "port": "CI",
+        "bel": "MISTRAL_MCOMB.39.4.37"
+      }
+    ],
+    "from_bel": "MISTRAL_MCOMB.39.4.36",
+    "to_bel": "MISTRAL_MCOMB.39.4.37"
+  },
+  {
+    "arc": {
+      "delay": 0,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CO"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv:98.24-98.45",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6",
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "CI"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "port": "CI",
+        "bel": "MISTRAL_MCOMB.39.4.42"
+      }
+    ],
+    "from_bel": "MISTRAL_MCOMB.39.4.37",
+    "to_bel": "MISTRAL_MCOMB.39.4.42"
+  },
+  {
+    "arc": {
+      "delay": 1.5729999542236328,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "SO"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.carry_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_SO[2]",
+      "sources": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/8e7eeca0616bb73be28b6f12b17c33a19dd11c12dc9fdb56d964e086621867a2/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_out_MISTRAL_ALUT5_Q_1",
+        "loc": [
+          45,
+          7
+        ],
+        "port": "C"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_out_MISTRAL_ALUT5_Q_1",
+        "port": "C",
+        "bel": "MISTRAL_COMB.45.7.42"
+      }
+    ],
+    "from_bel": "MISTRAL_MCOMB.39.4.42",
+    "to_bel": "MISTRAL_COMB.45.7.42"
+  },
+  {
+    "arc": {
+      "delay": 2.0299999713897705,
+      "from": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_out_MISTRAL_ALUT5_Q_1",
+        "loc": [
+          45,
+          7
+        ],
+        "port": "Q"
+      },
+      "net": "system.machine.cpu.cpu.u_eu_core.eu_alu_out[14]",
+      "sources": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/timing-840-cpu-locality/candidate/mcl86_eu_core.sv:230.17-230.27"
+      ],
+      "to": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_5",
+        "loc": [
+          39,
+          4
+        ],
+        "port": "DATAIN"
+      },
+      "type": "routing"
+    },
+    "sinks": [
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_di_MISTRAL_FF_Q_7$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_MCOMB.47.7.49"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_prefix_rep_MISTRAL_FF_Q$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.48.9.42"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_bx_MISTRAL_FF_Q_7$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.48.8.55"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_cx_MISTRAL_FF_Q$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.46.8.25"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r2_MISTRAL_FF_Q_4$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.46.7.54"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_sp_MISTRAL_FF_Q_8$ROUTETHRU",
+        "port": "A",
+        "bel": "MISTRAL_COMB.45.10.37"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_si_MISTRAL_FF_Q_7",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.45.7.44"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r1_MISTRAL_FF_Q_1",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.42.6.52"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r0_MISTRAL_FF_Q_11_DATAIN_MISTRAL_ALUT3_Q",
+        "port": "C",
+        "bel": "MISTRAL_COMB.45.7.12"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_3_DATAIN_MISTRAL_ALUT3_Q",
+        "port": "C",
+        "bel": "MISTRAL_COMB.46.10.31"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_bp_MISTRAL_FF_Q_3",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.48.7.4"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_ax_MISTRAL_FF_Q_13_DATAIN_MISTRAL_ALUT3_Q",
+        "port": "C",
+        "bel": "MISTRAL_COMB.46.9.54"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_5",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.39.4.52"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.u_biu_core.eu_prefix_seg_MISTRAL_FF_Q",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.40.7.56"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.t_eu_register_r3_MISTRAL_FF_Q_4",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.42.7.26"
+      },
+      {
+        "cell": "system.machine.cpu.cpu.data_bus_word_out_MISTRAL_FF_Q_13",
+        "port": "DATAIN",
+        "bel": "MISTRAL_FF.42.5.32"
+      }
+    ],
+    "from_bel": "MISTRAL_COMB.45.7.42",
+    "to_bel": "MISTRAL_FF.39.4.52"
+  }
+]

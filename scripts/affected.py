@@ -38,7 +38,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
     'bootstrap.sh',
-    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
+    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
@@ -56,7 +56,7 @@ CORE_DIRECTORIES = {
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
     'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',),
 }
-# ZX81's in-session plane reuses these MENU scanout units and DDR model.
+# The shared session-display plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
 MENU_SESSION_INPUTS = frozenset({
     'rtl/fes_menu_reader.v', 'rtl/fes_menu_control.v', 'rtl/fes_menu_video.v',
@@ -89,6 +89,8 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
+    'fes_display_plane.v': ('zx81',),
+    'fes_display_cdc.v': ('zx81',),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -117,14 +119,21 @@ def fpga_cores(path):
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
+    if relative.as_posix() == 'cores/fes-ramtest/constraints.qsf':
+        return ('ramtest', 'pcxt'), 'shared DE10-Nano SDRAM/HDMI diagnostic pins'
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
+    if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
+        return ('menu', 'zx81'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
                 'sim/native_socket_top.v', 'sim/native_socket_tb.cpp',
                 'generated/fes_native_video.vh'):
             return ('coleco',), 'native video consumers'
+        if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
+                'sim/display_plane_top.v', 'sim/display_plane_tb.cpp'):
+            return ('zx81',), 'shared session-display plane consumers'
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
             if parts[2] == 'rtl':
@@ -159,8 +168,8 @@ def fpga_cores(path):
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
             return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
-        if parts[1] == 'sim_fes_zx81_session.py':
-            return ('zx81',), 'ZX81 session-display simulation recipe'
+        if parts[1] in ('sim_fes_zx81_session.py', 'sim_fes_display_plane.py'):
+            return ('zx81',), 'session-display plane simulation recipe'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:

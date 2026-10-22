@@ -15,3 +15,7 @@ lint_off -rule SYNCASYNCNET -file "*/sim/video_machine_top.sv" -match "*reset*"
 
 // The SDRAM fixture shares the same imported-chip reset boundary.
 lint_off -rule SYNCASYNCNET -file "*/sim/memory_machine_top.sv" -match "*reset*"
+
+// Production machine reset also reaches the imported asynchronous chips.
+lint_off -rule SYNCASYNCNET -file "*/rtl/pcxt_machine.sv" -match "*reset*"
+lint_off -rule SYNCASYNCNET -file "*/sim/system_top.sv" -match "*machine_reset*"

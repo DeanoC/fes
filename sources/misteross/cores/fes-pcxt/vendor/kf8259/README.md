@@ -9,3 +9,12 @@ importing this implementation does not qualify all chip modes or silicon timing.
 Local compatibility change: package function calls use explicit qualification
 instead of `import`, which the locked Yosys frontend rejects. Function bodies
 are unchanged; the manifest retains upstream and local hashes.
+
+Local timing change: circular request/service priority uses parallel per-level
+masks in physical interrupt-bit order, avoiding serial rotate/resolve/rotate
+muxes. Special fully nested mode retains its original non-wrapping shift in
+priority order. Register boundaries and bus timing are unchanged.
+`tests/test_pcxt_pic_priority.py` uses Yosys SAT to prove the combinational
+request resolver and highest-service selection against the original equations
+for unconstrained requests, service vectors, masks, rotation and nested mode.
+`source.json` retains upstream hashes and records the changed local bytes.

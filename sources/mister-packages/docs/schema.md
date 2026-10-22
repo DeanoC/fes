@@ -287,8 +287,11 @@ An internal FPGA fabric contract carries `id`, `major`, `minor`, optional
 `description` and named unsigned 32-bit `constants`. It shares ABI identifier,
 version and constant validation, but rejects host ABI `tag` and `interfaces`
 fields. `validate` accepts fabric packages and `emit-verilog` emits guarded
-constant includes using the existing naming rules. This path does not generate
-RTL modules, connections, constraints, or host Go/C++ admission tables.
+constant includes using the existing naming rules. `emit-cpp` emits the same
+constants for a fabric contract the runtime also reads, such as
+[`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
+This path does not generate RTL modules, connections, constraints, or host
+Go/C++ admission tables.
 
 [`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
 defines `fes.fabric.video.raster-rgb888` 1.0. See

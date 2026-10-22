@@ -38,17 +38,20 @@ type Protocol2Error struct {
 }
 
 type Protocol2MenuDisplay struct {
-	Available      bool    `json:"available"`
-	Session        bool    `json:"session,omitempty"`
-	CoreGeneration uint64  `json:"core_generation,omitempty"`
-	PackageID      *string `json:"package_id"`
-	Generation     uint64  `json:"generation"`
-	Width          uint64  `json:"width"`
-	Height         uint64  `json:"height"`
-	Stride         uint64  `json:"stride"`
-	ByteCount      uint64  `json:"byte_count"`
-	SlotBytes      uint64  `json:"slot_bytes"`
-	Slots          uint64  `json:"slots"`
+	Available      bool   `json:"available"`
+	Session        bool   `json:"session,omitempty"`
+	CoreGeneration uint64 `json:"core_generation,omitempty"`
+	// Picture is a session plane's machine picture as [x, y, width, height]
+	// inside the launcher frame, for drawing a surround around it.
+	Picture    *[4]uint16 `json:"picture,omitempty"`
+	PackageID  *string    `json:"package_id"`
+	Generation uint64     `json:"generation"`
+	Width      uint64     `json:"width"`
+	Height     uint64     `json:"height"`
+	Stride     uint64     `json:"stride"`
+	ByteCount  uint64     `json:"byte_count"`
+	SlotBytes  uint64     `json:"slot_bytes"`
+	Slots      uint64     `json:"slots"`
 	// Format is the pixel layout of the granted slots the client draws into.
 	Format            string          `json:"format"`
 	DisplayedSequence uint64          `json:"displayed_sequence"`
@@ -626,7 +629,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "picture"})
 	if err != nil {
 		return err
 	}
@@ -649,6 +652,19 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		}
 	} else if _, present := menu["core_generation"]; present {
 		return errInvalidRuntimeResponse
+	} else if _, present := menu["picture"]; present {
+		return errInvalidRuntimeResponse
+	}
+	if raw, present := menu["picture"]; present {
+		// A slice, not [4]uint16: decoding into an array silently drops
+		// surplus elements, and the rectangle has exactly four.
+		var picture []uint16
+		var width, height uint64
+		if json.Unmarshal(raw, &picture) != nil || len(picture) != 4 || json.Unmarshal(menu["width"], &width) != nil ||
+			json.Unmarshal(menu["height"], &height) != nil || picture[2] == 0 || picture[3] == 0 ||
+			uint64(picture[0])+uint64(picture[2]) > width || uint64(picture[1])+uint64(picture[3]) > height {
+			return errInvalidRuntimeResponse
+		}
 	}
 	if !isNull(menu["error"]) {
 		return validateErrorShape(menu["error"])

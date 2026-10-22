@@ -50,8 +50,7 @@ module top #(
     wire [1:0] media_write_enable;
     wire [1:0] unit0_state;
     wire [31:0] unit0_size;
-    wire [10:0] raster_h;
-    wire [9:0] raster_v;
+    wire machine_de, machine_hs, machine_vs;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -232,28 +231,34 @@ module top #(
         .red(red),
         .green(green),
         .blue(blue),
-        .de(HDMI_TX_DE),
-        .hsync(HDMI_TX_HS),
-        .vsync(HDMI_TX_VS),
-        .frame_tick(), .raster_h(raster_h), .raster_v(raster_v),
+        .de(machine_de),
+        .hsync(machine_hs),
+        .vsync(machine_vs),
+        .frame_tick(), .raster_h(), .raster_v(),
         .src_x_max(),
         .src_y_max()
     );
 
-    wire [23:0] hdmi_rgb;
-    // Shipped HDMI contract: the in-core fes.video.session-display plane,
-    // backed by fes.memory.hps-ddr. Launcher sessions composite frames here.
-    // A closed plane selects machine RGB on the next frame boundary and does
-    // not reprogram the core.
-    zx81_session_display display (
+    wire [27:0] hdmi_video;
+    // Shipped HDMI contract: the shared fes.video.session-display plane,
+    // backed by fes.memory.hps-ddr. It blends launcher frames over the machine
+    // word and delays RGB and sync together. A closed plane returns machine
+    // pixels on the next frame boundary and does not reprogram the core.
+    fes_display_plane #(
+        .PICTURE_LEFT(16'd312), .PICTURE_TOP(16'd90),
+        .PICTURE_WIDTH(16'd656), .PICTURE_HEIGHT(16'd540)
+    ) display (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
         .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),
         .index(display_index), .argument(display_argument),
         .response_valid(display_response_valid), .response_error(display_response_error),
         .response_data(display_response_data), .quiesced_sys(display_quiesced),
-        .raster_h(raster_h), .raster_v(raster_v), .machine_rgb({red, green, blue}),
-        .rgb(hdmi_rgb), .ui_active(), .displayed_sequence(), .underflows(), .faulted()
+        .machine({1'b1, machine_vs, machine_hs, machine_de, red, green, blue}),
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
     );
-    assign HDMI_TX_D = hdmi_rgb;
+    assign HDMI_TX_D = hdmi_video[23:0];
+    assign HDMI_TX_DE = hdmi_video[24];
+    assign HDMI_TX_HS = hdmi_video[25];
+    assign HDMI_TX_VS = hdmi_video[26];
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

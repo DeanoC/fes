@@ -295,8 +295,16 @@ struct CorePackageInspection {
 struct MenuGeometry {
  std::uint32_t width=0,height=0,stride=0,frame_bytes=0,slot_bytes=0;
 };
+// A region of a menu frame, in pixels.
+struct MenuRect {
+ std::uint16_t x=0,y=0,w=0,h=0;
+};
 struct MenuDisplayInfo {
  MenuGeometry geometry;
+ // Idle firmware scans XRGB (format 1). A session-display plane blends
+ // premultiplied RGBA (format 2) and reports where the machine picture lands.
+ std::uint16_t pixel_format=0;
+ MenuRect picture;
  bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Timing of the present that produced this info, for frame-time
@@ -314,15 +322,13 @@ struct MenuDisplayStatus {
  std::string package_id;
  std::uint64_t generation=0;
  MenuGeometry geometry;
+ // Session planes only: the machine picture inside the launcher frame.
+ MenuRect picture;
  std::uint32_t displayed_sequence=0,underflows=0;
  // The grant also covers the blitter's command lists and texture heap, and
  // only the blitter draws its slots. Reported in the grant, not in status.
  bool blitter=false;
  Error error;
-};
- // A region of a menu frame, in pixels.
-struct MenuRect {
- std::uint16_t x=0,y=0,w=0,h=0;
 };
 constexpr std::size_t kMenuWrittenMaxRects=16;
 // Window bytes the client wrote, by window offset.

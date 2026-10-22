@@ -165,8 +165,9 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 	if err != nil || result.DisplayedSequence != 1 {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	// B, G, R, X: the XRGB8888 word 0x00112233 the menu scanout reads.
-	if got := runtime.slot(1)[:4]; string(got) != "\x33\x22\x11\x00" {
+	// B, G, R, then the pixel's alpha: the XRGB8888 word 0xff112233 the menu
+	// scanout reads, opaque to a session plane.
+	if got := runtime.slot(1)[:4]; string(got) != "\x33\x22\x11\xff" {
 		t.Fatalf("slot pixel % x", got)
 	}
 	if _, partial := runtime.commit(0)["written"]; partial {
@@ -179,7 +180,7 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 	if _, err := client.Present(ctx, 7, filled(0x44, 0x55, 0x66)); err != nil {
 		t.Fatal(err)
 	}
-	if got := runtime.slot(0)[:4]; string(got) != "\x66\x55\x44\x00" || runtime.grantCount() != 1 {
+	if got := runtime.slot(0)[:4]; string(got) != "\x66\x55\x44\xff" || runtime.grantCount() != 1 {
 		t.Fatalf("second slot % x after %d grants", got, runtime.grantCount())
 	}
 	// A new generation is a new grant.
@@ -231,7 +232,7 @@ func TestPresentDamageWritesWhatTheSlotMissed(t *testing.T) {
 	for _, check := range []struct {
 		x, y int
 		want string
-	}{{100, 55, "\xa2\xa1\xa0\x00"}, {645, 302, "\xb2\xb1\xb0\x00"}, {0, 0, "\x00\x00\x00\x00"}} {
+	}{{100, 55, "\xa2\xa1\xa0\xff"}, {645, 302, "\xb2\xb1\xb0\xff"}, {0, 0, "\x00\x00\x00\xff"}} {
 		at := check.y*Stride + check.x*4
 		if got := string(slot[at : at+4]); got != check.want {
 			t.Fatalf("slot pixel %d,%d = % x", check.x, check.y, got)
@@ -255,25 +256,21 @@ func (f *fakeRuntime) slotView(s int) []byte {
 }
 
 func TestRevokedWindowFaultIsAnError(t *testing.T) {
-	_, path := newFakeRuntime(t)
+	runtime, path := newFakeRuntime(t)
 	client := New(path)
+	defer client.Close()
 	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err != nil {
 		t.Fatal(err)
 	}
-	// A revoked grant leaves the mapping without pages; unmapping it under
-	// the client gives the same fault.
-	client.mu.Lock()
-	mapping := client.window.mapping
-	client.mu.Unlock()
-	if err := unix.Munmap(mapping); err != nil {
+	// A revoked grant leaves the mapping without pages, so the next access
+	// faults; truncating the window does the same. Unmapping it instead
+	// would free the range for the next thread stack the runtime maps.
+	if err := unix.Ftruncate(runtime.window, 0); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := client.Present(context.Background(), 7, filled(1, 2, 3)); err == nil {
 		t.Fatal("present into a revoked window succeeded")
 	}
-	client.mu.Lock()
-	client.window = nil
-	client.mu.Unlock()
 }
 
 func TestPresentUnderflowCap(t *testing.T) {

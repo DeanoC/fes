@@ -23,9 +23,12 @@ Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`
 to verify them. See [schema](docs/schema.md),
 [application I/O](docs/application-io.md), [home-computer I/O](docs/computer-io.md)
-and [stream media](docs/media-stream.md). The simple-computer
+and [stream media](docs/media-stream.md). The running-machine
 [session display](docs/session-display.md) shares the fixed DDR framebuffer
-layout while preserving machine execution and existing ABI 1.0 packages.
+layout and blends premultiplied RGBA over machine pixels while preserving
+machine execution. Its shared plane constants are the
+[`fes.fabric.video.display-plane`](packages/fabric/fes_fabric_video_display_plane.yaml)
+fabric definition.
 
 Atari ST adds the read-only 720 KiB unit-0 media interface to the existing
 computer ABI and a separate internal [68000 expansion fabric contract](packages/fabric/fes_fabric_atari_st_bus.yaml).
