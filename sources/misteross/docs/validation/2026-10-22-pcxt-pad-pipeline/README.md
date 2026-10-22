@@ -745,9 +745,9 @@ The journal now contains 30 subsequent receipts and a total campaign charge of
 **34155.64751338725847 seconds**. Coverage remains incomplete at 105 unsupported
 boundaries. There is no timing closure, seed qualification, production seal or
 hardware acceptance, and no tracked RTL, clock, lock or shared contract changes.
-The next bounded compiler experiment swaps symmetric LUT6 inputs after routing,
-so its acceptance can use the actual failing paths while preserving unrelated
-routes; it has no routed result at this point.
+The subsequent bounded compiler experiment swaps symmetric LUT6 inputs after
+routing, using actual failing paths while preserving unrelated routes. Its
+completed paired result is recorded below.
 
 The [committed compiler capture](https://github.com/DeanoC/nextpnr/tree/4b787dc2/docs/validation/2026-10-22-pcxt-private-pair)
 contains all 121 hash-verified members. The archive SHA-256 is
@@ -757,3 +757,42 @@ comparison exposed only Python-set dictionary-key rendering order; the retained
 initial failure and strict supplement enumerate every permutation while checking
 all values, types, keys and array order. Six checks, including three explicit hash
 seeds, pass on both independent extractions with equal result receipts.
+
+
+## Routed symmetric LUT6 pair: no eligible trial
+
+Compiler `461ce654` adds an explicit `--critical-lut6-swap-budget` of 0..16,
+default off. It discovers symmetric input pairs from actual failing native
+paths, proves all 64 truth-table assignments, and reroutes only the two
+single-sink trees. Native legality, full setup/hold inventory and all existing
+coverage contracts remain required. Thirty-three native, three pure-policy
+and six CLI tests pass. Default and explicit-zero preparations match exactly;
+the prior preparation differs only in its creator label.
+
+The fresh paired routes use the same compiler, original synthesis/constraints,
+seed 1, hard-block windows, corrected spreading, overflow-17 balancing and
+post-route budget 32. The selected case adds only LUT6 swap budget 16. Both
+produce byte-identical RBF, final routed JSON, timing and endpoint files:
+13 setup failures, system worst slack -434 ps, CPU seven failures/-173 ps,
+zero hold failures and minimum checked hold slack +822 ps. All 17,199 native
+rows, metadata, 12,397 cells and 15,546 aliases match, including all 17,194
+checked setup and hold margins.
+
+The selected pass finds all thirteen negative native path witnesses and
+28 LUT6 arcs. Of fifty filtered pairs, 41 are asymmetric, seven fail original
+LAB legality, one fails the solitary-LUT6 condition and one is multisink.
+There are zero eligible pairs and zero trials. This is an eligibility blocker;
+it does not measure the timing benefit of the intended symmetric swaps.
+
+The completed charges are 854.6584242181852 and 859.5982504962012 seconds.
+The journal contains 32 subsequent receipts and a total campaign charge of
+**35869.90418810164487 seconds**. The retained recipe remains the route-only
+13-failure diagnostic. Coverage is still incomplete at 105 unsupported
+boundaries. No RTL, clocks, production lock or shared contract changes; no
+timing closure, seed qualification, production seal or hardware acceptance.
+
+The [committed compiler capture](https://github.com/DeanoC/nextpnr/tree/8987a69b/docs/validation/2026-10-22-pcxt-routed-lut6-swap)
+retains the complete pair and frozen source/tests. Independent readback verifies
+all 103 members and reruns five offline checks from a fresh extraction,
+reproducing all proof JSON bytes. Archive SHA-256:
+`1b9642742873e2c6d4c14aba4d234fdddea2bd9e0b3f1b1ee030cbfd5230d4f6`.
