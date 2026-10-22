@@ -55,10 +55,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   exact 174,848-byte `.d64`, Atari ST uses raw `.st` disks (legacy 737,280 bytes;
   packages requiring `fes.media.atari-st-floppy-geometry` also admit
   80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes), and
-  ZX Spectrum 48K is a 1..65,536-byte `.tap`.
+  the ZX Spectrum models take a `.tzx`, `.tap`, `.pzx` or `.csw` tape of up to
+  32 MiB, which the host converts to the unit's PZX stream.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
-  `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
+  `fogcast eject-disk`. The ZX Spectrum models use `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).

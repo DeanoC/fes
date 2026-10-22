@@ -265,7 +265,8 @@ func (s *Service) replaceLiveZx81TapeLocked(ctx context.Context, mediaID string,
 	return s.retainMediaUnitSessionIdentity(status, unit), nil
 }
 
-// replaceLiveCassette inserts a .tap image into the running Spectrum.
+// replaceLiveCassette inserts a Spectrum tape image into the running
+// Spectrum, converted to the unit's PZX stream.
 func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumTapeName(name) {
 		return protocol.Status{}, protocol.CassetteMediaRequestError()
@@ -292,12 +293,16 @@ func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name stri
 	if err != nil {
 		return protocol.Status{}, mapCoreMediaError(err)
 	}
-	defer reader.Close()
 	if opened != info {
+		reader.Close()
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
+	pzx, err := spectrumTapeStream(reader, info.Size)
+	if err != nil {
+		return protocol.Status{}, err
+	}
 	unit := cassetteUnitBinding(b)
-	status, err := s.insertMediaUnitLocked(ctx, info.Size, reader, unit)
+	status, err := s.insertMediaUnitLocked(ctx, int64(len(pzx)), bytes.NewReader(pzx), unit)
 	if err != nil {
 		return status, err
 	}

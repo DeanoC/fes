@@ -770,8 +770,11 @@ A `fes.computer` package projects media role `disk`
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
 `.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
 737,280 bytes, name `.st`; the required geometry extension admits the bounded
-layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 1.0 is role `cassette`, format
-`spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
+layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 2.0 is role `cassette`, format
+`spectrum-tape`, names `.tzx`, `.tap`, `.pzx` and `.csw` up to 32 MiB, on the
+same unit 0. The library keeps the image as imported; at insertion
+`internal/spectrumtapes` converts it to the unit's 10..16,777,216-byte PZX
+stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are
@@ -782,10 +785,11 @@ is a failed launch and follows existing library-slot Stop/recovery. The same ses
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
-legacy ZX81 blob path. A `.tap` name inserts the Spectrum cassette on unit 0.
+legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx` or `.csw` name inserts the
+Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
-`fogcast eject-cassette` for a Spectrum `.tap`. A stored
+`fogcast eject-cassette` for a Spectrum tape. A stored
 media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
 so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.

@@ -502,7 +502,8 @@ media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
 `fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
 `spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3`) or `pentagon-firmware`
 (32 KiB, `fes.pentagon`), and role `cassette` for `fes.media.spectrum-tape`
-1.0: 1..65,536 bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of up to 32 MiB, media unit 0,
+converted to the unit's PZX stream when it is inserted. `fes.zx81` on `fes.computer` uses the same
 role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
 unit 0. A previously saved `blob` selection for that package still launches.
 Persist a Spectrum or ZX81 selection with role `cassette`:

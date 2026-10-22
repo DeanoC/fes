@@ -18,7 +18,7 @@ import (
 func runLiveMediaCommand(ctx context.Context, origin string, args []string) commandResult {
 	fail := func(err error) commandResult { return commandResult{err: err, exit: 1} }
 	if len(args) == 0 {
-		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk | change-cassette <media-id-or-.tap-path> | eject-cassette"))
+		return fail(errors.New("usage: fogcast change-tape <media-id-or-.p-path> | eject-tape | change-disk <media-id-or-disk-path> | eject-disk | change-cassette <media-id-or-.tzx/.tap/.pzx/.csw-path> | eject-cassette"))
 	}
 	switch args[0] {
 	case "save-disk":
@@ -43,7 +43,7 @@ func runLiveMediaCommand(ctx context.Context, origin string, args []string) comm
 		return ejectDiskThroughHostAPI(ctx, origin)
 	case "change-cassette":
 		if len(args) != 2 {
-			return fail(errors.New("usage: fogcast change-cassette <media-id-or-.tap-path>"))
+			return fail(errors.New("usage: fogcast change-cassette <media-id-or-.tzx/.tap/.pzx/.csw-path>"))
 		}
 		return changeCassetteThroughHostAPI(ctx, origin, args[1])
 	case "eject-cassette":
@@ -411,7 +411,7 @@ func resolveCassetteArgument(ctx context.Context, origin, arg string) (mediaID, 
 	if err != nil || !os.SameFile(before, opened) {
 		return "", "", protocol.CassetteMediaRequestError()
 	}
-	data, err := io.ReadAll(io.LimitReader(file, protocol.SpectrumTapeMaxBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, protocol.SpectrumTapeImageMaxBytes+1))
 	if err != nil || !protocol.AdmitSpectrumTapeSize(int64(len(data))) || int64(len(data)) != before.Size() {
 		return "", "", protocol.CassetteMediaRequestError()
 	}
