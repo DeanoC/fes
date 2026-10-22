@@ -1,69 +1,61 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// 48 KiB ZX Spectrum RAM at CPU $4000-$FFFF. The array is 64 KiB so the
-// index is the power-of-two shape Apple II RAM uses; offsets $C000-$FFFF
-// are unused. Port A is the CPU (system clock). Port B is the HDMI scanner.
-// Both reads are registered. The hit flops match those reads, so addresses
-// below $4000 return zero and do not write. ramstyle=M10K, not the same-clock
-// m10k_tdp tag: these ports have independent clocks.
-module spectrum_ram (
-    input  wire        clk_sys,
+// ZX Spectrum RAM: 48 KiB (three 16 KiB banks) or 128 KiB (eight banks),
+// addressed as {bank, 14-bit offset}. Port A is the CPU, port B the ULA screen
+// fetch; both run on the system clock. Each read has two registered stages
+// (block read, then bank select), so data follows its address by two clocks.
+// The 48K map keeps the 128K bank numbers: bank 5 at $4000, 2 at $8000 and 0
+// at $C000, stored as local banks 0, 1 and 2.
+module spectrum_ram #(
+    parameter integer BANKS = 8
+) (
+    input  wire        clk,
     input  wire        cpu_we,
-    input  wire [15:0] cpu_addr,
+    input  wire [2:0]  cpu_bank,
+    input  wire [13:0] cpu_offset,
     input  wire [7:0]  cpu_wdata,
-    output wire [7:0]  cpu_rdata,
-    input  wire        pixel_clk,
-    input  wire [15:0] video_addr,
-    output wire [7:0]  video_rdata,
-    output wire [7:0]  sig8000,
-    output wire [7:0]  sig8001,
-    output wire [7:0]  sig8002,
-    output wire [7:0]  sig8003,
-    output wire [7:0]  sig8004
+    output reg  [7:0]  cpu_rdata = 8'h00,
+    input  wire [2:0]  ula_bank,
+    input  wire [13:0] ula_offset,
+    output reg  [7:0]  ula_rdata = 8'h00
 );
-    (* ramstyle = "M10K" *) reg [7:0] mem [0:65535];
-    wire cpu_hit = cpu_addr[15] | cpu_addr[14];
-    wire video_hit = video_addr[15] | video_addr[14];
-    wire [15:0] cpu_offset = cpu_addr - 16'h4000;
-    wire [15:0] video_offset = video_addr - 16'h4000;
+    localparam integer DEPTH = BANKS * 16384;
+    localparam integer AW = BANKS > 4 ? 17 : 16;
+
+    function [AW-1:0] local_address(input [2:0] bank, input [13:0] offset);
+        reg [1:0] local_bank;
+        begin
+            if (BANKS > 4) local_address = {bank, offset};
+            else begin
+                local_bank = bank == 3'd5 ? 2'd0 : bank == 3'd2 ? 2'd1 : 2'd2;
+                local_address = {local_bank, offset};
+            end
+        end
+    endfunction
+
+    (* ramstyle = "M10K" *) reg [7:0] mem [0:DEPTH-1];
     reg [7:0] cpu_raw = 8'h00;
-    reg [7:0] video_raw = 8'h00;
-    reg cpu_hit_q = 1'b0;
-    reg video_hit_q = 1'b0;
+    reg [7:0] ula_raw = 8'h00;
 
 `ifdef VERILATOR
     integer init_i;
     initial begin
-        for (init_i = 0; init_i < 65536; init_i = init_i + 1)
+        for (init_i = 0; init_i < DEPTH; init_i = init_i + 1)
             mem[init_i] = 8'h00;
     end
 `endif
 
-    always @(posedge clk_sys) begin
-        if (cpu_we && cpu_hit)
-            mem[cpu_offset] <= cpu_wdata;
-        cpu_raw <= mem[cpu_offset];
-        cpu_hit_q <= cpu_hit;
+    wire [AW-1:0] cpu_address = local_address(cpu_bank, cpu_offset);
+    wire [AW-1:0] ula_address = local_address(ula_bank, ula_offset);
+
+    always @(posedge clk) begin
+        if (cpu_we)
+            mem[cpu_address] <= cpu_wdata;
+        cpu_raw <= mem[cpu_address];
+        cpu_rdata <= cpu_raw;
     end
 
-    always @(posedge pixel_clk) begin
-        video_raw <= mem[video_offset];
-        video_hit_q <= video_hit;
+    always @(posedge clk) begin
+        ula_raw <= mem[ula_address];
+        ula_rdata <= ula_raw;
     end
-
-    assign cpu_rdata = cpu_hit_q ? cpu_raw : 8'h00;
-    assign video_rdata = video_hit_q ? video_raw : 8'h00;
-
-`ifdef VERILATOR
-    assign sig8000 = mem[16'h4000];
-    assign sig8001 = mem[16'h4001];
-    assign sig8002 = mem[16'h4002];
-    assign sig8003 = mem[16'h4003];
-    assign sig8004 = mem[16'h4004];
-`else
-    assign sig8000 = 8'h00;
-    assign sig8001 = 8'h00;
-    assign sig8002 = 8'h00;
-    assign sig8003 = 8'h00;
-    assign sig8004 = 8'h00;
-`endif
 endmodule

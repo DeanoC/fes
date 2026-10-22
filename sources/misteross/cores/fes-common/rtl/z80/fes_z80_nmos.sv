@@ -11,7 +11,12 @@ module fes_z80_nmos (
     output logic [15:0] retire_pc,
     output logic [15:0] debug_pc, debug_sp, debug_af, debug_bc, debug_de,
                         debug_hl, debug_ix, debug_iy, debug_ir,
-    output logic [2:0] debug_iff
+    output logic [2:0] debug_iff,
+    // Presented bus cycle (kind 0 fetch .. 7 internal) and its T state, for
+    // shells that stretch ce_p/ce_n by cycle type, such as ULA contention.
+    output logic cycle_present,
+    output logic [2:0] cycle_kind,
+    output logic [5:0] cycle_t
 );
     logic bus_req, bus_ready, halted, interrupt_blocked, bus_resume;
     logic [2:0] bus_kind;
@@ -38,6 +43,7 @@ module fes_z80_nmos (
         .interrupt_blocked(interrupt_blocked), .resume(bus_resume),
         .ready(bus_ready), .rdata(bus_rdata), .m1_n(m1_n), .mreq_n(mreq_n),
         .iorq_n(iorq_n), .rd_n(rd_n), .wr_n(wr_n), .rfsh_n(rfsh_n),
-        .busak_n(busak_n), .a(a), .dout(dout)
+        .busak_n(busak_n), .a(a), .dout(dout), .cycle_present(cycle_present),
+        .cycle_kind_out(cycle_kind), .cycle_t_out(cycle_t)
     );
 endmodule
