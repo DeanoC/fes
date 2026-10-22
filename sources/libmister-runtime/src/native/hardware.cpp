@@ -1481,24 +1481,31 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	return {{}, true, identified.observed_core};
 }
 
-Error NativeHardware::SetSessionDisplay(bool visible)
+Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
 {
  if(!active_package_||!HasSessionDisplay(active_package_->info().descriptor)||
   !menu_status_.session||!menu_display_||!menu_window_)
   return {ErrorCode::unsupported_interface,"session display is inactive","menu"};
+ if(!visible&&launcher_focus)
+  return {ErrorCode::invalid_request,"a closed session display leaves input with the machine","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  if(visible) {
-  if(menu_status_.available)return {};
-  // Neutralize held machine keys before handing navigation to the UI. There
-  // is no execution hold here: BASIC, RAM and expansions keep running.
-  const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
-  Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
-  if(home&&error.code==ErrorCode::unsupported_interface)error={};
+  if(launcher_focus&&!session_display_focused_) {
+   // Neutralize held machine keys before handing navigation to the UI. There
+   // is no execution hold here: BASIC, RAM and expansions keep running.
+   const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
+   Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+   if(home&&error.code==ErrorCode::unsupported_interface)error={};
+   // A shown plane stays up with the machine still holding input.
+   if(!error.ok())return menu_status_.available?error:FailMenuPresent(error);
+  }
+  // Moving focus on a shown plane keeps its grant and frames.
+  if(menu_status_.available){session_display_focused_=launcher_focus;return {};}
   // Hiding revoked the grant. The plane's slots keep their pixels.
-  if(error.ok())error=menu_window_->Activate(false);
+  Error error=menu_window_->Activate(false);
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
-  session_display_focused_=true;
+  session_display_focused_=launcher_focus;
   MenuDisplayInfo info;error=menu_display_->ReadInfo(deadline,&info);
   if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||
    info.displayed_sequence!=menu_status_.displayed_sequence))

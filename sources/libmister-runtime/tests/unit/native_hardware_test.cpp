@@ -1587,13 +1587,32 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  const auto open_plane=[&] {
   for(unsigned row=0;row<8;++row){script.Reply();}
   script.Reply();script.Info(3,hardware.menu_display().displayed_sequence);
-  assert(hardware.SetSessionDisplay(true).ok()&&hardware.menu_display().available);
+  assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().available);
+  assert(hardware.menu_display().launcher_focus);
  };
  open_plane();
  const auto focused=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==focused);
  script.Present(0,0,0);mister::MenuDisplayInfo info;assert(PresentBackSlot(hardware,&info).ok());
- script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false).ok());
- assert(!hardware.menu_display().available&&fpga.calls==1);
+ script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
+ assert(!hardware.menu_display().available&&!hardware.menu_display().launcher_focus&&fpga.calls==1);
+ // A closed plane never holds launcher focus.
+ assert(hardware.SetSessionDisplay(false,true).code==mister::ErrorCode::invalid_request);
+ // A surround shows the plane while the machine keeps input: no neutral post,
+ // and machine keys still reach the core.
+ script.Reply();script.Info(3,1);
+ assert(hardware.SetSessionDisplay(true,false).ok()&&hardware.menu_display().available);
+ assert(!hardware.menu_display().launcher_focus);
+ auto keys=mmio.writes.size();for(unsigned row=0;row<8;++row){script.Reply();}
+ assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()>keys);
+ // Taking focus on the shown plane neutralizes keys without touching the plane.
+ for(unsigned row=0;row<8;++row){script.Reply();}
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus&&operations.Granted());
+ keys=mmio.writes.size();assert(hardware.SetComputerKeyboard(0).ok()&&mmio.writes.size()==keys);
+ // Returning focus is local, and the plane stays shown.
+ assert(hardware.SetSessionDisplay(true,false).ok()&&mmio.writes.size()==keys);
+ assert(hardware.menu_display().available&&!hardware.menu_display().launcher_focus&&operations.Granted());
+ script.Reply();script.Info(9,1);assert(hardware.SetSessionDisplay(false,false).ok());
+ assert(!hardware.menu_display().available&&!operations.Granted());
  open_plane();
  // Completion with a bad underflow delta invokes only plane quiesce.
  script.Present(1,0,kMenuUnderflowPresentCap+1);script.Reply();script.Info(25,2,kMenuUnderflowPresentCap+1);
@@ -1603,7 +1622,7 @@ void TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure()
  for(std::size_t i=begin;i<mmio.writes.size();++i)
   if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value>>24)&127)!=FesSimpleComputerOpcodeExecution);
  // A session plane can prove drained while its sticky reader fault remains.
- script.Reply();script.Info(25,2);assert(hardware.SetSessionDisplay(false).ok());
+ script.Reply();script.Info(25,2);assert(hardware.SetSessionDisplay(false,false).ok());
  for(unsigned row=0;row<8;++row){script.Reply();}
  assert(hardware.SetComputerKeyboard(0).ok());
  // Stop still drains first, then uses the ordinary lifecycle execution hold.

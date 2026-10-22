@@ -6,17 +6,18 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-func (c *Client) SetSessionDisplay(ctx context.Context, packageID string, generation uint64, visible bool) (Protocol2Response, error) {
-	if protocol.ValidateDigest(packageID) != nil || generation == 0 {
+func (c *Client) SetSessionDisplay(ctx context.Context, packageID string, generation uint64, display protocol.SessionDisplay) (Protocol2Response, error) {
+	if protocol.ValidateDigest(packageID) != nil || generation == 0 || !display.Valid() {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	line, _, err := c.callRawTracked(ctx, struct {
-		Protocol           int    `json:"protocol"`
-		Operation          string `json:"operation"`
-		ExpectedPackageID  string `json:"expected_package_id"`
-		ExpectedGeneration uint64 `json:"expected_generation"`
-		Visible            bool   `json:"visible"`
-	}{2, "session_display", packageID, generation, visible})
+		Protocol           int                   `json:"protocol"`
+		Operation          string                `json:"operation"`
+		ExpectedPackageID  string                `json:"expected_package_id"`
+		ExpectedGeneration uint64                `json:"expected_generation"`
+		Visible            bool                  `json:"visible"`
+		Focus              protocol.SessionFocus `json:"focus"`
+	}{2, "session_display", packageID, generation, display.Visible, display.Focus})
 	if err != nil {
 		return Protocol2Response{}, err
 	}
@@ -29,7 +30,7 @@ func (c *Client) SetSessionDisplay(ctx context.Context, packageID string, genera
 
 type protocol2SessionDisplayControl interface {
 	protocol2StatusControl
-	SetSessionDisplay(context.Context, string, uint64, bool) (Protocol2Response, error)
+	SetSessionDisplay(context.Context, string, uint64, protocol.SessionDisplay) (Protocol2Response, error)
 }
 
 // SessionDisplayFocus fences input delivery until the physical result is known.
@@ -51,8 +52,8 @@ func sessionDisplayResponseMatches(response Protocol2Response, b protocol.Develo
 	return b.MatchesSessionDisplay(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: corePackageStatus(activation)})
 }
 
-func (r *Runtime) SetSessionDisplay(ctx context.Context, visible bool, b protocol.DevelopmentMediaBinding) *protocol.APIError {
-	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
+func (r *Runtime) SetSessionDisplay(ctx context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) *protocol.APIError {
+	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole || !display.Valid() {
 		return protocol.SessionDisplayRequestError()
 	}
 	control, ok := r.control.(protocol2SessionDisplayControl)
@@ -78,7 +79,7 @@ func (r *Runtime) SetSessionDisplay(ctx context.Context, visible bool, b protoco
 	}
 	r.computerMu.Lock()
 	defer r.computerMu.Unlock()
-	response, err := control.SetSessionDisplay(ctx, b.PackageID, b.Generation, visible)
+	response, err := control.SetSessionDisplay(ctx, b.PackageID, b.Generation, display)
 	r.noteDispatch("session_display", err == nil)
 	if err != nil {
 		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "launcher display change is unconfirmed; retry close or inspect the session", Phase: "display"}
@@ -89,11 +90,16 @@ func (r *Runtime) SetSessionDisplay(ctx context.Context, visible bool, b protoco
 	if !sessionDisplayResponseMatches(response, b) || response.MenuDisplay == nil ||
 		!response.MenuDisplay.Session || response.MenuDisplay.CoreGeneration != b.Generation ||
 		response.MenuDisplay.PackageID == nil || *response.MenuDisplay.PackageID != b.PackageID ||
-		response.MenuDisplay.Available != visible || visible && response.MenuDisplay.Generation == 0 {
+		response.MenuDisplay.Available != display.Visible || display.Visible && response.MenuDisplay.Generation == 0 ||
+		response.MenuDisplay.Focus != display.Focus {
 		return unavailableError()
 	}
-	focused = visible
-	r.keyboardMatrix = 0xffffffffff
-	r.keyboardPackageID, r.keyboardGeneration = b.PackageID, b.Generation
+	focused = display.Focus == protocol.SessionFocusLauncher
+	// The runtime posts a neutral matrix only when the launcher takes focus.
+	// Machine focus leaves held machine keys as they were.
+	if focused {
+		r.keyboardMatrix = 0xffffffffff
+		r.keyboardPackageID, r.keyboardGeneration = b.PackageID, b.Generation
+	}
 	return nil
 }

@@ -146,8 +146,10 @@ launcher actions. Per-room storage contains navigation only: selected entry,
 inspected card, shelf page and focus. Physical transitions remain in runtime;
 the shared display contract is defined in
 [session display](../sources/mister-packages/docs/session-display.md).
-`POST /api/v1/session/display` carries an explicit `visible` boolean with the
-captured session/target/package/generation headers. The target operation requires
+`POST /api/v1/session/display` carries an explicit `visible` boolean and
+`focus` (`"launcher"` or `"machine"`) with the captured
+session/target/package/generation headers. The hardware room takes launcher
+focus; a closed plane always returns focus to the machine. The target operation requires
 the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace

@@ -129,14 +129,20 @@ An active simple-computer or computer package with required
 `fes.fabric.video.display-plane` 1.0 and `fes.memory.hps-ddr` 1.0 exposes the
 same frame transport. The plane blends the slot pixels over the machine
 picture, with X as premultiplied alpha; an opaque frame replaces it. Open/return uses the active
-core identity, not the frame generation:
+core identity, not the frame generation. Each request names whether the plane
+is shown and who receives input:
 
 ```json
-{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true}
-{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false}
+{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true,"focus":"launcher"}
+{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":true,"focus":"machine"}
+{"protocol":2,"operation":"session_display","expected_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,"visible":false,"focus":"machine"}
 ```
 
-Status carries `session: true`, `core_generation: 7` and the machine picture
+A shown plane with `"focus":"machine"` composites while the machine keeps its
+keyboard and controllers, as a surround does. A closed plane with launcher
+focus is invalid.
+
+Status carries `session: true`, `core_generation: 7`, `focus` and the machine picture
 rectangle `picture: [x, y, width, height]` in `menu_display`, alongside the
 active package ID and fixed geometry, while the plane is closed. Admission
 refuses a session display that does not declare the shared plane, such as ZX81
@@ -144,22 +150,25 @@ refuses a session display that does not declare the shared plane, such as ZX81
 2 and a picture inside the frame; idle MENU must report format 1.
 `available` becomes true only after successful open, which grants the plane's
 slots afresh, keeping their pixels, under a fresh nonzero
-`menu_display.generation`. A repeated open is idempotent. Close sets
+`menu_display.generation`. A repeated open with the same focus is
+idempotent. Moving focus on a shown plane keeps that generation, its grant and
+any preparation. Close sets
 availability false and generation zero, revokes the grant and the preparation,
 and requires a new generation and grant after the next open. Stop and replacement also revoke outstanding display ownership. The
 frame generation never follows a replacement core automatically.
 
-Open neutralizes held ZX81 keys and suppresses navigation keys while the
-launcher owns focus. The first complete submitted frame becomes visible at a
+Taking launcher focus neutralizes held ZX81 keys and suppresses navigation
+keys while the launcher holds it. The native adapter owns that gate and status
+reports it. The first complete submitted frame becomes visible at a
 frame boundary. Close and frame failure disable and drain the plane without
 holding execution or resetting the computer. A sticky reader fault does not
 prevent proof that the disabled plane is drained. On an ambiguous GP exchange,
 the adapter realigns from the live ACK and verifies the same package identity
 before the distinct quiesce operation. It never repeats a submission, programs
 idle or retires the active machine to recover the display. The error remains
-in `menu_display.error`. If close cannot prove drained state, the runtime
-continues suppressing machine keys until close succeeds or the machine is
-replaced/stopped. Media mutations and display frames share the runtime busy
+in `menu_display.error`. If close or a failed frame cannot prove drained state,
+the runtime keeps launcher focus and continues suppressing machine keys until a
+later request succeeds or the machine is replaced/stopped. Media mutations and display frames share the runtime busy
 fence; close and Stop use the same bounded frame wait.
 
 The combined ZX81 display has a

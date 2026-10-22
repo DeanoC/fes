@@ -3233,8 +3233,15 @@ The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
 `fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Home/Select first
-requests `POST /api/v1/session/display` with `visible: true`, the captured session ID and
-existing target/package/core-generation headers. The paired listener admits only
+requests `POST /api/v1/session/display` with `visible: true` and
+`focus: "launcher"`, the captured session ID and
+existing target/package/core-generation headers. The request carries both
+fields every time: `visible` composites the plane over the machine picture and
+`focus` says whether the launcher or the machine receives input. A shown plane
+with `focus: "machine"` keeps machine input, as a surround around the picture
+needs; a closed plane requires machine focus. Moving focus on a shown plane
+keeps its display generation, and the agent's input fence ends focused only
+when the runtime confirms launcher focus. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
 These do not change the library's next-start media selection.
