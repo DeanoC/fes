@@ -18,6 +18,7 @@
 #include "native/generated/fes_computer.hpp"
 #include "native/generated/fes_display_plane.hpp"
 #include "native/input.hpp"
+#include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
@@ -82,12 +83,26 @@ bool HasNativeVideoSocket(const CoreDescriptor& descriptor)
 		if (interface.id == "fes.fabric.video.native-pixels") return true;
 	return false;
 }
+} // namespace
+
+// Kit software packing reads the records from this section of the stripped binary.
+#if defined(__ELF__)
+#define MISTER_MENU_INTERFACE_SECTION __attribute__((section(".fes_menu_interfaces"), used))
+#else
+#define MISTER_MENU_INTERFACE_SECTION __attribute__((used))
+#endif
+#define MISTER_MENU_INTERFACE_RECORD(id, major, minor) id "=" #major "." #minor "\0"
+const char kMenuInterfaceRecords[] MISTER_MENU_INTERFACE_SECTION =
+	MISTER_MENU_INTERFACES(MISTER_MENU_INTERFACE_RECORD);
+
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
   descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
   return {ErrorCode::invalid_package,"idle menu requires the described fes.menu video/DDR/menu package","admission"};
  return CheckCoreCompatibility(descriptor);
 }
+
+namespace {
 
 // Applications and simple computers share the boot-latched DDR port layout.
 bool RequiresHpsDdr(const CoreDescriptor& descriptor)

@@ -120,7 +120,9 @@ Live identity must match the declared capabilities exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;
-without one, startup remains splash. Menu activation reuses ordinary package
+without one, startup remains splash. The interfaces `CheckMenu` admits are
+listed in `src/native/menu_admission.hpp` and carried in the binary's
+`.fes_menu_interfaces` section, where kit software packing reads them. Menu activation reuses ordinary package
 programming, identity and DDR-port admission: zero both slots, configure,
 release execution, then enable. Menu display never creates a playable active
 package, gameplay generation or input worker. The existing local socket provides a bounded two-phase frame exchange; see
