@@ -5,16 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/DeanoC/FogCast/appliance/software"
 )
 
 // Controller must verify that all former processes have exited before returning
 // from Stop. Healthy verifies exact executable identities, native idle and actual
 // launcher readiness. It must not treat process existence alone as readiness.
+// Verify wraps software.ErrIncompatible for a release this base cannot run.
+// Active is the release whose group was last started, or empty after Stop.
 type Controller interface {
 	Verify(context.Context, string) error
 	Stop(context.Context) error
 	Start(context.Context, string, Request) error
 	Healthy(context.Context, string) error
+	Active() string
 }
 
 // Admission owns the target lease reservation. Acquire never takes over a live
@@ -32,6 +37,13 @@ type Engine struct {
 	Admission  Admission
 	// Gate rejects activation during appliance trial/pending/corrupt state.
 	Gate func(context.Context) error
+	// Factory is this image's own software. It runs in place of a selection
+	// the image cannot run; empty keeps such a selection's verification error.
+	Factory string
+	// HeldBack is the committed selection this image cannot run, and
+	// HeldBackReason says why. The selection stays recorded for an image that
+	// can run it.
+	HeldBack, HeldBackReason string
 	// Defaults are 60 seconds deadline, 10 seconds uninterrupted readiness and
 	// 250 milliseconds polling. Tests can use a virtual clock.
 	Deadline, Stable, Poll time.Duration
@@ -112,6 +124,22 @@ func (e *Engine) switchTo(ctx context.Context, id string, request Request) error
 		return err
 	}
 	return e.switchPrepared(ctx, id, request)
+}
+
+// prepareSelection verifies the release this image runs for the committed
+// selection. A selection the image cannot run is held back and the image's
+// factory software is prepared in its place. Other failures are returned.
+func (e *Engine) prepareSelection(ctx context.Context, id string) (string, error) {
+	err := e.Controller.Verify(ctx, id)
+	if err == nil {
+		e.HeldBack, e.HeldBackReason = "", ""
+		return id, nil
+	}
+	if !errors.Is(err, software.ErrIncompatible) || e.Factory == "" || id == e.Factory {
+		return id, err
+	}
+	e.HeldBack, e.HeldBackReason = id, err.Error()
+	return e.Factory, e.Controller.Verify(ctx, e.Factory)
 }
 
 func (e *Engine) switchPrepared(ctx context.Context, id string, request Request) error {
@@ -198,27 +226,43 @@ func (e *Engine) Run(ctx context.Context) error {
 		}
 		return errors.New(reason)
 	}
-	reason := "interrupted software activation"
+	reason, from := "interrupted software activation", "applying"
 	if op.Phase == "queued" {
-		if err := e.Controller.Verify(ctx, op.Candidate); err != nil {
+		err := e.Controller.Verify(ctx, op.Candidate)
+		switch {
+		case errors.Is(err, software.ErrIncompatible):
+			// This image cannot run the candidate, so it is held back and never
+			// starts. The selection keeps running and no service is touched,
+			// unless something else runs, as the factory software still does
+			// after an image change. Recovery below then starts the selection.
+			reason, from = "held back: "+err.Error(), "queued"
+			if id, err := e.prepareSelection(ctx, op.Previous); err == nil && id == e.Controller.Active() {
+				if err := complete(e.Repository, op, "queued", "recovered", reason); err != nil {
+					return err
+				}
+				return e.release(ctx, op.Request)
+			}
+		case err != nil:
 			// No service was stopped. Preserve a diagnosable blocked request and its
 			// reservation rather than repeatedly attempting an invalid artifact.
 			if save := transition(e.Repository, op, "queued", "blocked", err.Error()); save != nil {
 				return save
 			}
 			return err
-		}
-		if err := transition(e.Repository, op, "queued", "applying", ""); err != nil {
-			return err
-		}
-		err = e.switchPrepared(ctx, op.Candidate, op.Request)
-		if err == nil {
-			if err = complete(e.Repository, op, "applying", "accepted", ""); err != nil {
+		default:
+			if err := transition(e.Repository, op, "queued", "applying", ""); err != nil {
 				return err
 			}
-			return e.release(ctx, op.Request)
+			err = e.switchPrepared(ctx, op.Candidate, op.Request)
+			if err == nil {
+				if err = complete(e.Repository, op, "applying", "accepted", ""); err != nil {
+					return err
+				}
+				e.HeldBack, e.HeldBackReason = "", ""
+				return e.release(ctx, op.Request)
+			}
+			reason = err.Error()
 		}
-		reason = err.Error()
 	}
 	// A shutdown during candidate activation leaves applying durable. Spending
 	// recovery with a cancelled context would prevent the next boot recovering.
@@ -226,10 +270,16 @@ func (e *Engine) Run(ctx context.Context) error {
 		return err
 	}
 	// Persist the spent recovery attempt BEFORE stopping or starting anything.
-	if err := transition(e.Repository, op, "applying", "recovering", reason); err != nil {
+	if err := transition(e.Repository, op, from, "recovering", reason); err != nil {
 		return err
 	}
-	if err := e.switchTo(ctx, op.Previous, op.Request); err != nil {
+	// The selection is the recovery target. If this image cannot run it, the
+	// factory software takes its place and the selection is held back.
+	id, err := e.prepareSelection(ctx, op.Previous)
+	if err == nil {
+		err = e.switchPrepared(ctx, id, op.Request)
+	}
+	if err != nil {
 		failure := fmt.Sprintf("candidate failed (%s); recovery failed: %v", reason, err)
 		if save := transition(e.Repository, op, "recovering", "blocked", failure); save != nil {
 			return save
@@ -289,7 +339,13 @@ func (e *Engine) Boot(ctx context.Context, boot Request) error {
 			return err
 		}
 	}
-	if err := e.switchTo(ctx, s.Selected, req); err != nil {
+	// A selection this image cannot run is held back, and the image's factory
+	// software starts in its place instead of blocking startup.
+	id, err := e.prepareSelection(ctx, s.Selected)
+	if err == nil {
+		err = e.switchPrepared(ctx, id, req)
+	}
+	if err != nil {
 		if recovering {
 			_ = transition(e.Repository, *s.Pending, "recovering", "blocked", err.Error())
 		}
