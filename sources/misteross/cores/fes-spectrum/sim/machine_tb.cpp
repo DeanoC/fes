@@ -4,6 +4,7 @@
 // the captured frame and the T state of a contended timing marker.
 #include "Vspectrum_sim_top.h"
 #include "Vspectrum_sim_top___024root.h"
+#include "spectrum_ram_banks.h"
 #include "verilated.h"
 
 #include <cstdint>
@@ -43,13 +44,10 @@ int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     Vspectrum_sim_top dut;
     auto& root = *dut.rootp;
-    auto& ram = root.MACHINE(ram__DOT__mem);
-    const bool paged = ram.size() > 3 * 16384;
-    // RAM bank -> local block (48K keeps banks 5, 2, 0 as 0, 1, 2).
     auto bank = [&](unsigned number, unsigned offset) -> unsigned {
-        unsigned local = number;
-        if (!paged) local = number == 5 ? 0 : number == 2 ? 1 : 2;
-        return ram[local * 16384 + offset];
+        const uint8_t* memory = spectrum_ram_bank(root, number);
+        require(memory != nullptr, "no RAM bank " + std::to_string(number));
+        return memory[offset];
     };
     dut.clk_sys = 0;
     dut.reset = 1;
@@ -90,7 +88,7 @@ int main(int argc, char** argv) {
         if (frames > 400) fail("diagnostic did not finish (pilot edges " + std::to_string(matched) + ")");
     }
     require(bank(2, 0) == 0xa5, "diagnostic marker missing at $8000");
-    if (paged) {
+    if (spectrum_ram_bank(root, 7) != nullptr) {
         require(bank(7, 0) == 0x77, "bank 7 did not receive $77 through $7FFD");
         require(bank(0, 0) == 0x66, "bank 0 did not return to $C000");
         require(bank(2, 5) == 0x0f, "AY register 8 read back " + hex(bank(2, 5)));

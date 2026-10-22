@@ -35,7 +35,8 @@ the selected firmware image into the blank ROM lanes at download time.
 - Each model's frame length, interrupt length and first paper pixel follow
   Fuse's libspectrum timing table. The interrupt is accepted at instruction
   boundaries 0 to 31 (35 on the 128K and Pentagon), as on the hardware.
-- Memory is ROM pages plus 16 KiB RAM banks. The 128K and Pentagon page
+- Memory is ROM pages plus 16 KiB RAM banks, each its own memory; only the
+  screen banks (5 and 7) carry the ULA's fetch port. The 128K and Pentagon page
   through `$7FFD` (A15 and A1 low): bits 2:0 bank at `$C000`, bit 3 shadow
   screen in bank 7, bit 4 ROM, bit 5 lock. The +2A/+3 decodes `$7FFD` with
   A15:A14 = 01 and `$1FFD` with A15:A12 = 0001; `$1FFD` bit 0 selects the
@@ -153,9 +154,10 @@ the model by the `SPECTRUM_MODEL_*` define. The model, its firmware id, size
 and lanes, RAM banks, CPU clock and frame length are bound into its build
 identity, and each core has its own FES recipe row. Every model seals only
 after the 52.224, 74.25 and 12.288 MHz domains pass. Synthesis must keep the
-exact block counts per model (firmware lanes, three frame banks and the plane
-FIFO as M10K; RAM and the tape image as TDP blocks: 78/112 for the 48K,
-94/192 for the 128K and Pentagon, 126/192 for the +2A/+3), exactly three
+exact block counts per model (firmware lanes, three frame banks, the plane
+FIFO and the CPU-only RAM banks as M10K; the screen banks and the tape image
+as TDP blocks: 110/80 for the 48K, 190/96 for the 128K and Pentagon, 222/96
+for the +2A/+3), exactly three
 unsigned display-plane DSP products and the read-only plane DDR port. The
 producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact

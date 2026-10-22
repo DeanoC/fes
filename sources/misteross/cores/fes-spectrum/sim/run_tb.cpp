@@ -6,6 +6,7 @@
 // programs are read from files; none are stored in this repository.
 #include "Vspectrum_sim_top.h"
 #include "Vspectrum_sim_top___024root.h"
+#include "spectrum_ram_banks.h"
 #include "verilated.h"
 
 #include <zlib.h>
@@ -164,8 +165,6 @@ void Simulation::load_state(const std::string &path) {
     std::ifstream in(path);
     if (!in) fail("cannot read state " + path);
     auto *root = dut.rootp;
-    auto &ram = root->MACHINE(ram__DOT__mem);
-    const bool paged = ram.size() > 3 * 16384;
     std::string word;
     while (in >> word) {
         if (word == "reg") {
@@ -205,17 +204,12 @@ void Simulation::load_state(const std::string &path) {
         } else if (word == "bank") {
             unsigned bank;
             in >> bank;
-            unsigned local = bank;
-            if (!paged) {
-                if (bank == 5) local = 0;
-                else if (bank == 2) local = 1;
-                else if (bank == 0) local = 2;
-                else fail("48K state names bank " + std::to_string(bank));
-            }
+            uint8_t *memory = spectrum_ram_bank(*root, bank);
+            if (memory == nullptr) fail("the model has no RAM bank " + std::to_string(bank));
             for (unsigned i = 0; i < 16384; ++i) {
                 unsigned value;
                 in >> std::hex >> value >> std::dec;
-                ram[local * 16384 + i] = value;
+                memory[i] = value;
             }
         } else fail("bad state token " + word);
     }

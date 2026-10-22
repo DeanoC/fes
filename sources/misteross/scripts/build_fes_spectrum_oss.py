@@ -109,7 +109,7 @@ MODELS = {model.key: model for model in (
 # Exact synthesized block counts: (MISTRAL_M10K, MISTRAL_M10K_TDP). M10K is the
 # firmware lanes, the three 320x240 frame banks and the display-plane FIFO;
 # TDP is the CPU/ULA RAM and the 64 KiB tape image.
-EXPECTED_M10K = {"48": (78, 112), "128": (94, 192), "plus3": (126, 192), "pentagon": (94, 192)}
+EXPECTED_M10K = {"48": (110, 80), "128": (190, 96), "plus3": (222, 96), "pentagon": (190, 96)}
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 QSF = "cores/fes-spectrum/constraints-oss.qsf"
@@ -498,8 +498,8 @@ def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Pat
     m10k, tdp = EXPECTED_M10K[machine.key]
     if counts.get("MISTRAL_M10K", 0) != m10k or counts.get("MISTRAL_M10K_TDP", 0) != tdp:
         raise BuildError(
-            f"synthesis must keep {m10k} M10K (firmware lanes, frame banks, plane FIFO) and {tdp} "
-            f"RAM/tape TDP blocks, got M10K={counts.get('MISTRAL_M10K', 0)} "
+            f"synthesis must keep {m10k} M10K (firmware lanes, frame banks, plane FIFO, CPU-only "
+            f"RAM banks) and {tdp} screen-bank/tape TDP blocks, got M10K={counts.get('MISTRAL_M10K', 0)} "
             f"TDP={counts.get('MISTRAL_M10K_TDP', 0)}")
     validate_firmware_ports(synthesis["modules"][TOP]["cells"], machine.rom_lanes)
     _plane_dsp_evidence(synthesis)
