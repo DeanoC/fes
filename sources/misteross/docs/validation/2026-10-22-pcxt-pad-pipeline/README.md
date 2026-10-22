@@ -62,3 +62,34 @@ both comparison reports are in `capture.tar.gz`. Member hashes are in
 metrics. The compiler binary is not embedded. `test-changed.log.gz` retains
 the test run. No toolchain lock, seal, shared protocol or physical acceptance
 changed. This remains part of draft #979 and open timing issue #840.
+
+
+## CPU locality follow-up
+
+On base `930f2fbe`, two host-only fresh synthesis-to-placement replays tested
+existing `--critical-cohort-budget 16` repair with the same frozen inputs,
+compiler, seed and placement weights. The first used the complete final routed
+report as guidance. The second selected its 49 same-clock CPU paths ending at
+microcode read-address registers. This selection only directs proposals; all
+full-design clock, setup endpoint, related-hold and legality guards remain on.
+Neither replay routes or writes an RBF.
+
+Both exited successfully and rejected every move: 16 STA trials each, zero
+retained. The complete-guidance search attempted 16 geometries; address-focused
+search attempted 21. Their output modules, including placement and connectivity,
+are identical. This bounded negative result does not prove that all placements
+fail. It provides no new final-routed or hardware evidence.
+
+The worst routed address path spends 7.978 ns in wiring and 3.045 ns in logic.
+Its first two wires alone total 3.780 ns, travelling from last-result at (10,37)
+to reduction logic at (12,27), then back to (8,37). The existing hard-IP capture
+locality pass is inapplicable to this combinational CPU path. Adding a cached
+zero flag is also unjustified while last-result writeback already fails by
+0.729 ns. The next compiler investigation should address coordinated placement
+of the reduction and address-select cone, with writeback and microcode capture
+protected, before another route is spent.
+
+`cpu-locality-host.tar.gz` retains exact commands, scripts, logs, input hashes,
+results and original report indices to reproduce the selected guidance. No RTL,
+compiler implementation, clock, lock, seal or shared contract changed. No GPU
+route time was spent: the incident allowance remains 607.674011 seconds.
