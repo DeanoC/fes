@@ -3275,7 +3275,12 @@ the session is active. The parked frame becomes `drawSurround`:
 - a clear window over the runtime's `menu_display.picture`, which
   `gfx.MenuDisplay.SessionPicture` reports, with shaded edges.
 
-Until the picture is known, the frame is fully clear. Home/Select and Back move
+Until the picture is known, the frame is fully clear. While the hardware
+room holds launcher focus on that plane, tenfoot sets `room.overlay`. The room
+then clears to a premultiplied dark scrim and switches to light text on dark
+surfaces, so the machine stays visible behind it. `gfx.Color` is straight
+alpha, and `Software.Clear` and replacing fills store the premultiplied form
+that the plane blends. Home/Select and Back move
 focus on that shown plane without pausing or rebinding the presenter. Input
 handoff (releasing held keys and closing the local feed) happens only when
 focus moves. A refused surround closes the plane, and the setting stays off

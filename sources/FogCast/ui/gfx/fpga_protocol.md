@@ -108,7 +108,10 @@ programmed 2D core may raster it through Software until a later opcode exists.
 `DebugText` stays the 8×8 HUD path.
 
 `FillRect` honours the last `SetBlend`. Textured `Draw` uses source-over of
-the texture's alpha, matching Software and SDL today.
+the texture's alpha, matching Software and SDL today. `rgba` payloads are
+straight alpha. The framebuffer is premultiplied, so `Clear` and replacing
+fills write `r*a/255, g*a/255, b*a/255, a`, the form the kit's session plane
+blends over a running machine.
 
 ## Device mapping
 

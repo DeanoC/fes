@@ -26,6 +26,15 @@ func (a *App) surroundShownLocked() bool {
 		a.stopPhase != "stopping" && !a.retryStopLock
 }
 
+// roomOverlayLocked is true while the open room is drawn over the running
+// machine on the kit's session plane with launcher focus, so a room that
+// reads room.overlay can clear translucently. Host windows and an uncertain
+// plane draw rooms opaque.
+func (a *App) roomOverlayLocked() bool {
+	return a.menuDisplay != nil && a.roomDuringPlay && a.session.State == "active" &&
+		a.sessionDisplay == protocol.SessionDisplayFocused && !a.sessionDisplayUncertain
+}
+
 const (
 	surroundBezel      = 28
 	surroundCorner     = 18

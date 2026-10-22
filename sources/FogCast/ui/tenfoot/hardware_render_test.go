@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"image"
 	"image/png"
 	"io/fs"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -88,11 +90,11 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		for _, scene := range []string{"idle", "running", "no-artwork", "preview"} {
+		for _, scene := range []string{"idle", "running", "no-artwork", "preview", "overlay"} {
 			t.Run(fmt.Sprintf("%s-%dx%d", scene, size.w, size.h), func(t *testing.T) {
 				data := snapshot
 				selectedPack := pack
-				if scene == "running" {
+				if scene == "running" || scene == "overlay" {
 					data.Session = &hostclient.SessionResult{
 						ID: "fixture-session", Target: "dev", State: "active", GameID: "fpga-zx81",
 						CorePackage: &hostclient.SessionCorePackage{
@@ -107,7 +109,16 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 				}
 				app := NewApp(nil, size.w, size.h, 20)
 				app.session = *data.Session
-				app.roomDuringPlay = scene == "running"
+				app.roomDuringPlay = scene == "running" || scene == "overlay"
+				if scene == "overlay" {
+					// The kit session plane with launcher focus over a live machine.
+					display, err := gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer display.Close()
+					app.menuDisplay, app.sessionDisplay = display, protocol.SessionDisplayFocused
+				}
 				w, h := app.roomContentSizeLocked(hardwareRoomID)
 				inst, err := rooms.New(selectedPack, rooms.Options{Width: w, Height: h, Services: hardwareRenderServices{snapshot: data}, Index: index, Budget: hardwareRenderTestBudget()})
 				if err != nil {
@@ -184,6 +195,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					t.Fatal(err)
 				}
 				presentFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{}, false)
+				assertRoomPlanePixels(t, dev.Snapshot(), scene == "overlay")
 				if output := strings.TrimSpace(os.Getenv("FES_ROOM_SCREENSHOT_DIR")); output != "" {
 					if err := os.MkdirAll(output, 0o755); err != nil {
 						t.Fatal(err)
@@ -263,5 +275,35 @@ func TestHardwareRoomReturnRefreshesProductionLua(t *testing.T) {
 	waitFor(t, app, "fresh running Stop", func(s Snapshot) bool { return hasText(s, "Stop machine") && !hasText(s, "Start machine") })
 	if services.calls < 2 {
 		t.Fatal("return reused pre-launch hardware data")
+	}
+}
+
+// assertRoomPlanePixels checks what the kit plane receives. Every pixel must
+// be premultiplied (r,g,b <= a), or the FPGA blend adds light to the machine.
+// An opaque room covers the machine everywhere. An overlay leaves most of
+// the frame translucent, with its controls drawn as solid surfaces.
+func assertRoomPlanePixels(t *testing.T, img *image.RGBA, overlay bool) {
+	t.Helper()
+	var opaque, translucent int
+	for i := 0; i < len(img.Pix); i += 4 {
+		r, g, b, a := img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3]
+		if r > a || g > a || b > a {
+			t.Fatalf("pixel %d is not premultiplied: %d,%d,%d,%d", i/4, r, g, b, a)
+		}
+		if a == 255 {
+			opaque++
+		} else {
+			translucent++
+		}
+	}
+	total := opaque + translucent
+	if !overlay {
+		if translucent != 0 {
+			t.Fatalf("opaque room left %d translucent pixels", translucent)
+		}
+		return
+	}
+	if translucent < total/2 || opaque < total/20 {
+		t.Fatalf("overlay coverage: %d translucent, %d opaque of %d", translucent, opaque, total)
 	}
 }

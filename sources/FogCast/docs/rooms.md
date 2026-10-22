@@ -160,7 +160,11 @@ when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bi
 `room.id`, `room.title`, `room.width`, `room.height` (logical pixels of the
 safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
-preference), `room.theme` (hex strings: `background`, `accent`, `highlight`,
+preference), `room.overlay` (boolean; true while the room is drawn over a
+running machine on the kit's HDMI session plane with launcher focus, false
+on host windows; a room that reads it can clear translucently so the machine
+stays visible, and must include it in any reused-picture key), `room.theme`
+(hex strings: `background`, `accent`, `highlight`,
 `flash`, `label`, `label_bar`, `status`, `header`, `header_bar`,
 `footer_bar`, `cover_frame`). A `hero` room also gets `room.hero`, with
 `header`, `card`, `text`, `art`, `shelf` and `footer` rectangles
@@ -169,7 +173,10 @@ recomputed before `on_resize`.
 
 ### `gfx` (inside `draw` only, except `measure`)
 
-Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255.
+Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255,
+with straight (not premultiplied) alpha. A translucent clear, or a fill under
+`gfx.blend("none")`, stores its premultiplied form. Over the kit's session
+plane that is what lets the running machine show through.
 
 | call | effect |
 | --- | --- |

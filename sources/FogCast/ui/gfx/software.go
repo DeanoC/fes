@@ -13,7 +13,10 @@ import (
 // Cover, screenshot, and still downscale uses Catmull–Rom once at decode
 // (ui/shared.DecodeCover and siblings), not here. FillRect honors
 // BlendNone and BlendAlpha. Textured Draw always uses source-over alpha,
-// matching the SDL backend's texture blend mode.
+// matching the SDL backend's texture blend mode. Colors are straight alpha
+// and the framebuffer is premultiplied, which the kit's session plane blends
+// over the running machine: Clear and replacing fills premultiply a
+// translucent color, and the blending paths composite onto it.
 //
 // Present is a no-op: the framebuffer is already current. Snapshot copies
 // it for golden tests. Loops are stride-aware and do not allocate per pixel.
@@ -125,7 +128,14 @@ func (s *Software) BeginFrame() {}
 
 func (s *Software) Clear(c Color) {
 	s.previous = nil
+	c = premultiplied(c)
 	fillRows(s.pix, s.stride, 0, 0, s.w, s.h, c.R, c.G, c.B, c.A)
+}
+
+// premultiplied is the framebuffer form of a straight color.
+func premultiplied(c Color) Color {
+	p := straightToPremult(c)
+	return Color{R: p.R, G: p.G, B: p.B, A: p.A}
 }
 
 func (s *Software) Present() {}
@@ -222,6 +232,7 @@ func (s *Software) FillRect(rect Rect, c Color) {
 		}
 		return
 	}
+	c = premultiplied(c)
 	fillRows(s.pix, s.stride, x0, y0, x1, y1, c.R, c.G, c.B, c.A)
 }
 

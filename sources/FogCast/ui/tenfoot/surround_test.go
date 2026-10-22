@@ -9,6 +9,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func surroundPixels(t *testing.T, picture image.Rectangle) *image.RGBA {
@@ -145,5 +146,52 @@ func TestSurroundSettingTogglesAndPersists(t *testing.T) {
 	got, err := loadTenfootPrefs(path)
 	if err != nil || got.Surround == nil || *got.Surround {
 		t.Fatalf("prefs = %#v err=%v", got, err)
+	}
+}
+
+const overlayRoomScript = `
+function load() end
+function draw()
+  gfx.clear(room.overlay and {r=0,g=0,b=0,a=160} or "#122738")
+  gfx.text("Hardware room", 20, 20, {size=24})
+end
+`
+
+// The hardware room opened over a running machine on the kit plane sees
+// room.overlay and clears translucently; leaving it restores the surround.
+func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
+	_, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, overlayRoomScript)}), "")
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "room overlay", func(s Snapshot) bool {
+		return s.Room.DuringPlay && s.Room.Frame.HasClear && s.Room.Frame.Clear == gfx.RGBA(0, 0, 0, 160)
+	})
+	app.mu.Lock()
+	app.sessionDisplayUncertain = true
+	uncertain := app.roomOverlayLocked()
+	app.sessionDisplayUncertain = false
+	app.mu.Unlock()
+	if uncertain {
+		t.Fatal("an uncertain plane drew the room translucently")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "surround after the overlay", func(s Snapshot) bool { return !s.Room.DuringPlay && s.Surround.Active })
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.roomOverlayLocked() {
+		t.Fatal("overlay outlived the room visit")
+	}
+}
+
+// Host windows have no session plane: a room during play stays opaque.
+func TestHostRoomDuringPlayIsNeverAnOverlay(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	app.session.State, app.roomDuringPlay, app.sessionDisplay = "active", true, protocol.SessionDisplayFocused
+	if app.roomOverlayLocked() {
+		t.Fatal("host window drew the room translucently")
 	}
 }

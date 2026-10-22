@@ -83,6 +83,19 @@ rectangle. The hardware room takes launcher focus on the same plane and draws
 over the surround. Returning gives input back with the surround still shown.
 Neither move rebinds the plane or grants a new display generation.
 
+While the hardware room is open, the plane keeps the machine visible behind
+it. Tenfoot sets `room.overlay` when the room is drawn over a running machine
+on the kit plane with launcher focus. In that mode the hardware room:
+
+- clears to a dark scrim (alpha 200), which leaves the machine at about 21%
+  brightness;
+- draws its controls as solid dark surfaces with light text;
+- drops its machine illustration, so the real machine shows through.
+
+Host windows never set the flag and keep the opaque room. The painter stores
+every colour premultiplied, so a translucent clear never adds light to the
+machine on the plane.
+
 A plane that refuses the surround is closed. The session then keeps machine
 pixels only, and the room opens and closes the plane as before. The **TV
 surround · kit HDMI** setting (`surround` in `tenfoot.json`, on by default)
