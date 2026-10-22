@@ -142,3 +142,49 @@ func TestUnknownTriggerPadUsesGenericLayout(t *testing.T) {
 		t.Fatal("trigger button mapped")
 	}
 }
+
+// Without hid-playstation a DualSense is a generic HID pad: PS sits in the
+// BTN_TRIGGER range and nothing is on BTN_MODE. With the driver, PS is
+// BTN_MODE. The DB knows both.
+func TestGuideFollowsTheDBMapping(t *testing.T) {
+	generic := NewMapper(Device{Name: "Wireless Controller", Bus: 3, Vendor: 0x054c, Product: 0x0ce6, Version: 0x0111,
+		Keys: bits(96, codeRange(288, 301)...), Abs: bits(8, 0, 1, 2, 3, 4, 5, 16, 17),
+		Axes: map[uint16]Range{0: {Min: 0, Max: 255}}})
+	if generic.Mapping() != "PS5 Controller" || !generic.Guide(300) || generic.Guide(316) {
+		t.Fatalf("generic HID DualSense: mapping %q guide(300)=%v guide(316)=%v", generic.Mapping(), generic.Guide(300), generic.Guide(316))
+	}
+	if _, ok := generic.Map(1, 300, 1); ok {
+		t.Fatal("Guide reached the core mapping")
+	}
+	driver := NewMapper(Device{Name: "Sony Interactive Entertainment DualSense Wireless Controller", Bus: 3,
+		Vendor: 0x054c, Product: 0x0ce6, Version: 0x8111,
+		Keys: bits(96, append([]int{304, 305, 307, 308}, codeRange(310, 318)...)...), Abs: bits(8, 0, 1, 2, 3, 4, 5, 16, 17)})
+	if !driver.Guide(316) || driver.Guide(317) {
+		t.Fatalf("hid-playstation DualSense: guide(316)=%v guide(317)=%v", driver.Guide(316), driver.Guide(317))
+	}
+	if !NewMapper(Device{}).Guide(316) {
+		t.Fatal("fallback layout lost BTN_MODE")
+	}
+	if NewKeyboardMapper().Guide(316) || NewMouseMapper().Guide(316) {
+		t.Fatal("a keyboard or mouse has no Guide")
+	}
+}
+
+// BTN_MODE is Guide only when the DB entry leaves that code free.
+func TestBTNModeBoundToAnotherControlIsNotGuide(t *testing.T) {
+	keys := bits(96, 304, 305, 316)
+	stick, ok := parseSDLEntry("03000000010000000100000001000000,Test Pad,a:b0,b:b1,leftstick:b2,platform:Linux,")
+	if !ok {
+		t.Fatal("synthetic entry did not parse")
+	}
+	if l := sdlLayout(stick, keys, bits(8)); l.guide != 0 {
+		t.Fatalf("BTN_MODE bound to leftstick still counted as Guide: %d", l.guide)
+	}
+	free, _ := parseSDLEntry("03000000010000000100000001000000,Test Pad,a:b0,b:b1,platform:Linux,")
+	if l := sdlLayout(free, keys, bits(8)); l.guide != 316 {
+		t.Fatalf("free BTN_MODE is not Guide: %d", l.guide)
+	}
+	if l := sdlLayout(free, bits(96, 304, 305), bits(8)); l.guide != 0 {
+		t.Fatalf("a pad without BTN_MODE grew a Guide: %d", l.guide)
+	}
+}

@@ -76,7 +76,9 @@ tenfoot keeps for Stop and status reconciliation. `POST /v1/local/stop`
 requires `expected_generation`; missing or stale generations are refused before
 the runtime is called. Select+Start held for one second stops a kit-local core
 instead of posting the host session stop. Keyboard F12 or a pad's Guide button
-also stops it with one press; neither is forwarded to the core. The first
+also stops it with one press; neither is forwarded to the core. Guide is the
+pad's GameControllerDB `guide` binding, or `BTN_MODE` when that mapping leaves
+the code free. The first
 loading frame shows phase and elapsed time. Tenfoot waits until that frame
 has been presented, pauses menu display, then dispatches the launch request.
 A failed or unpresented frame aborts dispatch. Late adoption of a core that

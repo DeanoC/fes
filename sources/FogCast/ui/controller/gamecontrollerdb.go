@@ -15,6 +15,7 @@ var gameControllerDB string
 // Linux input-event-codes.h limits that SDL's joystick driver numbers against.
 const (
 	btnJoystick = 0x120
+	btnMode     = 0x13c
 	keyMax      = 0x2ff
 	absHat0X    = 0x10
 	absHat3Y    = 0x17
@@ -152,6 +153,13 @@ func sdlLayout(e sdlEntry, keys, abs []byte) layout {
 			l.buttons[buttons[n]] = name
 		}
 	}
+	// A generic HID pad reports Guide in the BTN_TRIGGER range, and on some
+	// pads BTN_MODE is another control. The launcher asks the layout.
+	if n, ok := sdlIndex(e.bindings["guide"], "b"); ok && n < len(buttons) {
+		l.guide = buttons[n]
+	} else if hasBit(keys, btnMode) && !sdlBindsCode(e, buttons, btnMode) {
+		l.guide = btnMode
+	}
 	for axis, target := range [2]string{"leftx", "lefty"} {
 		source := e.bindings[target]
 		if n, ok := sdlIndex(strings.TrimSuffix(source, "~"), "a"); ok && n < len(axes) {
@@ -193,6 +201,16 @@ func sdlDirection(source string, hats, axes []uint16) (code uint16, positive, ok
 		return 0, false, false
 	}
 	return axes[n], source[0] == '+', true
+}
+
+// sdlBindsCode reports whether any button binding in the entry resolves to code.
+func sdlBindsCode(e sdlEntry, buttons []uint16, code uint16) bool {
+	for _, source := range e.bindings {
+		if n, ok := sdlIndex(source, "b"); ok && n < len(buttons) && buttons[n] == code {
+			return true
+		}
+	}
+	return false
 }
 
 func sdlIndex(source, kind string) (int, bool) {

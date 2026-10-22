@@ -353,7 +353,11 @@ devices:
 					continue
 				}
 				if typ == 1 {
-					if in.mapper != nil && code != 316 {
+					guide := code == 316
+					if in.mapper != nil {
+						guide = in.mapper.Guide(code)
+					}
+					if in.mapper != nil && !guide {
 						if e, ok := in.mapper.Map(typ, code, value); ok {
 							if e.Kind == remoteinput.KindButton {
 								in.button(app, ButtonFromLogical(e.Code), value, now)
@@ -364,7 +368,7 @@ devices:
 						}
 						continue
 					}
-					if code == 316 {
+					if guide {
 						if value == 1 && app.Snapshot().Session.HardwareRoom {
 							app.Press(CmdHome, now)
 						} else if app.coreOwnsPadInput() {
@@ -378,9 +382,9 @@ devices:
 							}
 						} else if value == 1 {
 							app.NoteInput(InputGamepad, in.fd)
-							in.setButton(316, CmdSettings, true)
+							in.setButton(code, CmdSettings, true)
 						} else if value == 0 {
-							in.setButton(316, CmdSettings, false)
+							in.setButton(code, CmdSettings, false)
 						}
 					} else if button := nativeButton(code); button != ButtonNone {
 						in.button(app, button, value, now)
@@ -806,6 +810,7 @@ func nativeDeviceName(fd int) string {
 	}
 	return strings.TrimRight(string(name[:]), "\x00")
 }
+
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis.
 func nativeGamepadMapper(fd int) *controller.Mapper {

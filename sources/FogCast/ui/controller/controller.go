@@ -29,6 +29,9 @@ type Mapper struct {
 type layout struct {
 	buttons map[uint16]string
 	axes    map[uint16]axisBinding
+	// guide is the launcher button's evdev code, or 0 when the pad has none.
+	// It never reaches a core.
+	guide uint16
 }
 
 // axisBinding feeds left-x (0) or left-y (1). A hat source owns its axis
@@ -48,7 +51,8 @@ func fallbackLayout() layout {
 			544: "dpad-up", 545: "dpad-down", 546: "dpad-left", 547: "dpad-right",
 			288: "x", 289: "a", 290: "b", 291: "y", 292: "l", 293: "r", 296: "select", 297: "start",
 		},
-		axes: map[uint16]axisBinding{0: {axis: 0}, 1: {axis: 1}, 16: {axis: 0, hat: true}, 17: {axis: 1, hat: true}},
+		axes:  map[uint16]axisBinding{0: {axis: 0}, 1: {axis: 1}, 16: {axis: 0, hat: true}, 17: {axis: 1, hat: true}},
+		guide: btnMode,
 	}
 }
 
@@ -68,6 +72,12 @@ func (m *Mapper) Mapping() string {
 		return ""
 	}
 	return m.mapping
+}
+
+// Guide reports the pad's launcher button: its GameControllerDB guide
+// binding, or BTN_MODE on a pad whose mapping leaves that code free.
+func (m *Mapper) Guide(code uint16) bool {
+	return m != nil && !m.mouse && !m.keyboard && m.layout.guide != 0 && code == m.layout.guide
 }
 
 func NewMouseMapper() *Mapper { return &Mapper{mouse: true, suppressed: map[uint16]bool{}} }

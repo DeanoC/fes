@@ -957,3 +957,49 @@ func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
 		t.Fatal("Guide no longer opens Settings in the menu")
 	}
 }
+
+// A DB-mapped Guide can sit on any evdev code. Without hid-playstation a
+// DualSense is a generic HID pad with PS on code 300 and nothing on BTN_MODE.
+func TestMappedGuideFollowsTheDB(t *testing.T) {
+	genericDualSense := func(t *testing.T) *controller.Mapper {
+		t.Helper()
+		keys := make([]byte, 96)
+		for code := 288; code <= 301; code++ {
+			keys[code/8] |= 1 << uint(code%8)
+		}
+		mapper := controller.NewMapper(controller.Device{Name: "Wireless Controller", Bus: 3, Vendor: 0x054c, Product: 0x0ce6, Version: 0x0111,
+			Keys: keys, Abs: []byte{0x3f, 0, 0x03, 0, 0, 0, 0, 0}})
+		if mapper.Mapping() != "PS5 Controller" {
+			t.Fatalf("mapping %q", mapper.Mapping())
+		}
+		return mapper
+	}
+	t.Run("BTN_MODE is not Guide on this pad", func(t *testing.T) {
+		a := NewApp(nil, 1280, 720, 10)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		if a.Snapshot().Settings.Open {
+			t.Fatal("an unmapped BTN_MODE opened Settings")
+		}
+	})
+	t.Run("mapped Guide opens Settings", func(t *testing.T) {
+		a := NewApp(nil, 1280, 720, 10)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 300, 1), nativeTestEvent(1, 300, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		if !a.Snapshot().Settings.Open {
+			t.Fatal("the DB's Guide did not open Settings")
+		}
+	})
+	t.Run("mapped Guide stops a kit-local core", func(t *testing.T) {
+		a, fake := runningLocalApp(t)
+		inputs, poll := pollNative(t, nativeTestEvent(1, 300, 1), nativeTestEvent(1, 300, 0))
+		inputs.devices[0].mapper = genericDualSense(t)
+		poll(a)
+		waitStops(t, fake, 1)
+		if a.Snapshot().Settings.Open {
+			t.Fatal("the stop press also reached the menu")
+		}
+	})
+}
