@@ -94,7 +94,7 @@ use the same GPU. On grant the visibility mask is
 rebuilt from exactly the leased ids, overriding inherited CUDA/HIP masks.
 GPU_LEASE_VENDOR=amd|nvidia|apple selects the variables exported to CMD:
   amd:     ROCR_VISIBLE_DEVICES, FES_GPU_IDS
-  nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
+  nvidia:  CUDA_VISIBLE_DEVICES, CUDA_DEVICE_ORDER=PCI_BUS_ID, FES_GPU_IDS
   apple:   FES_GPU_IDS (Metal has no visibility mask)
 FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the index to
 pass to nextpnr: 0 after masking on AMD and NVIDIA, the physical id on Apple,
@@ -1456,7 +1456,7 @@ def acquire(directory, ids, count, vendor, owner, label, command, cap, wait, tim
 def child_env(vendor, ids, device_node=None):
     env = os.environ.copy()
     joined = ','.join(ids)
-    for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES'):
+    for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'CUDA_DEVICE_ORDER'):
         env.pop(key, None)
     env['FES_GPU_IDS'] = joined
     env['GPU_RUN_DEVICE'] = '0'
@@ -1470,6 +1470,10 @@ def child_env(vendor, ids, device_node=None):
         env['GPU_RUN_DEVICE'] = ids[0]
     else:
         env['CUDA_VISIBLE_DEVICES'] = joined
+        # Granted ids are nvidia-smi indices, which follow PCI bus order. CUDA's
+        # default order is fastest first, under which the mask selects another
+        # GPU on a box whose fastest device is not at the lowest bus address.
+        env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
     return env
 
 
@@ -1915,7 +1919,7 @@ def phase_child_env(vendor, lease_fd):
     """Environment for a --phase-lease command, which starts without a grant."""
     env = os.environ.copy()
     for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES',
-                'FES_GPU_IDS', 'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE'):
+                'CUDA_DEVICE_ORDER', 'FES_GPU_IDS', 'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE'):
         env.pop(key, None)
     env['GPU_LEASE_FD'] = str(lease_fd)
     env['NEXTPNR_REQUIRE_GPU'] = '1'
