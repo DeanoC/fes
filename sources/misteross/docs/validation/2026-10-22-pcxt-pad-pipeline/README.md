@@ -579,16 +579,17 @@ WNS -1.990 ns and 191 failing ROM-address rows. Adding the new criticality cost
 increases failures to 515 and system WNS to -2.556 ns; 145 address rows and one
 return row fail. Neither route has a related hold failure; both retain 105
 unsupported boundaries. Full graph proofs and deliberate corruption checks
-pass independently for each route. No tracked RTL adopts the retiming.
+pass independently for each route. No tracked RTL adopts the retiming. The [complete same-edge captures](rom-same-edge/README.md)
+preserve both source snapshots, proofs and failed full routes.
 
-[Compiler captures through `c2e9cb77`](https://github.com/DeanoC/nextpnr/tree/c2e9cb77/docs/validation)
+[Compiler captures through `36617f23`](https://github.com/DeanoC/nextpnr/tree/36617f23/docs/validation)
 include the complete native-window four-way comparison, fixed-recipe seeds,
-density, RAM swaps, bare ADD, balanced ADD, arrival-pin and failed cost results. Archives
+density, RAM swaps, bare ADD, balanced ADD, arrival-pin, failed cost and parameter-matrix results. Archives
 retain original failures and exact input/source/tool/command identities with
-full readback. `continued-runs.jsonl` preserves 25 subsequent completed run
+full readback. `continued-runs.jsonl` preserves 27 subsequent completed run
 receipts and per-clock results. Their charges bring the campaign total to
-**30806.77144498564237 seconds**. This includes all five completed placement
-weight/exponent sweep cases and excludes the still-running local route repair.
+**31584.30252136522837 seconds**. This includes all five placement
+weight/exponent sweep cases and both completed local repair tests.
 Only completed receipts are charged. The earlier sandbox-denied sweep launch
 never started nextpnr: its five wrapper failures add zero GPU/full-route charge;
 0.5072072022594512 seconds of wrapper elapsed time is retained separately. Synthesis, compiler builds and CPU-only preparation add
@@ -603,10 +604,25 @@ Their complete 17,199-row identity/window/flag inventories match. Changed
 native physical details are retained, not presumed equivalent. Related hold
 has no failing row and coverage remains incomplete in every case.
 
-The next test uses the frozen best recipe with the existing guarded
-`--critical-route-budget 32` repair. Separate out-only work evaluates exact
-PIC event decode, while a default-off private two-LUT display decomposition
-is being implemented with placement, native legality and full rollback guards.
-Neither qualifies timing. CPU/system remains 100 MHz, pixel
-remains 74.25 MHz, no shared/module contract or production lock changes, and
-no hardware ran. Both PRs remain draft and #840 remains open.
+Adding `--critical-route-budget 32` to the frozen best recipe accepts three
+native-guarded route changes. Failures fall from 14 to 13: one PIC row improves
+from -289 to +186 ps; the two failing MDA rows improve to -327/-328 ps.
+Exactly five setup rows improve, every other setup row and every hold row is
+unchanged, and all non-endpoint snapshot fields match. System WNS remains
+-434 ps and CPU WNS -173 ps. The emitted RBF, native endpoint report and timing
+report change, but the old compiler's saved routed JSON is byte-identical to
+the reference: its cached ROUTING attributes predate the repairs. This is a
+confirmed final-native timing gain with an explicit checkpoint provenance gap,
+not proof of the final serialized routing. The compiler serialization fix and
+fresh fixed-tool replay are required before using that JSON as final evidence.
+
+The separate `--critical-move-route-budget 16` test keeps no move and retains
+14 failures; it considers 32 cells but finds no eligible target for a trial.
+The old compiler also copies cached physical attributes into move snapshots;
+that provenance is being repaired before further retained-move claims.
+The strict timing/coverage guards remain unchanged. Separate out-only work
+evaluates exact PIC event decode, while a default-off private two-LUT display
+decomposition is being prepared with placement, native legality and rollback
+guards. CPU/system remains 100 MHz, pixel remains 74.25 MHz, no shared/module
+contract or production lock changes, and no hardware ran. Both PRs remain
+draft and #840 remains open.
