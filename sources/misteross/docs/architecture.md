@@ -181,8 +181,8 @@ The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
-nextpnr `552ba246` (fes#887), RISC-V's `8f453ebc`, ZX81's and Atari ST's
-`1eecf877` (fes#936, fes#910), and Coleco's pins Yosys `5391eeb1`; each
+nextpnr `552ba246` (fes#887), RISC-V's `8f453ebc`, ZX81's `1eecf877` (fes#936),
+Atari ST's `14d21d4b` (fes#910), and Coleco's pins Yosys `5391eeb1`; each
 distinct lock selects its own slot. The other per-core locks remain byte copies of `toolchain.lock`
 on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
 weights, clock checks, routing mode, GPU binding,
@@ -2650,8 +2650,9 @@ model nor injected callback waits establish electrical FPGA behavior. FX68K sour
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
 The board producer authenticates `cores/fes-atari-st/toolchain.lock`, which pins
-nextpnr `1eecf877`. On the shared `9128800f` pin the ST routes did not finish
-within the producer timeout (fes#910).
+nextpnr `14d21d4b` (DeanoC/nextpnr#276). On the shared `9128800f` pin the ST
+routes did not finish within the producer timeout (fes#910). On `1eecf877` the
+reserved sockets refused every boundary `$ROUTETHRU`; #276 restores them.
 When at least
 one route finishes and every finished route misses timing, it writes
 `build/fes-core-unavailable.json` (version 1, the requested seeds, and the

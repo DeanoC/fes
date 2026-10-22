@@ -187,8 +187,8 @@ matching `toolchain-fes-<core>` target that provisions its
 `cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
-Pong's lock pins nextpnr `552ba246`, RISC-V's `8f453ebc`, ZX81's and Atari
-ST's `1eecf877`, and Coleco's pins Yosys `5391eeb1`; each distinct lock has its
+Pong's lock pins nextpnr `552ba246`, RISC-V's `8f453ebc`, ZX81's `1eecf877`,
+Atari ST's `14d21d4b`, and Coleco's pins Yosys `5391eeb1`; each distinct lock has its
 own slot. The other locks share identical compiler pins (nextpnr
 `9128800f`), so a shared `CACHE_ROOT` reuses one cached slot for them. The factory recipe stays HIP. The October kit notes do not accept
 a shared-pin seal. See [Cores](docs/cores.md).
