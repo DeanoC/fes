@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
@@ -145,5 +146,41 @@ func TestSurroundSettingTogglesAndPersists(t *testing.T) {
 	got, err := loadTenfootPrefs(path)
 	if err != nil || got.Surround == nil || *got.Surround {
 		t.Fatalf("prefs = %#v err=%v", got, err)
+	}
+}
+
+// A kit HIL found the room's "HDMI controls unavailable" notice left behind
+// after Stop: Stop drains the shown surround, so its frames fail. Stop never
+// raises the notice, and the end of the session clears it.
+func TestKitSurroundStopLeavesNoStaleDisplayNotice(t *testing.T) {
+	kit, app, display := newSurroundKit(t, computerTapeDisplaySession())
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
+	prior := computerTapeDisplaySession()
+	kit.presenter.set(menudisplay.Status{Session: true, PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation})
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if display.LastError() == nil {
+		t.Fatal("closed plane accepted a surround frame")
+	}
+	app.mu.Lock()
+	app.stopPhase = "stopping"
+	app.mu.Unlock()
+	app.Tick(time.Now())
+	app.mu.Lock()
+	stopping := app.roomSessionNotice
+	app.stopPhase = ""
+	app.mu.Unlock()
+	if stopping == sessionDisplayUnavailableNotice {
+		t.Fatal("Stop draining the surround raised the display notice")
+	}
+	app.Tick(time.Now())
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.roomSessionNotice != sessionDisplayUnavailableNotice {
+		t.Fatalf("a failing shown plane gave notice %q", app.roomSessionNotice)
+	}
+	app.applySessionLocked(hostclient.SessionResult{State: "idle"})
+	if app.roomSessionNotice != "" {
+		t.Fatalf("notice %q outlived the session", app.roomSessionNotice)
 	}
 }
