@@ -1227,3 +1227,48 @@ archive SHA-256
 Independent root extraction verifies all 100 members, all 256/234 members of
 the two explicit dependencies, and exact full proof and review reproduction.
 Archive replay incurs no route charge.
+
+
+## Combined-recipe placement seeds remain diagnostic
+
+Two fresh routes now apply the same CPU-two-round/permutation16 recipe to
+seeds 2 and 3, using the frozen `02ffa3aa6a74b71debbb23da24e5332b541cf742`
+compiler and `ff2174157ae425d4b8c106bb22120be740230ac02b28e8a198010124f3b433e3`
+binary. Only the seed differs from the measured eight-failure seed-1 reference;
+all original clocks, raw synthesis and constraints are unchanged.
+
+| Seed | Setup failures | Worst setup | CPU setup failures | CPU worst | Hold failures | Minimum hold |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 (prior reference) | 8 | -434 ps | 2 | -25 ps | 0 | +822 ps |
+| 2 | 356 | -1734 ps | 302 | -1734 ps | 0 | +719 ps |
+| 3 | 50 | -384 ps | 42 | -384 ps | 0 | +781 ps |
+
+The complete comparison preserves all 17,199 endpoint/domain rows, row windows
+and timing flags, schema-7 clock contracts and native clock constraints.
+All changed rows and every non-endpoint metadata difference are retained.
+These independent placements can improve some margins and regress others;
+no cross-seed nonregression or graph equivalence is inferred. Both new seeds
+retain 105 unsupported obligations and `complete=false`. Neither closes timing
+or establishes a same-recipe two-of-three pass. The eight-failure seed-1 result
+remains the selected diagnostic recipe.
+
+The two completed route charges are 1188.7011790256947 and
+1083.278275907971 seconds. The journal now contains 48 subsequent receipts and
+cumulative charge **49088.42629542434527 seconds**. The original seed-1 reference
+is not recharged. Complete evidence is under `out/combined-seeds23-20261023/`;
+comparison SHA-256 is
+`d3c7a4c049710c771d38095bac4ebaf16d86df5632063891c00ef38d3fdcf61f`.
+Independent replay reproduces the comparison bytes and recomputes every changed
+row, metadata difference and journal total; review SHA-256 is
+`daf038b765daf06e7d8893782ea46bf767ac0ac8323edc7334e4f2645aa15444`.
+This is host diagnostic evidence. No RTL, clocks, constraints, toolchain lock,
+shared contracts or hardware changed.
+
+The completed private-pair rejection has an
+[immutable compiler capture](https://github.com/DeanoC/nextpnr/tree/d2548af0/docs/validation/2026-10-23-pcxt-private-pair-node-budget),
+archive SHA-256
+`26dea41e116f9ae89bba40c68e7caacaeb47f31a0c2673c8d7ce66371e1540d7`.
+Root fresh extraction verifies all 245 members and both complete 261/256-member
+dependencies, reproduces all seven proof outputs and the independent review,
+and confirms all four final artifacts remain byte-identical. Replay incurs no
+route charge.
