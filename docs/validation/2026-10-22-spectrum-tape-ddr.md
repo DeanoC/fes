@@ -194,15 +194,36 @@ data and sync pin reaches its pad 1.45 to 3.3 ns after `HDMI_TX_CLK` reaches
 its own pad on every model, and the +2A/+3's sync pins sit inside the range
 of the working models; the audio pins and the clock-domain crossings show the
 same. The dropout is specific to this +2A/+3 bitstream: the other models
-built from the same commit hold the link, as did the #994 +2A/+3. A sweep of the ADV7513 input clock
-delay during a +2A/+3 session, which would show whether the transmitter's
-input sampling is marginal, was not run; #1003 tracks the dropout.
+built from the same commit hold the link, as did the #994 +2A/+3.
+
+Run `c997e` (22:05–22:15, same overlay, Deano's OK for volatile transmitter
+register writes) swept the ADV7513 input clock delay (`0xBA[7:5]`, I2C bus 1
+address `0x39`) during one +2A/+3 session, recording 20 s (600 frames) of
+capture at each setting:
+
+| `0xBA` | Delay | Black frames | Link drops |
+| --- | --- | --- | --- |
+| `0x60` (runtime default) | none | 459 | 14 |
+| `0x40` | −0.4 ns | 1 | 0 |
+| `0x20` | −0.8 ns | 0 | 0 |
+| `0x00` | −1.2 ns | 0 | 0 |
+| `0x80` | +0.4 ns | 1 | 0 |
+| `0xa0` | +0.8 ns | 1 | 0 |
+| `0x60` again | none | 476 | 15 |
+
+The single black frame is the capture's first. Every delay but none holds the
+link, and returning to none brings the drops straight back, so the transmitter
+samples this bitstream's pixel bus at the edge of its window when the clock is
+forwarded undelayed. The register was set back to `0x60` before the session
+stopped, and the next core load programs it again. The fix belongs to the
+shared HDMI output path (clock forwarding or the runtime's `0xBA` value), not
+to this core; #1003 tracks it.
 
 ## Not established
 
-- An `fes.spectrum-plus3` archive that holds the HDMI link: `2371a801…` loads
-  tapes but drops the link about once a second on kit A, and its cause is
-  open (#1003).
+- An `fes.spectrum-plus3` archive that holds the HDMI link with the runtime's
+  default input clock delay: `2371a801…` loads tapes but drops the link about
+  once a second on kit A, and holds it with any other `0xBA` delay (#1003).
 - Commercial games and demos, and their custom loaders, on hardware; on the
   host they rest on the converter's Fuse comparison and the deck simulation.
 - Swapping or ejecting a cassette during a session, and a tape near the 16 MiB
