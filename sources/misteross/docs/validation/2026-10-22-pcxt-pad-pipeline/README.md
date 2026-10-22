@@ -653,3 +653,44 @@ retain source snapshots, proofs, negative witnesses, synthesis commands and
 outputs, full comparisons and independently verified archive manifests.
 The host syntheses take 361.68976250104606 and 400.9227558299899 seconds;
 GPU/full-route charge is zero. No tracked PIC RTL or production contract changes.
+
+## Final post-route checkpoint consistency
+
+Compiler `bd87c530` refreshes physical architecture attributes after explicitly
+enabled post-route repairs. Move guards also use a separate exception-safe live
+metadata snapshot; the complete timing/contract acceptance predicate is
+unchanged. The disabled and explicit-zero paths preserve the earlier complete
+preparation bytes apart from the recorded creator label. Sixteen native tests,
+the strengthened metadata/exception test and both repair/settings CLI suites
+pass. This source repair changes neither ordinary routing nor timing models.
+
+A fresh leased full route with the frozen fixed binary reproduces every byte
+of the earlier thirteen-failure RBF, endpoint inventory and timing report.
+System WNS remains -434 ps, CPU WNS -173 ps, microcode address +124 ps,
+return +1257 ps and pixel +2005 ps. Exactly five setup rows improve against
+the original fourteen-failure route; every other setup and every hold row is
+unchanged, with all complete native metadata preserved. Coverage remains
+incomplete at 105 unsupported boundaries.
+
+The final saved graph now includes the three accepted route-tree changes.
+Complete canonical wire/pip/strength maps distinguish them from eleven
+serialization-order-only changes. All other cell, net, pin and LAB metadata
+is exact apart from the creator label. Independent native interpretation
+checks each changed tree's actual source, every pip endpoint and owner,
+acyclic connected structure and every physical sink. Missing-source/sink
+mutations reject. This closes the old JSON provenance gap; it is not proof
+of device electrical behavior or complete physical timing acceptance.
+
+The fresh replay charges 702.9260488403961 seconds, bringing the 28 completed
+subsequent receipts and campaign accounting to **32287.22857020562447 seconds**.
+Earlier route/move captures are preserved and are not charged a second time.
+No kit ran. The 100 MHz system/CPU and 74.25 MHz pixel requirements, original
+seed gate, production lock, seal and shared contracts remain unchanged.
+A bounded private two-LUT MDA rewrite is still under native validation and
+has no routed result yet.
+
+The [committed compiler capture](https://github.com/DeanoC/nextpnr/tree/27ff77c0/docs/validation/2026-10-22-pcxt-post-route-checkpoint)
+retains all original and repaired artifacts, complete comparisons and native
+tree checks. Independent archive readback verifies every one of 395 members;
+fresh extraction and the offline comparison replay pass. The capture SHA-256
+is `abc3a736d38b920ee7c6753c89aa614d3b06f6d2ef3009cfb72ef687beea4581`.
