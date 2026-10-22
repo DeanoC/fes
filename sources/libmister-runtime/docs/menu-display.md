@@ -12,6 +12,8 @@ Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
 1.0 interfaces, and optionally menu-blitter 1.0, can be configured. It is idle
 firmware, not a game. Normal package programming, build identity and
 boot-latched DDR admission still apply.
+The blitter command-list path has host software coverage; exact-artifact kit
+acceptance, including the 80 MiB target mapping, remains pending.
 `src/native/menu_admission.hpp` lists the interfaces `CheckMenu` admits. The
 binary carries that list in its `.fes_menu_interfaces` section, and kit
 software packing publishes it in the bundle manifest, so an image can refuse a
@@ -97,7 +99,9 @@ inside the heap:
 The client writes the list and uploads between begin and commit. The runtime
 writes back the list's commands and the uploads, checks that the blitter is
 idle, runs it into the slot, waits for its completed count, then submits the
-slot as below. A list commit with `written`, a list on a grant without the
+slot as below. The completed count and busy state use separate GP reads, so a
+completion between those reads is confirmed with another sample before it can
+be reported as a mismatch. A list commit with `written`, a list on a grant without the
 blitter, and a CPU commit on a blitter grant are refused without touching the
 display. Nothing reads the list or the heap once commit returns.
 

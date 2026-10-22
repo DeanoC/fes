@@ -1859,7 +1859,9 @@ void TestNativeMenuBlitterPresent()
  mister::MenuDraw draw;draw.blit=true;draw.first=100;draw.count=3;draw.uploaded={{16777216,8192},{83886076,4}};
  gp_script.Info(3,0,0);gp_script.BlitState(0,0);
  gp_script.Reply();gp_script.Reply();gp_script.Reply();
- gp_script.BlitState(1,0);gp_script.BlitState(0,1);
+ // The run completes between the count and state reads: the first pair looks
+ // like the old count with idle state, then the confirming sample sees it done.
+ gp_script.BlitState(0,0);gp_script.BlitState(0,1);
  gp_script.Reply();gp_script.Reply();gp_script.Reply();gp_script.Info(3,1,0);
  const auto before_blit=mmio.writes.size();
  assert(hardware.PresentMenuSlot(1,draw,&displayed).ok()&&displayed.displayed_sequence==1);

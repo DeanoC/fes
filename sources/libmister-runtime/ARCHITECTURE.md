@@ -157,8 +157,10 @@ On a blitter grant only the blitter draws slots: a frame is a command list,
 and a CPU frame is refused, as is a list without a blitter. The runtime writes
 back the list's commands and the heap bytes the client uploaded, checks the
 blitter idle, runs it into the back slot and polls its completed count before
-submitting. A blitter fault fails the present like any other completion
-fault.
+submitting. The completed count and busy state are separate GP reads; if the
+count is still old when the state is idle, the runtime confirms the sample
+again within the same deadline before rejecting a stable mismatch. A blitter
+fault fails the present like any other completion fault.
 Revoke ends every process's mapping and writes back and invalidates the
 grant's lines. It runs before any lifecycle operation quiesces menu firmware
 or programs another core, when a session plane is hidden, and on any failed

@@ -1719,6 +1719,18 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,Men
    error=menu_display_->ReadBlit(deadline,&blit);if(!error.ok())break;
    if(blit.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(blit.fault),"menu"};break;}
    if(blit.completed==completed&&!blit.busy)break;
+   if(blit.completed==std::uint16_t(completed-1)&&!blit.busy) {
+    // Completion can land between the separate count and state requests.
+    // Confirm this ambiguous old-count/idle pair before treating it as a fault.
+    MenuBlitState confirmation;
+    error=menu_display_->ReadBlit(deadline,&confirmation);if(!error.ok())break;
+    if(confirmation.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(confirmation.fault),"menu"};break;}
+    if(confirmation.completed==completed&&!confirmation.busy){blit=confirmation;break;}
+    if(confirmation.completed==std::uint16_t(completed-1)&&!confirmation.busy) {
+     error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;
+    }
+    blit=confirmation;
+   }
    if(blit.completed!=std::uint16_t(completed-1)||!blit.busy){error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;}
    if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu blitter completion timed out","menu"};break;}
    std::this_thread::sleep_for(std::chrono::milliseconds(1));
