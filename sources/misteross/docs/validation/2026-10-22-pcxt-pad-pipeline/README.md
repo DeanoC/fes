@@ -444,3 +444,59 @@ recipe, clock, toolchain lock, seal or shared contract changes. Draft compiler
 #266 and FES #979 stay open with timing #840. The next integration step remains
 a passing same-recipe multi-seed result, complete timing/physical contracts,
 a fresh producer and exact-artifact hardware acceptance.
+
+## Additional seed, spreader and paired-path results
+
+The six additional fresh routes complete the baseline, overflow-only and
+both-reduction recipes at seeds 1, 2 and 3. All nine fail setup; no recipe passes
+the unchanged two-of-three gate. Overflow-only seed 3 has the fewest failures
+(89), but still misses system setup by 1.201 ns and pixel setup by 0.564 ns.
+Every route retains 17,199 endpoint rows, zero reported related-hold failures
+and 105 unsupported boundaries. Native launch/capture identities and windows
+match; changed physical coverage records remain explicitly recorded.
+
+The corrected spreader also completes its frozen seed-1 route comparison:
+
+| Native routed setup | Default | Corrected spreading | Corrected + overflow |
+| --- | ---: | ---: | ---: |
+| System WNS, ns | -1.602 | -1.402 | -1.487 |
+| CPU-to-ROM address WNS, ns | -1.406 | -0.583 | -0.704 |
+| Microcode-return WNS, ns | +0.001 | +0.652 | +0.605 |
+| Pixel WNS, ns | +0.675 | -0.544 | -1.333 |
+| Setup failures | 369 | 115 | 125 |
+
+The disabled route reproduces the prior fresh RBF, timing and endpoint bytes;
+its routed JSON differs only by the creator label. Explicit-zero preparation
+preserves all placements and complete graph correspondence after an independently
+checked numeric-bit bijection. These checks do not establish final routed
+logical or physical equivalence for the enabled fresh placements.
+
+A separate native-qualified local move carries two microcode RAMs and sixteen
+private decoders together. Selected address failures fall from 24 to 6, selected
+return failures from one to zero, and total setup failures from 343 to 299.
+Unmoved address paths still fail by 1.542 ns. Complete graph and native physical
+decoder-mask checks pass before and after routing, including rollback and
+corruption tests. Those checks do not decode or qualify the emitted RBF.
+
+An exact AX15 factor promotion is compared against its own unchanged serialized
+reload control. The original AX15-to-address path improves by 629 ps, but the
+worst path moves to ALU operand selection: overall system WNS improves only
+from -1.143 to -1.114 ns. Pixel setup still fails. Complete final logical graph
+proof accounts independently for every route-through helper and all original
+functions, connections, aliases and logical pin states; seven deliberate
+corruptions reject. Physical encoding and device behavior remain separate.
+
+[Complete seed, spreader, RAM/decoder and AX15 captures](https://github.com/DeanoC/nextpnr/tree/5383f232/docs/validation)
+retain all commands, source and binary identities, paired artifacts, proofs,
+failures, receipts and full archive readback. The six seed routes charge
+1838.679211 seconds, RAM/decoder route 257.685019 seconds, spreader comparison
+750.604719 seconds and paired AX15 routes 475.896628 seconds. Concurrent operand
+driver routes charge another 519.622055 seconds. Including those completed
+parallel routes, cumulative accounting is **14417.717868 seconds**; unfinished
+density routes are excluded until their receipts complete. There is no total
+route cap. Native per-run bounds and shared GPU leases remain in force.
+
+All results remain host diagnostics. No kit, RTL, clock constraint, core lock,
+production recipe, seal or shared contract changed in this continuation. Timing
+closure, complete physical coverage, the same-recipe seed gate and fresh
+producer/exact-artifact hardware qualification remain required.
