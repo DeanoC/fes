@@ -147,8 +147,8 @@ func TestPowerCyclePreparationRejectsChangedPendingBeforeCommit(t *testing.T) {
 	}
 }
 func TestPowerCycleMaintenanceProofIsReadOnlyAndRetainsFence(t *testing.T) {
-	for _, wrong := range []bool{false, true} {
-		t.Run(map[bool]string{false: "matching", true: "wrong-token"}[wrong], func(t *testing.T) {
+	for _, scenario := range []string{"matching", "wrong-token", "resumed"} {
+		t.Run(scenario, func(t *testing.T) {
 			_, request := acknowledgmentFixture(t)
 			op := Operation{Request: req(), Previous: testFactoryID, Phase: "blocked"}
 			dir := t.TempDir()
@@ -161,8 +161,11 @@ func TestPowerCycleMaintenanceProofIsReadOnlyAndRetainsFence(t *testing.T) {
 			held := fakePowerCycleEvidence(request, op).Maintenance
 			marker := powerCycleMarker{Schema: 1, MaintenanceStatus: held, Token: strings.Repeat("a", 64), StartToken: strings.Repeat("b", 64)}
 			grant := maintenanceGrant{Status: held, Token: marker.Token}
-			if wrong {
+			switch scenario {
+			case "wrong-token":
 				grant.Token = strings.Repeat("c", 64)
+			case "resumed":
+				marker.State = "ready"
 			}
 			mb, _ := json.Marshal(marker)
 			gb, _ := json.Marshal(grant)
@@ -172,13 +175,9 @@ func TestPowerCycleMaintenanceProofIsReadOnlyAndRetainsFence(t *testing.T) {
 			if err := os.WriteFile(grantPath, gb, 0600); err != nil {
 				t.Fatal(err)
 			}
-			got, unlock, err := lockPowerCycleMaintenance(context.Background(), lock, markerPath, grantPath, request, op)
-			if wrong {
-				if err == nil {
-					unlock()
-					t.Fatal("wrong credential accepted")
-				}
-			} else {
+			got, unlock, err := lockMaintenanceReservation(context.Background(), lock, markerPath, grantPath, request.Operation, request.Boot, op.Requester, "blocked")
+			switch scenario {
+			case "matching":
 				if err != nil || got.State != "blocked" {
 					t.Fatal(got, err)
 				}
@@ -191,6 +190,20 @@ func TestPowerCycleMaintenanceProofIsReadOnlyAndRetainsFence(t *testing.T) {
 				}
 				f.Close()
 				unlock()
+			case "wrong-token":
+				if err == nil {
+					unlock()
+					t.Fatal("wrong credential accepted")
+				}
+			case "resumed":
+				// A resumed reservation is a state mismatch, not a credential fault.
+				if err == nil {
+					unlock()
+					t.Fatal("ready reservation accepted")
+				}
+				if err.Error() != "maintenance reservation of this operation is ready, not blocked" {
+					t.Fatal(err)
+				}
 			}
 			afterM, _ := os.ReadFile(markerPath)
 			afterG, _ := os.ReadFile(grantPath)

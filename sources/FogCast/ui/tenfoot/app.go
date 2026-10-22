@@ -504,10 +504,9 @@ type App struct {
 	sessionDisplayWait       chan struct{}
 	playKeyHeld              map[string]bool
 	playKeySuppressed        map[string]bool
-	playPadHeld              map[remoteinput.Code]remoteinput.Event
-	playPadSuppressed        map[remoteinput.Code]bool
-	playPadSelectDown        bool
-	playPadStartDown         bool
+	playPadHeld              map[padKey]remoteinput.Event
+	playPadSuppressed        map[padKey]bool
+	playPadPair              chordPairs
 	playPadChordSince        time.Time
 	playPadChordFired        bool
 	playHIDHeld              map[playHIDKey]remoteinput.Event
@@ -606,12 +605,11 @@ type App struct {
 	localPresentsPaused        bool
 	localLateAdopt             bool
 	localRedraw                uint64
-	localSelectDown            bool
-	localStartDown             bool
+	localPair                  chordPairs
 	localChordSince            time.Time
 	localChordFired            bool
 	localStopAfterStart        bool
-	localSent                  map[remoteinput.Code]bool
+	localSent                  map[padKey]bool
 	localStatusBusy            bool
 	localStatusNext            time.Time
 	localStatusEpoch           uint64

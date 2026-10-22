@@ -38,6 +38,9 @@ func TestSessionDisplayRequiresLeaseExplicitBooleanAndFocus(t *testing.T) {
 		{`{"visible":true,"focus":"launcher"}`, "", 403}, {`{}`, grant.Token, 400}, {`{"visible":null,"focus":"machine"}`, grant.Token, 400},
 		{`{"visible":true,"focus":"launcher"} {}`, grant.Token, 400}, {`{"visible":true,"focus":"launcher","reset":true}`, grant.Token, 400},
 		{`{"visible":true,"focus":"menu"}`, grant.Token, 400}, {`{"visible":false,"focus":"launcher"}`, grant.Token, 400},
+		// Only an omitted focus takes the default.
+		{`{"visible":true,"focus":null}`, grant.Token, 400}, {`{"visible":true,"focus":""}`, grant.Token, 400},
+		{`{"visible":false,"focus":null}`, grant.Token, 400}, {`{"visible":false,"focus":""}`, grant.Token, 400},
 		{`{"visible":true,"focus":"launcher"}`, grant.Token, 200}, {`{"visible":true,"focus":"machine"}`, grant.Token, 200},
 		// A host that predates focus sends visibility alone.
 		{`{"visible":true}`, grant.Token, 200}, {`{"visible":false,"focus":"machine"}`, grant.Token, 200},

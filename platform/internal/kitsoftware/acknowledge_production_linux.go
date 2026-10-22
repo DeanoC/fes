@@ -17,6 +17,66 @@ import (
 )
 
 const acknowledgmentRunDir = "/run/fogcast/software"
+const repairFactoryPath = "/usr/share/fes/software"
+
+// operatorRepair is the persistent software state a root operator repair reads
+// and journals.
+type operatorRepair struct {
+	base    software.Compatibility
+	store   *software.Store
+	control string
+	repo    *FileRepository
+	factory software.Release
+}
+
+func openOperatorRepair(ctx context.Context, req AcknowledgeRequest) (operatorRepair, error) {
+	var r operatorRepair
+	if err := acknowledgmentMachine(ctx, req); err != nil {
+		return r, err
+	}
+	raw, err := os.ReadFile("/etc/fes/software-base.json")
+	if err != nil {
+		return r, err
+	}
+	if err := json.Unmarshal(raw, &r.base); err != nil {
+		return r, err
+	}
+	if r.store, err = software.OpenPersistent(r.base); err != nil {
+		return r, err
+	}
+	r.control = filepath.Join(r.store.Root(), "control")
+	// An operator repair can never initialize missing state or mint a new key.
+	for _, name := range []string{initializedMarker, "state.json", "admission.key"} {
+		info, err := os.Lstat(filepath.Join(r.control, name))
+		if err != nil {
+			return r, err
+		}
+		if !info.Mode().IsRegular() {
+			return r, errors.New("repair state is not regular")
+		}
+	}
+	manifestFile, err := os.Open(filepath.Join(repairFactoryPath, "manifest.json"))
+	if err != nil {
+		return r, err
+	}
+	manifest, err := software.DecodeManifest(io.LimitReader(manifestFile, software.MaxManifestSize+1))
+	manifestFile.Close()
+	if err != nil {
+		return r, err
+	}
+	factoryID, err := manifest.ID()
+	if err != nil {
+		return r, err
+	}
+	r.factory = software.Release{ID: factoryID, Manifest: manifest}
+	r.repo, err = OpenRepository(r.control, req.Selected)
+	return r, err
+}
+
+// resolve mirrors the supervisor's own release selection for this image.
+func (r operatorRepair) resolve(ctx context.Context, id string) (string, error) {
+	return ResolveRelease(ctx, id, repairFactoryPath, r.factory, r.base, r.store)
+}
 
 // AcknowledgeRunningPrior is a root-only local operator repair. It never starts,
 // stops or signals any service and cannot deploy an image or select a bundle.
@@ -31,59 +91,16 @@ func AcknowledgeRunningPrior(ctx context.Context, req AcknowledgeRequest) (Ackno
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	if err := acknowledgmentMachine(ctx, req); err != nil {
-		return result, err
-	}
-	raw, err := os.ReadFile("/etc/fes/software-base.json")
+	repair, err := openOperatorRepair(ctx, req)
 	if err != nil {
 		return result, err
 	}
-	var base software.Compatibility
-	if err := json.Unmarshal(raw, &base); err != nil {
-		return result, err
-	}
-	store, err := software.OpenPersistent(base)
+	defer repair.repo.Close()
+	admission, err := NewUnixAdmission("/run/fogcast/software-admission.sock", filepath.Join(repair.control, "admission.key"))
 	if err != nil {
 		return result, err
 	}
-	control := filepath.Join(store.Root(), "control")
-	// An operator repair can never initialize missing state or mint a new key.
-	for _, name := range []string{initializedMarker, "state.json", "admission.key"} {
-		info, err := os.Lstat(filepath.Join(control, name))
-		if err != nil {
-			return result, err
-		}
-		if !info.Mode().IsRegular() {
-			return result, errors.New("repair state is not regular")
-		}
-	}
-	repo, err := OpenRepository(control, req.Selected)
-	if err != nil {
-		return result, err
-	}
-	defer repo.Close()
-	admission, err := NewUnixAdmission("/run/fogcast/software-admission.sock", filepath.Join(control, "admission.key"))
-	if err != nil {
-		return result, err
-	}
-	const factoryPath = "/usr/share/fes/software"
-	manifestFile, err := os.Open(filepath.Join(factoryPath, "manifest.json"))
-	if err != nil {
-		return result, err
-	}
-	manifest, err := software.DecodeManifest(io.LimitReader(manifestFile, software.MaxManifestSize+1))
-	manifestFile.Close()
-	if err != nil {
-		return result, err
-	}
-	factoryID, err := manifest.ID()
-	if err != nil {
-		return result, err
-	}
-	factory := software.Release{ID: factoryID, Manifest: manifest}
-	controller := &ProcessController{RunDir: acknowledgmentRunDir, Admission: admission, BaseIdentity: req.Base, Resolve: func(ctx context.Context, id string) (string, error) {
-		return ResolveRelease(ctx, id, factoryPath, factory, base, store)
-	}}
+	controller := &ProcessController{RunDir: acknowledgmentRunDir, Admission: admission, BaseIdentity: req.Base, Resolve: repair.resolve}
 	if err := controller.Verify(ctx, req.Selected); err != nil {
 		return result, err
 	}
@@ -91,9 +108,10 @@ func AcknowledgeRunningPrior(ctx context.Context, req AcknowledgeRequest) (Ackno
 	if err != nil {
 		return result, err
 	}
-	// The worker lock is acquired before any grant resume or journal write. The
-	// running group may not be replaced between samples or during acknowledgment.
-	return acknowledgePrior(ctx, repo, acknowledgmentAdmission{admission: admission, boot: req.Boot}, req, func(ctx context.Context) error {
+	// The worker lock is acquired before any reservation read or journal write.
+	// The running group may not be replaced between samples or during acknowledgment.
+	reservation := acknowledgmentAdmission{admission: admission, boot: req.Boot, lockPath: maintenanceLockPath, markerPath: maintenanceMarkerPath}
+	return acknowledgePrior(ctx, repair.repo, reservation, req, func(ctx context.Context) error {
 		return stableAcknowledgment(ctx, func(ctx context.Context) error {
 			if err := acknowledgmentMachine(ctx, req); err != nil {
 				return err
@@ -304,13 +322,18 @@ func (p runningPriorProof) healthy(ctx context.Context, req AcknowledgeRequest, 
 
 // Do not turn a missing or unrelated maintenance reservation into new operator
 // authority. Only the existing durable grant from this exact failed operation
-// may be resumed. The grant never leaves this process or enters public output.
+// may end it. The grant never leaves this process or enters public output.
 type acknowledgmentAdmission struct {
-	admission *UnixAdmission
-	boot      string
+	admission            *UnixAdmission
+	boot                 string
+	lockPath, markerPath string
 }
 
-func (a acknowledgmentAdmission) Acquire(ctx context.Context, r Request) error {
+// Held reads the agent's reservation and never changes it. The stored grant
+// must name this boot's reservation of the failed operation and authenticate
+// against the agent's persisted marker. /end finishes a blocked or ready
+// reservation.
+func (a acknowledgmentAdmission) Held(ctx context.Context, r Request) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	grant, err := a.admission.loadGrant(r.ID)
@@ -318,51 +341,28 @@ func (a acknowledgmentAdmission) Acquire(ctx context.Context, r Request) error {
 		return err
 	}
 	if grant.Token == "" || grant.Status.OperationID != r.ID || grant.Status.BootID != a.boot || !software.ValidID(grant.Status.Generation) || grant.Status.Owner != r.Requester || grant.Status.Purpose != "kit-software-activation" {
-		return errors.New("exact failed maintenance grant unavailable for acknowledgment resume")
-	}
-	matches := func(held MaintenanceStatus) bool {
-		return held.OperationID == r.ID && held.Generation == grant.Status.Generation && held.BootID == a.boot && held.Owner == r.Requester && held.Purpose == "kit-software-activation"
+		return errors.New("exact failed maintenance grant unavailable for acknowledgment")
 	}
 	status, err := a.admission.Status(ctx)
 	if err != nil {
 		return err
 	}
-	if !matches(status.Maintenance) {
+	held := status.Maintenance
+	if held.OperationID != r.ID || held.Generation != grant.Status.Generation || held.BootID != a.boot || held.Owner != r.Requester || held.Purpose != "kit-software-activation" {
 		return errors.New("failed operation no longer owns this boot's maintenance reservation")
 	}
-	if state := status.Maintenance.State; state != "blocked" && state != "ready" && state != "preparing" {
-		return errors.New("failed maintenance reservation is not resumable")
+	// Preparing and finishing belong to agent cleanup that is still running.
+	if held.State != "blocked" && held.State != "ready" {
+		return fmt.Errorf("failed maintenance reservation is %s, not blocked or ready", held.State)
 	}
-	// Even ready reservations must authenticate the stored token. Resume cannot
-	// allocate or replace a grant; it rejects stale generations and credentials.
-	var resumed MaintenanceStatus
-	if err := a.admission.call(ctx, "/resume", completion(grant), &resumed); err != nil {
+	// The agent checks the grant itself only at /end, after the journal records
+	// the acknowledgment. Authenticate it against the persisted reservation first.
+	_, unlock, err := lockMaintenanceReservation(ctx, a.lockPath, a.markerPath, a.admission.keyPath+".grant-"+r.ID, r.ID, a.boot, r.Requester, "blocked", "ready")
+	if err != nil {
 		return err
 	}
-	if !matches(resumed) {
-		return errors.New("resumed maintenance identity changed")
-	}
-	for {
-		status, err = a.admission.Status(ctx)
-		if err != nil {
-			return err
-		}
-		held := status.Maintenance
-		if !matches(held) {
-			return errors.New("resumed maintenance identity changed")
-		}
-		if held.State == "ready" {
-			return nil
-		}
-		if held.State != "preparing" {
-			return errors.New("resumed maintenance did not become ready")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
+	unlock()
+	return nil
 }
 func (a acknowledgmentAdmission) Release(ctx context.Context, r Request) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

@@ -154,11 +154,56 @@ func TestLegacyPadMergeSurvivesRemoteRelease(t *testing.T) {
 	if releases != 0 || len(inner.frames) != 1 || inner.frames[0].Action != uint8(remoteinput.ActionPress) {
 		t.Fatalf("legacy merge dropped the local press: %+v", inner.frames)
 	}
-	if err := sink.apply(sourceLocal, gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
+	if err := sink.apply(sourceLocal, gamepad(1, remoteinput.ButtonA, remoteinput.ActionRelease, 0)); err != nil {
 		t.Fatal(err)
 	}
 	if len(inner.frames) != 2 || inner.frames[1].Action != uint8(remoteinput.ActionRelease) {
 		t.Fatalf("local release did not reach the pad: %+v", inner.frames)
+	}
+}
+
+// Two kit pads on a legacy single-pad core drive the one virtual pad. A pad's
+// release or departure must not release what the other pad still holds.
+func TestLegacyPadMergeKeepsEachLocalPadsHolds(t *testing.T) {
+	inner := &recordingSink{}
+	sink := &controllerPortsSink{fallback: &recordingSink{}, pads: newPadMerge(inner)}
+	apply := func(f protocol.InputFrame) {
+		t.Helper()
+		if err := sink.apply(sourceLocal, f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	held := func(code remoteinput.Code) bool {
+		down := false
+		for _, f := range inner.frames {
+			if f.Player != 0 {
+				t.Fatalf("virtual pad saw player %d: %+v", f.Player, f)
+			}
+			if f.Code == uint16(code) && f.Kind == uint8(remoteinput.KindButton) {
+				down = f.Action == uint8(remoteinput.ActionPress)
+			}
+		}
+		return down
+	}
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	apply(gamepad(1, remoteinput.ButtonA, remoteinput.ActionPress, 0))
+	apply(gamepad(1, remoteinput.ButtonB, remoteinput.ActionPress, 0))
+	if !held(remoteinput.ButtonA) || !held(remoteinput.ButtonB) || len(inner.frames) != 2 {
+		t.Fatalf("both pads did not drive the virtual pad: %+v", inner.frames)
+	}
+	apply(gamepad(1, remoteinput.ButtonA, remoteinput.ActionRelease, 0))
+	if !held(remoteinput.ButtonA) {
+		t.Fatal("pad 2 released A while pad 1 still holds it")
+	}
+	// Pad 2 is unplugged holding B: tenfoot sends its release, then departs.
+	apply(gamepad(1, remoteinput.ButtonB, remoteinput.ActionRelease, 0))
+	apply(localPlayerDeparture(1))
+	if !held(remoteinput.ButtonA) || held(remoteinput.ButtonB) {
+		t.Fatalf("unplug: %+v", inner.frames)
+	}
+	apply(gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0))
+	if held(remoteinput.ButtonA) {
+		t.Fatal("pad 1's release did not reach the virtual pad")
 	}
 }
 
@@ -235,6 +280,25 @@ func localPlayerDeparture(player uint8) protocol.InputFrame {
 		Action: uint8(event.Action),
 		Code:   uint16(event.Code),
 		Value:  event.Value,
+	}
+}
+
+// A USB keyboard's arrows are shaped onto local player 0, the same player as
+// the pad on port 1. That pad leaving must not release the keyboard's hold.
+func TestLegacyPadMergeDepartureKeepsKeyboardHold(t *testing.T) {
+	inner := &recordingSink{}
+	sink := &controllerPortsSink{fallback: &recordingSink{}, keys: NewKeyboardSink(), pads: newPadMerge(inner)}
+	if err := sink.apply(sourceLocal, keyboardFrameFor(remoteinput.KeyLeft, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.frames) != 1 || inner.frames[0].Code != uint16(remoteinput.ButtonDPadLeft) || inner.frames[0].Action != uint8(remoteinput.ActionPress) {
+		t.Fatalf("keyboard Left did not reach the virtual pad: %+v", inner.frames)
+	}
+	if err := sink.apply(sourceLocal, localPlayerDeparture(0)); err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.frames) != 1 {
+		t.Fatalf("pad 1's departure changed the virtual pad: %+v", inner.frames)
 	}
 }
 

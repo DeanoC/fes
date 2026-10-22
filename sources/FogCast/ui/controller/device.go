@@ -5,6 +5,15 @@ import (
 	"errors"
 )
 
+// Device is a pad's evdev identity and capabilities: EVIOCGNAME, EVIOCGID,
+// the EV_KEY and EV_ABS bitmaps from EVIOCGBIT, and EVIOCGABS ranges.
+type Device struct {
+	Name                          string
+	Bus, Vendor, Product, Version uint16
+	Keys, Abs                     []byte
+	Axes                          map[uint16]Range
+}
+
 // eligible rejects the retained virtual pad (BUS_VIRTUAL) and non-gamepads.
 func eligible(bus uint16, name string, buttons bool) bool {
 	// A button bitmap alone is not an identity: keyboards and arbitrary
