@@ -115,6 +115,8 @@ Each changed path gets a class and a component:
   `platform/internal/kitsoftware`), trial boot (`platform/cmd/fes-boot`,
   `platform/internal/applianceboot`) and the `fes-update` and `fes-kit-data`
   commands are already full through the platform and unmapped-command rules.
+  `sources/FogCast/internal/ext4image/**`, which only `fes-update` imports, is
+  full with them.
 
 A changed file under `cores/<name>/` also requires every `build_fes_*`
 producer that names the file or one of its directories, either in its own
