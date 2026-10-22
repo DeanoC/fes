@@ -63,6 +63,9 @@ to export artifacts. `make dev` remains the incremental source integration path.
 Use `make kit-software` for routine agent/runtime/UI engine updates and the room
 installer for Lua/art changes; neither requires this OS assembly step.
 
-Image pass/reproducibility policy is unchanged in this slice. A real bootstrap
+OS assembly defaults to one pass, including CI. Use `IMAGE_PASSES=2` for an
+explicit two-build reproducibility comparison and the same setting for verification
+and export. Single-pass output retains structural, hash and QEMU checks and supports
+normal release/bootstrap/media assembly. A real bootstrap
 boot, core install/play, software update and failed-install recovery remain
 separate integration evidence.

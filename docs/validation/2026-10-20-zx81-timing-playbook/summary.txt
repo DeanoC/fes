@@ -1,0 +1,99 @@
+HISTORY: every identity, timing and seed result in this directory was
+produced on nextpnr 5558fe25, the DeanoC/nextpnr#267 branch commit. The
+ZX81 lock now pins merged main 1eecf877, so none of these artifacts belongs
+to the current lock. Its fresh shell, ram16k cart and seed requalification
+is ../2026-10-21-zx81-timing-playbook/.
+
+ZX81 issue-236 production rebuild and real-cart qualification
+2026-10-20
+
+Compiler PR: https://github.com/DeanoC/nextpnr/pull/267
+Compiler source: 5558fe25667c414d436fe2a4105cd24990c2be1f
+FES base: d739889b00e36e50bff41516a2dbf7a011dc8d00
+Tested producer source: 6235759885bf096a772a4bee8a616597733369de
+
+A clean full production build, using the normal authenticated HIP toolchain
+bootstrap and producer, seals a new format-3 ZX81 shell. It synthesizes a
+fresh BUILD_ID from the current producer inputs; it does not reuse the old
+regression synth.json. The production input synth SHA256 is
+b3b39bacc1d4c648804e9b60076e6db4f9ef916eb8504ccaba1ca2d229825cf8.
+BUILD_ID: 6b02e996d4e636f7882d36cb4e9d2070
+
+The profile starts with seed 1, weight 300, exponent 5 and the opt-in
+setup-relative private pin assignment. Seeds 3 and 10 remain the fallback
+list, and the original other timing weights remain available. The normal
+first-pass producer accepts its first candidate. Two isolated confirmations
+then route the exact same fresh production synth and compiler at seeds 3
+and 10, removing the search allow-fail option for a strict final exit.
+All three declared seeds pass every clock's setup and hold checks. This
+meets the two-of-three candidate criterion; it is not hardware acceptance
+or permission to promote the recipe.
+
+Shell and ram16k cart final analogue results are identical:
+clock                    required MHz  achieved MHz  setup WNS ns  hold WNS ns
+clk_sys                     52.224773     54.297661        +0.731       +0.815
+display.control.clk          74.250069     91.390968        +2.526       +0.762
+audio_clk                   12.288032    161.681488       +75.195       +1.071
+
+Both normal producer commands exit 0. The shell's asynchronous M10K,
+clock/resource, source/tool identity, ROM-map and package checks pass. The
+real ram16k cart producer uses seed 2 against that exact frozen shell,
+passes all three clock requirements and exports its sealed expansion archive.
+Independent reads of both timing reports require final_analogue_model=true
+and nonnegative setup/hold margins for every clock. Independent full-RBF
+comparison agrees with the producer: 181538 CRAM bits change inside the
+reserved slot, zero outside, and the ORAM/PRAM header is identical. Shell
+routes/pins are frozen throughout the cart build. Route logs identify a live
+HIP backend and granted GPU 0. All our leases have been released.
+
+Shell package: bf3583cb8bb50a0d885e73533880bb74e747ca22fb1b658caf799cccddf146ad
+Shell RBF SHA256: b3f33d5947dcd90d9b4575d940d1d925703ec43318eafd80bd981004db6090bc
+Cart expansion: 54093e96034664318dddf16a654a0b4848c13d3b53d00f7f2d60d40363da703d
+Cart RBF SHA256: 8a0686fc3c99273538220aaaced13da63bf21f8a64b7a9aeed061b1517113dd3
+
+Exact commands, environments, clocks, tool slot and GPU route-time evidence
+are in runs.jsonl. Complete accepted producer summaries, all artifact hashes
+and exact retained paths are in shell-summary.txt, cart-summary.txt and
+result.txt. The authenticated cache slot is f141e5ea79ad4b4079ca0346fcd3c4a00c6ec79c68b3a6639bbfcbaca540d8a6.
+
+Focused checks: 28 recipe tests, 21 ZX81 producer tests (one additional case
+skipped), 35 expansion/cart tests and 25 shared fake-toolchain tests pass.
+The affected 951-test parent suite passes (one skipped). After correcting a
+stale local-compiler fixture to select the lock’s 105-option schema, the
+full 1234-test producer suite passes (eight skipped), along with its
+17 focused authentication cases. make check and the selected
+make sim-fes-zx81 RTL simulation also pass. See producer-parent-checks.txt
+for the original aggregate failure and successful component reruns.
+All 16 nextpnr GitHub CI checks pass at compiler commit 5558fe25. The exact
+105-option CLI schema remains enforced; only ZX81's pin/profile goldens and
+its fake compiler selection change. Other core recipes and locks are intact.
+
+The original frozen issue scaffold was re-timed earlier at 41.98 MHz system
+under the corrected model; it cannot inherit new placement or pin assignment.
+The matched retained-fixture comparison improves from 51.05 to 53.87 MHz
+with the new pin ranking, before this independent full producer build. Full
+causal and Quartus data-cone evidence remains in nextpnr PR #267 under
+/docs/validation/mistral-issue-236/. The original package's cleared producer
+input is not claimed to have been reconstructed.
+
+Evidence class: host-only exact-artifact producer, seal, route and containment
+qualification. No kit was used. Hardware acceptance and the normal recipe
+promotion/review bar remain open. No factory package selection was replaced,
+no PR was merged, and no timing or seal gate was relaxed. The producer's
+existing allow-fail search command is followed by all its normal acceptance
+checks; the independently verified final reports pass setup and hold.
+
+Artifacts are retained on Powerboat beneath
+/home/deano/tmp/nextpnr-236-e904cbfb/producer/sources/misteross/build/.
+Local review copies are in /tmp/issue236-production/package/ and
+/tmp/issue236-production/cart/.
+
+Additional fresh-production-netlist seed confirmation (weight 300, critexp 5):
+seed   clk_sys MHz  setup WNS ns  hold WNS ns  exit
+1       54.297661       +0.731       +0.815     0  (normal sealed producer)
+3       52.339577       +0.021       +0.696     0
+10      52.543087       +0.058       +0.704     0
+Pixel and audio setup/hold pass in all three. See seed-3.txt and seed-10.txt
+for exact argv, controlled environment, elapsed time, live leased HIP
+backend and hashes of the untouched production synth/compiler and outputs.
+The qualified shell and real-cart archive remain the seed-1/seed-2 pair.

@@ -60,6 +60,20 @@ class BoundaryRouteThroughTest(unittest.TestCase):
                 self.assertEqual(coleco_expansion.boundary_route_through_cells(
                     top, {"anchor": ff_bel}), {"anchor$ROUTETHRU"})
 
+    def test_route_through_input_is_any_pin_of_its_own_half(self):
+        for ff_bel, buffer_bel, accepted, rejected in (
+                ("MISTRAL_FF.24.4.56", "MISTRAL_COMB.24.4.54", ("C", "E0", "F0"), ("A", "B", "D", "E1", "F1")),
+                ("MISTRAL_FF.28.23.58", "MISTRAL_MCOMB.28.23.55", ("D", "E1", "F1"), ("A", "B", "C", "E0", "F0"))):
+            for pin in accepted + rejected:
+                with self.subTest(ff_bel=ff_bel, pin=pin):
+                    top = route_through_fixture(ff_bel=ff_bel, buffer_bel=buffer_bel, pin=pin)
+                    if pin in accepted:
+                        self.assertEqual(coleco_expansion.boundary_route_through_cells(
+                            top, {"anchor": ff_bel}), {"anchor$ROUTETHRU"})
+                    else:
+                        with self.assertRaisesRegex(ValueError, "pin map"):
+                            coleco_expansion.boundary_route_through_cells(top, {"anchor": ff_bel})
+
     def test_older_snapshot_without_buffer_is_accepted(self):
         top = route_through_fixture()
         del top["cells"]["anchor$ROUTETHRU"]

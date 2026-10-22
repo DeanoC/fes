@@ -314,7 +314,7 @@ quartus_role = "bring-up/check oracle"
 
 
 [recipes.pnr]
-seeds = [10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34]
+seeds = [1, 3, 10]
 timing_weights = [300, 1000, 2000, 100, 10]
 search_weights = [10, 100, 300, 1000, 2000]
 critexp = 5
@@ -393,6 +393,16 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+
+arrival_pin_assignment = true
+isolated_lut_placement = false
+critical_cohort_budget = 0
+critical_cohort_report = "unset"
+mistral_dsp_signed_lanes = false
+set = []
+gpu_required = false
+critical_cohort_model_out = "unset"
+router2_profile = "unset"
 
 [[recipes]]
 core_id = "fes.coleco"
@@ -1270,3 +1280,12 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
+critical_cohort_budget = 0
+critical_cohort_report = "unset"
+critical_cohort_model_out = "unset"
+mistral_dsp_signed_lanes = false
+set = []
+gpu_required = false
+router2_profile = "unset"

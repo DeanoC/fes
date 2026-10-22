@@ -317,7 +317,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
-    def test_product_search_tries_repaired_seed_10_first(self) -> None:
+    def test_product_search_tries_clock_aware_seed_1_first(self) -> None:
         from scripts.search_placer_qor import search
         from tests.test_search_placer_qor import _candidate
         weights, budget = build_fes_zx81_oss.placement_policy("first-pass-paired")
@@ -333,12 +333,12 @@ class BuildFesZx81OssTests(unittest.TestCase):
             seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
             budget=budget, mode="first-pass-paired", extra=(), timeout=1, run_one=route,
         )
-        self.assertEqual(calls, [(10, 300)])
-        self.assertEqual(PLACER_SEEDS[0], 10)
+        self.assertEqual(calls, [(1, 300)])
+        self.assertEqual(PLACER_SEEDS, (1, 3, 10))
         self.assertGreater(len(PLACER_SEEDS), 1)
         self.assertGreater(len(weights), 1)
         self.assertTrue(ranked[0].passing)
-        self.assertEqual((ranked[0].seed, ranked[0].weight), (10, 300))
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (1, 300))
         self.assertEqual(budget, len(PLACER_SEEDS) * len(weights))
 
     def test_make_entrypoint_uses_the_oss_recipe(self) -> None:

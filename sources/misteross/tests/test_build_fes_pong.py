@@ -90,7 +90,12 @@ def _write_fake_tool(
 
 def _nextpnr_option_count_for_lock(lock_path: Path) -> int:
     """Return the CLI schema selected by this fixture's core-local lock."""
-    if lock_path.as_posix().endswith(("cores/fes-pong/toolchain.lock", "cores/fes-riscv/toolchain.lock")):
+    if lock_path.as_posix().endswith((
+        "cores/fes-pong/toolchain.lock",
+        "cores/fes-riscv/toolchain.lock",
+        "cores/fes-zx81/toolchain.lock",
+        "cores/fes-atari-st/toolchain.lock",
+    )):
         return 105
     return 96
 

@@ -115,7 +115,7 @@ module apple2_machine #(
 
     cpu6502 cpu (
         .clk(clk_sys), .reset(system_reset), .AB(cpu_ab), .DI(cpu_di),
-        .DO(cpu_do), .WE(cpu_we), .IRQ(slot_irq), .NMI(slot_nmi), .RDY(cpu_ce)
+        .DO(cpu_do), .WE(cpu_we), .IRQ(slot_irq), .NMI(slot_nmi), .RDY(cpu_ce), .SO(1'b1)
     );
 
     reg [15:0] bus_addr = 16'h0000;

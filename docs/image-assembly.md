@@ -15,21 +15,18 @@ From the FES root:
 | Want | Command |
 | --- | --- |
 | Diagnostic rootfs | `make dev` |
-| Cold two-pass rootfs | `make build` then `make verify` |
+| Clean one-pass rootfs | `make build` then `make verify` |
+| Reproducibility check | `IMAGE_PASSES=2 make build` then `IMAGE_PASSES=2 make verify` |
 | Flashable disk | `make media` after verify |
 | Versioned appliance | `make release` / `make appliance-media` |
 
-For a local scratch/HIL image, run `IMAGE_PASSES=1 make image IMAGE_ARTIFACTS=/absolute/artifacts`. The output
-records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
-head and image SHA-256. A HIL-named release appends `-1p`, records
-`image_passes: 1` in `evidence.json`, and includes the marker. `release.json`
-keeps the legacy field set so a deployed agent can stage it. `fes-update`
-treats a missing `manifest_format` as `1.0`. The same major with a higher
-minor may add unknown optional fields, which it ignores and logs. An unknown
-major, a duplicate, or a missing or malformed required field is rejected. It
-accepts an optional positive `image_passes` when a manifest already contains
-it. CI and cold/production receipts require two passes and omit
-the evidence field.
+Image builds default to one pass locally and in CI. Verification retains image
+hashes, structural checks and QEMU packaging, and records reproducibility as
+`not-run-single-pass`. Single-pass images support ordinary release export,
+bootstrap and media assembly. No special version name or scratch marker is needed.
+Set `IMAGE_PASSES=2` consistently for build, verification and export to request two
+independent rootfs builds and matching hashes. Receipts and release evidence bind
+the actual pass count; a one-pass image cannot claim two-pass verification.
 
 `make image IMAGE_ARTIFACTS=/absolute/artifacts` consumes named prebuilt
 MENU and userspace inputs; see [bootstrap artifacts](image-artifacts.md).
@@ -128,7 +125,7 @@ For cold two-pass builds, pass 1 may use ccache and pass 2 sets
 `CCACHE_DISABLE=1`. The second rootfs is therefore compiled independently; a
 bad cached result must fail the existing hash comparison. Shared-cache evidence
 records this policy in `reproducibility.txt` and `verification.json`. A
-single-pass scratch image may use ccache and remains diagnostic only. With the
+single-pass image may use ccache and does not claim reproducibility. With the
 variable unset, configs, container arguments and evidence retain their original
 form. To clear the cache, stop image builds using it, then remove the specific
 `dl/`, `toolchains/` or `ccache/` directory under the configured root; the next
@@ -167,7 +164,8 @@ published cutover, reproducible image completion or hardware acceptance.
 `--fast-dev` entrypoints have been retired. The native overlay directly owns
 per-card Ethernet MAC ([bootable media](bootable-media.md#per-card-ethernet-mac)),
 network, SSH, supervisor, mount-smoke, agent and runtime services. The kernel
-build uses the retained native image compiler under `work-2-native-dev/host`.
+build uses the selected pass's retained native image compiler:
+`work-1-native-dev/host` by default, `work-2-native-dev/host` with `IMAGE_PASSES=2`.
 Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
 requires a fresh committed-source image build and separate hardware acceptance.
 

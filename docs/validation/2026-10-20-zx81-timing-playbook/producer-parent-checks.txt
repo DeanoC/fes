@@ -1,0 +1,72 @@
+FES affected validation, 2026-10-20
+
+Base: d739889b00e36e50bff41516a2dbf7a011dc8d00
+Production source: 6235759885bf096a772a4bee8a616597733369de
+Initial affected-check plan: f20c149cf7cfce90e23c878bb18824a91b1ed50f
+
+python3 scripts/test_changed.py --base d739889b --jobs 4 passed its
+18-test and 26-test planner suites, whitespace, generated consistency and the
+951-test parent
+suite (one skipped), then found one stale 96-option ZX81 fake-compiler
+fixture in the 1234-test producer suite. The runner exited 1 before local
+simulation. No production gate or option schema was weakened.
+
+The fixture now uses the lock-selected option-count helper, matching the
+authenticated 105-option compiler. Its focused 17 cases pass. The exact
+full producer command and the remaining planned ZX81 simulation were rerun
+below. Passing parent inputs were unchanged and were not rerun. The original
+aggregate failure is retained explicitly; these are component rerun results.
+No new production package is attributed to these later test/doc changes.
+
+affected-check planner and parent/initial producer run
+log: /home/deano/tmp/nextpnr-236-e904cbfb/producer-parent-checks.log
+sha256: ff1b34dd13f1880805e54d3848516f51837aebbf492211f25e6a123204d2f478
+exit: 1
+Ran 18 tests in 0.242s
+OK
+Ran 26 tests in 1.211s
+OK
+OK
+Ran 951 tests in 764.337s
+OK (skipped=1)
+ERROR: test_local_hip_stamp_from_toolchain_fes_lane_authenticates_pong_and_zx81 (test_fes_hip_lane.FesHipLaneTests.test_local_hip_stamp_from_toolchain_fes_lane_authenticates_pong_and_zx81)
+Ran 1234 tests in 207.895s
+FAILED (errors=1, skipped=8)
+
+committed package/generated-consumer consistency: make check
+log: /home/deano/tmp/nextpnr-236-e904cbfb/producer-make-check.log
+sha256: fc8655de9e0304cf68444e119fb302090cbd43d361a2f8a66a5ad027ff9a01cd
+exit: 0
+consistency: package YAML valid; 19 generated consumers, 37 fixture copies and 0 copied source pins match
+final log lines:
+python3 scripts/consistency.py
+consistency: package YAML valid; 19 generated consumers, 37 fixture copies and 0 copied source pins match
+
+corrected authenticated-toolchain fixture: 17 focused tests
+log: /home/deano/tmp/nextpnr-236-e904cbfb/producer-hip-fixture-tests.log
+sha256: e698b76fe04f7ca7dfe19aeeccd3991f1b98ad7d061abb40d2cc7511841c80e8
+Ran 17 tests in 1.999s
+OK
+
+full FPGA Python suite after fixture correction
+log: /home/deano/tmp/nextpnr-236-e904cbfb/producer-fpga-rerun.log
+sha256: ea94ad197cca8b44ef7b037a89f9131c4981330e1831fd54512c5bc601f30498
+exit: 0
+Ran 1234 tests in 281.817s
+OK (skipped=8)
+
+ZX81 RTL simulation: make sim-fes-zx81 PYTHON=/usr/bin/python3
+log: /home/deano/tmp/nextpnr-236-e904cbfb/producer-zx81-simulation.log
+sha256: 3e367ce05afbfa3f05a1555fbc7a3c9631eeee9f2c98f9d632499471a2184a0c
+exit: 0
+simulation result lines:
+PASS: ZX81 BASIC 8KiB through the machine ROM port
+ZX81 16K pack decode passed
+ZX81 Zon X decode, clock, reset and write transaction passed
+ZX81 QS character window passed
+ZX81 socket BASIC/keyboard/display passed, RAMTOP=4400
+ZX81 socket BASIC/keyboard/display passed, RAMTOP=8000
+FES ZX81: BASIC ready after 30670848 clocks
+FES ZX81: D_FILE=407d video_hits=4
+FES ZX81 machine simulation passed (tape_addr=15 loader=1)
+FES ZX81: 720p timing 1650x750

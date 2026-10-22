@@ -134,9 +134,11 @@ def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> se
             mapping = json.loads(bytes.fromhex(buffer['attributes']['FES_PINMAP_V1']))
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f'boundary route-through pin map is malformed: {buffer_name}') from exc
-        expected = {'count': 2, 'pins': {'A': [0, 'C' if half == 0 else 'D'],
-                                         'Q': [0, 'COMBOUT']}}
-        if mapping != expected or type(mapping['count']) is not int or \
+        # The input may be any pin dedicated to the buffer's own half: C/D, or
+        # the faster E/F that nextpnr chooses since its fastest-first legaliser.
+        allowed = [{'count': 2, 'pins': {'A': [0, pin], 'Q': [0, 'COMBOUT']}}
+                   for pin in (('C', 'E0', 'F0'), ('D', 'E1', 'F1'))[half]]
+        if mapping not in allowed or type(mapping['count']) is not int or \
                 any(type(pin[0]) is not int for pin in mapping['pins'].values()):
             raise ValueError(f'boundary route-through pin map changed: {buffer_name}')
         result.add(buffer_name)
