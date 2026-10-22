@@ -58,10 +58,10 @@ A menu package with `fes.video.menu-blitter` gets a larger grant, and its
 
 Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0. The client writes
 command lists and BGRA textures there; only the blitter draws that grant's
-slots. Any socket peer may take the grant, as any peer may present, launch or
-Stop. The mapping covers both slots, so the slot rules below are the client's
-contract: the runtime checks a slot only when a commit names it, and refuses
-the displayed one.
+slots, and it writes X as 0, which idle MENU ignores. Any socket peer may take
+the grant, as any peer may present, launch or Stop. The mapping covers both
+slots, so the slot rules below are the client's contract: the runtime checks a
+slot only when a commit names it, and refuses the displayed one.
 
 ### Frames
 

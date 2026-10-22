@@ -89,7 +89,8 @@ void Paint(unsigned char* pixels,std::uint32_t sequence) {
  }
 }
 // The same pattern as Paint, drawn by the blitter: FILL commands in Paint's
-// override order into the list region. Returns the command count.
+// override order into the list region. B, G and R match Paint; the blitter
+// writes X as 0, which idle MENU ignores. Returns the command count.
 std::uint32_t PaintList(unsigned char* list,std::uint32_t sequence) {
  std::uint32_t count=0;
  const auto fill=[&](std::uint32_t x,std::uint32_t y,std::uint32_t w,std::uint32_t h,std::uint8_t r,std::uint8_t g,std::uint8_t b){
