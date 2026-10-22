@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/controller"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"golang.org/x/sys/unix"
 )
 
@@ -59,7 +60,7 @@ func runDirectDisplay(ctx context.Context, opts Options, dev directDisplay, labe
 	if opts.Smoke {
 		inputSpec = "none"
 	}
-	inputs, err := openNativeInputs(inputSpec, label)
+	inputs, err := openNativeInputs(inputSpec, label, app.padRemap)
 	if err != nil {
 		app.Stop()
 		return err
@@ -164,6 +165,8 @@ type nativeInput struct {
 	padHeld  map[padKey]remoteinput.Event
 	keysHeld map[uint16]string
 	mapper   *controller.Mapper
+	// remap is the profile saved for this pad, applied after mapper.
+	remap *inputmap.Remapper
 }
 type nativeInputs struct {
 	devices   []*nativeInput
@@ -176,17 +179,20 @@ type nativeInputs struct {
 	// menuSuppressed drops held menu edges once while a local core owns
 	// the pad, and once more when that core returns the menu.
 	menuSuppressed bool
+	// padRemap compiles the profile saved for a pad's GUID. Nil reads every
+	// pad as its mapping does.
+	padRemap func(guid string) (*inputmap.Remapper, error)
 	// kindOf and openFile are nil in production. Tests substitute them
 	// because a fixture node cannot answer EVIOCGBIT.
 	kindOf   func(fd int) InputKind
 	openFile func(path string) (int, error)
 }
 
-func openNativeInputs(spec, label string) (*nativeInputs, error) {
-	return openNativeInputsDir(spec, label, "/dev/input")
+func openNativeInputs(spec, label string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
+	return openNativeInputsDir(spec, label, "/dev/input", padRemap)
 }
 
-func openNativeInputsDir(spec, label, dir string) (*nativeInputs, error) {
+func openNativeInputsDir(spec, label, dir string, padRemap func(guid string) (*inputmap.Remapper, error)) (*nativeInputs, error) {
 	var paths []string
 	spec = strings.TrimSpace(spec)
 	automatic := spec == "" || spec == "auto"
@@ -208,6 +214,7 @@ func openNativeInputsDir(spec, label, dir string) (*nativeInputs, error) {
 		dir:       dir,
 		scanEvery: time.Second,
 		lastScan:  time.Now(),
+		padRemap:  padRemap,
 	}
 	for _, path := range paths {
 		if err := result.openPath(nil, strings.TrimSpace(path)); err != nil {
@@ -266,7 +273,7 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		in.mapper = controller.NewMouseMapper()
 	}
 	if ins.kindOf == nil && kind == InputGamepad {
-		in.mapper = nativeGamepadMapper(fd)
+		in.mapper, in.remap = nativeGamepadMapper(fd, ins.padRemap)
 	}
 	ins.devices = append(ins.devices, in)
 	if app != nil {
@@ -543,8 +550,8 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 	if value != 0 {
 		e.Action = remoteinput.ActionPress
 	}
-	if remap := app.remapper(); remap != nil {
-		e = remap.Apply(e)
+	if in.remap != nil {
+		e = in.remap.Apply(e)
 	}
 	if in.player == noLocalPlayer {
 		// Both controller ports belong to other pads. This pad never reaches
@@ -862,12 +869,12 @@ func nativeDeviceName(fd int) string {
 
 // nativeGamepadMapper gives the controller mapper the pad's identity, its
 // EVIOCGBIT key/axis capabilities and the range of every reported axis.
-func nativeGamepadMapper(fd int) *controller.Mapper {
+func nativeGamepadMapper(fd int, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper) {
 	var id [8]byte
 	const idRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x02)
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), idRequest, uintptr(unsafe.Pointer(&id[0])))
 	if err != 0 {
-		return nil
+		return nil, nil
 	}
 	device := controller.Device{
 		Name:    nativeDeviceName(fd),
@@ -893,14 +900,30 @@ func nativeGamepadMapper(fd int) *controller.Mapper {
 			device.Axes[code] = controller.Range{Min: int32(binary.LittleEndian.Uint32(info[4:])), Max: int32(binary.LittleEndian.Uint32(info[8:]))}
 		}
 	}
+	return padMapper(device, padRemap)
+}
+
+// padMapper reads a pad through its mapping and the profile saved for its
+// GUID, and logs the GUID a profile is saved under.
+func padMapper(device controller.Device, padRemap func(guid string) (*inputmap.Remapper, error)) (*controller.Mapper, *inputmap.Remapper) {
+	guid := device.GUID()
 	mapper := controller.NewMapper(device)
 	mapping := mapper.Mapping()
 	if mapping == "" {
 		mapping = "fallback layout"
 	}
-	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d: %s\n",
-		device.Name, device.Vendor, device.Product, device.Version, device.Bus, mapping)
-	return mapper
+	var remap *inputmap.Remapper
+	if padRemap != nil {
+		var err error
+		if remap, err = padRemap(guid); err != nil {
+			mapping += "; saved profile ignored: " + err.Error()
+		} else if remap != nil {
+			mapping += ", saved profile"
+		}
+	}
+	fmt.Fprintf(os.Stderr, "tenfoot: gamepad %q %04x:%04x v%04x bus %d guid %s: %s\n",
+		device.Name, device.Vendor, device.Product, device.Version, device.Bus, guid, mapping)
+	return mapper, remap
 }
 func nativeKindFromKeys(keys []byte) InputKind {
 	has := func(code int) bool { return code/8 < len(keys) && keys[code/8]&(1<<uint(code%8)) != 0 }
