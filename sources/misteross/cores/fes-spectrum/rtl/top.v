@@ -114,7 +114,7 @@ module top #(
     wire pixel_we, frame_done, tick, speaker, mic, ear;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
-    wire [31:0] pixel_data;
+    wire [15:0] pixel_data;
     wire signed [15:0] slot_audio;
     spectrum_machine machine (
         .clk_sys(clk_sys), .reset(exec_reset), .matrix(matrix), .kempston(kempston),

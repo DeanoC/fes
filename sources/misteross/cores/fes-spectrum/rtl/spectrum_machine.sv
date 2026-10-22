@@ -37,7 +37,7 @@ module spectrum_machine #(
     output wire        pixel_we,
     output wire [7:0]  pixel_row,
     output wire [5:0]  pixel_chunk,
-    output wire [31:0] pixel_data,
+    output wire [15:0] pixel_data,
     output wire        frame_done,
     output wire        tick,
     output wire        speaker,

@@ -136,8 +136,7 @@ module spectrum_ula #(
         if (CONTENTION == 1 && paper_line && hx >= 9'd31 && hx < 9'd159)
             delay_now = sinclair_x[2:0] < 3'd6 ? 3'd6 - sinclair_x[2:0] : 3'd0;
         else if (CONTENTION == 2 && paper_line && hx >= 9'd28 && hx < 9'd156)
-            delay_now = amstrad_x[2:0] == 3'd0 ? 3'd1 : amstrad_x[2:0] == 3'd1 ? 3'd0 :
-                        3'd9 - amstrad_x[2:0];
+            delay_now = 3'd1 - amstrad_x[2:0];  // 1, 0, 7, 6, 5, 4, 3, 2 modulo 8
     end
     // The CPU's presented cycle and the slot position are stable from ce_p to
     // the middle of the T state, so both are registered a clock ahead of
