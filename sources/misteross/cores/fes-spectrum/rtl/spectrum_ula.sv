@@ -9,12 +9,13 @@
 //
 // Each model's frame, interrupt and first paper pixel follow Fuse's
 // libspectrum timing table. hx/vy count T states within a line and lines
-// within a frame such that the first paper pixel is at hx=32, vy=0. Every
-// 8-pixel chunk shows memory written by a cycle whose T1 began no later than
-// four T states per chunk after the line's paper start, and the border colour
-// written by an OUT whose T2 began no later than three T states later, as in
-// Fuse's display model. The visible picture is 320x240: 32 border pixels left
-// and right, 24 lines above and below the 256x192 paper.
+// within a frame such that the first paper pixel is at hx=32, vy=0. A paper
+// chunk's bitmap and attribute are read two T states after the chunk begins,
+// so a write whose T1 began in the chunk's first T state is shown and a later
+// one is not; a chunk takes the border register as it was at its last T
+// state, so an OUT whose T2 began by then is shown. This is Fuse's display
+// model. The visible picture is 320x240: 32 border pixels left and right,
+// 24 lines above and below the 256x192 paper.
 module spectrum_ula #(
     parameter integer MODEL = 0  // 0 48K, 1 128K/+2, 2 +2A/+3, 3 Pentagon 128
 ) (
