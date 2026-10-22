@@ -342,6 +342,11 @@ Each ISA boundary preserves its one-bit request-reset register separately
 from the payload process, preventing cross-slot reset-flop merging without
 changing request/response latency. Whole-boundary equivalence proves all 80
 original state/interface bits for arbitrary request, response and reset streams.
+The ISA endpoint records commit eligibility when preparation completes and clears
+it on commit or reset. This removes the repeated state decode from device
+write enables without changing bus latency. Whole-endpoint temporal induction
+checks all outputs against the original protocol for arbitrary streams after
+reset, including tag changes, wait states and reset during a transaction.
 
 
 The PIC import uses formally checked parallel
