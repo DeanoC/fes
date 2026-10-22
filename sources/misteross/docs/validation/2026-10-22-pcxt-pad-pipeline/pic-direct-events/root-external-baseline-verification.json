@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "baseline_archive": "/home/deano/harnesses/pcxt-compiler-repair/nextpnr/docs/validation/2026-10-22-pcxt-add-operand0/capture.tar.gz",
+  "baseline_archive_sha256": "52004db16988c99fb4abc13e257126ae8049178a224a5210a9c7ae53cd51a4b7",
+  "matched_members": {
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/receipt.json": "baseline/receipt.json",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/inputs.json": "baseline/inputs.json",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/snapshot.json": "baseline/snapshot.json",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/synthesis/synth.json": "baseline/synthesis/synth.json",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/synthesis/synth.ys": "baseline/synthesis/synth.ys",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/synthesis/constraints.qsf": "baseline/synthesis/constraints.qsf",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/add-op0-20261022/baseline/synthesis/clocks.sdc": "baseline/synthesis/clocks.sdc"
+  }
+}

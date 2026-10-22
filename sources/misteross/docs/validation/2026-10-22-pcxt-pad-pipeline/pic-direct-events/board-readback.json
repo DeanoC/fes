@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "receipt_sha256": "82e6218e5d2ebd4ac96991ee43656d5283dfb633a47307e82054dedb45aad074",
+  "archive_sha256": "645d4d8b2c13737278d1fb8eb27e8f50047d7f625fc8c9254b380736d2b87007",
+  "files_verified": 126,
+  "source_archive_files_each": [
+    1854,
+    1854
+  ]
+}
