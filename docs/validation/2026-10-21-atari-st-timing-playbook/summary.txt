@@ -144,3 +144,79 @@ Not done
   (s2, s4).
   sys[0]: the FX68K instruction register into its nanoROM M10K address
   (s7 +0.002 ns).
+
+Renderer decisions registered from the next counters (2026-10-22, 27350d01)
+Nextpnr 14d21d4b (the #276 head), CUDA, producer argv and 1800 s timeout,
+zero-BUILD_ID netlists from the producer's Yosys program (3a5accbd). These are
+experiment routes, not a producer seal.
+At 98bc5767, seeds 1-6 pass, but 5 of the 6 seeds 7-12 fail pixel_clk, and every
+one of those pixel paths starts in the indexed renderer: counters and planes
+through the plane bit select, palette and adapter gating into the video socket
+request (s7, s12), or vertical through the next-row lookup into lookup_valid
+(s9-s11). With DSP multipliers enabled the same paths fail 4 of seeds 1-6.
+27350d01 keeps st_video cycle-exact and moves those decisions behind registers:
+- Each mode's capture, load, fetch, wrap and cache-column decision is a register
+  loaded from the next counter values. Resolution still selects among them.
+- The colour indices are registers. A bit position registered one pixel ahead
+  selects the held planes' and the loaded words' bits in parallel; the plane
+  load is the last mux.
+- Each scale's next native row is registered.
+- Each colour source has its own select, decoded in parallel with the palette
+  lookups.
+LUT levels in a standalone st_video_adapter synthesis with the producer's
+synth_intel_alm flags: socket request 9 -> 6, lookup_valid 8.8 -> 6,
+line_available 7.75 -> 6.7. The registered decisions' own inputs are 7.8, from
+the next counters, and stay inside the renderer. The deepest pixel path left is
+the native border (8), which this change does not touch.
+
+Equivalence (renderer-equivalence.json)
+- Step: equiv_simple -seq 3 proves every matched point between 98bc5767 and
+  27350d01: 530 with the physical word port, 375 with the cached port.
+  border_rgb is excluded from name matching, because the gate applies the
+  high-resolution black border in its select instead.
+- Base case: a six-cycle miter from power-up over every shared internal signal
+  and output, inputs free and the uninitialised native rows free but equal,
+  passes in both modes (renderer-base-case-*.ys).
+- A Verilator 5.032 lockstep of old against new, both modes, compared every
+  port and the counters, staging, planes, picture_valid, native rows and
+  capture signals on every clock: 20 runs, 618,750,000 cycles, 8,428 resets
+  and 285,168 resolution changes, no mismatch. (Scratch harness, not
+  committed.)
+- tests/test_atari_st_video_capture.py set the counters and read the
+  decisions combinationally. It now resets each mode from the middle of a
+  picture line and clocks one complete frame: 4,950,000 states and 112,000
+  active captures, as before, plus the plane load on every clock.
+- make -k sim-fes-atari-st on Verilator 5.032: rc 0, 65 PASS lines, and every
+  video result line is identical to 98bc5767's.
+
+Routes, final signoff pixel/sys[0] MHz (targets 74.25/52.22)
+v3 is 27350d01 before review, with separate column and row display registers
+(formally equivalent; a slightly different netlist).
+
+seed  98bc5767           27350d01           v3
+4     75.18/53.90 PASS   76.64/56.58 PASS   79.74/54.94 PASS
+5     74.82/53.07 PASS   76.23/55.23 PASS   78.62/53.49 PASS
+2     77.29/55.19 PASS   82.58/55.98 PASS   80.13/53.36 PASS
+1     76.11/58.32 PASS   79.49/53.83 PASS   78.83/53.93 PASS
+3     74.32/57.15 PASS   81.98/53.03 PASS   timeout (SA wirelength 387k)
+6     76.34/53.15 PASS   76.85/57.00 PASS   79.15/53.30 PASS
+7     70.92/50.10 FAIL   -                  73.17/50.04 FAIL
+8     74.44/54.51 PASS   -                  79.28/54.97 PASS
+9     68.12/50.10 FAIL   -                  78.24/50.43 FAIL
+10    74.04/52.56 FAIL   -                  69.08/52.93 FAIL
+11    74.24/52.24 FAIL   -                  75.69/50.81 FAIL
+12    74.17/54.99 FAIL   -                  76.55/54.09 PASS
+
+Every routed seed passes the seal checks: validate_routed_shell, cache
+placements, sector memory, async M10K reads and video validate_boundary.
+- 27350d01 passes all six production-order seeds; its lowest pixel result is
+  76.23 MHz, against 74.32 at 98bc5767.
+- No v3 pixel failure is in the renderer. s7 and s10 fail on a frame-buffer
+  M10K read into group_read: 3-4 cells with 10-11 ns of route.
+- System-clock failures at both heads run into the SDRAM controller (dq_out
+  enable, held_addr, sdram_a) from the CPU, the floppy DMA or the init flag:
+  11-22 cells with 12.5-14.5 ns of route. This change does not touch them.
+- With DSP multipliers (the producer's Yosys program without -nodsp), v3 passes
+  3 of seeds 4, 5, 2, 1, 3, 6 (98bc5767: 2). Pixel passes 5 of 6; s1 misses by
+  0.01 MHz on the adapter's RGB address forecast. s5 and s2 miss sys[0]
+  (51.09, 51.56) on the CPU address into the SDRAM data-out enable.
