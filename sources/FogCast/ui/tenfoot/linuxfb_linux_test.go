@@ -39,17 +39,26 @@ func TestNativeEvdevBothABIs(t *testing.T) {
 	}
 }
 
-func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
+// superFamicomPad is the kit's 081f:e401 USB pad as EVIOCGID/EVIOCGBIT report it.
+func superFamicomPad(axes map[uint16]controller.Range) controller.Device {
+	keys := make([]byte, 96)
+	for code := 288; code <= 297; code++ {
+		keys[code/8] |= 1 << uint(code%8)
+	}
+	return controller.Device{Name: "USB Gamepad ", Bus: 3, Vendor: 0x081f, Product: 0xe401, Version: 0x0110,
+		Keys: keys, Abs: []byte{0x03, 0, 0, 0, 0, 0, 0, 0}, Axes: axes}
+}
+
+func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if controller.Eligible(6, "FogCast Virtual Gamepad", true) || controller.Eligible(3, "USB pad", false) {
 		t.Fatal("automatic selection admitted virtual/non-gamepad device")
 	}
 	if !controller.Eligible(3, "USB SNES Pad", true) {
 		t.Fatal("physical gamepad rejected")
 	}
-	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{
+	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{
 		0: {Min: 0, Max: 255}, 1: {Min: 0, Max: 255},
-		16: {Min: -1, Max: 1}, 17: {Min: -1, Max: 1},
-	})
+	}))
 	for _, tc := range []struct {
 		code  uint16
 		value int32
@@ -70,7 +79,7 @@ func TestTenfootFixturePadNormalizationAndVirtualFilter(t *testing.T) {
 		want  remoteinput.Code
 	}{
 		{0, 0, remoteinput.AxisLeftX}, {0, 255, remoteinput.AxisLeftX},
-		{1, 0, remoteinput.AxisLeftY}, {16, -1, remoteinput.AxisLeftX},
+		{1, 0, remoteinput.AxisLeftY},
 	} {
 		e, ok := mapper.Map(3, tc.code, tc.value)
 		if !ok || e.Code != tc.want {
@@ -420,7 +429,7 @@ func TestFramebufferPollPreservesQuickAxisTap(t *testing.T) {
 	if err := unix.SetNonblock(fd, true); err != nil {
 		t.Fatal(err)
 	}
-	mapper := controller.NewMapper(0x081f, 0xe401, map[uint16]controller.Range{0: {Min: -1, Max: 1}})
+	mapper := controller.NewMapper(superFamicomPad(map[uint16]controller.Range{0: {Min: -1, Max: 1}}))
 	in := &nativeInput{fd: fd, mapper: mapper}
 	inputs := &nativeInputs{devices: []*nativeInput{in}}
 	a := NewApp(nil, 1280, 720, 10)
@@ -496,18 +505,18 @@ func TestFramebufferDpadRoutesToLocalCoreAndMenu(t *testing.T) {
 func TestAutoInputRejectsUnknownIdentity(t *testing.T) {
 	keys := make([]byte, 96)
 	keys[304/8] |= 1 << uint(304%8)
-	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+	if got := nativeKindWithIdentity(keys, 0, ""); got != InputNone {
 		t.Fatalf("unknown identity classified as %v", got)
 	}
 	keys = make([]byte, 96)
 	keys[288/8] |= 1 << uint(288%8)
 	keys[289/8] |= 1 << uint(289%8)
-	if got := nativeKindWithIdentity(keys, 0, "", 0, 0); got != InputNone {
+	if got := nativeKindWithIdentity(keys, 0, ""); got != InputNone {
 		t.Fatalf("unknown BTN_GAMEPAD identity classified as %v", got)
 	}
 	keys = make([]byte, 96)
 	keys[304/8] |= 1 << uint(304%8)
-	if got := nativeKindWithIdentity(keys, 3, "physical pad", 1, 2); got != InputGamepad {
+	if got := nativeKindWithIdentity(keys, 3, "physical pad"); got != InputGamepad {
 		t.Fatalf("known physical pad classified as %v", got)
 	}
 }
@@ -516,7 +525,7 @@ func TestAutoInputAcceptsGenericPhysicalTriggerPad(t *testing.T) {
 	keys := make([]byte, 96)
 	keys[288/8] |= 1 << uint(288%8)
 	keys[289/8] |= 1 << uint(289%8)
-	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad", 0x1234, 0x5678); got != InputGamepad {
+	if got := nativeKindWithIdentity(keys, 3, "Generic USB Pad"); got != InputGamepad {
 		t.Fatalf("generic physical trigger pad classified as %v", got)
 	}
 }
@@ -529,7 +538,7 @@ func TestAutoInputRejectsVirtualGamepadIdentity(t *testing.T) {
 		bus  uint16
 		name string
 	}{{6, "USB Pad"}, {3, "FogCast Virtual Gamepad"}} {
-		if got := nativeKindWithIdentity(keys, tc.bus, tc.name, 0x1234, 0x5678); got != InputNone {
+		if got := nativeKindWithIdentity(keys, tc.bus, tc.name); got != InputNone {
 			t.Errorf("virtual identity (%d, %q) classified as %v", tc.bus, tc.name, got)
 		}
 	}
