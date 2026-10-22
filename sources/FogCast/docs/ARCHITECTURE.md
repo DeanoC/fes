@@ -1284,7 +1284,9 @@ hold-reset `load_media`.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
-`cmd/fes-update`. Online releases replace
+`cmd/fes-update`. Before uploading, `fes-update` reads the image's
+`/etc/fes/software-base.json` with `internal/ext4image` and refuses an image the
+kit's selected software bundle cannot run. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -2144,7 +2146,12 @@ listener remains loopback-only.
 The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
 and selected kit launcher as one userspace group. Immutable bundles declare the
 board, architecture, base-system contract, interfaces and executable/asset
-digests. Installation and selection live on verified FESDATA3 independently of
+digests. Their interfaces include `menu.<interface>` versions the runtime admits.
+The base image records the interfaces its sealed menu declares as `requires` in
+`/etc/fes/software-base.json`. Install and activation refuse a bundle that does
+not accept them or fits another base contract. At boot and in recovery the
+supervisor holds such a selection back and runs the image's factory software in
+its place; status reports `held_back`. Installation and selection live on verified FESDATA3 independently of
 core packages and the base appliance image. The existing service scripts are
 replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
 
