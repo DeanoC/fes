@@ -68,10 +68,12 @@ recovery:
   `GET /v1/kit/software` reports `held_back` and `held_back_reason`. A
   selection built for another base contract is held back the same way after
   an image change.
-- A queued activation of such a bundle never starts it. It completes as
-  `recovered` with a `held back:` reason and leaves the running group alone.
-  If the factory software is still running after an image change, the
-  selection starts as it would in recovery, or stays held back.
+- A queued activation of such a bundle never starts it and spends no
+  recovery attempt. It completes as `recovered` with a `held back:` reason and
+  leaves the running group alone. If the factory software is still running
+  after an image change, the selection starts first while the request stays
+  queued, so an interrupted start leaves the next boot to start it. Only a
+  selection that then fails to start blocks.
 
 Running the factory software in place of a held-back selection is a deliberate
 exception to the no-fallbacks rule in `AGENTS.md`, approved by Deano on

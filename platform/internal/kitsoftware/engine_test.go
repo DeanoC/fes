@@ -630,3 +630,67 @@ func TestAcceptedCandidateEndsHoldBack(t *testing.T) {
 		t.Fatal("accepted candidate left the old selection held back", c, s, e.HeldBack)
 	}
 }
+
+func TestHeldBackCandidateInterruptedWhileSelectionStartsStaysQueued(t *testing.T) {
+	r, e, c, a := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testCandidateID: true}
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	// Shutdown arrives while the selection replaces the factory software.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e.Controller = &cancellingControl{fakeControl: c, cancel: cancel}
+	if !errors.Is(e.Run(ctx), context.Canceled) {
+		t.Fatal("shutdown cancellation lost")
+	}
+	s, _ := r.Read()
+	if s.Pending == nil || s.Pending.Phase != "queued" {
+		t.Fatal("an interrupted hold-back spent recovery", s.Pending)
+	}
+	// The next boot starts the selection, as it would anyway, and the request
+	// then completes without touching services again.
+	e.Controller = c
+	if err := e.Boot(context.Background(), Request{ID: strings.Repeat("9", 64), Candidate: testFactoryID, Requester: "kit-software-supervisor"}); err != nil {
+		t.Fatal(err)
+	}
+	if c.active != testSelectedID {
+		t.Fatal("boot did not start the selection", c)
+	}
+	starts := c.starts
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = r.Read()
+	if s.Pending != nil || s.Receipts[queued.ID].Result != "recovered" || c.starts != starts || c.active != testSelectedID || a.releases == 0 {
+		t.Fatal("held-back request did not complete after the reboot", s, c, a)
+	}
+}
+
+func TestHeldBackCandidateBlocksOnlyWhenSelectionFailsToStart(t *testing.T) {
+	r, e, c, _ := setup(t)
+	e.Factory = testFactoryID
+	selectRelease(t, r, testSelectedID)
+	c.active = testFactoryID
+	c.incompatible = map[string]bool{testCandidateID: true}
+	c.fail[testSelectedID] = true
+	state, _ := r.Read()
+	queued := req()
+	queued.Generation = state.Generation
+	if err := Queue(r, queued); err != nil {
+		t.Fatal(err)
+	}
+	if e.Run(context.Background()) == nil {
+		t.Fatal("a selection that never became ready was accepted")
+	}
+	s, _ := r.Read()
+	if s.Pending == nil || s.Pending.Phase != "blocked" || !strings.HasPrefix(s.Pending.Reason, "held back: ") || !strings.Contains(s.Pending.Reason, "starting the selection failed") {
+		t.Fatal("failed selection start not recorded", s.Pending)
+	}
+}

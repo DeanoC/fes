@@ -226,24 +226,12 @@ func (e *Engine) Run(ctx context.Context) error {
 		}
 		return errors.New(reason)
 	}
-	reason, from := "interrupted software activation", "applying"
+	reason := "interrupted software activation"
 	if op.Phase == "queued" {
 		err := e.Controller.Verify(ctx, op.Candidate)
 		switch {
 		case errors.Is(err, software.ErrIncompatible):
-			// This image cannot run the candidate, so it is held back and never
-			// starts. The selection keeps running and no service is touched,
-			// unless something else runs, as the factory software still does
-			// after an image change. Recovery below then starts the selection.
-			// The receipt reuses "recovered" so a supervisor from an older
-			// image can still read this state after a rollback.
-			reason, from = "held back: "+err.Error(), "queued"
-			if id, err := e.prepareSelection(ctx, op.Previous); err == nil && id == e.Controller.Active() {
-				if err := complete(e.Repository, op, "queued", "recovered", reason); err != nil {
-					return err
-				}
-				return e.release(ctx, op.Request)
-			}
+			return e.holdBack(ctx, op, "held back: "+err.Error())
 		case err != nil:
 			// No service was stopped. Preserve a diagnosable blocked request and its
 			// reservation rather than repeatedly attempting an invalid artifact.
@@ -272,7 +260,7 @@ func (e *Engine) Run(ctx context.Context) error {
 		return err
 	}
 	// Persist the spent recovery attempt BEFORE stopping or starting anything.
-	if err := transition(e.Repository, op, from, "recovering", reason); err != nil {
+	if err := transition(e.Repository, op, "applying", "recovering", reason); err != nil {
 		return err
 	}
 	// The selection is the recovery target. If this image cannot run it, the
@@ -289,6 +277,35 @@ func (e *Engine) Run(ctx context.Context) error {
 		return errors.New(failure)
 	}
 	if err := complete(e.Repository, op, "recovering", "recovered", reason); err != nil {
+		return err
+	}
+	return e.release(ctx, op.Request)
+}
+
+// holdBack completes a queued activation whose candidate this image cannot
+// run. The candidate never starts and no recovery attempt is spent. The
+// selection keeps running and no service is touched, unless something else
+// runs, as the factory software still does after an image change. Then the
+// selection starts first while the request stays queued, so an interruption
+// leaves Boot to start the selection exactly as it would anyway. Only a
+// selection that fails to start blocks. The receipt reuses "recovered" so a
+// supervisor from an older image can still read this state after a rollback.
+func (e *Engine) holdBack(ctx context.Context, op Operation, reason string) error {
+	id, err := e.prepareSelection(ctx, op.Previous)
+	if err == nil && id != e.Controller.Active() {
+		err = e.switchPrepared(ctx, id, op.Request)
+	}
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		failure := fmt.Sprintf("%s; starting the selection failed: %v", reason, err)
+		if save := transition(e.Repository, op, "queued", "blocked", failure); save != nil {
+			return save
+		}
+		return errors.New(failure)
+	}
+	if err := complete(e.Repository, op, "queued", "recovered", reason); err != nil {
 		return err
 	}
 	return e.release(ctx, op.Request)
