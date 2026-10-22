@@ -4,6 +4,7 @@
 #pragma once
 
 #include "native/artifacts.hpp"
+#include "native/generated/fes_computer.hpp"
 
 #include <cstdint>
 #include <string>
@@ -53,6 +54,15 @@ Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
 Error HashOpenedArtifact(const Artifact&, std::string* digest);
 Error RecheckCorePackage(const OpenedCorePackage& package);
 Error CheckCoreCompatibility(const CoreDescriptor& descriptor);
+// Whether a fes.computer interface declaration is at the version this runtime
+// implements: 1.0, except fes.media.spectrum-tape, whose PZX deck is 2.0.
+inline bool ComputerInterfaceCurrent(const CoreInterface& interface)
+{
+	if (interface.id == generated::FesComputerInterfaceMediaSpectrumTapeID)
+		return interface.major == generated::FesComputerInterfaceMediaSpectrumTapeMajor &&
+			interface.minor == generated::FesComputerInterfaceMediaSpectrumTapeMinor;
+	return interface.major == 1 && interface.minor == 0;
+}
 // Format 2 is the ROM-less shell. Format 3 is the factory 16 KiB cartridge.
 inline bool ColecoVideoShell(const CoreDescriptor& descriptor)
 {

@@ -852,6 +852,21 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	zx81.interfaces.push_back({"fes.fabric.video.display-plane", 1, 0, true});
 	zx81.interfaces.push_back({"fes.expansion.zx81-bus", 2, 0, false});
 	assert(check(zx81).ok());
+	// Sealed Spectrum producer manifest: its tape is the 2.0 PZX deck, so the
+	// 1.0 .tap unit, or a newer minor, is refused.
+	auto spectrum = video;
+	for (const char* id : {"fes.keyboard.hid", "fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k",
+		"fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane"})
+		spectrum.interfaces.push_back({id, 1, 0, true});
+	spectrum.interfaces.push_back({"fes.media.spectrum-tape", 2, 0, true});
+	spectrum.interfaces.push_back({"fes.expansion.spectrum-bus", 1, 0, false});
+	assert(check(spectrum).ok());
+	auto spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].major = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].minor = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
 	auto plane_only = zx81;
 	plane_only.interfaces.erase(plane_only.interfaces.end() - 4);
 	assert(check(plane_only).code == mister::ErrorCode::unsupported_interface);

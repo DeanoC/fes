@@ -446,7 +446,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (home) {
 			// Admission requires every recognized operational interface to be
 			// required when declared; the bus and unknown optionals grant nothing.
-			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID)
 				capabilities |= FesComputerCapabilityVideoFixed720p60;
 			else if (interface.id == FesComputerInterfaceKeyboardHidID)
@@ -700,7 +700,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		// Identity already proved that the live capabilities equal these
 		// required declarations, so each one is an operational interface.
 		for (const auto& interface : context.descriptor->interfaces) {
-			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceMouseRelativeID) mouse_relative_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
