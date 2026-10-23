@@ -154,6 +154,13 @@ class TestChangedTest(unittest.TestCase):
                        "--video", "true", "--media", "true", "--full"],
                       [c["argv"] for c in result["commands"]])
 
+    def test_runtime_routine_and_full_use_shared_targets(self):
+        self.change("sources/libmister-runtime/src/native/hardware.cpp")
+        for full, target in ((False, 'test-routine'), (True, 'test')):
+            result = test_changed.plan(self.root, self.base, full=full)
+            runtime = next(c for c in result['commands'] if c['lane'] == 'runtime')
+            self.assertEqual(runtime['argv'], ['make', '-j2', target])
+
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")
         result = self.plan()

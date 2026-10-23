@@ -367,9 +367,10 @@ Its registered accepted-write source isolates the output model; real-CPU palette
 admission, RAM 12/512 intervals and Timer B use their existing fixtures.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
 1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
-Five groups of sixteen chunks register local selection before the final
-bank/group mux. Address and bank tags stay aligned with the two-edge read;
-invalid chunks return zero. Frame publication and pixel capacity are unchanged.
+Each bank's five groups of sixteen chunks register their own hit and chunk
+index with the RAM read, then their selected word; a miss clears the word, so
+the output is the OR of the fifteen group words. Address and bank tags stay
+aligned with the two-edge read; invalid chunks return zero. Frame publication and pixel capacity are unchanged.
 Fresh resource and routed timing qualification remain required.
 The banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
@@ -395,9 +396,13 @@ ordinary display. These are live palette-zero borders; they do not add top or
 horizontal display-enable opening.
 A blanking-time row counter avoids a vertical-coordinate multiply on the read path.
 Border replay prefetches the registered successor while holding the current event
-through output pauses. Consuming an event releases that hold on the original pixel
-edge; SOF and line start load the original event-zero/row descriptor addresses.
-The event RAM address no longer depends on the current colour comparison.
+through output pauses. Only the held event is compared with the output position,
+so no event RAM output reaches the consume decision; the edge after SOF, line
+start or a consume loads the successor. The 2×2 canvas holds each native pixel
+for two output edges and starts rows in blanking, so every event is still
+consumed on its original pixel edge. Row descriptors take one more pixel edge
+into fabric registers; SOF and line start load the original event-zero/row
+descriptor addresses. The event RAM address does not depend on the colour comparison.
 The surrounding capture pins published banks until SOF, and SOF runs in blanking.
 RGB and black-line validity have separate write registers. Three-bit publication
 numbers order the bounded pending bank set across wrap and consumer pauses.

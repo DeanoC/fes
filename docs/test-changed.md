@@ -316,3 +316,19 @@ The simulation-only `fes-menu` family is selected by its RTL or simulation
 script changes. Local affected checks and the required CI simulation matrix
 run `make sim-fes-menu`, covering reader and video regressions. This does not
 select a menu artifact for the appliance or qualify physical scanout.
+
+### Runtime build regressions
+
+CI and `test-changed` use the same runtime target selection. Reviewed C/C++
+source, header and test changes (optionally with guides) run `test-routine`:
+all runtime tests once, header-dependency queries, the version-rebuild regression,
+and the active-tree and hardware-support guards. The dependency check first
+requires each binary to be up to date, then uses Make's assumed-new header
+queries to prove it would rebuild. It changes no timestamps and compiles nothing.
+
+Runtime Makefiles, shell scripts, third-party inputs, CI/policy changes and
+unknown inputs retain `make test`, which actually touches the representative
+headers, rebuilds every test binary and reruns the suite. Scheduled/manual runs
+and `test-changed --full` retain this exhaustive mode. Direct `make test` remains
+exhaustive. Inspect selection with
+`python3 scripts/runtime_tests.py --plan-only --paths-json '["sources/libmister-runtime/src/native/input.cpp"]'`.

@@ -1,0 +1,27 @@
+{
+  "gold_revision": "98bc57676864495ec31493242fde1f88b79a1c13",
+  "gate_revision": "27350d010ed61100e0e175b87d67c1d0696b7f9b",
+  "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_video.sv",
+  "gold_sha256": "b59f0322618fd8fb33228e88a96a251914eb92ea73176bb87f51e71ad0d31eb4",
+  "gate_sha256": "c1acd5d93f27911481c4ff16ad503ed3bcddca78e8832ede3c06a81ea3fa1f53",
+  "combined_formal_input_sha256": "dea9fa9da6cc95850b7093be357f74b2f883f04c36ee86da21e62d4afcf18719",
+  "configurations": [
+    {
+      "CACHED_WORD_PORT": 0,
+      "proven_points": 530,
+      "unproven_points": 0,
+      "base_case_cycles": 6,
+      "base_case": "SUCCESS"
+    },
+    {
+      "CACHED_WORD_PORT": 1,
+      "proven_points": 375,
+      "unproven_points": 0,
+      "base_case_cycles": 6,
+      "base_case": "SUCCESS"
+    }
+  ],
+  "scope": "whole st_video state and outputs, same clock/reset/hold/input sequences. Step: equiv_simple over three time steps from any equal matched state. Base case: every shared internal signal and output for six cycles from power-up initial values, inputs free, uninitialised rows free but equal. border_rgb is excluded from name matching because the gate applies the high-resolution black border in its select.",
+  "hardware_execution": false,
+  "yosys_binary_sha256": "39dd0b44cc74b7148048faee7cfd470572223b16fea8ba436889d38393b17382"
+}

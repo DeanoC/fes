@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <cstring>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <fstream>
 #include <limits>
@@ -507,9 +508,26 @@ class RecordingFaultSink final : public mister::HardwareFaultSink {
 public:
 	void ReportHardwareFault(mister::HardwareFault fault) override
 	{
-		faults.push_back(std::move(fault));
+		std::lock_guard<std::mutex> lock(mutex_);
+		faults_.push_back(std::move(fault));
+		condition_.notify_all();
 	}
-	std::vector<mister::HardwareFault> faults;
+	bool WaitForFaults(std::size_t count)
+	{
+		std::unique_lock<std::mutex> lock(mutex_);
+		return condition_.wait_for(lock, std::chrono::seconds(2),
+			[this, count] { return faults_.size() >= count; });
+	}
+	std::vector<mister::HardwareFault> Faults()
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		return faults_;
+	}
+
+private:
+	std::mutex mutex_;
+	std::condition_variable condition_;
+	std::vector<mister::HardwareFault> faults_;
 };
 
 class RecordingDriver final : public mister::native::CoreDriver {
@@ -845,6 +863,9 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 	assert(device.WaitForReads(2));
 	device.PushError({mister::ErrorCode::io_failed, "gamepad disconnected"});
 	assert(device.WaitForReads(3));
+	// Reading the error precedes the worker's fault callback. Observe delivery
+	// before replacement retires the generation and suppresses pending faults.
+	assert(sink.WaitForFaults(1));
 
 	// The replacement joins the failed worker, sends its final neutral, then
 	// quiesces the outgoing fabric before resetting the new GP session.
@@ -862,14 +883,16 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 		FesGpOpcodeButtons * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
 	assert((mmio.writes[37].value & FesGpArgumentMask) == FesGpButtonUp);
 	assert((mmio.writes[39].value & FesGpArgumentMask) == 0);
-	assert(sink.faults.size() == 1 && sink.faults[0].generation == 1);
+	const auto disconnect_faults = sink.Faults();
+	assert(disconnect_faults.size() == 1 && disconnect_faults[0].generation == 1);
 
 	const std::size_t replacement_writes = mmio.writes.size();
 	assert(input.writers[0](FesGpButtonUp, 1000).ok());
 	input.callbacks[0](1,
 		{mister::ErrorCode::io_failed, "retained old-generation callback"});
 	assert(mmio.writes.size() == replacement_writes);
-	assert(sink.faults.size() == 2 && sink.faults[1].generation == 1);
+	const auto retired_faults = sink.Faults();
+	assert(retired_faults.size() == 2 && retired_faults[1].generation == 1);
 
 	// Satisfy destruction's final neutral without weakening the stale-writer
 	// assertion above.

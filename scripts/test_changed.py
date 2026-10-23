@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 import affected
+import runtime_tests
 
 
 def git(root, *args):
@@ -77,8 +78,9 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
         add("host", "host UI tests", host, ["make", "test-ui"], tools=["node", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["runtime"]:
-        add("runtime", "runtime software tests", affected.MODULE_ROOTS["runtime"],
-            ["make", "-j" + str(jobs), "test"], tools=["c++", "ar", "nm", "c++filt", "sh", "rg"], files=["Makefile"])
+        runtime = runtime_tests.command(impact["paths"], jobs, full)
+        add("runtime", "runtime software tests", runtime["cwd"],
+            runtime["argv"], tools=["c++", "ar", "nm", "c++filt", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["contracts"]:
         add("contracts", "contract schemas and generated fixtures", affected.MODULE_ROOTS["contracts"],
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
