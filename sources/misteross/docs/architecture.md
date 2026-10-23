@@ -2340,6 +2340,18 @@ Exact analogue TOD input phase, write/tick collisions and physical-chip
 qualification remain open. External CNT edges, serial shifting, FLAG input
 and timer port outputs remain outside this slice.
 
+The C64 shell routes its finished 720p word through the shared
+`fes_display_plane` and uses `fes_computer_mailbox_core` with session display
+and the existing C64 disk unit enabled. The pixel PLL exposes lock for plane
+reset; display open/close does not alter machine reset or disk state. The
+960×720 picture starts at (160, 0). The format-3 package requires
+`fes.memory.hps-ddr`, `fes.video.session-display` and
+`fes.fabric.video.display-plane`. The producer checks the boot DDR layout,
+disabled writes/unused ports and synchronous FIFO reads in synthesis and routed
+evidence. Exactly three unsigned 9×9 multipliers belong to `display.*`; other
+DSP types remain forbidden. Older C64 packages lacking these interfaces cannot
+show an in-session menu.
+
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `cores/fes-c64/toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
 HIP. `--gpu-router CUDA` with `--toolchain-root` builds a separate package.

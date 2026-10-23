@@ -120,6 +120,12 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   hour-read latching, tenth-read release, hour-write stop, tenth-write restart
   and CRB-selected alarm writes with ICR bit 2. Serial shift, FLAG input and
   PB6/PB7 timer outputs remain unimplemented. Port 2 (CIA1 port A) is controller port 0.
+- In-session menus use the shared `fes.video.session-display` plane over
+  the finished machine video word, backed by read-only `fes.memory.hps-ddr`.
+  The plane reports the centred 960×720 machine rectangle and blends launcher
+  frames without resetting the CPU or changing media. Closing or faulting the
+  plane returns the running machine picture. The package requires the display,
+  DDR and display-plane interfaces; software alone cannot add them to older RBFs.
 - HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
   viewport using rational nearest-neighbor sampling; side pillars are black.
   The fixed RGB lookup uses Philip Timmermann's
