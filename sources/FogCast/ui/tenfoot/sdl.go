@@ -312,7 +312,6 @@ func runWindow(ctx context.Context, opts Options) error {
 	textures := map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
 	labels := map[string]gpuTexture{}
-	defer destroyTextures(dev, labels)
 
 	if opts.Smoke {
 		return runSmoke(ctx, opts, app, dev, pads, textures, labels, renderer)

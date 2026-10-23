@@ -73,6 +73,11 @@ bool HasMenuBlitter(const CoreDescriptor& descriptor) {
   if(interface.id==generated::FesApplicationInterfaceVideoMenuBlitterID)return true;
  return false;
 }
+std::uint16_t MenuBlitterMinor(const CoreDescriptor& descriptor) {
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesApplicationInterfaceVideoMenuBlitterID)return std::uint16_t(interface.minor);
+ return 0;
+}
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
   descriptor.abi.id!=generated::FesComputerABIID)return false;
@@ -734,7 +739,7 @@ Capabilities NativeHardware::capabilities() const
 				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
 		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_) {
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
-   application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,0});
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,generated::FesApplicationInterfaceVideoMenuBlitterMinor});
   }
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
@@ -1281,7 +1286,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			"native video shell requires a video parts composition", "admission"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
  const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
- const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor);
+ const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor)&&
+  MenuBlitterMinor(admitted->opened_.descriptor)>=kMenuBlitterMinimumMinor;
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
  if(menu&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
  if(session_display&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};
@@ -1474,6 +1480,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
    menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_slot_=0;
+   menu_status_.blitter_minor=blitter?MenuBlitterMinor(admitted->opened_.descriptor):0;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))

@@ -138,8 +138,11 @@ func (s *Software) Clear(c Color) {
 
 // premultiplied is the framebuffer form of a straight color.
 func premultiplied(c Color) Color {
-	p := straightToPremult(c)
-	return Color{R: p.R, G: p.G, B: p.B, A: p.A}
+	if c.A == 255 {
+		return c
+	}
+	a := uint32(c.A)
+	return Color{R: uint8(uint32(c.R) * a / 255), G: uint8(uint32(c.G) * a / 255), B: uint8(uint32(c.B) * a / 255), A: c.A}
 }
 
 func (s *Software) Present() {}
@@ -330,8 +333,17 @@ func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	m, src, _ := UIText(text, sizePx, w, 0)
+	s.DrawMask(m, src, x, y, c)
+}
+
+func (s *Software) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
 	s.restorePrevious()
-	blitText(s, x, y, RasterizeTextWeight(text, sizePx, w, c, 0))
+	src, at, ok := clipMask(m, src, x, y, s.w, s.h)
+	if !ok || c.A == 0 {
+		return
+	}
+	expandRows(s.pix, s.stride, m.Pix, m.W, src, at, c)
 }
 
 func (s *Software) Close() {

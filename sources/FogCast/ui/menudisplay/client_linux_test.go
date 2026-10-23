@@ -36,6 +36,8 @@ type fakeRuntime struct {
 	commits    []map[string]any
 	done       chan struct{}
 	blitter    bool
+	// blitterMinor is the menu-blitter minor a blitter grant declares.
+	blitterMinor int
 	// listedGen is the generation whose grant took a list.
 	listedGen uint64
 	ddr       []byte
@@ -115,7 +117,7 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 		f.grants++
 		blitter := ""
 		if f.blitter {
-			blitter = `,"blitter":{"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}`
+			blitter = fmt.Sprintf(`,"blitter":{"minor":%d,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}`, f.blitterMinor)
 		}
 		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304%s}}`, f.generation, blitter), f.window)
 	case "menu_frame_begin":
@@ -181,7 +183,7 @@ func (f *fakeRuntime) commitError(request map[string]any, slot int) string {
 			copy(f.ddr[offset:offset+bytes], f.mapping[offset:offset+bytes])
 		}
 	}
-	if err := blitReference(f.ddr[at:at+count*CommandBytes], f.ddr, f.mapping[slot*SlotBytes:slot*SlotBytes+FrameBytes]); err != nil {
+	if err := blitReference(f.ddr[at:at+count*CommandBytes], f.ddr, f.mapping[slot*SlotBytes:slot*SlotBytes+FrameBytes], f.blitterMinor); err != nil {
 		return "menu blitter fault: " + err.Error()
 	}
 	f.listedGen = f.generation

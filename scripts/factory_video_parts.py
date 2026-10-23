@@ -288,6 +288,8 @@ strict = native or st
 options = {} if st else ({'native_video':True} if native else {'video_socket':True})
 clock_producer = producer.slot_recipe if st else producer.sgm
 factory = shell_producer if st else shell_producer.factory
+# The ST shell admits DSP modes that its video parts may not own.
+part_forbidden = producer.FORBIDDEN_RESOURCES if st else factory.FORBIDDEN_RESOURCES
 expected_backend = gpu_backend_for_router(args['gpu_router'])
 shell_members = ('manifest.toml','core.rbf','routed.json','socket.qsf') + (('rom-map.json',) if st else ())
 if mode == 'canonical':
@@ -391,7 +393,7 @@ else:
             proof.update(synth_sha256=sha(synthesized),prepared_sha256=sha(prepared))
             require(summary.get('native_clock_boundary')==proof, 'native clock normalization evidence differs')
         counts=_cell_counts(json.loads(prepared))
-        require(not any(counts.get(name,0) for name in factory.FORBIDDEN_RESOURCES|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
+        require(not any(counts.get(name,0) for name in part_forbidden|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
         require(not native or sum(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP'))==48, 'native part must own exactly 48 M10K frame-buffer blocks')
         require(not st or not any(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP')), 'ST raster part must not allocate RAM')
         pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')),layout=layout)

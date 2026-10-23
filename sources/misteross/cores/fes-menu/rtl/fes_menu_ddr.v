@@ -56,6 +56,21 @@ module fes_menu_ddr #(
         .readdata(readdata), .readdatavalid(readdatavalid)
     );
     generate if (BLITTER) begin : blit
+        // The blitter finishes a run when port 1 takes its last write beat,
+        // but the port's guard may still hold beats for the hard block. A
+        // run reports idle and counts only once port 1 has drained too, so
+        // the runtime never submits a slot whose last writes are in flight.
+        wire run_idle;
+        wire [15:0] run_completed;
+        reg idle_q = 1'b1;
+        reg [15:0] completed_q = 16'd0;
+        always @(posedge clk) begin
+            idle_q <= run_idle && p1_drained;
+            if (blit_reset) completed_q <= 16'd0;
+            else if (run_idle && p1_drained) completed_q <= run_completed;
+        end
+        assign blit_idle = idle_q;
+        assign blit_completed = completed_q;
         // Destinations on port 1, commands and sources on port 2.
         fes_menu_blitter #(
             .WINDOW_BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE), .SLOT_BYTES(`FES_APPLICATION_MENU_SLOT_BYTES),
@@ -64,7 +79,7 @@ module fes_menu_ddr #(
         ) blitter (
             .clk(clk), .rst(blit_reset), .halt(quiesce || faulted),
             .run_valid(blit_valid), .list_offset(blit_offset), .list_count(blit_count), .target_slot(blit_slot),
-            .run_ready(), .idle(blit_idle), .completed(blit_completed), .faulted(blit_faulted), .fault_code(blit_fault_code),
+            .run_ready(), .idle(run_idle), .completed(run_completed), .faulted(blit_faulted), .fault_code(blit_fault_code),
             .s_address(p2_address), .s_burstcount(p2_burstcount), .s_read(p2_read),
             .s_waitrequest(p2_waitrequest), .s_readdata(p2_readdata), .s_readdatavalid(p2_readdatavalid),
             .d_address(p1_address), .d_burstcount(p1_burstcount), .d_read(p1_read), .d_write(p1_write),

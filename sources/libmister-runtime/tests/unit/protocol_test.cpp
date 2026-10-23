@@ -1061,11 +1061,12 @@ void TestMenuProtocolRequestsAndStatus()
  mister::daemon::MenuFrameReply granted;granted.kind=mister::daemon::MenuFrameReply::Kind::granted;granted.generation=1;
  const auto window=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  assert(window.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304}")!=std::string::npos);
- // A blitter grant also names where its lists and heap lie in the window.
- granted.blitter=true;
+ // A blitter grant also names its firmware's menu-blitter minor and where
+ // its lists and heap lie in the window.
+ granted.blitter=true;granted.blitter_minor=1;
  const auto blitter=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
-  "\"blitter\":{\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
+  "\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
  Request request;
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7})",&request).ok());

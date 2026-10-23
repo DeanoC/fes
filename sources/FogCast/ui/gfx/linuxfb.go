@@ -98,6 +98,10 @@ func (d *LinuxFB) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c 
 	d.sw.DrawTextWeight(x, y, text, sizePx, w, c)
 }
 
+func (d *LinuxFB) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	d.sw.DrawMask(m, src, x, y, c)
+}
+
 func (d *LinuxFB) Close() {
 	if d.sw != nil {
 		d.sw.Close()

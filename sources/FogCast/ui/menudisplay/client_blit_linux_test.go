@@ -14,7 +14,7 @@ import (
 func newBlitRuntime(t *testing.T) (*fakeRuntime, string) {
 	f, path := newFakeRuntime(t)
 	f.mu.Lock()
-	f.blitter = true
+	f.blitter, f.blitterMinor = true, MinBlitterMinor
 	f.mu.Unlock()
 	return f, path
 }
@@ -28,8 +28,11 @@ func expectFrame(prev []byte, ops []BlitOp) []byte {
 			for x := 0; x < op.W; x++ {
 				d := out[(op.Y+y)*Stride+(op.X+x)*4:]
 				var r, g, b, a uint32
-				if op.Kind == BlitFill || op.Kind == BlitFillBlend {
+				if op.Kind == BlitFill || op.Kind == BlitFillBlend || op.Kind == BlitExpand {
 					a, r, g, b = op.Color>>24, op.Color>>16&0xff, op.Color>>8&0xff, op.Color&0xff
+					if op.Kind == BlitExpand {
+						a = a * uint32(op.Source.Pix[(op.SourceY+y)*op.Source.Stride+op.SourceX+x]) / 255
+					}
 				} else {
 					s := op.Source.Pix[(op.SourceY+y)*op.Source.Stride+(op.SourceX+x)*4:]
 					r, g, b, a = uint32(s[0]), uint32(s[1]), uint32(s[2]), uint32(s[3])
@@ -60,6 +63,15 @@ func pattern(w, h int, seed byte) *BlitSource {
 	return s
 }
 
+// coverage is a w×h coverage source whose bytes run through every value.
+func coverage(w, h int, seed byte) *BlitSource {
+	s := &BlitSource{Pix: make([]byte, (w+5)*h), Stride: w + 5, W: w, H: h, Coverage: true}
+	for i := range s.Pix {
+		s.Pix[i] = byte(i*7) + seed
+	}
+	return s
+}
+
 func TestPresentBlitDrawsTheListFromTheHeap(t *testing.T) {
 	runtime, path := newBlitRuntime(t)
 	client := New(path)
@@ -67,16 +79,18 @@ func TestPresentBlitDrawsTheListFromTheHeap(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	grant, err := client.Grant(ctx, 7)
-	if err != nil || !grant.Blitter {
+	if err != nil || !grant.Blitter || grant.BlitterMinor != MinBlitterMinor {
 		t.Fatalf("grant %+v %v", grant, err)
 	}
-	a, b := pattern(40, 30, 1), pattern(300, 7, 9)
+	a, b, m := pattern(40, 30, 1), pattern(300, 7, 9), coverage(33, 9, 3)
 	ops := []BlitOp{
 		{Kind: BlitFill, W: Width, H: Height, Color: 0xff203040},
 		{Kind: BlitFillBlend, X: 10, Y: 10, W: 500, H: 200, Color: 0x80ff0000},
 		{Kind: BlitCopy, X: 100, Y: 100, W: 40, H: 30, Source: a},
 		{Kind: BlitBlend, X: 1000, Y: 700, W: 280, H: 7, Source: b, SourceX: 20},
 		{Kind: BlitBlend, X: 0, Y: 0, W: 16, H: 16, Source: a, SourceX: 3, SourceY: 2},
+		{Kind: BlitExpand, X: 601, Y: 300, W: 33, H: 9, Source: m, Color: 0xff40c080},
+		{Kind: BlitExpand, X: 700, Y: 300, W: 20, H: 6, Source: m, SourceX: 7, SourceY: 3, Color: 0x9a102030},
 	}
 	result, err := client.PresentBlit(ctx, 7, BlitFrame{Ops: ops})
 	if err != nil || result.DisplayedSequence != 1 {
@@ -89,9 +103,10 @@ func TestPresentBlitDrawsTheListFromTheHeap(t *testing.T) {
 	if list := commit["list"].(map[string]any); list["first"] != 0.0 || list["count"] != float64(len(ops)) {
 		t.Fatalf("list %v", list)
 	}
-	// Both sources were placed back to back, so one span writes them back.
-	if len(commit["uploaded"].([]any)) != 1 || result.Timing.Commands != int64(len(ops)) ||
-		result.Timing.UploadBytes != int64(40*30*4+300*7*4) {
+	// The textures were placed back to back, so one span writes them back;
+	// the coverage starts on the next cache line, past a gap.
+	if len(commit["uploaded"].([]any)) != 2 || result.Timing.Commands != int64(len(ops)) ||
+		result.Timing.UploadBytes != int64(40*30*4+300*7*4+33*9) {
 		t.Fatalf("uploaded %v timing %+v", commit["uploaded"], result.Timing)
 	}
 	// The next frame reads the resident sources without uploading them;
@@ -218,8 +233,31 @@ func TestPresentBlitNeedsABlitterGrant(t *testing.T) {
 	if commits != 0 {
 		t.Fatal("a refused list reached the runtime")
 	}
+}
+
+func TestPresentBlitRefusesExpandBelowMinimumBlitterMinor(t *testing.T) {
+	runtime, path := newBlitRuntime(t)
+	runtime.mu.Lock()
+	runtime.blitterMinor = 0
+	runtime.mu.Unlock()
+	client := New(path)
+	defer client.Close()
+	ctx := context.Background()
+	if grant, err := client.Grant(ctx, 7); err != nil || !grant.Blitter || grant.BlitterMinor != 0 {
+		t.Fatalf("grant %+v %v", grant, err)
+	}
+	expand := BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 4, H: 4, Source: coverage(4, 4, 0), Color: 0xffffffff}}}
+	if _, err := client.PresentBlit(ctx, 7, expand); err == nil {
+		t.Fatal("an expand was sent to a blitter that faults it")
+	}
 	tooMany := BlitFrame{Ops: make([]BlitOp, ListCommands+1)}
 	if _, err := client.PresentBlit(ctx, 7, tooMany); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("too many commands: %v", err)
+	}
+	runtime.mu.Lock()
+	commits := len(runtime.commits)
+	runtime.mu.Unlock()
+	if commits != 0 {
+		t.Fatal("a refused list reached the runtime")
 	}
 }

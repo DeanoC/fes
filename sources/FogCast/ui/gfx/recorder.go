@@ -7,19 +7,21 @@ import (
 
 // Call is one recorded Device operation.
 type Call struct {
-	Op     string
-	Tex    Texture
-	Src    *Rect
-	Dst    Rect
-	Color  Color
-	Blend  BlendMode
-	Text   string
-	X, Y   int
-	Scale  int
-	SizePx int
-	Weight Weight
-	Width  int
-	Height int
+	Op      string
+	Tex     Texture
+	Src     *Rect
+	Dst     Rect
+	Color   Color
+	Blend   BlendMode
+	Text    string
+	X, Y    int
+	Scale   int
+	SizePx  int
+	Weight  Weight
+	Width   int
+	Height  int
+	Mask    *Mask
+	MaskSrc image.Rectangle
 }
 
 // Recorder is an in-memory Device for tests. It does not draw pixels.
@@ -152,6 +154,10 @@ func (r *Recorder) DrawText(x, y int, text string, sizePx int, c Color) {
 
 func (r *Recorder) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
 	r.record(Call{Op: "DrawText", X: x, Y: y, Text: text, SizePx: sizePx, Weight: NormalizeWeight(w), Color: c})
+}
+
+func (r *Recorder) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	r.record(Call{Op: "DrawMask", X: x, Y: y, Color: c, Mask: m, MaskSrc: src})
 }
 
 func (r *Recorder) Close() {

@@ -204,8 +204,7 @@ type MenuDisplay struct {
 	settled          bool
 	settledPresented bool
 	settledErr       error
-	// blitReady is whether the last idle-menu grant had the blitter; the
-	// worker sets it.
+	// blitReady is whether the last idle-menu grant selected the blitter.
 	blitReady bool
 	// Render thread: the frame's mode, its commands, and the last finished
 	// frame. cpuStale means the Software buffer lacks that frame because the
@@ -1061,6 +1060,10 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 		grant, err := blitter.Grant(d.ctx, status.Generation)
 		if err != nil {
 			return menudisplay.Result{}, 0, false, err
+		}
+		if grant.Blitter && grant.BlitterMinor < menudisplay.MinBlitterMinor {
+			d.noteGrant(frame, menudisplay.Grant{})
+			return menudisplay.Result{}, 0, false, errors.New("menu blitter grant is below the minimum minor")
 		}
 		d.noteGrant(frame, grant)
 		if grant.Blitter {

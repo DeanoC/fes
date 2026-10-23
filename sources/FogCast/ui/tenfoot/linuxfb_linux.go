@@ -88,7 +88,6 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	painter := gfx.NewFrameCache(dev)
 	textures, labels := map[string]gpuTexture{}, map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
-	defer destroyTextures(dev, labels)
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	parked := false

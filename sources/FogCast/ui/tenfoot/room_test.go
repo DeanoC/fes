@@ -575,8 +575,7 @@ func TestDrawRoomReplaysOpsAndReapsTextures(t *testing.T) {
 	if _, ok := textures[roomTexturePrefix+"cover:x"]; !ok {
 		t.Fatal("room cover texture not uploaded")
 	}
-	fills := 0
-	draws := 0
+	fills, draws, texts := 0, 0, 0
 	var clipped *gfx.Rect
 	for _, call := range rec.Calls {
 		switch call.Op {
@@ -587,13 +586,18 @@ func TestDrawRoomReplaysOpsAndReapsTextures(t *testing.T) {
 			if call.Src != nil {
 				clipped = call.Src
 			}
+		case "DrawMask":
+			texts++
+			if call.Color != gfx.RGB(255, 255, 255) || call.X != 10 || call.Y < 80 {
+				t.Fatalf("text drawn %+v", call)
+			}
 		}
 	}
 	if fills != 1 {
 		t.Fatalf("expected one visible rect fill, got %d", fills)
 	}
-	if draws != 2 { // clipped cover + text label
-		t.Fatalf("expected cover and text draws, got %d", draws)
+	if draws != 1 || texts != 1 { // clipped cover; text label
+		t.Fatalf("expected a cover draw and a text draw, got %d and %d", draws, texts)
 	}
 	if clipped == nil || clipped.W != 2 || clipped.H != 2 {
 		t.Fatalf("clipped cover should crop the source proportionally, got %+v", clipped)

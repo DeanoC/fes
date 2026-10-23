@@ -9,7 +9,7 @@ namespace blit {
 constexpr uint32_t SLOT = 0x400000, LIST = 0x800000, LIST_BYTES = 0x100000;
 constexpr uint32_t HEAP = 0x1000000, HEAP_BYTES = 0x4000000;
 constexpr int W = 1280, H = 720, STRIDE = 5120;
-enum { END, FILL, FILL_BLEND, COPY, BLEND };
+enum { END, FILL, FILL_BLEND, COPY, BLEND, EXPAND };
 
 struct Command {
 	uint64_t word[4] = {};
@@ -51,6 +51,12 @@ void reference(At at, const std::vector<Command>& list, int slot) {
 				if (c.op() == COPY || c.op() == BLEND) {
 					const uint8_t* t = at(c.source() + uint32_t(row) * c.stride() + uint32_t(i) * 4);
 					for (int b = 0; b < 4; ++b) texel[b] = t[b];
+					s = texel;
+				} else if (c.op() == EXPAND) {
+					// The colour with its alpha scaled by the coverage byte.
+					unsigned m = *at(c.source() + uint32_t(row) * c.stride() + uint32_t(i));
+					texel[0] = colour[0]; texel[1] = colour[1]; texel[2] = colour[2];
+					texel[3] = uint8_t(colour[3] * m / 255);
 					s = texel;
 				}
 				if (c.op() == FILL || c.op() == COPY) { d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 0; }

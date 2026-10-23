@@ -1570,9 +1570,9 @@ struct MenuGpScript {
   for(auto word:words)Reply(word);
  }
  // A blitter menu also proves its blitter idle with nothing completed.
- void BringUp(bool blitter=false){
+ void BringUp(bool blitter=false,bool read_blitter=true){
   Identity(blitter?1794:770);Info(8,0);Reply();Reply();Reply();Info(3,0);
-  if(blitter){Reply(0);Reply(0);}
+  if(blitter&&read_blitter){Reply(0);Reply(0);}
  }
  // ReadBlit reads the completed count, then the state.
  void BlitState(std::uint16_t state,std::uint16_t completed){Reply(completed);Reply(state);}
@@ -1844,13 +1844,14 @@ void TestNativeMenuActivationAndCompletion()
 
 }
 
-void TestNativeMenuBlitterPresent()
+void TestNativeMenuBlitterPresent(std::uint16_t declared_minor)
 {
  using namespace mister::native;using namespace mister::native::generated;
  TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
  std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
- for(const char* id:{"fes.video.menu-display","fes.video.menu-blitter"})
-  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ manifest+="\n[[interfaces]]\nid = \"fes.video.menu-blitter\"\nmajor = 1\nminor = "+
+  std::to_string(declared_minor)+"\nrequired = true\n";
  {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
  assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
@@ -1864,15 +1865,34 @@ void TestNativeMenuBlitterPresent()
   idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
  fpga.boot_hps_ddr_layout=true;
  bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
-  if(abi.id==FesApplicationABIID&&interface.id==FesApplicationInterfaceVideoMenuBlitterID)advertised=true;
+  if(abi.id==FesApplicationABIID&&interface.id==FesApplicationInterfaceVideoMenuBlitterID&&
+   interface.minor==FesApplicationInterfaceVideoMenuBlitterMinor)advertised=true;
  assert(advertised);
  MenuGpScript gp_script{&mmio};
- gp_script.BringUp(true);
+ gp_script.BringUp(true,declared_minor>=kMenuBlitterMinimumMinor);
  auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!result.error.ok())fprintf(stderr,"blitter menu activation: %s\n",result.error.message.c_str());
- // The client's grant covers the slots, the lists and the heap.
- assert(result.error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
- assert((operations.granted==std::vector<std::uint64_t>{8388608,83886080})&&operations.Granted()&&operations.cleans==0);
+ const bool has_blitter=declared_minor>=kMenuBlitterMinimumMinor;
+ assert(result.error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter==has_blitter);
+ assert(hardware.menu_display().blitter_minor==(has_blitter?declared_minor:0));
+ assert((operations.granted==std::vector<std::uint64_t>{8388608,has_blitter?83886080u:8388608u})&&
+  operations.Granted()&&operations.cleans==0);
+ if(!has_blitter) {
+  // Minor 0 remains a CPU-only menu grant. No peer can opt the shared window
+  // into list-only commits, so CPU presentation remains available afterwards.
+  mister::MenuDisplayInfo displayed;gp_script.Present(0,0,0);
+  assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1);
+  mister::MenuDraw list;list.blit=true;list.first=100;list.count=1;
+  const auto before_rejected_list=mmio.writes.size();
+  assert(hardware.PresentMenuSlot(0,list,&displayed).code==mister::ErrorCode::invalid_request);
+  assert(mmio.writes.size()==before_rejected_list&&operations.cleans==1&&hardware.menu_display().available);
+  gp_script.Present(1,1,0);
+  assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==2&&operations.cleans==2);
+  return;
+ }
+ // The client's grant covers the slots, lists and heap, and names the
+ // firmware's menu-blitter minor.
+ assert(hardware.menu_display().blitter_minor==1);
  // Until its first list, a blitter grant takes CPU frames as tenfoot draws
  // them: the slot's frame is written back and submitted, and the blitter
  // never runs.
@@ -4012,7 +4032,8 @@ int main()
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
- TestNativeMenuBlitterPresent();
+ TestNativeMenuBlitterPresent(0);
+ TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestInitialSTDiskBeforeExecution();

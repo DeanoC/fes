@@ -282,8 +282,9 @@ constants:
     value: 12
   - name: FesApplicationMenuInfoUnderflowsHiIndex
     value: 13
-  # fes.video.menu-blitter 1.0: the menu firmware runs command lists from the
+  # fes.video.menu-blitter 1.1: the menu firmware runs command lists from the
   # window into a menu slot. Lists and the texture heap are window offsets.
+  # 1.1 adds EXPAND.
   - name: FesApplicationOpcodeMenuBlit
     value: 22
   - name: FesApplicationMenuBlitFirstIndex
@@ -318,6 +319,8 @@ constants:
     value: 3
   - name: FesApplicationMenuBlitOpBlend
     value: 4
+  - name: FesApplicationMenuBlitOpExpand
+    value: 5
   - name: FesApplicationMenuBlitStateBusy
     value: 1
   - name: FesApplicationMenuBlitStateFaulted
@@ -377,5 +380,5 @@ interfaces:
     capability_bit: 9
   - id: fes.video.menu-blitter
     major: 1
-    minor: 0
+    minor: 1
     capability_bit: 10

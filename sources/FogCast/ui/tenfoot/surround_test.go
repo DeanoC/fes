@@ -160,8 +160,13 @@ end
 
 // The hardware room opened over a running machine on the kit plane sees
 // room.overlay and clears translucently; leaving it restores the surround.
+// A machine with removable media opens its media selector instead, so this
+// one has none.
 func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
-	_, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	session := computerTapeDisplaySession()
+	session.CorePackage.ActiveInterfaces = session.CorePackage.ActiveInterfaces[1:]
+	session.CorePackage.MediaUnits = nil
+	_, app, _ := newSurroundKit(t, session)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, overlayRoomScript)}), "")
 	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
 	app.HandleCommand(CmdHome, time.Now())

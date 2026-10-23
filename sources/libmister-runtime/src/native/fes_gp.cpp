@@ -480,7 +480,11 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			continue;
 		}
 		if (application) {
-			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			// The blitter's minors add ops under the same capability bit.
+			const bool minor_ok = interface.minor == 0 ||
+				(interface.id == FesApplicationInterfaceVideoMenuBlitterID &&
+				 interface.minor <= FesApplicationInterfaceVideoMenuBlitterMinor);
+			if (!interface.required || interface.major != 1 || !minor_ok) continue;
 			if (interface.id == FesApplicationInterfaceGamepadID)
 				capabilities |= FesApplicationCapabilityGamepad;
 			else if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)

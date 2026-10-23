@@ -45,13 +45,13 @@ func BenchmarkSoftwareSprites(b *testing.B) {
 	}
 }
 
-func BenchmarkSoftwareLabelBlit(b *testing.B) {
+func BenchmarkSoftwareDrawMask(b *testing.B) {
 	s, _ := NewSoftware(1280, 720)
-	img := RasterizeTextWeight("Super Mario World", 24, WeightBold, RGB(240, 240, 255), 0)
+	m, src, _ := UIText("Super Mario World", 24, WeightBold, 0)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		blitText(s, 100, 100, img)
+		s.DrawMask(m, src, 100, 100, RGB(240, 240, 255))
 	}
 }
 

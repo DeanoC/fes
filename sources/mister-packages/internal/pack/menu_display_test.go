@@ -58,7 +58,7 @@ func TestMenuBlitterContract(t *testing.T) {
 		"MenuBlitStateIndex": 3, "MenuBlitCompletedIndex": 4,
 		"MenuBlitListOffset": 0x800000, "MenuBlitListBytes": 0x100000, "MenuBlitCommandBytes": 32,
 		"MenuBlitCommandCount": 32768, "MenuBlitHeapOffset": 0x1000000, "MenuBlitHeapBytes": 0x4000000,
-		"MenuBlitOpEnd": 0, "MenuBlitOpFill": 1, "MenuBlitOpFillBlend": 2, "MenuBlitOpCopy": 3, "MenuBlitOpBlend": 4,
+		"MenuBlitOpEnd": 0, "MenuBlitOpFill": 1, "MenuBlitOpFillBlend": 2, "MenuBlitOpCopy": 3, "MenuBlitOpBlend": 4, "MenuBlitOpExpand": 5,
 		"MenuBlitStateBusy": 1, "MenuBlitStateFaulted": 2, "MenuBlitStateFaultShift": 8,
 		"MenuBlitFaultList": 1, "MenuBlitFaultOp": 2, "MenuBlitFaultRect": 3, "MenuBlitFaultSource": 4,
 		"MenuBlitFaultReserved": 5,
@@ -88,7 +88,7 @@ func TestMenuBlitterContract(t *testing.T) {
 	for _, iface := range app.Interfaces {
 		if iface.ID == "fes.video.menu-blitter" {
 			found = true
-			if iface.CapabilityBit != 10 || iface.Major != 1 || iface.Minor != 0 {
+			if iface.CapabilityBit != 10 || iface.Major != 1 || iface.Minor != 1 {
 				t.Fatalf("menu blitter interface: %+v", iface)
 			}
 		}
