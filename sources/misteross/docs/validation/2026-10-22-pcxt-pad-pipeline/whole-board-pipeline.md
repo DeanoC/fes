@@ -44,8 +44,8 @@ Board FFs are 3952. This is a resource/structure result, not routed timing.
 All 35 focused tests pass with the pinned Yosys, and all 16 PC/XT simulation
 suites pass. An independent old/new loader comparison covers 132529 accepted
 bytes, two complete images and a one-cycle mid-load reset. `make check` passes
-after committing module bytes. Full parent/component `make test-changed` is
-still running against source 1860f142; no final result claimed here.
+after committing module bytes. The intermediate parent/component `make test-changed` run is incomplete;
+its retained partial results do not constitute a completed check.
 
 The frozen combined boot/display route completes with all input bindings intact:
 17128 rows, 17123 setup/hold-timed rows, 85 setup failures, worst setup -1467 ps,
@@ -59,9 +59,10 @@ display route but does not close the board; the baseline's 72 failing rows
 remain fewer than this candidate's 85. Complete endpoint union and unsupported
 details are retained in `boot-route-comparison.json` and its companion files.
 
-All 842 selected parent tests now pass. Component checks and the required
-simulation rerun remain in progress; the earlier direct 16-suite simulation
-has passed. A DMA grant-snapshot prototype proves all 457 state/qualified-
+All 842 selected parent tests pass. The intermediate component run was
+intentionally stopped when the next focused fixes were ready, retaining its
+partial log and interruption record. It is not a completed `make test-changed`
+pass. The earlier direct 16-suite simulation has passed. A DMA grant-snapshot prototype proves all 457 state/qualified-
 transaction obligations with an active-service snapshot invariant. Both
 address and terminal-count mutations reject. Standalone mapping keeps 357 FFs,
 adds two LUTs (679 to 681), and reduces terminal-enable cell depth from seven
@@ -71,6 +72,27 @@ profile, two-of-three seed gate, fresh producer, physical IO/reset qualification
 or kit acceptance has been obtained. The 105 unsupported records remain open.
 A separate private DMA decode-order prototype passes all 453 state/interface
 equivalence points; it has not been adopted into RTL or routed.
+
+## DMA grant snapshots and exact dot-enable prediction: source frozen
+
+Commit `b8f144d8` moves the address/terminal snapshot before service validation
+at the same grant edge. Inactive TC may differ; the actual motherboard latches
+TC only with a valid DMA request. All other observable outputs/state and active
+snapshots retain the proved relation. No new DMA cycle is added.
+
+The fractional-dot predictor computes the next phase's wrap flag in a FF,
+removing the wide compare from CRTC enables. Reset establishes the phase range
+and flag identity; one-step induction proves that both CGA and MDA keep their
+exact original pulse cycles. The arithmetic proof still compares against the
+original full-width sum/carry definition for every phase under that flag
+relation. Threshold mutations reject for both rates.
+
+All 40 focused tests pass with pinned Yosys, including address/TC mutation
+rejection. The DMA and complete-frame display simulations pass. The complete
+16-suite rerun and frozen whole-board synthesis/route are pending. These are
+host proofs and simulations, not timing, physical IO/reset or kit acceptance.
+Required broad integration checks will be completed after the candidate is
+stable; no fresh parent/component pass is claimed for this commit yet.
 
 ## Route accounting
 
