@@ -27,7 +27,8 @@ SOURCES = ("cores/fes-common/rtl/fes_video_part_cart.v",
            "cores/fes-common/rtl/fes_video_part_direct.v",
            "cores/fes-common/rtl/fes_video_part_scanlines.v")
 INPUTS = (*SOURCES, "cores/fes-common/generated/fes_video_part.vh",
-          "scripts/build_video_part.py", "scripts/video_parts.py", *sgm.INPUTS)
+          "scripts/build_video_part.py", "scripts/video_parts.py",
+          "scripts/pnr_recipe.py", *sgm.INPUTS)
 NATIVE_SOURCES = ("cores/fes-common/rtl/fes_native_video_cart.v",
                   "cores/fes-common/rtl/fes_native_video.v",
                   "cores/fes-common/rtl/coleco_video_dpram.v")

@@ -58,8 +58,8 @@ def main(argv=None):
             ['go', 'list', './...'], cwd=root / test_policy.FOGCAST_MODULE,
             text=True, env=environment).split()
     commands = test_policy.host_test_commands(full=args.full, packages=packages)
-    selection = {'scope': 'all', 'reason': 'full mode or no Go-only change set'}
-    if not args.full and paths is not None and host_affected.go_only(paths):
+    selection = {'scope': 'all', 'reason': 'full mode or inputs outside Go and reviewed guides'}
+    if not args.full and paths is not None and host_affected.go_inputs(paths) is not None:
         records = host_affected.listing(root, environment)
         selected = host_affected.select(paths, records, root)
         if selected is not None:
@@ -67,7 +67,7 @@ def main(argv=None):
             selection = {'scope': 'affected', 'packages': sorted(selected),
                          'reason': 'changed Go packages and reverse import/test consumers'}
         else:
-            selection['reason'] = 'changed package absent from current Go graph'
+            selection['reason'] = 'uncertain package ownership or embedded guide inputs'
     if shard is not None:
         commands = test_policy.shard_host_commands(commands, *shard)
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',

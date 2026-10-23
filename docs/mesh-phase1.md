@@ -1,5 +1,7 @@
 # Mesh LAN — Phase 1 execution brief
 
+**Context (22 October 2026):** Phase 1 as delivered stays in use (Soft-stop, advertisement, inventory). The kit is now its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)); [mesh under kit-as-host](mesh-kit-host.md) says what changed around these mechanisms.
+
 **Status:** Phase 1 closed and delivered. Bob coordinates mesh and
 starts phases. Deano owns FES parent merges. Phase 2 execution is
 [`mesh-phase2.md`](mesh-phase2.md).
