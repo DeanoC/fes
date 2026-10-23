@@ -159,3 +159,23 @@ func TestRejectInvalidDriveSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestEditingShareCannotDuplicateAnExistingDrive(t *testing.T) {
+	m, _ := fixtureManager(t)
+	a, err := m.Save(Drive{Kind: "smb", Source: "//nas/First", Password: "first-password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := m.Save(Drive{Kind: "smb", Source: "//nas/Second", Password: "second-password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Source = b.Source
+	if _, err = m.Save(a); err == nil {
+		t.Fatal("source edit created duplicate drive identities")
+	}
+	drives, err := m.List(context.Background(), false)
+	if err != nil || len(drives) != 2 || drives[0].Source == drives[1].Source {
+		t.Fatalf("drive configuration changed: %+v %v", drives, err)
+	}
+}

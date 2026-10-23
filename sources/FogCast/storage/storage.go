@@ -217,6 +217,13 @@ func (m *Manager) Save(d Drive) (Drive, error) {
 	if err != nil {
 		return Drive{}, err
 	}
+	if d.ID != "" && d.ID != normalized.ID {
+		for _, prior := range old {
+			if prior.ID == normalized.ID {
+				return Drive{}, errors.New("that drive is already saved; edit its existing connection")
+			}
+		}
+	}
 	for i, prior := range old {
 		if prior.ID == normalized.ID || d.ID != "" && prior.ID == d.ID {
 			if d.Password == "" && d.PasswordSet {
