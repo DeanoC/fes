@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const maxArchiveBytes = maxInstallBytes + (8 << 20)
+
 // Export validates and snapshots a directory pack before atomically publishing
 // its portable archive. An invalid pack leaves an existing output unchanged.
 func Export(source, output string) error {
@@ -62,6 +64,13 @@ func Export(source, output string) error {
 	if closeErr != nil {
 		return closeErr
 	}
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Size() > maxArchiveBytes {
+		return errors.New("room archive exceeds size limit")
+	}
 	if err = file.Chmod(0644); err != nil {
 		return err
 	}
@@ -91,7 +100,7 @@ func installArchive(root, source string) (Pack, error) {
 	if err != nil {
 		return Pack{}, err
 	}
-	if info.Size() > maxInstallBytes+(8<<20) {
+	if info.Size() > maxArchiveBytes {
 		return Pack{}, errors.New("room archive exceeds size limit")
 	}
 	archive, err := zip.NewReader(input, info.Size())
