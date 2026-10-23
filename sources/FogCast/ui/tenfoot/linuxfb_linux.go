@@ -583,7 +583,7 @@ func (in *nativeInput) button(app *App, button Button, value int32, now time.Tim
 		}
 		return
 	}
-	in.setButton(uint16(button), CommandFromLogical(e), value != 0)
+	in.setButton(uint16(button), app.localPadCommand(e), value != 0)
 	if value != 0 {
 		app.NoteInput(InputGamepad, in.fd)
 	}

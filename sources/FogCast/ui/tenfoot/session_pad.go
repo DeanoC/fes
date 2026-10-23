@@ -30,6 +30,28 @@ func (a *App) sessionKeypadLocked() bool {
 	return ports && keypad
 }
 
+// sessionMenuOwnsPadInputLocked reports that launcher controls currently own
+// the display and should receive Select instead of a keypad machine.
+func (a *App) sessionMenuOwnsPadInputLocked() bool {
+	return a.roomDuringPlay || a.launcherDisplayFocusedLocked() || a.roomPickerOpen || a.firmwarePickerOpen || a.tapePickerOpen ||
+		a.settingsOpen || a.settingsOSKOpenLocked() || a.searchOpen || a.nameEntryOpenLocked() || a.detailOpen || a.viewPickerOpen ||
+		a.filtersOpen || a.collectionManageOpen || a.collectionConfirmOpen || a.coreLibrary.Open
+}
+
+// localPadCommand maps the Coleco keypad Select to menu confirmation only
+// while launcher controls own input. During play it remains the keypad '*'.
+func (a *App) localPadCommand(e remoteinput.Event) Command {
+	if a != nil && e.Kind == remoteinput.KindButton && e.Code == remoteinput.ButtonSelect {
+		a.mu.Lock()
+		menuSelect := a.sessionKeypadLocked() && a.sessionMenuOwnsPadInputLocked()
+		a.mu.Unlock()
+		if menuSelect {
+			return CmdSelect
+		}
+	}
+	return CommandFromLogical(e)
+}
+
 func (a *App) suppressHeldSessionPadLocked() {
 	if a.playPadSuppressed == nil {
 		a.playPadSuppressed = make(map[padKey]bool)
@@ -98,6 +120,18 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 			return true, nil
 		}
 		if e.Code == remoteinput.ButtonSelect {
+			if a.sessionKeypadLocked() && a.sessionMenuOwnsPadInputLocked() {
+				if a.playPadSuppressed[key] {
+					if !down {
+						delete(a.playPadSuppressed, key)
+					}
+					return true, nil
+				}
+				if !down {
+					delete(a.playPadSuppressed, key)
+				}
+				return false, nil
+			}
 			if !a.liveControlsOfferedLocked() || a.sessionKeypadLocked() {
 				if a.playPadSuppressed[key] {
 					if !down {
