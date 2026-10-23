@@ -1538,3 +1538,58 @@ remain 100 MHz and pixel 74.25 MHz; shared RTL, toolchain lock, constraints and
 shared contracts are unchanged. The 105 unsupported obligations, complete=false,
 same-recipe timing qualification, fresh producer and exact-artifact hardware
 acceptance gates remain open. No hardware ran.
+
+## Native buffer admission reaches the ALU net but retains no route
+
+Compiler `e1a23c3b324febad36f80a3db9e042ae90777988`, frozen binary
+`477dd65034559a13019a18b1b99e27bf60407feb350bd38146548a1a97a26204`,
+completes a matched original-RTL seed-1 pair. Both use the retained balanced raw
+input, route32, two LUT6 rounds, permutation32 and final-route32 at the original
+100/74.25 MHz clocks. Only the candidate enables
+`--critical-final-route-buf-users`. Source-exit retention remains disabled.
+
+The control selects 21 nets from 24 failing ordinary sink rows and measures
+17 proposals. Buffer admission selects 22 nets from 26 rows and measures 20.
+The added net is actual CPU ALUout[3], including its fixed transparent buffers
+feeding private register inputs. Its three new native gains are -568, -519 and
+-533 ps. The best proposal overall remains -20 ps, below the unchanged +20 ps
+trial threshold. Both cases perform zero final-route trials and retain nothing.
+
+The complete saved graphs, native ownership, LAB configuration and pin maps are equal;
+all 12,397 cells and 15,546 alias classes remain intact. The candidate differs
+only in one ALUout routing-tuple serialization order. RBF, timing and endpoint
+files are byte-identical. All 17,199 endpoint identities/windows/flags/metadata
+and all 17,194 checked setup/hold margins match. Eight setup failures remain:
+two CPU, three CGA, two MDA and one PIC. CPU worst is -25 ps and whole-system
+worst -434 ps. Related hold has no failures and minimum +822 ps.
+
+Independent complete review `3008f6a621d87ee9a5dff8a4ce437f3cac2ded3a34a3f60e7ab026f4cd9716c1` reproduces the prepared
+analysis and exact accounting. Since neither canonical route changes, the
+matching-object native reader is not executed; no reload timing is claimed.
+The corrected reader and graph/timing controls remain available with the capture.
+The earlier host admission passed 47 native and 12 CLI checks plus whole-RBF
+structural reconstruction. These support the bounded implementation, not a
+routed timing improvement.
+
+Fresh charges are 1101.456457699649 and 1110.3485453659669 seconds, total
+2211.8050030656159. The 60-receipt journal preserves the exact 58-entry prefix
+and has cumulative charge **61897.10017204051777 seconds**. Full local evidence
+is under `out/final-route-buf-users-20261023/`.
+
+The original eight-failure recipe remains the reference with buffer admission
+disabled. An isolated host synthesis experiment now keeps the CPU module through
+mapping to test whether a display edit can preserve its complete mapped graph;
+this is not recovery of the old mapping or fresh timing evidence. A separate
+native placement preview checks legal empty destinations under the existing
+ordinary-LUT rules, without changing routes or claiming timing gains.
+
+Two fresh original-netlist placement diagnostics are now running with timing
+weights 4000 and 8000 versus the completed weight-2000 control. Seed 1, exponent
+5, all repair budgets and original clocks remain fixed; buffer admission is off.
+The independently reviewed runner changes only that weight and uses shared GPU
+phase leases. These routes are not yet charged as completed.
+
+No shared RTL, clock, constraint, toolchain lock or shared contract changes.
+Both PRs remain draft; no hardware ran. The 105 unsupported obligations,
+complete=false, same-recipe timing, fresh producer and exact-artifact hardware
+acceptance gates remain open.
