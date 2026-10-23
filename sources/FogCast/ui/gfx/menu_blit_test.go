@@ -141,15 +141,6 @@ func (c *blitTestClient) counts() (lists, cpu int) {
 	return len(c.lists), len(c.cpu)
 }
 
-func (c *blitTestClient) lastCPU() []byte {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if len(c.cpu) == 0 {
-		return nil
-	}
-	return bytes.Clone(c.cpu[len(c.cpu)-1])
-}
-
 // sameRGB reports whether a blitter slot shows what Software drew.
 func sameRGB(slot, rgba []byte) error {
 	for i := 0; i < len(rgba); i += 4 {
@@ -344,39 +335,24 @@ func testListFramesDrawWhatSoftwareDraws(t *testing.T) {
 	}
 }
 
-// A grant below the minimum disables blitter use for the current and next
-// frames. A frame already recorded as a list is rasterized by the generic CPU
-// presentation path.
-func TestMenuDisplaySelectsCPUForUnsupportedBlitterMinor(t *testing.T) {
+// A runtime must not expose a blitter grant below the minimum. Reject one
+// before this client submits either a list or a CPU frame to the shared grant.
+func TestMenuDisplayRejectsUnsupportedBlitterGrant(t *testing.T) {
 	client := newBlitTestClient(true)
-	client.minor = menudisplay.MinBlitterMinor
+	client.minor = menudisplay.MinBlitterMinor - 1
 	d, err := NewMenuDisplayWithPresenter(client)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(d.Close)
-	sw, _ := NewSoftware(1280, 720)
-	for frame := 0; frame < 3; frame++ {
-		for _, dev := range []Device{sw, d} {
-			dev.BeginFrame()
-			dev.Clear(RGB(9, 9, 40))
-			dev.DrawText(100, 100, "Mushroom Kingdom", 24, RGBA(250, 240, 200, 200))
-		}
-		want := sw.Snapshot()
-		if frame == 1 {
-			client.mu.Lock()
-			client.minor = menudisplay.MinBlitterMinor - 1
-			client.mu.Unlock()
-		}
-		d.Present()
-		waitIdle(t, d)
-		lists, cpu := client.counts()
-		if lists != 1 || cpu != frame {
-			t.Fatalf("frame %d: %d lists, %d CPU frames", frame, lists, cpu)
-		}
-		if frame > 0 && !bytes.Equal(client.lastCPU(), want.Pix) {
-			t.Fatalf("frame %d: CPU frame differs from Software", frame)
-		}
+	status := menudisplay.Status{Generation: 3}
+	frame := queuedMenuFrame{isList: true, generation: 3}
+	_, _, blitted, err := d.presentFrame(frame, status, false)
+	if err == nil || blitted {
+		t.Fatalf("unsupported grant presented: blitted=%t err=%v", blitted, err)
+	}
+	if lists, cpu := client.counts(); lists != 0 || cpu != 0 {
+		t.Fatalf("unsupported grant submitted %d lists and %d CPU frames", lists, cpu)
 	}
 }
 

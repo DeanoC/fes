@@ -117,8 +117,10 @@ verify construction and reject old mutation authority.
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
 is admitted only alongside fixed video and HPS DDR. The only other interface a
 menu package may declare is `fes.video.menu-blitter` 1.0 or 1.1 (bit 10), which
-requires the menu display. Live identity must match the declared capabilities
-exactly. `MenuDisplayDriver`
+requires the menu display. The runtime grants the blitter window only when the
+declared minor is 1 or later; a minor 0 declaration gets the ordinary slot-only
+grant, so no socket peer can opt a shared grant into list-only commits. Live
+identity must match the declared capabilities exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;

@@ -1245,8 +1245,8 @@ When the idle menu's grant includes a minor 1 or later menu blitter,
 `MenuDisplay` records each frame as blitter commands instead of rastering it
 (`ui/gfx/menu_blit.go`): fills, copies, blends and text-mask expands that draw
 the pixels `Software` would, with scaled draws and debug glyphs made into
-cached bitmaps. A grant below minor 1 is not selected for blitter use; its
-frames use the ordinary CPU presentation path.
+cached bitmaps. The runtime does not issue a blitter grant below minor 1; an
+unexpected unsupported grant is rejected before any frame is submitted.
 The client uploads each bitmap or mask a frame reads into the grant's texture
 heap once, keeps it there while it is reachable and the heap has room, writes
 the list and commits it; the fabric draws the slot (`ui/menudisplay/blit.go`).

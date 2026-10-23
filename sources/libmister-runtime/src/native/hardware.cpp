@@ -1286,7 +1286,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			"native video shell requires a video parts composition", "admission"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
  const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
- const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor);
+ const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor)&&
+  MenuBlitterMinor(admitted->opened_.descriptor)>=kMenuBlitterMinimumMinor;
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
  if(menu&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
  if(session_display&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};

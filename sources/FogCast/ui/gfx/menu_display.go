@@ -1032,7 +1032,10 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 		if err != nil {
 			return menudisplay.Result{}, 0, false, err
 		}
-		grant = selectMenuBlitter(grant)
+		if grant.Blitter && grant.BlitterMinor < menudisplay.MinBlitterMinor {
+			d.noteGrant(frame, menudisplay.Grant{})
+			return menudisplay.Result{}, 0, false, errors.New("menu blitter grant is below the minimum minor")
+		}
 		d.noteGrant(frame, grant)
 		if grant.Blitter {
 			ops := frame.list
@@ -1058,15 +1061,6 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 	}
 	result, err := d.client.Present(d.ctx, status.Generation, frame.pixels)
 	return result, 0, false, err
-}
-
-// selectMenuBlitter excludes grants that cannot draw the coverage masks used
-// by tenfoot. The ordinary CPU presenter handles those frames.
-func selectMenuBlitter(grant menudisplay.Grant) menudisplay.Grant {
-	if grant.Blitter && grant.BlitterMinor < menudisplay.MinBlitterMinor {
-		grant.Blitter = false
-	}
-	return grant
 }
 
 // noteGrant records whether the idle menu's grant has the blitter, which
