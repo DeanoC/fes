@@ -162,6 +162,9 @@ type SessionSnapshot struct {
 	DevelopmentState  string
 	Diagnostic        bool
 	LoadTape          bool
+	ControlsNotice    string
+	ControlsOpen      bool
+	MediaSelector     bool
 	HardwareRoom      bool
 }
 
@@ -458,24 +461,25 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex        *rooms.Index
-	roomsDir          string
-	homeRooms         bool
-	homeRoom          string
-	gfxBackend        string
-	pinnedRooms       []string
-	reducedMotion     bool
-	homeRecents       []hostclient.Game
-	homeRecentsErr    string
-	homeRecentsLoaded bool
-	homeRecentsGen    int
-	room              *rooms.Instance
-	roomStack         []*rooms.Instance
-	roomFrame         rooms.Frame
-	roomErr           string
-	roomWasParked     bool
-	roomDuringPlay    bool
-	roomSessionNotice string
+	roomsIndex          *rooms.Index
+	roomsDir            string
+	homeRooms           bool
+	homeRoom            string
+	gfxBackend          string
+	pinnedRooms         []string
+	reducedMotion       bool
+	homeRecents         []hostclient.Game
+	homeRecentsErr      string
+	homeRecentsLoaded   bool
+	homeRecentsGen      int
+	room                *rooms.Instance
+	roomStack           []*rooms.Instance
+	roomFrame           rooms.Frame
+	roomErr             string
+	roomWasParked       bool
+	roomDuringPlay      bool
+	mediaControlsDirect bool
+	roomSessionNotice   string
 	// roomWaitAck is a Confirm received while the selected destination was
 	// still Checking. It is shown, never queued, and clears once the
 	// destination is no longer Checking.
@@ -944,6 +948,20 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.beginSessionDisplayLocked(false, false)
 		return
 	}
+	if a.mediaControlsDirect && a.roomDuringPlay {
+		if cmd == CmdSettings {
+			return
+		}
+		if !a.tapePickerOpen {
+			switch cmd {
+			case CmdBack, CmdHome, CmdLayoutCycle:
+				a.resumeRoomSessionLocked()
+			case CmdStop:
+				a.startStopLocked()
+			}
+			return
+		}
+	}
 	a.localStatus = ""
 	if a.coreLibrary.Open {
 		if a.settingsOSKOpenLocked() {
@@ -995,7 +1013,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 		if a.tapePickerOpen {
-			a.closeTapePickerLocked()
+			a.dismissMediaControlsLocked()
 			return
 		}
 		if a.sessionStopOfferedLocked() {
@@ -3350,6 +3368,9 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
 		LoadTape:          a.sessionLiveMediaOfferedLocked(),
+		ControlsNotice:    a.roomSessionNotice,
+		ControlsOpen:      a.roomDuringPlay,
+		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

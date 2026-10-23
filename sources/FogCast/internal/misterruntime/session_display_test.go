@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -37,7 +38,25 @@ func (f *displayFocus) BeginSessionDisplay(_ context.Context, launcher bool) (fu
 }
 
 func TestRuntimeDisplayUsesCapturedGenerationAndRetainsFocusOnUnconfirmedClose(t *testing.T) {
-	response := liveMediaResponse()
+	for _, name := range []string{"blob", "c64", "spectrum"} {
+		t.Run(name, func(t *testing.T) {
+			response := liveMediaResponse()
+			if name != "blob" {
+				contract, minBytes, maxBytes := protocol.C64DiskInterface(), uint32(174848), uint32(174848)
+				if name == "spectrum" {
+					contract, minBytes, maxBytes = protocol.SpectrumTapeInterface(), 1, 65536
+				}
+				response.ActivePackage.Descriptor.ABI = corepackage.Contract{ID: "fes.computer", Major: 1}
+				response.Capabilities.ActiveInterfaces = []misterruntime.Protocol2Interface{{ID: contract.ID, Major: contract.Major, Minor: contract.Minor}}
+				response.Capabilities.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: contract, MinBytes: minBytes, MaxBytes: maxBytes, ChunkBytes: 512, State: "empty"}}
+			}
+			testRuntimeDisplayCapturedGeneration(t, response)
+		})
+	}
+}
+
+func testRuntimeDisplayCapturedGeneration(t *testing.T, response misterruntime.Protocol2Response) {
+	t.Helper()
 	response.Capabilities.ActiveInterfaces = append(response.Capabilities.ActiveInterfaces,
 		misterruntime.Protocol2Interface{ID: "fes.memory.hps-ddr", Major: 1}, misterruntime.Protocol2Interface{ID: "fes.video.session-display", Major: 1})
 	id := strings.Repeat("a", 64)

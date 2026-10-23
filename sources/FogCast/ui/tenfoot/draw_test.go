@@ -290,3 +290,21 @@ func TestDrawLabelReusesClippedGlyphs(t *testing.T) {
 		t.Fatal("width change reused texture")
 	}
 }
+
+func TestMediaSelectorLeavesMachinePixelsVisible(t *testing.T) {
+	snap := Snapshot{Grid: testDrawGrid(), Session: SessionSnapshot{State: "active", MediaSelector: true, ControlsOpen: true},
+		TapePicker: TapePickerSnapshot{Open: true, Title: "Change media", Rows: []TapePickerRow{{Name: "Eject media", Kind: tapePickerKindEject, Selectable: true}}}}
+	dev, err := gfx.NewSoftware(1280, 720)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawFrame(dev, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	img := dev.Framebuffer()
+	if img.RGBAAt(0, 0).A != 0 || img.RGBAAt(1279, 719).A != 0 {
+		t.Fatal("selector painted over machine pixels outside its panel")
+	}
+	panel, ok := tapePickerPanel(snap)
+	if !ok || img.RGBAAt(panel.X+2, panel.Y+2).A != 255 {
+		t.Fatal("media panel must remain opaque")
+	}
+}
