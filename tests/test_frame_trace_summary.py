@@ -63,6 +63,27 @@ class FrameTraceSummaryTest(unittest.TestCase):
         self.assertAlmostEqual(stages["rt_copy"]["p50"], 0.0)
         self.assertAlmostEqual(stages["commit_io"]["p50"], 0.25)
 
+    def test_blitter_frames_report_the_blit_and_the_list(self):
+        records = [
+            {"t_us": 3_000_000, "kind": "tick", "tick_us": 4000, "render_us": 2000, "queued": True, "seq": 3},
+            {"t_us": 3_050_000, "kind": "present", "seq": 3, "queued_t_us": 3_002_000, "begin_us": 800,
+             "stage_us": 300, "commit_us": 30000, "runtime_clean_us": 400, "runtime_blit_us": 18000,
+             "runtime_submit_us": 50, "runtime_scanout_wait_us": 11000, "blitted": True, "commands": 412,
+             "upload_bytes": 65536, "presented": True},
+            {"t_us": 4_000_000, "kind": "tick", "tick_us": 4000, "render_us": 2000, "queued": True, "seq": 4},
+            {"t_us": 4_050_000, "kind": "present", "seq": 4, "queued_t_us": 4_002_000, "commit_us": 30000,
+             "runtime_blit_us": 18000, "blitted": True, "commands": 200, "presented": True},
+        ]
+        summary = summary_tool.summarise(records)
+        stages = summary["stages"]
+        self.assertAlmostEqual(stages["rt_blit"]["p50"], 18.0)
+        self.assertAlmostEqual(stages["commit_io"]["max"], 12.0)
+        moved = summary["transport"]
+        self.assertEqual(moved["blitted"], 2)
+        self.assertAlmostEqual(moved["commands"], 306)
+        self.assertAlmostEqual(moved["upload_bytes"], 32768)
+        self.assertIn("blitter: frames=2 mean commands=306 mean upload bytes=32768", summary_tool.render(summary))
+
     def test_failed_presents_stay_out_of_displayed_frames(self):
         records = [
             {"t_us": 1_000_000, "kind": "input", "cmd": "right"},
