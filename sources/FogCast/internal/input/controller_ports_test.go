@@ -260,3 +260,44 @@ func TestControllerKeypadPortsStartPressesAndReleasesKeypadOne(t *testing.T) {
 		t.Fatal("released Start left port dirty")
 	}
 }
+
+func TestControllerPortsFocusReleaseClearsRetainedSource(t *testing.T) {
+	for _, source := range []inputSource{sourceLocal, sourceRemote} {
+		t.Run(map[inputSource]string{sourceLocal: "local", sourceRemote: "remote"}[source], func(t *testing.T) {
+			var writes []portWrite
+			sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(_ context.Context, id string, generation uint64, port, buttons uint8, keypad uint16) error {
+				writes = append(writes, portWrite{id, generation, port, buttons, keypad})
+				return nil
+			}}
+			if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 4, Keypad: true}); err != nil {
+				t.Fatal(err)
+			}
+			frame := protocol.InputFrame{Player: 0, Device: uint8(remoteinput.DeviceGamepad),
+				Kind: uint8(remoteinput.KindButton), Action: uint8(remoteinput.ActionPress),
+				Code: uint16(remoteinput.ButtonA)}
+			if err := sink.apply(source, frame); err != nil {
+				t.Fatal(err)
+			}
+			before := len(writes)
+			sink.setDisplayFocus(true)
+			frame.Action = uint8(remoteinput.ActionRelease)
+			if err := sink.apply(source, frame); err != nil {
+				t.Fatal(err)
+			}
+			if len(writes) != before {
+				t.Fatal("release under launcher focus reached the machine")
+			}
+
+			sink.setDisplayFocus(false)
+			frame.Code = uint16(remoteinput.ButtonB)
+			frame.Action = uint8(remoteinput.ActionPress)
+			if err := sink.apply(source, frame); err != nil {
+				t.Fatal(err)
+			}
+			last := writes[len(writes)-1]
+			if last.port != 0 || last.buttons != 32 {
+				t.Fatalf("stale A hold replayed after focus: %+v", last)
+			}
+		})
+	}
+}

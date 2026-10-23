@@ -3311,11 +3311,20 @@ opening and closing the room. A null or empty focus is refused, not
 defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
 surround around the picture needs, and a peer that predates focus refuses
 it. A closed plane requires machine focus. Moving focus on a shown plane
-keeps its display generation. The agent's input fence holds delivery during
-each transition, but only a launcher-focus request retires held keys and
-neutralizes the mouse. The fence ends focused when the runtime confirms
-launcher focus. After a refusal it follows the focus that the session's reply
-reports, and after an unconfirmed failure it stays focused. The paired listener admits only
+keeps its display generation. The same display route accepts a running
+`fes.application` machine, such as the Coleco native shell, when its active
+FPGA identity reports those two interfaces. Application machines have no
+removable-media unit, so this path needs no media-unit identity or selection;
+the computer path retains its existing media-unit checks. The agent's input
+fence holds delivery during each transition, but only a launcher-focus request
+retires held keys and neutralizes the mouse. Controller-port releases received
+while the launcher has focus clear their retained source snapshot without
+being sent to the core, so released buttons cannot replay when focus returns.
+The runtime also neutralizes the single `fes.gamepad` interface and gates its
+worker's nonzero snapshots during launcher focus. The fence ends focused when
+the runtime confirms launcher focus. After a refusal it follows the focus that
+the session's reply reports, and after an unconfirmed failure it stays focused.
+The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 media imports of at most the largest image the media selector inserts
 (839,680 bytes, a declared-geometry Atari ST floppy) and live

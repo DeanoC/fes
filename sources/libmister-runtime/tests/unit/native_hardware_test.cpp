@@ -1741,6 +1741,69 @@ void TestApplicationSessionDisplayReleasesControllers()
  script.Reply();assert(hardware.SetController(1,0x20,0).ok()&&mmio.writes.size()>writes);
 }
 
+void TestApplicationSessionDisplayMutesSingleGamepad()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.application");
+ for(const char* id:{"fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ fpga.boot_hps_ddr_layout=true;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;
+ script.Identity(FesApplicationCapabilityVideoFixed720p60|FesApplicationCapabilityGamepad|
+  FesApplicationCapabilityMemoryHpsDdr|FesApplicationCapabilityVideoSessionDisplay);
+ script.Info(8,0);script.Reply(); // configure
+ script.Reply(); // input neutralization
+ script.Reply(); // execution release
+ script.Info(9,0); // disabled, configured, drained
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"single-gamepad session activation: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&hardware.menu_display().session&&!hardware.menu_display().available);
+
+ const auto button_arguments=[&](std::size_t begin) {
+  std::vector<std::uint16_t> arguments;
+  for(std::size_t i=begin;i<mmio.writes.size();++i) {
+   const auto& write=mmio.writes[i];
+   if(write.offset!=kSpiGpoAddress||!(write.value&FesGpRequestMask)||
+    ((write.value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeButtons)continue;
+   arguments.push_back(static_cast<std::uint16_t>(write.value&FesGpArgumentMask));
+  }
+  return arguments;
+ };
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,false).ok());
+ auto writes=mmio.writes.size();script.Reply();
+ assert(input.Deliver(0x10,10000).ok());
+ auto arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0x10);
+
+ writes=mmio.writes.size();script.Reply();
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0);
+ writes=mmio.writes.size();
+ assert(input.Deliver(0x20,10000).ok()&&mmio.writes.size()==writes);
+
+ assert(hardware.SetSessionDisplay(true,false).ok()&&!hardware.menu_display().launcher_focus);
+ script.Reply();assert(input.Deliver(0x20,10000).ok());
+ arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0x20);
+}
+
 // A session package built before the shared plane (ZX81 1.5.0) declares no
 // display plane, so inspection and admission refuse it before programming.
 // A package that declares the plane but whose bitstream still reports the
@@ -4095,6 +4158,7 @@ int main()
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestApplicationSessionDisplayReleasesControllers();
+ TestApplicationSessionDisplayMutesSingleGamepad();
  TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
  TestNativeMenuBlitterPresent(0);
