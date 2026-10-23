@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -291,8 +292,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if pairedImport {
-			if r.URL.Path == "/api/v1/core-media" && (!protocol.AdmitTapeMediaSize(r.ContentLength) || len(r.TransferEncoding) != 0) {
-				writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+			// The kit's media selector imports any tape or disk it can insert.
+			if r.URL.Path == "/api/v1/core-media" && (!protocol.AdmitRemovableMediaSize(r.ContentLength) || len(r.TransferEncoding) != 0) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("launcher media import requires 1..%d bytes", protocol.MaxRemovableMediaBytes))
 				return
 			}
 			a.routes.ServeHTTP(w, r)

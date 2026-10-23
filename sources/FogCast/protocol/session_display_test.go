@@ -83,3 +83,51 @@ func TestSessionDisplayFocusDefaultsFromVisibility(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionDisplayAdmitsOnlyObservedSupportedComputerMedia(t *testing.T) {
+	for _, tc := range []struct {
+		contract           RuntimeContract
+		minBytes, maxBytes uint32
+	}{
+		{Apple2FloppyInterface(), 143360, 143360},
+		{C64DiskInterface(), 174848, 174848},
+		{AtariStFloppyInterface(), 737280, 737280},
+		{SpectrumTapeInterface(), 1, 65536},
+	} {
+		t.Run(tc.contract.ID, func(t *testing.T) {
+			b := DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
+			p := &CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation, ABI: RuntimeContract{ID: "fes.computer", Major: 1},
+				ActiveInterfaces: []RuntimeInterface{{ID: tc.contract.ID, Major: tc.contract.Major, Minor: tc.contract.Minor}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}},
+				MediaUnits:       []MediaUnitStatus{{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: MediaUnitEmpty}}}
+			s := Status{State: StateActive, Development: true, CorePackage: p}
+			if !b.MatchesSessionDisplay(s) {
+				t.Fatal("supported observed unit rejected")
+			}
+			p.Generation++
+			if b.MatchesSessionDisplay(s) {
+				t.Fatal("replacement generation admitted")
+			}
+			p.Generation--
+			for _, mutate := range []func(*CorePackageStatus){
+				func(p *CorePackageStatus) { p.MediaUnits = nil },
+				func(p *CorePackageStatus) { p.MediaUnits[0].ChunkBytes = 0 },
+				func(p *CorePackageStatus) { p.ActiveInterfaces = p.ActiveInterfaces[1:] },
+				func(p *CorePackageStatus) { p.ActiveInterfaces = p.ActiveInterfaces[:2] },
+				func(p *CorePackageStatus) { p.ActiveInterfaces[1].Minor = 1 },
+				func(p *CorePackageStatus) {
+					p.MediaUnits[0].Interface = RuntimeContract{ID: "fes.media.unknown", Major: 1}
+					p.ActiveInterfaces[0] = RuntimeInterface{ID: "fes.media.unknown", Major: 1}
+				},
+			} {
+				copy := *p
+				copy.MediaUnits = CloneMediaUnits(p.MediaUnits)
+				copy.ActiveInterfaces = append([]RuntimeInterface(nil), p.ActiveInterfaces...)
+				mutate(&copy)
+				s.CorePackage = &copy
+				if b.MatchesSessionDisplay(s) {
+					t.Fatalf("incomplete or unsupported media/display identity admitted: %+v", copy)
+				}
+			}
+		})
+	}
+}

@@ -101,12 +101,12 @@ func TestKitKeyboardIsNeutralBeforeOpeningAndNeedsNewPress(t *testing.T) {
 	now := time.Now()
 	app.HandlePlayHIDKey("a", true, now)
 	app.HandlePlayHIDKey("home", true, now)
-	waitFor(t, app, "keyboard room", func(s Snapshot) bool { return s.Room.DuringPlay })
+	waitFor(t, app, "keyboard room", func(s Snapshot) bool { return s.Session.ControlsOpen })
 	if !app.HandlePlayHIDKey("a", true, now) {
 		t.Fatal("held gameplay key became navigation")
 	}
 	app.HandleCommand(CmdBack, now)
-	waitFor(t, app, "keyboard return", func(s Snapshot) bool { return !s.Room.DuringPlay && app.ForwardsPlayHID() })
+	waitFor(t, app, "keyboard return", func(s Snapshot) bool { return !s.Session.ControlsOpen && app.ForwardsPlayHID() })
 	before := len(feed.snapshot())
 	app.HandlePlayHIDKey("a", true, now)
 	drainLocalKeyQueue(t, app)
