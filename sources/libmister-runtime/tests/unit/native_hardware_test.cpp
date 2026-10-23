@@ -1788,6 +1788,8 @@ void TestApplicationSessionDisplayMutesSingleGamepad()
   device.Push({InputControl::horizontal,0});
   input_reads+=3;
   assert(device.WaitForReads(input_reads));
+  // The worker's next blocking read proves Apply finished this report.
+  assert(device.WaitUntilReading());
  };
 
  const auto button_arguments=[&](std::size_t begin) {
@@ -1862,6 +1864,8 @@ void TestApplicationSessionDisplaySuppressesOppositeDirections()
   device.Push({InputControl::horizontal,0});
   input_reads+=3;
   assert(device.WaitForReads(input_reads));
+  // The worker's next blocking read proves Apply finished this report.
+  assert(device.WaitUntilReading());
  };
  const auto button_arguments=[&](std::size_t begin) {
   std::vector<std::uint16_t> arguments;
