@@ -191,7 +191,7 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 				a.beginSessionDisplayLocked(false, false)
 				return
 			}
-			if openTape {
+			if openTape && !a.tapePickerOpen {
 				a.openTapePickerLocked()
 			}
 		} else {
@@ -211,6 +211,7 @@ func (a *App) invalidateSessionDisplayLocked() {
 	a.sessionDisplayUncertain = false
 	a.sessionDisplayBinding = hostclient.SessionResult{}
 	a.roomDuringPlay = false
+	a.mediaControlsDirect = false
 	a.playPadChordSince = time.Time{}
 	a.playPadChordFired = false
 	// Releases outside a session are not tracked, so a pair held now
