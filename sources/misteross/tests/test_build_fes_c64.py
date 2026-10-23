@@ -106,7 +106,8 @@ class BuildFesC64Tests(unittest.TestCase):
         for source in producer.RTL_SOURCES:
             self.assertIn(source, program)
         self.assertIn("chparam -set BUILD_ID 128'h" + "0" * 32 + " top", program)
-        self.assertIn("synth_intel_alm -nolutram -top top", program)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top -run coarse:", program)
+        self.assertIn("t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i", program)
         self.assertEqual(route[route.index("--qsf") + 1], "build/fes-c64-oss/socket.qsf")
         self.assertEqual(route[route.index("--seed") + 1], "4")
         self.assertEqual(route[route.index("--router") + 1], "gpu")
@@ -370,12 +371,10 @@ class C64YosysM10kTests(unittest.TestCase):
         yosys = _yosys_binary()
         assert yosys is not None
         sources = " ".join(producer.RTL_SOURCES)
-        program = (
-            f"read_verilog -lib {producer.DDR_ATOM}; "
-            "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
-            f"{sources}; "
-            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
-            "synth_intel_alm -nolutram -top top -run :map_luts; "
+        program = producer.build_commands(ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32,
+            {"yosys": Path(yosys), "nextpnr-mistral": Path("/n")})[0][2]
+        program = program.split("stat; write_json", 1)[0].replace("-run coarse:;", "-run coarse:map_luts;")
+        program += (
             "autoname; select -module top; "
             "log ---SDP---; select -count t:MISTRAL_M10K; "
             "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
@@ -432,14 +431,10 @@ class C64YosysM10kTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             synth = Path(directory) / "synth.json"
             log_path = Path(directory) / "yosys.log"
-            program = (
-                f"read_verilog -lib {producer.DDR_ATOM}; "
-            "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
-                f"{sources}; "
-                "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
-                "synth_intel_alm -nolutram -top top; "
-                f"write_json {synth}"
-            )
+            program = producer.build_commands(ROOT, ROOT / producer.OUTPUT_RELATIVE, "0" * 32,
+                {"yosys": Path(yosys), "nextpnr-mistral": Path("/n")})[0][2]
+            program = program.replace("write_json " + producer.OUTPUT_RELATIVE.as_posix() + "/synth.json",
+                                      "write_json " + str(synth))
             result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=ROOT,
                                     text=True, capture_output=True, check=False)
             log = log_path.read_text(encoding="utf-8", errors="replace")

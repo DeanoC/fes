@@ -321,7 +321,15 @@ def build_commands(root: Path, output: Path, build_id: str,
         "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
         f"{' '.join(RTL_SOURCES)}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
-        f"synth_intel_alm -nolutram -top {TOP}; stat; "
+        # Map only the plane products before coarse flattening. The C64
+        # machine keeps the existing -nodsp implementation and resource budget.
+        f"synth_intel_alm -nolutram -nodsp -top {TOP} -run begin:begin; "
+        "wreduce t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+        "techmap -map +/mul2dsp.v -D DSP_A_MAXWIDTH=9 -D DSP_B_MAXWIDTH=9 "
+        "-D DSP_A_MINWIDTH=4 -D DSP_B_MINWIDTH=4 -D DSP_NAME=__MUL9X9 "
+        "t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+        "chtype -set $mul t:$__soft_mul; "
+        f"synth_intel_alm -nolutram -nodsp -top {TOP} -run coarse:; stat; "
         f"write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
