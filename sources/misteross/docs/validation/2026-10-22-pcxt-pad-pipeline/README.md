@@ -2027,3 +2027,46 @@ No source guard, clock, production toolchain or timing acceptance changes.
 Artifacts are in `out/mapped-reset-replication-source-audit-20261023/`, under
 `native-invariant-observer-proposal-v2b/` and `forward-terminal-census-proposal/`.
 These host runs add no full-route charge; accounting remains 74.
+
+
+### Mistral line-load indexing correction (23 October)
+
+The actual electrical trace exposed a reachable load-index mismatch in Mistral's
+RC line generator. At one receiver-to-fixed-capacitor transition it selected
+counter pair `(3, 1)` instead of `(4, 0)`. The loop classified the next position
+after advancing, also reading past the final position. Separately, split-span
+initialization repeatedly classified one position instead of each preceding
+entry. The audit found no actual initial-prefix mismatch among 946 observed
+signatures; the general prefix error is covered by the new regression.
+
+[Mistral PR #19](https://github.com/DeanoC/mistral/pull/19), commit
+`9ab6522077948fc3dd2e074338874f92e848fc44` on master base
+`0a4ff598f4a64d331ad8351231178233d6633d95`, corrects both indices. It changes no
+model tables, solver, public API or bitstream configuration. All nine Mistral
+host tests pass. The new real-generator regression verifies 6,152 RC load maps,
+including all receiver/fixed-cap sequences through six entries, every split,
+both edges and loads on the split. AddressSanitizer reproduces the old final
+position overread; the corrected generator passes all 6,152 cases.
+
+A diagnostic linked with only the corrected traced `cv-rmux.cc.o` replacing
+its previous archive member, keeping all 83 nextpnr dependencies unchanged,
+replays the saved XT RBF and routes in 37.37 seconds. All 1,945 selected arcs
+have three repeated native-delay measurements. 1,906 intervals change, all
+increasing or equal component by component, with a maximum increase of 213 ps.
+Whole-RBF reconstruction, read-only design, source guards, logical census and
+phase inventories match the original. The original arc-0/pass-1 witness changes
+from 16 counter mismatches to zero across all 326 logged line steps.
+
+These are host-only measurements on two selected nets, not whole-design setup
+and hold or physical acceptance. The three existing zero-circuit diagnostics
+(one dedicated arc in each pass) remain reported; no unsupported clock or source
+coverage is admitted. The initial comparison script incorrectly expected detail-
+off circuit counts to equal detailed counts; its failure remains retained. A
+separate offline comparison checks the existing per-pass count convention and
+all native delay repeats without rerunning the native process.
+
+Artifacts are in `out/mistral-line-index-fix-20261023/`. The PR is open for review;
+there is no compiler merge, production lock/RTL change or hardware action. Route
+accounting remains 74. The previously retained seven-failure / -270 ps route is
+an old-model result: remeasure complete setup/hold with the corrected model
+before using it for another timing decision, then resume same-recipe routing.
