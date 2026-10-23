@@ -172,7 +172,10 @@ class AtariSTProducerTests(unittest.TestCase):
             st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='scanlines')
         self.assertIn('fx68k-slang.sv', command[-1])
         self.assertNotIn('--ignore-initial', command[-1])
-        self.assertIn('-nolutram -nodsp', command[-1])
+        self.assertIn('synth_intel_alm -nolutram -top top;', command[-1])
+        self.assertNotIn('-nodsp', command[-1])
+        self.assertEqual(st.DSP_RESOURCES & st.FORBIDDEN_RESOURCES, frozenset())
+        self.assertIn('MISTRAL_MUL18X19', st.FORBIDDEN_RESOURCES)
         for name, bel in st.CACHE_BELS.items():
             self.assertIn(f'setattr -set BEL "{bel}" top/{name};', command[-1])
         qsf = st.socket_qsf('# physical board pins\n')
