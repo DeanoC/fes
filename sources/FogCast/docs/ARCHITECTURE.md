@@ -3496,8 +3496,11 @@ FPGA library setup and media import browses those same host drives. A browser
 cannot inspect a kit's locally attached USB devices; use the kit's tenfoot
 settings for those. Tenfoot's BIOS, Systems ROM/media, expansion, next-start
 cassette and live tape/disk selectors all include saved local and host drives.
-Import continues through the existing media store and explicit BIOS/media
-selection APIs. Selecting a drive or folder never changes a running core.
+USB discovery and mounting use Linux block-device tools and are available on
+Linux kits and hosts. Other Tenfoot platforms can use SMB shares but do not
+discover or mount local USB volumes. Import continues through the existing
+media store and explicit BIOS/media selection APIs. Selecting a drive or
+folder never changes a running core.
 
 `storage` owns connection settings, USB discovery, rooted enumeration and
 bounded regular-file reads. SMB2/3 is read directly with the Go SMB client;
@@ -3505,27 +3508,37 @@ it needs neither a kernel mount nor root privileges. Each operation owns its
 connection, and cancellation closes the socket. USB discovery filters sysfs
 through `appliance/blockprobe` before querying only usable USB devices with
 `lsblk`; internal SD/system disks and optical or not-ready devices are excluded.
-An existing USB mount is reused. An unmounted kit volume is mounted read-only
-with `nosuid,nodev,noexec`; desktop users use `udisksctl` without interactive
-authorization. FAT, exFAT and ext4 use the kit kernel; NTFS uses `ntfs-3g`.
-Desktop hosts need `lsblk` and an existing mount or desktop device permission.
+An existing USB mount is reused only when its current block-device identity
+matches the discovered volume. A stale kit mount is unmounted before the
+reconnected volume is mounted read-only with `nosuid,nodev,noexec`; desktop
+users use `udisksctl` without interactive authorization. FAT, exFAT and ext4
+use the kit kernel; NTFS uses `ntfs-3g`. Desktop Linux hosts need `lsblk` and
+an existing mount or desktop device permission.
 
 The host composes `storage.Manager` with `host-drives.json` beside its canonical
 configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
-its existing persistent configuration directory. Writes atomically replace a
+its existing persistent configuration directory. Host drives are household
+resources shared by browser Settings and authenticated paired launchers; they
+are not private to one kit. Every paired operation still requires the
+configured bearer and matching target identity. Writes atomically replace a
 0600 file, including credentials; inventory and save responses expose only
 `password_set`. Blank password plus `password_set:true` preserves a stored
-password; clearing it is explicit. The two stores remain independent of
-library settings and target selection.
+password only while the SMB destination and account stay unchanged; clearing
+it is explicit. The local and host stores remain independent of library
+settings and target selection.
 
 The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
 drive-relative `entries`/`file` operations, and the existing explicit household
-firmware selection. It still requires the configured pairing bearer and target
-identity. API reads cannot address arbitrary host paths: USB reads use
-`os.Root`, reject escaping paths and nonregular files, and are limited to
-32 MiB. SMB reads stay relative to the selected share. Directory and connection
-work runs outside the tenfoot app lock. Existing game/session/package admission
-and captured live-media identity checks remain in force after import.
+firmware selection. A paired launcher may manage and browse these household
+host drives by design; it cannot address another kit's private local storage.
+The Coleco firmware selection is likewise a single household slot, updated
+only through the explicit BIOS selection flow, not a per-target setting. API
+reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
+escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
+Expansion archive reads use their declared archive bound. SMB reads stay
+relative to the selected share. Directory and connection work runs outside the
+tenfoot app lock. Existing game/session/package admission and captured
+live-media identity checks remain in force after import.
 To transfer a pack as one file, export it on the source machine and install the
 archive on the launcher's machine:
 

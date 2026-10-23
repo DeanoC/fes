@@ -8,7 +8,9 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type hardwareExpansionFamily struct {
@@ -153,7 +155,11 @@ func (a *App) importHardwareFileLocked(path string) {
 	manager := a.driveManagerLocked()
 	var selected hostclient.CoreEntry
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, name, err := openPickerFile(ctx, manager, a.client, path)
+		maxBytes := storage.MaxFileBytes
+		if mode == "expansions" {
+			maxBytes = int64(expansion.MaxArchiveBytes)
+		}
+		f, size, name, err := openPickerFile(ctx, manager, a.client, path, maxBytes)
 		if err != nil {
 			return err
 		}

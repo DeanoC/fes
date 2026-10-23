@@ -15,7 +15,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   media folders. Saved drives appear in BIOS, core setup and live-media
   pickers and reconnect when opened. Browser Settings manages host drives;
   **From host drive** imports their files in FPGA library setup. See
-  [BIOS and media drives](docs/ARCHITECTURE.md#bios-and-media-drives).
+  [BIOS and media drives](docs/ARCHITECTURE.md#bios-and-media-drives). USB
+  discovery and mounting require Linux; non-Linux Tenfoot builds can still use
+  SMB shares.
 
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**

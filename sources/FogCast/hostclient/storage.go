@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/DeanoC/FogCast/storage"
 )
@@ -70,7 +71,19 @@ func (c *Client) StorageEntries(ctx context.Context, id, path string) ([]storage
 	return out.Entries, err
 }
 func (c *Client) OpenStorageFile(ctx context.Context, id, path string) (io.ReadCloser, int64, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/storage/drives/"+url.PathEscape(id)+"/file?path="+url.QueryEscape(path), http.NoBody)
+	return c.OpenStorageFileWithLimit(ctx, id, path, storage.MaxFileBytes)
+}
+
+func (c *Client) OpenStorageFileWithLimit(ctx context.Context, id, path string, limit int64) (io.ReadCloser, int64, error) {
+	if limit < 1 || limit > storage.MaxExtendedFileBytes {
+		return nil, 0, fmt.Errorf("drive file limit must be between 1 and %d bytes", storage.MaxExtendedFileBytes)
+	}
+	query := url.Values{"path": []string{path}}
+	if limit != storage.MaxFileBytes {
+		query.Set("max_bytes", strconv.FormatInt(limit, 10))
+	}
+	endpoint := c.baseURL + "/api/v1/storage/drives/" + url.PathEscape(id) + "/file?" + query.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -78,9 +91,9 @@ func (c *Client) OpenStorageFile(ctx context.Context, id, path string) (io.ReadC
 	if err != nil {
 		return nil, 0, err
 	}
-	if resp.StatusCode != http.StatusOK || resp.ContentLength < 1 || resp.ContentLength > storage.MaxFileBytes {
+	if resp.StatusCode != http.StatusOK || resp.ContentLength < 1 || resp.ContentLength > limit {
 		resp.Body.Close()
-		return nil, 0, fmt.Errorf("drive file unavailable or exceeds %d bytes", storage.MaxFileBytes)
+		return nil, 0, fmt.Errorf("drive file unavailable or exceeds %d bytes", limit)
 	}
 	return resp.Body, resp.ContentLength, nil
 }

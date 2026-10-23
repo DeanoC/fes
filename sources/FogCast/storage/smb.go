@@ -110,7 +110,7 @@ func (f *smbFile) Close() error {
 	_ = f.connection.Close()
 	return err
 }
-func smbOpen(ctx context.Context, d Drive, rel string) (io.ReadCloser, int64, error) {
+func smbOpen(ctx context.Context, d Drive, rel string, limit int64) (io.ReadCloser, int64, error) {
 	c, err := connectSMB(ctx, d)
 	if err != nil {
 		return nil, 0, err
@@ -125,9 +125,9 @@ func smbOpen(ctx context.Context, d Drive, rel string) (io.ReadCloser, int64, er
 		c.Close()
 		return nil, 0, errors.New("SMB file metadata is unavailable")
 	}
-	if !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > MaxFileBytes {
+	if !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > limit {
 		c.Close()
-		return nil, 0, fmt.Errorf("choose a regular file of 1–%d bytes", MaxFileBytes)
+		return nil, 0, fmt.Errorf("choose a regular file of 1–%d bytes", limit)
 	}
 	return &smbFile{File: file, connection: c}, info.Size(), nil
 }

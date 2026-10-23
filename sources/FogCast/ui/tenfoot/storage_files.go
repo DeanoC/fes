@@ -245,7 +245,7 @@ func (a *App) loadDrivePickerDirLocked(path, destination string) {
 	}()
 }
 
-func openPickerFile(ctx context.Context, manager *storage.Manager, client *Client, path string) (io.ReadCloser, int64, string, error) {
+func openPickerFile(ctx context.Context, manager *storage.Manager, client *Client, path string, maxBytes int64) (io.ReadCloser, int64, string, error) {
 	if host, id, rel, ok := splitDrivePath(path); ok {
 		var file io.ReadCloser
 		var size int64
@@ -254,9 +254,9 @@ func openPickerFile(ctx context.Context, manager *storage.Manager, client *Clien
 			if client == nil {
 				return nil, 0, "", fmt.Errorf("FogCast host is unavailable")
 			}
-			file, size, err = client.OpenStorageFile(ctx, id, rel)
+			file, size, err = client.OpenStorageFileWithLimit(ctx, id, rel, maxBytes)
 		} else {
-			file, size, err = manager.Open(ctx, id, rel)
+			file, size, err = manager.OpenWithLimit(ctx, id, rel, maxBytes)
 		}
 		return file, size, filepath.Base(rel), err
 	}
@@ -265,14 +265,14 @@ func openPickerFile(ctx context.Context, manager *storage.Manager, client *Clien
 		return nil, 0, "", err
 	}
 	info, err := file.Stat()
-	if err == nil && (!info.Mode().IsRegular() || info.Size() < 1 || info.Size() > storage.MaxFileBytes) {
-		err = fmt.Errorf("choose a regular file of 1–%d bytes", storage.MaxFileBytes)
+	if err == nil && (!info.Mode().IsRegular() || info.Size() < 1 || info.Size() > maxBytes) {
+		err = fmt.Errorf("choose a regular file of 1–%d bytes", maxBytes)
 	}
 	if err != nil {
 		file.Close()
 		return nil, 0, "", err
 	}
-	return file, info.Size(), info.Name(), nil
+	return file, info.Size(), filepath.Base(strings.TrimSpace(path)), nil
 }
 
 func (a *App) pickerDisplayPathLocked(path string) string {

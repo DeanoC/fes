@@ -501,7 +501,7 @@ func importAndSelectColecoBIOS(ctx context.Context, client *Client, path string,
 	if client == nil {
 		return fmt.Errorf("host API is unavailable")
 	}
-	file, size, _, err := openPickerFile(ctx, manager, client, path)
+	file, size, _, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
 	if err != nil {
 		return err
 	}

@@ -125,6 +125,56 @@ func TestSMBCredentialsStayPrivateAndSurviveFolderSave(t *testing.T) {
 		t.Fatal("password clear was ignored")
 	}
 }
+
+func TestSMBPasswordIsNotReusedForChangedDestination(t *testing.T) {
+	m, _ := fixtureManager(t)
+	d, err := m.Save(Drive{Kind: "smb", Source: "//nas/private", Username: "player", Password: "private-password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Source = "//other-nas/private"
+	d.PasswordSet = true
+	saved, err := m.Save(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := m.drive(saved.ID)
+	if err != nil || stored.Password != "" || saved.PasswordSet {
+		t.Fatalf("changed SMB endpoint retained prior credentials: saved=%+v stored=%+v err=%v", saved, stored, err)
+	}
+}
+
+func TestOpenWithLimitAdmitsBoundedExtendedArchiveSize(t *testing.T) {
+	m, backend := fixtureManager(t)
+	d, err := m.Save(Drive{Kind: "usb", Source: "test-uuid"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(backend.root, "expansion.fexp")
+	if err = os.WriteFile(path, []byte{1}, 0600); err != nil {
+		t.Fatal(err)
+	}
+	size := MaxFileBytes + 1
+	if err = os.Truncate(path, size); err != nil {
+		t.Fatal(err)
+	}
+	if file, _, openErr := m.Open(context.Background(), d.ID, "expansion.fexp"); openErr == nil {
+		file.Close()
+		t.Fatal("ordinary file open exceeded its 32 MiB bound")
+	}
+	file, gotSize, err := m.OpenWithLimit(context.Background(), d.ID, "expansion.fexp", size)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	if gotSize != size {
+		t.Fatalf("extended file size %d, want %d", gotSize, size)
+	}
+	if _, _, err = m.OpenWithLimit(context.Background(), d.ID, "expansion.fexp", MaxExtendedFileBytes+1); err == nil {
+		t.Fatal("accepted an extended file limit over the hard cap")
+	}
+}
+
 func TestDriveRootRejectsTraversalSymlinksAndNonRegularFiles(t *testing.T) {
 	m, b := fixtureManager(t)
 	d, err := m.Save(Drive{Kind: "usb", Source: "test-uuid"})

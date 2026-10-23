@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,6 +40,28 @@ func pickerDriveManager(t *testing.T) *storage.Manager {
 	m.Backend = pickerDriveBackend{root}
 	return m
 }
+
+func TestOpenPickerFileKeepsSelectedSymlinkFilename(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "game.bin")
+	selected := filepath.Join(dir, "game.p")
+	if err := os.WriteFile(target, []byte("tape"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, selected); err != nil {
+		t.Fatal(err)
+	}
+	file, size, name, err := openPickerFile(context.Background(), nil, nil, selected, storage.MaxFileBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	body, err := io.ReadAll(file)
+	if err != nil || string(body) != "tape" || size != 4 || name != "game.p" {
+		t.Fatalf("opened selected file name=%q size=%d body=%q err=%v", name, size, body, err)
+	}
+}
+
 func selectStorageKind(t *testing.T, a *App, kind string) {
 	t.Helper()
 	a.mu.Lock()

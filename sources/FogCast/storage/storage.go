@@ -17,7 +17,10 @@ import (
 	"sync"
 )
 
-const MaxFileBytes int64 = 32 << 20
+const (
+	MaxFileBytes         int64 = 32 << 20
+	MaxExtendedFileBytes int64 = 33 << 20
+)
 
 type Drive struct {
 	ID          string `json:"id"`
@@ -226,7 +229,7 @@ func (m *Manager) Save(d Drive) (Drive, error) {
 	}
 	for i, prior := range old {
 		if prior.ID == normalized.ID || d.ID != "" && prior.ID == d.ID {
-			if d.Password == "" && d.PasswordSet {
+			if d.Password == "" && d.PasswordSet && prior.Kind == normalized.Kind && prior.Source == normalized.Source && prior.Username == normalized.Username && prior.Domain == normalized.Domain {
 				normalized.Password = prior.Password
 			}
 			old[i] = normalized
@@ -325,6 +328,15 @@ func (m *Manager) Entries(ctx context.Context, id, path string) ([]Entry, error)
 }
 
 func (m *Manager) Open(ctx context.Context, id, path string) (io.ReadCloser, int64, error) {
+	return m.OpenWithLimit(ctx, id, path, MaxFileBytes)
+}
+
+// OpenWithLimit reads a regular file with a caller-selected bound up to the
+// extended archive ceiling. Ordinary imports should continue to use Open.
+func (m *Manager) OpenWithLimit(ctx context.Context, id, path string, limit int64) (io.ReadCloser, int64, error) {
+	if limit < 1 || limit > MaxExtendedFileBytes {
+		return nil, 0, fmt.Errorf("file limit must be between 1 and %d bytes", MaxExtendedFileBytes)
+	}
 	rel, err := relative(path)
 	if err != nil {
 		return nil, 0, err
@@ -334,7 +346,7 @@ func (m *Manager) Open(ctx context.Context, id, path string) (io.ReadCloser, int
 		return nil, 0, err
 	}
 	if drive.Kind == "smb" {
-		return smbOpen(ctx, drive, rel)
+		return smbOpen(ctx, drive, rel, limit)
 	}
 	root, err := m.root(ctx, id)
 	if err != nil {
@@ -346,8 +358,8 @@ func (m *Manager) Open(ctx context.Context, id, path string) (io.ReadCloser, int
 		return nil, 0, err
 	}
 	info, err := f.Stat()
-	if err == nil && (!info.Mode().IsRegular() || info.Size() < 1 || info.Size() > MaxFileBytes) {
-		err = fmt.Errorf("choose a regular file of 1–%d bytes", MaxFileBytes)
+	if err == nil && (!info.Mode().IsRegular() || info.Size() < 1 || info.Size() > limit) {
+		err = fmt.Errorf("choose a regular file of 1–%d bytes", limit)
 	}
 	if err != nil {
 		f.Close()

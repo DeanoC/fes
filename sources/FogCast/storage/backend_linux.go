@@ -28,6 +28,7 @@ type blockDevice struct {
 	Label      string        `json:"label"`
 	FSType     string        `json:"fstype"`
 	Mountpoint string        `json:"mountpoint"`
+	MajorMinor string        `json:"maj:min"`
 	Children   []blockDevice `json:"children"`
 }
 
@@ -36,7 +37,7 @@ func usbDevices(ctx context.Context) ([]blockDevice, error) {
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"--json", "--paths", "--nodeps", "--output", "PATH,UUID,LABEL,FSTYPE,MOUNTPOINT"}
+	args := []string{"--json", "--paths", "--nodeps", "--output", "PATH,UUID,LABEL,FSTYPE,MOUNTPOINT,MAJ:MIN"}
 	for _, name := range names {
 		path, err := filepath.EvalSymlinks(filepath.Join("/sys/class/block", name))
 		if err == nil && strings.Contains(path, "/usb") {
@@ -87,19 +88,41 @@ func (systemBackend) Discover(ctx context.Context) ([]Drive, error) {
 	return drives, nil
 }
 
-func mountSource(target string) (string, error) {
-	data, err := os.ReadFile("/proc/self/mounts")
-	if err != nil {
-		return "", err
-	}
-	unescape := strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, `\`)
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) > 2 && unescape.Replace(fields[1]) == target {
-			return unescape.Replace(fields[0]), nil
+type mountedVolume struct {
+	Source     string
+	MajorMinor string
+}
+
+func unescapeMountField(value string) string {
+	return strings.NewReplacer("\\040", " ", "\\011", "\\t", "\\012", "\\n", "\\134", "\\\\").Replace(value)
+}
+
+func parseMountInfo(data, target string) mountedVolume {
+	for _, line := range strings.Split(data, "\n") {
+		separator := strings.Index(line, " - ")
+		if separator < 0 {
+			continue
 		}
+		mount := strings.Fields(line[:separator])
+		filesystem := strings.Fields(line[separator+3:])
+		if len(mount) < 5 || len(filesystem) < 2 || unescapeMountField(mount[4]) != target {
+			continue
+		}
+		return mountedVolume{Source: unescapeMountField(filesystem[1]), MajorMinor: mount[2]}
 	}
-	return "", nil
+	return mountedVolume{}
+}
+
+func mountedAt(target string) (mountedVolume, error) {
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return mountedVolume{}, err
+	}
+	return parseMountInfo(string(data), filepath.Clean(target)), nil
+}
+
+func mountMatchesDevice(mounted mountedVolume, deviceID string) bool {
+	return mounted.Source != "" && mounted.MajorMinor != "" && mounted.MajorMinor == deviceID
 }
 
 func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string, error) {
@@ -108,38 +131,55 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 	if d.Kind != "usb" {
 		return "", errors.New("only USB volumes use operating system mounts")
 	}
-	source := d.Source
-	filesystem := ""
-	{
-		devices, err := usbDevices(ctx)
-		if err != nil {
-			return "", err
-		}
-		matches := []blockDevice{}
-		for _, dev := range devices {
-			if dev.UUID == d.Source {
-				matches = append(matches, dev)
-			}
-		}
-		if len(matches) != 1 {
-			return "", errors.New("USB drive is disconnected or its UUID is ambiguous")
-		}
-		source = matches[0].Path
-		filesystem = matches[0].FSType
-		if matches[0].Mountpoint != "" {
-			return matches[0].Mountpoint, nil
-		}
-	}
-	mounted, err := mountSource(target)
+
+	devices, err := usbDevices(ctx)
 	if err != nil {
 		return "", err
 	}
-	if mounted == source {
+	matches := []blockDevice{}
+	for _, device := range devices {
+		if device.UUID == d.Source {
+			matches = append(matches, device)
+		}
+	}
+	if len(matches) != 1 {
+		return "", errors.New("USB drive is disconnected or its UUID is ambiguous")
+	}
+	device := matches[0]
+	if device.MajorMinor == "" {
+		return "", errors.New("USB discovery did not identify the current block device")
+	}
+	source, filesystem, deviceID := device.Path, device.FSType, device.MajorMinor
+
+	if device.Mountpoint != "" {
+		mounted, err := mountedAt(device.Mountpoint)
+		if err != nil {
+			return "", err
+		}
+		if mountMatchesDevice(mounted, deviceID) {
+			return device.Mountpoint, nil
+		}
+		if filepath.Clean(device.Mountpoint) != filepath.Clean(target) || mounted.Source != "" && mounted.Source != source {
+			return "", errors.New("USB mount identity changed; unmount the old volume and refresh")
+		}
+	}
+
+	mounted, err := mountedAt(target)
+	if err != nil {
+		return "", err
+	}
+	if mountMatchesDevice(mounted, deviceID) {
 		return target, nil
 	}
-	if mounted != "" {
-		return "", errors.New("drive mount point is in use by another volume")
+	if mounted.Source != "" {
+		if mounted.Source != source {
+			return "", errors.New("drive mount point is in use by another volume")
+		}
+		if err = exec.CommandContext(ctx, "umount", target).Run(); err != nil {
+			return "", errors.New("stale USB mount could not be unmounted")
+		}
 	}
+
 	if os.Geteuid() != 0 {
 		err = exec.CommandContext(ctx, "udisksctl", "mount", "--no-user-interaction", "--block-device", source, "--options", "ro,nosuid,nodev,noexec").Run()
 		if err != nil {
@@ -151,11 +191,15 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 		}
 		for _, device := range devices {
 			if device.UUID == d.Source && device.Mountpoint != "" {
-				return device.Mountpoint, nil
+				mounted, err := mountedAt(device.Mountpoint)
+				if err == nil && mountMatchesDevice(mounted, deviceID) {
+					return device.Mountpoint, nil
+				}
 			}
 		}
 		return "", errors.New("USB drive has no mount point")
 	}
+
 	if err = os.MkdirAll(target, 0700); err != nil {
 		return "", errors.New("cannot create USB mount point; use an already mounted volume or run the kit service as root")
 	}
@@ -173,11 +217,11 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 	if err != nil {
 		return "", errors.New("could not mount USB drive; check filesystem support and mount permissions")
 	}
-	mounted, err = mountSource(target)
+	mounted, err = mountedAt(target)
 	if err != nil {
 		return "", err
 	}
-	if mounted != source {
+	if !mountMatchesDevice(mounted, deviceID) {
 		return "", errors.New("mounted volume does not match selected drive")
 	}
 	return target, nil

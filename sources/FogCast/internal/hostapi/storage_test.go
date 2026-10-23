@@ -34,6 +34,13 @@ func TestHostDriveClientBrowsesReadsAndRemembers(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "BIOS", "bios.bin"), []byte(payload), 0644); err != nil {
 		t.Fatal(err)
 	}
+	expansionPath := filepath.Join(root, "expansion.fexp")
+	if err := os.WriteFile(expansionPath, []byte{1}, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(expansionPath, storage.MaxFileBytes+1); err != nil {
+		t.Fatal(err)
+	}
 	manager := storage.New(filepath.Join(t.TempDir(), "drives.json"))
 	manager.Backend = driveFixture{root}
 	server := httptest.NewServer(hostapi.New(&fakeService{}, hostapi.WithStorage(manager)))
@@ -61,6 +68,17 @@ func TestHostDriveClientBrowsesReadsAndRemembers(t *testing.T) {
 	f.Close()
 	if err != nil || size != 8192 || string(body) != payload {
 		t.Fatalf("read size=%d err=%v", size, err)
+	}
+	if _, _, err = client.OpenStorageFile(ctx, d.ID, "expansion.fexp"); err == nil {
+		t.Fatal("ordinary host read exceeded the 32 MiB limit")
+	}
+	archive, archiveSize, err := client.OpenStorageFileWithLimit(ctx, d.ID, "expansion.fexp", storage.MaxFileBytes+1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive.Close()
+	if archiveSize != storage.MaxFileBytes+1 {
+		t.Fatalf("extended host read size %d", archiveSize)
 	}
 	if _, err = client.StorageEntries(ctx, d.ID, "../../etc"); err == nil {
 		t.Fatal("remote traversal accepted")

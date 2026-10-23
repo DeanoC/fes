@@ -100,7 +100,19 @@ func registerStorage(mux *http.ServeMux, m *storage.Manager) {
 		return nil
 	}))
 	mux.HandleFunc("GET /api/v1/storage/drives/{id}/file", run(func(w http.ResponseWriter, r *http.Request) error {
-		file, size, err := m.Open(r.Context(), r.PathValue("id"), r.URL.Query().Get("path"))
+		query := r.URL.Query()
+		if len(query["path"]) > 1 || len(query["max_bytes"]) > 1 {
+			return errors.New("invalid file query")
+		}
+		limit := storage.MaxFileBytes
+		if value, present := query["max_bytes"]; present {
+			requested, err := strconv.ParseInt(value[0], 10, 64)
+			if err != nil || requested < 1 || requested > storage.MaxExtendedFileBytes {
+				return errors.New("invalid file limit")
+			}
+			limit = requested
+		}
+		file, size, err := m.OpenWithLimit(r.Context(), r.PathValue("id"), query.Get("path"), limit)
 		if err != nil {
 			return err
 		}

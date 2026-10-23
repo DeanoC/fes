@@ -624,7 +624,7 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 	if client == nil {
 		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
 	}
-	file, size, name, err := openPickerFile(ctx, manager, client, path)
+	file, size, name, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
 	if err != nil {
 		return hostclient.SessionResult{}, err
 	}

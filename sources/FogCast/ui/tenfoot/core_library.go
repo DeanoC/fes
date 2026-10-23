@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -449,7 +450,7 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, size, _, err := openPickerFile(ctx, manager, a.client, path)
+		f, size, _, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
 		if err != nil {
 			return err
 		}
