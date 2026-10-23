@@ -245,9 +245,8 @@ module st_ikbd #(
     wire signed [31:0] report_x = packet_motion(relative_x);
     wire signed [31:0] report_y = packet_motion(relative_y);
     // |value| >= threshold for a byte threshold, without 32-bit carry chains
-    // on the packet-select to FIFO write-enable path. Equal to
-    // value >= threshold || value <= -threshold for every 32-bit value and
-    // threshold, including zero.
+    // in packet selection. Equal to value >= threshold || value <= -threshold
+    // for every 32-bit value and threshold, including zero.
     function automatic beyond_threshold(input signed [31:0] value, input [7:0] threshold);
         if (!value[31]) beyond_threshold = value[30:8] != 0 || value[7:0] >= threshold;
         else beyond_threshold = value[30:8] != {23{1'b1}} || value[7:0] == 0 ||
