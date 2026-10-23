@@ -592,7 +592,9 @@ module fes_z80_engine #(
                 end
             end
             after_delay<=FETCH;
-            if(NMOS && opcode[4] && again) begin idle_addr<=ea; state<=DELAY; end else finish(1);
+            // The five repeat T states keep the last transfer address on the bus:
+            // DE for LDIR/LDDR, otherwise HL (CPIR, INIR) or BC (OTIR).
+            if(NMOS && opcode[4] && again) begin idle_addr<=action==BLOCK_LD ? de : ea; state<=DELAY; end else finish(1);
         end
     endtask
 

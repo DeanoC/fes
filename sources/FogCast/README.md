@@ -99,8 +99,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
   role that package declares: `cassette` on the tape unit, inserted into unit 0
   after Start, or `blob` on an installed `fes.simple-computer` package. On a
-  menu-display kit, ZX81 HDMI controls use `fes.video.session-display` and
-  restore machine video on return. A setup
+  menu-display kit, Home or Select/View opens **Change media** over the running
+  machine through `fes.video.session-display`. The selector inserts or ejects
+  the active core's supported tape or disk format and returns directly to play.
+  The emulator picture remains visible outside the picker. A setup
   saved earlier as `blob` still launches on the tape unit when the current
   package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
@@ -352,9 +354,9 @@ The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
 session/input ownership path, or the kit-local catalog and local-control
 socket when the kit has its own playable shelf. Select + Start held for one
-second requests Stop. Kit input applies a JSON remap profile from
-`ui/inputmap` (default **identity** preserves A=launch and
-Select+Start=stop). `cmd/fogcast-kit` is only a stub that answers
+second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
+under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
+bindings). `cmd/fogcast-kit` is only a stub that answers
 `--print-kit-ui` with `tenfoot` for bases whose supervisor still probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.

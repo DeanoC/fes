@@ -56,6 +56,24 @@ system = "spectrum"
 standing = "experimental"
 
 [[cores]]
+core_id = "fes.spectrum128"
+label = "ZX Spectrum 128K/+2"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.spectrum-plus3"
+label = "ZX Spectrum +2A/+3"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
+core_id = "fes.pentagon"
+label = "Pentagon 128"
+system = "spectrum"
+standing = "experimental"
+
+[[cores]]
 core_id = "fes.ramtest"
 label = "RAM Tester"
 system = "ramtest"

@@ -82,7 +82,7 @@ public:
  Error SetSessionDisplay(bool visible,bool launcher_focus) override;
  Error ShareMenuWindow(int*) override;
  Error MenuBackSlot(std::uint8_t*) const override;
- Error PresentMenuSlot(std::uint8_t,const std::vector<MenuRect>&,MenuDisplayInfo*) override;
+ Error PresentMenuSlot(std::uint8_t,const MenuDraw&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
 	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;

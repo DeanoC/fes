@@ -45,4 +45,10 @@ func (*Client) Present(context.Context, uint64, []byte) (Result, error) {
 func (*Client) PresentDamage(context.Context, uint64, []byte, Damage) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }
+func (*Client) Grant(context.Context, uint64) (Grant, error) {
+	return Grant{}, errors.New("native menu requires Linux")
+}
+func (*Client) PresentBlit(context.Context, uint64, BlitFrame) (Result, error) {
+	return Result{}, errors.New("native menu requires Linux")
+}
 func (*Client) Close() error { return nil }

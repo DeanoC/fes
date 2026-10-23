@@ -101,7 +101,9 @@ machine on the plane.
 A plane that refuses the surround is closed. The session then keeps machine
 pixels only, and the room opens and closes the plane as before. The **TV
 surround · kit HDMI** setting (`surround` in `tenfoot.json`, on by default)
-turns it off. Per-system and theme art are later work.
+turns it off. Settings does not open while a machine runs, so the setting is
+changed on the launcher between sessions and applies from the next launch.
+Per-system and theme art are later work.
 
 A disabled, faulted or not-yet-visible plane returns machine pixels
 unchanged. A display failure never stops, resets or reprograms the machine.
@@ -121,9 +123,10 @@ display fault.
 | Shell | Machine source | Part socket | Display plane |
 | --- | --- | --- | --- |
 | ZX81 | Shell 720p raster | No | Yes (`fes_display_plane`) |
+| Spectrum models (48K, 128K, +2A/+3, Pentagon) | ULA frame banks, 3x3 in a shell 720p raster | No | Yes (`fes_display_plane`) |
 | Coleco | Native pixels | Yes | Planned |
 | Atari ST | Shell raster | Yes | Planned |
-| SMS, SG-1000, Spectrum, C64, Apple II | Shell 720p raster | No | Planned |
+| SMS, SG-1000, C64, Apple II | Shell 720p raster | No | Planned |
 | Pong, Catch, RISC-V, RAM test, demos | `fes_video_720p` | No | Planned |
 | Idle MENU | `fes_menu_video` (whole screen is the plane) | No | Not applicable |
 

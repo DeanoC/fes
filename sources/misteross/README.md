@@ -58,17 +58,21 @@ command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
-The factory image installs `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`,
-`fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`.
-`fes.menu` is the idle display, not a playable library entry. Another
-package is not added to that set merely because its producer exists.
+The bootstrap image installs `fes.menu` only (fes#919). Playable packages
+install through the core library; `config/core-library.toml` registers
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000` and
+`fes.ramtest` as supported, and `fes.spectrum`, `fes.spectrum128`,
+`fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`, `fes.c64`, `fes.apple2`
+and `fes.riscv` as experimental. `fes.menu` is the idle display,
+not a playable library entry. A package is not registered merely because its
+producer exists.
 
 The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
 real 68000, physical SDRAM arbitration, pluggable 192 KiB firmware and
 expansion, peripherals, and all three ST video modes through shared
 direct/scanline parts. Stock EmuTOS reaches GEM in host simulation through
 the SDRAM and video paths. Run `make sim-fes-atari-st`; the registered HIP
-producer is `make build-fes-atari-st`. The factory image selects its firmware
+producer is `make build-fes-atari-st`. The library install selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
@@ -97,9 +101,8 @@ runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. SG-1000, ZX81 and Spectrum select the NMOS variant.
-Spectrum also has an explicit documented-only 56 MHz development build;
-`make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
+Cyclone V timing diagnostic. SG-1000, ZX81 and the Spectrum models select the
+NMOS variant; the Spectrum ULA stretches its clock enables for contention.
 Coleco and SMS still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
 schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
 not landed for those two packages.
@@ -122,15 +125,18 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | Package | Simulate | OSS seal | Quartus oracle | Parent recipe |
 | --- | --- | --- | --- | --- |
 | `fes.menu` | `python3 scripts/sim_fes_menu.py` | `make build-fes-menu-package` | none | image idle display, not a playable core |
-| `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | factory image |
-| `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
-| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |
-| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | factory image |
-| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | factory image |
-| `fes.spectrum` | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | factory image |
-| `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
-| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | factory utility, OSS 100 MHz |
-| `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | registered, not in the factory image |
+| `fes.pong` | `make sim-fes-pong` | `make build-fes-pong` | none on the product path | library, supported |
+| `fes.zx81` | `make sim-fes-zx81` (includes live session display) | `make build-fes-zx81` | `make build-fes-zx81-quartus` | library, supported |
+| `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | library, supported |
+| `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | library, supported |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | library, supported |
+| `fes.spectrum` (48K) | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | library, experimental |
+| `fes.spectrum128` (128K/+2) | `make sim-fes-spectrum` | `make build-fes-spectrum128` | none | library, experimental |
+| `fes.spectrum-plus3` (+2A/+3) | `make sim-fes-spectrum` | `make build-fes-spectrum-plus3` | none | library, experimental |
+| `fes.pentagon` (Pentagon 128) | `make sim-fes-spectrum` | `make build-fes-pentagon` | none | library, experimental |
+| `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | library, demo |
+| `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
+| `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
@@ -183,10 +189,18 @@ matching `toolchain-fes-<core>` target that provisions its
 `cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
-Pong's lock pins nextpnr `552ba246` and Coleco's pins Yosys `5391eeb1`, so each
-has its own slot. The other locks share identical compiler pins (nextpnr
-`9128800f`), so a shared `CACHE_ROOT` reuses one cached slot for them. The factory recipe stays HIP. The October kit notes do not accept
-a shared-pin seal. See [Cores](docs/cores.md).
+Pong's lock pins nextpnr `552ba246`, ZX81's `1eecf877` and RISC-V's
+`8f453ebc`, so each has its own slot. Apple II, Atari ST, C64, Coleco and
+Spectrum use nextpnr `5fe55f3d` from nextpnr #276; their shell validators
+require that producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II, C64 and
+Spectrum share one slot, and the Atari ST lock has its own. Coleco's lock also
+pins Yosys `5391eeb1`, so it has a separate toolchain slot. The Coleco
+development shell still uses nextpnr `9128800f`, whose exact route-through map
+is C/D. The validators select the map from each producer's lock; they do not
+broaden the reserved-boundary guard. The other five locks are byte copies of
+the repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses its
+cached slot for them. The factory recipe stays HIP. The October kit notes do
+not accept a shared-pin seal. See [Cores](docs/cores.md).
 
 ## Freeze-scaffold cartridges
 
@@ -221,7 +235,8 @@ This path does not seal `fes.zx81`.
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
 | `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
-| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` pin. That lock has its own HIP cache slot. |
+| `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `5fe55f3d` pins; this lock has its own HIP cache slot |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

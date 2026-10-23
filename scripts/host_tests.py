@@ -4,7 +4,8 @@
 Routine mode go-lists the FogCast module to race every package except the two
 race-expensive ones, which get concurrency-focused instrumentation instead.
 Full mode races every package in all three modules without -short or -run.
-Never installs dependencies; uses the inherited Go environment as-is.
+CI can include the standalone host build when production/build inputs require it.
+Uses the inherited Go environment; requested host builds use the parent Make target.
 """
 import argparse
 import json
@@ -25,6 +26,8 @@ def main(argv=None):
     parser.add_argument('--full', action='store_true',
                         help='exhaustive race run for weekly/manual selection')
     parser.add_argument('--plan-only', action='store_true')
+    parser.add_argument('--build-host-if-needed', action='store_true',
+                        help='include make host for non-test/full inputs, on shard 1 only')
     parser.add_argument('--paths-json', help='JSON array of changed repository paths')
     parser.add_argument('--shard', metavar='I/N',
                         help='run shard I of N (1-based) for parallel CI jobs')
@@ -58,8 +61,9 @@ def main(argv=None):
             ['go', 'list', './...'], cwd=root / test_policy.FOGCAST_MODULE,
             text=True, env=environment).split()
     commands = test_policy.host_test_commands(full=args.full, packages=packages)
-    selection = {'scope': 'all', 'reason': 'full mode or no Go-only change set'}
-    if not args.full and paths is not None and host_affected.go_only(paths):
+    selection = {'scope': 'all', 'reason': 'full mode or inputs outside Go and reviewed guides'}
+    go_changes = host_affected.go_inputs(paths)
+    if not args.full and go_changes is not None:
         records = host_affected.listing(root, environment)
         selected = host_affected.select(paths, records, root)
         if selected is not None:
@@ -67,11 +71,21 @@ def main(argv=None):
             selection = {'scope': 'affected', 'packages': sorted(selected),
                          'reason': 'changed Go packages and reverse import/test consumers'}
         else:
-            selection['reason'] = 'changed package absent from current Go graph'
+            selection['reason'] = 'uncertain package ownership or embedded guide inputs'
     if shard is not None:
         commands = test_policy.shard_host_commands(commands, *shard)
+    if args.build_host_if_needed:
+        build_required = (selection['scope'] != 'affected' or
+                          any(not path.endswith('_test.go') for path in go_changes))
+        build_scheduled = build_required and (shard is None or shard[0] == 0)
+        if build_scheduled:
+            commands.insert(0, {'cwd': '.', 'label': 'host binary build', 'argv': ['make', 'host']})
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',
               'commands': commands, 'selection': selection}
+    if args.build_host_if_needed:
+        report['host_build'] = {'required': build_required, 'scheduled': build_scheduled,
+            'reason': ('production/build/full or uncertain inputs' if build_required else
+                       'only Go tests and verified guides changed')}
     if shard is not None:
         report['shard'] = args.shard
     if args.plan_only:

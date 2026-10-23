@@ -867,7 +867,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES application ABI or system declaration");
-		bool video = false, blob = false, stream = false, menu = false, ddr = false;
+		bool video = false, blob = false, stream = false, menu = false, blitter = false, ddr = false;
 		bool gamepad = false, ports = false, keypad = false;
 		bool video_socket = false, coleco_bus = false;
 		for (const auto& interface : descriptor.interfaces) {
@@ -890,6 +890,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID ||
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
+				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
 				firmware;
 			const bool supported = known && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
@@ -903,6 +904,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				video = interface.required;
 			if (interface.id == FesApplicationInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesApplicationInterfaceVideoMenuDisplayID) menu = true;
+			if (interface.id == FesApplicationInterfaceVideoMenuBlitterID) blitter = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
 			if (interface.id == FesApplicationInterfaceGamepadID) gamepad = true;
@@ -911,9 +913,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		}
 		if (video_socket && (!ColecoVideoShell(descriptor) || !coleco_bus))
 			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the Coleco bus-2 developer shell");
-		if (menu && (!ddr || descriptor.interfaces.size() != 3))
+		if (blitter && !menu)
+			return CompatibilityError(ErrorCode::unsupported_interface, "menu blitter requires the menu display");
+		if (menu && (!ddr || descriptor.interfaces.size() != (blitter ? 4u : 3u)))
 			return CompatibilityError(ErrorCode::unsupported_interface,
-				"menu display requires exactly fixed video, HPS DDR and menu display");
+				"menu display requires exactly fixed video, HPS DDR, menu display and optionally the menu blitter");
 		if ((gamepad && ports) || (keypad && !ports))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"controller ports exclude single gamepad and keypad requires ports");

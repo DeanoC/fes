@@ -49,6 +49,52 @@ func superFamicomPad(axes map[uint16]controller.Range) controller.Device {
 		Keys: keys, Abs: []byte{0x03, 0, 0, 0, 0, 0, 0, 0}, Axes: axes}
 }
 
+// The profile saved under a pad's GUID reaches a kit-local core: its preset
+// swaps A and B and a binding puts keypad 1 on the left shoulder. Another
+// pad's profile, an invalid one and an unreadable tenfoot.json leave the pad
+// as its mapping reads it.
+func TestSavedProfileRemapsThatPad(t *testing.T) {
+	pad := superFamicomPad(nil)
+	guid := pad.GUID()
+	for _, tc := range []struct {
+		name, prefs string
+		wantErr     bool
+		want        [2]remoteinput.Code
+	}{
+		{"saved", `{"controllers": {"` + guid + `": {"preset": "swap-ab", "bindings": {"l": "keypad-1"}}}}`, false,
+			[2]remoteinput.Code{remoteinput.ButtonB, remoteinput.Keypad0 + 1}},
+		{"another pad's", `{"controllers": {"0300e9f51f08000001e4000011010000": {"preset": "swap-ab"}}}`, false,
+			[2]remoteinput.Code{remoteinput.ButtonA, remoteinput.ButtonL}},
+		{"invalid", `{"controllers": {"` + guid + `": {"bindings": {"l": "keypad-10"}}}}`, true,
+			[2]remoteinput.Code{remoteinput.ButtonA, remoteinput.ButtonL}},
+		{"unreadable", `{"controllers": {"` + guid + `": {"preset": "swap-ab"},}}`, true,
+			[2]remoteinput.Code{remoteinput.ButtonA, remoteinput.ButtonL}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "tenfoot.json")
+			if err := os.WriteFile(path, []byte(tc.prefs), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			a, _ := runningLocalApp(t)
+			feed := &localPadRecorder{}
+			a.mu.Lock()
+			a.localFeed = feed
+			a.mu.Unlock()
+			a.SetPrefsPath(path)
+			if _, err := a.padRemap(guid); (err != nil) != tc.wantErr {
+				t.Fatalf("padRemap error %v", err)
+			}
+			// 290 is the DB's a (South), 292 its left shoulder.
+			inputs, poll := pollNative(t, nativeTestEvent(1, 290, 1), nativeTestEvent(1, 292, 1))
+			inputs.devices[0].mapper, inputs.devices[0].remap = padMapper(pad, a.padRemap)
+			poll(a)
+			if len(feed.events) != 2 || feed.events[0].Code != tc.want[0] || feed.events[1].Code != tc.want[1] {
+				t.Fatalf("local events: %+v", feed.events)
+			}
+		})
+	}
+}
+
 func TestTenfootSuperFamicomPadNormalizationAndVirtualFilter(t *testing.T) {
 	if controller.Eligible(6, "FogCast Virtual Gamepad", true) || controller.Eligible(3, "USB pad", false) {
 		t.Fatal("automatic selection admitted virtual/non-gamepad device")
@@ -617,7 +663,7 @@ func TestNativeInputLocalDiscovery(t *testing.T) {
 	if os.Getenv("FOGCAST_TEST_EVDEV") != "1" {
 		t.Skip("live evdev discovery is opt-in")
 	}
-	inputs, err := openNativeInputs("auto", "linuxfb")
+	inputs, err := openNativeInputs("auto", "linuxfb", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -627,11 +673,11 @@ func TestNativeInputLocalDiscovery(t *testing.T) {
 	t.Logf("classified %d supported nodes; startup owner %s; no events read", len(inputs.devices), a.Affinity().Kind)
 }
 func TestNativeInputLabel(t *testing.T) {
-	_, err := openNativeInputs("/no/such/evdev", "menu-display")
+	_, err := openNativeInputs("/no/such/evdev", "menu-display", nil)
 	if err == nil || !strings.HasPrefix(err.Error(), "menu-display input /no/such/evdev:") {
 		t.Fatalf("menu-display label: %v", err)
 	}
-	_, err = openNativeInputs("/no/such/evdev", "linuxfb")
+	_, err = openNativeInputs("/no/such/evdev", "linuxfb", nil)
 	if err == nil || !strings.HasPrefix(err.Error(), "linuxfb input /no/such/evdev:") {
 		t.Fatalf("linuxfb label: %v", err)
 	}
@@ -700,7 +746,7 @@ func TestAutoInputNoNodesStaysLive(t *testing.T) {
 	if err := os.WriteFile(rejected, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	inputs, err := openNativeInputsDir("auto", "menu-display", dir)
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -719,7 +765,7 @@ func TestAutoInputNoNodesStaysLive(t *testing.T) {
 
 func TestAutoInputHotplugRescanIsBounded(t *testing.T) {
 	dir := t.TempDir()
-	inputs, err := openNativeInputsDir("auto", "menu-display", dir)
+	inputs, err := openNativeInputsDir("auto", "menu-display", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

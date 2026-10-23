@@ -226,11 +226,12 @@ public:
   }
   condition_.notify_all();return {};
  }
- Error ShareMenuWindow(std::uint64_t generation,int* fd)
+ Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter)
  {
-  if(!fd)return Invalid("missing menu window output");
+  if(!fd||!blitter)return Invalid("missing menu window output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
+  *blitter=status_.menu_display.blitter;
   return hardware_.ShareMenuWindow(fd);
  }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
@@ -241,7 +242,8 @@ public:
   if(!preparation_.expired())return Busy("one menu preparation is already outstanding");
   std::unique_ptr<MenuFrame> frame(new MenuFrame);
   error=hardware_.MenuBackSlot(&frame->slot_);if(!error.ok())return error;
-  frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;
+  if(prepared_generation_!=generation) {prepared_generation_=generation;preparations_=0;}
+  frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;frame->preparation_count_=++preparations_;
   preparation_=frame->preparation_;*output=std::move(frame);return {};
  }
  Error PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output)
@@ -253,11 +255,14 @@ public:
    Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
    if(frame.generation_!=generation||!frame.preparation_||preparation_.lock()!=frame.preparation_)
     return Invalid("menu preparation does not belong to this generation");
+   // A list needs the blitter's grant, which takes only lists once one has run.
+   if(frame.draw_.blit?!status_.menu_display.blitter:status_.menu_display.blitted)
+    return Invalid(frame.draw_.blit?"menu grant has no blitter":"menu grant takes only lists after its first list");
    busy_=true;
    menu_frame_busy_=true;
    session=status_.menu_display.session;
   }
-  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.written_,&info);
+  MenuDisplayInfo info;const Error error=hardware_.PresentMenuSlot(frame.slot_,frame.draw_,&info);
   frame.preparation_.reset();
   if(!error.ok()) {
    if(session) {
@@ -282,6 +287,7 @@ public:
    std::lock_guard<std::mutex> lock(mutex_);
    status_.menu_display.displayed_sequence=info.displayed_sequence;
    status_.menu_display.underflows=info.underflows;busy_=false;menu_frame_busy_=false;*output=info;
+   if(frame.draw_.blit)status_.menu_display.blitted=true;
   }
   condition_.notify_all();return {};
  }
@@ -1468,6 +1474,9 @@ public:
 	std::uint64_t next_generation_;
  std::uint64_t next_menu_generation_=0;
  std::weak_ptr<void> preparation_;
+ // Preparations begun on prepared_generation_, which tell a client whether
+ // another peer drew on the grant since its own last frame.
+ std::uint64_t prepared_generation_=0,preparations_=0;
 	std::uint64_t active_generation_;
 	std::uint64_t pending_fault_generation_;
 	std::thread fault_thread_;
@@ -1480,7 +1489,7 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
-Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd) {return impl_->ShareMenuWindow(generation,fd);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter) {return impl_->ShareMenuWindow(generation,fd,blitter);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
 Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible,bool launcher_focus) {return impl_->SetSessionDisplay(package_id,generation,visible,launcher_focus);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}

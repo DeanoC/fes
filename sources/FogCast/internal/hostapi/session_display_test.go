@@ -235,16 +235,22 @@ func TestPairedDisplayKeepsFullObservedBindingAndRejectsForeignSession(t *testin
 	}
 }
 
-func TestPairedTapeImportBoundLeavesNextStartManagementProtected(t *testing.T) {
+// The paired kit imports any tape or disk its media selector inserts, up to
+// the largest unit image and no further.
+func TestPairedMediaImportBoundLeavesNextStartManagementProtected(t *testing.T) {
 	s := &coreMediaAPIService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
 	}
+	largest := int(protocol.MaxRemovableMediaBytes)
+	if largest != int(protocol.AtariStFloppyGeometryMaxBytes) {
+		t.Fatalf("largest selector image = %d", largest)
+	}
 	for _, tc := range []struct {
 		bytes int
 		want  int
-	}{{1, 200}, {16384, 200}, {16385, 400}, {0, 400}} {
+	}{{1, 200}, {16384, 200}, {int(protocol.SpectrumTapeMaxBytes), 200}, {int(protocol.C64DiskBytes), 200}, {largest, 200}, {largest + 1, 400}, {0, 400}} {
 		r := launcherRequest(http.MethodPost, "http://192.0.2.1:8789/api/v1/core-media", strings.NewReader(strings.Repeat("x", tc.bytes)))
 		r.Header.Set("Content-Type", "application/octet-stream")
 		w := httptest.NewRecorder()
@@ -253,7 +259,7 @@ func TestPairedTapeImportBoundLeavesNextStartManagementProtected(t *testing.T) {
 			t.Fatalf("bytes=%d status=%d body=%s", tc.bytes, w.Code, w.Body)
 		}
 	}
-	if s.calls != 2 {
-		t.Fatalf("unbounded tape imported: %d", s.calls)
+	if s.calls != 5 {
+		t.Fatalf("unbounded media imported: %d", s.calls)
 	}
 }

@@ -135,23 +135,39 @@ returns to centre. Keyboard events carry the key's USB HID usage;
 mister-agent keeps it for `fes.keyboard.hid` cores and maps it to the ZX81
 matrix or native gamepad keys for the other cores.
 
-Remapping lives in `ui/inputmap`. The default **identity** profile
-leaves codes unchanged, so A still launches and Select+Start still stops.
-`-input-profile` (then `FOGCAST_INPUT_PROFILE`) selects a built-in name (`identity`, `swap-ab`) or a
-JSON file:
+A pad can have a saved profile in `tenfoot.json`, under `controllers` and the
+pad's GUID. Tenfoot logs the GUID when the pad attaches:
+
+```text
+tenfoot: gamepad "USB Gamepad " 081f:e401 v0110 bus 3 guid 0300e9f51f08000001e4000010010000: Super Famicom Controller
+```
+
+A profile remaps the pad's controls after its mapping. The `swap-ab` preset
+trades A and B, for players who confirm with Nintendo A or a Japanese
+PlayStation's Circle. `bindings` then remap single controls, in one lookup
+rather than a chain, so `"a": "b"` with `"b": "a"` swaps the two. The names
+are `a`, `b`, `c`, `x`, `y`, `l`, `r`, `start`, `select` and `dpad-up`,
+`dpad-down`, `dpad-left`, `dpad-right`, plus `keypad-0` to `keypad-9`,
+`keypad-star` and `keypad-hash` for a core that reads a keypad
+(`fes.keypad.ports`):
 
 ```json
 {
-  "name": "swap-ab",
-  "description": "Swap A and B after device normalization.",
-  "bindings": { "a": "b", "b": "a" }
+  "controllers": {
+    "0300e9f51f08000001e4000010010000": {
+      "preset": "swap-ab",
+      "bindings": { "x": "keypad-1", "y": "keypad-2" }
+    }
+  }
 }
 ```
 
-Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
-`dpad-up`, `left-x`, …) or raw `evdev:<code>` / `js:<n>` keys onto those logical
-names. The tenfoot `CommandFromLogical` adapter applies the remapper. There is
-no on-screen editor.
+Pads with the same GUID, such as two of the same model, share a profile.
+Tenfoot reads it as a pad attaches, so after an edit unplug the pad and plug
+it back in. The pad's log line then ends `, saved profile`, or says why the
+profile was ignored. Check it: a `tenfoot.json` that does not parse is
+rewritten from defaults the next time a setting is saved from the menu.
+Guide is never remapped. There is no on-screen editor yet.
 
 ## HOW_TO_RUN: LaunchBox covers on the kit host
 

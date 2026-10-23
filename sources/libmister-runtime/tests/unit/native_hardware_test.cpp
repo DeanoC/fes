@@ -15,6 +15,7 @@
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
@@ -36,7 +37,9 @@
 #include <sys/stat.h>
 
 #include <cstdint>
+#include <cstring>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <fstream>
 #include <limits>
@@ -505,9 +508,26 @@ class RecordingFaultSink final : public mister::HardwareFaultSink {
 public:
 	void ReportHardwareFault(mister::HardwareFault fault) override
 	{
-		faults.push_back(std::move(fault));
+		std::lock_guard<std::mutex> lock(mutex_);
+		faults_.push_back(std::move(fault));
+		condition_.notify_all();
 	}
-	std::vector<mister::HardwareFault> faults;
+	bool WaitForFaults(std::size_t count)
+	{
+		std::unique_lock<std::mutex> lock(mutex_);
+		return condition_.wait_for(lock, std::chrono::seconds(2),
+			[this, count] { return faults_.size() >= count; });
+	}
+	std::vector<mister::HardwareFault> Faults()
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		return faults_;
+	}
+
+private:
+	std::mutex mutex_;
+	std::condition_variable condition_;
+	std::vector<mister::HardwareFault> faults_;
 };
 
 class RecordingDriver final : public mister::native::CoreDriver {
@@ -843,6 +863,9 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 	assert(device.WaitForReads(2));
 	device.PushError({mister::ErrorCode::io_failed, "gamepad disconnected"});
 	assert(device.WaitForReads(3));
+	// Reading the error precedes the worker's fault callback. Observe delivery
+	// before replacement retires the generation and suppresses pending faults.
+	assert(sink.WaitForFaults(1));
 
 	// The replacement joins the failed worker, sends its final neutral, then
 	// quiesces the outgoing fabric before resetting the new GP session.
@@ -860,14 +883,16 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 		FesGpOpcodeButtons * (FesGpOpcodeMask & (~FesGpOpcodeMask + 1u)));
 	assert((mmio.writes[37].value & FesGpArgumentMask) == FesGpButtonUp);
 	assert((mmio.writes[39].value & FesGpArgumentMask) == 0);
-	assert(sink.faults.size() == 1 && sink.faults[0].generation == 1);
+	const auto disconnect_faults = sink.Faults();
+	assert(disconnect_faults.size() == 1 && disconnect_faults[0].generation == 1);
 
 	const std::size_t replacement_writes = mmio.writes.size();
 	assert(input.writers[0](FesGpButtonUp, 1000).ok());
 	input.callbacks[0](1,
 		{mister::ErrorCode::io_failed, "retained old-generation callback"});
 	assert(mmio.writes.size() == replacement_writes);
-	assert(sink.faults.size() == 2 && sink.faults[1].generation == 1);
+	const auto retired_faults = sink.Faults();
+	assert(retired_faults.size() == 2 && retired_faults[1].generation == 1);
 
 	// Satisfy destruction's final neutral without weakening the stale-writer
 	// assertion above.
@@ -1488,10 +1513,11 @@ public:
  bool driver=true;unsigned grants=0,revokes=0,cleans=0;
  struct Cleaned {std::uint64_t offset;std::uint32_t width,height,stride;};
  std::vector<Cleaned> cleaned;
+ std::vector<std::uint64_t> granted;
  mister::Error Grant(std::uint64_t offset,std::uint64_t bytes,int* fd) override {
-  assert(offset==0&&bytes==8388608);
+  assert(offset==0&&(bytes==8388608||bytes==83886080));
   if(!driver)return {mister::ErrorCode::io_failed,"no fes-window driver"};
-  *fd=int(100+ ++grants);return {};
+  granted.push_back(bytes);*fd=int(100+ ++grants);return {};
  }
  mister::Error Map(int,std::size_t bytes,void** out) override {assert(bytes==8388608);*out=pixels.data();return {};}
  void Unmap(void*,std::size_t) override {}
@@ -1509,6 +1535,20 @@ mister::Error PresentBackSlot(mister::native::NativeHardware& hardware,mister::M
  std::uint8_t slot=0;mister::Error error=hardware.MenuBackSlot(&slot);
  return error.ok()?hardware.PresentMenuSlot(slot,{},info):error;
 }
+// The (index, argument) of each MenuBlit exchange written since begin. An
+// exchange writes its fields twice, settled and then toggled.
+std::vector<std::pair<unsigned,unsigned>> BlitRequests(const mister_test::FakeMmio& mmio,std::size_t begin)
+{
+ using namespace mister::native::generated;
+ std::vector<std::pair<unsigned,unsigned>> requests;bool second=false;
+ for(std::size_t i=begin;i<mmio.writes.size();++i) {
+  const auto value=mmio.writes[i].value;
+  if(mmio.writes[i].offset!=kSpiGpoAddress||((value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeMenuBlit)continue;
+  if((second=!second))continue;
+  requests.push_back({unsigned((value&FesGpIndexMask)>>16),unsigned(value&FesGpArgumentMask)});
+ }
+ return requests;
+}
 struct MenuGpScript {
  mister_test::FakeMmio* mmio;
  bool toggle=false;
@@ -1522,14 +1562,20 @@ struct MenuGpScript {
   for(auto word:words)Reply(word);
   if(session)for(std::uint16_t word:{312,90,656,540})Reply(word);
  }
- void Identity(){
+ void Identity(std::uint16_t capabilities){
   using namespace mister::native::generated;
   auto words=FesGpIdentityWords();
   words[FesGpIdentityAbiTagIndex]=FesApplicationAbiTag;
-  words[FesGpIdentityCapabilitiesIndex]=770;
+  words[FesGpIdentityCapabilitiesIndex]=capabilities;
   for(auto word:words)Reply(word);
  }
- void BringUp(){Identity();Info(8,0);Reply();Reply();Reply();Info(3,0);}
+ // A blitter menu also proves its blitter idle with nothing completed.
+ void BringUp(bool blitter=false){
+  Identity(blitter?1794:770);Info(8,0);Reply();Reply();Reply();Info(3,0);
+  if(blitter){Reply(0);Reply(0);}
+ }
+ // ReadBlit reads the completed count, then the state.
+ void BlitState(std::uint16_t state,std::uint16_t completed){Reply(completed);Reply(state);}
  // Three quiesce exchanges, then BeginSession clears the GP toggle.
  void QuiesceRunningMenu(){Reply(0);Reply(8);Reply(0);toggle=false;}
  void Present(std::uint32_t sequence,std::uint32_t baseline,std::uint32_t final_underflows,bool pending_poll=false){
@@ -1680,6 +1726,53 @@ void TestSessionDisplayRejectsPlaneWithoutBlend()
  assert(loaded.mutation_attempted&&fpga.calls==1&&!hardware.menu_display().session);
 }
 
+// Kit software packing publishes these records so an image can refuse a
+// runtime that would reject its menu. Each listed interface is admitted by
+// CheckMenu together with the others, at its listed minor and every older
+// one, and the listed minor is the newest admitted.
+void TestMenuInterfaceRecordsMatchMenuAdmission()
+{
+ using namespace mister::native;
+ std::vector<CoreInterface> listed;
+ for(const char* record=kMenuInterfaceRecords;*record!='\0';record+=std::strlen(record)+1){
+  const std::string text(record);
+  const auto equals=text.find('='),dot=text.rfind('.');
+  assert(equals!=std::string::npos&&equals>0&&dot!=std::string::npos&&dot>equals+1&&dot+1<text.size());
+  listed.push_back({text.substr(0,equals),static_cast<std::uint16_t>(std::stoul(text.substr(equals+1,dot-equals-1))),
+   static_cast<std::uint16_t>(std::stoul(text.substr(dot+1))),true});
+ }
+ assert(!listed.empty());
+ CoreDescriptor menu;
+ menu.format=2;menu.core.id="fes.menu";
+ menu.target.platform="de10_nano";menu.target.device="5CSEBA6U23I7";menu.target.programming_profile="fes-gp-v1";
+ menu.abi={generated::FesApplicationABIID,generated::FesApplicationABIMajor,generated::FesApplicationABIMinor};
+ menu.interfaces=listed;
+ assert(CheckMenu(menu).ok());
+ for(std::size_t index=0;index<listed.size();++index){
+  for(std::uint16_t minor=0;minor<listed[index].minor;++minor){
+   auto older=menu;older.interfaces[index].minor=minor;
+   assert(CheckMenu(older).ok());
+  }
+  auto newer=menu;++newer.interfaces[index].minor;
+  assert(!CheckMenu(newer).ok());
+ }
+ // The list is complete: an application interface CheckMenu admits beside
+ // the listed ones must itself be listed, or an image whose menu declares
+ // it would hold back a runtime that accepts it.
+ for(const char* id:{generated::FesApplicationInterfaceGamepadID,generated::FesApplicationInterfaceVideoFixed720p60ID,
+  generated::FesApplicationInterfaceMediaBlobID,generated::FesApplicationInterfaceMediaBlobStreamID,
+  generated::FesApplicationInterfaceAudioPcmS16Stereo48kID,generated::FesApplicationInterfaceGamepadPortsID,
+  generated::FesApplicationInterfaceKeypadPortsID,generated::FesApplicationInterfaceFirmwareBlobID,
+  generated::FesApplicationInterfaceMemoryHpsDdrID,generated::FesApplicationInterfaceVideoMenuDisplayID,
+  generated::FesApplicationInterfaceVideoMenuBlitterID}){
+  bool named=false;
+  for(const auto& interface:listed)named=named||interface.id==id;
+  if(named)continue;
+  auto extra=menu;extra.interfaces.push_back({id,1,0,true});
+  assert(!CheckMenu(extra).ok());
+ }
+}
+
 void TestNativeMenuActivationAndCompletion()
 {
  using namespace mister::native;using namespace mister::native::generated;
@@ -1710,8 +1803,11 @@ void TestNativeMenuActivationAndCompletion()
  gp_script.BringUp();
  auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!result.error.ok())fprintf(stderr,"menu activation: %s\n",result.error.message.c_str());
- assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1&&operations.cleans==1);
- assert(operations.Granted());
+ assert(result.error.ok());assert(hardware.menu_display().available&&fpga.hps_ddr_calls==1);
+ // The slots were filled black through a grant revoked before the client's,
+ // so activation cleaned nothing and left no slot line cached.
+ assert(operations.Granted()&&operations.cleans==0&&!hardware.menu_display().blitter);
+ assert((operations.granted==std::vector<std::uint64_t>{8388608,8388608})&&operations.revokes==1);
  assert(operations.pixels[0]==0&&operations.pixels[3686400/4]==0xdeadbeef);
  // The first frame goes to slot 1; slot 0 is what scanout shows black.
  // Committing the displayed slot is refused before any GP traffic.
@@ -1719,15 +1815,18 @@ void TestNativeMenuActivationAndCompletion()
  mister::MenuDisplayInfo displayed;const auto before_wrong=mmio.writes.size();
  assert(hardware.PresentMenuSlot(0,{},&displayed).code==mister::ErrorCode::invalid_request);
  assert(mmio.writes.size()==before_wrong&&hardware.menu_display().available);
- int shared=-1;assert(memory.Share(&shared).ok()&&shared==1101);
+ int shared=-1;assert(memory.Share(&shared).ok()&&shared==1102);
  gp_script.Present(0,0,0,true);
  assert(PresentBackSlot(hardware,&displayed).ok());
  // The client drew the slot; the runtime copied nothing and only wrote back
  // that slot's frame for the fabric before submitting it.
- assert(displayed.displayed_sequence==1&&displayed.underflows==0&&operations.cleans==2);
- assert(operations.cleaned[0].offset==0&&operations.cleaned[0].height==2&&operations.cleaned[0].stride==4194304);
- assert(operations.cleaned[1].offset==4194304&&operations.cleaned[1].width==3686400&&
-  operations.cleaned[1].height==1&&operations.cleaned[1].stride==5120);
+ assert(displayed.displayed_sequence==1&&displayed.underflows==0&&operations.cleans==1);
+ assert(operations.cleaned[0].offset==4194304&&operations.cleaned[0].width==3686400&&
+  operations.cleaned[0].height==1&&operations.cleaned[0].stride==5120);
+ // Without a blitter, a list frame is refused before any GP traffic.
+ mister::MenuDraw listed;listed.blit=true;listed.count=1;const auto before_list=mmio.writes.size();
+ assert(hardware.PresentMenuSlot(0,listed,&displayed).code==mister::ErrorCode::invalid_request);
+ assert(mmio.writes.size()==before_list&&hardware.menu_display().available);
  assert(hardware.MenuBackSlot(&back).ok()&&back==0);
  // Generic game launch must reject the menu before touching the running display.
  std::unique_ptr<mister::AdmittedCorePackage> admitted;assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
@@ -1743,6 +1842,87 @@ void TestNativeMenuActivationAndCompletion()
  assert(fpga.programmed.back()=="core.rbf");
  assert(operations.Granted());
 
+}
+
+void TestNativeMenuBlitterPresent()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
+ std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
+ for(const char* id:{"fes.video.menu-display","fes.video.menu-blitter"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
+ assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ fpga.boot_hps_ddr_layout=true;
+ bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
+  if(abi.id==FesApplicationABIID&&interface.id==FesApplicationInterfaceVideoMenuBlitterID)advertised=true;
+ assert(advertised);
+ MenuGpScript gp_script{&mmio};
+ gp_script.BringUp(true);
+ auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
+ if(!result.error.ok())fprintf(stderr,"blitter menu activation: %s\n",result.error.message.c_str());
+ // The client's grant covers the slots, the lists and the heap.
+ assert(result.error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
+ assert((operations.granted==std::vector<std::uint64_t>{8388608,83886080})&&operations.Granted()&&operations.cleans==0);
+ // Until its first list, a blitter grant takes CPU frames as tenfoot draws
+ // them: the slot's frame is written back and submitted, and the blitter
+ // never runs.
+ mister::MenuDisplayInfo displayed;const auto before_cpu=mmio.writes.size();
+ gp_script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1);
+ assert(BlitRequests(mmio,before_cpu).empty()&&!hardware.menu_display().blitted);
+ assert(operations.cleans==1&&operations.cleaned[0].offset==4194304&&operations.cleaned[0].width==3686400&&
+  operations.cleaned[0].height==1&&operations.cleaned[0].stride==5120);
+ // The list and the uploads reach DDR, the blitter draws slot 0 from them,
+ // and only once that run completes is the slot submitted.
+ mister::MenuDraw draw;draw.blit=true;draw.first=100;draw.count=3;draw.uploaded={{16777216,8192},{83886076,4}};
+ gp_script.Info(3,1,0);gp_script.BlitState(0,0);
+ gp_script.Reply();gp_script.Reply();gp_script.Reply();
+ // The run completes between the count and state reads: the first pair looks
+ // like the old count with idle state, then the confirming sample sees it done.
+ gp_script.BlitState(0,0);gp_script.BlitState(0,1);
+ gp_script.Reply();gp_script.Reply();gp_script.Reply();gp_script.Info(3,2,0);
+ const auto before_blit=mmio.writes.size();
+ assert(hardware.PresentMenuSlot(0,draw,&displayed).ok()&&displayed.displayed_sequence==2);
+ assert((BlitRequests(mmio,before_blit)==std::vector<std::pair<unsigned,unsigned>>{
+  {4,0},{3,0},{0,100},{1,3},{2,0},{4,0},{3,0},{4,0},{3,0}}));
+ assert(operations.cleans==4&&hardware.menu_display().blitted);
+ assert(operations.cleaned[1].offset==8388608+100*32&&operations.cleaned[1].width==96&&operations.cleaned[1].height==1);
+ assert(operations.cleaned[2].offset==16777216&&operations.cleaned[2].width==8192);
+ assert(operations.cleaned[3].offset==83886076&&operations.cleaned[3].width==4);
+ std::uint8_t back=9;assert(hardware.MenuBackSlot(&back).ok()&&back==1);
+ // After a list only the blitter draws this grant's slots. A CPU frame is
+ // refused before any GP traffic or write-back, and the menu keeps running.
+ const auto before_refused=mmio.writes.size();
+ assert(hardware.PresentMenuSlot(1,{},&displayed).code==mister::ErrorCode::invalid_request);
+ assert(mmio.writes.size()==before_refused&&operations.cleans==4&&hardware.menu_display().available);
+ // A fault is a failed present: the grant is revoked, the slot is never
+ // submitted, and the package is kept for bounded reactivation.
+ draw.uploaded.clear();
+ gp_script.Info(3,2,0);gp_script.BlitState(0,1);
+ gp_script.Reply();gp_script.Reply();gp_script.Reply();
+ gp_script.BlitState(0x0302,1);
+ const auto before_fault=mmio.writes.size();
+ const auto faulted=hardware.PresentMenuSlot(1,draw,&displayed);
+ assert(faulted.code==mister::ErrorCode::io_failed&&faulted.message=="menu blitter fault 3");
+ for(std::size_t i=before_fault;i<mmio.writes.size();++i)
+  if(mmio.writes[i].offset==kSpiGpoAddress)assert(((mmio.writes[i].value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeMenuSubmit);
+ assert(!hardware.menu_display().available&&!operations.Granted()&&operations.cleans==5);
+ // The reactivated menu's new grant takes CPU frames again.
+ gp_script.QuiesceRunningMenu();gp_script.BringUp(true);
+ assert(hardware.LoadIdle().error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
+ assert(operations.Granted()&&operations.granted.back()==83886080&&!hardware.menu_display().blitted);
+ gp_script.Present(0,0,0);
+ assert(PresentBackSlot(hardware,&displayed).ok()&&displayed.displayed_sequence==1&&operations.cleans==6);
 }
 
 void TestMenuUnderflowPolicyReactivatesThenSplashes()
@@ -3830,7 +4010,9 @@ int main()
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestSessionDisplayRejectsPlaneWithoutBlend();
+ TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
+ TestNativeMenuBlitterPresent();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestInitialSTDiskBeforeExecution();

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"golang.org/x/sys/unix"
 )
@@ -121,6 +122,9 @@ type tenfootPrefs struct {
 	Surround *bool `json:"surround,omitempty"`
 	// RoomsDir overrides the room pack directory.
 	RoomsDir string `json:"rooms_dir,omitempty"`
+	// Controllers holds kit pads' saved profiles, keyed by the GUID tenfoot
+	// logs when a pad attaches.
+	Controllers map[string]inputmap.Profile `json:"controllers,omitempty"`
 }
 
 func homePrefValue(rooms bool) string {

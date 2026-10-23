@@ -1048,16 +1048,24 @@ void TestMenuProtocolRequestsAndStatus()
  assert(listed.find("staging_format")==std::string::npos&&listed.find("\"damage\"")==std::string::npos);
  mister::daemon::MenuFrameReply reply;reply.generation=1;reply.slot=1;reply.displayed_sequence=3;
  // A completed present reports where its time went.
- reply.clean_us=700;reply.submit_us=12;reply.scanout_wait_us=9000;
+ reply.clean_us=700;reply.blit_us=8100;reply.submit_us=12;reply.scanout_wait_us=9000;
  const auto response=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
  assert(response.find("\"menu_frame\":{\"generation\":1,\"slot\":1,\"displayed_sequence\":3,\"underflows\":0,"
-  "\"timing\":{\"clean_us\":700,\"submit_us\":12,\"scanout_wait_us\":9000}}")!=std::string::npos);
- mister::daemon::MenuFrameReply prepared;prepared.kind=mister::daemon::MenuFrameReply::Kind::prepared;prepared.generation=1;prepared.slot=0;
+  "\"timing\":{\"clean_us\":700,\"blit_us\":8100,\"submit_us\":12,\"scanout_wait_us\":9000}}")!=std::string::npos);
+ // Status does not report the blitter; the grant does.
+ status.menu_display.blitter=true;
+ assert(mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,nullptr).find("blitter")==std::string::npos);
+ mister::daemon::MenuFrameReply prepared;prepared.kind=mister::daemon::MenuFrameReply::Kind::prepared;prepared.generation=1;prepared.slot=0;prepared.preparation=4;
  const auto begun=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&prepared);
- assert(begun.find("\"menu_frame\":{\"generation\":1,\"slot\":0}")!=std::string::npos);
+ assert(begun.find("\"menu_frame\":{\"generation\":1,\"slot\":0,\"preparation\":4}")!=std::string::npos);
  mister::daemon::MenuFrameReply granted;granted.kind=mister::daemon::MenuFrameReply::Kind::granted;granted.generation=1;
  const auto window=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  assert(window.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304}")!=std::string::npos);
+ // A blitter grant also names where its lists and heap lie in the window.
+ granted.blitter=true;
+ const auto blitter=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
+ assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
+  "\"blitter\":{\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
  Request request;
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7})",&request).ok());
@@ -1065,11 +1073,31 @@ void TestMenuProtocolRequestsAndStatus()
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615})",&request).ok());
  assert(request.operation==mister::daemon::Operation::menu_frame_begin&&request.expected_generation==UINT64_MAX);
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1})",&request).ok());
- assert(request.operation==mister::daemon::Operation::menu_frame_commit&&request.menu_slot==1&&request.menu_written.empty());
+ assert(request.operation==mister::daemon::Operation::menu_frame_commit&&request.menu_slot==1&&request.menu_draw.written.empty());
  // A commit may name the regions it wrote, which the runtime writes back.
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"written":[[0,0,1280,720],[13,40,101,30]]})",&request).ok());
- assert(request.menu_written.size()==2&&request.menu_written[1].x==13&&request.menu_written[1].y==40&&
-  request.menu_written[1].w==101&&request.menu_written[1].h==30);
+ assert(request.menu_draw.written.size()==2&&request.menu_draw.written[1].x==13&&request.menu_draw.written[1].y==40&&
+  request.menu_draw.written[1].w==101&&request.menu_draw.written[1].h==30);
+ // A list commit names the commands the blitter draws the slot from, and
+ // the heap bytes uploaded since the last frame, which the runtime writes back.
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"list":{"first":32760,"count":8}})",&request).ok());
+ assert(request.menu_draw.blit&&request.menu_draw.first==32760&&request.menu_draw.count==8&&
+  request.menu_draw.written.empty()&&request.menu_draw.uploaded.empty());
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"list":{"first":0,"count":32768},)"
+  R"("uploaded":[[16777216,4],[83886076,4]]})",&request).ok());
+ assert(request.menu_draw.count==32768&&request.menu_draw.uploaded.size()==2&&request.menu_draw.uploaded[0].offset==16777216&&
+  request.menu_draw.uploaded[1].offset==83886076&&request.menu_draw.uploaded[1].bytes==4);
+ std::string spans;for(int i=0;i<17;++i)spans+=std::string(i?",":"")+"[16777216,4]";
+ const std::string listed_commit=R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,)";
+ for(const auto& tail:{R"("list":{"first":0,"count":0}})",R"("list":{"first":32768,"count":1}})",R"("list":{"first":32760,"count":9}})",
+  R"("list":{"first":0}})",R"("list":{"first":0,"count":1,"slot":1}})",R"("list":[0,1]})",R"("list":{"first":-1,"count":1}})",
+  R"("list":{"first":0,"count":1},"written":[[0,0,8,8]]})",R"("uploaded":[[16777216,4]]})",
+  R"("list":{"first":0,"count":1},"uploaded":[]})",R"("list":{"first":0,"count":1},"uploaded":[[16777212,4]]})",
+  R"("list":{"first":0,"count":1},"uploaded":[[83886076,5]]})",R"("list":{"first":0,"count":1},"uploaded":[[83886080,1]]})",
+  R"("list":{"first":0,"count":1},"uploaded":[[16777216,0]]})",R"("list":{"first":0,"count":1},"uploaded":[[16777216]]})",
+  R"("list":{"first":0,"count":1},"uploaded":{}})"})
+  ExpectError(listed_commit+tail,ErrorCode::invalid_request);
+ ExpectError(listed_commit+R"("list":{"first":0,"count":1},"uploaded":[)"+spans+"]}",ErrorCode::invalid_request);
  std::string many;for(int i=0;i<17;++i)many+=std::string(i?",":"")+"[0,0,8,8]";
  const std::string commit=R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":0,"written":)";
  for(const auto& written:{std::string("[]"),std::string("[[0,0,0,8]]"),std::string("[[1273,0,8,8]]"),std::string("[[0,713,8,8]]"),

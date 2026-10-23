@@ -1254,12 +1254,15 @@ void TestMenuGenerationAndPreparationFencing()
  assert(menu.available&&menu.generation!=0&&f.runtime.status().generation==0);
  std::unique_ptr<mister::MenuFrame> frame;
  assert(!f.runtime.BeginMenuFrame(0,&frame).ok());
- assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==1);
  std::unique_ptr<mister::MenuFrame> second;
  assert(f.runtime.BeginMenuFrame(menu.generation,&second).code==ErrorCode::busy);
  mister::MenuDisplayInfo info;
  assert(f.hardware.menu_present_slots.empty());
  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
+ // Every preparation counts, presented or abandoned.
+ frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==2);
+ frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==3);
  f.hardware.admission_result={ErrorCode::invalid_package,"bad package"};
  frame.reset();assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==menu.generation);
  assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
@@ -1273,7 +1276,8 @@ void TestMenuGenerationAndPreparationFencing()
  assert(f.runtime.Stop().ok());const auto fresh=f.runtime.status().menu_display;
  assert(fresh.available&&fresh.generation>menu.generation);
  assert(!f.runtime.PresentMenuFrame(fresh.generation,*frame,&info).ok());
- frame.reset();assert(f.runtime.BeginMenuFrame(fresh.generation,&frame).ok());
+ // A new generation counts its preparations from 1 again.
+ frame.reset();assert(f.runtime.BeginMenuFrame(fresh.generation,&frame).ok());assert(frame->preparation()==1);
  assert(f.runtime.ConfigureMenuPackage("relative",id).code==ErrorCode::invalid_request);
 }
 
@@ -1754,8 +1758,9 @@ void TestMenuFramesAlternateSlots()
  Fixture f;const std::string id(64,'a');
  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  const auto menu=f.runtime.status().menu_display;
- int window=-1;assert(f.runtime.ShareMenuWindow(menu.generation,&window).ok()&&window>=0);close(window);
- assert(f.runtime.ShareMenuWindow(menu.generation+1,&window).code==ErrorCode::invalid_request);
+ int window=-1;bool blitter=true;
+ assert(f.runtime.ShareMenuWindow(menu.generation,&window,&blitter).ok()&&window>=0&&!blitter);close(window);
+ assert(f.runtime.ShareMenuWindow(menu.generation+1,&window,&blitter).code==ErrorCode::invalid_request);
  mister::MenuDisplayInfo info;
  for(const std::uint8_t expected:{std::uint8_t(1),std::uint8_t(0),std::uint8_t(1)}) {
   std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
@@ -1763,6 +1768,43 @@ void TestMenuFramesAlternateSlots()
   assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());
  }
  assert((f.hardware.menu_present_slots==std::vector<std::uint8_t>{1,0,1}));
+}
+
+// A list needs a blitter grant. A blitter grant takes CPU frames, as tenfoot
+// draws them, until its first list and only lists after; the next activation's
+// grant starts over. A refused commit is the client's error: it reaches no
+// hardware and leaves the menu running.
+void TestMenuBlitterGrantTakesCpuFramesUntilAList()
+{
+ for(const bool blitter:{false,true}) {
+  Fixture f;const std::string id(64,'a');f.hardware.menu_status.blitter=blitter;
+  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  auto generation=f.runtime.status().menu_display.generation;
+  int window=-1;bool granted=!blitter;
+  assert(f.runtime.ShareMenuWindow(generation,&window,&granted).ok()&&granted==blitter);close(window);
+  mister::MenuDisplayInfo info;
+  const auto present=[&](const mister::MenuDraw& draw){
+   std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());
+   frame->SetDraw(draw);return f.runtime.PresentMenuFrame(generation,*frame,&info);
+  };
+  mister::MenuDraw whole,damage,listed;damage.written={{8,2,16,3}};
+  listed.blit=true;listed.first=7;listed.count=9;listed.uploaded={{16777216,64}};
+  assert(present(whole).ok()&&present(damage).ok()&&f.hardware.menu_present_calls==2);
+  assert(!f.hardware.menu_present_draws.at(0).blit&&f.hardware.menu_present_draws.at(1).written.size()==1);
+  if(!blitter) {
+   assert(present(listed).code==ErrorCode::invalid_request);
+   assert(f.hardware.menu_present_calls==2&&f.runtime.status().menu_display.available);
+   continue;
+  }
+  assert(present(listed).ok()&&f.hardware.menu_present_calls==3);
+  const auto& presented=f.hardware.menu_present_draws.at(2);
+  assert(presented.blit&&presented.first==7&&presented.count==9&&presented.uploaded.size()==1);
+  assert(present(whole).code==ErrorCode::invalid_request&&present(damage).code==ErrorCode::invalid_request);
+  assert(f.hardware.menu_present_calls==3&&f.runtime.status().menu_display.available);
+  assert(present(listed).ok()&&f.hardware.menu_present_calls==4);
+  assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());generation=f.runtime.status().menu_display.generation;
+  assert(present(whole).ok()&&f.hardware.menu_present_calls==5);
+ }
 }
 
 // A preparation the client abandons, or keeps past the bound, never holds a
@@ -1804,6 +1846,7 @@ int main()
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
  TestMenuFramesAlternateSlots();
+ TestMenuBlitterGrantTakesCpuFramesUntilAList();
  TestMenuPreparationFencesLifecycle();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();

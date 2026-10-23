@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"image"
+	"io/fs"
 	"net"
 	"strings"
 	"sync"
@@ -162,6 +163,9 @@ type SessionSnapshot struct {
 	DevelopmentState  string
 	Diagnostic        bool
 	LoadTape          bool
+	ControlsNotice    string
+	ControlsOpen      bool
+	MediaSelector     bool
 	HardwareRoom      bool
 }
 
@@ -313,7 +317,6 @@ type App struct {
 	mice               int
 	affinity           affinityTracker
 	repeat             Repeater
-	remap              *inputmap.Remapper
 	theme              theme.Theme
 	jobs               chan workItem
 	results            chan workResult
@@ -460,24 +463,25 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex        *rooms.Index
-	roomsDir          string
-	homeRooms         bool
-	homeRoom          string
-	gfxBackend        string
-	pinnedRooms       []string
-	reducedMotion     bool
-	homeRecents       []hostclient.Game
-	homeRecentsErr    string
-	homeRecentsLoaded bool
-	homeRecentsGen    int
-	room              *rooms.Instance
-	roomStack         []*rooms.Instance
-	roomFrame         rooms.Frame
-	roomErr           string
-	roomWasParked     bool
-	roomDuringPlay    bool
-	roomSessionNotice string
+	roomsIndex          *rooms.Index
+	roomsDir            string
+	homeRooms           bool
+	homeRoom            string
+	gfxBackend          string
+	pinnedRooms         []string
+	reducedMotion       bool
+	homeRecents         []hostclient.Game
+	homeRecentsErr      string
+	homeRecentsLoaded   bool
+	homeRecentsGen      int
+	room                *rooms.Instance
+	roomStack           []*rooms.Instance
+	roomFrame           rooms.Frame
+	roomErr             string
+	roomWasParked       bool
+	roomDuringPlay      bool
+	mediaControlsDirect bool
+	roomSessionNotice   string
 	// roomWaitAck is a Confirm received while the selected destination was
 	// still Checking. It is shown, never queued, and clears once the
 	// destination is no longer Checking.
@@ -622,16 +626,6 @@ type App struct {
 	localLaunchPending func()
 }
 
-// SetRemapper installs a shared input profile. A nil remapper is identity.
-func (a *App) SetRemapper(r *inputmap.Remapper) {
-	if a == nil {
-		return
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.remap = r
-}
-
 // SetTheme installs the sofa look. Zero Theme is Default.
 func (a *App) SetTheme(th theme.Theme) {
 	if a == nil {
@@ -642,13 +636,28 @@ func (a *App) SetTheme(th theme.Theme) {
 	a.theme = th.Complete()
 }
 
-func (a *App) remapper() *inputmap.Remapper {
-	if a == nil {
-		return nil
-	}
+// padRemap compiles the profile tenfoot.json saves for a pad's GUID, or
+// returns nil when there is none. It is read as the pad attaches, so an
+// edit applies when the pad is next plugged in.
+func (a *App) padRemap(guid string) (*inputmap.Remapper, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.remap
+	path := a.prefsPath
+	a.mu.Unlock()
+	if path == "" {
+		return nil, nil
+	}
+	prefs, err := loadTenfootPrefs(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	profile, ok := prefs.Controllers[guid]
+	if !ok {
+		return nil, nil
+	}
+	return inputmap.NewRemapper(profile)
 }
 
 // NewApp builds a launcher model bound to the host API client.
@@ -942,6 +951,20 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return
 	}
+	if a.mediaControlsDirect && a.roomDuringPlay {
+		if cmd == CmdSettings {
+			return
+		}
+		if !a.tapePickerOpen {
+			switch cmd {
+			case CmdBack, CmdHome, CmdLayoutCycle:
+				a.resumeRoomSessionLocked()
+			case CmdStop:
+				a.startStopLocked()
+			}
+			return
+		}
+	}
 	a.localStatus = ""
 	if a.coreLibrary.Open {
 		if a.settingsOSKOpenLocked() {
@@ -993,7 +1016,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 		if a.tapePickerOpen {
-			a.closeTapePickerLocked()
+			a.dismissMediaControlsLocked()
 			return
 		}
 		if a.sessionStopOfferedLocked() {
@@ -3351,6 +3374,9 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
 		LoadTape:          a.sessionLiveMediaOfferedLocked(),
+		ControlsNotice:    a.roomSessionNotice,
+		ControlsOpen:      a.roomDuringPlay,
+		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

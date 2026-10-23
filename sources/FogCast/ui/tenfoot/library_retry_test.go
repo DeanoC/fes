@@ -168,12 +168,21 @@ func TestLibraryRetriesATruncatedResponseThenRestoresFocus(t *testing.T) {
 
 func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	var recentDrops atomic.Int32
+	retryRelease := make(chan struct{})
+	var releaseRetry sync.Once
+	release := func() { releaseRetry.Do(func() { close(retryRelease) }) }
 	recentDrops.Store(1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games" && strings.Contains(r.URL.RawQuery, "collection=recents"):
 			if takeDrop(&recentDrops) {
 				dropConn(w)
+				return
+			}
+			// Keep recovery behind the error observation instead of racing Tick.
+			select {
+			case <-retryRelease:
+			case <-r.Context().Done():
 				return
 			}
 			writeGames(w, availableGame("nes-pong", "Pong", "nes"))
@@ -192,13 +201,18 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
+	client := server.Client()
+	// A reused connection lets net/http silently retry the injected disconnect.
+	// Force a fresh connection so the application observes that failure.
+	client.Transport.(*http.Transport).DisableKeepAlives = true
+	app := NewApp(NewClient(server.URL, client), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
 	}), "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
+	t.Cleanup(release)
 
 	saw := false
 	deadline := time.Now().Add(3 * time.Second)
@@ -207,6 +221,7 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 		snap := app.Snapshot()
 		if recentDetail(snap) == "couldn't load recently played" {
 			saw = true
+			release()
 		}
 		if saw && homeHasRow(snap, HomeKindRecent, "nes-pong") && recentDetail(snap) != "couldn't load recently played" {
 			return

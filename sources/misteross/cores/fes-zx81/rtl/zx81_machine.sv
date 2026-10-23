@@ -99,7 +99,10 @@ module zx81_machine #(
         .debug_ix(),
         .debug_iy(),
         .debug_ir(),
-        .debug_iff()
+        .debug_iff(),
+        .cycle_present(),
+        .cycle_kind(),
+        .cycle_t()
     );
 
     always_comb begin
