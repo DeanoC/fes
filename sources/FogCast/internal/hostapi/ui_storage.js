@@ -34,7 +34,7 @@
     const launch = document.getElementById('storage-manage');
     if (!launch) return;
     const api = createClient(fetchImpl);
-    const dialog = document.createElement('dialog'); dialog.className = 'settings-panel';
+    const dialog = document.createElement('dialog'); dialog.id='storage-dialog'; dialog.className = 'settings-panel';
     const title = document.createElement('h2'); title.textContent = 'FogCast host drives';
     const content = document.createElement('div');
     const status = document.createElement('p'); status.setAttribute('role','status');

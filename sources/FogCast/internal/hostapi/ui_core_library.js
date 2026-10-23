@@ -504,7 +504,7 @@
         byId('core-video-import').disabled = state.busy || state.loading;
       }
       byId('core-library-message').textContent = state.loading ? 'Loading library…' : state.message;
-      for (const id of ['core-package-check','core-media-import','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
+      for (const id of ['core-package-check','core-media-import','core-media-drive','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
         byId(id).disabled = state.busy || state.loading || !state.packageId ||
           (id.startsWith('core-entry-') && id !== 'core-entry-create' && !entry);
       }
