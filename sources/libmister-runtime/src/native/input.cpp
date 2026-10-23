@@ -198,12 +198,13 @@ private:
 		switch (event.control) {
 		case InputControl::synchronize: {
 			if (event.value != 0) return {ErrorCode::io_failed, "invalid input event"};
-			const std::uint16_t current = CurrentMap();
-			suppressed_map_ = static_cast<std::uint16_t>(suppressed_map_ & current);
+			const std::uint16_t raw = RawMap();
+			suppressed_map_ = static_cast<std::uint16_t>(suppressed_map_ & raw);
 			if (!button_delivery_enabled_) {
-				suppressed_map_ = current;
+				suppressed_map_ = raw;
 				return {};
 			}
+			const std::uint16_t current = CurrentMap();
 			const std::uint16_t next = static_cast<std::uint16_t>(
 				current & ~suppressed_map_);
 			if (next == committed_map_) return {};
@@ -259,13 +260,19 @@ private:
 		return {};
 	}
 
-	std::uint16_t CurrentMap() const
+	std::uint16_t RawMap() const
 	{
 		std::uint16_t map = digital_map_;
 		if (horizontal_ <= -kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.left);
 		if (horizontal_ >= kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.right);
 		if (vertical_ <= -kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.up);
 		if (vertical_ >= kAxisThreshold) map = static_cast<std::uint16_t>(map | recipe_.down);
+		return map;
+	}
+
+	std::uint16_t CurrentMap() const
+	{
+		std::uint16_t map = RawMap();
 		if ((map & recipe_.left) != 0 && (map & recipe_.right) != 0)
 			map = static_cast<std::uint16_t>(map & ~(recipe_.left | recipe_.right));
 		if ((map & recipe_.up) != 0 && (map & recipe_.down) != 0)

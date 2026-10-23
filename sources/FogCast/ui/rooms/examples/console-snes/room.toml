@@ -1,4 +1,4 @@
-id = "console-snes"
+id = "example.console-snes"
 title = "Super Nintendo"
 author = "FogCast"
 description = "One console, its whole library, in its own colours."
