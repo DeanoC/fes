@@ -78,7 +78,7 @@
       const d={...drive}; content.replaceChildren();
       function field(label,key,secret=false) {
         const node=document.createElement('label'); node.className='filter-label'; node.textContent=label;
-        const input=document.createElement('input'); input.type=secret?'password':'text'; input.autocomplete=secret?'new-password':'off';
+        const input=document.createElement('input'); input.name=key; input.type=secret?'password':'text'; input.autocomplete=secret?'new-password':'off';
         input.value=secret?'':(d[key] || ''); node.append(input);content.append(node);return input;
       }
       const label=field('Drive name','label');

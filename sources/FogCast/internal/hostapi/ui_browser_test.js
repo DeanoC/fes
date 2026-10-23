@@ -552,6 +552,43 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       });
     }
 
+    await t.test('host drives stay hidden until opened and remember a browsed media folder without revealing passwords',async () => {
+      const id='a'.repeat(24);
+      const drive={id,kind:'smb',source:'//nas/Games',label:'Demo SMB',username:'player',password_set:true,saved:true};
+      const saved={...drive,media_folder:'Disks'};
+      await runScenario(harness,'host-drive-folders',basePlan({storageRoutes:{
+        'GET /api/v1/storage/drives?discover=true':[coreReply({drives:[drive]}),coreReply({drives:[saved]})],
+        ['GET /api/v1/storage/drives/'+id+'/entries?path=.']:coreReply({entries:[{name:'Disks',directory:true,size:0}]}),
+        ['GET /api/v1/storage/drives/'+id+'/entries?path=Disks']:coreReply({entries:[]}),
+        'PUT /api/v1/storage/drives':coreReply(saved),
+      }}),async () => {
+        assert.equal(await harness.evaluate("getComputedStyle(document.querySelector('#storage-dialog')).display"),'none');
+        await harness.click('#open-settings');
+        await harness.click('#storage-manage');
+        await harness.waitForSnapshot(s => s.storageOpen&&s.storageText.includes('Demo SMB'));
+        const clickText=async text => harness.evaluate(`(() => {const b=Array.from(document.querySelectorAll('#storage-dialog button')).find(b => b.textContent.includes(${JSON.stringify(text)}));if(!b)throw Error('missing drive action');b.click();return true;})()`);
+        await clickText('Demo SMB');
+        assert.deepEqual(await harness.evaluate("(() => {const p=document.querySelector('#storage-dialog input[name=password]');return {type:p.type,value:p.value};})()"),{type:'password',value:''});
+        await clickText('Browse media folder');
+        await harness.waitForSnapshot(s => s.storageText.includes('Disks/'));
+        await clickText('Disks/');
+        await harness.waitForSnapshot(s => s.storageText.includes('Demo SMB / Disks'));
+        await clickText('Use this folder');
+        await harness.waitForSnapshot(s => s.storageText.includes('Media: /Disks'));
+        const writes=harness.fixtureEvidence().filter(r => r.method==='PUT'&&r.path==='/api/v1/storage/drives');
+        assert.equal(writes.length,1);
+        const body=JSON.parse(writes[0].requestBody);
+        assert.equal(body.password_set,true);assert.equal(body.password,undefined);assert.equal(body.media_folder,'Disks');
+        await harness.click('#storage-dialog > button');
+        assert.equal(await harness.evaluate("getComputedStyle(document.querySelector('#storage-dialog')).display"),'none');
+        await harness.click('#storage-manage');
+        await harness.waitForSnapshot(s => s.storageOpen&&s.storageText.includes('Demo SMB'));
+        await clickText('Demo SMB');
+        assert.equal((await harness.snapshot()).storageText.includes('Media: /Disks'),true);
+        await harness.click('#storage-dialog > button');
+      });
+    });
+
     await t.test('settings Save stays disabled while household settings load', async () => {
       await runScenario(harness, 'settings-save-waits-for-load', basePlan({
         settingsLoads: [
