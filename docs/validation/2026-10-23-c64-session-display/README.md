@@ -10,7 +10,7 @@ consumer dependencies, and the generic path keyboard caption discovered during
 validation. Shared protocol definitions and other cores' RTL are unchanged.
 Base: `c83cb211`. C64 package source:
 `7ef9c90783434c6dbe28fb488a68dd7f9ee4c92f`.
-Final software source: `61ee936f68c680776f40b0bc48faebe8ceda1738`.
+Final software source: `187fdc7c52971deb10eb7c371dfb07e6ef3d3732` after merging current main. All pinned C64 producer inputs remain byte-identical to the sealed source.
 
 ## Artifacts and timing
 
@@ -20,8 +20,8 @@ Final software source: `61ee936f68c680776f40b0bc48faebe8ceda1738`.
 | Build ID, also observed on kit | `b7bf0ddbbf358a3b3d48552c58da63d5` |
 | Archive SHA256 | `99d9df20547c1dfee02504ec393a32481067f9dcbe90f679c65ed6a13fa43e51` |
 | Blank base RBF SHA256 | `9d924f6fecaa15cb2ebd0e4ba27e2e810a83b6d16dfb945af44763fc0c16a33a` |
-| Final managed bundle | `ac9dbce97a47b5b9c83edce59147190f446e4d16b3c7815cde7001f7bdb56bc3` |
-| Installed ARM launcher SHA256 | `88806939eba6a29ea3972dd66f7d9c3b924b92ca7c7ed4d52e8f271125c33430` |
+| Final managed bundle | `7dfb47dc85c20250984a5324824687a8b438e020aa87f18c6ad471f24093b117` |
+| Installed ARM launcher SHA256 | `3ea62c5007e375ce4133a637b09c92f1bc1b02d81685bf88cea46e73800c1f94` |
 
 The authenticated HIP producer sealed the first production candidate, seed 5,
 weight 2000, criticality exponent 5, on the existing locked toolchain and clocks.
@@ -73,8 +73,9 @@ images below are real ShadowCast HDMI captures.
 ![Returned to play after eject](returned-to-play.png)
 
 The first pass used bundle `f9e6a89c…` and exposed a stale ZX81-only path caption.
-Only that caption changed in FogCast, then the entire hardware sequence passed
-again on the final bundle above. An attempted duplicate private-library entry
+The caption correction passed the entire sequence on bundle `ac9dbce9…`.
+After integrating current main's room identity changes, the entire sequence
+passed again on the final merged bundle above. An attempted duplicate private-library entry
 was rejected during final fixture setup; the final pass reused the already bound
 entry. Session observations and captures from the completed pass are the evidence.
 
@@ -87,7 +88,7 @@ are excluded; their hashes, sizes and linked RBF identity are in the JSON record
 
 The designated baseline bundle
 `35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b`
-was verified selected and active at generation 383. The image, boot command line,
+was verified selected and active at generation 385. The image, boot command line,
 idle RBF and provisioned launcher configuration matched before snapshots. Runtime
 was idle and the lease free. Only our diagnostic session and fixtures were
 stopped. Kit A was logged FREE; Kit B and the shared host were untouched.
@@ -108,7 +109,12 @@ stopped. Kit A was logged FREE; Kit B and the shared host were untouched.
   VSYNC is followed by a complete frame. SID/PCM expectations derive from that
   explicit cycle budget. FPGA RTL and hardware artifacts are unchanged by
   this fixture correction.
-- `go test ./ui/tenfoot`: passed after the caption correction.
+- All C64 simulator prerequisites and the native machine diagnostic passed.
+  Unchanged prerequisites passed before the checkpoint failure were reused;
+  the corrected checkpoint/observer and the remaining 16 prerequisites plus
+  the final machine diagnostic completed successfully. Positive, changed-payload
+  and no-media native diagnostic cases passed.
+- `go test ./ui/tenfoot ./ui/rooms`: passed after the main integration.
 - `make check`: passed. The initial affected-test run was blocked by sandbox
   socket permissions; the unrestricted affected run is recorded separately.
 
