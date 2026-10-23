@@ -104,9 +104,10 @@ stopped. Kit A was logged FREE; Kit B and the shared host were untouched.
   frames passed in every bank after the raster coordinate change.
 - `sim-fes-c64-checkpoint`: RTL and oracle full state/frame comparisons,
   exact PCM/SID split continuity, schedule validation and observer restores
-  passed. The harness now collects the initial active-first frame; it still
-  accepts only exact full frames at VSYNC. FPGA RTL and test cycle budgets
-  are unchanged by that harness correction.
+  passed. The checkpoint fixture spans two full raster periods so the first
+  VSYNC is followed by a complete frame. SID/PCM expectations derive from that
+  explicit cycle budget. FPGA RTL and hardware artifacts are unchanged by
+  this fixture correction.
 - `go test ./ui/tenfoot`: passed after the caption correction.
 - `make check`: passed. The initial affected-test run was blocked by sandbox
   socket permissions; the unrestricted affected run is recorded separately.
