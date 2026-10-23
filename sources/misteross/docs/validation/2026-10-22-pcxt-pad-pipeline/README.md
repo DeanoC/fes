@@ -1487,3 +1487,54 @@ and exact journal prefix. Twenty focused comparator controls pass. Fixed seeds
 `38e6fa4ddf96cf03a9dd5a3e002dc0776f6ad01059ba11e753b33f8843d1b28b`;
 only the seed changes. They are not yet charged or reported as completed.
 If the same CPU launch cone remains dominant, that cone is the next repair target.
+
+## Display packet seed comparison does not qualify the recipe
+
+Seeds 2 and 3 of the exact packet recipe are complete. The raw mapped input,
+compiler, clocks and all route options match packet seed 1; only the seed changes.
+All three retain 17,369 endpoint rows, 17,364 checked setup/hold rows, five untimed
+rows and 105 unsupported obligations. No setup pass is obtained.
+
+| Final native result | Seed 1 | Seed 2 | Seed 3 |
+| --- | ---: | ---: | ---: |
+| Setup failures | 59 | 131 | 92 |
+| Worst setup margin | -1196 ps | -996 ps | -1043 ps |
+| CPU failures | 45 | 77 | 40 |
+| CGA / MDA / PIC failures | 0 / 0 / 0 | 2 / 7 / 1 | 0 / 5 / 0 |
+| Other failures | 14 | 44 | 47 |
+| Related hold failures | 0 | 0 | 0 |
+| Minimum related hold | +785 ps | +788 ps | +719 ps |
+| Exact MDA status setup | +2237 ps | +2514 ps | +2407 ps |
+
+The packet pipeline does not improve the retained balanced eight-failure board
+recipe and remains isolated. Complete pairwise inventories preserve all endpoint
+identities and clock/contract categories; physical details and positive margins
+change with placement and are reported explicitly. Equal inventory size is not
+physical acceptance. The packet seed-1 CPU launch that reaches 36 failing rows
+is absent from the failing reported launches in seeds 2 and 3. Generated names
+also cannot identify RTL bits across resynthesis: the packet's r0_Q_8 is r0[1],
+whereas that suffix in the original mapping identifies r0[9]. Any next repair must
+use real connectivity and source aliases rather than those suffixes.
+
+Evidence is under `out/display-packet-seeds23-20261023/`. Independent review
+`415707250609700bc1fa12859239c00defdb777fca9f4328bb72ccd743cb12fa` reproduces all 29 analysis outputs, including the summary and checks
+receipt identity and accounting. Fresh charges are 1030.1297092940658 and
+938.7390288948081 seconds, total 1968.8687381888739. The 58-receipt journal
+preserves the exact 56-entry prefix and has cumulative charge
+**59685.29516897490187 seconds**.
+
+The next paired diagnostic runs the original balanced raw input with default-off
+compiler repair `--critical-final-route-buf-users`. Both routes use final-route
+budget 32 and compiler `e1a23c3b324febad36f80a3db9e042ae90777988`, binary
+`477dd65034559a13019a18b1b99e27bf60407feb350bd38146548a1a97a26204`.
+The candidate alone admits verified native transparent buffers feeding private
+register inputs. Host admission has 47 native and 12 CLI tests plus exact
+whole-RBF structural reconstruction; those are not final timing evidence.
+The root-owned matched pair is running under shared GPU phase leases and is
+not yet charged as complete. Source, runner and selection are frozen.
+
+These are host diagnostics. Both PRs remain draft. CPU/system/microcode clocks
+remain 100 MHz and pixel 74.25 MHz; shared RTL, toolchain lock, constraints and
+shared contracts are unchanged. The 105 unsupported obligations, complete=false,
+same-recipe timing qualification, fresh producer and exact-artifact hardware
+acceptance gates remain open. No hardware ran.
