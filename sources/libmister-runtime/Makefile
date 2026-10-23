@@ -109,7 +109,7 @@ TEST_HEADERS := $(wildcard \
 	third_party/toml11/include/toml/*.hpp \
 	tests/support/*.hpp)
 
-.PHONY: all clean test run-tests incremental-build-test version-build-test \
+.PHONY: all clean test test-routine run-tests incremental-build-test version-build-test \
 	force-version sanitize tsan archive-audit active-tree-test \
 	hardware-support-truth-test target menu-pattern-client
 
@@ -339,10 +339,17 @@ hardware-support-truth-test:
 incremental-build-test: run-tests
 	@tests/incremental_build_test.sh "$(CURDIR)" $(TEST_BINS)
 
-version-build-test: incremental-build-test
+version-build-test: run-tests
 	@tests/version_build_test.sh "$(CURDIR)"
 
-test: version-build-test
+test-routine: run-tests
+	@tests/incremental_build_test.sh --check-only "$(CURDIR)" $(TEST_BINS)
+	@tests/version_build_test.sh "$(CURDIR)"
+	@$(MAKE) active-tree-test
+	@$(MAKE) hardware-support-truth-test
+
+test: incremental-build-test
+	@tests/version_build_test.sh "$(CURDIR)"
 	@$(MAKE) active-tree-test
 	@$(MAKE) hardware-support-truth-test
 
