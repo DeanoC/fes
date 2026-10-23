@@ -1657,3 +1657,38 @@ Shared RTL, synthesis recipes, constraints, toolchain locks and shared contracts
 remain unchanged. Both PRs stay draft; no hardware ran. Complete native coverage,
 same-recipe timing qualification, fresh producer and exact-artifact hardware
 acceptance remain open.
+
+## CPU boundary pair completes without a timing improvement
+
+The admitted original/packet routes complete with the same frozen compiler,
+100/74.25 MHz clocks and best-reference recipe. Preserving the CPU synthesis
+boundary provides a stable logical CPU graph across the display edit, but does
+not preserve placement or recover the eight-failure reference.
+
+| Final native result | Best reference | Original with CPU boundary | Packet with CPU boundary |
+| --- | ---: | ---: | ---: |
+| Setup failures | 8 | 69 | 108 |
+| Worst setup | -434 ps | -1575 ps | -1285 ps |
+| Endpoint rows | 17199 | 17207 | 17377 |
+| Hold failures | 0 | 0 | 0 |
+| Minimum related hold | +822 ps | +791 ps | +683 ps |
+| Unsupported boundaries | 105 | 105 | 105 |
+
+Both remain `complete=false`. The previously reviewed 49-control comparator
+completes against the actual artifacts: all added/removed endpoint identities,
+full timing/clock/metadata categories and lossless raw/routed graph differences
+are retained. Generated names are descriptive keys, not semantic equivalence
+across mappings. Root independently checks the emitted row counts and margins;
+a separate independent replay of these actual comparison outputs is still
+pending. No recipe or packet RTL is adopted.
+
+The original route charges 1611.6099411519244 seconds and the packet route
+1383.5658514136449 seconds, total 2995.1757925655693. The 64-entry journal retains
+its exact prior 62-entry prefix and cumulative charge is
+**67227.92238157987547 seconds**. Evidence and the complete comparison are under
+`out/cpu-synthesis-boundary-20261023/`.
+
+The separate final ordinary-LUT move proposal remains OUT-only, with host
+validation unfinished. No shared RTL/compiler source, constraints, locks,
+contracts or hardware changed during this result capture. Both PRs remain draft
+and timing/coverage/producer/exact-artifact acceptance gates remain open.
