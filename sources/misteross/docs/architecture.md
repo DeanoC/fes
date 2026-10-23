@@ -3507,7 +3507,10 @@ with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
 as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
-while diagnostics retain their no-GP gate. DDR layout and per-port write checks
+while diagnostics retain their no-GP gate. Its only DSP cells are exactly the
+blitter's eight unsigned `MISTRAL_MUL9X9` products, in both netlists and the
+timing report; wider multipliers are forbidden, and the diagnostics allow no
+DSP. DDR layout and per-port write checks
 remain mandatory in both netlists: only port 1, the blitter's destination
 port, may write. Port 0 and port 2 commands have their write bit tied low,
 and write FIFOs 0, 1 and 3 and ports 3 to 5 are tied low. The diagnostics

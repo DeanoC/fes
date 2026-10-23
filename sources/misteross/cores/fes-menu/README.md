@@ -149,7 +149,11 @@ takes the same pipeline, so beats stay in order. EXPAND's coverage can start
 at any byte, so a second copy of the source row buffer reads the beat before.
 The menu builds with DSPs: the blend's and the alpha stage's unsigned 8x8
 products each map to one 9x9 multiplier, eight in all. Their operands are
-zero-extended, so the multiplier's signedness cannot change them. A run
+zero-extended, so the multiplier's signedness cannot change them. The package
+producer's evidence requires exactly those eight unsigned `MISTRAL_MUL9X9`
+cells inside the blitter, in both netlists and the timing report, and still
+forbids every other DSP; the diagnostics, which have no blitter, forbid DSPs
+entirely. A run
 reports idle and counts only once port 1's guard has drained its last write
 beats, so a submitted slot never has writes in flight. Quiesce stops a
 run at the next row and waits for both ports to drain; the drained proof is
