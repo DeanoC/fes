@@ -373,7 +373,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 	@build/sim/fes-zx81-machine/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-video" \
 		cores/fes-zx81/rtl/zx81_video_720p.v \
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
