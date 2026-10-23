@@ -3167,6 +3167,9 @@ A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
 requirement to insert media. The library can also format a blank FAT12 `.st`
 (`POST /api/v1/library/atari-st-disks`) and bind it as that title's drive A.
+Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
+1.0 and required base and writable floppy interfaces. Store-only creation does
+not inspect or require a package.
 The host stores the formatted bytes in the content-addressed media store; later
 GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The

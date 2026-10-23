@@ -1,14 +1,12 @@
 package fogcast
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,49 +16,29 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-func atariLibraryPackage(t *testing.T, geometry bool) []byte {
+func atariLibraryPackage(t *testing.T, format3, writable, geometry bool, transforms ...func(string) string) []byte {
 	t.Helper()
-	raw := libraryPackageFixture(t, "0.1.0")
-	reader := tar.NewReader(bytes.NewReader(raw))
-	var out bytes.Buffer
-	offset := 0
-	for {
-		header, err := reader.Next()
-		if err == io.EOF {
-			break
+	archive, _ := apple2LibraryPackageFixture(t, format3, func(text string) string {
+		text = strings.ReplaceAll(text, "apple2", "atari-st")
+		if writable {
+			text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		}
-		if err != nil {
-			t.Fatal(err)
+		if geometry {
+			text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-geometry\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		}
-		body, err := io.ReadAll(reader)
-		if err != nil {
-			t.Fatal(err)
+		for _, transform := range transforms {
+			text = transform(text)
 		}
-		canonical := bytes.Clone(raw[offset : offset+512])
-		offset += 512 + (len(body)+511)/512*512
-		if header.Name == "manifest.toml" {
-			body = bytes.Replace(body, []byte("fes.simple-game"), []byte("fes.computer"), 1)
-			body = bytes.Replace(body, []byte("fes.gamepad"), []byte("fes.media.atari-st-floppy"), 1)
-			if geometry {
-				body = append(body, []byte("\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-geometry\"\nmajor = 1\nminor = 0\nrequired = true\n")...)
-			}
-		}
-		copy(canonical[124:136], fmt.Sprintf("%011o\x00", len(body)))
-		copy(canonical[148:156], "        ")
-		sum := 0
-		for _, b := range canonical {
-			sum += int(b)
-		}
-		copy(canonical[148:156], fmt.Sprintf("%06o\x00 ", sum))
-		out.Write(canonical)
-		out.Write(body)
-		out.Write(make([]byte, (512-len(body)%512)%512))
-	}
-	out.Write(make([]byte, 1024))
-	return out.Bytes()
+		return text
+	})
+	return archive
 }
 
 func newAtariDesk(t *testing.T, geometry bool) (*Service, catalog.CoreEntry) {
+	return newAtariDeskPackage(t, atariLibraryPackage(t, true, true, geometry))
+}
+
+func newAtariDeskPackage(t *testing.T, raw []byte) (*Service, catalog.CoreEntry) {
 	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
@@ -76,7 +54,6 @@ func newAtariDesk(t *testing.T, geometry bool) (*Service, catalog.CoreEntry) {
 	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.corePackages = packages
-	raw := atariLibraryPackage(t, geometry)
 	inspection, created, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
 	if err != nil || !created {
 		t.Fatalf("import: %v created=%v", err, created)
@@ -145,5 +122,43 @@ func TestCreateBlankAtariStDiskRejectsOtherPackages(t *testing.T) {
 	}
 	if _, err := s.CreateBlankAtariStDisk(ctx, BlankAtariStRequest{Name: "bad/name"}); err == nil {
 		t.Fatal("bad name stored")
+	}
+}
+
+func TestCreateBlankAtariStDiskRequiresWritableFormat3AtariFirmware(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		pkg  []byte
+	}{
+		{name: "read-only floppy", pkg: atariLibraryPackage(t, true, false, false)},
+		{name: "format 2", pkg: atariLibraryPackage(t, false, true, false)},
+		{name: "different core", pkg: atariLibraryPackage(t, true, true, false, func(text string) string {
+			return strings.ReplaceAll(text, "fes.atari-st", "fes.other")
+		})},
+		{name: "non-firmware ROM", pkg: atariLibraryPackage(t, true, true, false, func(text string) string {
+			return strings.Replace(text, `role = "firmware"`, `role = "cartridge"`, 1)
+		})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, entry := newAtariDeskPackage(t, tc.pkg)
+			_, err := s.CreateBlankAtariStDisk(ctx, BlankAtariStRequest{
+				Name: "work", GameID: entry.GameID, ExpectedPackageID: entry.PackageID, Bind: true,
+			})
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeUnsupportedOperation {
+				t.Fatalf("package admitted: %v", err)
+			}
+		})
+	}
+}
+
+func TestCreateBlankAtariStDiskStoreOnlyDoesNotRequirePackage(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newAtariDesk(t, false)
+	s.corePackages = nil
+	got, err := s.CreateBlankAtariStDisk(ctx, BlankAtariStRequest{Name: "work"})
+	if err != nil || !got.Created || got.MediaID == "" || got.Entry != nil {
+		t.Fatalf("store-only disk %+v: %v", got, err)
 	}
 }
