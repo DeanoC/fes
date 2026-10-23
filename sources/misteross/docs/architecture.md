@@ -3044,6 +3044,13 @@ complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
 change the running raster without BIOS interception or frame reconstruction.
+Each card captures its rendering inputs before colour selection. The complete
+pixel/DE/sync/SOF/EOL snapshot is emitted one system cycle later; cadence and
+pixel order are preserved. The MDA status nonzero predicate retains its original
+bus-visible cycle. A prepared memory-write/byte-select register keeps VRAM
+address/type decode off commit enables without adding a transaction cycle.
+Symbolic checks prove the retimed stream and status behavior for arbitrary
+inputs/reset, and the write eligibility at every possible endpoint commit.
 The card stream feeds `pcxt_video.sv`, a shell-owned adapter into the existing
 `fes.fabric.video.raster-rgb888` 1.0 interface. `pcxt_video_output.sv` selects the
 unchanged shared Direct or Scanlines part behind the existing two-register

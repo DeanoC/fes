@@ -622,6 +622,15 @@ apertures to ISA and contains no display registers. See
 [ISA display cards](#isa-display-cards). Physical socket placement,
 production HDMI egress and kit hardware acceptance remain unqualified.
 
+Each card registers its rendering inputs before colour selection. Pixel enable,
+DE, HS/VS and SOF/EOL travel with the same snapshot, adding one 100 MHz cycle
+to the complete output stream without changing raster cadence. MDA status uses
+a separate equivalent nonzero predicate at its original bus-visible cycle.
+VRAM byte-write eligibility is registered during ISA prepare, before commit;
+this adds no bus cycle and keeps address/type decode off the write-enable path.
+Symbolic checks cover arbitrary render inputs/resets/markers and every committed
+request, including a rejected undelayed-frame-marker mutation.
+
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
 one request and one response register, matching the existing linkable-slot
