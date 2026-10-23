@@ -91,9 +91,13 @@ module pcxt_display_card #(
     reg [26:0] phase;
     localparam integer DOT_RATE = MDA ? 16257000 : 14318180;
     localparam integer DOT_WRAP = 100000000 - DOT_RATE;
-    // Decode the wrap from the current phase, in parallel with both sums.
-    // This keeps a full-width add out of the CRTC clock-enable path.
-    wire dot_ce = phase >= 27'(DOT_WRAP);
+    reg dot_ce;
+    // Predict the wrap flag for the next phase, keeping the comparison out
+    // of downstream CRTC enables without shifting a single master-dot pulse.
+    always @(posedge clk) begin : predict_dot_enable
+        if (clear) dot_ce <= 0;
+        else dot_ce <= !dot_ce && phase >= 27'(DOT_WRAP - DOT_RATE);
+    end
     reg [3:0] dot;
     wire [3:0] last_dot = MDA ? 4'd8 : mode[0] ? 4'd7 : 4'd15;
     wire char_ce = dot_ce && dot == last_dot;

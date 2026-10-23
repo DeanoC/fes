@@ -594,6 +594,14 @@ clear resets status, command, request, temporary, byte pointer and masks while
 preserving address/count/mode/page programming. Undefined register reads use
 `FF`; the temporary register reads zero because memory-to-memory is unsupported.
 
+At a grant, the controller snapshots the candidate address and terminal count
+before checking whether service is allowed. Rejected-service snapshots stay
+inactive; every valid service overwrites them before use. The motherboard
+consumes payload and TC only with a valid request. This removes the service-mode
+and priority decision from the payload-register enables without adding a cycle.
+Symbolic checks compare all other state and observable outputs and preserve
+snapshot equality throughout active service; wrong address/TC mutations reject.
+
 DMA2/3 exercise real registered ISA endpoints; DMA1 uses the same contract
 (the current fixture has no DMA1 card). Memory-to-device first reads memory,
 then commits the peripheral write; device-to-memory commits the peripheral
@@ -621,6 +629,13 @@ its auto-init single mode continues while the CPU waits or halts. Edges during
 a delayed refresh can latch one further request. This supplies the guest-visible
 refresh bus activity; the separate physical SDRAM controller owns its actual
 SDRAM refresh commands and retention qualification.
+
+The fractional master-dot accumulator registers a prediction of the next wrap
+flag. Reset establishes zero phase and no pulse; the inductive phase-range and
+wrap-identity check proves every CGA/MDA pulse stays on its original cycle.
+The downstream CRTC enables therefore start at a register rather than a wide
+phase comparison. Threshold mutations reject for both dot rates. No guest or
+fabric clock frequency, raster period or renderer latency changes.
 
 CGA and MDA are separate ISA expansion cards. Each owns its VRAM, memory
 and register decode, and raster state on the registered endpoint/commit

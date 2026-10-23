@@ -104,6 +104,12 @@ module pcxt_dma (
             end
         end else begin
             refresh_previous <= refresh_clock; refresh_done <= 0;
+            // Snapshot on each grant before validating service. Invalid-cycle
+            // payloads are not consumed; a valid SELECT overwrites both fields.
+            if (state == SELECT && granted && guest_ce) begin
+                transfer_address <= {page[service_channel == 2 ? 1 : service_channel == 3 ? 2 : 3], current_address[service_channel]};
+                terminal <= current_count[service_channel] == 0;
+            end
             if (guest_ce && minimum_wait != 0) minimum_wait<=minimum_wait-1'b1;
             if (refresh_edge) refresh_pending <= 1;
             if (page_write) page[reg_address[1:0]] <= reg_wdata[3:0];
@@ -163,8 +169,6 @@ module pcxt_dma (
                     else begin
                         channel<=service_channel; service_started<=1; minimum_wait<=3;
                         if (service_channel == 0) refresh_pending<=refresh_edge;
-                        transfer_address <= {page[service_channel == 2 ? 1 : service_channel == 3 ? 2 : 3], current_address[service_channel]};
-                        terminal <= current_count[service_channel] == 0;
                         if (operation == 0) state<=COMPLETE;
                         else if (operation == 1) state<=DEV_SEND;
                         else state<=MEM_SEND;
