@@ -373,7 +373,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 	@build/sim/fes-zx81-machine/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-video" \
 		cores/fes-zx81/rtl/zx81_video_720p.v \
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
@@ -961,30 +961,40 @@ SPECTRUM_DIAGNOSTIC := build/diagnostics/fes-spectrum
 SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
-	-Wno-BLKSEQ \
+	-Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 	-Icores/fes-spectrum/rtl -Icores/fes-common/generated -Icores/fes-common/rtl
-SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ram.v \
+SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ula.sv \
+	cores/fes-spectrum/rtl/spectrum_contention.sv cores/fes-spectrum/rtl/spectrum_ram.v \
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
 	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
-	$(FES_Z80_NMOS_RTL) cores/fes-common/rtl/z80/fes_z80_fast.sv \
-	cores/fes-spectrum/rtl/spectrum_fast_bus.sv cores/fes-spectrum/rtl/spectrum_fast_audio.sv
+	cores/fes-zx81/expansions/zonx_ay.v $(FES_Z80_NMOS_RTL)
+SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
+	cores/fes-menu/rtl/fes_menu_control.v cores/fes-menu/rtl/fes_menu_video.v \
+	cores/fes-menu/rtl/fes_menu_reader.v cores/fes-common/rtl/fes_hps_ddr.v \
+	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-menu/sim/ddr_model.v
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
+.PHONY: sim-fes-spectrum-contention sim-fes-spectrum-rom
 spectrum-diagnostic:
 	@mkdir -p $(SPECTRUM_DIAGNOSTIC)
 	$(PYTHON) cores/fes-spectrum/diagnostic/firmware.py --output-dir $(SPECTRUM_DIAGNOSTIC)
 
-sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape sim-fes-spectrum-turbo
+sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 
-.PHONY: sim-fes-spectrum-turbo sim-fes-spectrum-rom
 sim-fes-spectrum-rom:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum_rom.py --verilator "$(VERILATOR)" --mem-sim "$(ROM_MEM_SIM)"
 
-sim-fes-spectrum-turbo:
+# Every model's machine with the open diagnostic firmware.
+sim-fes-spectrum-machine:
 	$(require_local_sim)
-	$(PYTHON) scripts/sim_fes_spectrum_turbo.py --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)"
+
+# Fuse's per-instruction contention points; fetches the pinned fixtures.
+sim-fes-spectrum-contention:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --download
 
 sim-fes-spectrum-tape: spectrum-diagnostic
 	$(require_local_sim)
@@ -995,25 +1005,14 @@ sim-fes-spectrum-tape: spectrum-diagnostic
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
 
-sim-fes-spectrum-machine: spectrum-diagnostic
-	$(require_local_sim)
-	@mkdir -p build/sim/fes-spectrum-machine
-	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_sim_top $(SPECTRUM_VERILATOR_FLAGS) \
-		--Mdir "$(CURDIR)/build/sim/fes-spectrum-machine" \
-		-Icores/fes-spectrum/expansions \
-		cores/fes-spectrum/sim/spectrum_sim_top.sv $(SPECTRUM_RTL) \
-		cores/fes-spectrum/expansions/probe.v \
-		"$(CURDIR)/cores/fes-spectrum/sim/machine_tb.cpp"
-	@build/sim/fes-spectrum-machine/Vspectrum_sim_top
-
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-spectrum-board
 	$(VERILATOR) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-board" \
 		cores/fes-spectrum/sim/board_models.v cores/fes-spectrum/rtl/top.v $(SPECTRUM_RTL) \
-		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
-		cores/fes-common/rtl/fes_audio_i2s.v \
+		$(SPECTRUM_PLANE_RTL) cores/fes-common/rtl/fes_computer_mailbox.v \
+		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
 
@@ -1537,12 +1536,18 @@ build-fes-apple2:
 build-fes-c64:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_c64_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-.PHONY: build-fes-spectrum build-fes-spectrum-fast
+.PHONY: build-fes-spectrum build-fes-spectrum128 build-fes-spectrum-plus3 build-fes-pentagon
 build-fes-spectrum:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model 48$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
-build-fes-spectrum-fast:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --cpu fast$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+build-fes-spectrum128:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model 128$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-spectrum-plus3:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model plus3$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-pentagon:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_spectrum_oss.py --root "$(CURDIR)" --model pentagon$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 .PHONY: sms-diagnostic
 sms-diagnostic:

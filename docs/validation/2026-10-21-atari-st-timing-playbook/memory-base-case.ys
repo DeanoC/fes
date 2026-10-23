@@ -1,0 +1,75 @@
+design -reset
+log === production ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G PHASE_SLOTS=1 -G POSTED_CPU_WRITES=1 -G SINGLE_RANK_REFRESH=1 -G SLOT_REFRESH=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+async2sync
+# The SDRAM clock DDR primitive is the same fixed black box in both; drive its pin to zero.
+delete t:altddio_out
+setundef -undriven -zero
+setundef -init -zero st_memory_gold st_memory_gate
+expose -shared st_memory_gold/w:* st_memory_gate/w:*
+miter -equiv -flatten -make_outputs st_memory_gold st_memory_gate miter
+hierarchy -top miter
+sat -verify -seq 8 -set-init-def -set-def-inputs -prove trigger 0 miter
+
+design -reset
+log === default ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+async2sync
+# The SDRAM clock DDR primitive is the same fixed black box in both; drive its pin to zero.
+delete t:altddio_out
+setundef -undriven -zero
+setundef -init -zero st_memory_gold st_memory_gate
+expose -shared st_memory_gold/w:* st_memory_gate/w:*
+miter -equiv -flatten -make_outputs st_memory_gold st_memory_gate miter
+hierarchy -top miter
+sat -verify -seq 8 -set-init-def -set-def-inputs -prove trigger 0 miter
+
+design -reset
+log === late-completion ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=0 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+async2sync
+# The SDRAM clock DDR primitive is the same fixed black box in both; drive its pin to zero.
+delete t:altddio_out
+setundef -undriven -zero
+setundef -init -zero st_memory_gold st_memory_gate
+expose -shared st_memory_gold/w:* st_memory_gate/w:*
+miter -equiv -flatten -make_outputs st_memory_gold st_memory_gate miter
+hierarchy -top miter
+sat -verify -seq 8 -set-init-def -set-def-inputs -prove trigger 0 miter
+
+design -reset
+log === legacy-refresh ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=0 -G REFRESH_WAIT_CYCLES=16 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+async2sync
+# The SDRAM clock DDR primitive is the same fixed black box in both; drive its pin to zero.
+delete t:altddio_out
+setundef -undriven -zero
+setundef -init -zero st_memory_gold st_memory_gate
+expose -shared st_memory_gold/w:* st_memory_gate/w:*
+miter -equiv -flatten -make_outputs st_memory_gold st_memory_gate miter
+hierarchy -top miter
+sat -verify -seq 8 -set-init-def -set-def-inputs -prove trigger 0 miter
+
+design -reset
+log === registered-input ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G REGISTERED_READ_INPUT=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+async2sync
+# The SDRAM clock DDR primitive is the same fixed black box in both; drive its pin to zero.
+delete t:altddio_out
+setundef -undriven -zero
+setundef -init -zero st_memory_gold st_memory_gate
+expose -shared st_memory_gold/w:* st_memory_gate/w:*
+miter -equiv -flatten -make_outputs st_memory_gold st_memory_gate miter
+hierarchy -top miter
+sat -verify -seq 8 -set-init-def -set-def-inputs -prove trigger 0 miter
+

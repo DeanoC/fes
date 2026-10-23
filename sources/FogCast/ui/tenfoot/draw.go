@@ -151,7 +151,12 @@ func drawTheme(snap Snapshot) theme.Theme {
 func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
 	dev.BeginFrame()
 	used := map[string]struct{}{}
-	if snap.Room.Open {
+	if snap.Session.MediaSelector && snap.Session.ControlsOpen {
+		dev.Clear(gfx.Color{})
+		if !snap.TapePicker.Open {
+			drawLabel(dev, labels, used, "media-return", 48, 48, snap.Grid.Width-96, 20, snap.Status)
+		}
+	} else if snap.Room.Open {
 		drawRoom(dev, snap, textures, labels, used)
 		if snap.Detail.Open {
 			drawDetail(dev, snap, labels, used, textures)

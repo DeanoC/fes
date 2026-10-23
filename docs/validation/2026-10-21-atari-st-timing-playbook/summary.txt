@@ -1,0 +1,360 @@
+Atari ST timing-path experiments, 2026-10-21
+
+Issue: https://github.com/DeanoC/fes/issues/910
+FES base: dcfa92c98fc9eb4c619e398872e52a91d071fe66. Its ST RTL is identical to
+#913's 811a5a34; later main commits touch only RISC-V RTL and recipe tooling.
+Candidates:
+  bf1281a0  st_native_border: compare only the held border event; register the
+            row descriptors before the event addresses
+  b72c1756  bf1281a0 plus st_native_low_video: each bank's frame read group
+            registers its own hit and chunk index
+Tools: the ST toolchain.lock pins, yosys 3a5accbd, nextpnr 9128800f, mistral 8fcc4cb4.
+  HIP: Powerboat slot fac97e973f94adee154caaaf227d75bc971b6e0ab78bdb4e84f383690f6d6764
+       (the slot #913's 811a5a34 search used)
+  CUDA: chip-30x0-ai-dev /data/scratch/fes-toolchain-c64-cuda (nextpnr 9128800f and
+        mistral 8fcc4cb4, clean trees, CUDA sm86)
+
+Evidence class
+These are zero-BUILD_ID frozen-netlist RTL experiments, not production
+qualification. Each netlist comes from the ST producer's own functions:
+build_commands (its Yosys program), prepare_cpu_inputs, clock_read_only_memories
+and validate_synth_evidence. BUILD_ID is 0, the producer's --synth-only value.
+socket_qsf() supplies the QSF, and the SDC is the producer's clocks-oss.sdc.
+Routes use the producer's nextpnr argv: weight 2000, critexp 5, --router gpu,
+search-mode --timing-allow-fail, and the 1800 s nextpnr_lease.py lease timeout.
+They also use its environment (HOME, LANG=C, LC_ALL=C, TZ=UTC, slot PATH), with
+one gpu-run lease per route (owner lander, 1 GPU). The production QoR search
+additionally runs nextpnr under the strace read-audit; these routes do not.
+A run passes when every clock's final analogue signoff fmax meets its
+constraint: pixel_clk 74.25, system_clock.clocks[0] 52.22 and clocks[1] 12.29 MHz.
+The baseline netlist reproduces #913's CUDA no-DSP table exactly at seed 4
+(route timeout) and seed 5 (64.92 / 54.85 MHz), on HIP.
+No producer seal was run. The current host's ST toolchain key resolves to slot
+6e2837613d66767ee9d1bad984d4dc3415487603b14b11ea6c166eaea0e00adb, which is not
+built. The producer bootstraps it on its next run.
+
+#781 is not the cause (history.txt)
+- The #910 per-seed values at adbe6298 (pixel 55.90-77.36 / sys[0] 38.74-46.03
+  MHz) are nextpnr's post-placement estimates, printed before "Routing globals".
+  All ten adbe6298 seeds hit the 1800 s route timeout, so none produced routed
+  timing. Seed 8 finished its main route and timed out in analogue repair.
+- The sys[0] placement estimate shows the same 35-48 MHz band at every commit:
+  pre-#781 cf6987bb, post-#781 507dc554, adbe6298, a5f002c9 and 811a5a34.
+- Routed sys[0] improved with #781. Pre-#781 cf6987bb s2/s4/s5 reached
+  51.09/46.96/47.76 MHz (fail). Post-#781 507dc554 s4/s5 reached 52.82/53.23
+  (pass). #781's head f53eba76 sealed seed 9 at 74.37 / 52.42.
+- At 811a5a34 every mailbox endpoint keeps positive slack on every routed seed:
+  1759-1785 endpoints per seed, worst +1.445 ns (s4), up to +3.296 ns (s3).
+- adbe6298 used the same slot (9e819bba) and flags as the 507dc554 control, and
+  its netlist was within synthesis noise of the control's (FF 9690, M10K 513,
+  LUTs within 1%). Its seeds completed 26-51 main-route iterations within the
+  timeout. The control finished its main routes in 65-132 iterations, taking
+  654-801 s. adbe6298's overuse per iteration matched routes that finished, so
+  its iterations ran several times slower. The lease directory keeps no
+  history, so the cause is not recorded.
+
+Critical paths at 811a5a34 (#913's production search, 7 of 10 seeds routed)
+pixel_clk failed on all 7 routed seeds, at 64.24-71.74 MHz:
+- Border consume: event M10K output head0..2 (4.5-6.4 ns of route), then the
+  held/head select, the consume-bank select and the x compare, into
+  raster_rgb_q, remaining, colour, next_pointer and held_valid. Worst slack
+  -0.471 (s5) to -2.098 ns (s10).
+- Border event address: descriptor M10K output desc0..2, through the
+  read-pointer LUT4, to the B1ADDR of all 18 8Kx1 event M10Ks in the bank.
+  Worst -1.029 ns (s2).
+- Frame read: the 16:1 group selects sit next to the frame M10K columns. In one
+  cycle, read_chunk's index travels out to them and the selected word travels
+  back to group_read. Worst -0.927 ns (s2).
+sys[0] failed on 2 of 7 (s4 50.18, s2 51.74 MHz). The path runs from the ROM lane
+M10Ks through the 192-lane OR to upper_byte/rdata. On s3 it had 10.8 ns of route.
+Every one of these paths starts at an M10K output; the build uses 513 of 553
+M10Ks.
+
+Analogue repair (nextpnr 9128800f)
+At 811a5a34, final signoff was worse than the first analogue check on 6 of 7
+routed seeds. Examples: s3 74.12 -> 69.77, s4 73.00 -> 68.74, s10 70.60 -> 64.24
+MHz. For s3, nextpnr restored the routing with its best recorded slack
+(-0.024 ns, the first check), but final signoff measured -0.865 ns. Signoff
+re-times arcs that the analogue model cannot time with the calibration
+accumulated over the repair rounds (analogue.cc 551-556). The repair also runs
+on a 300 s wall-clock budget.
+
+Routability
+Final SA placement wirelength predicts routing within the 1800 s budget, across
+every netlist here. Every seed below 368k routed. Above 376k, every seed but one
+timed out; the exception, bf1281a0 s2, routed at 388k. Between those, 811a5a34 s8
+timed out at 368.5k, while its s4/s6 routed at 370-372k. The RTL changes do not
+target routability.
+
+Changes and equivalence (sims.txt)
+bf1281a0, in st_native_border:
+- One held register loads the consume bank's prefetched head whenever
+  held_valid is clear. The consume bank changes only at SOF, which also clears
+  held_valid.
+- consume_current requires held_valid and compares only the held event's x.
+- Each descriptor RAM's read data takes one more pixel edge into desc0..2.
+- The adapter sets output_row 6 edges before line start and 11 before SOF.
+  Line start and SOF fall in blanking (border_sample_ce = 0). Each native pixel
+  is held for two output_ce edges.
+- A row's event x values strictly increase, so no event is due on the edge after
+  a consume. A probe in the original RTL confirms that the real adapter path
+  never consumes on such an edge.
+- native_border_tb now drives the adapter's timing: one blanking edge after
+  SOF/line start, and two output_ce edges per native pixel in the full-arena
+  replay, checked on both edges.
+b72c1756, in st_native_low_video:
+- Each bank's 16-chunk group registers its own hit with the RAM read, and loads
+  its own chunk index only when it is the addressed group. The distinct enables
+  keep Yosys from merging the fifteen index registers.
+- A miss, a chunk past the frame and reset clear the group's selected word, and
+  the RGB output is the OR of the fifteen group words.
+- RAM ports, read latency and the SOF in-flight bank tag are unchanged.
+Every video sim result line is identical to main's: native-video, video-adapter,
+shifter-output, short-line-video and cache-write-coherence. The only difference
+is native_border_tb's check count.
+
+Results (results.tsv, runs.jsonl)
+Final signoff pixel/sys[0] MHz. H = HIP Powerboat, C = CUDA chip-30x0-ai-dev.
+811a5a34 is #913's production search of the same ST RTL with its production BUILD_ID.
+
+seed  811a5a34          dcfa92c9 (base)    bf1281a0           b72c1756
+4     68.74/50.18 FAIL  timeout            timeout            75.37/56.96 PASS H
+5     71.74/54.61 FAIL  64.92/54.85 FAIL H timeout            76.01/55.53 PASS C
+2     67.44/51.74 FAIL  -                  74.39/56.78 PASS H 80.85/57.47 PASS H
+1     timeout           -                  71.30/50.29 FAIL H timeout
+3     69.77/57.17 FAIL  -                  timeout            73.35/57.42 FAIL H
+6     65.16/52.94 FAIL  -                  77.51/57.76 PASS H -
+7     68.07/54.61 FAIL  -                  -                  75.70/52.23 PASS H
+8     timeout           -                  -                  -
+9     timeout           -                  -                  -
+10    64.24/58.01 FAIL  -                  -                  -
+
+dcfa92c9: 2 routes, 1 routed, 0 pass
+bf1281a0: 6 routes, 3 routed, 2 pass
+b72c1756: 6 routes, 5 routed, 4 pass
+811a5a34 (#913): 10 routes, 7 routed, 0 pass
+
+Not done
+- Producer seal: the producer's normal search on the PR head (it bootstraps the
+  missing ST slot) is the promotion evidence; these routes are not.
+- Kit HIL.
+- Limiters left on b72c1756 routes, by clock:
+  pixel_clk: the frame read (s5 +0.312 ns, s7), the adapter's mute/show gating
+  into the video socket request (s3 -0.165 ns) and the legacy renderer line logic
+  (s2, s4).
+  sys[0]: the FX68K instruction register into its nanoROM M10K address
+  (s7 +0.002 ns).
+
+Renderer decisions registered from the next counters (2026-10-22, 27350d01)
+Nextpnr 14d21d4b (the #276 head), CUDA, producer argv and 1800 s timeout,
+zero-BUILD_ID netlists from the producer's Yosys program (3a5accbd). These are
+experiment routes, not a producer seal.
+At 98bc5767, seeds 1-6 pass, but 5 of the 6 seeds 7-12 fail pixel_clk, and every
+one of those pixel paths starts in the indexed renderer: counters and planes
+through the plane bit select, palette and adapter gating into the video socket
+request (s7, s12), or vertical through the next-row lookup into lookup_valid
+(s9-s11). With DSP multipliers enabled the same paths fail 4 of seeds 1-6.
+27350d01 keeps st_video cycle-exact and moves those decisions behind registers:
+- Each mode's capture, load, fetch, wrap and cache-column decision is a register
+  loaded from the next counter values. Resolution still selects among them.
+- The colour indices are registers. A bit position registered one pixel ahead
+  selects the held planes' and the loaded words' bits in parallel; the plane
+  load is the last mux.
+- Each scale's next native row is registered.
+- Each colour source has its own select, decoded in parallel with the palette
+  lookups.
+LUT levels in a standalone st_video_adapter synthesis with the producer's
+synth_intel_alm flags: socket request 9 -> 6, lookup_valid 8.8 -> 6,
+line_available 7.75 -> 6.7. The registered decisions' own inputs are 7.8, from
+the next counters, and stay inside the renderer. The deepest pixel path left is
+the native border (8), which this change does not touch.
+
+Equivalence (renderer-equivalence.json)
+- Step: equiv_simple -seq 3 proves every matched point between 98bc5767 and
+  27350d01: 530 with the physical word port, 375 with the cached port.
+  border_rgb is excluded from name matching, because the gate applies the
+  high-resolution black border in its select instead.
+- Base case: a six-cycle miter from power-up over every shared internal signal
+  and output, inputs free and the uninitialised native rows free but equal,
+  passes in both modes (renderer-base-case-*.ys).
+- A Verilator 5.032 lockstep of old against new, both modes, compared every
+  port and the counters, staging, planes, picture_valid, native rows and
+  capture signals on every clock: 20 runs, 618,750,000 cycles, 8,428 resets
+  and 285,168 resolution changes, no mismatch. (Scratch harness, not
+  committed.)
+- tests/test_atari_st_video_capture.py set the counters and read the
+  decisions combinationally. It now resets each mode from the middle of a
+  picture line and clocks one complete frame: 4,950,000 states and 112,000
+  active captures, as before, plus the plane load on every clock.
+- make -k sim-fes-atari-st on Verilator 5.032: rc 0, 65 PASS lines, and every
+  video result line is identical to 98bc5767's.
+
+Routes, final signoff pixel/sys[0] MHz (targets 74.25/52.22)
+v3 is 27350d01 before review, with separate column and row display registers
+(formally equivalent; a slightly different netlist).
+
+seed  98bc5767           27350d01           v3
+4     75.18/53.90 PASS   76.64/56.58 PASS   79.74/54.94 PASS
+5     74.82/53.07 PASS   76.23/55.23 PASS   78.62/53.49 PASS
+2     77.29/55.19 PASS   82.58/55.98 PASS   80.13/53.36 PASS
+1     76.11/58.32 PASS   79.49/53.83 PASS   78.83/53.93 PASS
+3     74.32/57.15 PASS   81.98/53.03 PASS   timeout (SA wirelength 387k)
+6     76.34/53.15 PASS   76.85/57.00 PASS   79.15/53.30 PASS
+7     70.92/50.10 FAIL   -                  73.17/50.04 FAIL
+8     74.44/54.51 PASS   -                  79.28/54.97 PASS
+9     68.12/50.10 FAIL   -                  78.24/50.43 FAIL
+10    74.04/52.56 FAIL   -                  69.08/52.93 FAIL
+11    74.24/52.24 FAIL   -                  75.69/50.81 FAIL
+12    74.17/54.99 FAIL   -                  76.55/54.09 PASS
+
+Every routed seed passes the seal checks: validate_routed_shell, cache
+placements, sector memory, async M10K reads and video validate_boundary.
+- 27350d01 passes all six production-order seeds; its lowest pixel result is
+  76.23 MHz, against 74.32 at 98bc5767.
+- No v3 pixel failure is in the renderer. s7 and s10 fail on a frame-buffer
+  M10K read into group_read: 3-4 cells with 10-11 ns of route.
+- System-clock failures at both heads run into the SDRAM controller (dq_out
+  enable, held_addr, sdram_a) from the CPU, the floppy DMA or the init flag:
+  11-22 cells with 12.5-14.5 ns of route. This change does not touch them.
+- With DSP multipliers (the producer's Yosys program without -nodsp), v3 passes
+  3 of seeds 4, 5, 2, 1, 3, 6 (98bc5767: 2). Pixel passes 5 of 6; s1 misses by
+  0.01 MHz on the adapter's RGB address forecast. s5 and s2 miss sys[0]
+  (51.09, 51.56) on the CPU address into the SDRAM data-out enable.
+
+SDRAM arbiter in arrival order (2026-10-23, 98bccf8a and 2b79837a)
+Nextpnr 5fe55f3d (#276's final head, the ST lock since b54e38a9), CUDA,
+producer argv and 1800 s timeout, zero-BUILD_ID netlists from the producer's
+Yosys program (3a5accbd). These are experiment routes, not a producer seal.
+5fe55f3d routes the ST exactly as 14d21d4b: on seed 4 the bitstream and
+timing report are byte-identical, so the 14d21d4b routes above still hold.
+On v3's routes (seeds 1-12 without DSP, 1-6 with), the worst sys[0] path ends
+in the SDRAM controller on 14 of 17: the data-out enable, held_addr or sdram_a,
+from the CPU address, the floppy DMA cursor or the init flag. With st_memory
+black-boxed in the producer synthesis, the CPU request and write flag arrive
+at 7.4 LUT levels, its address at 8.4, DMA at 6, and video, media and the
+memory phase within one. st_memory chose a winner from all five requests and
+then selected every client's payload by that choice, so the latest inputs
+crossed the whole grant before the payload mux.
+- 2b79837a decides in arrival order. Video and media decide first and form a
+  fallback payload. The CPU payload replaces it unless video or media won,
+  and the CPU request and write flag drive only that step. A DMA win replaces
+  any other payload last, and only its range check gates the start. Range
+  checks and the media word offset test bits instead of comparing and adding.
+- 98bccf8a registers the floppy DMA request's address check, loaded with
+  every cursor update, and keeps the writer's DMA address as a register
+  instead of ram_base + 2 * word_index.
+The shared controller (cores/fes-ramtest/rtl/sdram_addon_port.v) is
+unchanged. A proven-equivalent variant that also registered its
+refresh_pending and accept terms gave no lower full-netlist depth and would
+have marked RAM Tester and PCXT as affected, so it was not taken. The
+LUT-level model of the full netlist shows no lower depth for 2b79837a either:
+ABC9 maps the system domain as one network. The evidence is the routes below.
+
+Equivalence (memory-equivalence.json, floppy-equivalence.json)
+- st_memory, with the unchanged controller in both, in the five parameter sets
+  the producer and the sims instantiate (production, default, late
+  completion, legacy refresh, registered read input): equiv_simple -seq 3
+  proves every matched point (592, 583, 583, 583, 599), and an eight-cycle
+  miter from power-up over every shared signal passes.
+- st_floppy with st_floppy_writer, ENABLE_WRITE 1 and 0: all 4,823 matched
+  points, and a four-cycle miter from power-up over every shared signal (the
+  sector words through their write port).
+- A Verilator 5.032 lockstep of old against new st_memory, each with the
+  controller, drove random CPU, video, DMA and media clients, cold, warm and
+  raster resets, phase jumps and random DQ; half the runs also dropped
+  requests and changed payloads mid-request. It compared all 149 client and
+  SDRAM outputs before and after every rising edge, in all five parameter
+  sets: 30 runs and 75,000,000 cycles on 2b79837a, 100 runs and 250,000,000
+  cycles on its pre-review form, no mismatch. (Scratch harness, not
+  committed.)
+- make -k sim-fes-atari-st on Verilator 5.032: rc 0, 65 PASS lines, and every
+  result line is identical to 3dd3f857's.
+
+Routes, final signoff pixel/sys[0] MHz (targets 74.25/52.22)
+2b79837a on 5fe55f3d; 27350d01 and v3 (its pre-review form) on 14d21d4b. DSP
+is the producer's Yosys program without -nodsp. These are zero-BUILD_ID
+experiment routes: RTL timing evidence, not a seal or a hardware result (see
+Hardware qualification below).
+
+      without DSP                                            with DSP
+seed  27350d01           v3                 2b79837a           v3                 2b79837a
+4     76.64/56.58 PASS   79.74/54.94 PASS   80.24/58.83 PASS   77.59/54.59 PASS   77.47/55.23 PASS
+5     76.23/55.23 PASS   78.62/53.49 PASS   77.08/56.82 PASS   81.01/51.09 FAIL   79.05/54.33 PASS
+2     82.58/55.98 PASS   80.13/53.36 PASS   86.86/52.75 PASS   77.12/51.56 FAIL   84.43/56.01 PASS
+1     79.49/53.83 PASS   78.83/53.93 PASS   86.93/60.28 PASS   74.24/56.43 FAIL   78.27/58.16 PASS
+3     81.98/53.03 PASS   timeout            84.16/55.98 PASS   76.32/53.32 PASS   79.62/57.99 PASS
+6     76.85/57.00 PASS   79.15/53.30 PASS   76.42/52.49 PASS   74.87/53.32 PASS   84.99/58.88 PASS
+7     -                  73.17/50.04 FAIL   87.63/54.82 PASS   -                  78.96/55.48 PASS
+8     -                  79.28/54.97 PASS   82.05/52.79 PASS   -                  83.56/55.30 PASS
+9     -                  78.24/50.43 FAIL   77.55/56.90 PASS   -                  85.24/56.58 PASS
+10    -                  69.08/52.93 FAIL   71.72/52.50 FAIL   -                  80.24/54.12 PASS
+11    -                  75.69/50.81 FAIL   82.80/57.44 PASS   -                  82.41/53.27 PASS
+12    -                  76.55/54.09 PASS   80.83/57.79 PASS   -                  82.95/52.27 PASS
+
+Every routed seed passes the seal checks: validate_routed_shell, cache
+placements, sector memory, async M10K reads and video validate_boundary, and
+every 2b79837a route passes main's exact 5fe55f3d F0/F1 route-through map.
+- 2b79837a passes 11 of 12 seeds without DSP and all 12 with DSP. With DSP,
+  v3 passed 3 of seeds 1-6.
+- The one failure, s10 without DSP, is pixel_clk in the renderer: the
+  horizontal counter into the medium-resolution fetch decision, 18 cells with
+  7.8 ns of route.
+- The worst sys[0] path ends in the SDRAM controller on 4 of the 24 2b79837a
+  routes, all passing (52.75-55.23 MHz). Three start at the mailbox and one at
+  the CPU address. The rest run into the native capture, the FX68K nanoROM
+  address, the MFP, the IKBD, the floppy and the ROM.
+
+Producer seal and kit A run (2026-10-23, 77fe784c)
+This is the registered producer, not an experiment route: make core-dev
+prepare on Powerboat, HIP, toolchain slot cbaf90e3 (Yosys 3a5accbd, Mistral
+8fcc4cb4, nextpnr 5fe55f3d).
+- Package 872f5ca8 (BUILD_ID 3f793aca) sealed on seed 4, the first in
+  production order: pixel 75.53, sys[0] 58.88, audio 165.29 MHz. Route, video
+  socket, RAM socket and floppy sector-memory checks pass.
+- Kit A, 12:18-12:24 EEST, running image 4db74864 with software 35d58489:
+  - The package and both video parts were imported into an isolated private
+    host, with no image or software install. Stock EmuTOS 1.4 192US was bound
+    as atari-st-firmware, then Play.
+  - Import, video parts, compatibility, ROM, entry, launch, three active
+    status samples and Stop pass.
+  - The HDMI frames show the GEM desktop. Relative mouse motion moves the
+    pointer right, down, back, and down to the bottom edge.
+  - Afterwards the kit's image hashes, good/previous images, software, idle
+    and launcher match the baseline.
+- Not covered on hardware: keyboard, audio, floppy, absolute mouse mode and
+  the Scanlines part, which was imported but not launched.
+370ac9a4 and 8a99a676 only merge main and add this record. 4a86c2a6 then merges
+main's #897, which rewrites the IKBD mouse threshold compare in st_ikbd.sv. The
+Yosys program and toolchain are still 77fe784c's, but the ST RTL is not, so
+package 872f5ca8 does not include #897.
+
+Hardware qualification (2026-10-23)
+No hardware result covers the package this head builds. Deano waived kit HIL
+for #952 on 2026-10-23 (via Bob): the Atari ST is optional (optional = true in
+config/core-recipes.toml), so the PR merges on simulation evidence, without a
+kit run.
+- The route tables in this file are zero-BUILD_ID experiment routes, apart
+  from the 811a5a34 column, which is #913's production search. They measure
+  the RTL's timing on the nextpnr named with each table. They are not a
+  producer seal and not a hardware result.
+- Kit A, 2026-10-22 (recorded in the PR): package ce53eb16 from 98bc5767
+  (nextpnr 14d21d4b). It predates the renderer change (27350d01), the SDRAM
+  arbiter (98bccf8a, 2b79837a) and the lock move to 5fe55f3d.
+- Kit A, 2026-10-23 (above): package 872f5ca8 from 77fe784c. It is a
+  boot-to-desktop smoke run, not acceptance. The HIL script scores import
+  through Stop and the baseline check; it leaves the desktop and the mouse at
+  its default FAIL for the operator, who judged both from the HDMI frames.
+- st_ikbd.sv is in the producer's source closure, so #897 gives the head's
+  package a new BUILD_ID. That package has no seal and no kit run.
+Evidence that remains valid at the head:
+- make -k sim-fes-atari-st on Verilator 5.032 at 4a86c2a6: rc 0, 65 PASS
+  lines. The input/audio sim includes #897's mouse threshold boundary cases.
+- Yosys equivalence, each with its base-case miter: renderer-equivalence.json
+  (98bc5767 to 27350d01), memory-equivalence.json and floppy-equivalence.json
+  (3dd3f857 to 2b79837a). Those modules are unchanged at the head; the only
+  ST RTL change since 2b79837a is #897's st_ikbd.sv, and #897's PR records a
+  Yosys sat -prove of its threshold compare.
+- The Verilator lockstep runs of the renderer and st_memory, above.
+- The 14d21d4b and 5fe55f3d route tables, as RTL timing evidence: every routed
+  seed in them passes the routed seal checks, and 2b79837a passes 11 of 12
+  seeds without DSP. None of these routes includes #897.

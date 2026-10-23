@@ -1,0 +1,9 @@
+read_verilog -sv -I ../../../sources/misteross/cores/fes-common/generated renderer-equivalence.sv
+chparam -set CACHED_WORD_PORT 1 st_video_gold st_video_gate
+proc
+opt_clean
+async2sync
+expose -shared st_video_gold/w:* st_video_gate/w:* %u w:border_rgb %d
+miter -equiv -flatten -make_outputs -ignore_gold_x st_video_gold st_video_gate miter
+hierarchy -top miter
+sat -verify -seq 6 -enable_undef -set-def-inputs -set-init-def -set-init gate.cached_coordinates.native_row gold.cached_coordinates.native_row -set-init gate.cached_coordinates.row_repeat gold.cached_coordinates.row_repeat -prove trigger 0 miter

@@ -288,7 +288,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                   audit_source_root=root, output_relative=relative)
         coleco_expansion.prepare_shell_netlist(output / "synth.json", version=2)
         if profile:
-            profile.validate_boundary(json.loads((output / "synth.json").read_bytes())["modules"]["top"], routed=False)
+            profile.validate_boundary(
+                json.loads((output / "synth.json").read_bytes())["modules"]["top"],
+                routed=False, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         try:
             winner = _route_placement(
                 root, output, tools["nextpnr-mistral"].path,
@@ -296,9 +298,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
+        coleco_expansion.validate_routed_shell(
+            output / "routed.json", version=2,
+            nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         if profile:
-            profile.validate_boundary(json.loads((output / "routed.json").read_bytes())["modules"]["top"], routed=True)
+            profile.validate_boundary(
+                json.loads((output / "routed.json").read_bytes())["modules"]["top"],
+                routed=True, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
         evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
         database_root = tools["mistral"].path.parents[2] / "src/mistral"
         database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)

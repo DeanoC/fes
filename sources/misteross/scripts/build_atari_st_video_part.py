@@ -27,7 +27,7 @@ SOURCES = ("cores/fes-common/rtl/fes_video_part_cart.v",
            "cores/fes-common/rtl/fes_video_part_scanlines.v")
 INPUTS = (*SOURCES, "cores/fes-common/generated/fes_video_part.vh",
           "scripts/build_atari_st_video_part.py", "scripts/atari_st_video_parts.py",
-          "scripts/coleco_expansion.py", "scripts/functional_execution.py",
+          "scripts/coleco_expansion.py", "scripts/pnr_recipe.py", "scripts/functional_execution.py",
           "scripts/export_core_package.py", "scripts/compiler_read_audit.py",
           *slot_recipe.TOOL_INPUTS)
 PLACER_SEED = 4

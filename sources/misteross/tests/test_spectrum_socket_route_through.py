@@ -27,7 +27,7 @@ def add_buffer(design, name, bel, half, bit):
     cells[name + "$ROUTETHRU"] = {
         "type": "MISTRAL_BUF", "parameters": {},
         "attributes": {"NEXTPNR_BEL": bel, "FES_PINMAP_V1": json.dumps({
-            "count": 2, "pins": {"A": [0, "C" if half == 0 else "D"],
+            "count": 2, "pins": {"A": [0, "F0" if half == 0 else "F1"],
                                     "Q": [0, "COMBOUT"]}}).encode().hex()},
         "port_directions": {"A": "input", "Q": "output"},
         "connections": {"A": data, "Q": [bit]}}

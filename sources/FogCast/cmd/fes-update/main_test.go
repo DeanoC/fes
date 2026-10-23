@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 )
 
 func TestChooseDeadline(t *testing.T) {
@@ -104,5 +106,53 @@ func TestReadReleaseManifestFormat(t *testing.T) {
 	}
 	if legacy.Board != appliance.Board {
 		t.Fatalf("board %s", legacy.Board)
+	}
+}
+
+func softwareRelease(t *testing.T, baseContract string, interfaces map[string]string) software.Release {
+	t.Helper()
+	m := software.Manifest{Format: 1, Board: "de10-nano", Architecture: "armv7", BaseContract: baseContract, Version: "v1",
+		Interfaces: interfaces, Provenance: map[string]string{"fogcast": strings.Repeat("d", 40)}}
+	for _, name := range software.RequiredExecutables {
+		m.Files = append(m.Files, software.File{Path: name, SHA256: strings.Repeat("a", 64), Size: 1, Mode: 0555})
+	}
+	id, err := m.ID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return software.Release{ID: id, Manifest: m}
+}
+
+func TestSelectedSoftwareMustRunTheImage(t *testing.T) {
+	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "base",
+		Interfaces: map[string]string{"runtime-protocol": "2"},
+		Requires:   map[string]string{"menu.fes.video.menu-display": "1.0", "menu.fes.video.menu-blitter": "1.0"}}
+	current := softwareRelease(t, "base", map[string]string{"runtime-protocol": "2", "menu.fes.video.menu-display": "1.0", "menu.fes.video.menu-blitter": "1.1"})
+	older := softwareRelease(t, "base", map[string]string{"runtime-protocol": "2", "menu.fes.video.menu-display": "1.0"})
+	other := softwareRelease(t, "other-base", map[string]string{"runtime-protocol": "2"})
+	releases := []software.Release{older, current, other}
+	selected := func(id string) softwarecontrol.Status {
+		return softwarecontrol.Status{State: softwarecontrol.State{Selected: id}}
+	}
+	if notice, err := selectedSoftwareRuns(base, selected(current.ID), releases); err != nil || notice != "" {
+		t.Fatal("a selection that runs the image was refused", notice, err)
+	}
+	_, err := selectedSoftwareRuns(base, selected(older.ID), releases)
+	if err == nil || !strings.Contains(err.Error(), "menu.fes.video.menu-blitter 1.0") || !strings.Contains(err.Error(), "install and activate") {
+		t.Fatal("a selection the image would hold back was admitted", err)
+	}
+	// No bundle can be activated before an image with another base contract.
+	if notice, err := selectedSoftwareRuns(base, selected(other.ID), releases); err != nil || !strings.Contains(notice, "built for another base") {
+		t.Fatal("base contract change not reported as a hold-back", notice, err)
+	}
+	if notice, err := selectedSoftwareRuns(base, softwarecontrol.Status{}, releases); err != nil || !strings.Contains(notice, "no software selection") {
+		t.Fatal("kit without a selection", notice, err)
+	}
+	if _, err := selectedSoftwareRuns(base, selected(strings.Repeat("e", 64)), releases); err == nil {
+		t.Fatal("unknown selection admitted")
+	}
+	base.Requires = nil
+	if notice, err := selectedSoftwareRuns(base, selected(older.ID), releases); err != nil || notice != "" {
+		t.Fatal("an image that records no menu requirement refused a matching bundle", notice, err)
 	}
 }

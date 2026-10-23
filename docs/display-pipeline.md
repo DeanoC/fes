@@ -106,9 +106,10 @@ display fault.
 | Shell | Machine source | Part socket | Display plane |
 | --- | --- | --- | --- |
 | ZX81 | Shell 720p raster | No | Yes (`fes_display_plane`) |
+| Spectrum models (48K, 128K, +2A/+3, Pentagon) | ULA frame banks, 3x3 in a shell 720p raster | No | Yes (`fes_display_plane`) |
 | Coleco | Native pixels | Yes | Planned |
 | Atari ST | Shell raster | Yes | Planned |
-| SMS, SG-1000, Spectrum, C64, Apple II | Shell 720p raster | No | Planned |
+| SMS, SG-1000, C64, Apple II | Shell 720p raster | No | Planned |
 | Pong, Catch, RISC-V, RAM test, demos | `fes_video_720p` | No | Planned |
 | Idle MENU | `fes_menu_video` (whole screen is the plane) | No | Not applicable |
 

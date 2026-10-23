@@ -256,7 +256,7 @@ func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape
 				a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 				return
 			}
-			if openTape {
+			if openTape && !a.tapePickerOpen {
 				a.openTapePickerLocked()
 			}
 		} else if handoff {
@@ -281,6 +281,7 @@ func (a *App) invalidateSessionDisplayLocked() {
 	if a.roomSessionNotice == sessionDisplayUnavailableNotice {
 		a.roomSessionNotice = ""
 	}
+	a.mediaControlsDirect = false
 	a.playPadChordSince = time.Time{}
 	a.playPadChordFired = false
 	// Releases outside a session are not tracked, so a pair held now

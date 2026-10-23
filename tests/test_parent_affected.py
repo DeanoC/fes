@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import parent_affected as policy, parent_tests
+from scripts.affected import documentation
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOM = 'sources/FogCast/ui/rooms/examples/fes-cores/main.lua'
@@ -63,11 +64,65 @@ class ParentAffectedTests(unittest.TestCase):
                      'profiles/native-integration-dev.toml', 'sources/mister-packages/abi.yaml',
                      'sources/FogCast/go.mod', 'sources/FogCast/go.sum',
                      'sources/FogCast/new-area/source.go', 'sources/FogCast-other/api.go',
-                     'sources/FogCast/ui/../../go.mod', 'new-root/file', 'README.md'):
+                     'sources/FogCast/ui/../../go.mod', 'new-root/file'):
             with self.subTest(path=path):
                 self.assertIsNone(policy.select_groups([ROOM, path]))
         self.assertIsNone(policy.select_groups(None))
         self.assertIsNone(policy.select_groups([]))
+
+    def test_mixed_documentation_keeps_code_groups_and_doc_readers(self):
+        for code in (ROOM, 'tests/test_receipt.py', 'scripts/appliance.py'):
+            for doc in ('README.md', 'AGENTS.md', 'docs/development.md',
+                        'sources/FogCast/docs/ARCHITECTURE.md'):
+                with self.subTest(code=code, doc=doc):
+                    paths = [code, doc]
+                    groups = policy.select_groups(paths)
+                    self.assertEqual(groups, policy.select_groups([code]))
+                    selected = policy.selected_modules(groups, [], paths)
+                    self.assertTrue(policy.DOCUMENTATION_MODULES <= selected)
+                    self.assertNotIn('test_atari_st_rendered_capture', selected)
+        self.assertIsNone(policy.select_groups([ROOM, 'docs/guide.md', 'new-root/code']))
+        self.assertIsNone(policy.select_groups([ROOM, 'docs/../unknown.md']))
+
+    def test_documentation_classification_matches_outer_planner(self):
+        for path in ('README.md', 'docs/example.json', 'sources/FogCast/docs/a.md',
+                     'sources/FogCast/a.go', 'docs-other/a.py', 'scripts/file.py'):
+            self.assertEqual(policy.documentation(path), documentation(path), path)
+
+    def test_doc_readers_execute_while_unrelated_suite_setup_is_omitted(self):
+        paths = ['tests/test_receipt.py', 'docs/core-packages.md']
+        modules = policy.selected_modules(policy.select_groups(paths), [], paths)
+        suite = unittest.TestSuite([case(module) for module in policy.DOCUMENTATION_MODULES] +
+                                  [case('test_atari_st_rendered_capture', fail=True)])
+        kept, selected, omitted = parent_tests.filter_suite(suite, video=False, media=False, modules=modules)
+        result = unittest.TestResult()
+        kept.run(result)
+        self.assertTrue(result.wasSuccessful())
+        self.assertEqual(result.testsRun, len(policy.DOCUMENTATION_MODULES))
+        self.assertEqual(omitted, ['test_atari_st_rendered_capture.Case.test_case'])
+
+    def test_documentation_modules_exist_and_belong_to_reviewed_groups(self):
+        assigned = set().union(*policy.GROUPS.values())
+        self.assertTrue(policy.DOCUMENTATION_MODULES <= assigned)
+        for module in policy.DOCUMENTATION_MODULES:
+            self.assertTrue((ROOT / 'tests' / (module + '.py')).is_file())
+
+    def test_broken_guide_still_fails_real_doc_consumer_in_mixed_plan(self):
+        paths = ['tests/test_receipt.py', 'docs/core-packages.md']
+        modules = policy.selected_modules(policy.select_groups(paths), [], paths)
+        suite = unittest.defaultTestLoader.loadTestsFromName(
+            'tests.test_core_build.CoreBuildTest.test_native_image_mode_is_package_only')
+        kept, _, omitted = parent_tests.filter_suite(suite, video=False, media=False, modules=modules)
+        original = Path.read_text
+        def read(path, *args, **kwargs):
+            return '' if path == ROOT / 'docs/core-packages.md' else original(path, *args, **kwargs)
+        result = unittest.TestResult()
+        with patch.object(Path, 'read_text', read):
+            kept.run(result)
+        self.assertEqual(omitted, [])
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(len(result.failures), 1)
+        self.assertIn('image route is package-only', result.failures[0][1])
 
     def test_reviewed_parent_inputs_keep_owners_and_shared_test_consumers(self):
         for path, expected in (
@@ -196,6 +251,14 @@ class ParentAffectedTests(unittest.TestCase):
         self.assertTrue(any('test_appliance.' in test for test in appliance['selected']))
         self.assertFalse(any('test_core_build.' in test for test in appliance['selected']))
         self.assertEqual(sorted(appliance['selected'] + appliance['omitted']),
+                         sorted(full['selected'] + full['omitted']))
+        mixed = plan(['tests/test_receipt.py', 'docs/development.md'])
+        self.assertEqual(mixed['groups'], receipt['groups'])
+        self.assertEqual(set(mixed['documentation_modules']), policy.DOCUMENTATION_MODULES)
+        extra = set(mixed['selected']) - set(receipt['selected'])
+        self.assertTrue(extra)
+        self.assertTrue(all(test.split('.')[0] in policy.DOCUMENTATION_MODULES for test in extra))
+        self.assertEqual(sorted(mixed['selected'] + mixed['omitted']),
                          sorted(full['selected'] + full['omitted']))
 
     def test_malformed_path_payload_is_rejected(self):

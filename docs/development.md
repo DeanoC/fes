@@ -52,6 +52,17 @@ AMD `ROCR_VISIBLE_DEVICES` or NVIDIA `CUDA_VISIBLE_DEVICES` mask. Status shows
 the waiter's id set and owner PID; tickets with a dead or reused local PID are
 ignored after checking the recorded process start time.
 
+On an Apple silicon Mac the vendor is `apple` and the inventory is its one
+Metal GPU, id 0, found through ioreg. Metal has no visibility mask: a grant sets
+`FES_GPU_IDS` and `GPU_RUN_DEVICE` to the physical id, which nextpnr's Metal
+backend uses as its device index. With no device nodes to check, a GPU route
+must show a Metal user client that nextpnr opened on the leased GPU, or log
+`backend metal:<registry id>:... ready` for it; CPU fallback output fails it.
+Process start times and ancestry come from libproc and the lease directory's
+filesystem from `statfs(2)`. Install the scripts as the
+[Shared GPUs](../AGENTS.md#shared-gpus) section describes, including its Mac
+`PATH` step.
+
 `gpu-run --phase-lease` holds no GPU up front. After it takes one of the
 owner's job slots (`GPU_LEASE_MAX_JOBS_PER_OWNER`, default 4), the command
 asks for a GPU on `GPU_LEASE_FD` at each GPU phase and releases it afterwards;

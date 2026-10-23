@@ -88,17 +88,6 @@ func TestParseArgsSafeAreaAndNoAttract(t *testing.T) {
 	}
 }
 
-func TestParseArgsInputProfile(t *testing.T) {
-	t.Parallel()
-	opts, err := parseArgs([]string{"-input-profile", "swap-ab"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if opts.InputProfile != "swap-ab" {
-		t.Fatalf("opts = %#v", opts)
-	}
-}
-
 func TestParseArgsTheme(t *testing.T) {
 	t.Parallel()
 	opts, err := parseArgs([]string{"-theme", "arcade"})

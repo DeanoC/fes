@@ -52,6 +52,12 @@ module spectrum_tape (
         if (write_enable[1] && write_addr != 16'hffff)
             image[address_b] <= write_data[15:8];
 
+    // The byte asked for at one step is registered again after the blocks'
+    // output mux; cen must leave at least two clocks between steps (the
+    // machine steps once per T state, about 15 clocks).
+    reg [7:0] byte_q = 8'h00;
+    always @(posedge clk) byte_q <= read_data;
+
 `ifdef VERILATOR
     integer init_i;
     initial begin
@@ -91,29 +97,29 @@ module spectrum_tape (
                     state <= S_LEN_LO;
                 end
                 S_LEN_LO: begin
-                    // read_data is the length low byte requested last cycle.
-                    length[7:0] <= read_data;
+                    // byte_q is the length low byte requested at the last step.
+                    length[7:0] <= byte_q;
                     read_addr <= ptr[15:0] + 16'd1;
                     state <= S_LEN_HI;
                 end
                 S_LEN_HI: begin
-                    length[15:8] <= read_data;
+                    length[15:8] <= byte_q;
                     read_addr <= ptr[15:0] + 16'd2;
-                    if ({read_data, length[7:0]} == 16'd0 ||
-                        {15'd0, ptr} + 32'd2 + {16'd0, read_data, length[7:0]} > unit_size)
+                    if ({byte_q, length[7:0]} == 16'd0 ||
+                        {15'd0, ptr} + 32'd2 + {16'd0, byte_q, length[7:0]} > unit_size)
                         state <= S_DONE;
                     else
                         state <= S_FLAG;
                 end
                 S_FLAG: begin
-                    cur <= read_data;
+                    cur <= byte_q;
                     bytes_left <= length - 16'd1;
                     next_addr <= ptr[15:0] + 16'd3;
                     // Fetch the following byte while the current byte's
                     // pulses run. A fetch state at the byte boundary would
                     // stretch its first half-pulse by one Z80 T-state.
                     read_addr <= ptr[15:0] + 16'd3;
-                    pilot_left <= read_data[7] ? 14'd3223 : 14'd8063;
+                    pilot_left <= byte_q[7] ? 14'd3223 : 14'd8063;
                     ear <= 1'b1;
                     timer <= 22'd2168;
                     width <= 22'd2168;
@@ -157,14 +163,14 @@ module spectrum_tape (
                                     width <= cur[bit_i - 3'd1] ? 22'd1710 : 22'd855;
                                     timer <= cur[bit_i - 3'd1] ? 22'd1710 : 22'd855;
                                 end else if (bytes_left != 16'd0) begin
-                                    cur <= read_data;
+                                    cur <= byte_q;
                                     bytes_left <= bytes_left - 16'd1;
                                     next_addr <= next_addr + 16'd1;
                                     read_addr <= next_addr + 16'd1;
                                     bit_i <= 3'd7;
                                     bit_half <= 1'b0;
-                                    width <= read_data[7] ? 22'd1710 : 22'd855;
-                                    timer <= read_data[7] ? 22'd1710 : 22'd855;
+                                    width <= byte_q[7] ? 22'd1710 : 22'd855;
+                                    timer <= byte_q[7] ? 22'd1710 : 22'd855;
                                 end else begin
                                     ear <= 1'b0;
                                     timer <= 22'd3500000;

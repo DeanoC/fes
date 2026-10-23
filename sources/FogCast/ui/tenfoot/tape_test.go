@@ -44,7 +44,7 @@ func TestListTapePickerDirMarksPFiles(t *testing.T) {
 	if err := os.WriteFile(oversized, bytes.Repeat([]byte{1}, int(protocol.MaxDevelopmentMediaBytes)+1), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := listTapePickerDir(dir)
+	rows, err := listTapePickerDir(tapeTestPackage(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,10 +78,10 @@ func TestOpenTapeFileRejectsWrongClass(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := openTapeFile(path); err == nil || !strings.Contains(err.Error(), ".p") {
+	if _, _, _, err := openRemovableFile(tapeTestPackage(), path); err == nil || !strings.Contains(err.Error(), "format") {
 		t.Fatalf("tzx err = %v", err)
 	}
-	if _, _, _, err := openTapeFile(dir); err == nil || !strings.Contains(err.Error(), "regular file") {
+	if _, _, _, err := openRemovableFile(tapeTestPackage(), dir); err == nil || !strings.Contains(err.Error(), "format") {
 		t.Fatalf("directory err = %v", err)
 	}
 }
@@ -131,7 +131,7 @@ func TestAppActiveZX81OpensTapePickerAndArms(t *testing.T) {
 	if !snap.TapePicker.Open || h.importCount() != 0 {
 		t.Fatalf("wrong file imported picker=%v imports=%d status=%q", snap.TapePicker.Open, h.importCount(), snap.TapePicker.Status)
 	}
-	if !strings.Contains(snap.TapePicker.Status, ".p") {
+	if !strings.Contains(snap.TapePicker.Status, "format") {
 		t.Fatalf("wrong-class status %q", snap.TapePicker.Status)
 	}
 
@@ -576,4 +576,30 @@ func selectTapeNamedRow(t *testing.T, app *App, name string) {
 		app.HandleCommand(CmdDown, now)
 	}
 	t.Fatalf("row %s not listed: %+v", name, app.Snapshot().TapePicker.Rows)
+}
+
+func tapeTestPackage() *hostclient.SessionCorePackage {
+	return &hostclient.SessionCorePackage{ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}
+}
+
+func TestMediaPickerUsesRunningDiskFormat(t *testing.T) {
+	dir := t.TempDir()
+	for name, size := range map[string]int{"disk.d64": 174848, "wrong.dsk": 174848, "short.d64": 10} {
+		if err := os.WriteFile(filepath.Join(dir, name), make([]byte, size), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	contract := protocol.C64DiskInterface()
+	p := &hostclient.SessionCorePackage{ABI: hostclient.SessionCoreABI{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: contract.ID, Major: 1}},
+		MediaUnits:       []protocol.MediaUnitStatus{{Unit: 0, Interface: contract, MinBytes: 174848, MaxBytes: 174848, ChunkBytes: 512, State: "empty"}}}
+	rows, err := listTapePickerDir(p, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.Kind == tapePickerKindFile && row.Selectable != (row.Name == "disk.d64") {
+			t.Fatalf("wrong disk selection: %+v", row)
+		}
+	}
 }

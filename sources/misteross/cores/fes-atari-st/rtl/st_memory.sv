@@ -47,7 +47,10 @@ module st_memory #(
     output wire [15:0] ram_write_data,
     output wire [1:0] ram_write_lanes,
     input wire dma_req,
+    // DMA transfers words; its byte address's bit 0 is unused.
+    /* verilator lint_off UNUSEDSIGNAL */
     input wire [23:0] dma_addr,
+    /* verilator lint_on UNUSEDSIGNAL */
     input wire dma_write,
     input wire [15:0] dma_wdata,
     input wire [1:0] dma_byte_enable,
@@ -94,13 +97,12 @@ module st_memory #(
     reg [4:0] seen;
     wire [4:0] requests = {media_read_req, media_write_req, dma_req, video_req, cpu_req};
     reg write_video_turn;
-    reg grant;
-    reg advance_cursor;
+    reg grant, grant_valid;
     reg [2:0] selected;
-    reg selected_valid, selected_write;
-    reg [25:0] selected_addr;
-    reg [15:0] selected_wdata;
-    reg [1:0] selected_byte_enable;
+    reg offer_write;
+    reg [25:0] offer_addr;
+    reg [15:0] offer_wdata;
+    reg [1:0] offer_byte_enable;
     reg [25:0] held_addr;
     reg held_write, held_odd, discard;
     reg [15:0] held_wdata;
@@ -110,7 +112,7 @@ module st_memory #(
     // Withdrawal/reset may suppress a client completion but cannot undo the
     // issued WRITE. Media backing storage lies outside the ST RAM range.
     assign ram_write_committed = initialized && state == BUSY &&
-        controller_done && held_write && held_addr < 26'h0040000;
+        controller_done && held_write && ~|held_addr[25:18];
     assign ram_write_addr = held_addr[17:0];
     assign ram_write_data = held_wdata;
     assign ram_write_lanes = held_byte_enable;
@@ -121,8 +123,9 @@ module st_memory #(
     // Present a valid grant to an idle controller on the arbitration edge.
     // Once launched, BUSY retains the latched command until completion; a
     // controller still draining its previous recovery accepts it later.
-    wire launch = EARLY_COMPLETION && state == IDLE && initialized &&
-                  !cold_reset && !reset && grant && selected_valid;
+    wire launch_gate = EARLY_COMPLETION && state == IDLE && initialized &&
+                       !cold_reset && !reset;
+    wire start;
     // Capture has already finished before controller_done asserts. The CPU
     // may consume that word at the next fabric edge; other clients retain
     // their registered boundary. Latch it on that edge for held-request data.
@@ -144,7 +147,7 @@ module st_memory #(
     // An idle early-completion arbiter proposes its selected payload before
     // launch. The controller samples it only with start; BUSY retains the
     // issued payload. Keep grant/reset/initialization gating on start.
-    wire propose_payload = EARLY_COMPLETION && state == IDLE;
+    wire idle = state == IDLE;
 
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
                        .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
@@ -156,11 +159,11 @@ module st_memory #(
         .clk(clk), .clk_pin(clk_pin),
         .refresh_window(!SLOT_REFRESH || reset || raster_reset || memory_phase == (CPU_SLOT_PHASE + 2'd2)),
         .refresh_pending(refresh_pending), .rate(2'd0), .reset(cold_reset),
-        .start(state == BUSY || launch),
-        .write(propose_payload ? selected_write : held_write),
-        .addr(propose_payload ? selected_addr : held_addr),
-        .wdata(propose_payload ? selected_wdata : held_wdata),
-        .write_byte_enable(propose_payload ? selected_byte_enable : held_byte_enable),
+        .start(start),
+        .write(EARLY_COMPLETION ? offer_write : held_write),
+        .addr(EARLY_COMPLETION ? offer_addr : held_addr),
+        .wdata(EARLY_COMPLETION ? offer_wdata : held_wdata),
+        .write_byte_enable(EARLY_COMPLETION ? offer_byte_enable : held_byte_enable),
         .initialized(initialized), .done(controller_done), .rdata(controller_rdata),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
@@ -172,9 +175,25 @@ module st_memory #(
     // Pairwise cyclic precedence depends only on the retained cursor. Each
     // request sees four parallel blockers instead of five dynamic grant stages.
     wire [4:0] pending_clients = requests & ~seen;
-    wire [4:0] eligible, winner;
-    wire [4:0] waiting_nonvideo = pending_clients & 5'b11101;
-    wire [4:0] older_nonvideo;
+    wire [4:0] eligible, first, winner, cpu_ahead, cursor_grant;
+    // The CPU's eligibility apart from its request, for a read and a write.
+    wire cpu_read_open = !seen[CPU] && (!PHASE_SLOTS || memory_phase == CPU_SLOT_PHASE);
+    wire cpu_write_open = !seen[CPU] && (!PHASE_SLOTS || (memory_phase == CPU_SLOT_PHASE + 2'd1 &&
+                          (!video_req || seen[VIDEO] || !write_video_turn)));
+    // Phase slots share a phase only between a CPU read, DMA and media. A CPU
+    // write and video have their phase alone, as does a CPU read while slot
+    // refresh is pending. Video/media rivals block the later clients that
+    // share their slot; with phase slots a pending media rival there is
+    // eligible.
+    wire [4:0] rivals = PHASE_SLOTS ? pending_clients & 5'b11000 : eligible & 5'b11010;
+    wire [4:0] shares_slot = PHASE_SLOTS ?
+        {3'b111, 1'b0, !cpu_write && !(SLOT_REFRESH && refresh_pending)} : 5'b11111;
+    // CPU and DMA requests arrive last, so they decide last. A contending CPU
+    // request blocks the clients it precedes (cpu_ahead); a DMA win replaces
+    // any other.
+    wire cpu_contends = cpu_req && !(PHASE_SLOTS && cpu_write);
+    wire dma_open;
+    wire dma_wins = dma_req && dma_open;
     for (genvar client = 0; client < 5; client = client + 1) begin : arbitration
         wire [4:0] predecessors;
         for (genvar other = 0; other < 5; other = other + 1) begin : precedence
@@ -186,41 +205,88 @@ module st_memory #(
                 assign predecessors[other] = 1'b0;
             end
         end
-        assign eligible[client] = pending_clients[client] &&
-            (!SLOT_REFRESH || !refresh_pending || client == int'(CPU)) &&
-            (!PHASE_SLOTS || client != int'(CPU) || !cpu_write ||
-             !video_req || seen[VIDEO] || !write_video_turn) &&
-            (client == int'(VIDEO) || !PHASE_SLOTS || memory_phase ==
-                (CPU_SLOT_PHASE + ((client == int'(CPU) && cpu_write) ? 2'd1 : 2'd0))) &&
-            (client != int'(VIDEO) || !PHASE_SLOTS || memory_phase == (CPU_SLOT_PHASE + 2'd2));
-        assign winner[client] = eligible[client] && !(|(eligible & predecessors));
-        assign older_nonvideo[client] = |(waiting_nonvideo & predecessors);
+        // first: eligible with no video/media rival ahead.
+        wire rival_ahead = shares_slot[client] && |(rivals & predecessors);
+        assign cpu_ahead[client] = shares_slot[client] && !seen[CPU] && predecessors[CPU];
+        if (client == int'(CPU)) begin : cpu
+            assign eligible[client] = cpu_req && (cpu_write ? cpu_write_open : cpu_read_open);
+            assign first[client] = eligible[client] && !rival_ahead;
+            assign winner[client] = first[client] && !dma_wins;
+        end else begin : slot
+            // Eligible apart from the request.
+            wire open = !seen[client] && (!SLOT_REFRESH || !refresh_pending) &&
+                (!PHASE_SLOTS || memory_phase == CPU_SLOT_PHASE + (client == int'(VIDEO) ? 2'd2 : 2'd0));
+            assign eligible[client] = requests[client] && open;
+            assign first[client] = eligible[client] && !rival_ahead;
+            if (client == int'(DMA)) begin : late
+                assign dma_open = open && !rival_ahead && !(cpu_contends && cpu_ahead[client]);
+                assign winner[client] = dma_wins;
+            end else begin : early
+                assign winner[client] = first[client] && !(cpu_contends && cpu_ahead[client]) && !dma_wins;
+            end
+        end
+        // The cursor moves past a winner with no older waiting non-video
+        // client. With phase slots VIDEO never moves it, and an eligible client
+        // with no such elder always wins: rivals in its slot are waiting
+        // non-video ones.
+        assign cursor_grant[client] = PHASE_SLOTS ? client != int'(VIDEO) && eligible[client] &&
+            !(|(pending_clients & 5'b11101 & predecessors)) : winner[client];
     end
-    wire [4:0] selected_clients = winner | {4'd0, !(|winner)};
+    // DMA may address bytes 8-7ffff, media below byte cd000 (word 66800);
+    // compare only the bits those bounds depend on. in_range covers the
+    // non-DMA winners: the CPU and video are always in range, and DMA checks
+    // its own.
+    wire dma_in_range = ~|dma_addr[23:19] && |dma_addr[18:3];
+    wire [4:0] in_range = {media_read_addr[19:12] < 8'hcd, media_write_addr[19:12] < 8'hcd,
+                           1'b0, 1'b1, 1'b1};
+    wire nondma_valid = |(first & in_range);
+    // The CPU payload stands unless video/media wins; it is also the
+    // no-grant proposal. With phase slots a video/media win is video in its
+    // slot, otherwise the media client the cursor reaches first.
+    wire cpu_choice = cpu_contends ? !(|(first & ~cpu_ahead & 5'b11010)) : !(|(first & 5'b11010));
+    wire video_slot = memory_phase == CPU_SLOT_PHASE + 2'd2;
+    wire media_write_first = pending_clients[MEDIA_WRITE] &&
+        !(pending_clients[MEDIA_READ] && cursor == MEDIA_READ);
+    wire [4:0] fallback = PHASE_SLOTS ? {!video_slot && !media_write_first,
+        !video_slot && media_write_first, 1'b0, video_slot, 1'b0} : first;
+    // A DMA win launches only an in-range address; it arrives last.
+    wire dma_launch_open = launch_gate && dma_open;
+    assign start = dma_req && dma_launch_open ? dma_in_range :
+                   state == BUSY || (launch_gate && nondma_valid);
     always @* begin
-        grant = |winner;
+        grant = |eligible;
         selected = {winner[4], winner[3] | winner[2], winner[3] | winner[1]};
-        advance_cursor = |(winner & ~older_nonvideo & 5'b11101);
-        // Preserve the no-grant CPU proposal; launch still requires grant.
-        selected_addr =
-            ({26{selected_clients[CPU]}} & {8'd0, cpu_addr}) |
-            ({26{selected_clients[VIDEO]}} & {8'd0, video_addr}) |
-            ({26{selected_clients[DMA]}} & {3'd0, dma_addr[23:1]}) |
-            ({26{selected_clients[MEDIA_WRITE]}} & (26'h040000 + {7'd0, media_write_addr})) |
-            ({26{selected_clients[MEDIA_READ]}} & (26'h040000 + {7'd0, media_read_addr[19:1]}));
-        selected_write = (selected_clients[CPU] && cpu_write) |
-                         (selected_clients[DMA] && dma_write) | selected_clients[MEDIA_WRITE];
-        selected_wdata = ({16{selected_clients[CPU]}} & cpu_wdata) |
-                         ({16{selected_clients[DMA]}} & dma_wdata) |
-                         ({16{selected_clients[MEDIA_WRITE]}} & media_write_wdata);
-        selected_byte_enable = ({2{selected_clients[CPU]}} & cpu_byte_enable) |
-                               ({2{selected_clients[DMA]}} & dma_byte_enable) |
-                               ({2{selected_clients[MEDIA_WRITE]}} & media_write_byte_enable) |
-                               {2{selected_clients[VIDEO] | selected_clients[MEDIA_READ]}};
-        selected_valid = selected_clients[CPU] | selected_clients[VIDEO] |
-                         (selected_clients[DMA] && dma_addr >= 24'd8 && dma_addr < 24'h080000) |
-                         (selected_clients[MEDIA_WRITE] && media_write_addr < 19'd419840) |
-                         (selected_clients[MEDIA_READ] && media_read_addr < 20'd839680);
+        grant_valid = dma_wins ? dma_in_range : nondma_valid;
+        // Outside IDLE offer the held payload. In IDLE the latest requests
+        // take it last: video/media, the CPU, then DMA. Media words sit
+        // 40000 above ST RAM: adding bit 18 to a 19-bit word just carries
+        // into bit 19.
+        offer_addr = held_addr;
+        offer_write = held_write;
+        offer_wdata = held_wdata;
+        offer_byte_enable = held_byte_enable;
+        if (idle) begin
+            offer_addr = ({26{fallback[VIDEO]}} & {8'd0, video_addr}) |
+                ({26{fallback[MEDIA_WRITE]}} &
+                 {6'd0, media_write_addr[19], !media_write_addr[19], media_write_addr[18:1]}) |
+                ({26{fallback[MEDIA_READ]}} &
+                 {6'd0, media_read_addr[19], !media_read_addr[19], media_read_addr[18:1]});
+            offer_write = fallback[MEDIA_WRITE];
+            offer_wdata = {16{fallback[MEDIA_WRITE]}} & media_write_wdata;
+            offer_byte_enable = fallback[MEDIA_WRITE] ? media_write_byte_enable : 2'b11;
+        end
+        if (idle && cpu_choice) begin
+            offer_addr = {8'd0, cpu_addr};
+            offer_write = cpu_write;
+            offer_wdata = cpu_wdata;
+            offer_byte_enable = cpu_byte_enable;
+        end
+        if (idle && dma_wins) begin
+            offer_addr = {3'd0, dma_addr[23:1]};
+            offer_write = dma_write;
+            offer_wdata = dma_wdata;
+            offer_byte_enable = dma_byte_enable;
+        end
     end
 
     always @(posedge clk) begin
@@ -269,21 +335,28 @@ module st_memory #(
                         // phase 2 doing refresh before WRITE. Do not require
                         // that stolen video turn before the next CPU slot;
                         // the next ordinary write restores the obligation.
-                        if (selected == CPU && selected_write)
+                        if (winner[CPU] && cpu_write)
                             write_video_turn <= !(SLOT_REFRESH && refresh_pending);
-                        if (selected == VIDEO) write_video_turn <= 1'b0;
-                        if (POSTED_CPU_WRITES && selected == CPU && selected_write && selected_valid)
+                        if (winner[VIDEO]) write_video_turn <= 1'b0;
+                        if (POSTED_CPU_WRITES && winner[CPU] && cpu_write)
                             cpu_ready_q <= 1'b1;
-                        if (!PHASE_SLOTS || advance_cursor)
-                            cursor <= selected == MEDIA_READ ? CPU : selected + 3'd1;
-                        seen[selected] <= 1'b1;
-                        held_addr <= selected_addr;
-                        held_write <= selected_write;
-                        held_wdata <= selected_wdata;
-                        held_byte_enable <= selected_byte_enable;
+                        // Restart after the winner; MEDIA_READ wraps to CPU.
+                        if (|cursor_grant)
+                            cursor <= {cursor_grant[MEDIA_WRITE], cursor_grant[VIDEO] | cursor_grant[DMA],
+                                       cursor_grant[CPU] | cursor_grant[DMA]};
+                        seen <= (seen & requests) | winner;
+                        // Selected addresses fit 23 bits. Lanes load from the
+                        // winner: the controller's copy powers up set and is
+                        // kept inverted, so sharing its input adds an inverter.
+                        held_addr <= {3'd0, offer_addr[22:0]};
+                        held_write <= offer_write;
+                        held_wdata <= offer_wdata;
+                        held_byte_enable <= winner[DMA] ? dma_byte_enable :
+                                            winner[CPU] ? cpu_byte_enable :
+                                            winner[MEDIA_WRITE] ? media_write_byte_enable : 2'b11;
                         held_odd <= media_read_addr[0];
                         discard <= 1'b0;
-                        state <= selected_valid ? BUSY : EMPTY;
+                        state <= grant_valid ? BUSY : EMPTY;
                     end
                 end
                 BUSY, EMPTY: begin
@@ -294,21 +367,23 @@ module st_memory #(
                     if (state == EMPTY || controller_done) begin
                         // Suppress completions for requests invalidated by warm
                         // reset. The already-issued SDRAM command still drains.
-                        if (!reset && !discard && requests[owner]) case (owner)
-                            CPU: begin
+                        // Each owner tests its own request, so a late
+                        // request reaches only its own client's completion.
+                        if (!reset && !discard) case (owner)
+                            CPU: if (cpu_req) begin
                                 cpu_ready_q <= state == EMPTY || !POSTED_CPU_WRITES || !held_write;
                                 cpu_rdata_q <= state == EMPTY ? 16'd0 : controller_rdata;
                             end
-                            VIDEO: begin
+                            VIDEO: if (video_req) begin
                                 video_ready <= 1'b1;
                                 video_rdata <= state == EMPTY ? 16'd0 : controller_rdata;
                             end
-                            DMA: begin
+                            DMA: if (dma_req) begin
                                 dma_ready <= 1'b1;
                                 dma_rdata <= state == EMPTY ? 16'd0 : controller_rdata;
                             end
-                            MEDIA_WRITE: media_write_ready <= 1'b1;
-                            MEDIA_READ: begin
+                            MEDIA_WRITE: if (media_write_req) media_write_ready <= 1'b1;
+                            MEDIA_READ: if (media_read_req) begin
                                 media_read_ready <= 1'b1;
                                 media_read_rdata <= state == EMPTY ? 8'd0 :
                                     held_odd ? controller_rdata[7:0] : controller_rdata[15:8];

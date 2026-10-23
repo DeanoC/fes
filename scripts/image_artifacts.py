@@ -2,6 +2,7 @@
 """Export and select bootstrap artifacts without running component producers."""
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -36,6 +37,22 @@ def packages_at(root, records):
     if [p['inputs']['selection']['core_id'] for p in result] != ['fes.menu']:
         raise ValueError('bootstrap artifacts require exactly fes.menu; install playable cores separately')
     return tuple(result)
+
+
+def check_menu_admission(runtime, menu):
+    """Refuse a runtime that image assembly would refuse for this MENU package."""
+    spec = importlib.util.spec_from_file_location(
+        'kit_software_assembly', Path(__file__).resolve().parents[1] / 'image/scripts/kit-software.py')
+    software = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(software)
+    requires = software.menu_package_requirements(menu / 'manifest.toml')
+    try:
+        provides = software.runtime_menu_interfaces(runtime)
+    except ValueError as error:
+        raise ValueError('bootstrap mister-runtime lacks valid menu interface records; '
+                         'export or pack a runtime built from current sources') from error
+    if missing := software.unmet(provides, requires):
+        raise ValueError('bootstrap mister-runtime does not accept its MENU interfaces: ' + ', '.join(missing))
 
 
 def load(root):
@@ -83,6 +100,8 @@ def load(root):
         if metadata.st_mode & 0o222:
             raise ValueError('bootstrap package selection is writable: ' + path.name)
     verify_package_outputs(root, packages)
+    # Assembly checks this again in the target; fail before any build starts.
+    check_menu_admission(root / 'bin' / 'mister-runtime', packages[0]['directory'])
     return manifest, packages
 
 

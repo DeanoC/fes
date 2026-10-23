@@ -323,7 +323,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
-def validate_routed_shell(routed: dict) -> dict:
+def validate_routed_shell(
+    routed: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.c64")
+) -> dict:
     """Every socket holds only pinned boundary FFs and verified paired buffers."""
     top = routed.get("modules", {}).get(TOP, {})
     cells = top.get("cells", {})
@@ -337,9 +339,11 @@ def validate_routed_shell(routed: dict) -> dict:
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     try:
-        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        route_through = coleco_expansion.boundary_route_through_cells(
+            top, expected, nextpnr_commit=nextpnr_commit)
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name},
+            nextpnr_commit=nextpnr_commit)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
     drivers = {}

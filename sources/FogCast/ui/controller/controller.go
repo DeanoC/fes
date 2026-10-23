@@ -6,7 +6,6 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 type Range struct{ Min, Max int32 }
@@ -177,34 +176,6 @@ func mapKeyboard(typ, code uint16, value int32) (remoteinput.Event, bool) {
 		return remoteinput.Event{}, false
 	}
 	return playhid.PhysicalEvent(code, value == 1)
-}
-
-func (m *Mapper) mapWith(remap *inputmap.Remapper, typ, code uint16, value int32) (remoteinput.Event, bool) {
-	if m != nil && m.mouse {
-		return m.mapMouse(typ, code, value)
-	}
-	if m != nil && m.keyboard {
-		return mapKeyboard(typ, code, value)
-	}
-	if typ == 1 && remap != nil {
-		if dst, ok := remap.PhysicalButton(code); ok {
-			if m.suppressed[code] {
-				if value == 0 {
-					delete(m.suppressed, code)
-				}
-				return remoteinput.Event{}, false
-			}
-			if value != 0 && value != 1 {
-				return remoteinput.Event{}, false
-			}
-			action := remoteinput.ActionRelease
-			if value == 1 {
-				action = remoteinput.ActionPress
-			}
-			return remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: action, Code: dst}, true
-		}
-	}
-	return m.Map(typ, code, value)
 }
 
 // Chord fires once after a continuous one-second Select+Start hold. Both

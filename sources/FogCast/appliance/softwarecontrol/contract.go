@@ -42,4 +42,9 @@ type Status struct {
 	BaseIdentity string `json:"base_identity"`
 	ServiceFault string `json:"service_fault,omitempty"`
 	StorageError string `json:"storage_error,omitempty"`
+	// HeldBack is a selected bundle this base image cannot run, and
+	// HeldBackReason says why. The image's factory software runs in its place
+	// while the selection stays recorded.
+	HeldBack       string `json:"held_back,omitempty"`
+	HeldBackReason string `json:"held_back_reason,omitempty"`
 }
