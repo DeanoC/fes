@@ -2340,7 +2340,11 @@ Exact analogue TOD input phase, write/tick collisions and physical-chip
 qualification remain open. External CNT edges, serial shifting, FLAG input
 and timer port outputs remain outside this slice.
 
-The C64 shell routes its finished 720p word through the shared
+The C64 VIC scanout uses active-first CTA 720p60 coordinates (DE at
+0..1279/0..719, HS at 1390..1429, VS at 725..729), preserving the
+centred picture and scaling. `make sim-fes-c64-session` checks that actual
+VIC raster through the plane: lock, geometry, displayed DDR frame, sync latency
+and exact closed return. The C64 shell routes its finished 720p word through the shared
 `fes_display_plane` and uses `fes_computer_mailbox_core` with session display
 and the existing C64 disk unit enabled. The pixel PLL exposes lock for plane
 reset; display open/close does not alter machine reset or disk state. The
@@ -2349,7 +2353,8 @@ reset; display open/close does not alter machine reset or disk state. The
 `fes.fabric.video.display-plane`. The producer checks the boot DDR layout,
 disabled writes/unused ports and synchronous FIFO reads in synthesis and routed
 evidence. Exactly three unsigned 9×9 multipliers belong to `display.*`; other
-DSP types remain forbidden. Older C64 packages lacking these interfaces cannot
+DSP types remain forbidden. The producer maps only the plane products before
+coarse synthesis and keeps `-nodsp` for existing machine arithmetic. Older C64 packages lacking these interfaces cannot
 show an in-session menu.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `cores/fes-c64/toolchain.lock`,
