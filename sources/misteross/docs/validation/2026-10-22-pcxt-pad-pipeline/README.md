@@ -2070,3 +2070,68 @@ there is no compiler merge, production lock/RTL change or hardware action. Route
 accounting remains 74. The previously retained seven-failure / -270 ps route is
 an old-model result: remeasure complete setup/hold with the corrected model
 before using it for another timing decision, then resume same-recipe routing.
+
+
+### Corrected-model full route and timing replay (23 October)
+
+An old-model reload of the retained route reconstructed the RBF and all clock
+constraints but failed the complete timing reproduction gate: 3 setup failures
+instead of the saved 7. Its 152 changed endpoint entries are not an improvement.
+The corrected-model comparison was not started on that basis. A read-only
+observer reproduced that reload byte for byte and found all 92 differing
+same-path routing segments used declined native overrides. The fresh reload
+had no retained PIP observations and calibration disabled; the original router
+had accumulated calibration during routing. Historical calibration values are
+not present in the old capture and were not inferred from margins. Separately,
+all 374 unsupported-contract identity differences are observed empty ports that
+the JSON frontend omits. The failed reproduction and full differences remain
+in `out/mistral-line-index-sta-20261023/`.
+
+A fresh corrected-model route therefore uses the exact b4 mapped input, QSF,
+SDC, seed 1, weight 2000, exponent 5 and retained rediscovery recipe. Clocks
+remain 100/74.25 MHz. It uses frozen nextpnr source `b85677cf` and Mistral's
+index correction `9ab6522` (review head `932c6d1` only extends tests). This is
+a diagnostic based on retained compiler research, not adoption of closed #266.
+The only additional nextpnr code is a local read-only capture after final
+bitstream timing: calibrated-table enable/prior, every retained PIP observation,
+all 256 type-calibration records and the native success/failure inventory.
+Exact source, object, binary, input and execution identities are retained.
+
+| Final routed metric | Retained old-model route | Fresh corrected-model route |
+| --- | ---: | ---: |
+| Endpoint rows / timed setup rows | 17,199 / 17,194 | 17,199 / 17,194 |
+| Setup failures | 7 | 33 |
+| Setup WNS | -270 ps | -482 ps |
+| Related hold failures / minimum margin | 0 / +822 ps | 0 / +822 ps |
+| Unsupported endpoints | 105 | 105 |
+
+The corrected route is rejected for timing, not promoted. The complete union
+has 17,199 common rows, no missing or new rows, and unchanged clock constraints
+and unsupported identities. It has 27 CPU setup failures, five display failures
+and one PIC failure. The worst CPU writeback path contains 6,701 ps of routing,
+3,263 ps of logic, 731 ps clock-to-Q, -196 ps setup and -17 ps clock skew. Its
+largest wire alone takes 2,417 ps between a carry-control LUT and arithmetic
+input. CPU carry-control/writeback placement is the next focused target; these
+figures do not establish a new recipe or justify reducing the clock.
+
+The fresh route captures 138,405 retained PIP observations, calibration prior
+1.25, 46,580 native arcs and 1,839 declined native arcs, with no missing cache
+entries. A separate host diagnostic restores that exact captured calibration
+and only the explicitly saved empty-port identities, then runs native final
+analogue STA. It reconstructs the complete RBF and reproduces **both full
+report files byte for byte**, including all endpoint identities, setup/hold
+margins, clocks, contracts, critical paths and detailed timing. The fresh native
+success/failure inventory also matches exactly. This fixes the reproduction
+boundary for this diagnostic; it is not electrical completeness or hardware
+acceptance, and no general compiler checkpoint change is shipped here.
+
+The leased route finished with timing-failure exit 1 in 824.1652118018828 seconds;
+all frozen inputs and dependencies pass postflight identity checks. Its host
+readback took 12.01 seconds and adds no route charge. Accounting appends exactly
+one receipt, retaining the original 74-row prefix and verifying every stored
+receipt and exact Decimal charge: **75 completed route receipts**, cumulative
+**85,569.21859272569387 seconds**, including the preserved pre-journal charge.
+The user's unlimited route-budget authorization remains in force. No hardware,
+production lock, RTL, shared contract, clock constraint or timing waiver changed.
+Artifacts and the separate complete-union/report/receipt checks are in
+`out/mistral-line-index-route-20261023/`.
