@@ -1784,3 +1784,71 @@ Evidence is in `out/empty-alm-final-move-route-20261023/` and
 whole-route receipts, cumulative `71226.12229338567657` seconds; this pair adds
 `2043.199011807330` seconds. The prior 66-entry prefix is preserved exactly,
 and independent replay verifies the decimal sum. No hardware ran.
+
+
+## 23 October: bounded final-move rediscovery removes one setup failure
+
+Compiler `b85677cfc9708b994b29fadd12debdd73171bfb4` (tree
+`e2e5146b345363de8976277aff65904c469a038d`), based on `c93d81a7`, adds the
+separate runtime-only, default-false `--critical-final-move-rediscover` option.
+It requires the existing positive final-move budget and fresh full GPU route.
+After an actual retained move, one additional discovery rebuilds both timing
+frames, the live endpoint inventory and geometry from current BELs. The same
+16-trial total ceiling, 32-cell/four-destination caps, native transactions,
+selector ownership, coverage and positive setup/hold guards remain. There is no
+budget reset or third discovery.
+
+All 3,393 frozen source blobs match the committed tree and recursively pinned
+Gitlinks. A full isolated ABI rebuild passes, followed by 84 native tests
+(original 72 plus 12 real orchestration cases across LAB/MLAB and both halves)
+and ten CLI controls. Default/explicit-zero bytes match within the new binary;
+the parent/default complete empty-design graph differs only in its recorded
+creator label. The binary SHA256 is
+`bbe8222b1aa041d1b199dc7ddbee500fe0ad3a5e87e93a2145abf52677566cad`;
+its base-derived build label is distinguished from the verified commit.
+
+A fresh matched pair preserves the original b4 synthesis, QSF/SDC, seed 1,
+weight 2,000, exponent 5, all earlier repair settings and 100 MHz
+system/CPU/microcode plus 74.25 MHz pixel clocks. Both enable final-move16;
+only the candidate adds rediscovery. The baseline exactly reproduces the prior
+c93 RBF, timing and endpoint bytes: eight setup failures and WNS -270 ps.
+Its routed-JSON differences remain fully recorded.
+
+The first pass retains the prior CGA ALUT5 move. The second discovery finds
+seven destinations and retains a CGA ALUT2 move from `MISTRAL_COMB.18.9.6` to
+`MISTRAL_COMB.17.9.42`. The RGBI capture
+`system.machine.isa.rgbi_MISTRAL_FF_Q_2.DATAIN` improves from -269 to +89 ps,
+a further 358 ps gain. Two moves are kept across 11 of the shared 16 trials.
+Setup failures fall from eight to seven; global WNS stays -270 ps. Every other
+emitted setup margin and every emitted hold margin remain exact, including
+positive margins. Both runs retain 17,199 rows (17,194 timed), zero hold
+failures, +822 ps minimum hold, 105 unsupported records and `complete=false`.
+
+Complete endpoint/domain, window/flag, metadata and clock comparisons pass.
+The raw synthesis graph is identical. The complete logical/nonattribute graph,
+ports, cell types, parameters and pin maps remain exact; one cell BEL attribute
+and eight routing aliases change. Lossless patches reconstruct every complete
+raw and routed graph. Independent LOW replay reproduces all 15 proof outputs
+byte for byte, with 58 inventory/graph/recipe controls and 14 native timing
+negative controls passing. Thirteen negative actual-preflight controls also
+pass. Both saved actual RBFs reconstruct exactly in separate current-ABI,
+zero-trial native legality/connectivity readbacks. This does not reproduce STA;
+the internal reference-free final inventory remains guarded in-process but is
+not separately emitted.
+
+This seven-failure result is the new research reference. Remaining rows are
+PIC -270 ps, CPU -25/-25 ps and display -26/-234/-265/-266 ps. The next timing
+work targets these paths and the complete PIC source relationships before any
+reset-source change. Original RTL, clocks, shared contracts and production locks
+remain unchanged. Both PRs stay draft. Same-recipe seed, complete physical
+coverage, fresh producer and exact-artifact hardware gates remain open.
+
+Evidence is in `out/final-move-rediscovery-route-20261023/` and
+`out/final-move-rediscovery-proposal-20261023/`. The two full routes add exactly
+`5014.9869625419379` seconds. Accounting now contains 70 unique receipts and
+`76241.10925592761447` cumulative seconds, preserving the complete prior
+68-entry prefix with SHA256
+`ddad46d0d729d52b98b594a1df0babef7bdb1b78dbc6aadb3288de4708530649`.
+The new journal SHA256 is
+`b84824339c422fcafee3657ab54e14bd244f098af1830a2ac95f7e3b291c4601`.
+Evidence class: host-only fresh GPU diagnostics and native checks. No hardware ran.
