@@ -92,15 +92,66 @@ func (a *App) consumeSuppressedPlayKey(name string, down bool) bool {
 	return suppressed
 }
 
-func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
+// sessionDisplayLocked is the confirmed plane state. A session starts closed.
+func (a *App) sessionDisplayLocked() protocol.SessionDisplay {
+	if !a.sessionDisplay.Valid() {
+		return protocol.SessionDisplayClosed
+	}
+	return a.sessionDisplay
+}
+
+// launcherDisplayFocusedLocked reports a plane on which the launcher holds input.
+func (a *App) launcherDisplayFocusedLocked() bool {
+	return a.sessionDisplay == protocol.SessionDisplayFocused
+}
+
+// surroundOfferedLocked keeps the plane shown around a running machine on the
+// kit's HDMI while the machine keeps input. A surround that fails stays off
+// for the rest of that session.
+func (a *App) surroundOfferedLocked() bool {
+	return a.surround && !a.surroundFailed && a.menuDisplay != nil && a.session.State == "active" &&
+		hostclient.SessionDisplayCapable(a.session.CorePackage)
+}
+
+// sessionReturnDisplayLocked gives input back to the machine: the surround
+// when it is offered, otherwise machine pixels only.
+func (a *App) sessionReturnDisplayLocked() protocol.SessionDisplay {
+	if a.surroundOfferedLocked() {
+		return protocol.SessionDisplayShown
+	}
+	return protocol.SessionDisplayClosed
+}
+
+// syncSurroundLocked shows or closes the surround while the machine has
+// input. Launcher transitions, an uncertain plane and Stop take precedence.
+func (a *App) syncSurroundLocked() {
+	if a.menuDisplay == nil || a.session.State != "active" || a.sessionDisplayBusy || a.sessionDisplayUncertain ||
+		a.roomDuringPlay || a.launcherDisplayFocusedLocked() || a.stopPhase == "stopping" || a.retryStopLock || a.localPresentsPaused {
+		return
+	}
+	if want := a.sessionReturnDisplayLocked(); want != a.sessionDisplayLocked() {
+		a.beginSessionDisplayLocked(want, false)
+	}
+}
+
+// beginSessionDisplayLocked moves the kit plane to target for the captured
+// session. Moving focus hands held input over; showing or closing the
+// surround under the machine's own input leaves its input alone.
+func (a *App) beginSessionDisplayLocked(target protocol.SessionDisplay, openTape bool) {
 	if a.sessionDisplayBusy || a.stopPhase == "stopping" || a.client == nil || a.session.State != "active" || !hostclient.SessionDisplayCapable(a.session.CorePackage) || a.playHIDFailClosedLocked() {
 		return
 	}
-	a.releasePlayHIDLocked()
-	a.suppressHeldPlayKeysLocked()
-	a.suppressHeldSessionPadLocked()
-	a.repeat.Clear()
-	a.hold.Clear()
+	from := a.sessionDisplayLocked()
+	// An uncertain plane may hold launcher focus and either binding.
+	handoff := from.Focus != target.Focus || a.sessionDisplayUncertain
+	rebind := from.Visible != target.Visible || a.sessionDisplayUncertain
+	if handoff {
+		a.releasePlayHIDLocked()
+		a.suppressHeldPlayKeysLocked()
+		a.suppressHeldSessionPadLocked()
+		a.repeat.Clear()
+		a.hold.Clear()
+	}
 	a.sessionDisplayEpoch++
 	a.sessionDisplayBusy = true
 	prior, epoch := a.session, a.sessionDisplayEpoch
@@ -108,13 +159,17 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 	a.sessionDisplayWait = done
 	a.sessionDisplayBinding = prior
 	display, tail, feed := a.menuDisplay, a.playHIDTail, a.localFeed
+	if !rebind {
+		display = nil
+	}
 	parent := a.ctx
 	if parent == nil {
 		parent = context.Background()
 	}
-	if visible {
+	switch {
+	case target == protocol.SessionDisplayFocused:
 		a.status = sessionDisplayOpeningStatus
-	} else {
+	case handoff:
 		a.status = sessionDisplayReturningStatus
 	}
 	a.bumpSessionGenLocked()
@@ -126,25 +181,23 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 		if display != nil {
 			err = display.Pause(ctx)
 		}
-		if err == nil && tail != nil {
-			select {
-			case <-tail:
-			case <-ctx.Done():
-				err = ctx.Err()
+		if handoff {
+			if err == nil && tail != nil {
+				select {
+				case <-tail:
+				case <-ctx.Done():
+					err = ctx.Err()
+				}
 			}
-		}
-		if feed != nil {
-			// Disconnecting releases just this local source in the existing
-			// agent input controller, including buttons held before Home.
-			feed.Close()
+			if feed != nil {
+				// Disconnecting releases just this local source in the existing
+				// agent input controller, including buttons held before Home.
+				feed.Close()
+			}
 		}
 		var result hostclient.SessionResult
 		if err == nil {
-			request := protocol.SessionDisplayClosed
-			if visible {
-				request = protocol.SessionDisplayFocused
-			}
-			result, err = a.client.SetSessionDisplayForSession(ctx, prior, request)
+			result, err = a.client.SetSessionDisplayForSession(ctx, prior, target)
 		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -155,11 +208,23 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 		a.sessionDisplayWait = nil
 		a.bumpSessionGenLocked()
 		if err != nil {
-			if visible {
-				a.sessionDisplayUncertain = true
-			}
 			if display != nil {
 				display.Resume()
+			}
+			if target == protocol.SessionDisplayShown {
+				// An unconfirmed request can leave input fenced at the kit,
+				// so the surround stays off for this session and the plane
+				// closes, which also ends a return from the hardware room.
+				// Until a close is confirmed the plane is uncertain: Back
+				// retries the close if this one fails too.
+				a.surroundFailed = true
+				a.sessionDisplayUncertain = true
+				a.beginSessionDisplayLocked(protocol.SessionDisplayClosed, false)
+				a.status = fmt.Sprintf("TV surround unavailable: %s", err)
+				return
+			}
+			if target.Visible {
+				a.sessionDisplayUncertain = true
 			}
 			a.status = fmt.Sprintf("HDMI controls unavailable: %s. Back returns to play; Home retries.", err)
 			a.roomSessionNotice = a.status
@@ -167,18 +232,18 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 			return
 		}
 		a.applySessionLocked(result)
-		a.sessionDisplayVisible = visible
+		a.sessionDisplay = target
 		a.sessionDisplayUncertain = false
 		a.roomSessionNotice = ""
 		if display != nil {
-			if visible {
+			if target.Visible {
 				display.BindSession(prior.CorePackage.PackageID, prior.CorePackage.Generation)
 			} else {
 				display.ClearSessionBinding()
 			}
 			display.Resume()
 		}
-		if visible {
+		if target == protocol.SessionDisplayFocused {
 			if a.stopPhase == "stopping" || a.retryStopLock {
 				// A late open must keep the guarded return available if Stop
 				// fails, without reopening the room or issuing another mutation.
@@ -188,13 +253,13 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 			}
 			a.openPlayingHardwareRoomLocked()
 			if !a.roomDuringPlay {
-				a.beginSessionDisplayLocked(false, false)
+				a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 				return
 			}
 			if openTape && !a.tapePickerOpen {
 				a.openTapePickerLocked()
 			}
-		} else {
+		} else if handoff {
 			if a.status == sessionDisplayReturningStatus {
 				a.status = ""
 			}
@@ -207,10 +272,15 @@ func (a *App) beginSessionDisplayLocked(visible, openTape bool) {
 func (a *App) invalidateSessionDisplayLocked() {
 	a.sessionDisplayEpoch++
 	a.sessionDisplayBusy = false
-	a.sessionDisplayVisible = false
+	a.sessionDisplay = protocol.SessionDisplayClosed
+	a.surroundFailed = false
 	a.sessionDisplayUncertain = false
 	a.sessionDisplayBinding = hostclient.SessionResult{}
 	a.roomDuringPlay = false
+	// The notice describes this session's plane, which no longer exists.
+	if a.roomSessionNotice == sessionDisplayUnavailableNotice {
+		a.roomSessionNotice = ""
+	}
 	a.mediaControlsDirect = false
 	a.playPadChordSince = time.Time{}
 	a.playPadChordFired = false
@@ -234,7 +304,7 @@ func (a *App) invalidateSessionDisplayLocked() {
 // Shell exit returns the captured HDMI plane without stopping the machine.
 func (a *App) returnSessionDisplayOnExit() {
 	a.mu.Lock()
-	visible, prior, display, client := a.sessionDisplayVisible || a.sessionDisplayUncertain, a.sessionDisplayBinding, a.menuDisplay, a.client
+	visible, prior, display, client := a.sessionDisplay.Visible || a.sessionDisplayUncertain, a.sessionDisplayBinding, a.menuDisplay, a.client
 	a.mu.Unlock()
 	if !visible || client == nil {
 		return

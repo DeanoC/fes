@@ -74,6 +74,8 @@ type Status struct {
 	Format            string `json:"format"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
 	Underflows        uint64 `json:"underflows"`
+	// Picture is a session plane's machine picture as x, y, width and height.
+	Picture []int `json:"picture"`
 }
 type Result struct {
 	Generation        uint64 `json:"generation"`

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -62,8 +63,8 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
-	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
-		a.beginSessionDisplayLocked(true, false)
+	if a.kitSessionDisplayPlaneLocked() && !a.launcherDisplayFocusedLocked() {
+		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, false)
 		return
 	}
 	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
@@ -100,8 +101,8 @@ func (a *App) resumeRoomSessionLocked() {
 	if !a.roomDuringPlay || a.tapePickerBusy {
 		return
 	}
-	if a.kitSessionDisplayPlaneLocked() && a.sessionDisplayVisible {
-		a.beginSessionDisplayLocked(false, false)
+	if a.kitSessionDisplayPlaneLocked() && a.launcherDisplayFocusedLocked() {
+		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return
 	}
 	a.finishRoomSessionResumeLocked()

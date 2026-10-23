@@ -184,7 +184,7 @@ func (a *App) portlessPadReachesMenu(code remoteinput.Code) bool {
 	}
 	if a.sessionDisplayUncertain {
 		if code == remoteinput.ButtonB && !a.sessionDisplayBusy && a.stopPhase != "stopping" && !a.playHIDFailClosedLocked() {
-			a.beginSessionDisplayLocked(false, false)
+			a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		}
 		return false
 	}

@@ -30,6 +30,7 @@ type testMenuClient struct {
 	ready          chan struct{}
 	statusSeen     chan uint64
 	presentBlock   <-chan struct{}
+	picture        []int
 }
 
 func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
@@ -41,6 +42,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	unavailable := c.unavailable
 	statusErr := c.statusErr
 	hold := c.holdStatus
+	picture := c.picture
 	c.mu.Unlock()
 	if hold != nil {
 		hold()
@@ -54,7 +56,7 @@ func (c *testMenuClient) Status(context.Context) (menudisplay.Status, error) {
 	if statusErr != nil {
 		return menudisplay.Status{}, statusErr
 	}
-	return menudisplay.Status{Available: !unavailable, Generation: generation, Session: session, PackageID: packageID, CoreGeneration: coreGeneration, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows}, nil
+	return menudisplay.Status{Available: !unavailable, Generation: generation, Session: session, PackageID: packageID, CoreGeneration: coreGeneration, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes, SlotBytes: menudisplay.SlotBytes, Underflows: underflows, Picture: picture}, nil
 }
 func (c *testMenuClient) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
 	c.mu.Lock()
