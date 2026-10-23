@@ -131,3 +131,30 @@ func TestSessionDisplayAdmitsOnlyObservedSupportedComputerMedia(t *testing.T) {
 		})
 	}
 }
+
+// A running application machine, such as the Coleco native shell, has no
+// removable media. Its observed plane and DDR are the whole admission.
+func TestSessionDisplayAdmitsAnApplicationMachineWithoutMedia(t *testing.T) {
+	b := DevelopmentMediaBinding{PackageID: strings.Repeat("c", 64), Generation: 4}
+	p := &CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation, ABI: RuntimeContract{ID: "fes.application", Major: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}}}
+	s := Status{State: StateActive, Development: true, CorePackage: p}
+	if !SessionDisplayCapable(p) || !b.MatchesSessionDisplay(s) {
+		t.Fatal("application machine with an observed plane rejected")
+	}
+	for name, mutate := range map[string]func(*CorePackageStatus){
+		"no plane":          func(p *CorePackageStatus) { p.ActiveInterfaces = p.ActiveInterfaces[:2] },
+		"no DDR":            func(p *CorePackageStatus) { p.ActiveInterfaces = append(p.ActiveInterfaces[:1], p.ActiveInterfaces[2]) },
+		"newer plane minor": func(p *CorePackageStatus) { p.ActiveInterfaces[2].Minor = 1 },
+		"other ABI":         func(p *CorePackageStatus) { p.ABI = RuntimeContract{ID: "fes.simple-game", Major: 1} },
+		"replaced":          func(p *CorePackageStatus) { p.Generation++ },
+	} {
+		copy := *p
+		copy.ActiveInterfaces = append([]RuntimeInterface(nil), p.ActiveInterfaces...)
+		mutate(&copy)
+		s.CorePackage = &copy
+		if b.MatchesSessionDisplay(s) {
+			t.Fatalf("%s admitted", name)
+		}
+	}
+}

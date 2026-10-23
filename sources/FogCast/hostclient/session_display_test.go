@@ -27,7 +27,7 @@ func TestSessionDisplayCapabilityNeedsObservedVersionAndIdentity(t *testing.T) {
 		name string
 		edit func(*SessionCorePackage)
 	}{
-		{"ABI", func(p *SessionCorePackage) { p.ABI.ID = "fes.application" }},
+		{"ABI", func(p *SessionCorePackage) { p.ABI.ID = "fes.simple-game" }},
 		{"display version", func(p *SessionCorePackage) { p.ActiveInterfaces[0].Minor = 1 }},
 		{"DDR version", func(p *SessionCorePackage) { p.ActiveInterfaces[1].Major = 2 }},
 		{"missing DDR", func(p *SessionCorePackage) { p.ActiveInterfaces = p.ActiveInterfaces[:1] }},

@@ -382,3 +382,11 @@ interfaces:
     major: 1
     minor: 1
     capability_bit: 10
+  # fes.video.session-display 1.0 is the in-session plane a running
+  # application machine blends launcher frames through, as on fes.computer.
+  # It reuses the menu opcodes 18-21 and needs fes.memory.hps-ddr. It is not
+  # fes.video.menu-display, which stays the idle MENU firmware's contract.
+  - id: fes.video.session-display
+    major: 1
+    minor: 0
+    capability_bit: 11

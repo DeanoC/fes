@@ -868,9 +868,15 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES application ABI or system declaration");
 		bool video = false, blob = false, stream = false, menu = false, blitter = false, ddr = false;
-		bool gamepad = false, ports = false, keypad = false;
+		bool gamepad = false, ports = false, keypad = false, display = false, plane = false;
 		bool video_socket = false, coleco_bus = false;
 		for (const auto& interface : descriptor.interfaces) {
+			if (interface.id == kDisplayPlaneInterfaceID) {
+				if (!interface.required || interface.major != 1 || interface.minor != 0)
+					return CompatibilityError(ErrorCode::unsupported_interface, "display plane must be required at version 1.0");
+				plane = true;
+				continue;
+			}
 			if (interface.id == "fes.fabric.video.raster-rgb888" ||
 				interface.id == "fes.fabric.video.native-pixels") {
 				if (interface.required || interface.major != 1 || interface.minor != 0)
@@ -891,6 +897,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceMemoryHpsDdrID ||
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
 				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
+				interface.id == FesApplicationInterfaceVideoSessionDisplayID ||
 				firmware;
 			// The blitter's minors add ops, so a menu may declare any of them.
 			const bool supported = known && interface.major == 1 && (interface.minor == 0 ||
@@ -908,6 +915,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesApplicationInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesApplicationInterfaceVideoMenuDisplayID) menu = true;
 			if (interface.id == FesApplicationInterfaceVideoMenuBlitterID) blitter = true;
+			if (interface.id == FesApplicationInterfaceVideoSessionDisplayID) display = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
 			if (interface.id == FesApplicationInterfaceGamepadID) gamepad = true;
@@ -918,6 +926,13 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the Coleco bus-2 developer shell");
 		if (blitter && !menu)
 			return CompatibilityError(ErrorCode::unsupported_interface, "menu blitter requires the menu display");
+		// The idle MENU's display and a running machine's session plane are
+		// separate contracts; no package is both.
+		if (display && (!ddr || menu))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"session display requires HPS DDR and excludes the menu display");
+		Error pairing = CheckDisplayPlanePairing(display, plane);
+		if (!pairing.ok()) return pairing;
 		if (menu && (!ddr || descriptor.interfaces.size() != (blitter ? 4u : 3u)))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"menu display requires exactly fixed video, HPS DDR, menu display and optionally the menu blitter");

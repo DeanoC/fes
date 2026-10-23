@@ -99,7 +99,7 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 	}
 	simple := p.ABI == (RuntimeContract{ID: "fes.simple-computer", Major: 1})
 	computer := p.ABI == (RuntimeContract{ID: "fes.computer", Major: 1})
-	if !simple && !computer {
+	if !simple && !computer && !applicationMachine(p) {
 		return false
 	}
 	ddr, display := false, false
@@ -117,6 +117,13 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 	return ddr && display
 }
 
+// applicationMachine is a running fes.application machine, such as the Coleco
+// native shell. The idle MENU is also fes.application but never runs as a
+// session.
+func applicationMachine(p *CorePackageStatus) bool {
+	return p.ABI == (RuntimeContract{ID: "fes.application", Major: 1})
+}
+
 func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
 	if !b.Valid() || b.Stream || b.Role == FirmwareRole || s.State != StateActive || !s.Development ||
 		s.Recovery != "" || s.LastError != nil || s.CorePackage == nil ||
@@ -125,6 +132,10 @@ func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
 	}
 	if !SessionDisplayCapable(s.CorePackage) {
 		return false
+	}
+	// A cartridge machine has no removable media; its plane is the whole contract.
+	if applicationMachine(s.CorePackage) {
+		return true
 	}
 	// Preserve the existing blob and ZX81 tape paths. Other supported computers
 	// use the same plane when their unit-0 interface and limits are observed.

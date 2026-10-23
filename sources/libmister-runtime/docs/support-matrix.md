@@ -26,6 +26,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
 | `fes.computer` session HDMI plane (premultiplied RGBA blend, picture rectangle, show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
+| `fes.application` session HDMI plane (premultiplied RGBA blend, show/return, controller-port release, single-gamepad focus gate with held-input suppression through release, no reprogram on close) | covered by host tests | pending |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
 | Atari ST sector writes, frozen snapshot and explicit library disk records across Stop/eject/replacement, with binding retirement after successful menu/splash programming and same-daemon relaunch | covered by simulations and host tests, including save-failure ownership retention and removal of crash-orphaned save temporaries and write probes when the namespace is opened | none |
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |

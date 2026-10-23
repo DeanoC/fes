@@ -505,6 +505,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesApplicationCapabilityVideoMenuDisplay;
 			else if (interface.id == FesApplicationInterfaceVideoMenuBlitterID)
 				capabilities |= FesApplicationCapabilityVideoMenuBlitter;
+			else if (interface.id == FesApplicationInterfaceVideoSessionDisplayID)
+				capabilities |= FesApplicationCapabilityVideoSessionDisplay;
 			continue;
 		}
 		if (computer) {
@@ -562,7 +564,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
 				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts |
 				FesApplicationCapabilityMemoryHpsDdr | FesApplicationCapabilityVideoMenuDisplay |
-				FesApplicationCapabilityVideoMenuBlitter;
+				FesApplicationCapabilityVideoMenuBlitter | FesApplicationCapabilityVideoSessionDisplay;
 			const std::uint16_t simple_computer_mask = FesSimpleComputerCapabilityKeyboard |
 				FesSimpleComputerCapabilityVideoFixed720p60 |
 				FesSimpleComputerCapabilityMediaBlob |
@@ -628,10 +630,11 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 {
 	const bool session_plane =
 		(computer_ && (observed_capabilities_ & FesSimpleComputerCapabilityVideoSessionDisplay)) ||
-		(home_computer_ && (observed_capabilities_ & FesComputerCapabilityVideoSessionDisplay));
+		(home_computer_ && (observed_capabilities_ & FesComputerCapabilityVideoSessionDisplay)) ||
+		(application_ && (observed_capabilities_ & FesApplicationCapabilityVideoSessionDisplay));
 	if ((application_ && (observed_capabilities_ & FesApplicationCapabilityVideoMenuDisplay)) ||
 		session_plane) {
-		if ((computer_ || home_computer_) && gp_.Poisoned()) {
+		if ((computer_ || home_computer_ || session_plane) && gp_.Poisoned()) {
 			Error error = gp_.Realign(deadline);
 			if (error.ok() && have_identity_) error = gp_.Identify(identified_, deadline);
 			if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), false, ""};

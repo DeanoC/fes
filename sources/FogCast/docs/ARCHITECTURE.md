@@ -3164,7 +3164,13 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
-requirement to insert media. When a disk is selected, the launch includes its
+requirement to insert media. The library can also format a blank FAT12 `.st`
+(`POST /api/v1/library/atari-st-disks`) and bind it as that title's drive A.
+Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
+1.0 and required base and writable floppy interfaces. Store-only creation does
+not inspect or require a package.
+The host stores the formatted bytes in the content-addressed media store; later
+GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and
@@ -3310,11 +3316,20 @@ opening and closing the room. A null or empty focus is refused, not
 defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
 surround around the picture needs, and a peer that predates focus refuses
 it. A closed plane requires machine focus. Moving focus on a shown plane
-keeps its display generation. The agent's input fence holds delivery during
-each transition, but only a launcher-focus request retires held keys and
-neutralizes the mouse. The fence ends focused when the runtime confirms
-launcher focus. After a refusal it follows the focus that the session's reply
-reports, and after an unconfirmed failure it stays focused. The paired listener admits only
+keeps its display generation. The same display route accepts a running
+`fes.application` machine, such as the Coleco native shell, when its active
+FPGA identity reports those two interfaces. Application machines have no
+removable-media unit, so this path needs no media-unit identity or selection;
+the computer path retains its existing media-unit checks. The agent's input
+fence holds delivery during each transition, but only a launcher-focus request
+retires held keys and neutralizes the mouse. Controller-port releases received
+while the launcher has focus clear their retained source snapshot without
+being sent to the core, so released buttons cannot replay when focus returns.
+The runtime also neutralizes the single `fes.gamepad` interface and gates its
+worker's nonzero snapshots during launcher focus. The fence ends focused when
+the runtime confirms launcher focus. After a refusal it follows the focus that
+the session's reply reports, and after an unconfirmed failure it stays focused.
+The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 media imports of at most the largest image the media selector inserts
 (839,680 bytes, a declared-geometry Atari ST floppy) and live
@@ -3417,7 +3432,8 @@ unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
 only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
-and package-generation checks.
+and package-generation checks. A blank disk from the library uses one of these
+twelve layouts, defaulting to 80 tracks, 2 heads and 9 sectors.
 
 
 ### Independently installed rooms
