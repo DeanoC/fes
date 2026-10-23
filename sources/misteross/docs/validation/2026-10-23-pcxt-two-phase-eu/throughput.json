@@ -184,5 +184,18 @@
     "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
     "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
     "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "system_rom_followup": {
+    "source": {
+      "revision": "be56eb29f72d72ba06c8b9b2521d815be1df203c",
+      "component_tree": "e358176aafda7781ecbd732ac3d4966ea0b406f5",
+      "archive_sha256": "5273032a37c644d679727acaeb020ddc779698d4fe82974ae064d451dfca074b",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-system-rom/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "simulation_log": "system-rom-all-simulation.log",
+    "simulation_log_sha256": "b99eb2ead31558c049575a29fb34d75479c1660ecc06fc45f459cb110fbb2038",
+    "all_12_intervals_exactly_match_initial_two_phase_candidate": true,
+    "hardware": false
   }
 }

@@ -307,7 +307,7 @@ byte port for a later user-selected loader; no production HPS loader or sealed
 firmware map is claimed.
 
 `rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
-fabric input capture clock, a dedicated +90-degree 100 MHz CPU ROM clock,
+fabric input capture clock, system-clock CPU ROM reads,
 inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.

@@ -92,9 +92,14 @@ output paths a full 10 ns without a timing exception or another microword of
 latency. The CPU diagnostic has identical counts to the initial prototype,
 including one/two-cycle warm reset recovery. All 31 focused tests pass;
 induction checks arbitrary payloads and resets against the execute request
-sequence, and rejects a mutation that reads only on execute. Full-system
-simulation and fresh routed qualification for this follow-up are pending.
-The SDRAM capture phase and pixel/system frequencies are unchanged.
+sequence, and rejects a mutation that reads only on execute. All 16 full-system
+simulation suites and `make check` pass. Frozen synthesis of `be56eb29` passes
+its input-identity postflight; all 16 CPU M10K clock pairs and all 1,215 CPU
+flip-flops use the system clock. Resource counts match the initial two-phase
+candidate except that clock buffers reduce from four to three. All 12 checked
+throughput intervals match the first prototype exactly. Fresh routed
+qualification for this follow-up is running. The SDRAM capture phase and
+pixel/system frequencies are unchanged.
 
 Accounting appends exactly two full-route receipts: 79 retained receipts,
 88,609.26647914992609 cumulative seconds, with the previous 77-row prefix exact
@@ -102,3 +107,24 @@ and every receipt object/hash/Decimal charge verified. The earlier corrected
 checkpoint remains 33 setup failures / -482 ps with 105 unsupported boundaries;
 it is not superseded by a passing candidate. No production lock, shared
 contract, sealed package or hardware acceptance changes. No hardware ran.
+
+The required `make test-changed` against `e0bb083d` completes successfully:
+842 parent tests and 1,272 component tests (one optional Mistral host oracle
+skipped), generated-consumer consistency and the PC/XT RTL simulation lane.
+The original sandboxed attempt is retained separately: fixture socket binds
+were denied. The complete rerun outside the sandbox passes. These are
+working-tree host checks, separate from the frozen synthesis/route receipts;
+[host-checks.json](host-checks.json) binds the complete log and its check results.
+
+The first system-clock-ROM route finishes with 72 board setup failures / -1,575 ps
+and no hold failures (minimum +789 ps). Its 3,491 reported CPU rows have no
+setup/hold failures, minimum +934/+802 ps, and no CPU unsupported record.
+These are **diagnostic figures only**: the collection wrapper rejects its
+self-hash because the adapted filename was paired with the original runner's
+hash. Every design/tool input matches, but the original postflight remains
+false and the receipt is not used as qualifying timing evidence. The failed
+receipt is retained and charged; accounting now has 80 exact receipts and
+89,820.69556666351809 cumulative seconds. See
+[system-rom-collector-rejection.json](system-rom-collector-rejection.json).
+A corrected wrapper repeats the identical frozen native command/environment,
+with a new preflight self-binding guard; this repeat is still running.
