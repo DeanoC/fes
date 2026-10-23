@@ -4,6 +4,10 @@ from pathlib import Path
 import subprocess,json,hashlib,csv
 module=Path(__file__).resolve().parents[3]
 
+# Keep one complete frame after the first active-first-raster VS edge.
+SYS_CYCLES=1740800  # 2 * 1650 * 750 pixels at 74.25/52.224 MHz.
+EXTENDED_SYS_CYCLES=SYS_CYCLES+96*1088
+
 def run(medium_oracle):
     p=module/'build/sim/fes-c64-observer'/('oracle' if medium_oracle else 'rtl')
     p.mkdir(parents=True,exist_ok=True)
@@ -12,7 +16,7 @@ def run(medium_oracle):
     (p/'basic.rom').write_bytes(firmware[:8192]);(p/'kernal.rom').write_bytes(firmware[8192:16384]);(p/'chargen.rom').write_bytes(firmware[16384:20480])
     (p/'drive.rom').write_bytes(bytes(int(line,16) for line in (fixture/'drive.hex').read_text().splitlines()))
     for i in range(3):(p/f'disk{i}.d64').write_bytes(bytes((n*37+i*41)&255 for n in range(174848)))
-    base=['python3',str(module/'scripts/c64_boot_observe.py'),'--basic',str(p/'basic.rom'),'--kernal',str(p/'kernal.rom'),'--chargen',str(p/'chargen.rom'),'--drive-rom',str(p/'drive.rom'),'--disk',str(p/'disk0.d64'),'--cycles','1566720']
+    base=['python3',str(module/'scripts/c64_boot_observe.py'),'--basic',str(p/'basic.rom'),'--kernal',str(p/'kernal.rom'),'--chargen',str(p/'chargen.rom'),'--drive-rom',str(p/'drive.rom'),'--disk',str(p/'disk0.d64'),'--cycles',str(SYS_CYCLES)]
     if medium_oracle:base.append('--medium-oracle')
     original=p/'helper original ü "x"';restored=p/'helper restored µ'
     original.mkdir(exist_ok=True);restored.mkdir(exist_ok=True)
@@ -37,7 +41,7 @@ def run(medium_oracle):
         observed=json.loads((path/'observation.json').read_text())
         for name in ('capture.json','sid-writes.csv','audio.pcm'):
             assert observed['outputs'][name]==hashlib.sha256((path/name).read_bytes()).hexdigest()
-        assert observed['capture']['end_cycle_exclusive']==1566720
+        assert observed['capture']['end_cycle_exclusive']==SYS_CYCLES
     # Reject the previous private format before starting any simulator.
     legacy=p/'legacy.state';legacy.write_bytes(state.read_bytes())
     legacy_metadata=dict(metadata,state_schema='FES-C64-development-state-v3')
@@ -46,7 +50,7 @@ def run(medium_oracle):
         result=subprocess.run(base+['--output',str(p/'legacy-output'),'--restore-state',str(legacy)],stdout=log,stderr=subprocess.STDOUT)
     assert result.returncode!=0 and 'requires recapture' in (p/'helper-legacy-state.log').read_text()
     assert metadata['late_video_capture'] and receipt['late_video_capture']
-    assert json.loads((original/'end.state.json').read_text())['system_cycle']==1566720
+    assert json.loads((original/'end.state.json').read_text())['system_cycle']==SYS_CYCLES
     for label,extra in [('time',['--disk-change','1000001',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64')]),('bytes',['--disk-library',str(p/'disk2.d64'),'--disk-library',str(p/'disk2.d64')])]:
      with (p/f'helper-rejected-{label}.log').open('w') as log:
       result=subprocess.run(base+['--output',str(p/f'rejected-{label}'),'--restore-state',str(state)]+extra,stdout=log,stderr=subprocess.STDOUT)
@@ -108,7 +112,7 @@ def run(medium_oracle):
         assert result.returncode!=0,label
     # A second restore must retain the accumulated queue without resubmitting it.
     twice=p/'keys restored twice';twice.mkdir(exist_ok=True)
-    longer=[str(1671168)if x=='1566720'else x for x in base]
+    longer=[str(EXTENDED_SYS_CYCLES)if x==str(SYS_CYCLES)else x for x in base]
     for target,statefile in [(twice,key_branch/'end.state'),(original,original/'end.state')]:
         with (p/('helper-key-twice-'+target.name+'.log')).open('w') as log:
             subprocess.run(longer+['--output',str(target),'--restore-state',str(statefile),'--save-final-state',str(target/'long.state')],stdout=log,stderr=subprocess.STDOUT,check=True)

@@ -34,7 +34,7 @@ nothing by itself.
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | supported |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `cores/fes-catch/toolchain.lock` | `python3 scripts/build_fes_catch.py` | demo |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `cores/fes-apple2/toolchain.lock` | `make build-fes-apple2` (HIP default; shared-pin seal still open) | experimental; per-slot cards via `scripts/build_apple2_slot_card.py` |
-| `fes.c64` | `cores/fes-c64` | `fes.computer` | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
+| `fes.c64` | `cores/fes-c64` | `fes.computer` with session display and HPS DDR | `cores/fes-c64/toolchain.lock` | `make build-fes-c64` (shared-pin CUDA seal recorded) | experimental; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum` | experimental; four edge sockets |
 | `fes.spectrum128` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum128` | experimental; four edge sockets |
 | `fes.spectrum-plus3` | `cores/fes-spectrum` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-spectrum/toolchain.lock` | `make build-fes-spectrum-plus3` | experimental; four edge sockets |

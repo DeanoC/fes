@@ -1945,7 +1945,7 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKFirmwarePath:
 			snap.Prompt = "Coleco BIOS path"
 		case settingsOSKTapePath:
-			snap.Prompt = "ZX81 .p tape path"
+			snap.Prompt = "Media path"
 		}
 		return a.withOSKHintLocked(snap)
 	}
