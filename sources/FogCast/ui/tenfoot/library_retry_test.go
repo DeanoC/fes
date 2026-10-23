@@ -201,7 +201,11 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
+	client := server.Client()
+	// A reused connection lets net/http silently retry the injected disconnect.
+	// Force a fresh connection so the application observes that failure.
+	client.Transport.(*http.Transport).DisableKeepAlives = true
+	app := NewApp(NewClient(server.URL, client), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
 	}), "")
