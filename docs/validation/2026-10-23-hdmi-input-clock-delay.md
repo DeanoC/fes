@@ -8,9 +8,10 @@ window. The runtime now programs −0.8 ns (`0x20`).
 ## Why −0.8 ns
 
 The `fes.spectrum-plus3` 0.2.0 archive `2371a801…` (#1001) lost the kit A HDMI
-link about once a second. Run `c997e` (2026-10-22, recorded in
-[the Spectrum tape record](2026-10-22-spectrum-tape-ddr.md)) swept the delay
-during one session of that archive, 20 s of capture per setting:
+link about once a second. Run `c997e` (2026-10-22, recorded in #1001's
+[Spectrum tape record](https://github.com/DeanoC/fes/blob/e5bd594a8de4fe9a67523beeb1253950f38feebb/docs/validation/2026-10-22-spectrum-tape-ddr.md#kit-a-check)
+and [on #1003](https://github.com/DeanoC/fes/issues/1003#issuecomment-6349192960))
+swept the delay during one session of that archive, 20 s of capture per setting:
 
 | `0xBA` | Delay | Link drops in 20 s |
 | --- | --- | --- |
