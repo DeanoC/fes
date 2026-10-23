@@ -274,9 +274,9 @@ A job must never patch a shared script or repro directory in place; each job wor
    - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
 4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything
    through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's
-   job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA and
-   CPU have interchangeable route outcomes, subject to the live-GPU production
-   evidence requirement above.
+   job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA,
+   Metal and CPU have interchangeable route outcomes, subject to the live-GPU
+   production evidence requirement above.
 5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
 6. **If a combination closes** on at least 2 of 3 seeds, treat it as a candidate, not promotion evidence. Before promotion, rerun the full production build with the proposed recipe and require fresh timing evidence from that build, with its embedded `BUILD_ID` reflecting the new recipe; a frozen-`synth.json` sweep alone is insufficient. Record this build in the campaign evidence. The recipe-change PR contains only that core's recipe change plus the campaign evidence files: `runs.jsonl` and the summary table under `docs/validation/<date>-<core>-timing-playbook/`. Include the run table and before/after per-clock fmax in the PR body as well. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
 7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.
