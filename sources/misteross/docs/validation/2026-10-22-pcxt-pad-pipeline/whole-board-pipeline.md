@@ -30,7 +30,7 @@ bindings intact. Complete setup/hold endpoint union, both unsupported inventorie
 clock equality and all output artifact hashes are retained under
 `out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/`.
 
-## Boot-ROM banking: route pending
+## Boot-ROM banking: routed, whole-board closure still open
 
 Frozen source `1860f14260e150937b0fdb372f8d59b250b14bf1` adds eight
 bank-local read-address registers. The same generated firmware is emitted as
@@ -47,7 +47,26 @@ bytes, two complete images and a one-cycle mid-load reset. `make check` passes
 after committing module bytes. Full parent/component `make test-changed` is
 still running against source 1860f142; no final result claimed here.
 
-The frozen combined boot/display candidate is routing separately. No winning
+The frozen combined boot/display route completes with all input bindings intact:
+17128 rows, 17123 setup/hold-timed rows, 85 setup failures, worst setup -1467 ps,
+zero hold failures, minimum hold +738 ps, 105 unsupported records and
+`complete=false`. All surviving clocks are exactly equal to the CPU baseline.
+All 345 emitted boot-loader rows pass (minimum setup +556 ps, hold +1236 ps).
+CPU has zero setup failures / +512 ps minimum; PIC has 7 / -1439 ps,
+display 35 / -1111 ps, other logic 43 / -1467 ps. The worst captures are DMA
+terminal-count and transfer-address enables. The result improves the rejected
+display route but does not close the board; the baseline's 72 failing rows
+remain fewer than this candidate's 85. Complete endpoint union and unsupported
+details are retained in `boot-route-comparison.json` and its companion files.
+
+All 842 selected parent tests now pass. Component checks and the required
+simulation rerun remain in progress; the earlier direct 16-suite simulation
+has passed. A DMA grant-snapshot prototype proves all 457 state/qualified-
+transaction obligations with an active-service snapshot invariant. Both
+address and terminal-count mutations reject. Standalone mapping keeps 357 FFs,
+adds two LUTs (679 to 681), and reduces terminal-enable cell depth from seven
+to two. This is a structural candidate, not routed timing acceptance.
+ No winning
 profile, two-of-three seed gate, fresh producer, physical IO/reset qualification
 or kit acceptance has been obtained. The 105 unsupported records remain open.
 A separate private DMA decode-order prototype passes all 453 state/interface
@@ -55,8 +74,8 @@ equivalence points; it has not been adopted into RTL or routed.
 
 ## Route accounting
 
-Receipt 82 adds exactly 1605.9210868240334 charged seconds. All 82
+Receipt 83 adds exactly 1251.239453698974 charged seconds. All 83
 unique receipt objects, hashes and Decimal charges verify, preserving the
-original 81-row journal prefix. Cumulative charge including the pre-journal
-amount is 92502.05552246980319 seconds. User authorization remains
-unlimited route budget. Journal SHA-256: `24ead68a543bf988bd076e6debfc536a842caeba55482919e8a7e4489f8306ca`.
+original 82-row journal prefix. Cumulative charge including the pre-journal
+amount is 93753.29497616877719 seconds. User authorization remains
+unlimited route budget. Journal SHA-256: `f6503930973e624ba58b40e257912c471921aacb423fa37a794d67239236d577`.
