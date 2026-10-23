@@ -37,7 +37,12 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 		t.Fatal("interface count")
 	}
 	for i, iface := range app.Interfaces {
-		if iface.ID != want[i] || iface.CapabilityBit != uint8(i) || iface.Major != 1 || iface.Minor != 0 {
+		// The menu blitter is at 1.1: minor 1 added EXPAND.
+		minor := uint16(0)
+		if iface.ID == "fes.video.menu-blitter" {
+			minor = 1
+		}
+		if iface.ID != want[i] || iface.CapabilityBit != uint8(i) || iface.Major != 1 || iface.Minor != minor {
 			t.Fatalf("interface %d: %#v", i, iface)
 		}
 	}

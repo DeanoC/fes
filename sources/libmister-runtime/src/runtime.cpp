@@ -226,12 +226,12 @@ public:
   }
   condition_.notify_all();return {};
  }
- Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter)
+ Error ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor)
  {
-  if(!fd||!blitter)return Invalid("missing menu window output");
+  if(!fd||!blitter||!blitter_minor)return Invalid("missing menu window output");
   std::lock_guard<std::mutex> lock(mutex_);
   Error error=AdmitMenuGeneration(generation);if(!error.ok())return error;
-  *blitter=status_.menu_display.blitter;
+  *blitter=status_.menu_display.blitter;*blitter_minor=status_.menu_display.blitter_minor;
   return hardware_.ShareMenuWindow(fd);
  }
  Error BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output)
@@ -1489,7 +1489,7 @@ Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
-Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter) {return impl_->ShareMenuWindow(generation,fd,blitter);}
+Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor) {return impl_->ShareMenuWindow(generation,fd,blitter,blitter_minor);}
 Error Runtime::BeginMenuFrame(std::uint64_t generation,std::unique_ptr<MenuFrame>* output) {return impl_->BeginMenuFrame(generation,output);}
 Error Runtime::SetSessionDisplay(const std::string& package_id,std::uint64_t generation,bool visible,bool launcher_focus) {return impl_->SetSessionDisplay(package_id,generation,visible,launcher_focus);}
 Error Runtime::PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output) {return impl_->PresentMenuFrame(generation,frame,output);}

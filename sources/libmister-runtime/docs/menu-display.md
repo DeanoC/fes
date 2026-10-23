@@ -9,7 +9,7 @@ a described menu package for daemon startup. The sealed splash remains the boot
 and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
-1.0 interfaces, and optionally menu-blitter 1.0, can be configured. It is idle
+1.0 interfaces, and optionally menu-blitter 1.0 or 1.1, can be configured. It is idle
 firmware, not a game. Normal package programming, build identity and
 boot-latched DDR admission still apply.
 The blitter command-list path has host software coverage; exact-artifact kit
@@ -58,11 +58,15 @@ grant.
 
 A menu package with `fes.video.menu-blitter` gets a larger grant, and its
 `menu_frame` adds the layout of the
-[blitter](../../mister-packages/docs/application-io.md#menu-blitter-10):
+[blitter](../../mister-packages/docs/application-io.md#menu-blitter-11):
 
 ```json
-"blitter":{"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
+"blitter":{"minor":1,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
 ```
+
+`minor` is the menu-blitter minor the firmware declares, which names the ops
+it runs: minor 1 adds EXPAND. A client must not send an op its firmware's
+minor lacks; the blitter faults it.
 
 Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0 to use the blitter.
 The client writes command lists and BGRA textures there, and the blitter

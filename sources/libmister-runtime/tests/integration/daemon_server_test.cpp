@@ -1278,13 +1278,13 @@ void TestMenuGrantAndSlotExchange()
  Contains(rejected.line,"\"ok\":false");close(socket);assert(fixture.hardware.core_calls==1);
 }
 
-// A blitter grant names its lists and heap and covers them. Until its first
-// list it takes CPU commits, as tenfoot sends them; after that a CPU commit
-// is refused before any hardware access.
+// A blitter grant names its firmware's minor, its lists and heap, and covers
+// them. Until its first list it takes CPU commits, as tenfoot sends them;
+// after that a CPU commit is refused before any hardware access.
 void TestMenuBlitterGrantTakesCpuCommitsUntilAList()
 {
  using namespace mister::daemon;
- TempDirectory temporary;Fixture fixture;fixture.Start();fixture.hardware.menu_status.blitter=true;
+ TempDirectory temporary;Fixture fixture;fixture.Start();fixture.hardware.menu_status.blitter=true;fixture.hardware.menu_status.blitter_minor=1;
  const auto path=temporary.Entry("runtime.sock");RunningServer server(fixture.runtime,path);
  Contains(Exchange(path,std::string("{\"protocol\":2,\"operation\":\"configure_menu\",\"package_path\":\"/menu\",\"package_id\":\"")+kPackageId+"\"}"),"\"ok\":true");
  const auto generation=fixture.runtime.status().menu_display.generation;
@@ -1292,7 +1292,7 @@ void TestMenuBlitterGrantTakesCpuCommitsUntilAList()
   const int socket=Connect(path);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
   assert(SendFrame(socket,MenuRequest("menu_frame_grant",generation),-1,deadline).ok());
   ReceivedFrame granted;assert(ReceiveFrame(socket,deadline,&granted).ok());
-  Contains(granted.line,"\"slot_bytes\":4194304,\"blitter\":{\"list_offset\":8388608,\"commands\":32768,"
+  Contains(granted.line,"\"slot_bytes\":4194304,\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,"
    "\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}");
   assert(granted.fds.size()==1u);struct stat info{};assert(fstat(granted.fds[0],&info)==0&&info.st_size==83886080);
   assert(close(granted.fds[0])==0);assert(close(socket)==0);

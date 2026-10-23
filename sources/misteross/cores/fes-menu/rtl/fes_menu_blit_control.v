@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_application.vh"
-// MenuBlit requests for fes.video.menu-blitter 1.0. Index 0 stages the first
+// MenuBlit requests for fes.video.menu-blitter 1.1. Index 0 stages the first
 // command of the list region, index 1 the count, and index 2 runs them into
 // slot 0 or 1; its ACK means the blitter started. Staging follows
 // MenuSubmit: in order, only while the menu is enabled and the blitter is

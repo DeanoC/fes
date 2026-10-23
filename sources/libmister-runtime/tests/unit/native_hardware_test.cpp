@@ -1849,8 +1849,9 @@ void TestNativeMenuBlitterPresent()
  using namespace mister::native;using namespace mister::native::generated;
  TempDirectory package;OpenedCorePackage opened;PopulateHpsDdrApplication(&package,true,&opened);
  std::string manifest=ReadText(package.path+"/manifest.toml");ReplaceAll(&manifest,"fes.pong","fes.menu");
- for(const char* id:{"fes.video.menu-display","fes.video.menu-blitter"})
-  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ for(const auto& interface:{std::make_pair("fes.video.menu-display",0),std::make_pair("fes.video.menu-blitter",1)})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(interface.first)+"\"\nmajor = 1\nminor = "+
+   std::to_string(interface.second)+"\nrequired = true\n";
  {std::ofstream output(package.path+"/manifest.toml",std::ios::trunc);output<<manifest;assert(output.good());}
  assert(OpenCorePackage(package.path,"",&opened).ok());
  std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
@@ -1864,14 +1865,17 @@ void TestNativeMenuBlitterPresent()
   idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
  fpga.boot_hps_ddr_layout=true;
  bool advertised=false;for(const auto& abi:hardware.capabilities().abis)for(const auto& interface:abi.interfaces)
-  if(abi.id==FesApplicationABIID&&interface.id==FesApplicationInterfaceVideoMenuBlitterID)advertised=true;
+  if(abi.id==FesApplicationABIID&&interface.id==FesApplicationInterfaceVideoMenuBlitterID&&
+   interface.minor==FesApplicationInterfaceVideoMenuBlitterMinor)advertised=true;
  assert(advertised);
  MenuGpScript gp_script{&mmio};
  gp_script.BringUp(true);
  auto result=hardware.ConfigureMenuPackage(package.path,opened.package_id);
  if(!result.error.ok())fprintf(stderr,"blitter menu activation: %s\n",result.error.message.c_str());
- // The client's grant covers the slots, the lists and the heap.
+ // The client's grant covers the slots, the lists and the heap, and names
+ // the firmware's menu-blitter minor.
  assert(result.error.ok()&&hardware.menu_display().available&&hardware.menu_display().blitter);
+ assert(hardware.menu_display().blitter_minor==1);
  assert((operations.granted==std::vector<std::uint64_t>{8388608,83886080})&&operations.Granted()&&operations.cleans==0);
  // Until its first list, a blitter grant takes CPU frames as tenfoot draws
  // them: the slot's frame is written back and submitted, and the blitter

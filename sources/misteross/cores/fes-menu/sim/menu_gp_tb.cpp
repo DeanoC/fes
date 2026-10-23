@@ -12,7 +12,8 @@
 using namespace blit;
 static void check(bool ok,const char* m){if(!ok){std::fprintf(stderr,"FAIL %s\n",m);std::exit(1);}}
 #define MODEL(name) t.rootp->fes_menu_endpoint__DOT__scanout__DOT__memory__DOT__f2sdram__DOT__##name
-#define BLITTER(name) t.rootp->fes_menu_endpoint__DOT__scanout__DOT__blit__DOT__blitter__DOT__##name
+// The completed count the GP reports: it advances once port 1 has drained.
+#define PUBLISHED(name) t.rootp->fes_menu_endpoint__DOT__scanout__DOT__blit__DOT__##name
 #define VIDEO(name) t.rootp->fes_menu_endpoint__DOT__scanout__DOT__video__DOT__##name
 int main(int argc,char**argv){
  Verilated::commandArgs(argc,argv); Vfes_menu_endpoint t; bool toggle=false;
@@ -64,7 +65,7 @@ int main(int argc,char**argv){
    check(seen==921600&&!t.underflows,"blitted frame scanned out whole");
   }
   if(event==2){
-   for(unsigned i=0;i<20000000&&BLITTER(completed)!=1;++i)tick();check(BLITTER(completed)==1,"blit completion");
+   for(unsigned i=0;i<20000000&&PUBLISHED(completed_q)!=1;++i)tick();check(PUBLISHED(completed_q)==1,"blit completion");
    check(same_slot(1)&&same_slot(0),"blit matches gfx.blendOver reference and leaves slot 0");
   }
   check(command(op,index,arg)==expected,"golden exchange");++n;
