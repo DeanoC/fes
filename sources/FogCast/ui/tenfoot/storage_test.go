@@ -41,6 +41,69 @@ func pickerDriveManager(t *testing.T) *storage.Manager {
 	return m
 }
 
+func TestStorageRootRefreshPreservesPickerSelections(t *testing.T) {
+	dir := t.TempDir()
+	library := hostclient.LibraryRoot{ID: "zx81", System: "zx81", Root: dir}
+
+	t.Run("tape", func(t *testing.T) {
+		app := &App{hostSettings: hostclient.LibrarySettings{Libraries: []hostclient.LibraryRoot{library}}}
+		app.tapePickerOpen = true
+		app.tapePickerAtRoots = true
+		app.showTapePickerRootsLocked("Choose tape or disk media.")
+		selected := -1
+		for i, row := range app.tapePickerRows {
+			if row.Path == dir {
+				selected = i
+				break
+			}
+		}
+		if selected < 0 {
+			t.Fatalf("library root missing from rows: %+v", app.tapePickerRows)
+		}
+		app.tapePickerIndex = selected
+
+		app.refreshTapePickerRootsLocked(app.tapePickerStatus)
+		if row := app.tapePickerRows[app.tapePickerIndex]; row.Path != dir {
+			t.Fatalf("refresh selected %q (%s), want library root %q", row.Name, row.Kind, dir)
+		}
+
+		// If the selected drive disappears during refresh, retain the old view
+		// so the next Select cannot silently target a different row.
+		app.hostSettings.Libraries = nil
+		app.refreshTapePickerRootsLocked(app.tapePickerStatus)
+		if row := app.tapePickerRows[app.tapePickerIndex]; row.Path != dir {
+			t.Fatalf("refresh redirected selection to %q (%s), want prior root %q", row.Name, row.Kind, dir)
+		}
+		app.HandleCommand(CmdSelect, time.Now())
+		if snap := app.Snapshot(); !snap.TapePicker.Open || snap.TapePicker.Path != dir {
+			t.Fatalf("Select after refresh opened the wrong row: %+v", snap.TapePicker)
+		}
+	})
+
+	t.Run("firmware", func(t *testing.T) {
+		app := &App{hostSettings: hostclient.LibrarySettings{Libraries: []hostclient.LibraryRoot{library}}}
+		app.firmwarePickerOpen = true
+		app.firmwarePickerAtRoots = true
+		app.showFirmwarePickerRootsLocked("Choose a BIOS.")
+		selected := -1
+		for i, row := range app.firmwarePickerRows {
+			if row.Path == dir {
+				selected = i
+				break
+			}
+		}
+		if selected < 0 {
+			t.Fatalf("library root missing from rows: %+v", app.firmwarePickerRows)
+		}
+		app.firmwarePickerIndex = selected
+
+		app.refreshFirmwarePickerRootsLocked(app.firmwarePickerStatus)
+		if row := app.firmwarePickerRows[app.firmwarePickerIndex]; row.Path != dir {
+			t.Fatalf("refresh selected %q (%s), want library root %q", row.Name, row.Kind, dir)
+		}
+	})
+}
+
 func TestOpenPickerFileKeepsSelectedSymlinkFilename(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "game.bin")

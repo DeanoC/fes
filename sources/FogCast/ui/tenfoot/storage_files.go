@@ -76,16 +76,60 @@ func (a *App) refreshStorageRootsLocked() {
 		}
 		a.localDrives, a.hostDrives = local, remote
 		if a.firmwarePickerOpen && a.firmwarePickerAtRoots && !a.firmwarePickerBusy {
-			a.showFirmwarePickerRootsLocked(a.firmwarePickerStatus)
+			a.refreshFirmwarePickerRootsLocked(a.firmwarePickerStatus)
 		}
 		if a.tapePickerOpen && a.tapePickerAtRoots && !a.tapePickerBusy {
-			a.showTapePickerRootsLocked(a.tapePickerStatus)
+			a.refreshTapePickerRootsLocked(a.tapePickerStatus)
 		}
 		if a.coreLibrary.Open && a.coreLibrary.PickID != "" && a.coreLibrary.Path == "" && !a.coreLibrary.Busy {
 			a.coreLibrary.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
 		}
 	}()
 }
+
+func retainPickerSelection[T any](previous, refreshed []T, index int, same func(T, T) bool) ([]T, int) {
+	if index < 0 || index >= len(previous) {
+		return refreshed, 0
+	}
+	selected := previous[index]
+	for i, row := range refreshed {
+		if same(selected, row) {
+			return refreshed, i
+		}
+	}
+	// Keep the previous view if its highlighted row disappeared during refresh.
+	// A pending Select must never be redirected to a different action.
+	return previous, index
+}
+
+func (a *App) refreshFirmwarePickerRootsLocked(status string) {
+	previous, index := a.firmwarePickerRows, a.firmwarePickerIndex
+	a.showFirmwarePickerRootsLocked(status)
+	a.firmwarePickerRows, a.firmwarePickerIndex = retainPickerSelection(
+		previous, a.firmwarePickerRows, index,
+		func(a, b FirmwarePickerRow) bool {
+			return a.Kind == b.Kind && a.Path == b.Path && a.Name == b.Name
+		},
+	)
+}
+
+func (a *App) refreshTapePickerRootsLocked(status string) {
+	previous, index := a.tapePickerRows, a.tapePickerIndex
+	a.showTapePickerRootsLocked(status)
+	a.tapePickerRows, a.tapePickerIndex = retainPickerSelection(
+		previous, a.tapePickerRows, index,
+		func(a, b TapePickerRow) bool {
+			if a.Kind != b.Kind || a.Path != b.Path || a.Name != b.Name {
+				return false
+			}
+			if a.Kind == tapePickerKindStarter {
+				return a.Starter != nil && b.Starter != nil && a.Starter.ID == b.Starter.ID
+			}
+			return true
+		},
+	)
+}
+
 func (a *App) corePickerPurposeLocked() string {
 	if strings.HasPrefix(a.coreLibrary.PickID, "rom:") {
 		return "bios"

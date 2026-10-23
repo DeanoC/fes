@@ -3516,7 +3516,9 @@ USB discovery and mounting use Linux block-device tools and are available on
 Linux kits and hosts. Other Tenfoot platforms can use SMB shares but do not
 discover or mount local USB volumes. Import continues through the existing
 media store and explicit BIOS/media selection APIs. Selecting a drive or
-folder never changes a running core.
+folder never changes a running core. Drive inventory refreshes can arrive while
+a root picker is open; they preserve the highlighted row so a pending Select
+cannot be redirected to another action.
 
 `storage` owns connection settings, USB discovery, rooted enumeration and
 bounded regular-file reads. SMB2/3 is read directly with the Go SMB client;
