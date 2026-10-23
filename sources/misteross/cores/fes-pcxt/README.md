@@ -147,6 +147,13 @@ runs the locked Cyclone V diagnostic frontend and `check -assert`, writing
 `build/synth/fes-pcxt/memory/diagnostic.json`. It covers the backend/controller,
 without the CPU, cards, framebuffer or board capture/pads.
 
+The diagnostic boot ROM is emitted as eight contiguous 8 KiB banks. Each bank
+has its own registered read address to limit address-counter fanout across the
+RAM blocks. Bank selection follows the synchronous read; the loader's public
+address, valid/ready/done protocol and reset behavior are unchanged. The full
+image and interrupted-load tests cover every byte across all bank boundaries.
+This is a timing candidate until a frozen whole-board route validates it.
+
 ## ISA display cards
 
 `expansions/pcxt_cga_card.sv` and `pcxt_mda_card.sv` are separate registered ISA
