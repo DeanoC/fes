@@ -1,4 +1,4 @@
-id = "coleco-arcade"
+id = "example.coleco-arcade"
 title = "ColecoVision Arcade"
 author = "FogCast"
 description = "Classic Coleco arcade ports, found by name in the library."
