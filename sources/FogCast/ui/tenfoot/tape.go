@@ -26,11 +26,11 @@ const (
 	tapePickerKindStarter = "starter"
 
 	tapePickerOSKLabel   = "Type a path…"
-	tapePickerEjectLabel = "Eject tape"
-	tapePickerTitle      = "Load tape"
+	tapePickerEjectLabel = "Eject media"
+	tapePickerTitle      = "Change media"
 )
 
-// TapePickerRow is one pad-selectable line in the mid-session Load-tape overlay.
+// TapePickerRow is one selectable line in the running machine media selector.
 type TapePickerRow struct {
 	Name       string
 	Path       string
@@ -40,7 +40,7 @@ type TapePickerRow struct {
 	Starter    *hostclient.HardwareTape
 }
 
-// TapePickerSnapshot is renderer-facing overlay state for ZX81 Load-tape.
+// TapePickerSnapshot is renderer-facing state for the running media selector.
 type TapePickerSnapshot struct {
 	Open   bool
 	Title  string
@@ -52,45 +52,8 @@ type TapePickerSnapshot struct {
 	Hint   string
 }
 
-func tapeSelectable(name string, size int64, kind string) bool {
-	return kind == tapePickerKindFile && protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size)
-}
-
 func tapePickerHint(kind InputKind) string {
-	return selectWord(kind) + " arm  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
-}
-
-func openTapeFile(path string) (*os.File, int64, string, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, 0, "", fmt.Errorf("tape path is empty")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, 0, "", err
-	}
-	ok := false
-	defer func() {
-		if !ok {
-			_ = file.Close()
-		}
-	}()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, 0, "", err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, 0, "", fmt.Errorf("tape path is not a regular file")
-	}
-	base := filepath.Base(path)
-	if !protocol.AdmitTapeMediaName(base) {
-		return nil, 0, "", fmt.Errorf("tape must be a .p / .P file")
-	}
-	if !protocol.AdmitTapeMediaSize(info.Size()) {
-		return nil, 0, "", fmt.Errorf("tape must be 1..%d bytes (this file is %d)", protocol.MaxDevelopmentMediaBytes, info.Size())
-	}
-	ok = true
-	return file, info.Size(), base, nil
+	return selectWord(kind) + " insert  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
 }
 
 func tapePickerRoots(home string, libraries []hostclient.LibraryRoot) []TapePickerRow {
@@ -137,7 +100,7 @@ func tapePickerRoots(home string, libraries []hostclient.LibraryRoot) []TapePick
 	return rows
 }
 
-func listTapePickerDir(path string) ([]TapePickerRow, error) {
+func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" || path == "." {
 		return nil, fmt.Errorf("folder path is empty")
@@ -178,7 +141,7 @@ func listTapePickerDir(path string) ([]TapePickerRow, error) {
 			Path:       full,
 			Kind:       tapePickerKindFile,
 			Size:       info.Size(),
-			Selectable: tapeSelectable(name, info.Size(), tapePickerKindFile),
+			Selectable: hostclient.AdmitRemovableMedia(p, name, info.Size()),
 		})
 	}
 	sort.Slice(dirs, func(i, j int) bool { return strings.ToLower(dirs[i].Name) < strings.ToLower(dirs[j].Name) })
@@ -191,7 +154,7 @@ func tapePickerRowLabel(row TapePickerRow) string {
 	case tapePickerKindFile:
 		label := row.Name + "  ·  " + formatByteSize(row.Size)
 		if row.Selectable {
-			return label + "  ·  ZX81 tape"
+			return label + "  ·  Select"
 		}
 		return label
 	case tapePickerKindEject:
@@ -222,13 +185,17 @@ func (a *App) tapePickerSnapshotLocked() TapePickerSnapshot {
 	if !a.tapePickerOpen {
 		return TapePickerSnapshot{}
 	}
+	status := a.tapePickerStatus
+	if a.roomSessionNotice != "" {
+		status += " · " + a.roomSessionNotice
+	}
 	return TapePickerSnapshot{
 		Open:   true,
 		Title:  tapePickerTitle,
 		Path:   a.tapePickerPath,
 		Index:  a.tapePickerIndex,
 		Rows:   append([]TapePickerRow(nil), a.tapePickerRows...),
-		Status: a.tapePickerStatus,
+		Status: status,
 		Busy:   a.tapePickerBusy,
 		Hint:   tapePickerHint(a.affinity.current.Kind),
 	}
@@ -254,12 +221,12 @@ func (a *App) closeTapePickerLocked() {
 }
 
 func (a *App) sessionLiveMediaOfferedLocked() bool {
-	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.liveControlsOfferedLocked()
+	return a.session.State == "active" && hostclient.RemovableMediaCapable(a.session.CorePackage) && a.liveControlsOfferedLocked()
 }
 
 func (a *App) openTapePickerLocked() {
 	if !a.sessionLiveMediaOfferedLocked() {
-		a.status = "Live tape is unavailable for this running machine."
+		a.status = "Removable media is unavailable for this running machine."
 		a.roomSessionNotice = a.status
 		return
 	}
@@ -280,8 +247,8 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerSession = a.session
 	a.tapePickerBusy = false
 	a.tapePickerGen++
-	a.showTapePickerRootsLocked("Choose a .p tape to arm on the running ZX81.")
-	if a.client != nil {
+	a.showTapePickerRootsLocked("Choose tape or disk media for the running machine.")
+	if a.client != nil && hostclient.LiveMediaCapable(a.session.CorePackage) {
 		parent := a.ctx
 		if parent == nil {
 			parent = context.Background()
@@ -328,7 +295,7 @@ func (a *App) showTapePickerRootsLocked(status string) {
 }
 
 func (a *App) showTapePickerDirLocked(path, status string) {
-	rows, err := listTapePickerDir(path)
+	rows, err := listTapePickerDir(a.tapePickerSession.CorePackage, path)
 	if err != nil {
 		a.tapePickerStatus = err.Error()
 		a.status = a.tapePickerStatus
@@ -348,6 +315,10 @@ func (a *App) handleTapePickerLocked(cmd Command) {
 	if !a.tapePickerOpen {
 		return
 	}
+	if cmd == CmdStop {
+		a.startStopLocked()
+		return
+	}
 	if a.tapePickerBusy {
 		if cmd == CmdBack {
 			a.tapePickerStatus = "Tape change in progress"
@@ -359,10 +330,10 @@ func (a *App) handleTapePickerLocked(cmd Command) {
 	if n == 0 {
 		if cmd == CmdBack {
 			if a.tapePickerAtRoots {
-				a.closeTapePickerLocked()
+				a.dismissMediaControlsLocked()
 				return
 			}
-			a.showTapePickerRootsLocked("Choose a .p tape to arm on the running ZX81.")
+			a.showTapePickerRootsLocked("Choose tape or disk media for the running machine.")
 		}
 		return
 	}
@@ -388,13 +359,13 @@ func (a *App) handleTapePickerLocked(cmd Command) {
 
 func (a *App) tapePickerBackLocked() {
 	if a.tapePickerAtRoots {
-		a.closeTapePickerLocked()
+		a.dismissMediaControlsLocked()
 		return
 	}
 	path := a.tapePickerPath
 	parent := filepath.Dir(path)
 	if parent == path || parent == "." {
-		a.showTapePickerRootsLocked("Choose a .p tape to arm on the running ZX81.")
+		a.showTapePickerRootsLocked("Choose tape or disk media for the running machine.")
 		return
 	}
 	for _, row := range a.tapePickerRows {
@@ -414,15 +385,13 @@ func (a *App) tapePickerDetailsLocked() {
 	switch row.Kind {
 	case tapePickerKindFile:
 		if row.Selectable {
-			a.tapePickerStatus = row.Name + " is a ZX81 .p tape. Confirm to arm the deck."
-		} else if !protocol.AdmitTapeMediaName(row.Name) {
-			a.tapePickerStatus = row.Name + " is not a .p / .P tape."
+			a.tapePickerStatus = row.Name + " · Select to insert into the running machine."
 		} else {
-			a.tapePickerStatus = fmt.Sprintf("%s is %d bytes. Tape must be 1..%d bytes.", row.Name, row.Size, protocol.MaxDevelopmentMediaBytes)
+			a.tapePickerStatus = "This file does not match the running machine's media format or size limits."
 		}
 		a.status = a.tapePickerStatus
 	case tapePickerKindEject:
-		a.tapePickerStatus = "Clear the armed mailbox so the next empty LOAD \"\" is 0/0."
+		a.tapePickerStatus = "Eject the running machine's current medium."
 		a.status = a.tapePickerStatus
 	case tapePickerKindStarter:
 		if row.Starter != nil {
@@ -461,11 +430,7 @@ func (a *App) tapePickerConfirmLocked() {
 		a.tapePickerBackLocked()
 	case tapePickerKindFile:
 		if !row.Selectable {
-			if !protocol.AdmitTapeMediaName(row.Name) {
-				a.tapePickerStatus = "Tape must be a .p / .P file."
-			} else {
-				a.tapePickerStatus = fmt.Sprintf("Tape must be 1..%d bytes (this file is %d).", protocol.MaxDevelopmentMediaBytes, row.Size)
-			}
+			a.tapePickerStatus = "This file does not match the running machine's media format or size limits."
 			a.status = a.tapePickerStatus
 			return
 		}
@@ -531,7 +496,7 @@ func (a *App) startTapeArmLocked(path string) {
 	a.tapePickerBusy = true
 	a.tapePickerGen++
 	gen := a.tapePickerGen
-	a.tapePickerStatus = "Arming tape…"
+	a.tapePickerStatus = "Inserting media…"
 	a.status = a.tapePickerStatus
 	ctx := a.ctx
 	if ctx == nil {
@@ -557,7 +522,7 @@ func (a *App) startTapeEjectLocked() {
 	a.tapePickerBusy = true
 	a.tapePickerGen++
 	gen := a.tapePickerGen
-	a.tapePickerStatus = "Ejecting tape…"
+	a.tapePickerStatus = "Ejecting media…"
 	a.status = a.tapePickerStatus
 	ctx := a.ctx
 	if ctx == nil {
@@ -612,8 +577,11 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 		return
 	}
 	a.applySessionLocked(result)
-	a.closeTapePickerLocked()
-	a.status = "Tape armed."
+	a.dismissMediaControlsLocked()
+	a.status = "Media inserted."
+	if hostclient.LiveMediaCapable(prior.CorePackage) {
+		a.status = "Tape armed."
+	}
 }
 
 func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.SessionResult) {
@@ -636,8 +604,11 @@ func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.Session
 		return
 	}
 	a.applySessionLocked(result)
-	a.closeTapePickerLocked()
-	a.status = "Tape ejected."
+	a.dismissMediaControlsLocked()
+	a.status = "Media ejected."
+	if hostclient.LiveMediaCapable(prior.CorePackage) {
+		a.status = "Tape ejected."
+	}
 }
 
 func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclient.SessionResult) (hostclient.SessionResult, error) {
@@ -660,7 +631,7 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclie
 			case <-timer.C:
 			}
 		}
-		result, err = client.ClearLiveMediaForSession(ctx, prior)
+		result, err = client.ClearRemovableMediaForSession(ctx, prior)
 		if err == nil || !ejectRetryable(err) {
 			return result, err
 		}
@@ -685,7 +656,7 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 	if client == nil {
 		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
 	}
-	file, size, name, err := openTapeFile(path)
+	file, size, name, err := openRemovableFile(prior.CorePackage, path)
 	if err != nil {
 		return hostclient.SessionResult{}, err
 	}
@@ -694,8 +665,35 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 	if err != nil {
 		return hostclient.SessionResult{}, err
 	}
-	if !protocol.AdmitTapeMediaSize(media.Size) {
+	if media.Size != size || !hostclient.AdmitRemovableMedia(prior.CorePackage, name, media.Size) {
 		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
 	}
-	return client.ReplaceLiveMediaForSession(ctx, prior, media.MediaID, name)
+	return client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
+}
+
+func openRemovableFile(p *hostclient.SessionCorePackage, path string) (*os.File, int64, string, error) {
+	file, err := os.Open(strings.TrimSpace(path))
+	if err != nil {
+		return nil, 0, "", err
+	}
+	info, err := file.Stat()
+	name := filepath.Base(path)
+	if err != nil {
+		file.Close()
+		return nil, 0, "", err
+	}
+	if !info.Mode().IsRegular() || !hostclient.AdmitRemovableMedia(p, name, info.Size()) {
+		file.Close()
+		return nil, 0, "", fmt.Errorf("media must match the running machine's format and size limits")
+	}
+	return file, info.Size(), name, nil
+}
+
+// A selector opened from play returns directly to the captured machine.
+func (a *App) dismissMediaControlsLocked() {
+	direct := a.mediaControlsDirect
+	a.closeTapePickerLocked()
+	if direct {
+		a.resumeRoomSessionLocked()
+	}
 }
