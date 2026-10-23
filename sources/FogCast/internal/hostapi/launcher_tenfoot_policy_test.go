@@ -62,7 +62,7 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"POST", "/api/v1/core-media", true},
 		{"POST", "/api/v1/core-catalog/install", false},
 		{"POST", "/api/v1/core-catalog/entries", false},
-		{"PUT", "/api/v1/library/firmware", false},
+		{"PUT", "/api/v1/library/firmware", true},
 		{"POST", "/api/v1/debug/ui-events", false},
 		{"PATCH", "/api/v1/library/settings", false},
 		{"PUT", "/api/v1/library/edition-preferences", false},

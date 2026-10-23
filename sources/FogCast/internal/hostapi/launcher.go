@@ -263,8 +263,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedStop := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop"
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
 		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
+		pairedStorage := storageOperation(r.Method, r.URL.Path) || r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware"
 		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || launcherTapeImportPath(r.URL.Path))
-		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport {
+		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport && !pairedStorage {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -279,6 +280,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		}
 		if !launcherOperation(r.Method, r.URL.Path) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
+			return
+		}
+		if pairedStorage {
+			a.routes.ServeHTTP(w, r)
 			return
 		}
 		if pairedMedia {
@@ -529,6 +534,9 @@ func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func launcherOperation(method, path string) bool {
+	if storageOperation(method, path) || method == http.MethodPut && path == "/api/v1/library/firmware" {
+		return true
+	}
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}

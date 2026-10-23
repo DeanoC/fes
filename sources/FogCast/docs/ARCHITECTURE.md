@@ -730,8 +730,7 @@ unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. It applies the active interface and reported size limits
 before import; the host and runtime validate the object again. ZX81 also
 shows the existing starter-tape shelf. Files come from the launcher machine
-(home, mounted media and accessible library roots); the picker does not browse
-remote host paths. Import, insert and eject retain the session captured when
+(home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
 observed DDR and display interfaces, and a supported observed unit 0 for disk
 or Spectrum media. The host, target agent and runtime adapter share that
@@ -3472,3 +3471,51 @@ fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 # To recover an update that fails only during a later interaction:
 fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
 ```
+
+## BIOS and media drives
+
+**Settings → BIOS & media drives** in tenfoot selects either **This device**
+(the kit or computer running tenfoot) or **FogCast host** (the API server).
+Both locations can discover USB filesystems, remember a drive by filesystem
+UUID, and add an SMB share as `//server/share` (also `smb://server/share`).
+SMB accepts an optional username, domain and password; an empty username uses
+Guest. A nonstandard SMB port can be included as `//server:port/share`.
+Connections and separate BIOS/media start folders are saved on the machine
+that owns the drive. They survive launcher and host restarts. Disconnected
+saved drives remain listed; opening them again reconnects or reports an error.
+
+The browser's Settings has the host drive manager. **From host drive** in
+FPGA library setup and media import browses those same host drives. A browser
+cannot inspect a kit's locally attached USB devices; use the kit's tenfoot
+settings for those. Tenfoot's BIOS, Systems ROM/media, expansion, next-start
+cassette and live tape/disk selectors all include saved local and host drives.
+Import continues through the existing media store and explicit BIOS/media
+selection APIs. Selecting a drive or folder never changes a running core.
+
+`storage` owns connection settings, USB discovery, rooted enumeration and
+bounded regular-file reads. SMB2/3 is read directly with the Go SMB client;
+it needs neither a kernel mount nor root privileges. Each operation owns its
+connection, and cancellation closes the socket. USB discovery filters sysfs
+through `appliance/blockprobe` before querying only usable USB devices with
+`lsblk`; internal SD/system disks and optical or not-ready devices are excluded.
+An existing USB mount is reused. An unmounted kit volume is mounted read-only
+with `nosuid,nodev,noexec`; desktop users use `udisksctl` without interactive
+authorization. FAT, exFAT and ext4 use the kit kernel; NTFS uses `ntfs-3g`.
+Desktop hosts need `lsblk` and an existing mount or desktop device permission.
+
+The host composes `storage.Manager` with `drives.json` beside its canonical
+configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
+its existing persistent configuration directory. Writes atomically replace a
+0600 file, including credentials; inventory and save responses expose only
+`password_set`. Blank password plus `password_set:true` preserves a stored
+password; clearing it is explicit. The two stores remain independent of
+library settings and target selection.
+
+The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
+drive-relative `entries`/`file` operations, and the existing explicit household
+firmware selection. It still requires the configured pairing bearer and target
+identity. API reads cannot address arbitrary host paths: USB reads use
+`os.Root`, reject escaping paths and nonregular files, and are limited to
+32 MiB. SMB reads stay relative to the selected share. Directory and connection
+work runs outside the tenfoot app lock. Existing game/session/package admission
+and captured live-media identity checks remain in force after import.

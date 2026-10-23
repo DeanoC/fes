@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/storage"
 )
 
 // Service is the host operation surface used by the privacy-safe application API.
@@ -194,6 +195,7 @@ type apiError struct {
 }
 
 type serverOptions struct {
+	storage            *storage.Manager
 	remoteInput        host.RemoteInputController
 	remoteInputFactory func(string) host.RemoteInputController
 	media              MediaSession
@@ -279,6 +281,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 	}
 	mux := http.NewServeMux()
+	registerStorage(mux, config.storage)
 	registerCoreLibrary(mux, service)
 	registerKitSoftwareInventory(mux, service)
 	registerCoreData(mux, service)

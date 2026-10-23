@@ -106,6 +106,7 @@ function assembleProductionHTML(metadataMode = 'normal', options = {}) {
     ? 'globalThis.FogCastPrefetchVisibleCovers = true;'
     : '';
   const replacements = {
+    '{{FOGCAST_STORAGE}}': `<script>${readAsset('ui_storage.js')}</script>`,
     '{{FOGCAST_CORE_LIBRARY}}': `<script>${readAsset('ui_core_library.js')}</script>`,
     '{{FOGCAST_STYLES}}': `<style>${styles}</style>`,
     '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;${prefetch}globalThis.FogCastAttractDisabled = ${attractDisabled};${attractIdle}</script><script>${app}</script>`,

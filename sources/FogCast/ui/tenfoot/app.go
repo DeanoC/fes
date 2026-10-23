@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/storage"
 	"image"
 	"io/fs"
 	"net"
@@ -273,6 +274,7 @@ type Snapshot struct {
 	DebugHUD        DebugHUDSnapshot
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
+	Storage         FirmwarePickerSnapshot
 	CoreLibrary     FirmwarePickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
 	TapePicker      TapePickerSnapshot
@@ -295,6 +297,11 @@ type DebugHUDSnapshot struct {
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
 type App struct {
+	driveManager            *storage.Manager
+	localDrives, hostDrives []storage.Drive
+	driveRootsGen           int
+	driveSettings           driveSettingsState
+
 	coreLibrary coreLibraryState
 	client      *Client
 	ctx         context.Context
@@ -966,6 +973,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 	}
 	a.localStatus = ""
+	if a.driveSettings.Open {
+		if a.settingsOSKOpenLocked() {
+			a.handleSettingsOSKLocked(cmd)
+		} else {
+			a.handleDriveSettingsLocked(cmd)
+		}
+		return
+	}
 	if a.coreLibrary.Open {
 		if a.settingsOSKOpenLocked() {
 			a.handleSettingsOSKLocked(cmd)
@@ -1792,6 +1807,7 @@ func (a *App) Snapshot() Snapshot {
 		DebugHUD:                a.debugHUDSnapshotLocked(),
 		Room:                    a.roomSnapshotLocked(true),
 		RoomPicker:              a.roomPickerSnapshotLocked(),
+		Storage:                 a.driveSettingsSnapshotLocked(),
 		CoreLibrary:             a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
 		TapePicker:              a.tapePickerSnapshotLocked(),
@@ -1904,6 +1920,12 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		snap := a.settingsOSKField.Snapshot()
 		snap.Open = true
 		switch a.settingsOSKKind {
+		case settingsOSKDriveField:
+			snap.Prompt = "SMB " + a.driveSettings.Status
+			if a.driveSettings.Status == "password" {
+				snap.Masked = true
+				snap.Buffer = shared.MaskSecret(a.settingsOSKField.Buffer)
+			}
 		case settingsOSKLibraryPath:
 			snap.Prompt = "Library path"
 		case settingsOSKTargetName:

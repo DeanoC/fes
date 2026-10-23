@@ -6708,6 +6708,7 @@
     nodes.attract.addEventListener('click', exitAttract);
   }
   if (nodes.settings) nodes.settings.hidden = true;
+  if (root.FogCastStorage) root.FogCastStorage.mount(document,root.fetch.bind(root));
   if (root.FogCastCoreLibrary) {
     root.FogCastCoreLibrary.mount(document, root.FogCastCoreLibrary.createController({
       fetchImpl: root.fetch.bind(root),

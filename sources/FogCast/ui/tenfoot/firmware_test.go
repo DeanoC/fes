@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -72,10 +73,10 @@ func TestOpenColecoBIOSFileRejectsWrongSize(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := openColecoBIOSFile(path); err == nil || !strings.Contains(err.Error(), "8192") {
+	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), path, nil); err == nil || !strings.Contains(err.Error(), "8192") {
 		t.Fatalf("wrong size err = %v", err)
 	}
-	if _, _, err := openColecoBIOSFile(dir); err == nil || !strings.Contains(err.Error(), "regular file") {
+	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), dir, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
 		t.Fatalf("directory err = %v", err)
 	}
 }

@@ -3,10 +3,8 @@ package tenfoot
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
@@ -109,8 +107,8 @@ func (a *App) handleHardwarePickerLocked(row FirmwarePickerRow) {
 	} else {
 		return
 	}
-	home, _ := os.UserHomeDir()
-	s.Files = firmwarePickerRoots(home, a.hostSettings.Libraries)
+	s.Files = a.storagePickerRootsLocked("media")
+	a.refreshStorageRootsLocked()
 	s.Path = ""
 	s.Index = 0
 }
@@ -152,22 +150,16 @@ func (a *App) importHardwareFileLocked(path string) {
 	s := &a.coreLibrary
 	mode, game, pkg, expected := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID
 	family := hardwareExpansionFamilies[s.ExpansionFamily]
+	manager := a.driveManagerLocked()
 	var selected hostclient.CoreEntry
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		f, size, name, err := openPickerFile(ctx, manager, a.client, path)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("choose a regular file")
-		}
 		if mode == "expansions" {
-			asset, err := a.client.ImportCoreExpansion(ctx, info.Size(), f)
+			asset, err := a.client.ImportCoreExpansion(ctx, size, f)
 			if err != nil {
 				return err
 			}
@@ -176,10 +168,10 @@ func (a *App) importHardwareFileLocked(path string) {
 			}
 			return a.client.DescribeCoreExpansion(ctx, asset.ExpansionID, family.label, family.description, family.inProgress)
 		}
-		if !protocol.AdmitTapeMediaName(info.Name()) || !protocol.AdmitTapeMediaSize(info.Size()) {
+		if !protocol.AdmitTapeMediaName(name) || !protocol.AdmitTapeMediaSize(size) {
 			return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
 		}
-		media, err := a.client.ImportCoreMedia(ctx, info.Size(), f)
+		media, err := a.client.ImportCoreMedia(ctx, size, f)
 		if err != nil {
 			return err
 		}
