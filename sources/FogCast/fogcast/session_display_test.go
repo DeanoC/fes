@@ -53,3 +53,38 @@ func TestDisplayAndLiveIdentityStayOnCapturedKitWhenForegroundChanges(t *testing
 		t.Fatal("display failure retired play")
 	}
 }
+
+func TestDisplayServiceAdmitsObservedDiskAndSpectrumOnCapturedKit(t *testing.T) {
+	for _, tc := range []struct {
+		contract           protocol.RuntimeContract
+		minBytes, maxBytes uint32
+	}{
+		{protocol.C64DiskInterface(), 174848, 174848}, {protocol.SpectrumTapeInterface(), 1, 65536},
+	} {
+		t.Run(tc.contract.ID, func(t *testing.T) {
+			id := strings.Repeat("a", 64)
+			status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+				PackageID: id, Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+				ActiveInterfaces: []protocol.RuntimeInterface{{ID: tc.contract.ID, Major: tc.contract.Major, Minor: tc.contract.Minor}, {ID: "fes.memory.hps-ddr", Major: 1}, {ID: "fes.video.session-display", Major: 1}},
+				MediaUnits:       []protocol.MediaUnitStatus{{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}},
+			}}
+			target := &displayServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
+			s := &Service{uploadTimeout: time.Second, selectedTarget: "kit-a", activeTarget: "kit-a",
+				targets: []TargetConfig{{Name: "kit-a", TargetID: "target-a", Enabled: true}}, targetClients: map[string]serviceClient{"kit-a": target},
+				plays: map[string]targetPlay{"kit-a": {execution: ExecutionFPGANative, gameID: "computer", system: "c64", packageID: id, packageGeneration: 9}}}
+			b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 9, Target: "kit-a", TargetID: "target-a"}
+			for _, display := range []protocol.SessionDisplay{protocol.SessionDisplayFocused, protocol.SessionDisplayClosed} {
+				if _, err := s.SetSessionDisplay(context.Background(), display, b); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if target.calls != 2 {
+				t.Fatalf("display did not reach target: %d", target.calls)
+			}
+			b.Generation++
+			if _, err := s.SetSessionDisplay(context.Background(), protocol.SessionDisplayFocused, b); err == nil || target.calls != 2 {
+				t.Fatal("stale display reached target")
+			}
+		})
+	}
+}
