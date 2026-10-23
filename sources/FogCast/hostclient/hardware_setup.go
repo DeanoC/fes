@@ -36,6 +36,9 @@ func (c *Client) ZX81Tapes(ctx context.Context) ([]HardwareTape, error) {
 	return result.Tapes, err
 }
 
+// ImportZX81Tape copies the host's embedded starter into its media store. It
+// uses the ordinary bounded client: it does not fetch SourceURL or touch the
+// FPGA. The later media insert owns the longer physical-operation deadline.
 func (c *Client) ImportZX81Tape(ctx context.Context, tape HardwareTape) (CoreMedia, error) {
 	if tape.ID == "" || protocol.ValidateDigest(tape.SHA256) != nil {
 		return CoreMedia{}, fmt.Errorf("invalid tape identity")

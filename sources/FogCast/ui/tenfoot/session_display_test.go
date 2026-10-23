@@ -98,14 +98,48 @@ func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
 	}
 }
 
-func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
-	prior := computerTapeDisplaySession()
+func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		contract           protocol.RuntimeContract
+		minBytes, maxBytes uint32
+	}{
+		{"zx81", protocol.Zx81TapeInterface(), 1, 16384},
+		{"spectrum", protocol.SpectrumTapeInterface(), 1, 65536},
+		{"apple2", protocol.Apple2FloppyInterface(), 143360, 143360},
+		{"c64", protocol.C64DiskInterface(), 174848, 174848},
+		{"atari-st", protocol.AtariStFloppyInterface(), 737280, 737280},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prior := computerTapeDisplaySession()
+			prior.CorePackage.ActiveInterfaces[0] = hostclient.SessionCoreInterface{ID: tc.contract.ID, Major: tc.contract.Major, Minor: tc.contract.Minor}
+			prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}
+			testKitComputerMediaDisplay(t, prior)
+		})
+	}
+}
+
+func testKitComputerMediaDisplay(t *testing.T, prior hostclient.SessionResult) {
+	t.Helper()
 	var mu sync.Mutex
 	var visible []bool
 	presenter := &countingSessionMenu{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/session/display" {
 			http.NotFound(w, r)
+			return
+		}
+		// Use the same admission predicate as the host service, target agent and
+		// runtime adapter. A display-capable UI projection alone is insufficient.
+		b, valid := protocol.DevelopmentMediaHeaders(r.Header)
+		p := prior.CorePackage
+		observed := &protocol.CorePackageStatus{PackageID: p.PackageID, Generation: p.Generation,
+			ABI: protocol.RuntimeContract{ID: p.ABI.ID, Major: p.ABI.Major, Minor: p.ABI.Minor}, MediaUnits: p.MediaUnits}
+		for _, i := range p.ActiveInterfaces {
+			observed.ActiveInterfaces = append(observed.ActiveInterfaces, protocol.RuntimeInterface{ID: i.ID, Major: i.Major, Minor: i.Minor})
+		}
+		if !valid || !b.MatchesSessionDisplay(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observed}) {
+			http.Error(w, "session display identity rejected", http.StatusConflict)
 			return
 		}
 		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}

@@ -732,8 +732,16 @@ before import; the host and runtime validate the object again. ZX81 also
 shows the existing starter-tape shelf. Files come from the launcher machine
 (home, mounted media and accessible library roots); the picker does not browse
 remote host paths. Import, insert and eject retain the session captured when
-the selector opened. Mutations use a bounded 450-second transport without
-the normal polling timeout and are never replayed after a lost response.
+the selector opened. Session-display admission checks the captured generation,
+observed DDR and display interfaces, and a supported observed unit 0 for disk
+or Spectrum media. The host, target agent and runtime adapter share that
+admission predicate; the native runtime already admits the observed display
+interface independently of media type. Insert and eject use a bounded
+450-second transport without the normal polling timeout and are never replayed
+after a lost response. Starter import uses the ordinary bounded HTTP client:
+it copies at most 16 KiB of embedded host bytes into the host media store,
+without fetching the attribution URL or contacting the FPGA. Only the later
+insert needs the physical-operation budget.
 Successful insert/eject and Back at the picker roots return directly to play.
 A failed display return retains the binding and Back retries that return.
 Back posts `visible: false`, which quiesces the plane and restores the
