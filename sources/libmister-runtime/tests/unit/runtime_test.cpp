@@ -1254,12 +1254,15 @@ void TestMenuGenerationAndPreparationFencing()
  assert(menu.available&&menu.generation!=0&&f.runtime.status().generation==0);
  std::unique_ptr<mister::MenuFrame> frame;
  assert(!f.runtime.BeginMenuFrame(0,&frame).ok());
- assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+ assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==1);
  std::unique_ptr<mister::MenuFrame> second;
  assert(f.runtime.BeginMenuFrame(menu.generation,&second).code==ErrorCode::busy);
  mister::MenuDisplayInfo info;
  assert(f.hardware.menu_present_slots.empty());
  assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==1);
+ // Every preparation counts, presented or abandoned.
+ frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==2);
+ frame.reset();assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());assert(frame->preparation()==3);
  f.hardware.admission_result={ErrorCode::invalid_package,"bad package"};
  frame.reset();assert(!f.runtime.LoadCore("/game",id).ok());assert(f.runtime.status().menu_display.generation==menu.generation);
  assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
@@ -1273,7 +1276,8 @@ void TestMenuGenerationAndPreparationFencing()
  assert(f.runtime.Stop().ok());const auto fresh=f.runtime.status().menu_display;
  assert(fresh.available&&fresh.generation>menu.generation);
  assert(!f.runtime.PresentMenuFrame(fresh.generation,*frame,&info).ok());
- frame.reset();assert(f.runtime.BeginMenuFrame(fresh.generation,&frame).ok());
+ // A new generation counts its preparations from 1 again.
+ frame.reset();assert(f.runtime.BeginMenuFrame(fresh.generation,&frame).ok());assert(frame->preparation()==1);
  assert(f.runtime.ConfigureMenuPackage("relative",id).code==ErrorCode::invalid_request);
 }
 

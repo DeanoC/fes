@@ -250,10 +250,16 @@ module st_ikbd #(
     wire signed [31:0] delta_y = y_bottom ? -32'(mouse_dy) : 32'(mouse_dy);
     wire signed [31:0] report_x = packet_motion(relative_x);
     wire signed [31:0] report_y = packet_motion(relative_y);
-    wire motion_due = relative_x >= $signed({24'd0,threshold_x}) ||
-                      relative_x <= -$signed({24'd0,threshold_x}) ||
-                      relative_y >= $signed({24'd0,threshold_y}) ||
-                      relative_y <= -$signed({24'd0,threshold_y});
+    // |value| >= threshold for a byte threshold, without 32-bit carry chains
+    // in packet selection. Equal to value >= threshold || value <= -threshold
+    // for every 32-bit value and threshold, including zero.
+    function automatic beyond_threshold(input signed [31:0] value, input [7:0] threshold);
+        if (!value[31]) beyond_threshold = value[30:8] != 0 || value[7:0] >= threshold;
+        else beyond_threshold = value[30:8] != {23{1'b1}} || value[7:0] == 0 ||
+                                9'd256 - {1'b0,value[7:0]} >= {1'b0,threshold};
+    endfunction
+    wire motion_due = beyond_threshold(relative_x, threshold_x) ||
+                      beyond_threshold(relative_y, threshold_y);
     always @* begin
         for (integer p=0;p<8;p=p+1) packet[p]=0;
         packet_length=0; key_packet=0; mouse_packet=0; joystick0_packet=0; joystick1_packet=0;

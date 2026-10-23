@@ -99,8 +99,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
   role that package declares: `cassette` on the tape unit, inserted into unit 0
   after Start, or `blob` on an installed `fes.simple-computer` package. On a
-  menu-display kit, ZX81 HDMI controls use `fes.video.session-display` and
-  restore machine video on return. A setup
+  menu-display kit, Home or Select/View opens **Change media** over the running
+  machine through `fes.video.session-display`. The selector inserts or ejects
+  the active core's supported tape or disk format and returns directly to play.
+  The emulator picture remains visible outside the picker. A setup
   saved earlier as `blob` still launches on the tape unit when the current
   package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES

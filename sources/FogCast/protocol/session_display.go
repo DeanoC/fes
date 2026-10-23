@@ -126,9 +126,20 @@ func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
 	if !SessionDisplayCapable(s.CorePackage) {
 		return false
 	}
-	// The legacy plane rides the blob mailbox. A fes.computer ZX81 tape unit
-	// uses the same plane once the running package reports it.
-	return liveBlobCapable(s.CorePackage) || liveComputerZx81TapeCapable(s.CorePackage)
+	// Preserve the existing blob and ZX81 tape paths. Other supported computers
+	// use the same plane when their unit-0 interface and limits are observed.
+	if liveBlobCapable(s.CorePackage) || liveComputerZx81TapeCapable(s.CorePackage) {
+		return true
+	}
+	unit, ok := MediaUnit(s.CorePackage, 0)
+	if !ok {
+		return false
+	}
+	switch unit.Interface {
+	case Apple2FloppyInterface(), C64DiskInterface(), AtariStFloppyInterface(), SpectrumTapeInterface():
+		return true
+	}
+	return false
 }
 
 func SessionDisplayIdentityError() *APIError {

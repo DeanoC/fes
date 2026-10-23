@@ -750,6 +750,9 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
    }
   } else {
    output.Append(",\"slot\":");output.Append(std::to_string(menu_frame->slot));
+   if(menu_frame->kind==Kind::prepared) {
+    output.Append(",\"preparation\":");output.Append(std::to_string(menu_frame->preparation));
+   }
   }
   if(menu_frame->kind==Kind::presented) {
    output.Append(",\"displayed_sequence\":");output.Append(std::to_string(menu_frame->displayed_sequence));

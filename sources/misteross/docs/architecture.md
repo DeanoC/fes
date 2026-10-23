@@ -181,14 +181,17 @@ The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
-nextpnr `552ba246` (fes#887), RISC-V's `8f453ebc`, ZX81's `1eecf877`
-(fes#936), and Coleco's pins Yosys `5391eeb1`; each distinct lock selects its
+nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
+`8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1`; each selects its
 own slot. Apple II, Atari ST (fes#910), C64, Coleco and Spectrum also pin
-nextpnr `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. The
-Atari ST video-part producer authenticates the ST lock and validates the same
-map. The Coleco development shell remains on `9128800f` and validates its C/D
-map. The remaining per-core locks that match `toolchain.lock` share its
-slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+nextpnr `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map; the
+Apple II, C64 and Spectrum locks are byte copies of each other and share one
+slot, and the Atari ST lock has its own. The Atari ST video-part producer
+authenticates the ST lock and validates the same map. The Coleco development
+shell remains on `9128800f` and validates its C/D map. The other five
+per-core locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`,
+so those cores share that slot.
+Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -404,8 +407,9 @@ timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
 `CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
-`toolchain.lock` (nextpnr `9128800f`). Pong's own lock pins nextpnr
-`552ba246`, so Pong uses a separate slot.
+`toolchain.lock` (nextpnr `9128800f`). Pong's lock pins nextpnr `552ba246`,
+so Pong uses a separate slot; [shared compiler installation](#shared-compiler-installation)
+lists the other per-core slots.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
@@ -582,9 +586,11 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Every lock except Coleco currently
-contains identical commits and shares one compiler-cache slot. Coleco pins
-Yosys `5391eeb1` and has its own slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. Five locks contain the repository-level
+commits and share its compiler-cache slot. Apple II, C64 and Spectrum share
+a second slot on nextpnr `5fe55f3d` (nextpnr #276). Pong (nextpnr
+`552ba246`), ZX81 (`1eecf877`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`)
+and Coleco (Yosys `5391eeb1` with nextpnr `5fe55f3d`) each have their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,

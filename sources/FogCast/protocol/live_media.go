@@ -58,6 +58,17 @@ func AdmitTapeMediaSize(size int64) bool {
 	return size >= 1 && size <= MaxDevelopmentMediaBytes
 }
 
+// MaxRemovableMediaBytes bounds one image for every unit the running media
+// selector changes, including the legacy blob mailbox.
+const MaxRemovableMediaBytes = max(MaxDevelopmentMediaBytes, Zx81TapeMaxBytes, SpectrumTapeMaxBytes,
+	Apple2FloppyBytes, C64DiskBytes, AtariStFloppyBytes, AtariStFloppyGeometryMaxBytes)
+
+// AdmitRemovableMediaSize bounds a kit launcher import. The running unit
+// still applies its own format and size limits on insert.
+func AdmitRemovableMediaSize(size int64) bool {
+	return size >= 1 && size <= MaxRemovableMediaBytes
+}
+
 // MatchesLive admits the legacy mailbox generation. A fes.computer ZX81 tape
 // insert uses the media unit and does not pass this mailbox check.
 func (b DevelopmentMediaBinding) MatchesLive(s Status) bool {
