@@ -197,7 +197,9 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             factory.ORDINARY_RESOURCES | set(factory.REQUIRED_RESOURCES) |
             factory.FORBIDDEN_RESOURCES | factory.REQUIRED_ZERO_RESOURCES)
         synthesis_counts = _cell_counts(json.loads((output / "cart.json").read_bytes()))
-        if any(synthesis_counts.get(name, 0) for name in factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES)):
+        # The shell may use DSP blocks; a video part never does.
+        if any(synthesis_counts.get(name, 0) for name in
+               factory.FORBIDDEN_RESOURCES | factory.DSP_RESOURCES | set(factory.REQUIRED_RESOURCES)):
             raise ValueError("video part must not own DSP, PLL or HPS resources")
         checked_clocks = validate_clocks(json.loads((output / "cart-routed.json").read_bytes()), layout=layout)
         if variant == "scanlines" and not checked_clocks:

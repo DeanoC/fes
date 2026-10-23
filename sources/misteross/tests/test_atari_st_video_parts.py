@@ -405,7 +405,7 @@ class FullProducer(unittest.TestCase):
                 self.assertEqual(summary['recipe']['execution']['gpu_device'], 1)
 
     def test_failures_never_publish_a_part(self):
-        for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
+        for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch','DSP'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
                 f=CompilerFixture(Path(tmp))
                 if name.endswith('timing'):
@@ -413,6 +413,7 @@ class FullProducer(unittest.TestCase):
                     f.timing['fmax'][clock]['achieved']=1
                 elif name=='wrong clock':f.clock=10
                 elif name=='RAM':f.synthesis['modules']['cart']['cells']['ram']={'type':'MISTRAL_M10K'}
+                elif name=='DSP':f.synthesis['modules']['cart']['cells']['mul']={'type':'MISTRAL_MUL9X9'}
                 elif name=='header':f.placed.header=b'changed-header'
                 elif name=='outside strict column':cram_set(f.placed.cram,f.placed.die,3921,3500,1)
                 elif name=='source mutation':f.after_route=lambda output:(f.root/producer.SOURCES[0]).write_bytes(b'changed-source')
