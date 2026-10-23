@@ -134,6 +134,45 @@ class ParentAffectedTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(policy.select_groups([path]), expected)
 
+    def test_reviewed_planner_and_gate_inputs_keep_policy_and_build(self):
+        for path in ('scripts/affected.py', 'scripts/ci_gate.py', 'scripts/check_diff.py',
+                     'tests/test_affected.py', 'tests/test_ci_gate.py',
+                     'tests/test_check_diff.py', 'tests/test_test_changed.py'):
+            with self.subTest(path=path):
+                paths = [path, 'docs/test-changed.md']
+                groups = policy.select_groups(paths)
+                self.assertEqual(groups, {'policy', 'build'})
+                modules = policy.selected_modules(groups, [], paths)
+                self.assertTrue({'test_ci_gate', 'test_affected', 'test_test_changed',
+                                 'test_ci_workflow', 'test_hil_plan', 'test_status'} <= modules)
+                self.assertTrue(policy.DOCUMENTATION_MODULES <= modules)
+                self.assertNotIn('test_media', modules)
+                self.assertNotIn('test_package_acceptance', modules)
+
+    def test_planner_inputs_union_consumers_and_keep_selector_edits_full(self):
+        self.assertEqual(policy.select_groups(['scripts/affected.py', 'scripts/appliance.py']),
+                         {'policy', 'build', 'media'})
+        self.assertEqual(policy.select_groups(['scripts/ci_gate.py', ROOM], video=True),
+                         {'policy', 'build', 'packages'})
+        for path in ('scripts/parent_affected.py', 'scripts/parent_tests.py',
+                     'tests/test_parent_affected.py', 'scripts/test_policy.py',
+                     'scripts/test_changed.py', 'scripts/affected_other.py',
+                     'tests/test_new_policy.py', '<new-branch>'):
+            with self.subTest(path=path):
+                self.assertIsNone(policy.select_groups(['scripts/affected.py', path]))
+
+    def test_planner_group_filter_keeps_gate_failures_and_omits_unrelated_setup(self):
+        modules = policy.selected_modules(policy.select_groups(['scripts/ci_gate.py']), [])
+        suite = unittest.TestSuite([case('test_ci_gate', fail=True),
+                                   case('test_media', fail=True), case('test_status')])
+        kept, _, omitted = parent_tests.filter_suite(suite, video=False, media=False, modules=modules)
+        result = unittest.TestResult()
+        kept.run(result)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(len(result.errors), 1)
+        self.assertIn('test_ci_gate', str(result.errors))
+        self.assertEqual(omitted, ['test_media.Case.test_case'])
+
     def test_parent_mixed_paths_and_modes_union_coverage(self):
         paths = ['scripts/appliance_media.py', 'tests/test_core_build.py']
         self.assertEqual(policy.select_groups(paths), {'policy', 'build', 'media', 'packages'})
