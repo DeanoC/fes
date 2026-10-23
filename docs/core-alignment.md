@@ -37,7 +37,7 @@ These are the choices already in the tree at `6d9939c2`.
    `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
    nextpnr `9128800f`, deliberately before nextpnr #172. Pong's lock keeps that
    Yosys and Mistral and pins nextpnr `552ba246` (fes#887), RISC-V's pins
-   `8f453ebc`, ZX81's pins `1eecf877` (fes#936) and Atari ST's pins `14d21d4b`
+   `8f453ebc`, ZX81's pins `1eecf877` (fes#936) and Atari ST's pins `5fe55f3d`
    (DeanoC/nextpnr#276, fes#910).
    Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr commits.
    Each distinct lock has its own cache slot. HIP architectures are

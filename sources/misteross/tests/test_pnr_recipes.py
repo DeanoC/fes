@@ -41,7 +41,7 @@ LOCK_SHA256 = {
     "fes.pentagon": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
-    "fes.atari-st": "a6a554575d7fda1bb4ad0d5ae9bee479cc88e4b1af8bb7330e48b5c0bd9c63a1",
+    "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
 }
 # Source-derived hashes of the complete CLI option-name sets from nextpnr's
 # add_options() declarations. Schemas are indexed by the set itself, not pins.
