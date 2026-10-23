@@ -35,7 +35,11 @@ type blitTestClient struct {
 }
 
 func newBlitTestClient(blitter bool) *blitTestClient {
-	return &blitTestClient{generation: 3, blitter: blitter, slot: make([]byte, menudisplay.FrameBytes)}
+	client := &blitTestClient{generation: 3, blitter: blitter, slot: make([]byte, menudisplay.FrameBytes)}
+	if blitter {
+		client.minor = menudisplay.MinBlitterMinor
+	}
+	return client
 }
 
 func (c *blitTestClient) Status(context.Context) (menudisplay.Status, error) {
@@ -81,7 +85,7 @@ func (c *blitTestClient) PresentBlit(_ context.Context, generation uint64, frame
 		if reads && op.Source.Coverage != (op.Kind == menudisplay.BlitExpand) {
 			return menudisplay.Result{}, fmt.Errorf("op %d reads the wrong format: %+v", i, op)
 		}
-		if op.Kind == menudisplay.BlitExpand && c.minor < menudisplay.ExpandMinor {
+		if op.Kind == menudisplay.BlitExpand && c.minor < menudisplay.MinBlitterMinor {
 			return menudisplay.Result{}, fmt.Errorf("op %d: blitter 1.%d has no expand", i, c.minor)
 		}
 	}
@@ -135,6 +139,15 @@ func (c *blitTestClient) counts() (lists, cpu int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return len(c.lists), len(c.cpu)
+}
+
+func (c *blitTestClient) lastCPU() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.cpu) == 0 {
+		return nil
+	}
+	return bytes.Clone(c.cpu[len(c.cpu)-1])
 }
 
 // sameRGB reports whether a blitter slot shows what Software drew.
@@ -280,15 +293,12 @@ func newPair(t *testing.T, client MenuPresenter, r *rand.Rand) *pair {
 }
 
 func TestMenuDisplayListFramesDrawWhatSoftwareDraws(t *testing.T) {
-	// Text expands on a 1.1 blitter and blends its expanded colour on 1.0.
-	for _, minor := range []int{0, menudisplay.ExpandMinor} {
-		t.Run(fmt.Sprintf("blitter 1.%d", minor), func(t *testing.T) { testListFramesDrawWhatSoftwareDraws(t, minor) })
-	}
+	t.Run("supported blitter", func(t *testing.T) { testListFramesDrawWhatSoftwareDraws(t) })
 }
 
-func testListFramesDrawWhatSoftwareDraws(t *testing.T, minor int) {
+func testListFramesDrawWhatSoftwareDraws(t *testing.T) {
 	client := newBlitTestClient(true)
-	client.minor = minor
+	client.minor = menudisplay.MinBlitterMinor
 	r := rand.New(rand.NewPCG(949, 2))
 	expands := 0
 	p := newPair(t, client, r)
@@ -329,16 +339,17 @@ func testListFramesDrawWhatSoftwareDraws(t *testing.T, minor int) {
 			}
 		}
 	}
-	if (expands > 0) != (minor >= menudisplay.ExpandMinor) {
-		t.Fatalf("%d expands on blitter 1.%d", expands, minor)
+	if expands == 0 {
+		t.Fatal("supported blitter received no text expands")
 	}
 }
 
-// A frame drawn for a 1.1 blitter, presented after the grant changed to a
-// 1.0 one, is rasterized and copied whole.
-func TestMenuDisplayCopiesExpandsForABlitterWithoutThem(t *testing.T) {
+// A grant below the minimum disables blitter use for the current and next
+// frames. A frame already recorded as a list is rasterized by the generic CPU
+// presentation path.
+func TestMenuDisplaySelectsCPUForUnsupportedBlitterMinor(t *testing.T) {
 	client := newBlitTestClient(true)
-	client.minor = menudisplay.ExpandMinor
+	client.minor = menudisplay.MinBlitterMinor
 	d, err := NewMenuDisplayWithPresenter(client)
 	if err != nil {
 		t.Fatal(err)
@@ -346,25 +357,26 @@ func TestMenuDisplayCopiesExpandsForABlitterWithoutThem(t *testing.T) {
 	t.Cleanup(d.Close)
 	sw, _ := NewSoftware(1280, 720)
 	for frame := 0; frame < 3; frame++ {
-		if frame == 2 {
-			client.mu.Lock()
-			client.minor = 0
-			client.mu.Unlock()
-		}
 		for _, dev := range []Device{sw, d} {
 			dev.BeginFrame()
 			dev.Clear(RGB(9, 9, 40))
 			dev.DrawText(100, 100, "Mushroom Kingdom", 24, RGBA(250, 240, 200, 200))
 		}
+		want := sw.Snapshot()
+		if frame == 1 {
+			client.mu.Lock()
+			client.minor = menudisplay.MinBlitterMinor - 1
+			client.mu.Unlock()
+		}
 		d.Present()
 		waitIdle(t, d)
-	}
-	list := client.lastList()
-	if len(list) != 1 || list[0].Kind != menudisplay.BlitCopy {
-		t.Fatalf("last list %+v", list)
-	}
-	if err := sameRGB(client.slot, sw.Snapshot().Pix); err != nil {
-		t.Fatal(err)
+		lists, cpu := client.counts()
+		if lists != 1 || cpu != frame {
+			t.Fatalf("frame %d: %d lists, %d CPU frames", frame, lists, cpu)
+		}
+		if frame > 0 && !bytes.Equal(client.lastCPU(), want.Pix) {
+			t.Fatalf("frame %d: CPU frame differs from Software", frame)
+		}
 	}
 }
 

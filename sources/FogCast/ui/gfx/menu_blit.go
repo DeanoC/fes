@@ -32,19 +32,16 @@ const (
 	frameBlit
 )
 
-// latch picks the frame's mode: the blitter when the last grant had one.
-// A blitter that expands draws the frame's masks; otherwise they are
-// expanded on the CPU and blended.
+// latch picks the frame's mode: the blitter when the last grant selected it.
 func (d *MenuDisplay) latch() frameMode {
 	if d.mode != frameUnlatched {
 		return d.mode
 	}
 	d.mu.Lock()
-	blit, minor := d.blitReady, d.blitMinor
+	blit := d.blitReady
 	d.mu.Unlock()
 	if blit {
 		d.mode, d.ops, d.needBase = frameBlit, nil, true
-		d.expand = minor >= menudisplay.ExpandMinor
 	} else {
 		d.mode = frameCPU
 	}
@@ -251,8 +248,7 @@ func (d *MenuDisplay) DrawTextWeight(x, y int, text string, sizePx int, w Weight
 	d.DrawMask(m, src, x, y, c)
 }
 
-// DrawMask records an expand, or on a blitter without one a blend of the
-// mask expanded in c: the same pixels.
+// DrawMask records an expand for the selected menu blitter.
 func (d *MenuDisplay) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
 	if d.latch() != frameBlit {
 		d.cpuBase()
@@ -264,19 +260,8 @@ func (d *MenuDisplay) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) 
 	if !ok || c.A == 0 {
 		return
 	}
-	if d.expand {
-		d.ops = append(d.ops, menudisplay.BlitOp{Kind: menudisplay.BlitExpand, X: at.X, Y: at.Y, W: src.Dx(), H: src.Dy(),
-			Color: argb(c), Source: m.blitSource(), SourceX: src.Min.X, SourceY: src.Min.Y})
-		return
-	}
-	key := expandKey{weak.Make(m), c}
-	bm, ok := d.blitCache.expanded.get(key)
-	if !ok {
-		img := ExpandMask(m, m.Bounds(), c)
-		bm = &swBitmap{w: m.W, h: m.H, stride: img.Stride, pix: img.Pix}
-		d.blitCache.expanded.put(key, bm, bm.h*bm.stride)
-	}
-	d.blitBitmap(bm, src.Min.X, src.Min.Y, at.X, at.Y, at.X+src.Dx(), at.Y+src.Dy(), at.X, at.Y)
+	d.ops = append(d.ops, menudisplay.BlitOp{Kind: menudisplay.BlitExpand, X: at.X, Y: at.Y, W: src.Dx(), H: src.Dy(),
+		Color: argb(c), Source: m.blitSource(), SourceX: src.Min.X, SourceY: src.Min.Y})
 }
 
 // Framebuffer returns the frame drawn so far. While the blitter draws the
@@ -410,25 +395,16 @@ type debugKey struct {
 	scale int
 }
 
-// expandKey does not keep its mask alive, like scaledKey.
-type expandKey struct {
-	mask  weak.Pointer[Mask]
-	color Color
-}
-
 // blitCaches keep the bitmaps a list frame draws from that Software makes
-// for each call: scaled copies, debug glyphs, and on a blitter without
-// expand, masks expanded in a colour.
+// for each call: scaled copies and debug glyphs.
 type blitCaches struct {
-	scaled   *lru[scaledKey, *swBitmap]
-	expanded *lru[expandKey, *swBitmap]
-	debug    *lru[debugKey, *swBitmap]
+	scaled *lru[scaledKey, *swBitmap]
+	debug  *lru[debugKey, *swBitmap]
 }
 
 func newBlitCaches() blitCaches {
 	return blitCaches{
-		scaled:   newLRU[scaledKey, *swBitmap](64, 16<<20),
-		expanded: newLRU[expandKey, *swBitmap](512, 8<<20),
-		debug:    newLRU[debugKey, *swBitmap](64, 2<<20),
+		scaled: newLRU[scaledKey, *swBitmap](64, 16<<20),
+		debug:  newLRU[debugKey, *swBitmap](64, 2<<20),
 	}
 }

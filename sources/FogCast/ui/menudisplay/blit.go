@@ -43,8 +43,9 @@ const (
 	BlitExpand BlitKind = 5
 )
 
-// ExpandMinor is the blitter minor that draws BlitExpand.
-const ExpandMinor = 1
+// MinBlitterMinor is the lowest minor selected for menu rendering. Minor 1
+// adds BlitExpand, which tenfoot uses to draw text coverage masks.
+const MinBlitterMinor = 1
 
 // BlitSource is a bitmap of R, G, B, A bytes that copies and blends read,
 // or with Coverage one byte a pixel that expands read. The client uploads it
@@ -119,7 +120,7 @@ func (f BlitFrame) check(minor int) error {
 		switch op.Kind {
 		case BlitFill, BlitFillBlend:
 		case BlitCopy, BlitBlend, BlitExpand:
-			if op.Kind == BlitExpand && minor < ExpandMinor {
+			if op.Kind == BlitExpand && minor < MinBlitterMinor {
 				return fmt.Errorf("menu blit op %d: blitter %d.%d has no expand", i, 1, minor)
 			}
 			s := op.Source

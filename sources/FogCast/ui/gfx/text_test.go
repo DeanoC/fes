@@ -414,7 +414,7 @@ func sameOpaquePixels(a, b *image.RGBA) bool {
 }
 
 // TestDrawMaskIsTheExpandedBlend draws a clipped part of a mask and
-// checks it against blending ExpandMask's RGBA, the menu blitter 1.0 path.
+// checks it against blending the equivalent straight-alpha RGBA texture.
 func TestDrawMaskIsTheExpandedBlend(t *testing.T) {
 	m := &Mask{W: 30, H: 17, Pix: make([]byte, 30*17)}
 	for i := range m.Pix {

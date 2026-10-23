@@ -201,16 +201,13 @@ type MenuDisplay struct {
 	settled          bool
 	settledPresented bool
 	settledErr       error
-	// blitReady is whether the last idle-menu grant had the blitter, and
-	// blitMinor that blitter's minor; the worker sets them.
+	// blitReady is whether the last idle-menu grant selected the blitter.
 	blitReady bool
-	blitMinor int
 	// Render thread: the frame's mode, its commands, and the last finished
 	// frame. cpuStale means the Software buffer lacks that frame because the
 	// blitter drew it; needBase means the list frame has not yet decided
 	// whether it starts from the frame before it.
 	mode      frameMode
-	expand    bool
 	ops       []menudisplay.BlitOp
 	needBase  bool
 	lastOps   []menudisplay.BlitOp
@@ -1035,14 +1032,12 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 		if err != nil {
 			return menudisplay.Result{}, 0, false, err
 		}
+		grant = selectMenuBlitter(grant)
 		d.noteGrant(frame, grant)
 		if grant.Blitter {
 			ops := frame.list
 			if !frame.isList {
 				ops = copyFrameOps(frame.pixels)
-			} else if grant.BlitterMinor < menudisplay.ExpandMinor && slices.ContainsFunc(ops, isExpand) {
-				// Drawn for a blitter that expands; this one does not.
-				ops = copyFrameOps(d.rasterScratch(ops))
 			}
 			result, err := blitter.PresentBlit(d.ctx, status.Generation, menudisplay.BlitFrame{Ops: ops})
 			if errors.Is(err, menudisplay.ErrBlitTooLarge) && frame.isList {
@@ -1065,17 +1060,24 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 	return result, 0, false, err
 }
 
+// selectMenuBlitter excludes grants that cannot draw the coverage masks used
+// by tenfoot. The ordinary CPU presenter handles those frames.
+func selectMenuBlitter(grant menudisplay.Grant) menudisplay.Grant {
+	if grant.Blitter && grant.BlitterMinor < menudisplay.MinBlitterMinor {
+		grant.Blitter = false
+	}
+	return grant
+}
+
 // noteGrant records whether the idle menu's grant has the blitter, which
 // picks the mode of the next frame drawn.
 func (d *MenuDisplay) noteGrant(frame queuedMenuFrame, grant menudisplay.Grant) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if frame.epoch == d.bindingEpoch && frame.binding.packageID == "" {
-		d.blitReady, d.blitMinor = grant.Blitter, grant.BlitterMinor
+		d.blitReady = grant.Blitter
 	}
 }
-
-func isExpand(op menudisplay.BlitOp) bool { return op.Kind == menudisplay.BlitExpand }
 
 // rasterScratch draws a list frame into the worker's frame buffer.
 func (d *MenuDisplay) rasterScratch(ops []menudisplay.BlitOp) []byte {

@@ -35,7 +35,7 @@ func blitReference(list, window, slot []byte, minor int) error {
 			return fmt.Errorf("command %d: rectangle outside the frame", i/CommandBytes)
 		}
 		texture := op == int(BlitCopy) || op == int(BlitBlend)
-		expand := op == int(BlitExpand) && minor >= ExpandMinor
+		expand := op == int(BlitExpand) && minor >= MinBlitterMinor
 		switch {
 		case op == int(BlitFill) || op == int(BlitFillBlend):
 			if w2 != 0 {
@@ -270,26 +270,26 @@ func TestFrameCheckRefusesWhatTheBlitterWouldFaultOn(t *testing.T) {
 		{Kind: BlitExpand, W: 4, H: 1, Source: coverage, SourceX: 5},
 		{Kind: BlitExpand, W: 1, H: 1, Source: &BlitSource{Pix: make([]byte, 8), Stride: 3, W: 4, H: 2, Coverage: true}},
 	} {
-		if err := (BlitFrame{Ops: []BlitOp{op}}).check(ExpandMinor); err == nil || errors.Is(err, ErrBlitTooLarge) {
+		if err := (BlitFrame{Ops: []BlitOp{op}}).check(MinBlitterMinor); err == nil || errors.Is(err, ErrBlitTooLarge) {
 			t.Fatalf("%+v: %v", op, err)
 		}
 	}
 	expand := BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 8, H: 1, Source: coverage}}}
-	if err := expand.check(ExpandMinor); err != nil {
+	if err := expand.check(MinBlitterMinor); err != nil {
 		t.Fatal(err)
 	}
 	if err := expand.check(0); err == nil {
-		t.Fatal("an expand passed for a 1.0 blitter, which faults it")
+		t.Fatal("an expand passed below the minimum blitter minor")
 	}
 	wide := source(16384, 1)
-	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitCopy, W: 1, H: 1, Source: wide}}}).check(ExpandMinor); !errors.Is(err, ErrBlitTooLarge) {
+	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitCopy, W: 1, H: 1, Source: wide}}}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("a source too wide for the stride field: %v", err)
 	}
 	wideCoverage := &BlitSource{Pix: make([]byte, 65536), Stride: 65536, W: 65536, H: 1, Coverage: true}
-	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 1, H: 1, Source: wideCoverage}}}).check(ExpandMinor); !errors.Is(err, ErrBlitTooLarge) {
+	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 1, H: 1, Source: wideCoverage}}}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("coverage too wide for the stride field: %v", err)
 	}
-	if err := (BlitFrame{Ops: make([]BlitOp, ListCommands+1)}).check(ExpandMinor); !errors.Is(err, ErrBlitTooLarge) {
+	if err := (BlitFrame{Ops: make([]BlitOp, ListCommands+1)}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("a list longer than the region: %v", err)
 	}
 }

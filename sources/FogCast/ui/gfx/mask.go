@@ -31,9 +31,9 @@ func (m *Mask) blitSource() *menudisplay.BlitSource {
 // forms it.
 func expandAlpha(a, m uint8) uint8 { return uint8(uint32(a) * uint32(m) / 255) }
 
-// ExpandMask is the src part of m drawn in c as straight-alpha RGBA. Each
-// pixel is c with alpha A·m/255, so drawing it source-over gives exactly
-// what DrawMask gives.
+// ExpandMask returns the src part of m as straight-alpha RGBA. Each pixel is
+// c with alpha A·m/255, so drawing it source-over gives exactly what DrawMask
+// gives. The SDL renderer uploads this form as a texture.
 func ExpandMask(m *Mask, src image.Rectangle, c Color) *image.RGBA {
 	src = src.Intersect(m.Bounds())
 	img := image.NewRGBA(image.Rect(0, 0, src.Dx(), src.Dy()))

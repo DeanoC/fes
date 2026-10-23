@@ -14,7 +14,7 @@ import (
 func newBlitRuntime(t *testing.T) (*fakeRuntime, string) {
 	f, path := newFakeRuntime(t)
 	f.mu.Lock()
-	f.blitter, f.blitterMinor = true, ExpandMinor
+	f.blitter, f.blitterMinor = true, MinBlitterMinor
 	f.mu.Unlock()
 	return f, path
 }
@@ -79,7 +79,7 @@ func TestPresentBlitDrawsTheListFromTheHeap(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	grant, err := client.Grant(ctx, 7)
-	if err != nil || !grant.Blitter || grant.BlitterMinor != ExpandMinor {
+	if err != nil || !grant.Blitter || grant.BlitterMinor != MinBlitterMinor {
 		t.Fatalf("grant %+v %v", grant, err)
 	}
 	a, b, m := pattern(40, 30, 1), pattern(300, 7, 9), coverage(33, 9, 3)
@@ -235,7 +235,7 @@ func TestPresentBlitNeedsABlitterGrant(t *testing.T) {
 	}
 }
 
-func TestPresentBlitRefusesExpandOnABlitter10(t *testing.T) {
+func TestPresentBlitRefusesExpandBelowMinimumBlitterMinor(t *testing.T) {
 	runtime, path := newBlitRuntime(t)
 	runtime.mu.Lock()
 	runtime.blitterMinor = 0
