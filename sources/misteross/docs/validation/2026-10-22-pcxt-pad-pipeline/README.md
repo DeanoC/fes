@@ -1593,3 +1593,67 @@ No shared RTL, clock, constraint, toolchain lock or shared contract changes.
 Both PRs remain draft; no hardware ran. The 105 unsupported obligations,
 complete=false, same-recipe timing, fresh producer and exact-artifact hardware
 acceptance gates remain open.
+
+## Higher placement weights regress the original board
+
+Two fresh routes retain the exact original balanced input, frozen compiler
+`e1a23c3b` / binary `477dd650...26204`, seed 1, exponent 5, all repair options
+and original clocks. Only placement timing weight changes. Both complete with
+failed timing; the completed weight-2000 reference remains the best result.
+
+| Placement timing weight | Setup failures | Worst setup | Hold failures | Minimum hold |
+| --- | ---: | ---: | ---: | ---: |
+| 2000 reference | 8 | -434 ps | 0 | +822 ps |
+| 4000 | 354 | -2190 ps | 0 | +778 ps |
+| 8000 | 375 | -1887 ps | 0 | +773 ps |
+
+All 17,199 endpoint/domain identities, windows and flags remain present, with
+17,194 timed setup/hold rows and 105 unsupported boundaries. Complete timing,
+clock and metadata unions and lossless raw-graph differences are retained;
+independent placement changes are not a Boolean-equivalence proof. The reviewed
+comparator has 36 focused controls, including empty endpoint identities and
+complete reconstruction of changed graph objects. No larger-weight or unchanged
+seed sweep follows these regressions.
+
+Independent actual review
+`481e5070dcacd85429ac14c3369d885d2f5b0e569e683cef1b5fdff87760252d`
+reproduces all six complete comparison outputs and verifies both lossless graph
+patches and exact receipt accounting.
+
+The pair charges 1155.411436055787 and 1180.2349809180014 seconds, total
+2335.6464169737884. The 62-entry journal preserves its exact prior 60-entry prefix
+and cumulative charge is **64232.74658901430617 seconds**. Evidence is under
+`out/higher-timing-weights-20261023/`.
+
+## Preserved CPU synthesis boundary enters a fresh paired diagnostic
+
+An isolated recipe keeps `pcxt_cpu` through the existing pinned mapping stages,
+then removes that added hierarchy attribute and flattens. Original and display
+packet builds have matching complete CPU graphs: 2,574 cells, 1,498 aliases,
+19 ports, 1,185 FFs, 223 arithmetic cells and 16 initialized M10Ks. Generated
+names differ; the proof compares full functions, state and connectivity.
+Independent replay verifies complete flatten/cleanup, state and path inventories,
+including all 318 RAM initialization/parameter records and 94 IO/PLL/clock
+records. The boundary changes mapping from the older flattened builds; it does
+not recover the old best-eight CPU placement or establish board equivalence.
+
+The actual CPU operand/carry/writeback paths remain, including the 17-stage carry
+chain. CGA packet capture splits the old 7–8-LUT RAM-to-RGBI path into direct
+RAM-to-packet FF connections and five-LUT packet-to-RGBI paths. MDA packet-to-ISA
+status still has six LUTs. Its unused exported RGBI outputs are optimized away
+in this CGA build; zero selected captures do not imply timing clearance.
+
+The bounded overflow reduction is rediscovered from actual DX/AX register
+aliases in both designs, checked over all 131,072 input rows, and accepted by
+native planning and packing into 6+6+5 inputs. Independent runner review
+`99d608dae3ba7ad4c558897da3e4896d3c4f45afc0caef9ef604be06cff788ea`
+verifies the 3,864-file host manifest and fourteen admission controls. Root
+selection `0d8cefef4dc6f886d880d86ddfbe0a54f6fb8377d825c9256a95ddde8a44c226`
+admits two fresh whole-board diagnostics using the original best recipe. Only
+literal mapped input and the proven reduction root change. They are running
+under the existing two-route shared GPU limit and are not yet charged as complete.
+
+Shared RTL, synthesis recipes, constraints, toolchain locks and shared contracts
+remain unchanged. Both PRs stay draft; no hardware ran. Complete native coverage,
+same-recipe timing qualification, fresh producer and exact-artifact hardware
+acceptance remain open.
