@@ -43,19 +43,7 @@ func Export(source, output string) error {
 		if !archivePath(name) {
 			return fmt.Errorf("invalid room archive path: %s", name)
 		}
-		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
-		header.SetMode(0644)
-		writer, err := archive.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-		input, err := pack.FS.Open(name)
-		if err != nil {
-			return err
-		}
-		defer input.Close()
-		_, err = io.Copy(writer, input)
-		return err
+		return addArchiveFile(archive, pack.FS, name)
 	})
 	closeErr := archive.Close()
 	if err != nil {
@@ -81,6 +69,25 @@ func Export(source, output string) error {
 		return err
 	}
 	return os.Rename(file.Name(), output)
+}
+
+func addArchiveFile(archive *zip.Writer, source fs.FS, name string) error {
+	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
+	header.SetMode(0644)
+	writer, err := archive.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+	input, err := source.Open(name)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(writer, input)
+	closeErr := input.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	return closeErr
 }
 
 func archivePath(name string) bool {
