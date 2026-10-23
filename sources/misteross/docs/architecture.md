@@ -405,8 +405,9 @@ timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
 `CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
-`toolchain.lock` (nextpnr `9128800f`). Pong, ZX81 and RISC-V pin their own
-nextpnr, so each uses a separate slot.
+`toolchain.lock` (nextpnr `9128800f`). Pong's lock pins nextpnr `552ba246`,
+so Pong uses a separate slot; [shared compiler installation](#shared-compiler-installation)
+lists the other per-core slots.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
@@ -583,10 +584,11 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Nine locks contain identical
-commits and share one compiler-cache slot; Pong (nextpnr `552ba246`), ZX81
-(`1eecf877`), RISC-V (`8f453ebc`) and Coleco (Yosys `5391eeb1`) each have
-their own. Producers select that
+`cores/fes-<core>/toolchain.lock`. Six locks contain the repository-level
+commits and share its compiler-cache slot. Apple II, C64 and Spectrum share
+a second slot on nextpnr `5fe55f3d` (nextpnr #276). Pong (nextpnr
+`552ba246`), ZX81 (`1eecf877`), RISC-V (`8f453ebc`) and Coleco (Yosys
+`5391eeb1` with nextpnr `5fe55f3d`) each have their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
