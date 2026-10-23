@@ -197,6 +197,14 @@ def changed_paths(root, base, head='HEAD'):
     return sorted(set(p.decode('utf-8', 'surrogateescape') for p in paths.split(b'\0') if p))
 
 
+def runtime_test_source(path):
+    """Reviewed native-test sources have no deployed host/protocol consumers."""
+    return (Path(path).as_posix() == path and '..' not in Path(path).parts and
+            path.endswith(('.cpp', '.hpp', '.h')) and
+            any(path.startswith(MODULE_ROOTS['runtime'] + '/tests/' + area + '/')
+                for area in ('unit', 'integration', 'support')))
+
+
 def documentation(path):
     parts = Path(path).parts
     return 'docs' in parts or path.endswith('.md')
@@ -257,6 +265,9 @@ def plan(paths):
             consumers, reason = fpga_cores(path)
             cores.update(consumers)
             reasons.append(f'{path}: {reason}')
+        elif owner == 'runtime' and runtime_test_source(path):
+            selected.update(('parent', 'runtime'))
+            reasons.append(f'{path}: native runtime tests and parent integration; host inputs unchanged')
         else:
             selected.update(('parent', owner))
             if owner == 'runtime':
