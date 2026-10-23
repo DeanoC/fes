@@ -20,6 +20,9 @@ fixtures do not establish consumer or hardware acceptance.
 | fes.keypad.ports | 6 | Twelve numeric keypad keys on each controller port |
 | fes.firmware.blob | 7 | Exact 8192-byte firmware overlay while reset is held |
 | fes.memory.hps-ddr | 8 | FPGA-owned HPS DDR3 window through the fpga2sdram ports |
+| fes.video.menu-display | 9 | Idle MENU firmware display; see below |
+| fes.video.menu-blitter | 10 | Idle MENU blitter, 1.1; see below |
+| fes.video.session-display | 11 | A running machine's display plane; see [session-display.md](session-display.md) |
 
 V1 runtime admission requires video. Gamepad and media are independently
 composable: a video-only autonomous demo is valid, as is video with gamepad

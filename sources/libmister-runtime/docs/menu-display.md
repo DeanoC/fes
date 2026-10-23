@@ -218,10 +218,12 @@ and requires a new generation and grant after the next open. Stop and replacemen
 frame generation never follows a replacement core automatically.
 
 Taking launcher focus neutralizes held ZX81 keys and suppresses navigation
-keys while the launcher holds it. The native adapter owns that gate and status
-reports it. The first complete submitted frame becomes visible at a
-frame boundary. Close and frame failure disable and drain the plane without
-holding execution or resetting the computer. A sticky reader fault does not
+keys while the launcher holds it. A single-gamepad session also mutes button
+snapshots; controls observed under launcher focus stay suppressed until they
+are released, so later snapshots cannot restore them. The native adapter owns
+that gate and status reports it. The first complete submitted frame becomes
+visible at a frame boundary. Close and frame failure disable and drain the
+plane without holding execution or resetting the computer. A sticky reader fault does not
 prevent proof that the disabled plane is drained. On an ambiguous GP exchange,
 the adapter realigns from the live ACK and verifies the same package identity
 before the distinct quiesce operation. It never repeats a submission, programs
