@@ -245,7 +245,7 @@ func (p *pair) randomCall(r *rand.Rand) {
 		p.each(func(d Device) { d.DebugText(x, y, "FPS 30 ~", scale) })
 	case 10:
 		x, y := int(randomCoord(r, 1280)), int(randomCoord(r, 720))
-		m, all := UIText("Mushroom Kingdom", 10+r.IntN(30), Weight(r.IntN(2)), 0)
+		m, all, _ := UIText("Mushroom Kingdom", 10+r.IntN(30), Weight(r.IntN(2)), 0)
 		src := image.Rect(r.IntN(all.Dx()), r.IntN(all.Dy()), all.Dx()-r.IntN(all.Dx()), all.Dy()-r.IntN(all.Dy()))
 		c := randomColor(r)
 		p.each(func(d Device) { d.DrawMask(m, src, x, y, c) })

@@ -929,11 +929,8 @@ func placeholderColor(title string) (uint8, uint8, uint8) {
 }
 
 func destroyTextures(dev gfx.Device, textures map[string]gpuTexture) {
-	// Text entries hold no texture.
 	for id, item := range textures {
-		if item.tex.Valid() {
-			dev.Destroy(item.tex)
-		}
+		dev.Destroy(item.tex)
 		delete(textures, id)
 	}
 }

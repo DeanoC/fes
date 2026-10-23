@@ -319,7 +319,7 @@ func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
-	m, src := UIText(text, sizePx, w, 0)
+	m, src, _ := UIText(text, sizePx, w, 0)
 	s.DrawMask(m, src, x, y, c)
 }
 

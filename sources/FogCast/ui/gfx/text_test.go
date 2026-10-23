@@ -158,21 +158,27 @@ func TestFitTextTruncatesWithEllipsis(t *testing.T) {
 
 func TestUITextHasInkAndRespectsMaxWidth(t *testing.T) {
 	t.Parallel()
-	m, src := UIText("TITLE", 16, WeightRegular, 0)
+	m, src, _ := UIText("TITLE", 16, WeightRegular, 0)
 	if m == nil || src != m.Bounds() || !maskHasInk(m) {
 		t.Fatalf("TITLE mask %v %v", m, src)
 	}
-	clipped, src := UIText("TITLE THAT WILL NOT FIT IN A NARROW CELL", 16, WeightRegular, 32)
-	if clipped == nil || src.Dx() > 32 || src.Min != (image.Point{}) {
-		t.Fatalf("clipped part = %v", src)
+	clipped, src, width := UIText("TITLE THAT WILL NOT FIT IN A NARROW CELL", 16, WeightRegular, 32)
+	if clipped == nil || src.Dx() > 32 || src.Min != (image.Point{}) || width > 32 || width < src.Dx() {
+		t.Fatalf("clipped part = %v, width %d", src, width)
 	}
-	if m, _ := UIText("", 16, WeightRegular, 0); m != nil {
+	// A trailing space widens the box alignment measures, not the ink.
+	spaced, spacedSrc, spacedWidth := UIText("TITLE ", 16, WeightRegular, 0)
+	plain, _, plainWidth := UIText("TITLE", 16, WeightRegular, 0)
+	if spacedSrc != spaced.Bounds() || spacedWidth <= plainWidth || plainWidth < plain.W {
+		t.Fatalf("widths %d and %d for ink %d", spacedWidth, plainWidth, plain.W)
+	}
+	if m, _, _ := UIText("", 16, WeightRegular, 0); m != nil {
 		t.Fatal("empty text")
 	}
-	if m, _ := UIText("   ", 16, WeightRegular, 0); m != nil {
+	if m, _, _ := UIText("   ", 16, WeightRegular, 0); m != nil {
 		t.Fatal("spaces have no ink")
 	}
-	again, _ := UIText("TITLE", 16, WeightRegular, 0)
+	again, _, _ := UIText("TITLE", 16, WeightRegular, 0)
 	if again != m {
 		t.Fatal("the same string laid out twice: its mask is not cached")
 	}
@@ -270,7 +276,7 @@ func TestFPGADrawMaskRecordsAndReplays(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	m, all := UIText("KIT", 16, WeightBold, 0)
+	m, all, _ := UIText("KIT", 16, WeightBold, 0)
 	src := image.Rect(2, -3, all.Max.X-1, all.Max.Y)
 	f.BeginFrame()
 	f.Clear(RGB(8, 8, 12))

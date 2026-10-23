@@ -208,7 +208,7 @@ func TestAttractReuploadUsesUpdateWhenSizeMatches(t *testing.T) {
 
 func TestParkEntryDropsLabels(t *testing.T) {
 	rec := gfx.NewRecorder()
-	mask, src := gfx.UIText("stale", 16, gfx.WeightRegular, 0)
+	mask, src, _ := gfx.UIText("stale", 16, gfx.WeightRegular, 0)
 	labels := map[string]gpuTexture{"stale": {w: src.Dx(), h: src.Dy(), mask: mask, maskSrc: src}}
 	snap := Snapshot{GPUParked: true, Grid: testDrawGrid()}
 	_ = presentFrame(rec, snap, map[string]gpuTexture{}, labels, false)

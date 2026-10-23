@@ -160,6 +160,11 @@ func backdropDamage(commands []frameCommand, bounds image.Rectangle) image.Recta
 			if ok {
 				damage = damage.Union(image.Rect(x0, y0, x1, y1).Add(bounds.Min))
 			}
+		case OpDrawMask:
+			src, at, ok := clipMask(command.mask, command.maskSrc, command.x, command.y, bounds.Dx(), bounds.Dy())
+			if ok {
+				damage = damage.Union(image.Rectangle{at, at.Add(src.Size())}.Add(bounds.Min))
+			}
 		default:
 			return bounds
 		}

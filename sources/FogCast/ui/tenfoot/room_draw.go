@@ -116,7 +116,8 @@ func roomTextKey(op rooms.Op) string {
 	return fmt.Sprintf("room-text|%s|%d|%s|%d", op.Text, op.Size, weight, op.MaxW)
 }
 
-// roomText is op's text as a mask whose box is its ink, at most MaxW wide.
+// roomText is op's text as a mask. Its box starts at the ink's left edge
+// and reaches the pen's advance, at most MaxW wide; alignment uses it.
 func roomText(labels map[string]gpuTexture, used map[string]struct{}, op rooms.Op) (gpuTexture, bool) {
 	key := roomTextKey(op)
 	used[key] = struct{}{}
@@ -127,12 +128,12 @@ func roomText(labels map[string]gpuTexture, used map[string]struct{}, op rooms.O
 	if op.Bold {
 		weight = gfx.WeightBold
 	}
-	mask, src := gfx.UIText(op.Text, op.Size, weight, op.MaxW)
+	mask, src, width := gfx.UIText(op.Text, op.Size, weight, op.MaxW)
 	if mask == nil {
 		delete(used, key)
 		return gpuTexture{}, false
 	}
-	text := gpuTexture{w: src.Dx(), h: src.Dy(), mask: mask, maskSrc: src}
+	text := gpuTexture{w: width, h: src.Dy(), mask: mask, maskSrc: src}
 	labels[key] = text
 	return text, true
 }

@@ -247,7 +247,7 @@ func (d *MenuDisplay) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (d *MenuDisplay) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
-	m, src := UIText(text, sizePx, w, 0)
+	m, src, _ := UIText(text, sizePx, w, 0)
 	d.DrawMask(m, src, x, y, c)
 }
 

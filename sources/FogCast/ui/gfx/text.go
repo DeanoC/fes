@@ -256,16 +256,19 @@ func wrapText(face font.Face, text string, maxWidth, maxLines int) []string {
 // UIText lays text out in the UI face of weight w at sizePx, fitted with an
 // ellipsis to maxWidth when maxWidth > 0. It returns the ink as a mask, nil
 // when there is none, and the part of the mask to draw: at most maxWidth
-// wide. DrawText draws that part with its top-left at the draw point.
-func UIText(text string, sizePx int, w Weight, maxWidth int) (*Mask, image.Rectangle) {
+// wide. DrawText draws that part with its top-left at the draw point. width
+// is the text's box from the ink's left edge to the pen's advance or the
+// ink's right edge, whichever is further, at most maxWidth: what alignment
+// measures, trailing spaces included.
+func UIText(text string, sizePx int, w Weight, maxWidth int) (m *Mask, src image.Rectangle, width int) {
 	if text == "" {
-		return nil, image.Rectangle{}
+		return nil, image.Rectangle{}, 0
 	}
 	uiMu.Lock()
 	defer uiMu.Unlock()
 	face := uiFaceLocked(sizePx, w)
 	if face == nil {
-		return nil, image.Rectangle{}
+		return nil, image.Rectangle{}, 0
 	}
 	display := text
 	if maxWidth > 0 {
@@ -273,13 +276,15 @@ func UIText(text string, sizePx int, w Weight, maxWidth int) (*Mask, image.Recta
 	}
 	line := LayoutText(face, display)
 	if line.Mask == nil {
-		return nil, image.Rectangle{}
+		return nil, image.Rectangle{}, 0
 	}
-	src := line.Mask.Bounds()
-	if maxWidth > 0 && src.Max.X > maxWidth {
-		src.Max.X = maxWidth
+	src = line.Mask.Bounds()
+	width = max(line.Mask.W, line.Advance-line.Origin.X)
+	if maxWidth > 0 {
+		src.Max.X = min(src.Max.X, maxWidth)
+		width = min(width, maxWidth)
 	}
-	return line.Mask, src
+	return line.Mask, src, width
 }
 
 // TextLine is text laid out along a baseline in one face.

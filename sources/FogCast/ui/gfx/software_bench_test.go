@@ -47,7 +47,7 @@ func BenchmarkSoftwareSprites(b *testing.B) {
 
 func BenchmarkSoftwareDrawMask(b *testing.B) {
 	s, _ := NewSoftware(1280, 720)
-	m, src := UIText("Super Mario World", 24, WeightBold, 0)
+	m, src, _ := UIText("Super Mario World", 24, WeightBold, 0)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
