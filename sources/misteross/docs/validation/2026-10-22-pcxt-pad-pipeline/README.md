@@ -1692,3 +1692,43 @@ The separate final ordinary-LUT move proposal remains OUT-only, with host
 validation unfinished. No shared RTL/compiler source, constraints, locks,
 contracts or hardware changed during this result capture. Both PRs remain draft
 and timing/coverage/producer/exact-artifact acceptance gates remain open.
+
+
+## Final ordinary-LUT move diagnostic retains no move
+
+The default-zero final move stage is committed in nextpnr `46b763ba`, based on
+`e1a23c3b`, with frozen binary
+`7633292517393d08a71b46303d5a9448189c73a77130e8b6055709ebf5952293`.
+Host checks pass 44 native LAB/MLAB/both-half cases and seven CLI controls.
+The separately reviewed selector boundary permits only selected-Q-owned direct
+COMBOUT output muxes with exact native NLUT/REG settings; stationary FF input
+selectors, controls, masks, routes and full setup/hold checks remain protected.
+
+One reviewed fresh matched pair retains original b4 synthesis, QSF/SDC,
+100/74.25 MHz clocks, seed1, placement weight2000/exponent5 and all best-reference
+repair budgets. Candidate alone enables `--critical-final-move-budget 16`.
+Both complete at eight setup failures / -434 ps, zero hold failures / +822 ps
+minimum hold, 17,199 endpoint rows and 105 unsupported boundaries,
+`complete=false`. Candidate discovers nine eligible cells but tries only four
+legal shortlisted destinations, all for one CGA ALUT5. Every trial rejects
+`stationary mate LUT mask changed`; no move is retained.
+
+The complete matched RBF, routed JSON, endpoints and timing reports are byte
+identical. Full reference comparisons, all endpoint/clock/report categories and
+lossless graph patches are retained. Independent actual replay
+`a60de3d1c81d51a83119e7cc44ad265a4d4aa54ebf627c1111b67a6aa6e6be4f` reproduces every output and verifies complete accounting.
+Checker preparation passes 53 inventory/graph/recipe controls and fourteen
+native endpoint/clock regression controls. No row intersection substitutes for
+complete inventory, and no reference-free final inventory is separately emitted.
+
+The baseline charges 955.9725542096421 seconds and candidate 999.028345788829,
+total 1955.0008999984711. The 66-entry journal preserves its exact first64 prefix;
+cumulative charge is **69182.92328157834657 seconds**. Evidence is under
+`out/final-ordinary-lut-move-route-20261023/`.
+
+Final-move remains disabled in the retained reference. The rejected source ALM
+contains only the moved LUT; canonical empty-ALM mask/mode handling needs a
+separate native diagnostic before changing any guard. Geometric possibilities
+do not establish live shortlist eligibility or timing gain. Shared FES RTL,
+constraints, locks and contracts remain unchanged. Both PRs remain draft;
+no hardware ran and timing/coverage/producer/exact-artifact gates remain open.
