@@ -347,6 +347,21 @@ class STProducerEvidenceTests(RealProducerEvidenceTests):
         finally:
             prepared.write_bytes(before)
 
+    def test_raster_part_cannot_own_dsp_or_mlab(self):
+        directory = Path(self.cases["direct"]["directory"])
+        prepared = directory / "cart.json"
+        before = prepared.read_bytes()
+        try:
+            for kind in ("MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
+                         "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27"):
+                changed = json.loads(before)
+                changed["modules"]["cart"]["cells"]["owned"] = {"type": kind}
+                prepared.write_bytes(video.canonical(changed))
+                with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "owns a forbidden resource"):
+                    self.inspect("direct")
+        finally:
+            prepared.write_bytes(before)
+
     def test_firmware_map_and_seed_are_bound_to_exact_recipe(self):
         shell = Path(self.cases["direct"]["shell"])
         mapping = shell / "rom-map.json"

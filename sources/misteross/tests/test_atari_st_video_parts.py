@@ -421,3 +421,14 @@ class FullProducer(unittest.TestCase):
                 elif name=='map mismatch':(f.shell/'rom-map.json').write_bytes(b'changed-map')
                 with self.assertRaises((ValueError,RuntimeError)):f.build()
                 self.assertFalse(list(f.root.glob('build/atari-st-video-parts/**/*.tar')))
+
+    def test_part_owns_no_dsp_even_where_the_shell_does(self):
+        for kind in ('MISTRAL_MLAB','MISTRAL_MUL9X9','MISTRAL_MUL18X18','MISTRAL_MUL18X19',
+                     'MISTRAL_MUL18X19_COMBINED','MISTRAL_MUL27X27','altera_pll',
+                     'cyclonev_hps_interface_mpu_general_purpose','cyclonev_hps_interface_peripheral_i2c'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory() as tmp:
+                f=CompilerFixture(Path(tmp))
+                f.synthesis['modules']['cart']['cells']['owned']={'type':kind}
+                with self.assertRaisesRegex(ValueError,'must not own DSP, PLL or HPS'):f.build()
+                self.assertIn('synth_intel_alm -nolutram -nodsp -top cart;',f.commands[0][2])
+                self.assertFalse(list(f.root.glob('build/atari-st-video-parts/**/*.tar')))
