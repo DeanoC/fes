@@ -220,3 +220,84 @@ placements, sector memory, async M10K reads and video validate_boundary.
   3 of seeds 4, 5, 2, 1, 3, 6 (98bc5767: 2). Pixel passes 5 of 6; s1 misses by
   0.01 MHz on the adapter's RGB address forecast. s5 and s2 miss sys[0]
   (51.09, 51.56) on the CPU address into the SDRAM data-out enable.
+
+SDRAM arbiter in arrival order (2026-10-23, 98bccf8a and 2b79837a)
+Nextpnr 5fe55f3d (#276's final head, the ST lock since b54e38a9), CUDA,
+producer argv and 1800 s timeout, zero-BUILD_ID netlists from the producer's
+Yosys program (3a5accbd). These are experiment routes, not a producer seal.
+5fe55f3d routes the ST exactly as 14d21d4b: on seed 4 the bitstream and
+timing report are byte-identical, so the 14d21d4b routes above still hold.
+On v3's routes (seeds 1-12 without DSP, 1-6 with), the worst sys[0] path ends
+in the SDRAM controller on 14 of 17: the data-out enable, held_addr or sdram_a,
+from the CPU address, the floppy DMA cursor or the init flag. With st_memory
+black-boxed in the producer synthesis, the CPU request and write flag arrive
+at 7.4 LUT levels, its address at 8.4, DMA at 6, and video, media and the
+memory phase within one. st_memory chose a winner from all five requests and
+then selected every client's payload by that choice, so the latest inputs
+crossed the whole grant before the payload mux.
+- 2b79837a decides in arrival order. Video and media decide first and form a
+  fallback payload. The CPU payload replaces it unless video or media won,
+  and the CPU request and write flag drive only that step. A DMA win replaces
+  any other payload last, and only its range check gates the start. Range
+  checks and the media word offset test bits instead of comparing and adding.
+- 98bccf8a registers the floppy DMA request's address check, loaded with
+  every cursor update, and keeps the writer's DMA address as a register
+  instead of ram_base + 2 * word_index.
+The shared controller (cores/fes-ramtest/rtl/sdram_addon_port.v) is
+unchanged. A proven-equivalent variant that also registered its
+refresh_pending and accept terms gave no lower full-netlist depth and would
+have marked RAM Tester and PCXT as affected, so it was not taken. The
+LUT-level model of the full netlist shows no lower depth for 2b79837a either:
+ABC9 maps the system domain as one network. The evidence is the routes below.
+
+Equivalence (memory-equivalence.json, floppy-equivalence.json)
+- st_memory, with the unchanged controller in both, in the five parameter sets
+  the producer and the sims instantiate (production, default, late
+  completion, legacy refresh, registered read input): equiv_simple -seq 3
+  proves every matched point (592, 583, 583, 583, 599), and an eight-cycle
+  miter from power-up over every shared signal passes.
+- st_floppy with st_floppy_writer, ENABLE_WRITE 1 and 0: all 4,823 matched
+  points, and a four-cycle miter from power-up over every shared signal (the
+  sector words through their write port).
+- A Verilator 5.032 lockstep of old against new st_memory, each with the
+  controller, drove random CPU, video, DMA and media clients, cold, warm and
+  raster resets, phase jumps and random DQ; half the runs also dropped
+  requests and changed payloads mid-request. It compared all 149 client and
+  SDRAM outputs before and after every rising edge, in all five parameter
+  sets: 30 runs and 75,000,000 cycles on 2b79837a, 100 runs and 250,000,000
+  cycles on its pre-review form, no mismatch. (Scratch harness, not
+  committed.)
+- make -k sim-fes-atari-st on Verilator 5.032: rc 0, 65 PASS lines, and every
+  result line is identical to 3dd3f857's.
+
+Routes, final signoff pixel/sys[0] MHz (targets 74.25/52.22)
+2b79837a on 5fe55f3d; 27350d01 and v3 (its pre-review form) on 14d21d4b. DSP
+is the producer's Yosys program without -nodsp.
+
+      without DSP                                            with DSP
+seed  27350d01           v3                 2b79837a           v3                 2b79837a
+4     76.64/56.58 PASS   79.74/54.94 PASS   80.24/58.83 PASS   77.59/54.59 PASS   77.47/55.23 PASS
+5     76.23/55.23 PASS   78.62/53.49 PASS   77.08/56.82 PASS   81.01/51.09 FAIL   79.05/54.33 PASS
+2     82.58/55.98 PASS   80.13/53.36 PASS   86.86/52.75 PASS   77.12/51.56 FAIL   84.43/56.01 PASS
+1     79.49/53.83 PASS   78.83/53.93 PASS   86.93/60.28 PASS   74.24/56.43 FAIL   78.27/58.16 PASS
+3     81.98/53.03 PASS   timeout            84.16/55.98 PASS   76.32/53.32 PASS   79.62/57.99 PASS
+6     76.85/57.00 PASS   79.15/53.30 PASS   76.42/52.49 PASS   74.87/53.32 PASS   84.99/58.88 PASS
+7     -                  73.17/50.04 FAIL   87.63/54.82 PASS   -                  78.96/55.48 PASS
+8     -                  79.28/54.97 PASS   82.05/52.79 PASS   -                  83.56/55.30 PASS
+9     -                  78.24/50.43 FAIL   77.55/56.90 PASS   -                  85.24/56.58 PASS
+10    -                  69.08/52.93 FAIL   71.72/52.50 FAIL   -                  80.24/54.12 PASS
+11    -                  75.69/50.81 FAIL   82.80/57.44 PASS   -                  82.41/53.27 PASS
+12    -                  76.55/54.09 PASS   80.83/57.79 PASS   -                  82.95/52.27 PASS
+
+Every routed seed passes the seal checks: validate_routed_shell, cache
+placements, sector memory, async M10K reads and video validate_boundary, and
+every 2b79837a route passes main's exact 5fe55f3d F0/F1 route-through map.
+- 2b79837a passes 11 of 12 seeds without DSP and all 12 with DSP. With DSP,
+  v3 passed 3 of seeds 1-6.
+- The one failure, s10 without DSP, is pixel_clk in the renderer: the
+  horizontal counter into the medium-resolution fetch decision, 18 cells with
+  7.8 ns of route.
+- The worst sys[0] path ends in the SDRAM controller on 4 of the 24 2b79837a
+  routes, all passing (52.75-55.23 MHz). Three start at the mailbox and one at
+  the CPU address. The rest run into the native capture, the FX68K nanoROM
+  address, the MFP, the IKBD, the floppy and the ROM.
