@@ -18,6 +18,7 @@ import (
 
 const installedDir = ".installed"
 const maxInstallBytes = 64 << 20
+const maxInstallEntries = 2048
 
 type roomSelection struct {
 	Current  string `json:"current"`
@@ -84,7 +85,7 @@ func writeSelections(root string, selections map[string]roomSelection) error {
 	return d.Sync()
 }
 
-// Install copies a directory pack into a bounded, versioned snapshot. Manifest
+// Install accepts a directory or portable ZIP and creates a bounded, versioned snapshot. Manifest
 // and every Lua file are checked before the atomic selection changes. Runtime
 // callbacks are checked by the launcher with its actual services on opening.
 func Install(root, source string) (Pack, error) {
@@ -98,6 +99,13 @@ func Install(root, source string) (Pack, error) {
 	source, err = filepath.Abs(source)
 	if err != nil {
 		return Pack{}, err
+	}
+	info, err := os.Lstat(source)
+	if err != nil {
+		return Pack{}, err
+	}
+	if info.Mode().IsRegular() {
+		return installArchive(root, source)
 	}
 	rel, err := filepath.Rel(source, root)
 	if err != nil || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))) {
@@ -142,7 +150,7 @@ func Install(root, source string) (Pack, error) {
 			return nil
 		}
 		count++
-		if count > 2048 {
+		if count > maxInstallEntries {
 			return errors.New("room has too many entries")
 		}
 		if entry.Type()&os.ModeSymlink != 0 {

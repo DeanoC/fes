@@ -43,6 +43,25 @@ available on the same machine:
 fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/fes-cores
 ```
 
+To distribute one file instead of a source directory, export a validated pack:
+
+```sh
+fogcast-tenfoot room-export --output home.room.zip /path/to/fes-cores
+fogcast-tenfoot room-install --rooms /path/to/rooms home.room.zip
+```
+
+The ZIP contains `room.toml`, Lua and assets directly at its root, without a
+wrapper directory. Export validates through the ordinary installer and publishes
+atomically; a failed export preserves an existing output. Unchanged source
+bytes produce the same archive bytes. Install accepts either a directory or a
+portable archive and uses the same installed revision and rollback format.
+Archives are extracted privately before selection; links, duplicate/unsafe
+paths, corrupt/truncated files, more than 2,048 entries, files over 16 MiB and
+expanded contents over 64 MiB are rejected. Compressed input is capped at 72 MiB.
+No archive permissions or executable bits are carried into the installed room.
+Transfer the file to the launcher's machine before installing it; remote catalog
+transport is separate from this local operation.
+
 On a kit, omit `--rooms` to use its configured room directory. Reopen Rooms
 and select Home (or the updated room) to trial the new Lua and artwork in the
 running launcher. No Go compilation, agent restart, MENU build or OS rebuild
