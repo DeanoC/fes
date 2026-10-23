@@ -1990,3 +1990,40 @@ failures / -1,461 ps and remains rejected; the seven-failure reference is unchan
 Evidence is in `out/mapped-reset-replication-source-audit-20261023/`, especially
 `carry-pack-observer-v2/` and `carry-observed-restore-v4/`. All of these builds,
 packs, readbacks and controls are host diagnostics; route accounting remains 74.
+
+
+### Compiler research PR disposition (23 October)
+
+At the user's request, nextpnr PR #266 is closed, unmerged. Its head
+`b85677cfc9708b994b29fadd12debdd73171bfb4`, branch and all evidence are retained.
+The mixed research bundle is not a focused review/merge unit and has no qualifying
+timing recipe. Demonstrated diagnostic gains are not discarded, but any proposed
+compiler delivery must extract an independently justified, focused change.
+No compiler merge, lock change or timing acceptance follows from closure.
+
+
+### Native observer feasibility and forward census (23 October)
+
+A bounded read-only native observer reproduces the RBF and unchanged design,
+and its two raw observations match. Its bidirectional logical closure reaches
+10,620 nets / 10,437 cells and reports 5,143 issues, including 140 unmeasured
+analogue arcs and 24 multiple-sink cases. It therefore establishes neither
+complete electrical coverage nor stability evidence. Its 572 tree warnings are
+unused arithmetic outputs with zero users, no public ports and empty routing;
+they are not evidence of broken live routes. Full failures remain retained.
+
+A separate forward logical census preserves every invalid hint and terminal,
+uses native port/clock identities, and recomputes all reconvergent path unions.
+The bounded baseline run passes in 8.8 seconds with exact whole-RBF, read-only
+and original 28 source-audit results. Each frame has one invalid register root,
+14 invalid hint records, 5,527 terminals and exactly one matching invalid capture
+relationship, with zero census issues. Work is 49,232 below the 65,536 cap. The
+complete connecting logical path spans two nets and ends at the video hold
+synchronizer's DATAIN. Other terminals remain in the inventory.
+
+This identifies a diagnostic observation target; it does not prove electrical
+independence. All physical fanout and off-path model loads still need accounting.
+No source guard, clock, production toolchain or timing acceptance changes.
+Artifacts are in `out/mapped-reset-replication-source-audit-20261023/`, under
+`native-invariant-observer-proposal-v2b/` and `forward-terminal-census-proposal/`.
+These host runs add no full-route charge; accounting remains 74.
