@@ -430,10 +430,10 @@ async function browserSelect(harness, selector, value) {
 function assertNoLifecycle(harness) {
   assert.deepEqual(harness.fixtureEvidence().filter(r =>
     r.method !== 'GET' && r.path !== '/api/v1/debug/ui-events' &&
-    !/^\/api\/v1\/(core-packages|core-media|library\/core-entries)(\/|$)/.test(r.path)), []);
+    !/^\/api\/v1\/(core-packages|core-media|library\/(core-entries|atari-st-disks))(\/|$)/.test(r.path)), []);
 }
 
-test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t => {
+test('FogCast core library Chrome/CDP integration', { timeout: 90_000 }, async t => {
   const harness = new BrowserHarness();
   try {
     try {
@@ -506,6 +506,43 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
         }
         await harness.click('#core-library-close');
         await harness.waitForSnapshot(s => !s.coreLibrary.open && s.activeElementID === 'open-core-library');
+      });
+    });
+
+    await t.test('core library creates a blank Atari ST disk and binds the title', async () => {
+      const disk = 'e'.repeat(64);
+      const entry = {game_id:'atari-desk', title:'Desk', core_id:'fes.atari-st', package_id:CORE_PACKAGE};
+      const bound = {...entry, media_role:'disk', media_id:disk};
+      const stPackage = {package_id:CORE_PACKAGE, descriptor:{core:{id:'fes.atari-st', version:'1.0.0'}}};
+      const stCaps = coreReply({package_id:CORE_PACKAGE, source:'declared-contract', compatibility:'unknown',
+        import_max_bytes:33554432, media:[{role:'disk', format:'atari-st-floppy', min_bytes:737280, max_bytes:737280,
+          transport:'fes-computer-media-unit-v1'}]});
+      await runScenario(harness, 'core-library-blank-st-disk', basePlan({
+        sessions:[fixture('session-idle.json')],
+        coreRoutes:{
+          'GET /api/v1/core-catalog': coreReply({cores:[]}),
+          'GET /api/v1/core-packages': coreReply({packages:[stPackage]}),
+          'GET /api/v1/library/core-entries': [coreReply({entries:[entry]}), coreReply({entries:[bound]})],
+          'GET /api/v1/library/video-parts': coreReply([]),
+          'GET /api/v1/library/core-entries/atari-desk/video': coreVideo(entry),
+          [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]: stCaps,
+          'POST /api/v1/library/atari-st-disks': coreReply({media_id:disk, size:737280, name:'WORK', tracks:80, heads:2, sectors:9, created:true,
+            entry:{...bound, title:'Desk'}}, 201),
+        },
+      }), async () => {
+        await harness.click('#open-core-library');
+        await harness.waitForSnapshot(s => s.coreLibrary.open && !s.coreLibrary.busy && s.coreLibrary.blankDisabled);
+        await browserSelect(harness, '#core-entry-select', entry.game_id);
+        await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.blankDisabled === false && s.coreLibrary.blankStatus.includes('1 size'));
+        await harness.evaluate("document.querySelector('#core-blank-disk-name').value = 'work'");
+        await harness.click('#core-blank-disk');
+        const done = await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.message.includes('drive A'));
+        assert.match(done.coreLibrary.current, new RegExp(disk));
+        const writes = harness.fixtureEvidence().filter(r => r.method === 'POST' && r.path !== '/api/v1/debug/ui-events');
+        assert.deepEqual(writes.map(r => r.path), ['/api/v1/library/atari-st-disks']);
+        assert.deepEqual(JSON.parse(writes[0].requestBody), {name:'work', tracks:80, heads:2, sectors:9, bind:true,
+          game_id:'atari-desk', expected_package_id:CORE_PACKAGE, expected_media_id:''});
+        assertNoLifecycle(harness);
       });
     });
 
