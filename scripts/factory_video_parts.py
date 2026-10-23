@@ -318,6 +318,10 @@ else:
     if mode == 'shell':
         record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
         require(functional(record)==args['functional_inputs_sha256'], 'frozen shell functional inputs differ from selected package')
+        # The record's P&R recipe digest follows the nextpnr option schema
+        # that authenticating the shell's tools registers in this process.
+        if not st:
+            shell_producer.authenticate_tools(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
         expected = (shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], execution=current['execution']) if st else
                     shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options))
         require(functional(record)==functional(expected), 'frozen video shell differs from current recipe')
