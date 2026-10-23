@@ -85,12 +85,21 @@ path list runs full analysis. A skip is reported explicitly in the CI step log.
 
 ## Affected host Go packages
 
-For a change set containing only Go source/test files in FogCast, its appliance
-module or the shared expansion module, routine host checks run the changed
+For Go source/test edits in FogCast, its appliance module or the shared expansion
+module, routine host checks run the changed
 packages and their transitive import consumers. Test and external-test imports
 also count as dependencies. The selector reads both native and race build
 variants with `go list`; selection happens before the existing three-way sharding.
 Each selected package retains its existing functional/race policy.
+
+Accompanying Markdown guides in the root `docs/` tree, a selected Go module's
+`docs/` tree, or the root/module `README.md` and `AGENTS.md` do not restore the
+whole host suite. The selector uses `go list` embed metadata from both native
+and race variants: a guide below a package with production or test embed inputs
+retains the full suite, including deleted files covered by directory embeds.
+This is deliberately conservative rather than trying to reproduce Go's pattern
+matching. Markdown in `testdata`, package-local assets, guide symlinks and
+unreviewed locations also retain full coverage.
 
 Both CI and `test-changed` pass the same changed-path list, including both sides
 of renames and local edits for local runs. The host runner reports the selected
@@ -100,8 +109,9 @@ package identities. To inspect a specific change without executing tests:
 python3 scripts/host_tests.py --plan-only --paths-json '["sources/FogCast/cmd/fogcast/main.go"]'
 ```
 
-A mixed/non-Go change set, dependency lock change, missing/deleted whole package
-or omitted path list keeps the complete routine host suite. A Go listing error
+A non-Go change outside those reviewed guides, dependency lock change,
+missing/deleted whole package or omitted path list keeps the complete routine
+host suite. A Go listing error
 fails the check. `--full` and scheduled/manual coverage never narrow packages.
 This is native Go import coverage; it does not infer runtime file reads or
 cross-platform behavior. Host builds, browser checks, parent regressions and
