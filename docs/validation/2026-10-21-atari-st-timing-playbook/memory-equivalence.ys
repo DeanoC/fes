@@ -1,0 +1,55 @@
+design -reset
+log === production ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G PHASE_SLOTS=1 -G POSTED_CPU_WRITES=1 -G SINGLE_RANK_REFRESH=1 -G SLOT_REFRESH=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+memory
+equiv_make st_memory_gold st_memory_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+
+design -reset
+log === default ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+memory
+equiv_make st_memory_gold st_memory_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+
+design -reset
+log === late-completion ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=0 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+memory
+equiv_make st_memory_gold st_memory_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+
+design -reset
+log === legacy-refresh ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G EARLY_COMPLETION=0 -G REFRESH_WAIT_CYCLES=16 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+memory
+equiv_make st_memory_gold st_memory_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+
+design -reset
+log === registered-input ===
+read_slang --single-unit --ignore-timing --empty-blackboxes --top st_memory_gold --top st_memory_gate -G REGISTERED_READ_INPUT=1 memory-equivalence.sv ../../../sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v
+proc
+opt_clean
+memory
+equiv_make st_memory_gold st_memory_gate equiv
+hierarchy -top equiv
+equiv_simple -seq 3
+equiv_status -assert
+

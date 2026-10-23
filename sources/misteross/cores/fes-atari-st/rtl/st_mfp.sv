@@ -47,7 +47,7 @@ module st_mfp (
     reg [7:0] read_value;
     reg selected;
     reg [3:0] channel;
-    reg blocked;
+    reg [15:0] blocking, eligible, grant;
     reg [7:0] acknowledged_vector;
     reg [7:0] scr, ucr;
     reg [1:0] rsr_control;
@@ -86,20 +86,23 @@ module st_mfp (
         endcase
     endfunction
 
+    // Parallel priority: an in-service channel blocks itself and every lower
+    // channel, and the highest eligible pending channel is granted.
     integer arbitration_index;
     always @* begin
-        selected = 1'b0;
+        for (arbitration_index = 0; arbitration_index < 16;
+             arbitration_index = arbitration_index + 1)
+            blocking[arbitration_index] = vr[3] && |(isr >> arbitration_index);
+        eligible = ipr & imr & ~blocking;
+        for (arbitration_index = 0; arbitration_index < 16;
+             arbitration_index = arbitration_index + 1)
+            grant[arbitration_index] = eligible[arbitration_index] &&
+                !(|(eligible >> (arbitration_index + 1)));
+        selected = |eligible;
         channel = 4'd0;
-        blocked = 1'b0;
-        for (arbitration_index = 15; arbitration_index >= 0;
-             arbitration_index = arbitration_index - 1) begin
-            // An in-service channel also blocks another occurrence of itself.
-            if (vr[3] && isr[arbitration_index]) blocked = 1'b1;
-            if (!selected && !blocked && ipr[arbitration_index] && imr[arbitration_index]) begin
-                selected = 1'b1;
-                channel = 4'(arbitration_index);
-            end
-        end
+        for (arbitration_index = 0; arbitration_index < 16;
+             arbitration_index = arbitration_index + 1)
+            if (grant[arbitration_index]) channel = channel | 4'(arbitration_index);
     end
 
     integer timer_index;
@@ -159,9 +162,9 @@ module st_mfp (
             6'h17: next_vr = wdata & 8'hf8;
             default: ;
         endcase
-        if (iack && !iack_seen && selected) begin
-            next_ipr[channel] = 1'b0;
-            if (vr[3]) next_isr[channel] = 1'b1;
+        if (iack && !iack_seen) begin
+            next_ipr = next_ipr & ~grant;
+            if (vr[3]) next_isr = next_isr | grant;
         end
         // New source events survive a simultaneous clear/acknowledge, but a
         // disabled source cannot retain a pending interrupt.

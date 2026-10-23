@@ -1,0 +1,10 @@
+=== ENABLE_WRITE=1 ===
+Executing EQUIV_STATUS pass.
+Found 4823 $equiv cells in equiv:
+  Of those cells 4823 are proven and 0 are unproven.
+  Equivalence successfully proven!
+=== ENABLE_WRITE=0 ===
+Executing EQUIV_STATUS pass.
+Found 4823 $equiv cells in equiv:
+  Of those cells 4823 are proven and 0 are unproven.
+  Equivalence successfully proven!

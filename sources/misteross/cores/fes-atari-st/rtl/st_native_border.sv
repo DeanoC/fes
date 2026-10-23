@@ -93,24 +93,31 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
         end
     end
 
+    // The parent sets output_row in blanking, several edges before line start
+    // and SOF. Each descriptor RAM's read data takes one more edge into a
+    // fabric register, so no descriptor RAM output feeds an event address.
+    reg [EVENT_BITS+8:0] row_read0, row_read1, row_read2;
     reg [EVENT_BITS+8:0] desc0, desc1, desc2;
     reg [17:0] head0, head1, head2;
     wire [8:0] descriptor_count = output_bank == 2'd0 ? desc0[EVENT_BITS+8:EVENT_BITS] :
         output_bank == 2'd1 ? desc1[EVENT_BITS+8:EVENT_BITS] : desc2[EVENT_BITS+8:EVENT_BITS];
-    reg [17:0] held0, held1, held2;
+    // The consume bank changes only at SOF, which also clears held_valid, so
+    // its prefetched head is selected on the way into the held event.
+    wire [17:0] consume_bank_head = output_consume_bank == 2'd0 ? head0 :
+        output_consume_bank == 2'd1 ? head1 : head2;
+    reg [17:0] held;
     reg held_valid;
-    wire [17:0] current0 = held_valid ? held0 : head0;
-    wire [17:0] current1 = held_valid ? held1 : head1;
-    wire [17:0] current2 = held_valid ? held2 : head2;
-    wire [17:0] consume_head = output_consume_bank == 2'd0 ? current0 :
-        output_consume_bank == 2'd1 ? current1 : current2;
     reg [EVENT_BITS-1:0] next_pointer;
     // The published display bank is immutable until SOF. Hold its current
-    // event through pauses while the RAM ports prefetch the successor. A
-    // consume releases the held event on the original output edge; no head-X
-    // comparison or consume decision feeds the ordinary RAM read address.
+    // event through pauses while the RAM ports prefetch the successor. Only
+    // the held event is compared, so no event RAM output reaches the consume
+    // decision. held_valid is clear for the edge after SOF, line start or a
+    // consume, while the successor loads. The parent starts rows in blanking
+    // and holds each output_x for two output_ce edges; a row's event x values
+    // strictly increase, so no event is due on the edge after a consume.
+    // No head-X comparison or consume decision feeds the RAM read address.
     reg [8:0] remaining, colour;
-    wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
+    wire consume_current = output_ce && held_valid && remaining != 9'd0 && held[17:9] <= output_x;
     // Each RAM uses its own row descriptor on line start. The selected bank
     // therefore reaches its event address without a cross-bank descriptor mux;
     // the other banks' prefetched heads remain speculative.
@@ -132,11 +139,12 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // the fixed raster issues no border sample at SOF. Away from SOF the
     // registered front bank is the same selected bank. Keep publication
     // arbitration out of both the consume decision and RGB forwarding.
-    assign output_rgb = consume_current ? consume_head[8:0] : colour;
+    assign output_rgb = consume_current ? held[8:0] : colour;
     // Unconditional clocked ports infer dual-clock M10Ks. The parent owns
     // cross-domain bank selection and the descriptor/event immutability.
     always @(posedge clk_pixel) begin
-        desc0 <= rows0[output_row]; desc1 <= rows1[output_row]; desc2 <= rows2[output_row];
+        row_read0 <= rows0[output_row]; row_read1 <= rows1[output_row]; row_read2 <= rows2[output_row];
+        desc0 <= row_read0; desc1 <= row_read1; desc2 <= row_read2;
         head0 <= events0[read_pointer0]; head1 <= events1[read_pointer1]; head2 <= events2[read_pointer2];
         if (reset_pixel) begin
             next_pointer <= 1; remaining <= 0; colour <= 0;
@@ -148,15 +156,13 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
             colour <= 0;
         end else if (consume_current) begin
             held_valid <= 1'b0;
-            colour <= consume_head[8:0]; remaining <= remaining - 1'b1;
+            colour <= held[8:0]; remaining <= remaining - 1'b1;
             if (remaining > 9'd1) next_pointer <= next_pointer + 1'b1;
         end else if (!held_valid) begin
             held_valid <= 1'b1;
         end
-        // Held events are read only while held_valid, so load them whenever
-        // it is clear. Neither the consume decision nor reset enables them.
-        if (!held_valid) begin
-            held0 <= head0; held1 <= head1; held2 <= head2;
-        end
+        // The held event is read only while held_valid, so load it whenever
+        // it is clear. Neither the consume decision nor reset enables it.
+        if (!held_valid) held <= consume_bank_head;
     end
 endmodule

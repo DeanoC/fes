@@ -14,7 +14,7 @@ module st_floppy_writer (
     output wire busy,
     output reg changed,
     output wire dma_req,
-    output wire [23:0] dma_addr,
+    output reg [23:0] dma_addr,
     input wire dma_ready,
     input wire [15:0] dma_data,
     output wire media_req,
@@ -32,7 +32,8 @@ module st_floppy_writer (
     reg [15:0] commit_word;
     assign busy = state != IDLE && state != DONE;
     assign dma_req = state == COLLECT && job_req && !cold_reset;
-    assign dma_addr = ram_base + {15'd0, word_index, 1'b0};
+    // dma_addr stays ram_base + 2 * word_index, updated with them so the
+    // request carries no adder.
     assign media_req = state == COMMIT && !cold_reset;
     assign media_addr = disk_base + {11'd0, word_index};
     assign media_data = commit_word;
@@ -55,6 +56,7 @@ module st_floppy_writer (
         if (cold_reset) begin
             state <= IDLE;
             ram_base <= 0;
+            dma_addr <= 0;
             disk_base <= 0;
             word_index <= 0;
             abandoned <= 0;
@@ -64,6 +66,7 @@ module st_floppy_writer (
             case (state)
                 IDLE: if (job_req && !frozen) begin
                     ram_base <= job_ram_addr;
+                    dma_addr <= job_ram_addr;
                     disk_base <= job_media_addr;
                     word_index <= 0;
                     abandoned <= 0;
@@ -80,9 +83,11 @@ module st_floppy_writer (
                     else if (dma_ready) begin
                         if (word_index == 255) begin
                             word_index <= 0;
+                            dma_addr <= ram_base;
                             state <= COMMIT;
                         end else begin
                             word_index <= word_index + 1'b1;
+                            dma_addr <= dma_addr + 24'd2;
                             state <= RAM_GAP;
                         end
                     end
@@ -95,6 +100,7 @@ module st_floppy_writer (
                         state <= DONE;
                     end else begin
                         word_index <= word_index + 1'b1;
+                        dma_addr <= dma_addr + 24'd2;
                         state <= DISK_GAP;
                     end
                 end

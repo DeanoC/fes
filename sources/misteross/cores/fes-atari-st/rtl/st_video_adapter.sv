@@ -62,7 +62,19 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     reg [23:0] job_base [0:1];
     reg [8:0] job_row [0:1];
     reg job_high [0:1];
+    // Frame tags are retained for the focused simulation's cache checks.
+    /* verilator lint_off UNUSEDSIGNAL */
     reg [31:0] job_frame [0:1];
+    /* verilator lint_on UNUSEDSIGNAL */
+    // Set when a bank's job is scheduled and cleared as debug_frame advances,
+    // so it equals job_frame == debug_frame without a 32-bit pixel-path compare.
+    reg [1:0] job_current;
+    // Each bank's line start follows its metadata one pixel edge later and
+    // its bounds check a second edge later. The system side reads both two
+    // system edges after the request toggle synchronizes, so they settle
+    // well before use.
+    reg [23:0] job_start [0:1];
+    reg [1:0] job_start_ok;
 
     typedef enum logic [1:0] { MEMORY_IDLE, MEMORY_READ, MEMORY_GAP } memory_state_t;
     memory_state_t memory_state;
@@ -71,11 +83,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire pending0 = job_req_sync[0] != job_done[0];
     wire pending1 = job_req_sync[1] != job_done[1];
     wire selected_bank = pending0 && pending1 ? next_bank : pending1;
-    wire [23:0] selected_start = {1'b0, job_base[selected_bank][23:8], 7'd0} +
-        (job_high[selected_bank] ? 24'(job_row[selected_bank]) * 24'd40 :
-                                  24'(job_row[selected_bank]) * 24'd80);
     wire [6:0] selected_words = job_high[selected_bank] ? 7'd40 : 7'd80;
-    wire selected_valid = selected_start + 24'(selected_words) <= 24'h040000;
 
     reg legacy_req;
     reg [18:1] legacy_addr;
@@ -114,8 +122,8 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                     memory_index <= 7'd0;
                     memory_words <= selected_words;
                     next_bank <= !selected_bank;
-                    if (selected_valid) begin
-                        legacy_addr <= selected_start[17:0];
+                    if (job_start_ok[selected_bank]) begin
+                        legacy_addr <= job_start[selected_bank][17:0];
                         legacy_req <= 1'b1;
                         memory_state <= MEMORY_READ;
                     end else begin
@@ -160,16 +168,13 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire high_resolution = active_resolution == 2'd2;
     wire mode_valid = active_resolution != 2'd3;
     wire [8:0] native_height = high_resolution ? 9'd400 : 9'd200;
-    wire image_line = mode_valid && (high_resolution ?
-        (vertical >= 10'd160 && vertical < 10'd560) :
-        (vertical >= 10'd60 && vertical < 10'd660));
     // The renderer tracks native row/repetition at EOL. Sharing its coordinates
     // removes color scaling division from both lookup and scheduling paths.
     wire [8:0] current_row, next_row;
-    wire color_scheduling = vertical >= 10'd52 && vertical < 10'd660;
-    wire mono_scheduling = vertical >= 10'd152 && vertical < 10'd560;
-    wire scheduling = configured && mode_valid && (!NATIVE_LOW_CAPTURE || active_resolution != 2'd0) &&
-        (high_resolution ? mono_scheduling : color_scheduling);
+    // Line-level windows are registered from the counters' next values.
+    // Mode, configuration and capture geometry change only on the edge that
+    // returns vertical to 0, where every window is closed for either value.
+    reg scheduling, picture_window;
     wire [8:0] desired_row0 = current_row[0] ? current_row + 9'd1 : current_row;
     wire [8:0] desired_row1 = current_row[0] ? current_row : current_row + 9'd1;
     wire [8:0] desired_rows [0:1];
@@ -182,8 +187,17 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire next_image_line = mode_valid && (high_resolution ?
         (next_vertical >= 10'd160 && next_vertical < 10'd560) :
         (next_vertical >= 10'd60 && next_vertical < 10'd660));
+    wire [10:0] following_horizontal = horizontal == H_TOTAL - 11'd1 ? 11'd0 : horizontal + 11'd1;
+    wire [9:0] following_vertical = horizontal == H_TOTAL - 11'd1 ? next_vertical : vertical;
+    wire following_scheduling = configured && mode_valid &&
+        (!NATIVE_LOW_CAPTURE || active_resolution != 2'd0) && (high_resolution ?
+        (following_vertical >= 10'd152 && following_vertical < 10'd560) :
+        (following_vertical >= 10'd52 && following_vertical < 10'd660));
+    wire following_picture = mode_valid && following_horizontal < 11'd1280 && (high_resolution ?
+        (following_vertical >= 10'd160 && following_vertical < 10'd560) :
+        (following_vertical >= 10'd60 && following_vertical < 10'd660));
     wire next_row_ready = cache_valid[next_row[0]] && !cache_busy[next_row[0]] &&
-        job_frame[next_row[0]] == debug_frame && job_row[next_row[0]] == next_row;
+        job_current[next_row[0]] && job_row[next_row[0]] == next_row;
     integer bank;
     always @(posedge clk_pixel) begin
         if (reset_pixel) begin
@@ -207,7 +221,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             job_request <= 2'd0;
             cache_busy <= 2'd0;
             cache_valid <= 2'd0;
+            job_current <= 2'b11;
             line_available <= 1'b0;
+            scheduling <= 1'b0;
+            picture_window <= 1'b0;
             debug_underruns <= 32'd0;
             debug_frame <= 32'd0;
             for (bank = 0; bank < 2; bank = bank + 1) begin
@@ -223,6 +240,8 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             config_ack_sync <= config_ack_meta;
             job_done_meta <= job_done;
             job_done_sync <= job_done_meta;
+            scheduling <= following_scheduling;
+            picture_window <= following_picture;
             if (!config_started || (horizontal == 11'd0 && vertical == 10'd720)) begin
                 if (!config_waiting) begin
                     config_request <= !config_request;
@@ -238,15 +257,16 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             for (bank = 0; bank < 2; bank = bank + 1) begin
                 if (cache_busy[bank] && job_done_sync[bank] == job_request[bank]) begin
                     cache_busy[bank] <= 1'b0;
-                    cache_valid[bank] <= job_ok[bank] && job_frame[bank] == debug_frame;
+                    cache_valid[bank] <= job_ok[bank] && job_current[bank];
                 end
                 if (scheduling && !cache_busy[bank] && desired_rows[bank] < native_height &&
-                    (!cache_valid[bank] || job_frame[bank] != debug_frame ||
+                    (!cache_valid[bank] || !job_current[bank] ||
                      job_row[bank] != desired_rows[bank])) begin
                     job_base[bank] <= active_base;
                     job_row[bank] <= desired_rows[bank];
                     job_high[bank] <= high_resolution;
                     job_frame[bank] <= debug_frame;
+                    job_current[bank] <= 1'b1;
                     job_request[bank] <= !job_request[bank];
                     cache_busy[bank] <= 1'b1;
                     cache_valid[bank] <= 1'b0;
@@ -267,6 +287,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                 if (vertical == V_TOTAL - 10'd1) begin
                     debug_frame <= debug_frame + 32'd1;
                     cache_valid <= 2'd0;
+                    job_current <= 2'd0;
                     if (pending_valid || config_complete) begin
                         {active_base, active_resolution, active_palette} <=
                             config_complete ? config_bundle_sys : pending_config;
@@ -276,6 +297,18 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                 end
             end else horizontal <= horizontal + 11'd1;
         end
+    end
+
+    function automatic [23:0] line_start(input [15:0] base_page, input [8:0] row, input high);
+        line_start = {1'b0, base_page, 7'd0} + (high ? 24'(row) * 24'd40 : 24'(row) * 24'd80);
+    endfunction
+    wire [23:0] bank_start0 = line_start(job_base[0][23:8], job_row[0], job_high[0]);
+    wire [23:0] bank_start1 = line_start(job_base[1][23:8], job_row[1], job_high[1]);
+    always @(posedge clk_pixel) begin
+        job_start[0] <= bank_start0;
+        job_start[1] <= bank_start1;
+        job_start_ok[0] <= job_start[0] + (job_high[0] ? 24'd40 : 24'd80) <= 24'h040000;
+        job_start_ok[1] <= job_start[1] + (job_high[1] ? 24'd40 : 24'd80) <= 24'h040000;
     end
 
     // Use the renderer's native coordinates instead of reversing its physical
@@ -309,7 +342,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             renderer_data <= 16'd0;
         end else begin
             lookup_valid <= renderer_fetch_valid && cache_valid[renderer_row[0]] &&
-                !cache_busy[renderer_row[0]] && job_frame[renderer_row[0]] == debug_frame &&
+                !cache_busy[renderer_row[0]] && job_current[renderer_row[0]] &&
                 job_row[renderer_row[0]] == renderer_row;
             lookup_bank <= renderer_row[0];
             lookup_column <= renderer_column;
@@ -335,11 +368,19 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire [9:0] canvas_top = native_pal ? 10'd84 : 10'd105;
     wire [9:0] canvas_end = native_pal ? 10'd636 : 10'd615;
     wire canvas_line = vertical >= canvas_top && vertical < canvas_end;
-    wire image_column = horizontal >= 11'd320 && horizontal < 11'd960;
-    wire canvas_column = horizontal >= 11'd224 && horizontal < 11'd1056;
     wire [9:0] native_top = canvas_top + 10'd58;
     wire [9:0] native_end = native_top + {native_height_captured, 1'b0};
-    wire native_image_line = vertical >= native_top && vertical < native_end;
+    reg native_picture_window, canvas_window;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) begin
+            native_picture_window <= 1'b0; canvas_window <= 1'b0;
+        end else begin
+            native_picture_window <= following_vertical >= native_top && following_vertical < native_end &&
+                following_horizontal >= 11'd320 && following_horizontal < 11'd960;
+            canvas_window <= following_vertical >= canvas_top && following_vertical < canvas_end &&
+                following_horizontal >= 11'd224 && following_horizontal < 11'd1056;
+        end
+    end
     // Forecast RGB three pixels ahead: address, RAM, grouped selection.
     // Low output rows repeat twice. Advance the row base in blanking,
     // before the next-line lookahead, without a vertical-coordinate multiply.
@@ -458,13 +499,12 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     endfunction
     wire native_low = NATIVE_LOW_CAPTURE && active_resolution == 2'd0;
     wire mute = hold_sync || !configured || (native_low ? !native_valid :
-        image_line && horizontal < 11'd1280 && !line_available);
+        picture_window && !line_available);
     // The three colour sources are mutually exclusive. Gate them in parallel
     // so mode selection does not add a serial mux after indexed rendering.
     wire show_native = !mute && native_low && source_request[`FES_VIDEO_PART_REQUEST_DE_BIT];
-    wire show_picture = show_native && native_image_line && image_column;
-    wire show_border = show_native && !(native_image_line && image_column) &&
-        canvas_line && canvas_column;
+    wire show_picture = show_native && native_picture_window;
+    wire show_border = show_native && !native_picture_window && canvas_window;
     wire [23:0] output_rgb =
         ({24{!mute && !native_low}} & source_request[23:0]) |
         ({24{show_picture}} & expand_rgb(native_rgb)) |
