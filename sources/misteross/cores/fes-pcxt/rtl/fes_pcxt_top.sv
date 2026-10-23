@@ -11,21 +11,19 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     output wire [12:0] SDRAM_A,
     inout wire [15:0] SDRAM_DQ
 );
-    wire clk, clk_capture, clk_rom, clk_pixel, memory_locked, video_locked;
+    wire clk, clk_capture, clk_pixel, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [2:0] clocks;
+    wire [1:0] clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(3),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(2),
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1("100.0 MHz"),
-        .output_clock_frequency2("100.0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1("5000 ps"), .phase_shift2("2500 ps"),
-        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .operation_mode("direct"),
+        .phase_shift0("0 ps"), .phase_shift1("5000 ps"),
+        .duty_cycle0(50), .duty_cycle1(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
     assign clk = clocks[0];
     assign clk_capture = clocks[1];
-    assign clk_rom = clocks[2];
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"), .number_of_clocks(1),
         .output_clock_frequency0("74.25 MHz"), .phase_shift0("0 ps"), .duty_cycle0(50),
@@ -51,7 +49,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES)) system (
-        .clk(clk), .clk_rom(clk_rom), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
+        .clk(clk), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
         .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),

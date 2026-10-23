@@ -2741,18 +2741,29 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
 `cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
 Each lane has a kept local address register, driven by the same next-PC value
-and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
-ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
-7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
-PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+and reset as the CPU's microcode PC. The intervening operand-phase system edge
+reads each ROM before the next execute edge captures its word. Address setup
+and ROM output paths each have a full 10 ns system cycle. The former +90-degree
+ROM clock and its private ports are removed. The separate SDRAM capture clock
+stays at +180 degrees; system and pixel targets remain 100 and 74.25 MHz.
 Operand selectors are decoded from the raw ROM read before independent
-system-edge output registers. Read latency, sequencer lead and instruction
-cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
-prove the original PC/call-stack/stall control equations, and prove local
-address-copy equality after reset. Symbolic checks retain the actual read and
-output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
-Both shorter address setup and longer ROM output paths require routed and
-Quartus qualification. The prefetch-empty flag compares its low pointer bits
+system-edge output registers. The EU alternates operand-read and
+execute/writeback phases on that physical clock. Four 16-bit operand registers
+separate selection from the ALU; a registered prefetch byte preserves dispatch
+when the BIU consumes it. Architectural state, local ROM addresses and
+word/control outputs advance together on execute edges. Reset initializes the
+outputs from the generated reset-entry word. The BIU and sticky completion
+capture remain active every physical cycle; a private strobe-valid signal
+prevents duplicate consumption of a held command. No new clock domain or
+multicycle exception is introduced. Sequencer lead is preserved, but maximum
+EU throughput becomes 50 million microwords per second and guest instruction
+latencies can increase. The `cpu-timing` simulation measures that tradeoff;
+unchanged pin clocks do not establish silicon cycle conformance. Checks
+reconstruct all 4096 words from the byte lanes, prove the original
+PC/call-stack/stall equations under execute holds, and prove local address-copy
+equality after reset. Symbolic checks retain the actual read and
+output stages across both phases, with arbitrary registered-address payloads
+and resets. Both full-cycle paths require fresh routed and Quartus qualification. The prefetch-empty flag compares its low pointer bits
 directly; all-input equivalence checks the original zero-difference equation.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
@@ -2762,7 +2773,7 @@ specialization covers arbitrary guest firmware and register values. A reserved
 jump-source hold is retained automatically if the image uses it. Exhaustive
 table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
 preserved through synthesis, to separate their physical fanout from the full
-logic-operation muxes. The copies capture the same ROM stage on the same edge;
+logic-operation muxes. The copies capture the same ROM stage on the same enabled edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.

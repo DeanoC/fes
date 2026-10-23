@@ -34,11 +34,11 @@ through both phases. Reset initializes these outputs from the generated
 reset-entry word, including a one-cycle warm reset. The sequencer retains its two-microword lead and flush
 behavior. No instruction word changes.
 
-The board still reads the ROMs at +90 degrees from the 100 MHz system clock;
-SDRAM capture retains its separate +180-degree clock. Active ROM address setup
-and read/output paths retain the 2.5/7.5 ns constraints. The new enables create
-no multicycle exceptions, and every register path remains constrained at the
-physical clock rate.
+The intervening operand-phase system edge reads the ROMs, so address setup
+and the ROM-to-word/control paths each have one full 10 ns system cycle. The
+former +90-degree ROM clock, its private hierarchy ports and its PLL output
+are removed. SDRAM capture retains its separate +180-degree clock. There are
+no multicycle exceptions; every path retains its physical-clock constraints.
 
 The BIU continues every fabric cycle. A private EU-to-BIU strobe-valid signal
 masks the held command's queue-pop, segment-load and timing-counter actions to
@@ -71,7 +71,7 @@ constant masks; exhaustive partial-constant proofs cover those transformations.
 
 
 `tests/test_pcxt_cpu_selection.py` reconstructs all 4096 control words from
-the byte images and checks ROM read alignment at 90/180/270 degrees. Symbolic
+the byte images and checks ROM read alignment across both phases. Symbolic
 checks cover local addresses under arbitrary reset/advance, the original
 PC/stack/stall equations with execute-enable holds, operand mappings and jump
 conditions. `tests/test_pcxt_eu_pipeline.py` checks the actual operand registers,

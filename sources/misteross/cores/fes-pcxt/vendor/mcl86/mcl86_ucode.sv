@@ -62,8 +62,6 @@
 
 module mcl86_ucode #(parameter [31:0] RESET_WORD = 32'b0) (
     input wire clk,
-    // One read edge between successive system edges; the board uses +90 deg.
-    input wire clk_rom,
     input wire reset,
     input wire advance, // One microword every two system cycles
     // Same next-PC value that the EU captures on this system edge.
@@ -75,7 +73,8 @@ module mcl86_ucode #(parameter [31:0] RESET_WORD = 32'b0) (
     logic [31:0] data_half;
     // Four independent address registers give each 8-bit ROM lane a local
     // driver. They capture the EU's next PC on the same execute edge as the real PC;
-    // no additional address/read cycle is introduced.
+    // The intervening operand edge reads these addresses before the next
+    // execute edge captures the word. Both paths have a full physical cycle.
     generate for (genvar lane = 0; lane < 4; lane = lane + 1) begin: bytes
         reg [11:0] read_address;
         (* keep *) always_ff @(posedge clk) begin : read_address_output
@@ -89,7 +88,7 @@ module mcl86_ucode #(parameter [31:0] RESET_WORD = 32'b0) (
             else if (lane == 2) $readmemh("mcl86_ucode_byte2.mem", rom);
             else $readmemh("mcl86_ucode_byte3.mem", rom);
         end
-        always_ff @(posedge clk_rom) begin : read_mem
+        always_ff @(posedge clk) begin : read_mem
             data_half[lane*8 +: 8] <= rom[read_address];
         end
     end endgenerate

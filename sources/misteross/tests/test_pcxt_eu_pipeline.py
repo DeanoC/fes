@@ -107,7 +107,7 @@ module proof(input clk, reset, advance, input [31:0] payload, output ok);
   localparam [31:0] EXPECTED_RESET = RESET_VALUE;
   wire [31:0] raw_payload, word;
   wire [15:0] s0,s1,a0,a1;
-  mcl86_ucode #(.RESET_WORD(EXPECTED_RESET)) dut(.clk(clk), .clk_rom(clk), .reset(reset), .advance(advance),
+  mcl86_ucode #(.RESET_WORD(EXPECTED_RESET)) dut(.clk(clk), .reset(reset), .advance(advance),
     .payload(payload), .raw_payload(raw_payload), .next_addr(12'b0), .dout(word),
     .operand_select0(s0), .operand_select1(s1), .add_select0(a0), .add_select1(a1));
   reg sampled = 0;

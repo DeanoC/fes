@@ -111,7 +111,6 @@ module mcl86_eu_core
     (
         // System Interface
         input  wire        CORE_CLK_INT,          // High-speed core clock
-        input  wire        CORE_CLK_ROM,          // Phase-shifted ROM read clock
         input  wire        RESET_INT,             // Synchronous reset (active high)
         input  wire        TEST_N_INT,            // Test pin input (active low, can be tied high)
         input  wire        FAKE286_FLAGS,         // Make PUSHF expose 80286 reserved FLAGS bits
@@ -350,7 +349,6 @@ module mcl86_eu_core
         .add_select0 (eu_add_select0),
         .add_select1 (eu_add_select1),
         .advance ( eu_execute ),
-        .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
         .reset ( RESET_INT ),
         .next_addr ( eu_rom_address_next[11:0] ),

@@ -1,6 +1,6 @@
 {
   "scope": "Matched guest-clock throughput measurement using exact e0bb reference RTL and current two-phase RTL, identical workload image/testbench; not silicon cycle conformance.",
-  "baseline_receipt": "baseline/timing-v3/receipt.json",
+  "baseline_receipt": "timing-frozen-baseline/receipt.json",
   "rows": [
     {
       "workload": "128 NOP",
@@ -160,5 +160,29 @@
     }
   ],
   "nominal_pin_clock_unchanged": true,
-  "architectural_results": "All four self-checking workloads pass for all three waits in both CPUs."
+  "architectural_results": "All four self-checking workloads pass for all three waits in both CPUs.",
+  "baseline_receipt_sha256": "f12d1849beb26b3a0b9a6a8729646fc59521da9e5e5d23b79b65bdc77f595b73",
+  "baseline_source": {
+    "revision": "e0bb083d37de176947f28e9f8f2ab640423347ec",
+    "component_tree": "22457bf46d4eafe4bb591d2ac56243d63312b63d",
+    "archive_sha256": "da021089dcd84b7f44de0fa9b31ee5f619b6a098fc8a39a6cba4c2dd0310cfc9",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-baseline/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "testbench_source": {
+    "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+    "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+    "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  },
+  "candidate_receipt": "timing-frozen-candidate/receipt.json",
+  "candidate_receipt_sha256": "10448d3a59ff430183695b1177c828b1fef402c1b20a132ab2c3aed6297c3d7b",
+  "candidate_source": {
+    "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+    "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+    "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+    "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+  }
 }

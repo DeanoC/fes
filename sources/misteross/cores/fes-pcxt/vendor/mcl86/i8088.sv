@@ -86,7 +86,6 @@ module i8088
     (
         // System Interface
         input  wire         CORE_CLK,                             // High-speed core clock (4x-8x CPU frequency)
-        input  wire         CORE_CLK_ROM,                         // Phase-shifted read edge between CORE_CLK edges
         input  wire         CLK,                                  // CPU clock (4.77-10 MHz typical)
         input  wire         RESET,                                // Synchronous reset (active high)
         // Bus Control Interface
@@ -214,7 +213,6 @@ module i8088
     mcl86_eu_core u_eu_core
     (
         .CORE_CLK_INT         ( CORE_CLK                                      ),
-        .CORE_CLK_ROM         ( CORE_CLK_ROM                                  ),
         .RESET_INT            ( RESET                                         ),
         .TEST_N_INT           ( 1'b0                                          ), // TEST pin tied low (not used)
         .FAKE286_FLAGS        ( fake286_flags                                 ),

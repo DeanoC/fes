@@ -318,10 +318,11 @@ clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
 The CPU import splits its unchanged microcode into four byte-wide ROMs, each
 with a local system-edge address register driven by the same next PC and reset
-as the CPU PC. A separate +90-degree PLL output reads the ROMs; the next system
-edge captures the word and decoded operand controls. Read and instruction
-alignment is preserved in microword steps. The shorter 2.5 ns address path and longer 7.5 ns ROM
-output path both require qualification; SDRAM capture remains at +180 degrees.
+as the CPU PC. The intervening operand-phase system edge reads the ROMs;
+the next execute edge captures the word and decoded operand controls. Both
+address setup and registered ROM output paths have one ordinary 10 ns system
+cycle. The dedicated +90-degree ROM clock and its private ports are removed;
+SDRAM capture remains at +180 degrees. Microcode lead is preserved.
 
 The CPU now executes each microword in two 100 MHz phases: register operands
 and dispatch byte, then execute/writeback. PC, local ROM address and word/control
@@ -457,8 +458,8 @@ occurs alongside palette selection. Bank/subpixel/raster fields have matching
 latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
 all-input Yosys SAT checks, as do the PIT decrements. CPU checks reconstruct every
 control-ROM word from its four byte lanes, prove the PC/call-stack/stall
-projection and local address-copy invariant, check read alignment at
-90/180/270 degrees, and compare real operand
+projection and local address-copy invariant, prove read alignment across the
+operand/execute phases under arbitrary resets and payloads, and compare real operand
 selection against the imported equations;
 `cpu_roms` derives four byte-lane images from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
@@ -771,9 +772,8 @@ motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 and mapped cell counts.
 Both CPU and machine synthesis regenerate the original microcode and its
 derived operand-select ROM through the same verified helper as simulation.
-The CPU/machine synthesis fixtures expose a separate `clk_rom` input, which
-must be 100 MHz shifted 180 degrees from `clk`; simulation derives it from
-the opposite edge. Board builds supply the existing memory PLL phase.
+CPU and machine fixtures use the same 100 MHz system edge for the CPU and
+registered microcode reads; no separate ROM clock input is required.
 The display variant synthesizes both ISA cards, their VRAM and the registered
 backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
 None of these variants synthesizes the testbench RAM or diagnostic system ROM.

@@ -162,7 +162,10 @@ class CpuSelectionTest(unittest.TestCase):
         self.assertEqual(count, 1)
         return source
 
-    def test_rom_contents_and_registered_read_alignment(self):
+    def test_rom_contents_and_two_phase_registered_read_alignment(self):
+        source = (VENDOR / 'mcl86_ucode.sv').read_text()
+        self.assertIn('always_ff @(posedge clk) begin : read_mem', source)
+        self.assertNotIn('clk_rom', source)
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             inputs.cpu_roms(work)
@@ -177,33 +180,39 @@ class CpuSelectionTest(unittest.TestCase):
                                     for row in range(4096)])
             (work / 'rom.sv').write_text(self.cut_rom_lookup())
             (work / 'proof.sv').write_text(r"""
-              module proof(input clk, clk_rom, input [31:0] next_payload, output ok);
-                reg [31:0] payload;
-                always @(posedge clk) payload <= next_payload;
-                reg [31:0] original_word;
-                always @(posedge clk) original_word <= payload;
+              module proof(input clk, reset, input [31:0] next_payload, output ok);
+                // An immutable lookup changes only when the registered ROM
+                // address changes on execute. Read on the intervening edge.
+                reg phase = 0, seen_reset = 0;
+                reg [31:0] payload, expected_word;
+                always @(posedge clk) begin
+                  if (reset) begin
+                    phase <= 0; seen_reset <= 1;
+                    payload <= 0; expected_word <= 0;
+                  end else begin
+                    phase <= !phase;
+                    if (phase) begin
+                      payload <= next_payload;
+                      expected_word <= payload;
+                    end
+                  end
+                end
                 wire [31:0] word;
-                wire [15:0] s0, s1, a0, a1;
-                mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(clk_rom),
-                    .reset(1'b0), .advance(1'b1), .next_addr(12'b0), .dout(word),
+                wire [15:0] s0,s1,a0,a1;
+                mcl86_ucode dut(.rom_payload(payload), .clk(clk),
+                    .reset(reset), .advance(phase), .next_addr(12'b0), .dout(word),
                     .operand_select0(s0), .operand_select1(s1), .add_select0(a0), .add_select1(a1));
-                assign ok = word == original_word &&
-                            s0 == (16'h1 << original_word[23:20]) &&
-                            s1 == (16'h1 << original_word[19:16]) && a0 == s0 && a1 == s1;
+                assign ok = !seen_reset || (word == expected_word &&
+                            s0 == (16'h1 << expected_word[23:20]) &&
+                            s1 == (16'h1 << expected_word[19:16]) && a0 == s0 && a1 == s1);
               endmodule
             """)
-            for phase in (90, 180, 270):
-                with self.subTest(phase=phase):
-                    rom_high = {90: (3, 0), 180: (0, 1), 270: (1, 2)}[phase]
-                    command = ('read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; '
-                               'clk2fflogic; opt; '
-                               'sat -verify -seq 12 -set-init-zero -prove-skip 8 -prove ok 1 '
-                               + ' '.join(f'-set-at {step} clk {int(step % 4 in (2,3))} '
-                                          f'-set-at {step} clk_rom {int(step % 4 in rom_high)}'
-                                          for step in range(1, 13)) + ' -show-inputs')
-                    result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
-                                            capture_output=True, text=True, timeout=90)
-                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; opt; '
+                'dffunmap; sat -verify -seq 6 -tempinduct -maxsteps 16 '
+                '-prove ok 1 -show-inputs'], cwd=work,
+                capture_output=True, text=True, timeout=90)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_local_rom_addresses_match_the_microcode_pc_after_reset(self):
         source = self.cut_rom_lookup().replace('input wire [31:0] rom_payload,',
@@ -217,7 +226,7 @@ class CpuSelectionTest(unittest.TestCase):
             always @(posedge clk) if (reset) seen_reset <= 1;
             always @(posedge clk) if (reset) pc <= 12'h020; else if (advance) pc <= next_addr;
             wire [47:0] addresses;
-            mcl86_ucode dut(.clk(clk), .clk_rom(clk), .reset(reset), .advance(advance), .next_addr(next_addr),
+            mcl86_ucode dut(.clk(clk), .reset(reset), .advance(advance), .next_addr(next_addr),
               .rom_payload(32'b0), .read_addresses(addresses), .dout(),
               .operand_select0(), .operand_select1(), .add_select0(), .add_select1());
             assign ok = !seen_reset || addresses == {4{pc}};
