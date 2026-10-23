@@ -3497,7 +3497,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
-`fes.video.menu-blitter` 1.0, no playable system identity. FES now selects it
+`fes.video.menu-blitter` 1.1, no playable system identity. FES now selects it
 as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package

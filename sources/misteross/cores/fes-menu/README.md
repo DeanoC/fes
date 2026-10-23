@@ -124,7 +124,7 @@ and records it in the closed build inputs. Failed routes publish no RBF.
 `make build-fes-menu-package` builds separate format-2 `fes.menu` 1.0.0
 firmware under `build/oss/fes-menu-package`, exporting the closed package to
 `build/packages`. It requires application fixed video, HPS DDR, menu-display
-1.0 and menu-blitter 1.0. It has no playable system identity and does not
+1.0 and menu-blitter 1.1. It has no playable system identity and does not
 change factory selection.
 The qualified RAM-test lock now includes the congestion fix from FES #266.
 GPU 0 and bounded explicit seeds retain the normal provenance/evidence gates.
@@ -142,10 +142,16 @@ The GP and reader use the same pixel clock.
 slot (`sources/mister-packages/docs/application-io.md`). MenuBlit goes to
 `fes_menu_blit_control`; the blitter reads destinations and writes results on
 port 1, so a blend reads what earlier commands wrote, and reads commands and
-textures on port 2. Each row is read, then blended through a four-clock
-pipeline and an eight-beat FIFO into the write burst: 2 pixels a clock for
-fills, 1 for blends and copies. The blend's 8x8 products are built from two
-8x4 halves a clock apart because the core builds without DSPs. Quiesce stops a
+sources on port 2. Each row is read, then goes through a three-clock alpha
+stage (EXPAND's `A·m/255`), a four-clock blend and a sixteen-beat FIFO into
+the write burst: 2 pixels a clock for fills, 1 for the other ops. Every op
+takes the same pipeline, so beats stay in order. EXPAND's coverage can start
+at any byte, so a second copy of the source row buffer reads the beat before.
+The menu builds with DSPs: the blend's and the alpha stage's unsigned 8x8
+products each map to one 9x9 multiplier, eight in all. Their operands are
+zero-extended, so the multiplier's signedness cannot change them. A run
+reports idle and counts only once port 1's guard has drained its last write
+beats, so a submitted slot never has writes in flight. Quiesce stops a
 run at the next row and waits for both ports to drain; the drained proof is
 registered, because the f2sdram responses are too far from the GP control
 for one clock.

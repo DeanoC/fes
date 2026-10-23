@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // fes_menu_blitter against the gfx reference: random lists of every op,
-// width and alignment into both slots, every fault, halt, and full-frame
-// throughput, on two Avalon-MM slaves that refuse commands, delay and gap
+// width and alignment (EXPAND coverage at every byte offset) into both
+// slots, every fault, halt, and full-frame throughput, on two Avalon-MM slaves that refuse commands, delay and gap
 // read data, and check every burst and every written byte.
 #include "Vfes_menu_blitter.h"
 #include "blit_reference.hpp"
@@ -160,12 +160,21 @@ static uint32_t random_colour(std::mt19937& random) {
 	}
 }
 
+// Coverage lives at the start of the heap, mostly 0 and 255 as glyph masks are.
+static constexpr uint32_t COVERAGE_BYTES = 0x100000;
+
 static Command random_command(std::mt19937& random) {
-	int op = 1 + int(random() % 4);
+	int op = 1 + int(random() % 5);
 	int x = int(random() % W), y = int(random() % H);
 	int w = random() % 4 == 0 ? W - x : 1 + int(random() % std::min(W - x, 64));
 	int h = 1 + int(random() % std::min(H - y, 12));
 	if (op == FILL || op == FILL_BLEND) return Command::make(op, random_colour(random), x, y, w, h);
+	if (op == EXPAND) {
+		int stride = w + int(random() % 9);
+		uint32_t span = uint32_t(stride) * (h - 1) + w;
+		uint32_t limit = span < COVERAGE_BYTES / 2 ? COVERAGE_BYTES : HEAP_BYTES;
+		return Command::make(op, random_colour(random), x, y, w, h, HEAP + uint32_t(random() % (limit - span)), stride);
+	}
 	int stride = w * 4 + 4 * int(random() % 9);
 	uint32_t span = uint32_t(stride) * (h - 1) + w * 4;
 	uint32_t source = HEAP + 4 * uint32_t(random() % ((HEAP_BYTES - span) / 4));
@@ -184,6 +193,10 @@ int main(int argc, char** argv) {
 		case 1: v |= 0xff000000u; break;
 		}
 		std::memcpy(&b.memory[i], &v, 4);
+	}
+	for (uint32_t i = HEAP; i < HEAP + COVERAGE_BYTES; ++i) {
+		uint32_t r = random() % 8;
+		b.memory[i] = r < 3 ? 0 : r < 6 ? 255 : uint8_t(random());
 	}
 	std::vector<uint8_t> expected = b.memory;
 	uint16_t completed = 0;
@@ -212,6 +225,21 @@ int main(int argc, char** argv) {
 		reference(expected, list, 1);
 		check(b.t.completed == ++completed && std::memcmp(b.memory.data(), expected.data(), 2 * SLOT) == 0, "widths and phases");
 	}
+	// EXPAND: every width to three beats, every source byte offset, both
+	// destination phases, and rows whose bytes straddle beats.
+	{
+		std::vector<Command> list;
+		for (int w = 1; w <= 24; ++w)
+			for (int x = 0; x < 2; ++x)
+				for (int phase = 0; phase < 8; ++phase)
+					list.push_back(Command::make(EXPAND, random_colour(random), 2 + 32 * x + 64 * (phase % 4), 100 + 2 * w + 60 * (phase / 4), w, 2,
+						HEAP + 256 * uint32_t(w) + uint32_t(phase), w + 3));
+		list.push_back(Command::make(EXPAND, 0xff102030u, 0, 300, W, 3, HEAP + 7, W + 1));
+		list.push_back(Command::make(EXPAND, 0x80ffffffu, 1, 310, W - 1, 3, HEAP + 5000, W - 1));
+		b.run(LIST, list, 0);
+		reference(expected, list, 0);
+		check(b.t.completed == ++completed && std::memcmp(b.memory.data(), expected.data(), 2 * SLOT) == 0, "EXPAND widths and byte offsets");
+	}
 	// END stops the run; commands after it never execute.
 	{
 		std::vector<Command> list = {Command::make(FILL, 0x123456, 0, 0, 3, 3), Command{}, Command::make(FILL, 0x654321, 0, 0, 3, 3)};
@@ -229,7 +257,7 @@ int main(int argc, char** argv) {
 	Command reserved2 = source_cmd(HEAP, 32); reserved2.word[2] |= 1ull << 48;
 	std::vector<Case> cases = {
 		{"reserved word 3", reserved3, 5}, {"reserved op bits", reserved0, 5}, {"reserved source bits", reserved2, 5},
-		{"op 5", Command::make(5, 0, 0, 0, 1, 1), 2}, {"op 0x81", Command::make(0x81, 0, 0, 0, 1, 1), 2},
+		{"op 6", Command::make(6, 0, 0, 0, 1, 1), 2}, {"op 0x81", Command::make(0x81, 0, 0, 0, 1, 1), 2},
 		{"op 0x08 with a colour", Command::make(0x08, 0xff, 0, 0, 1, 1), 2},
 		// END has no colour, rectangle or source: any of them set is reserved.
 		{"END colour", Command::make(END, 0xff000000u, 0, 0, 0, 0), 5}, {"END rectangle outside", Command::make(END, 0, W, 0, 1, 1), 5},
@@ -241,6 +269,10 @@ int main(int argc, char** argv) {
 		{"source in slot", source_cmd(0, 32), 4}, {"source below heap", source_cmd(HEAP - 4, 32), 4},
 		{"source misaligned", source_cmd(HEAP + 2, 32), 4}, {"stride misaligned", source_cmd(HEAP, 34), 4},
 		{"stride below width", source_cmd(HEAP, 28), 4}, {"source past heap", source_cmd(HEAP + HEAP_BYTES - 32 - 4, 32), 4},
+		// Coverage is a byte a pixel at any offset, so only its extent can fault.
+		{"coverage below heap", Command::make(EXPAND, 0xff000000u, 10, 10, 8, 2, HEAP - 1, 8), 4},
+		{"coverage stride below width", Command::make(EXPAND, 0xff000000u, 10, 10, 8, 2, HEAP + 3, 7), 4},
+		{"coverage past heap", Command::make(EXPAND, 0xff000000u, 10, 10, 8, 2, HEAP + HEAP_BYTES - 15, 8), 4},
 	};
 	for (const Case& c : cases) {
 		std::vector<Command> list = {Command::make(FILL, random(), 100, 100, 5, 5), c.command, Command::make(FILL, 0, 0, 0, 1280, 720)};
@@ -317,13 +349,13 @@ int main(int argc, char** argv) {
 
 	// Throughput with a ready port and a fixed latency.
 	b.wait_percent = 0; b.gap_percent = 0; b.min_latency = b.max_latency = 24;
-	for (int op : {FILL, FILL_BLEND, COPY, BLEND}) {
-		std::vector<Command> list = {Command::make(op, 0x80402010, 0, 0, W, H, HEAP, STRIDE)};
+	for (int op : {FILL, FILL_BLEND, COPY, BLEND, EXPAND}) {
+		std::vector<Command> list = {Command::make(op, 0x80402010, 0, 0, W, H, HEAP + (op == EXPAND ? 3 : 0), op == EXPAND ? W : STRIDE)};
 		uint64_t cycles = b.run(LIST, list, 1);
 		reference(expected, list, 1);
 		check(std::memcmp(b.memory.data(), expected.data(), 2 * SLOT) == 0, "full-frame run");
 		std::printf("full frame %-10s %8llu clocks, %5.2f px/clock, %5.2f ms at 74.25 MHz\n",
-			op == FILL ? "FILL" : op == FILL_BLEND ? "FILL_BLEND" : op == COPY ? "COPY" : "BLEND",
+			op == FILL ? "FILL" : op == FILL_BLEND ? "FILL_BLEND" : op == COPY ? "COPY" : op == BLEND ? "BLEND" : "EXPAND",
 			(unsigned long long)cycles, double(W) * H / double(cycles), double(cycles) / 74250.0);
 	}
 	std::puts("PASS blitter full frames");

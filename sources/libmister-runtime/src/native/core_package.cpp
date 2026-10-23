@@ -892,7 +892,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesApplicationInterfaceVideoMenuDisplayID ||
 				interface.id == FesApplicationInterfaceVideoMenuBlitterID ||
 				firmware;
-			const bool supported = known && interface.major == 1 && interface.minor == 0;
+			// The blitter's minors add ops, so a menu may declare any of them.
+			const bool supported = known && interface.major == 1 && (interface.minor == 0 ||
+				(interface.id == FesApplicationInterfaceVideoMenuBlitterID &&
+				 interface.minor <= FesApplicationInterfaceVideoMenuBlitterMinor));
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required application interface is unsupported");

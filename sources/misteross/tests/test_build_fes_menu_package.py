@@ -18,7 +18,7 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertNotIn('cores/fes-menu/rtl/top.v',synth)
         self.assertIn('fes_application_gp.v',synth)
         self.assertIn('fes_menu_control.v',synth)
-        for blitter in ('fes_menu_blit_control.v','fes_menu_blitter.v','fes_menu_blit_read.v','fes_menu_blend.v'):
+        for blitter in ('fes_menu_blit_control.v','fes_menu_blitter.v','fes_menu_blit_read.v','fes_menu_blend.v','fes_menu_blit_alpha.v'):
             self.assertIn(blitter,synth)
         self.assertIn("BUILD_ID 128'h0123456789abcdef0123456789abcdef",synth)
         self.assertIn(p.MENU_TOOLCHAIN_LOCK, p.INPUTS)

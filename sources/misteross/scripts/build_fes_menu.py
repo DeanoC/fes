@@ -23,7 +23,8 @@ SOURCES = ('cores/fes-splash/rtl/pixel_pll.v', 'cores/fes-menu/rtl/fes_menu_read
            'cores/fes-menu/rtl/top.v')
 DDR_SOURCES = ('cores/fes-common/rtl/fes_hps_ddr.v',
                'cores/fes-common/rtl/fes_hps_ddr_guard.v',
-               'cores/fes-menu/rtl/fes_menu_blend.v', 'cores/fes-menu/rtl/fes_menu_blit_read.v',
+               'cores/fes-menu/rtl/fes_menu_blend.v', 'cores/fes-menu/rtl/fes_menu_blit_alpha.v',
+               'cores/fes-menu/rtl/fes_menu_blit_read.v',
                'cores/fes-menu/rtl/fes_menu_blitter.v', 'cores/fes-menu/rtl/fes_menu_ddr.v')
 DDR_GENERATED = 'cores/fes-common/generated/fes_application.vh'
 TOOLCHAIN_LOCK = 'cores/fes-menu/toolchain.lock'
@@ -78,7 +79,7 @@ def build_commands(tools, *, mode='test-pattern', seed=None):
     sources = SOURCES + (DDR_SOURCES if mode == 'ddr' else ())
     select = 'chparam -set TEST_PATTERN 0 top; ' if mode == 'ddr' else ''
     program = (f"read_verilog -sv -I cores/fes-common/generated {' '.join(sources)}; {select}"
-               f"synth_intel_alm -nolutram -nodsp -top top; stat; write_json {output}/synth.json")
+               f"synth_intel_alm -nolutram -top top; stat; write_json {output}/synth.json")
     return ((str(tools['yosys']), '-p', program),
             (str(tools['nextpnr-mistral']), '--json', f'{output}/synth.json',
              '--device', board.TARGET, '--qsf', QSF, '--sdc', evidence.SDC,

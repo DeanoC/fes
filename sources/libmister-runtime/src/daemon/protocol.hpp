@@ -90,8 +90,10 @@ struct MenuFrameReply {
  std::uint8_t slot=0;
  // A preparation's count on its generation.
  std::uint64_t preparation=0;
- // A grant that also covers the blitter's lists and heap.
+ // A grant that also covers the blitter's lists and heap, and the
+ // menu-blitter minor its firmware declares.
  bool blitter=false;
+ std::uint16_t blitter_minor=0;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Present timing, encoded as menu_frame.timing on a commit reply.
  std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;

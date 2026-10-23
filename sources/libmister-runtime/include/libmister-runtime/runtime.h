@@ -328,9 +328,11 @@ struct MenuDisplayStatus {
  MenuRect picture;
  bool launcher_focus=false;
  std::uint32_t displayed_sequence=0,underflows=0;
- // The grant also covers the blitter's command lists and texture heap.
- // Reported in the grant, not in status.
+ // The grant also covers the blitter's command lists and texture heap, and
+ // blitter_minor is the menu-blitter minor the firmware declares, which says
+ // which ops it runs. Reported in the grant, not in status.
  bool blitter=false;
+ std::uint16_t blitter_minor=0;
  // A list frame has run on this blitter grant. The grant takes CPU frames
  // until then and only lists after. Not reported.
  bool blitted=false;
@@ -598,7 +600,7 @@ public:
  Error SetSessionDisplay(const std::string& expected_package_id,
   std::uint64_t expected_generation,bool visible,bool launcher_focus);
  // blitter reports whether the grant covers the blitter's lists and heap.
- Error ShareMenuWindow(std::uint64_t,int*,bool* blitter);
+ Error ShareMenuWindow(std::uint64_t,int*,bool* blitter,std::uint16_t* blitter_minor);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;

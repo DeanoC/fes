@@ -296,9 +296,9 @@ Unexpected hold/fault fails closed until reprogramming. These definitions
 and `testdata/menu-display-v1/exchanges.json` establish the wire contract;
 consumer support and exact-artifact hardware acceptance remain separate.
 
-## Menu blitter 1.0
+## Menu blitter 1.1
 
-`fes.video.menu-blitter` 1.0 is application capability bit 10 (`0x400`). A
+`fes.video.menu-blitter` 1.1 is application capability bit 10 (`0x400`). A
 menu firmware that declares it also declares the menu display, fixed video and
 HPS DDR. The blitter draws a frame into a menu slot from a command list, so
 the CPU never writes pixels; the display then presents that slot as before.
@@ -307,7 +307,7 @@ The window holds, at fixed offsets: the two slots, the list region at
 `0x00800000` (1 MiB, 32768 commands of 32 bytes) and the texture heap at
 `0x01000000` (64 MiB). The client writes lists and textures; the runtime makes
 them visible to the fabric before a run. Textures are B,G,R,A bytes with
-straight alpha.
+straight alpha; coverage is one byte a pixel.
 
 A command is four little-endian 64-bit words:
 
@@ -316,17 +316,20 @@ A command is four little-endian 64-bit words:
 | 0 | 7:0 | op |
 | 0 | 63:32 | colour `0xAARRGGBB` |
 | 1 | 15:0, 31:16, 47:32, 63:48 | destination x, y, w, h, clipped to the frame |
-| 2 | 31:0 | source window offset of the first pixel, 4-byte aligned |
-| 2 | 47:32 | source stride in bytes, 4-byte aligned, at least 4·w |
+| 2 | 31:0 | source window offset of the first pixel: 4-byte aligned for a texture, any byte for coverage |
+| 2 | 47:32 | source stride in bytes: 4-byte aligned and at least 4·w for a texture, at least w for coverage |
 
 Every other bit is zero. Ops: 0 END stops the run; 1 FILL replaces with the
 colour; 2 FILL_BLEND draws the colour source-over; 3 COPY replaces with the
-texture; 4 BLEND draws the texture source-over. END has no colour, rectangle
-or source, so those bits are reserved too and an END is all zero. Fills
-ignore word 2, and copies and blends ignore the colour. Source-over is
-`(s·a + d·(255−a)) / 255` per channel with integer division, keeping the
-destination at a=0 and taking the source at a=255, byte for byte as tenfoot's
-software raster. Every pixel the blitter writes has its unused byte 0.
+texture; 4 BLEND draws the texture source-over; 5 EXPAND draws the colour
+source-over with its alpha A scaled by the coverage byte m to `A·m / 255`,
+using integer division. END has no colour, rectangle or source, so those bits
+are reserved too and an END is all zero. Fills ignore word 2, and copies and
+blends ignore the colour. Source-over is `(s·a + d·(255−a)) / 255` per
+channel with integer division, keeping the destination at a=0 and taking the
+source at a=255, byte for byte as tenfoot's software raster. Every pixel the
+blitter writes has its unused byte 0. Minor 1 adds EXPAND; a 1.0 blitter
+faults it with code 2.
 
 | Opcode | Index / argument | Reply and state |
 | --- | --- | --- |
@@ -340,8 +343,9 @@ Staging follows MenuSubmit: indices 0, 1, 2 in order, only while the menu is
 enabled and the blitter is idle and unfaulted, otherwise error 4. An invalid
 index, argument or state request keeps staged fields; a run or a quiesce
 clears them. Commands run in list order, and a command reads what the
-commands before it wrote. A run finishes at its count or at END; the
-completed count then advances and busy clears.
+commands before it wrote. A run finishes at its count or at END; once every
+write it issued has reached the SDRAM controller, the completed count
+advances and busy clears.
 
 A command whose rectangle is empty or leaves the frame, whose source leaves
 the heap, whose op is unknown or whose reserved bits are set faults the

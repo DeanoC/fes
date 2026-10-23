@@ -7,7 +7,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ("reader", "video", "pattern", "board", "ddr", "ddr-board", "ddr-disabled", "gp", "gp-board", "blend", "blitter")
-BLITTER = tuple(f"cores/fes-menu/rtl/{name}.v" for name in ("fes_menu_blend", "fes_menu_blit_read", "fes_menu_blitter"))
+BLITTER = tuple(f"cores/fes-menu/rtl/{name}.v" for name in ("fes_menu_blend", "fes_menu_blit_alpha", "fes_menu_blit_read", "fes_menu_blitter"))
 
 
 def main():

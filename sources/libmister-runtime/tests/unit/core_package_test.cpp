@@ -374,6 +374,12 @@ void TestApplicationCompatibilityComposesInterfaces()
 		auto blitter = menu;
 		blitter.interfaces.push_back({"fes.video.menu-blitter",1,0,true});
 		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		// Firmware may declare any blitter minor up to the runtime's.
+		blitter.interfaces.back().minor=1;
+		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=2;
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=0;
 		blitter.interfaces.back().required=false;
 		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
 		blitter.interfaces.back().required=true;

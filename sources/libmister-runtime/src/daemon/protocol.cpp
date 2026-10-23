@@ -741,7 +741,8 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
    output.Append(",\"format\":\"bgrx8888\",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
    output.Append(",\"slot_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotBytes));
    if(menu_frame->blitter) {
-    output.Append(",\"blitter\":{\"list_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitListOffset));
+    output.Append(",\"blitter\":{\"minor\":");output.Append(std::to_string(menu_frame->blitter_minor));
+    output.Append(",\"list_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitListOffset));
     output.Append(",\"commands\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitCommandCount));
     output.Append(",\"command_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitCommandBytes));
     output.Append(",\"heap_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitHeapOffset));
