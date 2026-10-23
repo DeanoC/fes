@@ -20,6 +20,9 @@
 namespace mister {
 namespace native {
 
+// Minor 1 adds EXPAND, the first menu-blitter version suitable for grants.
+constexpr std::uint16_t kMenuBlitterMinimumMinor = 1;
+
 // MISTER_MENU_INTERFACES as consecutive NUL-terminated "id=major.minor"
 // records, ending with an empty record.
 extern const char kMenuInterfaceRecords[];

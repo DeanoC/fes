@@ -1,7 +1,6 @@
 package gfx
 
 import (
-	"container/list"
 	"context"
 	"image"
 	"slices"
@@ -33,7 +32,7 @@ const (
 	frameBlit
 )
 
-// latch picks the frame's mode: the blitter when the last grant had one.
+// latch picks the frame's mode: the blitter when the last grant selected it.
 func (d *MenuDisplay) latch() frameMode {
 	if d.mode != frameUnlatched {
 		return d.mode
@@ -172,7 +171,7 @@ func (d *MenuDisplay) blitBitmap(bm *swBitmap, srcX, srcY, x0, y0, x1, y1, dstX,
 // Software.Draw samples it. The blitter only copies 1:1.
 func (d *MenuDisplay) blitScaled(source *swBitmap, src, dst Rect, x0, y0, x1, y1 int) *swBitmap {
 	key := scaledKey{weak.Make(source), src, dst}
-	if bm := d.blitCache.scaled.get(key); bm != nil {
+	if bm, ok := d.blitCache.scaled.get(key); ok {
 		return bm
 	}
 	w, h := x1-x0, y1-y0
@@ -190,7 +189,7 @@ func (d *MenuDisplay) blitScaled(source *swBitmap, src, dst Rect, x0, y0, x1, y1
 			copy(row[x*4:x*4+4], sourceRow[off:off+4])
 		}
 	}
-	d.blitCache.scaled.put(key, bitmap)
+	d.blitCache.scaled.put(key, bitmap, bitmap.h*bitmap.stride)
 	return bitmap
 }
 
@@ -208,10 +207,10 @@ func (d *MenuDisplay) DebugText(x, y int, text string, scale int) {
 		scale = 1
 	}
 	key := debugKey{text, scale}
-	bm := d.blitCache.debug.get(key)
-	if bm == nil {
+	bm, ok := d.blitCache.debug.get(key)
+	if !ok {
 		bm = debugBitmap(text, scale)
-		d.blitCache.debug.put(key, bm)
+		d.blitCache.debug.put(key, bm, bm.h*bm.stride)
 	}
 	s := d.Software
 	x0, y0, x1, y1, ok := clipRect(Rect{X: float32(x), Y: float32(y), W: float32(bm.w), H: float32(bm.h)}, s.w, s.h)
@@ -245,31 +244,24 @@ func (d *MenuDisplay) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (d *MenuDisplay) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	m, src, _ := UIText(text, sizePx, w, 0)
+	d.DrawMask(m, src, x, y, c)
+}
+
+// DrawMask records an expand for the selected menu blitter.
+func (d *MenuDisplay) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
 	if d.latch() != frameBlit {
 		d.cpuBase()
-		d.Software.DrawTextWeight(x, y, text, sizePx, w, c)
+		d.Software.DrawMask(m, src, x, y, c)
 		return
 	}
 	d.blitBase()
-	key := textKey{text, sizePx, NormalizeWeight(w), c}
-	bm := d.blitCache.text.get(key)
-	if bm == nil {
-		img := RasterizeTextWeight(text, sizePx, w, c, 0)
-		if img == nil {
-			return
-		}
-		b := img.Bounds()
-		if b.Dx() < 1 || b.Dy() < 1 {
-			return
-		}
-		bm = &swBitmap{w: b.Dx(), h: b.Dy(), stride: img.Stride, pix: img.Pix[img.PixOffset(b.Min.X, b.Min.Y):]}
-		d.blitCache.text.put(key, bm)
+	src, at, ok := clipMask(m, src, x, y, d.Software.w, d.Software.h)
+	if !ok || c.A == 0 {
+		return
 	}
-	s := d.Software
-	x0, y0, x1, y1, ok := clipRect(Rect{X: float32(x), Y: float32(y), W: float32(bm.w), H: float32(bm.h)}, s.w, s.h)
-	if ok {
-		d.blitBitmap(bm, 0, 0, x0, y0, x1, y1, x, y)
-	}
+	d.ops = append(d.ops, menudisplay.BlitOp{Kind: menudisplay.BlitExpand, X: at.X, Y: at.Y, W: src.Dx(), H: src.Dy(),
+		Color: argb(c), Source: m.blitSource(), SourceX: src.Min.X, SourceY: src.Min.Y})
 }
 
 // Framebuffer returns the frame drawn so far. While the blitter draws the
@@ -349,6 +341,10 @@ func rasterOps(pix []byte, stride int, ops []menudisplay.BlitOp) {
 					blendOver(row, x*4, r, g, b, a)
 				}
 			}
+		case menudisplay.BlitExpand:
+			s := op.Source
+			src := image.Rect(op.SourceX, op.SourceY, op.SourceX+op.W, op.SourceY+op.H)
+			expandRows(pix, stride, s.Pix, s.Stride, src, image.Pt(op.X, op.Y), Color{R: r, G: g, B: b, A: a})
 		case menudisplay.BlitCopy, menudisplay.BlitBlend:
 			s := op.Source
 			for y := 0; y < op.H; y++ {
@@ -399,63 +395,16 @@ type debugKey struct {
 	scale int
 }
 
-type textKey struct {
-	text   string
-	size   int
-	weight Weight
-	color  Color
-}
-
 // blitCaches keep the bitmaps a list frame draws from that Software makes
-// for each call: scaled copies, text and debug glyphs.
+// for each call: scaled copies and debug glyphs.
 type blitCaches struct {
-	scaled *bitmapLRU[scaledKey]
-	text   *bitmapLRU[textKey]
-	debug  *bitmapLRU[debugKey]
+	scaled *lru[scaledKey, *swBitmap]
+	debug  *lru[debugKey, *swBitmap]
 }
 
 func newBlitCaches() blitCaches {
 	return blitCaches{
-		scaled: newBitmapLRU[scaledKey](64, 16<<20),
-		text:   newBitmapLRU[textKey](512, 8<<20),
-		debug:  newBitmapLRU[debugKey](64, 2<<20),
-	}
-}
-
-// bitmapLRU holds at most n bitmaps and about budget bytes, dropping the
-// least recently used.
-type bitmapLRU[K comparable] struct {
-	n, budget, bytes int
-	order            *list.List
-	entries          map[K]*list.Element
-}
-
-type lruEntry[K comparable] struct {
-	key K
-	bm  *swBitmap
-}
-
-func newBitmapLRU[K comparable](n, budget int) *bitmapLRU[K] {
-	return &bitmapLRU[K]{n: n, budget: budget, order: list.New(), entries: map[K]*list.Element{}}
-}
-
-func (c *bitmapLRU[K]) get(key K) *swBitmap {
-	e := c.entries[key]
-	if e == nil {
-		return nil
-	}
-	c.order.MoveToFront(e)
-	return e.Value.(*lruEntry[K]).bm
-}
-
-func (c *bitmapLRU[K]) put(key K, bm *swBitmap) {
-	c.entries[key] = c.order.PushFront(&lruEntry[K]{key, bm})
-	c.bytes += bm.h * bm.stride
-	for c.order.Len() > c.n || c.bytes > c.budget && c.order.Len() > 1 {
-		last := c.order.Back()
-		entry := last.Value.(*lruEntry[K])
-		c.order.Remove(last)
-		delete(c.entries, entry.key)
-		c.bytes -= entry.bm.h * entry.bm.stride
+		scaled: newLRU[scaledKey, *swBitmap](64, 16<<20),
+		debug:  newLRU[debugKey, *swBitmap](64, 2<<20),
 	}
 }

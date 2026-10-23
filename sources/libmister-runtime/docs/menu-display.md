@@ -10,8 +10,10 @@ and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
 1.0 interfaces, and optionally menu-blitter 1.0 or 1.1, can be configured. It is idle
-firmware, not a game. Normal package programming, build identity and
-boot-latched DDR admission still apply.
+firmware, not a game. A minor 1 or later declaration receives the larger
+blitter grant; a minor 0 declaration receives only the ordinary two-slot CPU
+grant. Normal package programming, build identity and boot-latched DDR
+admission still apply.
 The blitter command-list path has host software coverage; exact-artifact kit
 acceptance, including the 80 MiB target mapping, remains pending.
 `src/native/menu_admission.hpp` lists the interfaces `CheckMenu` admits. The

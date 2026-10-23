@@ -21,6 +21,20 @@ type SDLBackend struct {
 	r        *C.SDL_Renderer
 	next     uint64
 	textures map[uint64]*C.SDL_Texture
+	// masks are masks expanded in a colour, kept while each frame draws
+	// them.
+	masks map[sdlMaskKey]*sdlMask
+}
+
+type sdlMaskKey struct {
+	mask  *Mask
+	src   image.Rectangle
+	color Color
+}
+
+type sdlMask struct {
+	tex  Texture
+	used bool
 }
 
 // WrapSDLRenderer attaches a Device to an SDL_Renderer pointer created by the
@@ -50,6 +64,14 @@ func (s *SDLBackend) Clear(c Color) {
 
 func (s *SDLBackend) Present() {
 	C.SDL_RenderPresent(s.r)
+	for key, m := range s.masks {
+		if !m.used {
+			s.Destroy(m.tex)
+			delete(s.masks, key)
+			continue
+		}
+		m.used = false
+	}
 }
 
 func (s *SDLBackend) CreateRGBA(img *image.RGBA) (Texture, error) {
@@ -152,20 +174,38 @@ func (s *SDLBackend) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *SDLBackend) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
-	img := RasterizeTextWeight(text, sizePx, w, c, 0)
-	if img == nil {
+	m, src, _ := UIText(text, sizePx, w, 0)
+	s.DrawMask(m, src, x, y, c)
+}
+
+func (s *SDLBackend) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	if m == nil {
 		return
 	}
-	tex, err := s.CreateRGBA(img)
-	if err != nil {
+	part := src.Intersect(m.Bounds())
+	if part.Empty() {
 		return
 	}
-	b := img.Bounds()
-	s.Draw(tex, nil, Rect{X: float32(x), Y: float32(y), W: float32(b.Dx()), H: float32(b.Dy())})
-	s.Destroy(tex)
+	key := sdlMaskKey{m, part, c}
+	cached := s.masks[key]
+	if cached == nil {
+		tex, err := s.CreateRGBA(ExpandMask(m, part, c))
+		if err != nil {
+			return
+		}
+		if s.masks == nil {
+			s.masks = map[sdlMaskKey]*sdlMask{}
+		}
+		cached = &sdlMask{tex: tex}
+		s.masks[key] = cached
+	}
+	cached.used = true
+	at := image.Pt(x, y).Add(part.Min.Sub(src.Min))
+	s.Draw(cached.tex, nil, Rect{X: float32(at.X), Y: float32(at.Y), W: float32(part.Dx()), H: float32(part.Dy())})
 }
 
 func (s *SDLBackend) Close() {
+	clear(s.masks)
 	for id, tex := range s.textures {
 		C.SDL_DestroyTexture(tex)
 		delete(s.textures, id)

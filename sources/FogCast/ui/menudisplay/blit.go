@@ -8,7 +8,7 @@ import (
 	"weak"
 )
 
-// The window layout of fes.video.menu-blitter 1.0. A blitter grant's
+// The window layout of fes.video.menu-blitter 1.x. A blitter grant's
 // menu_frame.blitter must name exactly these.
 const (
 	ListOffset   = 8 << 20
@@ -38,26 +38,47 @@ const (
 	BlitCopy BlitKind = 3
 	// BlitBlend draws the source source-over with its straight alpha.
 	BlitBlend BlitKind = 4
+	// BlitExpand draws Color source-over with its alpha scaled by the
+	// coverage source: A·m/255. Blitter minor 1 added it.
+	BlitExpand BlitKind = 5
 )
 
-// BlitSource is a bitmap of R, G, B, A bytes that copies and blends read.
-// The client uploads it into the grant's texture heap as B, G, R, A and keeps
-// it there while the source is reachable and the heap has room, so a source
-// must not change once a frame has used it. Transient marks pixels that
-// will change, such as a pooled frame buffer: they are uploaded for every
-// frame that names them and never kept.
+// MinBlitterMinor is the lowest minor selected for menu rendering. Minor 1
+// adds BlitExpand, which tenfoot uses to draw text coverage masks.
+const MinBlitterMinor = 1
+
+// BlitSource is a bitmap of R, G, B, A bytes that copies and blends read,
+// or with Coverage one byte a pixel that expands read. The client uploads it
+// into the grant's texture heap, R, G, B, A as B, G, R, A, and keeps it there
+// while the source is reachable and the heap has room, so a source must not
+// change once a frame has used it. Transient marks pixels that will change,
+// such as a pooled frame buffer: they are uploaded for every frame that
+// names them and never kept.
 type BlitSource struct {
 	Pix       []byte
 	Stride    int
 	W, H      int
+	Coverage  bool
 	Transient bool
 }
 
-func (s *BlitSource) bytes() int { return s.W * 4 * s.H }
+// pixelBytes is the bytes of one source pixel.
+func (s *BlitSource) pixelBytes() int {
+	if s.Coverage {
+		return 1
+	}
+	return 4
+}
+
+func (s *BlitSource) row() int   { return s.W * s.pixelBytes() }
+func (s *BlitSource) bytes() int { return s.row() * s.H }
+
+// reads reports whether the op reads a source.
+func (k BlitKind) reads() bool { return k == BlitCopy || k == BlitBlend || k == BlitExpand }
 
 // BlitOp is one command. X, Y, W and H are the destination inside the frame.
-// Fills use Color, 0xAARRGGBB; copies and blends read W×H pixels of Source
-// from SourceX, SourceY.
+// Fills and expands use Color, 0xAARRGGBB; copies, blends and expands read
+// W×H pixels of Source from SourceX, SourceY.
 type BlitOp struct {
 	Kind             BlitKind
 	X, Y, W, H       int
@@ -75,6 +96,8 @@ type BlitFrame struct {
 type Grant struct {
 	// Blitter means the grant covers the blitter's lists and heap.
 	Blitter bool
+	// BlitterMinor is the menu-blitter minor the firmware declares.
+	BlitterMinor int
 }
 
 // ErrBlitTooLarge means a frame needs more commands or heap than the
@@ -84,8 +107,9 @@ var ErrBlitTooLarge = errors.New("menu blit frame exceeds the blitter's list or 
 
 func alignHeap(n int) int { return (n + heapAlign - 1) &^ (heapAlign - 1) }
 
-// check validates every op before anything touches the window.
-func (f BlitFrame) check() error {
+// check validates every op before anything touches the window. minor is
+// the grant's blitter minor.
+func (f BlitFrame) check(minor int) error {
 	if len(f.Ops) > ListCommands {
 		return ErrBlitTooLarge
 	}
@@ -95,15 +119,21 @@ func (f BlitFrame) check() error {
 		}
 		switch op.Kind {
 		case BlitFill, BlitFillBlend:
-		case BlitCopy, BlitBlend:
+		case BlitCopy, BlitBlend, BlitExpand:
+			if op.Kind == BlitExpand && minor < MinBlitterMinor {
+				return fmt.Errorf("menu blit op %d: blitter %d.%d has no expand", i, 1, minor)
+			}
 			s := op.Source
-			if s == nil || s.W < 1 || s.H < 1 || s.Stride < s.W*4 || len(s.Pix) < (s.H-1)*s.Stride+s.W*4 {
+			if s == nil || s.W < 1 || s.H < 1 || s.Stride < s.row() || len(s.Pix) < (s.H-1)*s.Stride+s.row() {
 				return fmt.Errorf("menu blit op %d: invalid source", i)
+			}
+			if s.Coverage != (op.Kind == BlitExpand) {
+				return fmt.Errorf("menu blit op %d: source format does not match the op", i)
 			}
 			if op.SourceX < 0 || op.SourceY < 0 || op.SourceX+op.W > s.W || op.SourceY+op.H > s.H {
 				return fmt.Errorf("menu blit op %d: source rectangle is outside the source", i)
 			}
-			if s.W*4 > maxSourceStride {
+			if s.row() > maxSourceStride {
 				return ErrBlitTooLarge
 			}
 		default:
@@ -118,10 +148,10 @@ func (f BlitFrame) check() error {
 func encodeCommand(dst []byte, op BlitOp, source uint32, stride int) {
 	var w0, w2 uint64
 	w0 = uint64(op.Kind)
-	switch op.Kind {
-	case BlitFill, BlitFillBlend:
+	if op.Kind == BlitFill || op.Kind == BlitFillBlend || op.Kind == BlitExpand {
 		w0 |= uint64(op.Color) << 32
-	default:
+	}
+	if op.Kind.reads() {
 		w2 = uint64(source) | uint64(stride)<<32
 	}
 	w1 := uint64(op.X) | uint64(op.Y)<<16 | uint64(op.W)<<32 | uint64(op.H)<<48
@@ -200,7 +230,7 @@ func (h *blitHeap) place(frame BlitFrame) (*placement, error) {
 	seen := map[*BlitSource]bool{}
 	need := 0
 	for _, op := range frame.Ops {
-		if op.Kind != BlitCopy && op.Kind != BlitBlend || seen[op.Source] {
+		if !op.Kind.reads() || seen[op.Source] {
 			continue
 		}
 		seen[op.Source] = true
@@ -333,18 +363,23 @@ func (h *blitHeap) reset() {
 func writeFrame(heap, list []byte, frame BlitFrame, p *placement) []Span {
 	spans := make([]Span, 0, len(p.uploads))
 	for _, s := range p.uploads {
-		at, row := p.at[s], s.W*4
+		at, row := p.at[s], s.row()
 		for y := 0; y < s.H; y++ {
-			writeRow(heap[at+y*row:at+(y+1)*row], s.Pix[y*s.Stride:y*s.Stride+row])
+			dst, src := heap[at+y*row:at+(y+1)*row], s.Pix[y*s.Stride:y*s.Stride+row]
+			if s.Coverage {
+				copy(dst, src)
+			} else {
+				writeRow(dst, src)
+			}
 		}
 		spans = append(spans, Span{HeapOffset + at, s.bytes()})
 	}
 	for i, op := range frame.Ops {
 		var source uint32
 		stride := 0
-		if op.Kind == BlitCopy || op.Kind == BlitBlend {
-			stride = op.Source.W * 4
-			source = uint32(HeapOffset + p.at[op.Source] + op.SourceY*stride + op.SourceX*4)
+		if op.Kind.reads() {
+			stride = op.Source.row()
+			source = uint32(HeapOffset + p.at[op.Source] + op.SourceY*stride + op.SourceX*op.Source.pixelBytes())
 		}
 		encodeCommand(list[i*CommandBytes:], op, source, stride)
 	}

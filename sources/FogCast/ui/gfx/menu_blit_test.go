@@ -22,6 +22,8 @@ type blitTestClient struct {
 	session    bool
 	packageID  string
 	blitter    bool
+	// minor is the blitter's menu-blitter minor.
+	minor int
 	// tooLarge refuses lists longer than this, as the client refuses a
 	// frame the blitter cannot hold.
 	tooLarge int
@@ -33,7 +35,11 @@ type blitTestClient struct {
 }
 
 func newBlitTestClient(blitter bool) *blitTestClient {
-	return &blitTestClient{generation: 3, blitter: blitter, slot: make([]byte, menudisplay.FrameBytes)}
+	client := &blitTestClient{generation: 3, blitter: blitter, slot: make([]byte, menudisplay.FrameBytes)}
+	if blitter {
+		client.minor = menudisplay.MinBlitterMinor
+	}
+	return client
 }
 
 func (c *blitTestClient) Status(context.Context) (menudisplay.Status, error) {
@@ -55,7 +61,7 @@ func (c *blitTestClient) Grant(context.Context, uint64) (menudisplay.Grant, erro
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.grants++
-	return menudisplay.Grant{Blitter: c.blitter}, nil
+	return menudisplay.Grant{Blitter: c.blitter, BlitterMinor: c.minor}, nil
 }
 
 func (c *blitTestClient) PresentBlit(_ context.Context, generation uint64, frame menudisplay.BlitFrame) (menudisplay.Result, error) {
@@ -71,9 +77,16 @@ func (c *blitTestClient) PresentBlit(_ context.Context, generation uint64, frame
 		if op.W < 1 || op.H < 1 || op.X < 0 || op.Y < 0 || op.X+op.W > 1280 || op.Y+op.H > 720 {
 			return menudisplay.Result{}, fmt.Errorf("op %d outside the frame: %+v", i, op)
 		}
-		if s := op.Source; (op.Kind == menudisplay.BlitCopy || op.Kind == menudisplay.BlitBlend) &&
+		reads := op.Kind == menudisplay.BlitCopy || op.Kind == menudisplay.BlitBlend || op.Kind == menudisplay.BlitExpand
+		if s := op.Source; reads &&
 			(s == nil || op.SourceX < 0 || op.SourceY < 0 || op.SourceX+op.W > s.W || op.SourceY+op.H > s.H) {
 			return menudisplay.Result{}, fmt.Errorf("op %d reads outside its source: %+v", i, op)
+		}
+		if reads && op.Source.Coverage != (op.Kind == menudisplay.BlitExpand) {
+			return menudisplay.Result{}, fmt.Errorf("op %d reads the wrong format: %+v", i, op)
+		}
+		if op.Kind == menudisplay.BlitExpand && c.minor < menudisplay.MinBlitterMinor {
+			return menudisplay.Result{}, fmt.Errorf("op %d: blitter 1.%d has no expand", i, c.minor)
 		}
 	}
 	blitInto(c.slot, frame.Ops)
@@ -83,15 +96,19 @@ func (c *blitTestClient) PresentBlit(_ context.Context, generation uint64, frame
 }
 
 // blitInto is the blitter: fills and copies replace, blends are
-// gfx.blendOver, and X is always written 0.
+// gfx.blendOver, expands blend the colour at A·m/255, and X is always
+// written 0.
 func blitInto(slot []byte, ops []menudisplay.BlitOp) {
 	for _, op := range ops {
 		for y := 0; y < op.H; y++ {
 			for x := 0; x < op.W; x++ {
 				d := slot[(op.Y+y)*menudisplay.Stride+(op.X+x)*4:]
 				var r, g, b, a uint32
-				if op.Kind == menudisplay.BlitFill || op.Kind == menudisplay.BlitFillBlend {
+				if op.Kind == menudisplay.BlitFill || op.Kind == menudisplay.BlitFillBlend || op.Kind == menudisplay.BlitExpand {
 					a, r, g, b = op.Color>>24, op.Color>>16&0xff, op.Color>>8&0xff, op.Color&0xff
+					if op.Kind == menudisplay.BlitExpand {
+						a = a * uint32(op.Source.Pix[(op.SourceY+y)*op.Source.Stride+op.SourceX+x]) / 255
+					}
 				} else {
 					s := op.Source.Pix[(op.SourceY+y)*op.Source.Stride+(op.SourceX+x)*4:]
 					r, g, b, a = uint32(s[0]), uint32(s[1]), uint32(s[2]), uint32(s[3])
@@ -191,7 +208,7 @@ func randomColor(r *rand.Rand) Color {
 }
 
 func (p *pair) randomCall(r *rand.Rand) {
-	switch r.IntN(10) {
+	switch r.IntN(11) {
 	case 0:
 		c := randomColor(r)
 		p.each(func(d Device) { d.Clear(c) })
@@ -230,6 +247,12 @@ func (p *pair) randomCall(r *rand.Rand) {
 		x, y := int(randomCoord(r, 1280)), int(randomCoord(r, 720))
 		scale := r.IntN(4)
 		p.each(func(d Device) { d.DebugText(x, y, "FPS 30 ~", scale) })
+	case 10:
+		x, y := int(randomCoord(r, 1280)), int(randomCoord(r, 720))
+		m, all, _ := UIText("Mushroom Kingdom", 10+r.IntN(30), Weight(r.IntN(2)), 0)
+		src := image.Rect(r.IntN(all.Dx()), r.IntN(all.Dy()), all.Dx()-r.IntN(all.Dx()), all.Dy()-r.IntN(all.Dy()))
+		c := randomColor(r)
+		p.each(func(d Device) { d.DrawMask(m, src, x, y, c) })
 	}
 }
 
@@ -261,8 +284,14 @@ func newPair(t *testing.T, client MenuPresenter, r *rand.Rand) *pair {
 }
 
 func TestMenuDisplayListFramesDrawWhatSoftwareDraws(t *testing.T) {
+	t.Run("supported blitter", func(t *testing.T) { testListFramesDrawWhatSoftwareDraws(t) })
+}
+
+func testListFramesDrawWhatSoftwareDraws(t *testing.T) {
 	client := newBlitTestClient(true)
+	client.minor = menudisplay.MinBlitterMinor
 	r := rand.New(rand.NewPCG(949, 2))
+	expands := 0
 	p := newPair(t, client, r)
 	// The first frame cannot know the grant: it is drawn on the CPU, and the
 	// blitter grant takes it as one whole copy.
@@ -295,6 +324,35 @@ func TestMenuDisplayListFramesDrawWhatSoftwareDraws(t *testing.T) {
 		if err := sameRGB(client.slot, want.Pix); err != nil {
 			t.Fatalf("frame %d: %v", frame, err)
 		}
+		for _, op := range client.lastList() {
+			if op.Kind == menudisplay.BlitExpand {
+				expands++
+			}
+		}
+	}
+	if expands == 0 {
+		t.Fatal("supported blitter received no text expands")
+	}
+}
+
+// A runtime must not expose a blitter grant below the minimum. Reject one
+// before this client submits either a list or a CPU frame to the shared grant.
+func TestMenuDisplayRejectsUnsupportedBlitterGrant(t *testing.T) {
+	client := newBlitTestClient(true)
+	client.minor = menudisplay.MinBlitterMinor - 1
+	d, err := NewMenuDisplayWithPresenter(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	status := menudisplay.Status{Generation: 3}
+	frame := queuedMenuFrame{isList: true, generation: 3}
+	_, _, blitted, err := d.presentFrame(frame, status, false)
+	if err == nil || blitted {
+		t.Fatalf("unsupported grant presented: blitted=%t err=%v", blitted, err)
+	}
+	if lists, cpu := client.counts(); lists != 0 || cpu != 0 {
+		t.Fatalf("unsupported grant submitted %d lists and %d CPU frames", lists, cpu)
 	}
 }
 

@@ -2,7 +2,6 @@ package gfx
 
 import (
 	"image"
-	"image/color"
 	"strings"
 	"sync"
 
@@ -254,135 +253,160 @@ func wrapText(face font.Face, text string, maxWidth, maxLines int) []string {
 	return kept
 }
 
-// RasterizeText draws text in c with the Regular UI face. maxWidth > 0
-// truncates with an ellipsis. The result is straight-alpha RGBA so Software
-// blendOver and SDL blend match. Nil means nothing to draw.
-func RasterizeText(text string, sizePx int, c Color, maxWidth int) *image.RGBA {
-	return RasterizeTextWeight(text, sizePx, WeightRegular, c, maxWidth)
-}
-
-// RasterizeTextWeight is RasterizeText with an explicit face weight.
-func RasterizeTextWeight(text string, sizePx int, w Weight, c Color, maxWidth int) *image.RGBA {
+// UIText lays text out in the UI face of weight w at sizePx, fitted with an
+// ellipsis to maxWidth when maxWidth > 0. It returns the ink as a mask, nil
+// when there is none, and the part of the mask to draw: at most maxWidth
+// wide. DrawText draws that part with its top-left at the draw point. width
+// is the text's box from the ink's left edge to the pen's advance or the
+// ink's right edge, whichever is further, at most maxWidth: what alignment
+// measures, trailing spaces included.
+func UIText(text string, sizePx int, w Weight, maxWidth int) (m *Mask, src image.Rectangle, width int) {
 	if text == "" {
-		return nil
-	}
-	if sizePx < 1 {
-		sizePx = 1
+		return nil, image.Rectangle{}, 0
 	}
 	uiMu.Lock()
 	defer uiMu.Unlock()
 	face := uiFaceLocked(sizePx, w)
 	if face == nil {
-		return nil
+		return nil, image.Rectangle{}, 0
 	}
 	display := text
 	if maxWidth > 0 {
 		display = fitText(face, text, maxWidth)
 	}
-	if display == "" {
-		return nil
+	line := LayoutText(face, display)
+	if line.Mask == nil {
+		return nil, image.Rectangle{}, 0
 	}
-	bounds, advance := font.BoundString(face, display)
-	left := bounds.Min.X.Floor()
-	top := bounds.Min.Y.Floor()
-	width := bounds.Max.X.Ceil() - left
-	h := bounds.Max.Y.Ceil() - top
-	if adv := advance.Ceil() - left; adv > width {
-		width = adv
+	src = line.Mask.Bounds()
+	width = max(line.Mask.W, line.Advance-line.Origin.X)
+	if maxWidth > 0 {
+		src.Max.X = min(src.Max.X, maxWidth)
+		width = min(width, maxWidth)
 	}
-	if width < 1 {
-		width = 1
+	return line.Mask, src, width
+}
+
+// TextLine is text laid out along a baseline in one face.
+type TextLine struct {
+	// Mask is the ink, nil when the text has none.
+	Mask *Mask
+	// Origin is where the mask's top-left sits from the pen's start on
+	// the baseline.
+	Origin image.Point
+	// Advance is how far the pen moved.
+	Advance int
+}
+
+// LayoutText lays text out in face from cached glyph masks, as font.Drawer
+// would draw it from an integer pen. Under full hinting every advance and
+// kern is whole pixels, so each glyph is rasterized once per face. Where
+// glyphs overlap their coverage combines as m1 + m2·(255−m1)/255. The
+// caller holds whatever lock guards face; faces are cached by their makers,
+// so a face's identity keys its glyphs and lines.
+func LayoutText(face font.Face, text string) TextLine {
+	key := lineKey{face, text}
+	textMu.Lock()
+	defer textMu.Unlock()
+	if line, ok := textLines.get(key); ok {
+		return line
 	}
-	if h < 1 {
-		h = sizePx
+	type placed struct {
+		g  *glyph
+		at image.Point
 	}
-	// Glyph masks can extend one pixel past the integer bounds.
-	width++
-	h++
-	img := image.NewRGBA(image.Rect(0, 0, width, h))
-	src := straightToPremult(c)
-	d := font.Drawer{
-		Dst:  img,
-		Src:  image.NewUniform(src),
-		Face: face,
-		Dot:  fixed.Point26_6{X: -bounds.Min.X, Y: -bounds.Min.Y},
-	}
-	d.DrawString(display)
-	unpremultiplyRGBA(img)
-	if maxWidth > 0 && img.Bounds().Dx() > maxWidth {
-		cropped := image.NewRGBA(image.Rect(0, 0, maxWidth, img.Bounds().Dy()))
-		for y := 0; y < cropped.Bounds().Dy(); y++ {
-			copy(cropped.Pix[y*cropped.Stride:(y+1)*cropped.Stride], img.Pix[y*img.Stride:y*img.Stride+cropped.Stride])
+	glyphs := make([]placed, 0, len(text))
+	var ink image.Rectangle
+	dot := fixed.Int26_6(0)
+	prev := rune(-1)
+	for _, r := range text {
+		if prev >= 0 {
+			dot += face.Kern(prev, r)
 		}
-		img = cropped
-	}
-	return img
-}
-
-func straightToPremult(c Color) color.RGBA {
-	a := c.A
-	if a == 0 {
-		return color.RGBA{}
-	}
-	if a == 255 {
-		return color.RGBA{R: c.R, G: c.G, B: c.B, A: 255}
-	}
-	return color.RGBA{
-		R: uint8(uint32(c.R) * uint32(a) / 255),
-		G: uint8(uint32(c.G) * uint32(a) / 255),
-		B: uint8(uint32(c.B) * uint32(a) / 255),
-		A: a,
-	}
-}
-
-// unpremultiplyRGBA converts Go image.RGBA (premultiplied) to straight alpha
-// for blendOver / SDL_BLENDMODE_BLEND. Anti-aliased edges otherwise composite
-// too dark.
-func unpremultiplyRGBA(img *image.RGBA) {
-	if img == nil {
-		return
-	}
-	pix := img.Pix
-	for i := 0; i+3 < len(pix); i += 4 {
-		a := pix[i+3]
-		if a == 0 || a == 255 {
+		prev = r
+		g := glyphLocked(face, r)
+		at := image.Pt(dot.Round(), 0)
+		dot += g.advance
+		if g.rect.Empty() {
 			continue
 		}
-		pix[i+0] = uint8((int(pix[i+0])*255 + int(a)/2) / int(a))
-		pix[i+1] = uint8((int(pix[i+1])*255 + int(a)/2) / int(a))
-		pix[i+2] = uint8((int(pix[i+2])*255 + int(a)/2) / int(a))
+		glyphs = append(glyphs, placed{g, at})
+		ink = ink.Union(g.rect.Add(at))
 	}
+	line := TextLine{Advance: dot.Round()}
+	if !ink.Empty() {
+		m := &Mask{W: ink.Dx(), H: ink.Dy(), Pix: make([]byte, ink.Dx()*ink.Dy())}
+		for _, p := range glyphs {
+			r := p.g.rect.Add(p.at).Sub(ink.Min)
+			for y := 0; y < r.Dy(); y++ {
+				row := m.Pix[(r.Min.Y+y)*m.W+r.Min.X:]
+				for x, m2 := range p.g.pix[y*r.Dx() : (y+1)*r.Dx()] {
+					m1 := uint32(row[x])
+					row[x] = uint8(m1 + uint32(m2)*(255-m1)/255)
+				}
+			}
+		}
+		line.Mask, line.Origin = m, ink.Min
+	}
+	textLines.put(key, line, len(text)+line.bytes())
+	return line
 }
 
-func textHasInk(img *image.RGBA) bool {
-	if img == nil {
-		return false
+// glyph is one rune's coverage at a pen on the origin, and its advance.
+type glyph struct {
+	rect    image.Rectangle
+	pix     []byte
+	advance fixed.Int26_6
+}
+
+type glyphKey struct {
+	face font.Face
+	r    rune
+}
+
+type lineKey struct {
+	face font.Face
+	text string
+}
+
+func (l TextLine) bytes() int {
+	if l.Mask == nil {
+		return 0
 	}
-	for i := 3; i < len(img.Pix); i += 4 {
-		if img.Pix[i] != 0 {
-			return true
+	return len(l.Mask.Pix)
+}
+
+// maxGlyphs bounds the glyph cache; past it the cache starts over.
+const maxGlyphs = 8192
+
+var (
+	// textMu guards the glyph and line caches.
+	textMu    sync.Mutex
+	glyphs    = map[glyphKey]*glyph{}
+	textLines = newLRU[lineKey, TextLine](2048, 4<<20)
+)
+
+func glyphLocked(face font.Face, r rune) *glyph {
+	key := glyphKey{face, r}
+	if g, ok := glyphs[key]; ok {
+		return g
+	}
+	// Like font.Drawer, draw what the face returns for a rune it lacks:
+	// its .notdef box.
+	dr, mask, maskp, advance, _ := face.Glyph(fixed.Point26_6{}, r)
+	if mask == nil {
+		dr = image.Rectangle{}
+	}
+	g := &glyph{rect: dr, pix: make([]byte, dr.Dx()*dr.Dy()), advance: advance}
+	for y := 0; y < dr.Dy(); y++ {
+		for x := 0; x < dr.Dx(); x++ {
+			_, _, _, a := mask.At(maskp.X+x, maskp.Y+y).RGBA()
+			g.pix[y*dr.Dx()+x] = uint8(a >> 8)
 		}
 	}
-	return false
-}
-
-func blitText(s *Software, x, y int, img *image.RGBA) {
-	if s == nil || img == nil {
-		return
+	if len(glyphs) >= maxGlyphs {
+		clear(glyphs)
 	}
-	b := img.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w < 1 || h < 1 {
-		return
-	}
-	// This synchronous blit borrows the rasterized text; no texture retains
-	// it, so copying every label bitmap is unnecessary. Preserve sub-image
-	// stride and bounds as well as ordinary zero-origin rasterized labels.
-	bm := &swBitmap{w: w, h: h, stride: img.Stride, pix: img.Pix[img.PixOffset(b.Min.X, b.Min.Y):]}
-	dst := Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}
-	x0, y0, x1, y1, ok := clipRect(dst, s.w, s.h)
-	if !ok {
-		return
-	}
-	s.blitCopy(bm, 0, 0, x0, y0, x1, y1, x, y)
+	glyphs[key] = g
+	return g
 }
