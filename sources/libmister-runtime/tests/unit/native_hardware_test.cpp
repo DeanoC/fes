@@ -1820,6 +1820,82 @@ void TestApplicationSessionDisplayMutesSingleGamepad()
  script.Reply();
 }
 
+void TestApplicationSessionDisplaySuppressesOppositeDirections()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.application");
+ for(const char* id:{"fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());
+ mister_test::FakeInputDevice device;RetainingNativeInput input(device,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ fpga.boot_hps_ddr_layout=true;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;
+ script.Identity(FesApplicationCapabilityVideoFixed720p60|FesApplicationCapabilityGamepad|
+  FesApplicationCapabilityMemoryHpsDdr|FesApplicationCapabilityVideoSessionDisplay);
+ script.Info(8,0);script.Reply(); // configure
+ script.Reply(); // input neutralization
+ script.Reply(); // execution release
+ script.Info(9,0); // disabled, configured, drained
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"opposite-direction session activation: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&hardware.menu_display().session&&!hardware.menu_display().available);
+ assert(device.WaitUntilReading());
+
+ std::size_t input_reads=0;
+ auto push_report=[&](InputControl control,std::int32_t value) {
+  device.Push({control,value});
+  device.Push({InputControl::synchronize,0});
+  device.Push({InputControl::horizontal,0});
+  input_reads+=3;
+  assert(device.WaitForReads(input_reads));
+ };
+ const auto button_arguments=[&](std::size_t begin) {
+  std::vector<std::uint16_t> arguments;
+  for(std::size_t i=begin;i<mmio.writes.size();++i) {
+   const auto& write=mmio.writes[i];
+   if(write.offset!=kSpiGpoAddress||!(write.value&FesGpRequestMask)||
+    ((write.value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeButtons)continue;
+   arguments.push_back(static_cast<std::uint16_t>(write.value&FesGpArgumentMask));
+  }
+  return arguments;
+ };
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,false).ok());
+ const auto writes=mmio.writes.size();script.Reply();
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus);
+ auto arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0);
+
+ push_report(InputControl::left,1);
+ push_report(InputControl::right,1);
+ assert(button_arguments(writes).size()==1); // Opposite held directions stay muted.
+ assert(hardware.SetSessionDisplay(true,false).ok()&&!hardware.menu_display().launcher_focus);
+ script.Reply(); // Used by a leaked write on the failing implementation, or the fresh press below.
+ push_report(InputControl::right,0);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0); // Releasing one side cannot restore the other.
+ push_report(InputControl::left,0);
+ assert(button_arguments(writes).size()==1);
+ push_report(InputControl::left,1);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==2&&arguments[1]==FesGpButtonLeft);
+ script.Reply(); // NativeHardware joins the worker on teardown and sends its final neutral.
+}
+
 // A session package built before the shared plane (ZX81 1.5.0) declares no
 // display plane, so inspection and admission refuse it before programming.
 // A package that declares the plane but whose bitstream still reports the
@@ -4175,6 +4251,7 @@ int main()
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestApplicationSessionDisplayReleasesControllers();
  TestApplicationSessionDisplayMutesSingleGamepad();
+ TestApplicationSessionDisplaySuppressesOppositeDirections();
  TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
  TestNativeMenuBlitterPresent(0);
@@ -4221,6 +4298,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 32 passed");
+	puts("native_hardware_test: 33 passed");
 	return 0;
 }
