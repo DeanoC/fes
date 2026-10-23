@@ -89,7 +89,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         # Shared native contract/transport changes need their frame and CDC
         # oracle even before the experimental path becomes a factory recipe.
         if "coleco" in impact["cores"]:
-            for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket"):
+            for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket",
+                           "sim-fes-coleco-session"):
                 add("fpga", target + " RTL simulation", fpga,
                     ["make", target, "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])

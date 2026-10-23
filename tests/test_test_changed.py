@@ -56,8 +56,8 @@ class TestChangedTest(unittest.TestCase):
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["menu", "spectrum", "zx81"])
-        for target in ("sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81"):
+        self.assertEqual(result["impact"]["cores"], ["coleco", "menu", "spectrum", "zx81"])
+        for target in ("sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81", "sim-fes-coleco-session"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
     def setUp(self):
@@ -206,7 +206,7 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
                                       "sim-fes-native-video", "sim-fes-coleco-native",
-                                      "sim-fes-native-socket",
+                                      "sim-fes-native-socket", "sim-fes-coleco-session",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
                                       "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})

@@ -10,8 +10,9 @@
 // DE10-Nano shell for the reduced ColecoVision machine. The mailbox and
 // machine remain in the 52.224 MHz system domain; the logical frame buffer crosses
 // to the independent 74.25 MHz HDMI pixel domain in coleco_video_720p.
-// FES_COLECO_NATIVE_VIDEO_DEV is an inline source/consumer prototype. It does
-// not expose the sealed RGB888 socket or change the factory producer.
+// FES_COLECO_NATIVE_VIDEO_DEV is the native-pixel shell. Its finished video
+// word, after any linked part, passes through the shared
+// fes.video.session-display plane before the HDMI pins.
 module top #(
     parameter [127:0] BUILD_ID = `FES_COLECO_BUILD_ID
 ) (
@@ -49,6 +50,20 @@ module top #(
     wire logical_blank;
     wire [15:0] audio_sample;
     wire [30:0] bus_request;
+    wire pixel_locked;
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
+`ifdef FES_COLECO_NATIVE_VIDEO_DEV
+    localparam bit SESSION_DISPLAY = 1;
+`else
+    localparam bit SESSION_DISPLAY = 0;
+    assign display_response_valid = 1'b0;
+    assign display_response_error = 1'b0;
+    assign display_response_data = 16'd0;
+    assign display_quiesced = 1'b1;
+`endif
 `ifdef FES_COLECO_EXPANSION_V2_DEV
     wire [27:0] bus_response;
     (* keep *) wire [30:0] plug_request;
@@ -123,10 +138,11 @@ module top #(
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(pixel_clk)
+        .outclk_0(pixel_clk),
+        .locked(pixel_locked)
     );
 
-    coleco_application_gp gp_mailbox (
+    coleco_application_gp #(.ENABLE_SESSION_DISPLAY(SESSION_DISPLAY)) gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -140,7 +156,11 @@ module top #(
         .media_q(media_data),
         .firmware_write_addr(firmware_write_addr),
         .firmware_write_data(firmware_write_data),
-        .firmware_write_enable(firmware_write_enable)
+        .firmware_write_enable(firmware_write_enable),
+        .display_request(display_request), .display_opcode(display_opcode),
+        .display_index(display_index), .display_argument(display_argument),
+        .display_response_valid(display_response_valid), .display_response_error(display_response_error),
+        .display_response_data(display_response_data), .display_quiesced(display_quiesced)
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -211,7 +231,25 @@ module top #(
         .clock(pixel_clk), .request(native_request), .response(native_response)
     );
 `endif
-    assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = native_response[26:0];
+    wire [27:0] hdmi_video;
+    // Shipped HDMI contract: the shared fes.video.session-display plane,
+    // backed by fes.memory.hps-ddr, after the part. It locks to the part's
+    // CTA 720p60 word, blends launcher frames over it and delays RGB and sync
+    // together. A vacant socket, a closed plane or a fault returns the part's
+    // pixels and never stops or reprograms the machine.
+    fes_display_plane #(
+        .PICTURE_LEFT(16'd384), .PICTURE_TOP(16'd168),
+        .PICTURE_WIDTH(16'd512), .PICTURE_HEIGHT(16'd384)
+    ) display (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
+        .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),
+        .index(display_index), .argument(display_argument),
+        .response_valid(display_response_valid), .response_error(display_response_error),
+        .response_data(display_response_data), .quiesced_sys(display_quiesced),
+        .machine(native_response),
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
+    );
+    assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = hdmi_video[26:0];
 `else
     wire [23:0] machine_rgb;
     wire machine_de, machine_hs, machine_vs, raster_sof, raster_eol;
