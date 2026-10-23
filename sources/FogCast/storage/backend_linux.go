@@ -91,6 +91,7 @@ func (systemBackend) Discover(ctx context.Context) ([]Drive, error) {
 type mountedVolume struct {
 	Source     string
 	MajorMinor string
+	FSType     string
 }
 
 func unescapeMountField(value string) string {
@@ -108,7 +109,9 @@ func parseMountInfo(data, target string) mountedVolume {
 		if len(mount) < 5 || len(filesystem) < 2 || unescapeMountField(mount[4]) != target {
 			continue
 		}
-		return mountedVolume{Source: unescapeMountField(filesystem[1]), MajorMinor: mount[2]}
+		return mountedVolume{
+			Source: unescapeMountField(filesystem[1]), MajorMinor: mount[2], FSType: filesystem[0],
+		}
 	}
 	return mountedVolume{}
 }
@@ -121,8 +124,26 @@ func mountedAt(target string) (mountedVolume, error) {
 	return parseMountInfo(string(data), filepath.Clean(target)), nil
 }
 
-func mountMatchesDevice(mounted mountedVolume, deviceID string) bool {
-	return mounted.Source != "" && mounted.MajorMinor != "" && mounted.MajorMinor == deviceID
+func sameResolvedDevicePath(source, devicePath string) bool {
+	if !filepath.IsAbs(source) || !filepath.IsAbs(devicePath) {
+		return false
+	}
+	sourcePath, sourceErr := filepath.EvalSymlinks(source)
+	resolvedDevicePath, deviceErr := filepath.EvalSymlinks(devicePath)
+	return sourceErr == nil && deviceErr == nil && filepath.Clean(sourcePath) == filepath.Clean(resolvedDevicePath)
+}
+
+func mountMatchesDevice(mounted mountedVolume, device blockDevice) bool {
+	if mounted.Source == "" {
+		return false
+	}
+	if mounted.MajorMinor != "" && mounted.MajorMinor == device.MajorMinor {
+		return true
+	}
+	// ntfs-3g uses a FUSE device, so mountinfo reports the FUSE device's
+	// major:minor instead of the backing block device's identity.
+	return device.FSType == "ntfs" && strings.HasPrefix(mounted.FSType, "fuse") &&
+		sameResolvedDevicePath(mounted.Source, device.Path)
 }
 
 func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string, error) {
@@ -149,14 +170,14 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 	if device.MajorMinor == "" {
 		return "", errors.New("USB discovery did not identify the current block device")
 	}
-	source, filesystem, deviceID := device.Path, device.FSType, device.MajorMinor
+	source, filesystem := device.Path, device.FSType
 
 	if device.Mountpoint != "" {
 		mounted, err := mountedAt(device.Mountpoint)
 		if err != nil {
 			return "", err
 		}
-		if mountMatchesDevice(mounted, deviceID) {
+		if mountMatchesDevice(mounted, device) {
 			return device.Mountpoint, nil
 		}
 		if filepath.Clean(device.Mountpoint) != filepath.Clean(target) || mounted.Source != "" && mounted.Source != source {
@@ -168,7 +189,7 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 	if err != nil {
 		return "", err
 	}
-	if mountMatchesDevice(mounted, deviceID) {
+	if mountMatchesDevice(mounted, device) {
 		return target, nil
 	}
 	if mounted.Source != "" {
@@ -192,7 +213,7 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 		for _, device := range devices {
 			if device.UUID == d.Source && device.Mountpoint != "" {
 				mounted, err := mountedAt(device.Mountpoint)
-				if err == nil && mountMatchesDevice(mounted, deviceID) {
+				if err == nil && mountMatchesDevice(mounted, device) {
 					return device.Mountpoint, nil
 				}
 			}
@@ -221,7 +242,7 @@ func (systemBackend) Mount(ctx context.Context, d Drive, target string) (string,
 	if err != nil {
 		return "", err
 	}
-	if !mountMatchesDevice(mounted, deviceID) {
+	if !mountMatchesDevice(mounted, device) {
 		return "", errors.New("mounted volume does not match selected drive")
 	}
 	return target, nil
