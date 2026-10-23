@@ -1941,9 +1941,12 @@ accepts these models.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.4.0, a package-only Commodore 64 pathfinder on
-the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
-[its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
+`cores/fes-c64` now emits `fes.c64` 0.5.0, a package-only Commodore 64
+pathfinder on the same `fes.computer` 1.0 mailbox as Apple II. It adds the
+shared in-session display plane to its native-drive shell. The 0.5.0 Kit A
+diagnostic is recorded in [the validation note](../../../docs/validation/2026-10-23-c64-session-display/README.md);
+the 0.4.0 and earlier package seals described in [its README](../cores/fes-c64/README.md)
+are historical and do not qualify these bytes. `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a native drive sector read over IEC.
 The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
@@ -1971,7 +1974,7 @@ persistence.
 three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
 Per-second CPU/drive bus and load-pointer observations are flushed during execution.
-The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
+The observation makes no boot/demo acceptance assertion. The earlier 0.4.0 package links
 36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
 (16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
 column 14, rows 32–47. Character lanes 16–19 have registered CPU/VIC ports on
