@@ -301,3 +301,25 @@ every 2b79837a route passes main's exact 5fe55f3d F0/F1 route-through map.
   routes, all passing (52.75-55.23 MHz). Three start at the mailbox and one at
   the CPU address. The rest run into the native capture, the FX68K nanoROM
   address, the MFP, the IKBD, the floppy and the ROM.
+
+Producer seal and kit A run (2026-10-23, 77fe784c)
+This is the registered producer, not an experiment route: make core-dev
+prepare on Powerboat, HIP, toolchain slot cbaf90e3 (Yosys 3a5accbd, Mistral
+8fcc4cb4, nextpnr 5fe55f3d).
+- Package 872f5ca8 (BUILD_ID 3f793aca) sealed on seed 4, the first in
+  production order: pixel 75.53, sys[0] 58.88, audio 165.29 MHz. Route, video
+  socket, RAM socket and floppy sector-memory checks pass.
+- Kit A, 12:18-12:24 EEST, running image 4db74864 with software 35d58489:
+  - The package and both video parts were imported into an isolated private
+    host, with no image or software install. Stock EmuTOS 1.4 192US was bound
+    as atari-st-firmware, then Play.
+  - Import, video parts, compatibility, ROM, entry, launch, three active
+    status samples and Stop pass.
+  - The HDMI frames show the GEM desktop. Relative mouse motion moves the
+    pointer right, down, back, and down to the bottom edge.
+  - Afterwards the kit's image hashes, good/previous images, software, idle
+    and launcher match the baseline.
+- Not covered on hardware: keyboard, audio, floppy, absolute mouse mode and
+  the Scanlines part, which was imported but not launched.
+370ac9a4 and later commits only merge main and add this record; the ST's RTL,
+Yosys program and toolchain are those of 77fe784c.
