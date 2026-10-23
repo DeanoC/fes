@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import select
 import signal
 import socket
@@ -17,6 +18,10 @@ import subprocess
 import sys
 import time
 from typing import Sequence
+
+# Same id shape as fes_build_common.granted_gpu_ids. This file stays on the
+# standard library so an audited route does not import the rest of the tree.
+_GRANT_ID = re.compile(r"[A-Za-z0-9._+-]+\Z")
 
 GPU_LEASE_CONFIG_ENV = (
     "GPU_LEASE_DIR",
@@ -68,6 +73,13 @@ def _exec_leased_nextpnr(command: Sequence[str], timeout: float | None = None) -
         index += 1
     routed.extend(("--gpu-device", device))
 
+    # Physical ids gpu-run granted. The sealed build record cannot name them:
+    # it is hashed into BUILD_ID before this process starts. Producers parse
+    # this line from the route log into route evidence. Keep the spelling in
+    # step with fes_build_common.granted_gpu_ids; this file imports nothing
+    # from the source tree.
+    print(f"FES-GPU-GRANT {os.environ['FES_GPU_IDS']}", flush=True)
+
     tool_env = os.environ.copy()
     for name in GPU_LEASE_CONFIG_ENV:
         tool_env.pop(name, None)
@@ -95,6 +107,7 @@ class _LeaseRelay:
         self.in_flight = 0
         self.wait_started: float | None = None
         self.waited = 0.0
+        self._broker_pending = b""
 
     def own_seconds(self, started: float) -> float:
         now = time.monotonic()
@@ -145,6 +158,8 @@ class _LeaseRelay:
                 self.close()
                 return
             lines = data.count(b"\n")
+            if side is self.broker:
+                self._note_grants(data)
             if side is self.client:
                 if lines and self.in_flight == 0:
                     self.wait_started = time.monotonic()
@@ -152,6 +167,21 @@ class _LeaseRelay:
             else:
                 self.in_flight = max(0, self.in_flight - lines)
                 self._settle()
+
+    def _note_grants(self, data: bytes) -> None:
+        """Record each GRANT the broker sends and echo it to the route log."""
+        pending = self._broker_pending + data
+        lines = pending.split(b"\n")
+        self._broker_pending = lines.pop()
+        for raw in lines:
+            text = raw.decode("ascii", "replace").strip()
+            if not text.startswith("GRANT "):
+                continue
+            gpu_id = text[len("GRANT "):].strip()
+            parts = gpu_id.split(",")
+            if not parts or any(part in (".", "..") or _GRANT_ID.fullmatch(part) is None for part in parts):
+                continue
+            print(f"FES-GPU-GRANT {gpu_id}", flush=True)
 
 
 def _exec_phase_leased_nextpnr(command: Sequence[str], timeout: float | None = None) -> int:

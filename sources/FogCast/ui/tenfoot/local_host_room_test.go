@@ -110,7 +110,7 @@ root = %q
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "local", localDataStormScript)})
 	app := NewApp(NewClient(hostServer.URL, hostServer.Client()), 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(index, t.TempDir())
+	app.SetRooms(index, "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

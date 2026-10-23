@@ -18,7 +18,7 @@ class AffectedTests(unittest.TestCase):
 
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
-                     '.github/workflows/check.yml', 'unknown/new.bin'):
+                     'unknown/new.bin'):
             with self.subTest(path=path):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
@@ -40,22 +40,13 @@ class AffectedTests(unittest.TestCase):
 
     def test_parent_root_boundaries_do_not_swallow_sibling_names(self):
         for path in ('scripts-other/new.py', 'test-other/new.py', 'images/x',
-                     'config/source-imports.toml', 'Makefile', 'boot-media.lock.toml'):
+                     'config/source-imports.toml', 'boot-media.lock.toml'):
             with self.subTest(path=path):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
 
-    def test_ci_selection_and_generator_inputs_stay_fail_broad(self):
-        self.assertEqual(CI_BROAD_INPUTS, {
-            'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
-            'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
-            'scripts/consistency.py',
-            'tests/test_affected.py', 'tests/test_test_changed.py',
-            'tests/test_ci_gate.py', 'tests/test_generate.py', 'tests/test_consistency.py',
-            'scripts/test_policy.py', 'scripts/parent_tests.py',
-            'scripts/host_tests.py', 'tests/test_test_policy.py',
-        })
+    def test_simulation_infrastructure_exercises_simulations_without_host(self):
         for path in CI_BROAD_INPUTS:
             with self.subTest(path=path):
                 self.assertEqual(plan([path])['test_modes'],
@@ -63,8 +54,39 @@ class AffectedTests(unittest.TestCase):
         for path in CI_BROAD_INPUTS:
             with self.subTest(path=path):
                 result = plan([path])
-                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'fpga'})
                 self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_ci_and_generator_regressions_do_not_run_unchanged_rtl(self):
+        for path in ('scripts/affected.py', 'scripts/ci_gate.py',
+                     'scripts/generate.py', 'scripts/consistency.py',
+                     'tests/test_affected.py', 'tests/test_test_changed.py',
+                     'tests/test_ci_gate.py', 'tests/test_generate.py',
+                     'tests/test_consistency.py', 'tests/test_test_policy.py'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent'})
+                self.assertEqual(result['cores'], [])
+        for path in ('Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+                     'scripts/test_policy.py',
+                     'sources/mister-packages/internal/emitcpp/emitcpp.go'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(result['cores'], [])
+        # Real generated outputs still select their hardware consumers, even
+        # when mixed with a generator or planner edit.
+        result = plan(['scripts/generate.py',
+                       'sources/misteross/cores/fes-common/generated/fes_pcxt_isa.vh'])
+        self.assertEqual(result['cores'], ['pcxt'])
+
+    def test_recipe_and_compiler_provisioning_changes_do_not_simulate_rtl(self):
+        for path in ('config/core-recipes.toml', 'sources/misteross/scripts/bootstrap.sh'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, {'parent', 'fpga'})
+                self.assertEqual(result['cores'], [])
 
     def test_parent_owned_changes_union_with_component_lanes(self):
         result = plan(['image/Makefile', 'sources/FogCast/catalog/query.go'])
@@ -116,13 +138,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
-            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
+            'scripts/sim_fes_display_plane.py': {'zx81'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum'},
+            'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -145,7 +172,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-atari-st/rtl/st_machine.sv': {'atari-st'},
             'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
-            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
+            'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st', 'spectrum'},
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st', 'pcxt'},
             'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
@@ -163,7 +190,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st', 'pcxt'},
             'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st', 'pcxt'},
             'scripts/test_fes_z80_pin_trace.py': {'z80'},
-            'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
+            'scripts/sim_fes_spectrum.py': {'spectrum'},
         }
         for path, consumers in cases.items():
             with self.subTest(path=path):
@@ -187,7 +214,7 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(result['cores'], [])
 
     def test_unclassified_fpga_inputs_fail_broad(self):
-        for path in ('', 'Makefile', 'AGENTS.md', 'toolchain.lock',
+        for path in ('', 'Makefile', 'toolchain.lock',
                      'toolchains/zx81-expansion.lock', 'scripts/new_helper.py',
                      'scripts/build_fes_new_core.py', 'scripts/build_fes_z80.py',
                      'cores/fes-new/rtl/top.v', 'cores/fes-common/rtl/new_unit.sv',
@@ -239,6 +266,7 @@ class AffectedTests(unittest.TestCase):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')
+                sources.append(root / 'scripts/sim_fes_display_plane.py')
             recipe += ''.join(path.read_text() for path in sources if path.exists())
             references = set(re.findall(r'cores/[A-Za-z0-9_./-]+', recipe))
             self.assertTrue(references, core)
@@ -254,9 +282,9 @@ class AffectedTests(unittest.TestCase):
                          {'video': False, 'media': False, 'full_race': False})
         self.assertTrue(result['always'])
         self.assertIn('hardware acceptance', result['not_run'])
-        self.assertTrue(all(plan(['AGENTS.md'])['lanes'].values()))
+        self.assertFalse(any(plan(['AGENTS.md'])['lanes'].values()))
         self.assertEqual(plan(['AGENTS.md'])['test_modes'],
-                         {'video': True, 'media': True, 'full_race': True})
+                         {'video': False, 'media': False, 'full_race': False})
 
     def test_go_expansion_module_selects_software_consumers_only(self):
         for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):

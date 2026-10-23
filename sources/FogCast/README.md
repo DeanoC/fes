@@ -72,9 +72,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Described `fes.application` packages may negotiate `fes.gamepad.ports` 1.0
   for two independent digital controllers and optional `fes.keypad.ports` 1.0
   for two twelve-key keypads. The existing session input event accepts
-  zero-based `Player` (default 0). The kit's physical-controller hub assigns
-  stable ports, releases only an unplugged controller, and keeps the surviving
-  controller's port. Stop releases both. These interfaces use full snapshots
+  zero-based `Player` (default 0). On the kit, tenfoot gives the first two
+  pads it opens ports 1 and 2, releases only an unplugged pad, and keeps the
+  surviving pad's port. Stop releases both. These interfaces use full snapshots
   bound to the active package generation through the native runtime; legacy
   single-pad cores retain their existing uinput path. See
   [shared controller ports](docs/ARCHITECTURE.md#shared-controller-ports).
@@ -240,7 +240,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   Explicit `-api`, `-token`, and `-target-id` flags override matching
   environment variables, which override launcher configuration. On this
   backend tenfoot opens the kit-local control socket, shows "Starting
-  {title}…", pauses presents so the core owns HDMI, and resumes them after
+  {title}…", and pauses presents after that loading frame is presented so the
+  core owns HDMI. A failed or unpresented frame aborts the launch. Late
+  adoption drains outstanding menu work and pauses without a loading frame;
+  an older menu failure does not block that pause. Presents resume after
   Select+Start stop, or when that kit-local session is no longer running.
   See
   [docs/native-tenfoot-launcher/README.md](docs/native-tenfoot-launcher/README.md).
@@ -261,8 +264,11 @@ direct-root images do not expose the update API. A card with leftover capacity
 already formatted as `FESDATA3` bind-mounts cache, saves, core-data,
 launcher-cache and evidence from that partition at agent startup unless
 `GET /v1/update` shows trial, pending, or corrupt. Releases stay on the 1 GiB
-FAT. The assembler still ships the fixed 1 GiB image; expanding leftover space
-is a live-card mutation. Build the operator client with
+FAT. Confirmation promotes a trial to known-good, atomically publishes that
+image's sealed idle core to FAT `/idle.rbf`, and only then lets the watchdog
+disarm. A non-trial boot, including factory fallback, republishes the running
+image's splash when FAT does not already match. The assembler still ships the
+fixed 1 GiB image; expanding leftover space is a live-card mutation. Build the operator client with
 `make build-fes-update`, then use `bin/fes-update --action status` with the existing
 private host configuration. See [appliance updates](docs/appliance-updates.md).
 Hardware acceptance of this new boot path is tracked separately from game tests.
@@ -346,9 +352,9 @@ The kit UI is `fogcast-tenfoot -gfx menu-display`, started by the base-image
 supervisor. It uses an explicitly paired host listener and the existing
 session/input ownership path, or the kit-local catalog and local-control
 socket when the kit has its own playable shelf. Select + Start held for one
-second requests Stop. Kit input applies a JSON remap profile from
-`ui/inputmap` (default **identity** preserves A=launch and
-Select+Start=stop). `cmd/fogcast-kit` is only a stub that answers
+second requests Stop. Each kit pad applies the profile `tenfoot.json` saves
+under its GUID (`ui/inputmap`: the `swap-ab` preset and single-control
+bindings). `cmd/fogcast-kit` is only a stub that answers
 `--print-kit-ui` with `tenfoot` for bases whose supervisor still probes it.
 See [kit launcher](docs/kit-launcher.md). Exact image and hardware evidence
 belong to FES.

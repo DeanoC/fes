@@ -1,5 +1,7 @@
 # Mesh LAN — Phase 2 execution brief
 
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+
 **Status:** Phase 2 started. Slices 1 through 8 are on main. Slice 9
 turns the ensure seam on in production when `[mesh] ensure = true`.
 The host switch defaults off until #177 (legacy fallback when the

@@ -13,12 +13,18 @@ Stages:
   tick_other the rest of Tick (host polling, state, non-Lua work)
   snapshot   building the render snapshot
   raster     CPU drawing into the framebuffer (render minus frame copy)
-  frame_copy copying the rendered frame for the display worker
+  frame_copy handing the rendered frame to the display worker: a buffer swap
+             now (older traces copied the whole frame); a frame that does not
+             start with Clear copies the previous one back inside raster
   queue      waiting for the display worker
   status     runtime status round trip before presenting
-  begin      dial + menu_frame_begin round trip
-  stage      mapping the staging memfd, copying the frame in, sealing it
-  rt_copy    runtime: converting and writing the frame into FPGA DDR
+  begin      dial + menu_frame_begin round trip (and a new generation's grant)
+  stage      writing the frame's pixels into the granted slot (before the
+             fes-window grants: mapping a staging memfd, copying, sealing)
+  rt_copy    runtime copying the frame into FPGA DDR (traces from before the
+             fes-window grants; zero once the client writes the slot)
+  rt_clean   runtime: writing back the client's lines for the FPGA
+  rt_blit    runtime: the menu blitter drawing a list frame into the slot
   rt_submit  runtime: submitting the slot
   rt_scanout runtime: waiting until scanout shows the new slot
   commit_io  commit round trip not accounted for by the runtime fields
@@ -26,7 +32,10 @@ Stages:
 Transport counts how displayed frames travelled: how many were damaged
 presents (only changed rectangles staged), skipped the status round trip, or
 were retried whole after a shortcut was refused, and the mean pixels staged
-by the client and stored to DDR by the runtime per frame.
+by the client and stored to DDR by the runtime per frame. For frames the
+blitter drew it counts them and gives their mean list length and heap
+upload; their raster is recording commands, and stage is writing the list
+and uploads.
 
 Input-to-picture latency is measured from each input record to the first
 present that reached the screen and was queued at or after it.
@@ -49,7 +58,7 @@ import sys
 from collections import defaultdict
 
 STAGES = ["lua", "tick_other", "snapshot", "raster", "frame_copy", "queue", "status",
-          "begin", "stage", "rt_copy", "rt_submit", "rt_scanout", "commit_io"]
+          "begin", "stage", "rt_copy", "rt_clean", "rt_blit", "rt_submit", "rt_scanout", "commit_io"]
 
 
 def load(path):
@@ -159,7 +168,8 @@ def _frame_row(tick, present):
     """One changed or failed frame, with each stage in milliseconds."""
     us = lambda record, key: record.get(key, 0) or 0
     lua = us(tick, "lua_step_us")
-    rt = us(present, "runtime_copy_us") + us(present, "runtime_submit_us") + us(present, "runtime_scanout_wait_us")
+    rt = (us(present, "runtime_copy_us") + us(present, "runtime_clean_us") + us(present, "runtime_blit_us") +
+          us(present, "runtime_submit_us") + us(present, "runtime_scanout_wait_us"))
     row = {
         "view": tick.get("view", ""),
         "lua": lua,
@@ -172,6 +182,8 @@ def _frame_row(tick, present):
         "begin": us(present, "begin_us"),
         "stage": us(present, "stage_us"),
         "rt_copy": us(present, "runtime_copy_us"),
+        "rt_clean": us(present, "runtime_clean_us"),
+        "rt_blit": us(present, "runtime_blit_us"),
         "rt_submit": us(present, "runtime_submit_us"),
         "rt_scanout": us(present, "runtime_scanout_wait_us"),
         "commit_io": max(0, us(present, "commit_us") - rt),
@@ -181,6 +193,9 @@ def _frame_row(tick, present):
         "retried": bool(present.get("retried")),
         "staged_pixels": us(present, "staged_pixels"),
         "stored_pixels": us(present, "runtime_stored_pixels"),
+        "blitted": bool(present.get("blitted")),
+        "commands": us(present, "commands"),
+        "upload_bytes": us(present, "upload_bytes"),
         "t_us": tick["t_us"],
         "done_us": present["t_us"],
     }
@@ -253,10 +268,12 @@ def stage_stats(rows):
 
 
 def transport(rows):
-    mean = lambda key: statistics.fmean(row[key] for row in rows) if rows else 0.0
+    mean = lambda key, of=rows: statistics.fmean(row[key] for row in of) if of else 0.0
+    blitted = [row for row in rows if row["blitted"]]
     return {"damaged": sum(row["damaged"] for row in rows), "status_skipped": sum(row["status_skipped"] for row in rows),
             "retried": sum(row["retried"] for row in rows), "staged_pixels": mean("staged_pixels"),
-            "stored_pixels": mean("stored_pixels")}
+            "stored_pixels": mean("stored_pixels"), "blitted": len(blitted),
+            "commands": mean("commands", blitted), "upload_bytes": mean("upload_bytes", blitted)}
 
 
 def summarise(records):
@@ -300,6 +317,9 @@ def render(summary):
         if moved:
             lines.append(f"transport: damaged={moved['damaged']} status_skipped={moved['status_skipped']} retried={moved['retried']}"
                          f"  mean pixels staged={moved['staged_pixels']:.0f} stored={moved['stored_pixels']:.0f}")
+            if moved.get("blitted"):
+                lines.append(f"blitter: frames={moved['blitted']} mean commands={moved['commands']:.0f}"
+                             f" mean upload bytes={moved['upload_bytes']:.0f}")
         if summary["views"]:
             lines.append("")
             lines.append("frame total by view:")

@@ -48,9 +48,8 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
   exit 1
 }
 
-# Retained notices belong to the previous installed selection, which the native
-# post-build step refreshes later. Validate that old closed package/record pair
-# and its exact notice before allowing this one Markdown path during scanning.
+# A retained notice must match the current template exactly. Fail closed on
+# stale or changed text; only the normal fresh package install generates notices.
 verified_notice=$(/usr/bin/python3 "$repo/scripts/ramtest-notices.py" verify-retained "$target")
 if [ -n "$verified_notice" ]; then
   selector=${TARGET_IMAGE_LOCK_BIN:-}

@@ -16,33 +16,30 @@ module c64_keyboard (
         end
     endfunction
 
-    // One bit per matrix position that this slice maps. A is row 1, column 2.
-    wire a_key = down(8'h04);
-    wire ret = down(8'h28);
-    wire del = down(8'h2A);
-    wire space = down(8'h2C);
-    wire stop = down(8'h29);
-    wire lshift = down(8'hE1);
-    wire rshift = down(8'hE5);
-    wire ctrl = down(8'hE0);
-    wire commodore = down(8'hE2);
-    wire right = down(8'h4F);
-    wire down_key = down(8'h51);
-    wire f1 = down(8'h3A);
+    // PA selects a column; PB senses its rows, as in the stock KERNAL
+    // unshifted table at $EB81. Ordinary HID keys use native C64 semantics.
+    wire shift = down(8'hE1) | down(8'h50) | down(8'h52) |
+                 down(8'h3B) | down(8'h3D) | down(8'h3F) | down(8'h41);
+    wire [7:0] column0 = {down(8'h51) | down(8'h52),
+        down(8'h3E) | down(8'h3F), down(8'h3C) | down(8'h3D),
+        down(8'h3A) | down(8'h3B), down(8'h40) | down(8'h41),
+        down(8'h4F) | down(8'h50), down(8'h28), down(8'h2A)};
+    wire [7:0] column1 = {shift, down(8'h08), down(8'h16), down(8'h1D), down(8'h21), down(8'h04), down(8'h1A), down(8'h20)};
+    wire [7:0] column2 = {down(8'h1B), down(8'h17), down(8'h09), down(8'h06), down(8'h23), down(8'h07), down(8'h15), down(8'h22)};
+    wire [7:0] column3 = {down(8'h19), down(8'h18), down(8'h0B), down(8'h05), down(8'h25), down(8'h0A), down(8'h1C), down(8'h24)};
+    wire [7:0] column4 = {down(8'h11), down(8'h12), down(8'h0E), down(8'h10), down(8'h27), down(8'h0D), down(8'h0C), down(8'h26)};
+    wire [7:0] column5 = {down(8'h36), down(8'h2F), down(8'h34), down(8'h37), down(8'h2D), down(8'h0F), down(8'h13), down(8'h57)};
+    wire [7:0] column6 = {down(8'h38), down(8'h4B), down(8'h2E), down(8'hE5), down(8'h4A), down(8'h33), down(8'h30), down(8'h31)};
+    wire [7:0] column7 = {down(8'h29), down(8'h14), down(8'hE2) | down(8'hE6), down(8'h2C), down(8'h1F), down(8'hE0) | down(8'hE4), down(8'h35), down(8'h1E)};
 
     always @* begin
-        rows_low = 8'h00;
-        if (columns_low[0] && del) rows_low[0] = 1'b1;
-        if (columns_low[1] && ret) rows_low[0] = 1'b1;
-        if (columns_low[2] && right) rows_low[0] = 1'b1;
-        if (columns_low[3] && down_key) rows_low[0] = 1'b1;
-        if (columns_low[4] && f1) rows_low[0] = 1'b1;
-        if (columns_low[2] && a_key) rows_low[1] = 1'b1;
-        if (columns_low[7] && lshift) rows_low[1] = 1'b1;
-        if (columns_low[4] && rshift) rows_low[6] = 1'b1;
-        if (columns_low[2] && ctrl) rows_low[7] = 1'b1;
-        if (columns_low[4] && space) rows_low[7] = 1'b1;
-        if (columns_low[5] && commodore) rows_low[7] = 1'b1;
-        if (columns_low[7] && stop) rows_low[7] = 1'b1;
+        rows_low = (column0 & {8{columns_low[0]}}) |
+                   (column1 & {8{columns_low[1]}}) |
+                   (column2 & {8{columns_low[2]}}) |
+                   (column3 & {8{columns_low[3]}}) |
+                   (column4 & {8{columns_low[4]}}) |
+                   (column5 & {8{columns_low[5]}}) |
+                   (column6 & {8{columns_low[6]}}) |
+                   (column7 & {8{columns_low[7]}});
     end
 endmodule

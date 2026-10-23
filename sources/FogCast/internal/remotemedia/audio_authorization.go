@@ -192,16 +192,6 @@ func (q *audioSampleQueue) Next(ctx context.Context) (AudioSample, bool) {
 	}
 }
 
-func (q *audioSampleQueue) Close() {
-	q.mu.Lock()
-	q.closed = true
-	select {
-	case q.notify <- struct{}{}:
-	default:
-	}
-	q.mu.Unlock()
-}
-
 func (q *audioSampleQueue) Drops() uint64 {
 	q.mu.Lock()
 	defer q.mu.Unlock()

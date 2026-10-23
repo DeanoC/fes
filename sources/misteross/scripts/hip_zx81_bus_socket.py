@@ -2,7 +2,7 @@
 """Diagnostic HIP of the socketed ZX81 Z80-like edge plus validation cart.
 
 Does not authenticate source identity and does not seal a package. Use the
-locked zx81-expansion compiler (nextpnr c2bb4363). GPU 0 only.
+locked zx81-expansion compiler (nextpnr c2bb4363). gpu-run leases any free GPU.
 """
 from __future__ import annotations
 
@@ -20,10 +20,11 @@ from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import (
-    FES_GPU_BACKEND, _require_gpu_backend, _run_command, gpu_visibility_environment,
+    FES_GPU_BACKEND, _require_gpu_backend, _run_command,
 )
 from scripts.search_placer_qor import route_after_synth
 from scripts import zx81_expansion as expansion
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build/fes-zx81-socket-bus"
@@ -64,6 +65,13 @@ def synthesize_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
     print("shell synthesis and socket rename OK", flush=True)
 
 
+def socket_route_extra(nextpnr: Path) -> tuple[str, ...]:
+    """Use the production ZX81 pin policy in this socket route diagnostic."""
+    flags = pnr_recipe.recipe_for("fes.zx81", nextpnr)["flags"]
+    pin_assignment = ("--arrival-pin-assignment",) if flags["arrival_pin_assignment"] else ()
+    return ("--router", "gpu", *pin_assignment)
+
+
 def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
     winner = route_after_synth(
         nextpnr=tools["nextpnr"],
@@ -78,7 +86,7 @@ def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
         critexp=shell.PLACER_CRITICALITY_EXPONENT,
         budget=len(shell.PLACER_SEEDS) * len(shell.PLACER_FIRST_PASS_WEIGHTS),
         mode="first-pass",
-        extra=("--router", "gpu"),
+        extra=socket_route_extra(tools["nextpnr"]),
         timeout=1800,
         required=shell.PLACER_QOR_CLOCKS,
         gpu_devices=(0,),
@@ -186,8 +194,7 @@ def main() -> int:
         "yosys": Path(sys.argv[1]),
         "nextpnr": Path(sys.argv[2]),
     }
-    env = gpu_visibility_environment(os.environ, 0, variable="HIP_VISIBLE_DEVICES")
-    env["GPU_LEASE_IDS"] = "0"
+    env = dict(os.environ)
     env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     env.pop("CACHE_ROOT", None)
     synthesize_shell(tools, env)

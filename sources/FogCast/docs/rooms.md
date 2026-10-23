@@ -27,12 +27,9 @@ hit-testing reads the same display list.
 
 Rooms live one directory each under the rooms directory:
 
-| Source | Default |
-| --- | --- |
-| `-rooms DIR` flag | |
-| `FOGCAST_ROOMS` env | |
-| `tenfoot.json` `rooms_dir` | |
-| default | `<UserConfigDir>/FogCast/rooms` (next to `tenfoot.json`). On a kit this is `/media/fat/fogcast/state/FogCast/rooms` |
+The directory precedence is `-rooms DIR`, `tenfoot.json` `rooms_dir`,
+`FOGCAST_ROOMS`, then `<UserConfigDir>/FogCast/rooms` (next to
+`tenfoot.json`). On a kit the default is `/media/fat/fogcast/state/FogCast/rooms`.
 
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.

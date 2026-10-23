@@ -35,8 +35,12 @@ func privateRoot(t *testing.T) string {
 }
 func fixture(t *testing.T) (Manifest, []byte) {
 	t.Helper()
+	return fixtureWith(t, map[string]string{"runtime": "2"})
+}
+func fixtureWith(t *testing.T, interfaces map[string]string) (Manifest, []byte) {
+	t.Helper()
 	files := fstest.MapFS{}
-	m := Manifest{Format: 1, Board: "de10-nano", Architecture: "armv7", BaseContract: "fes-base-v1", Version: "1.0", Interfaces: map[string]string{"runtime": "2"}, Provenance: map[string]string{"fes": "different-from-host"}}
+	m := Manifest{Format: 1, Board: "de10-nano", Architecture: "armv7", BaseContract: "fes-base-v1", Version: "1.0", Interfaces: interfaces, Provenance: map[string]string{"fes": "different-from-host"}}
 	for _, p := range append(append([]string{}, RequiredExecutables...), "share/fogcast/assets/test.txt") {
 		data := []byte(p)
 		h := sha256.Sum256(data)
@@ -54,7 +58,7 @@ func fixture(t *testing.T) (Manifest, []byte) {
 	return m, b.Bytes()
 }
 func compatibility(m Manifest) Compatibility {
-	return Compatibility{m.Board, m.Architecture, m.BaseContract, map[string]string{"runtime": "2"}}
+	return Compatibility{Board: m.Board, Architecture: m.Architecture, BaseContract: m.BaseContract, Interfaces: map[string]string{"runtime": "2"}}
 }
 func TestDeterministicIdentity(t *testing.T) {
 	m, b := fixture(t)
@@ -336,6 +340,79 @@ func TestRetainedIncompatibleReleaseRemainsInspectable(t *testing.T) {
 	}
 	if _, _, e = reopened.Install(context.Background(), bytes.NewReader(b)); e == nil {
 		t.Fatal("incompatible install admitted")
+	}
+	if _, e = reopened.Path(context.Background(), r.ID); !errors.Is(e, ErrIncompatible) {
+		t.Fatal("base contract mismatch is not an incompatibility", e)
+	}
+}
+
+func TestReleaseAcceptsRequiredVersions(t *testing.T) {
+	for _, tc := range []struct {
+		provided, required string
+		ok                 bool
+	}{
+		{"1.0", "1.0", true},
+		{"1.2", "1.1", true},
+		{"1.10", "1.9", true},
+		{"1.0", "1.1", false},
+		{"2.0", "1.0", false},
+		{"10.0", "1.0", false},
+		{"", "1.0", false},
+		{"01.0", "1.0", false},
+		{"1.0", "1", false},
+		{"1.0", "1.0.0", false},
+	} {
+		m := Manifest{Interfaces: map[string]string{"runtime": "2"}}
+		if tc.provided != "" {
+			m.Interfaces["menu.fes.video.menu-display"] = tc.provided
+		}
+		e := m.Accepts(map[string]string{"menu.fes.video.menu-display": tc.required})
+		if (e == nil) != tc.ok || (e != nil && !errors.Is(e, ErrIncompatible)) {
+			t.Errorf("provided %q required %q: %v", tc.provided, tc.required, e)
+		}
+	}
+	m := Manifest{Interfaces: map[string]string{"menu.a": "1.0", "menu.b": "1.0"}}
+	if e := m.Accepts(map[string]string{"menu.a": "1.0", "menu.c": "1.0", "menu.d": "1.0"}); e == nil || !strings.Contains(e.Error(), "menu.c 1.0") {
+		t.Fatal("first missing interface not reported in key order", e)
+	}
+}
+
+func TestRequiredInterfacesGateInstallAndPath(t *testing.T) {
+	menu := map[string]string{"runtime": "2", "menu.fes.video.fixed-720p60": "1.0", "menu.fes.video.menu-display": "1.0"}
+	m, b := fixtureWith(t, menu)
+	base := compatibility(m)
+	// A base that requires nothing, such as one whose supervisor predates
+	// Requires, matches only its own interfaces and ignores the menu keys.
+	if e := m.Compatible(base); e != nil {
+		t.Fatal("menu interfaces broke the base interface match", e)
+	}
+	base.Requires = map[string]string{"menu.fes.video.fixed-720p60": "1.0", "menu.fes.video.menu-display": "1.0"}
+	if e := m.Compatible(base); e != nil {
+		t.Fatal("accepted requirements refused", e)
+	}
+	root := privateRoot(t)
+	s, e := New(root, base)
+	if e != nil {
+		t.Fatal(e)
+	}
+	r, _, e := s.Install(context.Background(), bytes.NewReader(b))
+	if e != nil {
+		t.Fatal(e)
+	}
+	base.Requires["menu.fes.video.menu-blitter"] = "1.0"
+	newer, e := New(root, base)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = newer.Path(context.Background(), r.ID); !errors.Is(e, ErrIncompatible) || !strings.Contains(e.Error(), "menu.fes.video.menu-blitter 1.0") {
+		t.Fatal("release lacking a required interface admitted", e)
+	}
+	if _, e = newer.Read(context.Background(), r.ID); e != nil {
+		t.Fatal("held-back release cannot be inspected", e)
+	}
+	_, older := fixture(t)
+	if _, _, e = newer.Install(context.Background(), bytes.NewReader(older)); !errors.Is(e, ErrIncompatible) {
+		t.Fatal("release without menu interfaces installed on a base that requires them", e)
 	}
 }
 
@@ -692,5 +769,88 @@ func TestStoreRejectsSharedPermissions(t *testing.T) {
 	}
 	if _, _, e = s.Install(context.Background(), bytes.NewReader(bundle)); e == nil {
 		t.Fatal("used a store after it became world-accessible")
+	}
+}
+
+func TestInventoryAuthenticatesManifestWithoutReadingPayload(t *testing.T) {
+	m, archive := fixture(t)
+	store, err := New(privateRoot(t), compatibility(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	release, _, err := store.Install(ctx, bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(store.root, "releases", release.ID)
+	payload := filepath.Join(dir, RequiredExecutables[0])
+	if err := os.Chmod(payload, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(payload, []byte("corrupt"), 0555); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(payload, 0555); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := store.List(ctx)
+	if err != nil || len(listed) != 1 || listed[0].ID != release.ID {
+		t.Fatalf("inventory must read manifest independently of payload: %v %v", listed, err)
+	}
+	if _, err := store.Read(ctx, release.ID); err == nil {
+		t.Fatal("activation read accepted corrupt payload")
+	}
+	if _, err := store.Path(ctx, release.ID); err == nil {
+		t.Fatal("execution path accepted corrupt payload")
+	}
+	manifest := filepath.Join(dir, "manifest.json")
+	if err := os.Chmod(manifest, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("{}"), 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(manifest, 0444); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.List(ctx); err == nil {
+		t.Fatal("inventory accepted invalid manifest")
+	}
+}
+
+type cancelAfterContextChecks struct {
+	context.Context
+	cancel      context.CancelFunc
+	checks      int
+	cancelAfter int
+}
+
+func (c *cancelAfterContextChecks) Err() error {
+	c.checks++
+	if c.checks > c.cancelAfter {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestListCanceledDuringLastManifestRead(t *testing.T) {
+	m, archive := fixture(t)
+	store, err := New(privateRoot(t), compatibility(m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Install(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// List checks the context twice before reading manifests; the manifest
+	// reader checks once before opening the last manifest. Expire it on the
+	// next check, after that manifest has been read and authenticated.
+	inventoryCtx := &cancelAfterContextChecks{Context: ctx, cancel: cancel, cancelAfter: 3}
+	if _, err := store.List(inventoryCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("List error = %v, want context.Canceled", err)
 	}
 }

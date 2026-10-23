@@ -17,7 +17,12 @@ module c64_disk_store (
     wire [17:0] address_b = write_addr + 18'd1;
 
 `ifdef VERILATOR
-    initial $readmemh("build/diagnostics/fes-c64/disk.hex", image);
+    string disk_hex;
+    initial begin
+        if (!$value$plusargs("C64_DISK_HEX=%s", disk_hex))
+            disk_hex = "build/diagnostics/fes-c64/disk.hex";
+        $readmemh(disk_hex, image);
+    end
 `endif
 
     always @(posedge clk) begin

@@ -269,7 +269,7 @@ end
 	client.paired = len(paired) > 0 && paired[0]
 	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
-	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), "")
 	app.SetHomeRooms(true)
 	app.SetHomeRoom("lib-home")
 	app.Start(t.Context())

@@ -13,21 +13,15 @@ bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch`, `fes.riscv` `fes.ramtest` and `fes.atari-st` HIP/nextpnr
-producers. The default target-image selector installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
-SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
-Atari ST is the optional recipe. A timing miss or `FES_SKIP_OPTIONAL_CORES=1`
-omits its package and records the core in `unavailable-cores.json` on the
-image output and at `/usr/share/mister-runtime/unavailable-cores.json` in the
-rootfs. The omission is part of the image fingerprint. Set
-`FES_REQUIRE_ALL_CORES=1` when the image must contain every selected core,
-including a release build. Leave it unset for development and fast HIL images.
-Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
-rootfs holds them. `fes.apple2`,
-`fes.catch` and `fes.riscv` remain package-only. `fes.c64` shared-pin
-retirement is complete on the recorded CUDA seal. It remains package-only
-without factory-image acceptance. See [core status](core-status.md).
+producers. The default target-image selector installs the closed package set
+containing only `fes.menu` display firmware. All playable systems are installed
+independently through the core catalog. Coleco and Atari ST installations need
+their matching Direct/Scanlines video parts; firmware remains user-supplied.
+Their package builds and timing results no longer gate the default OS image.
+For a deliberately expanded image selection, optional-core omission still uses
+`unavailable-cores.json`; `FES_REQUIRE_ALL_CORES=1` requires every selected core.
+See [core status](core-status.md) for package evidence.
+
 Package IDs and payload digests are recorded in generated per-core selection
 files, including `fes-sms.package-selection.toml`,
 `fes-sg1000.package-selection.toml` and `fes-spectrum.package-selection.toml`.
@@ -35,8 +29,9 @@ A successful package-only C64 preparation would use
 `fes-c64.package-selection.toml`.
 The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Each registered
-producer selects the per-core lock in its `config/core-recipes.toml` entry;
-the locks currently contain the same tool commits. Use the matching
+producer selects the per-core lock in its `config/core-recipes.toml` entry.
+The locks currently contain the same nextpnr and Mistral commits. Coleco's
+Yosys pin is `5391eeb1` and uses its own slot. Use the matching
 `make toolchain-fes-<core>` target when provisioning a selected core. Inspect
 `config/core-recipes.toml` for each registered producer's current lock and HIP
 settings. Freeze-scaffold
@@ -45,8 +40,8 @@ An older sealed SMS package does not accept a bitstream built from a later
 tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
+`fes.menu`. Playable cores are separate installations.
+
 The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
@@ -89,9 +84,15 @@ Commodore 64 requires an exact 16 KiB `c64-firmware` image (8 KiB BASIC window,
 then 8 KiB KERNAL window). Its disk is `fes.media.c64-disk` 1.0, an exact
 174,848-byte `.d64` on media unit 0, read only. Its two cartridge sockets are
 the optional `fes.expansion.c64-bus` 1.0.
-ZX Spectrum 48K requires an exact 16 KiB `spectrum-firmware` image covering
-`$0000–$3FFF`. Its edge cards and `.tap` cassette are separate inputs (see the
-[ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)).
+The ZX Spectrum models each require their exact firmware: the 48K
+(`fes.spectrum`) a 16 KiB `spectrum-firmware` image covering `$0000–$3FFF`,
+the 128K/+2 (`fes.spectrum128`) a 32 KiB `spectrum128-firmware` (editor ROM,
+then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
+`spectrum-plus3-firmware` (ROMs 0–3 in order) and the Pentagon 128
+(`fes.pentagon`) a 32 KiB `pentagon-firmware` (128, then 48 BASIC). Their edge
+cards and `.tap` cassette are separate inputs (see the
+[ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
+and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate
@@ -234,8 +235,8 @@ core-video-parts/<shell-package-id>/<part-id>.tar
 The installed directory is
 `/usr/share/mister-runtime/core-packages/<package-id>/`. The child image builder
 revalidates the package during fetch, install and image verification and records
-the selection in its installed build inputs. Cold builds compare the selection
-from both independent passes. Development and cold receipts include the exact
+the selection in its installed build inputs. Two-pass cold builds compare the
+selection from both independent passes. Development and cold receipts include the exact
 selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
 

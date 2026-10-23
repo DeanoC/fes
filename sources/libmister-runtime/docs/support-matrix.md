@@ -8,12 +8,13 @@ Hardware-supported package paths: 0.
 | GP acknowledged-response settling guard, bounded full-word sampling, fail-closed ACK/signature/MMIO handling and no command replay | covered by host fault-injection tests | none |
 | Simple-game, simple-computer, application ABI | covered | pending |
 | `fes.simple-computer` required audio declaration, exact live bit 4, and ADV7513 packet policy | covered by host tests | SG-1000 exact-artifact audio pending |
-| Menu-display GP, immutable staging, idle lifecycle, reserved-memory presentation, selected startup, frame/mutation admission, lifecycle wait during present, bounded underflow reactivation, and damaged rectangle presents | covered by host tests and real local descriptor exchange; damaged presents are host-tested only | [menu presentation diagnostic](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md) and [kit 2 launch/Stop diagnostic](../../../docs/validation/2026-09-28-menu-frame-mutation-kit2.md) cover ordinary presentation; damaged-present physical acceptance pending; exact product image acceptance pending |
-| Sealed splash and fixed ADV7513 video | covered | pending |
+| Menu-display GP, idle lifecycle, granted-slot presentation (fes-window grant of both slots, back-slot begin, write-back of the written regions before submit, revoke before a core owns the window and on a failed present), selected startup, frame/mutation admission, lifecycle wait from begin to commit, and bounded underflow reactivation | covered by host tests with injected driver calls and real local descriptor exchange | [Kit A diagnostic](https://github.com/DeanoC/fes/pull/959#issuecomment-6316246790) 2026-10-21 of bundle `692e511e` (runtime `16bdf0ce`, image `5af6162b`): Home, Library, rooms and Settings matched baseline HDMI captures (17 of 22 steps byte-identical, the rest differing in build text or room overrun timing), and Pong launch and Stop returned to a redrawn Home; the 2026-09-28 [presentation](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md) and [launch/Stop](../../../docs/validation/2026-09-28-menu-frame-mutation-kit2.md) diagnostics cover the retired copy path; exact product image acceptance pending |
+| Menu-blitter grant sizing (80 MiB), CPU frames on the grant until its first list and only lists after, command-list uploads and write-back, idle admission, completion polling and slot submission | covered by host tests | exact-artifact kit HIL pending, including target `mmap` of the 80 MiB grant |
+| Sealed splash and fixed ADV7513 video, with a −0.8 ns input clock delay (`0xBA = 0x20`) | covered | [Kit A diagnostic](../../../docs/validation/2026-10-23-hdmi-input-clock-delay.md) 2026-10-23 of runtime `27d131a5` merged locally with #1001's `e5bd594a` (image `88e85ec5`): the idle display and six Spectrum, ZX81 and C64 archives held the HDMI link for 30 s each with `0xBA` read back as `0x20`, including the +2A/+3 archive that dropped it 14–15 times in 20 s with no delay; kit B, the other cores and the delay margin unchecked; exact-artifact acceptance pending |
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |
 | Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
-| Simple-computer session HDMI plane, bound show/return, focus neutralization, immutable frames and fault isolation without reprogramming | covered by host tests | combined ZX81 exact-artifact acceptance pending |
+| Simple-computer session HDMI plane (premultiplied blend), bound show/return, focus neutralization, granted-slot frames revoked on hide, and fault isolation without reprogramming | covered by host tests | combined ZX81 exact-artifact acceptance pending |
 | Described-core library persistence and retry | covered | pending |
 | Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Format-4 two-ROM receipt-bound activation through production adapter | covered | [Coleco synthetic diagnostic](../../../docs/validation/2026-09-26-coleco-megacart-two-rom-hil.md); appliance acceptance pending |
@@ -24,7 +25,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
-| `fes.computer` session HDMI plane (show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
+| `fes.computer` session HDMI plane (premultiplied RGBA blend, picture rectangle, show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
 | Atari ST sector writes, frozen snapshot and explicit library disk records across Stop/eject/replacement, with binding retirement after successful menu/splash programming and same-daemon relaunch | covered by simulations and host tests, including save-failure ownership retention and removal of crash-orphaned save temporaries and write probes when the namespace is opened | none |
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |
@@ -32,6 +33,7 @@ Hardware-supported package paths: 0.
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
 | `fes-gp-v1` bridge release after user mode; SDR FPGA ports only after `fes.memory.hps-ddr` identity and mirror match, on a boot whose U-Boot core latched the layout | covered | diagnostic 2026-09-27 (port release; boot capture pending) |
+| Startup load of the release's `fes-window` driver with the `fes.memory.hps-ddr` window; a loaded copy kept only on matching version and window, otherwise replaced, or reported busy while in use; a failure is logged and startup continues | covered by host tests | [Kit A diagnostic](https://github.com/DeanoC/fes/issues/949#issuecomment-6310766923) 2026-10-21 of a dev driver build (grant, cached draw, clean, revoke); runtime load of the bundled driver pending exact-artifact acceptance |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package
 activation are retired. Existing catalog/cache/save files are not migrated or

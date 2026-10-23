@@ -59,14 +59,6 @@ func WithManagedAudioSenderFactoryOwnership(factory func(AudioSenderConfig, Audi
 	}
 }
 
-func WithManagedAudioSenderStopTimeout(timeout time.Duration) ManagedAudioSenderOption {
-	return func(s *ManagedAudioSender) {
-		if timeout > 0 {
-			s.stopTimeout = timeout
-		}
-	}
-}
-
 // ManagedAudioSender owns one audio source and its AudioSender lifecycle.
 // It has no video dependencies and can therefore be stopped independently.
 type ManagedAudioSender struct {
@@ -470,14 +462,6 @@ func (s *ManagedMediaSender) startFailure(video, audio mediasession.ComponentHan
 
 type managedSourceCloser interface {
 	Close() error
-}
-
-func cleanupManagedStartChildren(children []mediasession.ComponentHandle, timeout time.Duration) (mediasession.ComponentHandle, error) {
-	return cleanupManagedStartChildrenWithError(children, timeout, ErrManagedMediaSenderStart)
-}
-
-func cleanupManagedStartChildrenWithError(children []mediasession.ComponentHandle, timeout time.Duration, failure error) (mediasession.ComponentHandle, error) {
-	return cleanupManagedStartChildrenWithStopError(children, timeout, failure, ErrManagedMediaSenderStop)
 }
 
 func cleanupManagedStartChildrenWithStopError(children []mediasession.ComponentHandle, timeout time.Duration, failure, stopErr error) (mediasession.ComponentHandle, error) {

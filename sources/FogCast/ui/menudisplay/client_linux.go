@@ -1,7 +1,9 @@
 //go:build linux
 
-// Package menudisplay presents immutable RGBA frames through the local runtime
-// socket. The runtime alone maps DDR or controls FPGA hardware.
+// Package menudisplay presents RGBA frames through the local runtime. The
+// runtime grants both menu slots of the FPGA scanout window; the client maps
+// them cached, writes each frame into the slot scanout is not showing, and
+// commits it. The runtime writes back those lines and controls the FPGA.
 package menudisplay
 
 import (
@@ -11,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime/debug"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -22,10 +26,37 @@ const (
 	Stride     = Width * 4
 	FrameBytes = Stride * Height
 	SlotBytes  = 4 << 20
-	maxReply   = 64 << 10
+	Slots      = 2
+	// Format is the slot pixel layout: XRGB8888 words, B, G, R, X bytes. The
+	// client writes each pixel's alpha as X: idle MENU ignores it and a session
+	// plane blends with it as premultiplied alpha.
+	Format   = "bgrx8888"
+	maxReply = 64 << 10
 )
 
-type Client struct{ Path string }
+// Client serializes presents; one MenuDisplay worker drives it.
+type Client struct {
+	Path   string
+	mu     sync.Mutex
+	window *window
+}
+
+// window is one generation's grant, mapped once: both slots, and on a
+// blitter grant the list region and texture heap too.
+type window struct {
+	generation uint64
+	mapping    []byte
+	// held[s] is the displayed sequence of the frame slot s holds, zero
+	// when unknown. damage is the shown frame's damage against the frame
+	// before it, nil for a whole frame.
+	held   [Slots]uint64
+	damage []Rect
+	// heap is the textures resident in a blitter grant's heap. Every socket
+	// peer shares that heap, so it holds only while no other peer has begun
+	// a frame: prepared is this client's last preparation of the generation.
+	heap     *blitHeap
+	prepared uint64
+}
 type Status struct {
 	Available         bool   `json:"available"`
 	Session           bool   `json:"session"`
@@ -37,10 +68,10 @@ type Status struct {
 	Stride            int    `json:"stride"`
 	ByteCount         int    `json:"byte_count"`
 	SlotBytes         int    `json:"slot_bytes"`
+	Slots             int    `json:"slots"`
+	Format            string `json:"format"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
 	Underflows        uint64 `json:"underflows"`
-	// Damage means the runtime accepts damaged presents (PresentDamage).
-	Damage bool `json:"damage"`
 }
 type Result struct {
 	Generation        uint64 `json:"generation"`
@@ -54,15 +85,25 @@ type reply struct {
 	MenuDisplay *Status `json:"menu_display"`
 	MenuFrame   *struct {
 		Generation        uint64  `json:"generation"`
-		ByteCount         int     `json:"byte_count"`
-		StagingFormat     string  `json:"staging_format"`
+		Slot              *int    `json:"slot"`
+		Preparation       uint64  `json:"preparation"`
+		Format            string  `json:"format"`
+		Slots             int     `json:"slots"`
+		SlotBytes         int     `json:"slot_bytes"`
 		DisplayedSequence *uint64 `json:"displayed_sequence"`
 		Underflows        uint64  `json:"underflows"`
-		Timing            *struct {
-			CopyUS        int64 `json:"copy_us"`
+		Blitter           *struct {
+			ListOffset   int `json:"list_offset"`
+			Commands     int `json:"commands"`
+			CommandBytes int `json:"command_bytes"`
+			HeapOffset   int `json:"heap_offset"`
+			HeapBytes    int `json:"heap_bytes"`
+		} `json:"blitter"`
+		Timing *struct {
+			CleanUS       int64 `json:"clean_us"`
+			BlitUS        int64 `json:"blit_us"`
 			SubmitUS      int64 `json:"submit_us"`
 			ScanoutWaitUS int64 `json:"scanout_wait_us"`
-			StoredPixels  int64 `json:"stored_pixels"`
 		} `json:"timing"`
 	} `json:"menu_frame"`
 	Error struct {
@@ -207,20 +248,130 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	if !s.Available {
 		return s, nil
 	}
-	if s.Generation == 0 || s.Width != Width || s.Height != Height || s.Stride != Stride || s.ByteCount != FrameBytes || s.SlotBytes != SlotBytes {
+	if s.Generation == 0 || s.Width != Width || s.Height != Height || s.Stride != Stride || s.ByteCount != FrameBytes ||
+		s.SlotBytes != SlotBytes || s.Slots != Slots || s.Format != Format {
 		return Status{}, errors.New("unsupported menu geometry")
 	}
 	return s, nil
+}
+
+// Close unmaps the granted window.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closeWindowLocked()
+}
+
+func (c *Client) closeWindowLocked() error {
+	if c.window == nil {
+		return nil
+	}
+	err := unix.Munmap(c.window.mapping)
+	c.window = nil
+	return err
+}
+
+// windowLocked maps generation's grant, once per generation. A blitter
+// grant is mapped through its heap; any other grant covers the two slots.
+func (c *Client) windowLocked(ctx context.Context, generation uint64) (*window, error) {
+	if c.window != nil && c.window.generation == generation {
+		return c.window, nil
+	}
+	if err := c.closeWindowLocked(); err != nil {
+		return nil, err
+	}
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_grant", "expected_generation": generation}, -1); err != nil {
+		return nil, err
+	}
+	granted, fds, err := receive(conn)
+	if err != nil {
+		return nil, err
+	}
+	if len(fds) != 1 {
+		for _, fd := range fds {
+			unix.Close(fd)
+		}
+		return nil, errors.New("menu grant did not return one descriptor")
+	}
+	defer unix.Close(fds[0])
+	g := granted.MenuFrame
+	if g == nil || g.Generation != generation || g.Format != Format || g.Slots != Slots || g.SlotBytes != SlotBytes {
+		return nil, errors.New("invalid menu grant")
+	}
+	size := Slots * SlotBytes
+	if b := g.Blitter; b != nil {
+		if b.ListOffset != ListOffset || b.Commands != ListCommands || b.CommandBytes != CommandBytes ||
+			b.HeapOffset != HeapOffset || b.HeapBytes != HeapBytes {
+			return nil, errors.New("unsupported menu blitter layout")
+		}
+		size = BlitWindowBytes
+	}
+	mapping, err := unix.Mmap(fds[0], 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		return nil, err
+	}
+	c.window = &window{generation: generation, mapping: mapping}
+	if g.Blitter != nil {
+		c.window.heap = newBlitHeap()
+	}
+	return c.window, nil
+}
+
+// write draws rects of frame into slot.
+func (w *window) write(slot int, frame []byte, rects []Rect) error {
+	return w.guard(func() {
+		dst := w.mapping[slot*SlotBytes : slot*SlotBytes+FrameBytes]
+		for _, r := range rects {
+			writeRect(dst, frame, r)
+		}
+	})
+}
+
+// guard runs a write into the mapping. The runtime revokes the grant if a
+// lifecycle operation outlasts the preparation; the fault that follows is
+// returned as an error instead of ending the process.
+func (w *window) guard(write func()) (err error) {
+	defer debug.SetPanicOnFault(debug.SetPanicOnFault(true))
+	defer func() {
+		if r := recover(); r != nil {
+			if _, fault := r.(interface{ Addr() uintptr }); !fault {
+				panic(r)
+			}
+			err = errors.New("menu window revoked while drawing")
+		}
+	}()
+	write()
+	return nil
+}
+
+// Grant maps generation's grant if it is not mapped yet and reports what it
+// offers. Present and PresentBlit use the same mapping.
+func (c *Client) Grant(ctx context.Context, generation uint64) (Grant, error) {
+	if generation == 0 {
+		return Grant{}, errors.New("invalid menu generation")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	w, err := c.windowLocked(ctx, generation)
+	if err != nil {
+		return Grant{}, err
+	}
+	return Grant{Blitter: w.heap != nil}, nil
 }
 
 func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Result, error) {
 	return c.present(ctx, generation, pix, nil)
 }
 
-// PresentDamage presents pix, a complete frame, but stages only the damaged
-// rectangles. The runtime takes the rest from damage.BaseSequence, which must
-// be the frame it is showing; otherwise it rejects the present with
-// stale_revision and the caller should send a complete frame.
+// PresentDamage presents pix, a complete frame that differs from the frame
+// the runtime is showing as damage.BaseSequence only inside damage.Rects.
+// When the slot being drawn holds the frame before that one, only both
+// frames' damage is written; otherwise the whole frame is.
 func (c *Client) PresentDamage(ctx context.Context, generation uint64, pix []byte, damage Damage) (Result, error) {
 	if !damage.valid() {
 		return Result{}, errors.New("invalid menu damage")
@@ -232,71 +383,175 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	if generation == 0 || len(pix) != FrameBytes {
 		return Result{}, errors.New("invalid menu frame")
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var timing Timing
 	began := time.Now()
-	conn, err := c.dial(ctx)
+	w, err := c.windowLocked(ctx, generation)
+	if err != nil {
+		return Result{}, err
+	}
+	conn, slot, err := c.begin(ctx, w, generation)
 	if err != nil {
 		return Result{}, err
 	}
 	defer conn.Close()
-	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_begin", "expected_generation": generation, "byte_count": FrameBytes}, -1); err != nil {
-		return Result{}, err
-	}
-	prepared, fds, err := receive(conn)
-	if err != nil {
-		return Result{}, err
-	}
-	if len(fds) != 1 {
-		return Result{}, errors.New("menu begin did not return one descriptor")
-	}
-	fd := fds[0]
-	defer unix.Close(fd)
-	if prepared.MenuFrame == nil || prepared.MenuFrame.Generation != generation || prepared.MenuFrame.ByteCount != FrameBytes || prepared.MenuFrame.StagingFormat != "rgba8888" || prepared.MenuFrame.DisplayedSequence != nil {
-		return Result{}, errors.New("invalid menu staging response")
-	}
 	staged := time.Now()
 	timing.BeginUS = staged.Sub(began).Microseconds()
-	var stat unix.Stat_t
-	if err := unix.Fstat(fd, &stat); err != nil {
-		return Result{}, err
+	rects := fullFrame
+	if damage != nil && w.held[slot] != 0 && w.held[slot^1] == uint64(damage.BaseSequence) && w.held[slot]+1 == w.held[slot^1] {
+		rects = slotUpdate(damage.Rects, w.damage)
 	}
-	if stat.Mode&unix.S_IFMT != unix.S_IFREG || stat.Size != FrameBytes {
-		return Result{}, errors.New("invalid menu staging file")
-	}
-	mapped, err := unix.Mmap(fd, 0, FrameBytes, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	if err != nil {
-		return Result{}, err
-	}
-	if damage == nil {
-		copy(mapped, pix)
-	} else {
-		for _, r := range damage.Rects {
-			for y := r.Y; y < r.Y+r.H; y++ {
-				at := y*Stride + r.X*4
-				copy(mapped[at:at+r.W*4], pix[at:at+r.W*4])
-			}
-		}
-	}
-	if err := unix.Munmap(mapped); err != nil {
-		return Result{}, err
-	}
-	if _, err := unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS, unix.F_SEAL_WRITE|unix.F_SEAL_GROW|unix.F_SEAL_SHRINK|unix.F_SEAL_SEAL); err != nil {
+	// Until the commit completes, the slot holds no known frame.
+	w.held[slot] = 0
+	if err := w.write(slot, pix, rects); err != nil {
+		w.held = [Slots]uint64{}
 		return Result{}, err
 	}
 	committed := time.Now()
 	timing.StageUS = committed.Sub(staged).Microseconds()
-	commit := map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "byte_count": FrameBytes}
-	if damage != nil {
-		rects := make([][4]int, len(damage.Rects))
-		for i, r := range damage.Rects {
-			rects[i] = [4]int{r.X, r.Y, r.W, r.H}
+	timing.StagedPixels = int64(Damage{Rects: rects}.Pixels())
+	commit := map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "slot": slot}
+	if len(rects) != 1 || rects[0] != fullFrame[0] {
+		written := make([][4]int, len(rects))
+		for i, r := range rects {
+			written[i] = [4]int{r.X, r.Y, r.W, r.H}
 		}
-		commit["damage"] = map[string]any{"base_sequence": damage.BaseSequence, "rects": rects}
-		timing.StagedPixels = int64(damage.Pixels())
-	} else {
-		timing.StagedPixels = Width * Height
+		commit["written"] = written
 	}
-	if err := send(conn, commit, fd); err != nil {
+	result, err := finishFrame(conn, commit, generation, slot, committed, &timing)
+	if err != nil {
+		return Result{}, err
+	}
+	w.held[slot] = result.DisplayedSequence
+	w.damage = nil
+	if damage != nil {
+		w.damage = damage.Rects
+	}
+	return result, nil
+}
+
+// PresentBlit has the blitter draw frame into the slot scanout is not
+// showing. It uploads the sources the heap does not hold, writes the list
+// and commits it. A frame the blitter cannot hold returns ErrBlitTooLarge
+// before any request. A blitter grant takes only lists after its first, so
+// a client that uses it should send every later frame of the generation
+// here.
+func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitFrame) (Result, error) {
+	if generation == 0 {
+		return Result{}, errors.New("invalid menu frame")
+	}
+	if len(frame.Ops) == 0 {
+		// An END would submit a slot holding the frame before last.
+		return Result{}, errors.New("empty menu blit frame")
+	}
+	if err := frame.check(); err != nil {
+		return Result{}, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var timing Timing
+	began := time.Now()
+	w, err := c.windowLocked(ctx, generation)
+	if err != nil {
+		return Result{}, err
+	}
+	if w.heap == nil {
+		return Result{}, errors.New("menu grant has no blitter")
+	}
+	placed, err := w.heap.place(frame)
+	if err != nil {
+		return Result{}, err
+	}
+	// Uploads are resident only once a commit has written them back.
+	ok := false
+	defer func() {
+		if ok {
+			w.heap.finish(placed)
+		} else {
+			w.heap.reset()
+		}
+	}()
+	shared := w.prepared
+	conn, slot, err := c.begin(ctx, w, generation)
+	if err != nil {
+		return Result{}, err
+	}
+	defer conn.Close()
+	if w.prepared != shared+1 {
+		// Another peer began a frame since this client's last and may have
+		// written the heap. The frame fit, so it fits the empty heap.
+		w.heap.reset()
+		if placed, err = w.heap.place(frame); err != nil {
+			return Result{}, err
+		}
+	}
+	staged := time.Now()
+	timing.BeginUS = staged.Sub(began).Microseconds()
+	count := len(frame.Ops)
+	var spans []Span
+	if err := w.guard(func() {
+		list := w.mapping[ListOffset : ListOffset+count*CommandBytes]
+		spans = writeFrame(w.mapping[HeapOffset:BlitWindowBytes], list, frame, placed)
+	}); err != nil {
+		w.held = [Slots]uint64{}
+		return Result{}, err
+	}
+	committed := time.Now()
+	timing.StageUS = committed.Sub(staged).Microseconds()
+	timing.Commands = int64(count)
+	commit := map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "slot": slot,
+		"list": map[string]int{"first": 0, "count": count}}
+	if len(spans) > 0 {
+		uploaded := make([][2]int, len(spans))
+		for i, s := range spans {
+			uploaded[i] = [2]int{s.Offset, s.Bytes}
+			timing.UploadBytes += int64(s.Bytes)
+		}
+		commit["uploaded"] = uploaded
+	}
+	// The slot holds a blitter frame, which CPU damage cannot build on.
+	w.held = [Slots]uint64{}
+	w.damage = nil
+	result, err := finishFrame(conn, commit, generation, slot, committed, &timing)
+	if err != nil {
+		return Result{}, err
+	}
+	ok = true
+	return result, nil
+}
+
+// begin opens a frame: it asks the runtime for the slot to draw, and
+// records the preparation in w.
+func (c *Client) begin(ctx context.Context, w *window, generation uint64) (*net.UnixConn, int, error) {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_begin", "expected_generation": generation}, -1); err != nil {
+		conn.Close()
+		return nil, 0, err
+	}
+	prepared, fds, err := receive(conn)
+	for _, fd := range fds {
+		unix.Close(fd)
+	}
+	if err != nil {
+		conn.Close()
+		return nil, 0, err
+	}
+	p := prepared.MenuFrame
+	if len(fds) != 0 || p == nil || p.Generation != generation || p.Slot == nil || *p.Slot < 0 || *p.Slot >= Slots || p.Preparation == 0 || p.DisplayedSequence != nil {
+		conn.Close()
+		return nil, 0, errors.New("invalid menu preparation")
+	}
+	w.prepared = p.Preparation
+	return conn, *p.Slot, nil
+}
+
+// finishFrame sends a commit on the frame's connection and checks its completion.
+func finishFrame(conn *net.UnixConn, commit map[string]any, generation uint64, slot int, committed time.Time, timing *Timing) (Result, error) {
+	if err := send(conn, commit, -1); err != nil {
 		return Result{}, err
 	}
 	completed, extra, err := receive(conn)
@@ -306,13 +561,13 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	if err != nil {
 		return Result{}, err
 	}
-	if len(extra) != 0 || completed.MenuFrame == nil || completed.MenuFrame.Generation != generation || completed.MenuFrame.DisplayedSequence == nil || completed.MenuFrame.Underflows > TransientUnderflowCap {
+	f := completed.MenuFrame
+	if len(extra) != 0 || f == nil || f.Generation != generation || f.Slot == nil || *f.Slot != slot || f.DisplayedSequence == nil || f.Underflows > TransientUnderflowCap {
 		return Result{}, errors.New("invalid menu frame completion")
 	}
 	timing.CommitUS = time.Since(committed).Microseconds()
-	if t := completed.MenuFrame.Timing; t != nil {
-		timing.RuntimeCopyUS, timing.RuntimeSubmitUS, timing.RuntimeScanoutWaitUS = t.CopyUS, t.SubmitUS, t.ScanoutWaitUS
-		timing.RuntimeStoredPixels = t.StoredPixels
+	if t := f.Timing; t != nil {
+		timing.RuntimeCleanUS, timing.RuntimeBlitUS, timing.RuntimeSubmitUS, timing.RuntimeScanoutWaitUS = t.CleanUS, t.BlitUS, t.SubmitUS, t.ScanoutWaitUS
 	}
-	return Result{Generation: generation, DisplayedSequence: *completed.MenuFrame.DisplayedSequence, Underflows: completed.MenuFrame.Underflows, Timing: timing}, nil
+	return Result{Generation: generation, DisplayedSequence: *f.DisplayedSequence, Underflows: f.Underflows, Timing: *timing}, nil
 }

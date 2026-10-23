@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -765,73 +764,6 @@ type fakeServiceScanner struct {
 	once       sync.Once
 }
 
-type serviceRoundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f serviceRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
-}
-
-type delayedUploadResult struct {
-	data     []byte
-	readErr  error
-	closeErr error
-}
-
-type delayedFailingUploadTransport struct {
-	failure error
-	started chan struct{}
-	result  chan delayedUploadResult
-}
-
-func (t *delayedFailingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if request.URL.Path == "/v1/health" {
-		return serviceJSONResponse(request, protocol.Health{APIVersion: "v1", Ready: true})
-	}
-	switch request.Method {
-	case http.MethodGet:
-		return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
-	case http.MethodPut:
-		go func() {
-			data := make([]byte, 0, request.ContentLength)
-			buffer := make([]byte, 1)
-			started := false
-			for {
-				n, readErr := request.Body.Read(buffer)
-				if n > 0 {
-					data = append(data, buffer[:n]...)
-				}
-				if !started {
-					close(t.started)
-					started = true
-				}
-				if readErr != nil {
-					t.result <- delayedUploadResult{data: data, readErr: readErr, closeErr: request.Body.Close()}
-					return
-				}
-				runtime.Gosched()
-			}
-		}()
-		<-t.started
-		return nil, t.failure
-	default:
-		return nil, fmt.Errorf("unexpected request: %s %s", request.Method, request.URL.Path)
-	}
-}
-
-func serviceJSONResponse(request *http.Request, payload any) (*http.Response, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Status:     "200 OK",
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(string(body))),
-		Request:    request,
-	}, nil
-}
-
 func (f *fakeServiceScanner) SetAdmissionGate(admit func(context.Context) (func(), error)) {
 	f.admit = admit
 }
@@ -894,11 +826,9 @@ type fakeServiceClient struct {
 	coreCalls           int
 	developmentReboots  int
 	developmentSize     int64
-	developmentBody     []byte
 	healthCalls         int
 	statusCalls         int
 	stopCalls           int
-	activeGame          string
 	healthResult        protocol.Health
 	healthFn            func(context.Context) (protocol.Health, error)
 	statusResult        protocol.Status
@@ -3032,7 +2962,11 @@ func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing
 	)
 	var origins []string
 	resets := 0
-	service.SetTargetReset(func() { resets++ })
+	var resetTargets []string
+	service.SetTargetReset(func(target string) {
+		resets++
+		resetTargets = append(resetTargets, target)
+	})
 	service.SetTargetOrigin(func(target TargetConfig, _ *targetclient.KitLease) {
 		origins = append(origins, target.Name+":"+target.Address)
 	})
@@ -3053,8 +2987,59 @@ func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing
 	if resets != 1 {
 		t.Fatalf("target resets = %d", resets)
 	}
+	if len(resetTargets) != 1 || resetTargets[0] != "dev" {
+		t.Fatalf("reset target names = %v, want [dev]", resetTargets)
+	}
 	if len(origins) != 1 || origins[0] != "spare:http://192.0.2.11:8182" {
 		t.Fatalf("origins = %#v", origins)
+	}
+}
+
+func TestEditedNamedTargetClearsOnlyItsConnectionObservation(t *testing.T) {
+	const devID = "4a6fb044-1fca-40ef-93ee-e6a9bb4ce56b"
+	const kit2ID = "3aa1b84f-17b5-41f7-9fc7-f91bc4e8814a"
+	devAddress := "http://192.0.2.10:8182"
+	oldKit2Address := "http://192.0.2.20:8182"
+	newKit2Address := "http://192.0.2.21:8182"
+	service := newService(Config{
+		Targets: []TargetConfig{
+			{Name: "dev", TargetID: devID, Enabled: true, Address: devAddress, Agent: "dev-secret"},
+			{Name: "kit2", TargetID: kit2ID, Enabled: true, Address: oldKit2Address, Agent: "kit2-secret"},
+		},
+		SelectedTarget: "dev", RequestTimeout: time.Second,
+	}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	future := time.Now().Add(time.Minute)
+	service.connection = TargetConnection{State: "ready", Address: devAddress, TargetID: devID, BootID: "dev-boot"}
+	service.targetConnections = map[string]targetConnectionState{
+		"dev": {connection: service.connection, nextLookup: future, lookupFailures: 2},
+		"kit2": {
+			connection: TargetConnection{State: "ready", Address: oldKit2Address, TargetID: kit2ID, BootID: "kit2-old-boot"},
+			nextLookup: future, lookupFailures: 4,
+		},
+	}
+	var resetTargets []string
+	service.SetTargetReset(func(name string) { resetTargets = append(resetTargets, name) })
+	settings := service.LibrarySettings()
+	settings.Targets[1].Address = newKit2Address
+	if err := service.SetLibrarySettings(context.Background(), settings); err != nil {
+		t.Fatalf("edit kit2 target: %v", err)
+	}
+	connection := service.TargetConnectionForName("kit2")
+	if connection.State != "disconnected" || connection.Address != newKit2Address || connection.TargetID != kit2ID || connection.BootID != "" {
+		t.Fatalf("edited kit2 connection = %+v", connection)
+	}
+	if got := service.TargetConnectionForName("dev"); got.State != "ready" || got.Address != devAddress || got.BootID != "dev-boot" {
+		t.Fatalf("unchanged dev connection = %+v", got)
+	}
+	service.connectionMu.Lock()
+	_, staleKit2 := service.targetConnections["kit2"]
+	devState := service.targetConnections["dev"]
+	service.connectionMu.Unlock()
+	if staleKit2 || devState.lookupFailures != 2 || !devState.nextLookup.Equal(future) {
+		t.Fatalf("target observations after settings edit: kit2 cached=%v dev=%+v", staleKit2, devState)
+	}
+	if len(resetTargets) != 1 || resetTargets[0] != "kit2" {
+		t.Fatalf("input resets after target edit = %v, want [kit2]", resetTargets)
 	}
 }
 
@@ -3262,14 +3247,6 @@ func serviceGame(content catalog.Content) catalog.Game {
 		System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable,
 		RootOnline: true, Fingerprint: catalog.Fingerprint{SourceSize: 3, ModifiedNS: 123}, Content: &content,
 	}
-}
-
-func contentIdentity(content catalog.Content) protocol.ContentIdentity {
-	return protocol.ContentIdentity{SHA256: content.SHA256, Size: content.Size, Extension: content.Extension}
-}
-
-func absentProbe(_ context.Context, _ protocol.System, _ protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-	return protocol.CacheProbeResponse{Present: false}, nil
 }
 
 func TestCanonicalRemoteErrorPreservesUnsupportedOperation(t *testing.T) {
@@ -3538,36 +3515,6 @@ func preparedServiceFixture(t *testing.T, body []byte, identity protocol.Content
 	}
 	prepared.Content = identity
 	return prepared
-}
-
-func assertPreparedRemoved(t *testing.T, prepared *romsource.Prepared) {
-	t.Helper()
-	if file, err := prepared.Open(); err == nil {
-		_ = file.Close()
-		t.Fatal("prepared content remained openable after service cleanup")
-	}
-	if prepared.Path != "" {
-		if _, err := os.Lstat(prepared.Path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("staging path still exists or cannot be inspected: %v", err)
-		}
-	}
-	if err := prepared.Remove(); err != nil {
-		t.Fatalf("second Remove = %v, want idempotent success", err)
-	}
-}
-
-func assertProgressStages(t *testing.T, progress []Progress, want []string) {
-	t.Helper()
-	stages := make([]string, len(progress))
-	for index, event := range progress {
-		stages[index] = event.Stage
-		if event.Message == "" {
-			t.Fatalf("progress %d has empty message", index)
-		}
-	}
-	if !reflect.DeepEqual(stages, want) {
-		t.Fatalf("progress stages = %v, want %v", stages, want)
-	}
 }
 
 func writeServiceConfig(t *testing.T, path, baseURL, token, root string) {

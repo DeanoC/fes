@@ -12,6 +12,7 @@ a dated record. A dated record is not the schedule.
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
+| Reduce build/review time and decouple installation | [Development-speed redesign](development-speed.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
 | Decide whether a PR needs a full image for hardware testing | [HIL plan](hil-plan.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
@@ -20,13 +21,10 @@ a dated record. A dated record is not the schedule.
 | Share the kit | [Kit sharing](kit-sharing.md) |
 | Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
-The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
-`fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
-`fes.atari-st`, selected by the [default profile](../profiles/native-integration-dev.toml)
-and built with HIP/nextpnr. Menu (`fes.menu`) provides the idle
-display and is not a playable library entry. Other registered packages are not
-in that image. The selector also supports `fes.c64`; admission does not establish
-a passing seal or hardware acceptance. The matrix is [core status](core-status.md).
+The default image contains the locked idle RBF and `fes.menu` display firmware.
+Playable cores are installed separately, so their builds do not hold up OS or
+software work. See [modular updates](modular-updates.md) for update boundaries
+and [core status](core-status.md) for individual package standing.
 
 Shell examples in the parent guides start at the FES repository root.
 A component Makefile is a different command set. `make` inside
@@ -47,6 +45,7 @@ Use these when the start-here page names the job and you need the steps.
 | Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
+| Show launcher overlays or a surround over a running core | [Display pipeline](display-pipeline.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
 | Freeze-scaffold cartridge experiments | [FPGA expansion](fpga-expansion.md) |
 | Who assembles `linux.img` | [Image assembly](image-assembly.md) |
@@ -54,7 +53,8 @@ Use these when the start-here page names the job and you need the steps.
 | Read source, CI, build and hardware evidence | [Status](status.md) |
 | Run only the tests a change affects | [Focused tests](test-changed.md) |
 | Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md). Present tense on that page, outside “What is true now”, still describes the old MENU idle (`menu.rbf`, `mister_v1`). Current idle install paths are [image assembly](image-assembly.md) and `image/build/native-inputs.toml`. |
-| Mesh LAN product, node protocol, and phase execution | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
+| The kit as its own host: sources, sessions, what the mesh drafts still mean | [Mesh under kit-as-host](mesh-kit-host.md) (22 Oct 2026 decisions, #863) |
+| Earlier mesh drafts, historical on the kit side | [Mesh LAN](mesh-lan.md), [node protocol](mesh-node-protocol.md), [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md), [phase 3](mesh-phase3.md), [v-next plan](mesh-vnext.md) |
 | See when a soft restart asks for a board reboot | [Soft-restart Path B](soft-restart-path-b.md). The kit check in that note is on hold. |
 
 ## Not current instructions

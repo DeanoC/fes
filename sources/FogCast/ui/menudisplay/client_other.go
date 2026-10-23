@@ -13,6 +13,8 @@ const (
 	Stride     = Width * 4
 	FrameBytes = Stride * Height
 	SlotBytes  = 4 << 20
+	Slots      = 2
+	Format     = "bgrx8888"
 )
 
 type Client struct{ Path string }
@@ -23,8 +25,9 @@ type Status struct {
 	CoreGeneration                              uint64
 	Generation                                  uint64
 	Width, Height, Stride, ByteCount, SlotBytes int
+	Slots                                       int
+	Format                                      string
 	DisplayedSequence, Underflows               uint64
-	Damage                                      bool
 }
 type Result struct {
 	Generation, DisplayedSequence, Underflows uint64
@@ -41,3 +44,10 @@ func (*Client) Present(context.Context, uint64, []byte) (Result, error) {
 func (*Client) PresentDamage(context.Context, uint64, []byte, Damage) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }
+func (*Client) Grant(context.Context, uint64) (Grant, error) {
+	return Grant{}, errors.New("native menu requires Linux")
+}
+func (*Client) PresentBlit(context.Context, uint64, BlitFrame) (Result, error) {
+	return Result{}, errors.New("native menu requires Linux")
+}
+func (*Client) Close() error { return nil }

@@ -32,7 +32,7 @@ func TestDisplayClientRequiresExistingLeaseAndRejectsReplacedResponse(t *testing
 			calls++
 			got, valid := protocol.DevelopmentMediaHeaders(r.Header)
 			var request protocol.SessionDisplayRequest
-			if !valid || got != b || r.Header.Get(targetclient.KitLeaseHeader) != "grant" || json.NewDecoder(r.Body).Decode(&request) != nil || request.Visible == nil || !*request.Visible {
+			if !valid || got != b || r.Header.Get(targetclient.KitLeaseHeader) != "grant" || json.NewDecoder(r.Body).Decode(&request) != nil || request.Visible == nil || !*request.Visible || request.Focus != protocol.SessionFocusMachine {
 				t.Error("display request lost its captured binding or explicit visibility")
 			}
 			_ = json.NewEncoder(w).Encode(status)
@@ -45,18 +45,18 @@ func TestDisplayClientRequiresExistingLeaseAndRejectsReplacedResponse(t *testing
 	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "test", "test")
 	defer lease.Close(context.Background())
 	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
-	if _, err := client.SetSessionDisplay(context.Background(), true, b); err == nil || claims != 0 || calls != 0 {
+	if _, err := client.SetSessionDisplay(context.Background(), protocol.SessionDisplayShown, b); err == nil || claims != 0 || calls != 0 {
 		t.Fatal("display acquired ownership or dispatched unowned")
 	}
 	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/development/core", nil)
 	if err := lease.Authorize(request, true); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := client.SetSessionDisplay(context.Background(), true, b); err != nil || !b.MatchesSessionDisplay(got) || calls != 1 {
+	if got, err := client.SetSessionDisplay(context.Background(), protocol.SessionDisplayShown, b); err != nil || !b.MatchesSessionDisplay(got) || calls != 1 {
 		t.Fatalf("display err=%v status=%+v", err, got)
 	}
 	status.CorePackage.Generation++
-	if _, err := client.SetSessionDisplay(context.Background(), true, b); err == nil || calls != 2 || claims != 1 {
+	if _, err := client.SetSessionDisplay(context.Background(), protocol.SessionDisplayShown, b); err == nil || calls != 2 || claims != 1 {
 		t.Fatal("replacement response accepted or operation replayed")
 	}
 }

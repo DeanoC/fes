@@ -26,7 +26,7 @@ func (r *damageRuntime) Status(context.Context) (menudisplay.Status, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status++
-	return menudisplay.Status{Available: true, Generation: r.generation, DisplayedSequence: r.seq, Damage: true}, nil
+	return menudisplay.Status{Available: true, Generation: r.generation, DisplayedSequence: r.seq}, nil
 }
 
 func (r *damageRuntime) Present(_ context.Context, generation uint64, pix []byte) (menudisplay.Result, error) {
@@ -111,16 +111,27 @@ func (h *damageHarness) frame(x, y int, c Color) MenuPresentTrace {
 
 func (h *damageHarness) submit(x, y int, c Color) MenuPresentTrace {
 	h.t.Helper()
+	h.mu.Lock()
+	wantTrace := len(h.traces) + 1
+	h.mu.Unlock()
 	h.d.FillRect(Rect{X: float32(x), Y: float32(y), W: 20, H: 10}, c)
 	h.d.Present()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := h.d.WaitIdle(ctx); err != nil {
-		h.t.Fatal(err)
+	// Wait for the worker's trace, not WaitIdle. A generation change finishes
+	// without presenting, and WaitIdle reports that to the launch handoff.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		h.mu.Lock()
+		if len(h.traces) >= wantTrace {
+			trace := h.traces[wantTrace-1]
+			h.mu.Unlock()
+			return trace
+		}
+		h.mu.Unlock()
+		if time.Now().After(deadline) {
+			h.t.Fatalf("present did not finish: %v", h.d.LastError())
+		}
+		time.Sleep(time.Millisecond)
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.traces[len(h.traces)-1]
 }
 
 func TestMenuDisplayDamagedPresentsSkipStatus(t *testing.T) {

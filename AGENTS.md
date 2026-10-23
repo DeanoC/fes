@@ -8,6 +8,16 @@ Never pin a GPU vendor.
 
 Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
+A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
+
+## PR scope
+
+- One scope per PR. Don't bundle unrelated fixes.
+- The PR body says `Closes #N` for the issue it resolves. Agents may open that issue themselves when opening the PR.
+- Small, self-explanatory PRs may skip the issue and the `Closes #N` line.
+- Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
+- Stay inside the repo and the scope the task names.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -22,12 +32,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -40,6 +55,10 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+Firmware, ROMs, media and software may be placed on either kit. Use the
+applicable kit lease and supported install, activation or media-delivery path;
+these rules do not require keeping those artifacts on a host or Powerboat.
 
 GPU jobs follow the [Shared GPUs](#shared-gpus) section.
 
@@ -91,7 +110,41 @@ never infer persistence from a display name, package path or raw RBF.
   add compatibility shims, fallbacks or "kept for older kits" branches: both kits
   are test kits and an SD reburn is pre-approved. Removal needs no special
   justification. Keeping legacy code does. [#871](https://github.com/DeanoC/fes/issues/871)
-  tracks the current list.
+  tracks the current list. `make deadcode` fails CI on unused Go functions,
+  types, fields and variables; delete what it reports.
+
+## Toolchain pin bump checklist
+
+- A toolchain pin bump must build every core it touches before merging.
+
+## Pre-release development and review
+
+FES has not made a release. Optimize routine work for a short edit/test/play
+cycle. Use the affected checks and the changed artifact's hardware path;
+do not run a full host/image/core campaign for every ready PR.
+
+- The default OS image contains MENU display firmware and the locked idle
+  RBF. Install playable cores independently through the catalog. A software
+  or OS change does not require rebuilding or qualifying every playable core.
+- Host changes use a private host. Kit agent/runtime/UI changes use
+  `make kit-software` and the existing install/test/restore procedure on the
+  running image. Core changes prepare and test the affected package.
+- Docs, tests and CI tooling need no kit deployment. Image/boot changes
+  still need a boot test; use `scripts/hil_plan.py` to identify deployed
+  consumers rather than treating a build-tool edit as deployed software.
+- Start with focused tests, then `make test-changed` and relevant parent
+  checks. Full regression campaigns, exhaustive instrumentation and
+  reproducibility checks belong to scheduled runs or explicit integration
+  milestones. Do not repeat successful checks without a changed input,
+  failure or unresolved concern. Reuse passing CI software evidence for the
+  tested inputs; a kit smoke test does not require rerunning the full host
+  suite on Powerboat.
+- Review is still required to merge. A ready PR carries its changed artifact,
+  completed checks and the specific remaining hardware check so Grokbot can
+  run the appropriate path. Do not substitute an all-core build for that plan.
+
+See [the development-speed redesign](docs/development-speed.md) for the
+remaining OS, software and room installer separation.
 
 ## Hardware, media and releases
 
@@ -99,11 +152,15 @@ never infer persistence from a display name, package path or raw RBF.
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
   When the task installs a bundle, install that PR bundle on the kit's running
   image. A core-only run that does not change the bundle does not install one.
+  Software goes before the image: before an image change, activate a bundle
+  the new image accepts ([image compatibility](docs/kit-software-releases.md#image-compatibility)).
   After use, restore the designated baseline image and bundle named in the
   status file and log that restore. Activating the baseline bundle does not
   change the booted image. If the booted image is not the named baseline,
-  restore that image and verify the boot first, then activate a compatible
-  baseline bundle and verify it before logging the kit restored.
+  first activate the baseline bundle if the running image accepts it, then
+  restore that image and verify the boot; otherwise restore and verify the
+  image, then activate the baseline bundle. Verify the active bundle before
+  logging the kit restored.
   Bundle install-then-restore is pre-approved. A successful selection stays
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.
@@ -134,6 +191,8 @@ first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
 are legitimate and must not be killed; they wait their turn like everyone else.
+GPU work on an Apple silicon Mac (nextpnr built with `-DGPU_ROUTER=METAL`) goes
+through the same `gpu-run`, which leases its one Metal GPU as id 0.
 
 nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
 timing and route evidence are interchangeable: references, pins, seed results and
@@ -164,6 +223,17 @@ in `/var/tmp/gpu-leases` (directory mode `0700`, files mode `0600`) unless
 is admitted under the cap it started with, so a capped waiter already at its
 allowance does not block another job from taking a free GPU.
 
+On macOS `gpu-run` reads process identity from libproc instead of `/proc` and
+checks the lease directory with `statfs(2)`. The Metal GPU comes from ioreg:
+a Mac with one Metal device (every Apple silicon Mac) leases it as id 0, which
+is also nextpnr's Metal device index; a Mac with several needs `GPU_LEASE_IDS`
+and `GPU_LEASE_VENDOR=apple`. Metal has no visibility mask, so a grant exports
+no mask and `GPU_RUN_DEVICE` is the physical id. Metal has no device nodes
+either. A GPU route proves it used the leased GPU when ioreg shows a Metal user
+client that nextpnr opened on it, or when nextpnr logs
+`backend metal:<registry id>:... ready` with the leased GPU's registry id. CPU
+fallback output fails the route, as on Linux.
+
 Install on a host by symlinking the scripts into `~/bin` (the link target is
 the checkout, so the scripts keep finding each other):
 
@@ -171,6 +241,17 @@ the checkout, so the scripts keep finding each other):
 mkdir -p "$HOME/bin"
 ln -sfn "$HOME/fes/scripts/gpu-run" "$HOME/bin/gpu-run"
 ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
+```
+
+A Mac installs the same links from its checkout. macOS does not put `~/bin`
+on `PATH`, so add it to the login shell too:
+
+```sh
+FES="$HOME/Projects/fes"   # the main checkout, not a task worktree
+mkdir -p "$HOME/bin"
+ln -sfn "$FES/scripts/gpu-run" "$HOME/bin/gpu-run"
+ln -sfn "$FES/scripts/gpu-status" "$HOME/bin/gpu-status"
+grep -qs 'HOME/bin' "$HOME/.zprofile" || echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.zprofile"
 ```
 
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75

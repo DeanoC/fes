@@ -116,6 +116,16 @@ if [ "$native_mode" = package-only ]; then
     printf '%s\n' 'verify-native-runtime-inputs: idle install path must be absolute and fixed' >&2
     exit 2
   }
+  if [ -n "${FES_PREBUILT_RUNTIME_SHA256:-}" ]; then
+    binary=${FOGCAST_DIR:?FOGCAST_DIR is required}/bin/mister-runtime-linux-armv7
+    [ -f "$binary" ] && [ ! -L "$binary" ] || exit 1
+    printf '%s\n' "$FES_PREBUILT_RUNTIME_SHA256" | grep -Eq '^[0-9a-f]{64}$' || exit 2
+    [ "$(sha256sum "$binary" | awk '{print $1}')" = "$FES_PREBUILT_RUNTIME_SHA256" ] || {
+      printf '%s\n' 'verify-native-runtime-inputs: prebuilt runtime digest differs' >&2
+      exit 1
+    }
+    actual_commit=$expected_commit
+  else
   case "$runtime_source" in
     /*) : ;;
     *)
@@ -152,6 +162,7 @@ if [ "$native_mode" = package-only ]; then
     printf '%s\n' 'verify-native-runtime-inputs: runtime checkout is dirty' >&2
     exit 1
   }
+  fi
   idle_sha=$(verify_locked_rbf_file idle_rbf "$idle_file" idle)
   splash_sha=$(verify_locked_rbf_file splash_rbf "$splash_file" splash)
   "$repo_root/scripts/native-extra-cores.sh" verify \

@@ -19,8 +19,15 @@ The client reads `~/.config/fogcast/config.toml`. `--config` selects another pri
 host configuration; `--target` selects a named enabled target with recorded
 `target_id`. Tokens are never command-line arguments. A release directory contains
 `release.json` and `rootfs.img`; the client verifies the complete local digest
-before claiming the kit or uploading. Keep the client running through reboot and
-confirmation. The default update deadline is eight minutes plus six seconds per
+before claiming the kit or uploading. Update then reads the image's
+`/etc/fes/software-base.json` straight from `rootfs.img` and, after verifying the
+target, compares it with the kit's selected software bundle. It refuses the image
+when that bundle does not accept every menu interface the image requires: install
+and activate a bundle that does, then update. A bundle built for another base
+contract cannot go first; the client logs that the image will hold it back and
+run its own factory software, and continues
+([kit software releases](../../../docs/kit-software-releases.md#image-compatibility)).
+Keep the client running through reboot and confirmation. The default update deadline is eight minutes plus six seconds per
 MiB of the release image, rounded up to a minute (21 minutes for 128 MiB).
 `--timeout` overrides it. The client logs transfer and confirmation progress to
 stderr. If it exits during reboot or trial, rerun with `--action confirm` and
@@ -42,7 +49,7 @@ migrations of save/configuration formats in this release ABI.
 
 | Target route | Request | Result |
 | --- | --- | --- |
-| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending and state integrity |
+| `GET /v1/update` | Bearer authentication | Actual boot/image, trial, raw idle, good/previous/pending, state integrity, `fat_idle_sha256`, `idle_sha256`, and `splash_warning` when a non-trial splash repair fails |
 | `POST /v1/update/stage` | Raw image, exact Content-Length, `X-FogCast-Release-Manifest` base64 JSON | Verified immutable staged manifest (201) |
 | `POST /v1/update/activate` | JSON `image_sha256` | Persist selection, flush `rebooting:true`, reboot (202) |
 | `POST /v1/update/rollback` | Empty body | Select previous, flush, reboot (202) |
@@ -67,26 +74,53 @@ no archive paths or scripts to extract.
 `POST /v1/update/stage` returns `507` with code `UPDATE_NO_SPACE` and message
 `insufficient release storage` when the release volume cannot hold the image.
 `fes-update` prints that code and message. Other rejected uploads stay `422`
-`UPDATE_INVALID`. When the release volume already has room for the image plus
-a 1 MiB margin, staging writes and verifies it there and does not delete
-anything. When it does not, staging verifies the upload on another filesystem
-before deleting anything. That filesystem must be a different device from the
-release volume, must not be tmpfs or ramfs, and must have room for the image
-plus the same margin. The kit uses the mounted FESDATA3 volume
+`UPDATE_INVALID`. When the release volume already has room for the image, a
+1 MiB margin, and the splash written at confirmation (an idle core up to
+8 MiB, an 80-byte sidecar, and a temporary copy of that core), staging writes
+and verifies it there and does not delete anything. When it does not, staging
+verifies the upload on another filesystem before deleting anything. That
+filesystem must be a different device from the release volume, must not be
+tmpfs or ramfs, and must have room for the image plus the 1 MiB margin. The
+splash reserve stays on the release volume. The kit uses the mounted FESDATA3 volume
 (`/run/fogcast/fesdata3`) or a FogCast directory bind-mounted from it. A
 truncated or corrupt upload removes only that temporary file. A spill file left
 behind when that write is interrupted is removed on the next stage, before
 free space is measured. Only regular `.stage-spill-` files in that store's
 own staging directory are removed. After the
 upload passes the size, ext4, and digest checks, staging deletes unreferenced
-images oldest first, only until the image fits, then copies the verified file
+images oldest first, only until the image, the margin, and the splash reserve
+fit, then copies the verified file
 into the release store. It keeps the factory image, known-good, previous,
 pending, trial, the `boot.json` image, and every image in the release store
 that backs a loop device. It does not change the boot selection and does not
-touch `u-boot.txt` or other boot files. If no qualifying filesystem can hold
+touch `u-boot.txt` or FAT `/idle.rbf`. If no qualifying filesystem can hold
 the upload, or the retained images still leave too little free space, staging
 returns the storage error and deletes nothing. An unreadable `boot.json`,
 corrupt selection state, or a failed loop-device scan refuses the prune.
+Prune also deletes `splashes/<image sha256>.rbf` and its `.sha256` sidecar
+with that image.
+
+Confirmation copies the running image's sealed idle core onto FAT `/idle.rbf`.
+The agent checks `/usr/share/mister-runtime/idle.rbf` against `idle_sha256` in
+`/usr/share/mister-runtime/build-inputs` and stages that file as
+`splashes/<image sha256>.rbf` in the release store. It records the image as
+known-good, then replaces `/media/fat/idle.rbf` through a same-directory
+temporary and rename, and only then records the confirmation the watchdog
+reads. A failed or cancelled publish leaves the watchdog armed. The same boot
+retries, and a later boot of that image republishes the splash from the
+running image even if the staged copy was removed. An unconfirmed trial leaves
+`/idle.rbf` unchanged, so a watchdog fallback still boots the previous image
+with the splash from the last successful publication. Factory fallback does
+not write FAT itself. When that image starts, the agent republishes its idle
+core. U-Boot programs the splash that is on FAT at the following boot.
+Confirming the restored image writes that image's splash back.
+`GET /v1/update` reports `fat_idle_sha256` for the FAT file and `idle_sha256`
+for the running image record. When a non-trial boot cannot publish that
+splash, the agent logs the failure and the same response still returns the
+boot state and both digests, with `splash_warning` set to the repair error.
+A trial boot does not use that field: the watchdog stays armed until the FAT
+publish succeeds. U-Boot, the kernel, `u-boot.txt` and `/menu.rbf`
+are not rewritten.
 
 If a response is lost, inspect status; do not blindly replay activation. A pending
 selection after a failed reboot request remains visible and is attempted on the

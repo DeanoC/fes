@@ -1,0 +1,19 @@
+Info: Max frequency for clock 'endpoint.clk': 59.95 MHz (FAIL at 74.25 MHz)
+Info: GPU lease: waited 0.02s, granted physical id 0
+FES-GPU-GRANT 0
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.63s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: GPU router time 5.86s (backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX: 306 launches, 27436 arcs, 30992132 wires expanded, 3.50s routing, 0.27s transfers)
+Info: Max frequency for clock 'endpoint.clk': 75.35 MHz (PASS at 74.25 MHz)
+Info: Analogue signoff check: worst clock slack 0.153 ns (endpoint.clk 75.10 MHz) in 0.92s
+FES-GPU-GRANT 0
+Info: GPU lease: waited 0.01s, granted physical id 0
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.07s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: Analogue signoff improvement round 1: worst clock slack 0.300 ns (endpoint.clk 75.94 MHz) in 2.27s
+FES-GPU-GRANT 0
+Info: GPU lease: waited 0.02s, granted physical id 0
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: Analogue signoff improvement round 2: worst clock slack 0.352 ns (endpoint.clk 76.24 MHz) in 2.28s
+FES-GPU-GRANT 0
+Info: GPU lease: waited 0.02s, granted physical id 0
+Info:     backend hip:36336538316235386133396561316633:0000:04:00.0:AMD Radeon RX 7900 XTX ready in 0.06s (estimate 0.075 ns/x, 0.200 ns/y)
+Info: Max frequency for clock 'endpoint.clk': 76.24 MHz (PASS at 74.25 MHz)

@@ -34,6 +34,22 @@ class ReceiptTest(unittest.TestCase):
                             ["linux.img", "reproducibility.txt"])
         return image_sha256, qemu_log_sha256
 
+    def test_verified_image_preserves_independent_software_provenance(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            self.make_verified_output(build, output)
+            provenance = {'fogcast': '3' * 40, 'runtime': '4' * 40}
+            (output / 'inputs.json').write_text(json.dumps({'bootstrap_artifacts': {'provenance': provenance}}))
+            build.write_receipt(output, 'image', 'cold-fingerprint',
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+            result = build.load_verified_image(output, 'cold-fingerprint')
+            self.assertEqual(result['software_provenance'], provenance)
+            (output / 'inputs.json').write_text('{}')
+            with self.assertRaises(ValueError):
+                build.load_verified_image(output, 'cold-fingerprint')
+
     def test_host_sidecar_is_bound_and_diagnostic_rejected_by_cold_reader(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
@@ -283,6 +299,7 @@ class ReceiptTest(unittest.TestCase):
             output = Path(temp)
             image_sha256, qemu_log_sha256 = self.make_verified_output(build, output)
             self.assertEqual(build.load_verified_image(output, "cold-fingerprint"), {
+                "image_passes": 2,
                 "fes_revision": json.loads((output / "image.json").read_text())["fes_revision"],
                 "rootfs_sha256": image_sha256,
                 "image_receipt_sha256": hashlib.sha256((output / "image.json").read_bytes()).hexdigest(),
@@ -290,7 +307,7 @@ class ReceiptTest(unittest.TestCase):
                 "qemu_log_sha256": qemu_log_sha256,
             })
 
-    def test_single_pass_verification_is_diagnostic_only(self):
+    def test_single_pass_verification_is_usable_but_not_reproducible(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
         with tempfile.TemporaryDirectory() as temp:
@@ -299,16 +316,18 @@ class ReceiptTest(unittest.TestCase):
             qemu = b'qemu passed\n'; qsha = hashlib.sha256(qemu).hexdigest()
             (output/'linux.img').write_bytes(image); (output/'qemu-smoke.log').write_bytes(qemu)
             toolchain = {'toolchain_key': build.toolchain_key(build.IMAGE), 'toolchain_sha256': 'b' * 64}
-            (output/'reproducibility.txt').write_text(f'image_passes=1\nsingle_pass_scratch=1\nrun_1_sha256={sha}\n'
+            (output/'reproducibility.txt').write_text(f'image_passes=1\nrun_1_sha256={sha}\n'
                 + ''.join(f'{name}={value}\n' for name, value in toolchain.items()))
-            (output/'SINGLE-PASS-SCRATCH.txt').write_text(f'head_sha={build.git(build.ROOT,"rev-parse","HEAD")}\nlinux_img_sha256={sha}\n')
-            verification = {'image_sha256':sha,'qemu_log_sha256':qsha,'qemu_packaging':'pass','structural':'pass','two_pass_reproducibility':'not-run-single-pass', **toolchain}
+            verification = {'image_passes':1,'image_sha256':sha,'qemu_log_sha256':qsha,'qemu_packaging':'pass','structural':'pass','two_pass_reproducibility':'not-run-single-pass', **toolchain}
             (output/'verification.json').write_text(json.dumps(verification))
-            self.assertNotIn('image_passes', build.verification_record(output, sha, None, 1))
+            self.assertEqual(build.verification_record(output, sha, None, 1)['image_passes'], 1)
             build.write_receipt(output,'image','cold-fingerprint',['linux.img','reproducibility.txt'])
-            with self.assertRaisesRegex(ValueError, 'run make verify'):
-                build.load_verified_image(output,'cold-fingerprint')
-            self.assertEqual(build.load_verified_image(output,'cold-fingerprint',allow_single_pass=True)['rootfs_sha256'],sha)
+            self.assertEqual(build.load_verified_image(output,'cold-fingerprint')['rootfs_sha256'],sha)
+            for key, value in [('image_passes', 2), ('two_pass_reproducibility', 'pass'), ('structural', 'fail'), ('qemu_packaging', 'fail')]:
+                with self.subTest(key=key):
+                    (output/'verification.json').write_text(json.dumps(dict(verification, **{key:value})))
+                    with self.assertRaisesRegex(ValueError, 'run make verify'):
+                        build.load_verified_image(output,'cold-fingerprint')
 
     def test_verified_image_accepts_derived_package_fingerprint_from_bound_inputs(self):
         sys.path.insert(0, str(SCRIPTS))

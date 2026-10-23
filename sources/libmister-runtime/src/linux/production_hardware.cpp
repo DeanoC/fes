@@ -9,11 +9,12 @@
 #include "native/hardware.hpp"
 #include "native/input.hpp"
 #include "native/menu_display.hpp"
-#include "native/linux/menu_memory.hpp"
+#include "native/linux/menu_window.hpp"
 #include "native/linux/fpga_manager.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
 #include "native/linux/mmio.hpp"
+#include "native/linux/window_driver.hpp"
 #include "native/idle_recipe.hpp"
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
@@ -78,7 +79,7 @@ public:
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  i2c_(clock_),
 		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
- menu_display_(fes_gp_,clock_),menu_memory_(),
+ menu_display_(fes_gp_,clock_),menu_window_(),
 		  idle_video_(i2c_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(i2c_, clock_, log, native::Menu720p60Recipe()),
@@ -89,7 +90,7 @@ public:
 			  MISTER_RUNTIME_IDLE_RBF, timeouts_, &fes_gp_driver_,
 			  {"/tmp/fogcast-development/core-packages",
 			   "/usr/share/mister-runtime/core-packages"},
-			  native::SplashIdle(),&menu_display_,&menu_memory_) {}
+			  native::SplashIdle(),&menu_display_,&menu_window_) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -98,9 +99,10 @@ public:
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
  HardwareResult ConfigureMenuPackage(const std::string& path,const std::string& id) override {return hardware_.ConfigureMenuPackage(path,id);}
  MenuDisplayStatus menu_display() const override {return hardware_.menu_display();}
- Error SetSessionDisplay(bool visible) override {return hardware_.SetSessionDisplay(visible);}
- Error PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* info) override {return hardware_.PresentMenuFrame(frame,info);}
- bool AcceptsMenuDamage(std::uint32_t base) const override {return hardware_.AcceptsMenuDamage(base);}
+ Error SetSessionDisplay(bool visible,bool launcher_focus) override {return hardware_.SetSessionDisplay(visible,launcher_focus);}
+ Error ShareMenuWindow(int* fd) override {return hardware_.ShareMenuWindow(fd);}
+ Error MenuBackSlot(std::uint8_t* slot) const override {return hardware_.MenuBackSlot(slot);}
+ Error PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,MenuDisplayInfo* info) override {return hardware_.PresentMenuSlot(slot,draw,info);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
 	Error FlushFaultSave() override { return hardware_.FlushFaultSave(); }
 	Error RestoreInput(std::uint64_t generation) override
@@ -231,7 +233,7 @@ private:
 	native::FesGp fes_gp_;
 	native::FesGpCoreDriver fes_gp_driver_;
  native::MenuDisplayDriver menu_display_;
- native::MenuMemory menu_memory_;
+ native::MenuWindow menu_window_;
 	native::SplashVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;
@@ -248,6 +250,10 @@ Error CreateProductionHardware(LogSink& log,
 {
 	if (hardware == nullptr)
 		return {ErrorCode::invalid_request, "missing production hardware output"};
+	// Nothing maps through the driver yet; a load failure is reported, not fatal.
+	const Error window = native::LoadWindowDriver(native::WindowDriverDirectory());
+	if (!window.ok())
+		log.Write({"window_driver", "", "", "failure", window});
 	hardware->reset(new ProductionHardware(log));
 	return {};
 }

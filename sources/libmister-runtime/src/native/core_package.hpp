@@ -30,6 +30,11 @@ constexpr const char* kAtariStExpansionBusID = "fes.expansion.atari-st-bus";
 constexpr const char* kAtariStExpansionMapID = "fes.atari-st-bus.socket/1";
 constexpr const char* kSpectrumExpansionBusID = "fes.expansion.spectrum-bus";
 constexpr const char* kSpectrumExpansionMapID = "fes.spectrum-bus.sockets/1";
+// The shared plane behind fes.video.session-display 1.0 (FesDisplayPlaneMajor
+// and Minor). A session-display package declares it required, so software
+// without the premultiplied plane refuses the package before programming. It
+// grants no capability bit.
+constexpr const char* kDisplayPlaneInterfaceID = "fes.fabric.video.display-plane";
 
 struct OpenedCorePackage {
 	CoreDescriptor descriptor;

@@ -7,11 +7,11 @@ import (
 )
 
 type sessionDisplayClient interface {
-	SetSessionDisplay(context.Context, bool, protocol.DevelopmentMediaBinding) (protocol.Status, error)
+	SetSessionDisplay(context.Context, protocol.SessionDisplay, protocol.DevelopmentMediaBinding) (protocol.Status, error)
 }
 
-func (s *Service) SetSessionDisplay(parent context.Context, visible bool, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" {
+func (s *Service) SetSessionDisplay(parent context.Context, display protocol.SessionDisplay, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	if !b.Valid() || b.Target == "" || !display.Valid() {
 		return protocol.Status{}, protocol.SessionDisplayRequestError()
 	}
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
@@ -31,7 +31,7 @@ func (s *Service) SetSessionDisplay(parent context.Context, visible bool, b prot
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
-	display, ok := client.(sessionDisplayClient)
+	displayClient, ok := client.(sessionDisplayClient)
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
@@ -42,7 +42,7 @@ func (s *Service) SetSessionDisplay(parent context.Context, visible bool, b prot
 	if !b.MatchesSessionDisplay(prior) {
 		return prior, protocol.SessionDisplayIdentityError()
 	}
-	status, err := display.SetSessionDisplay(ctx, visible, b)
+	status, err := displayClient.SetSessionDisplay(ctx, display, b)
 	if err != nil {
 		return status, preserveCorePackageError(err)
 	}

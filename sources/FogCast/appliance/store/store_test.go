@@ -47,6 +47,66 @@ func candidate(t *testing.T, s *Store, b []byte) release.Manifest {
 	}
 	return m
 }
+func TestConfirmClearsMatchingBootTicketOnly(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	write := func(bootID, image string, trial bool) {
+		t.Helper()
+		body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":%t}\n", bootID, image, trial)
+		if err := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func() bootTicket {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(s.root, "boot.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ticket bootTicket
+		if err := json.Unmarshal(raw, &ticket); err != nil {
+			t.Fatal(err)
+		}
+		return ticket
+	}
+	other := strings.Repeat("ab", 32)
+	write("other-boot", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "other-boot" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("unrelated ticket changed: %+v", got)
+	}
+	// State is already confirmed. A later matching ticket, such as one left
+	// behind by an interrupted rewrite, is cleared by the idempotent confirm.
+	write("boot-a", other, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); !got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != other {
+		t.Fatalf("other image ticket changed: %+v", got)
+	}
+	write("boot-a", m.ImageSHA256, true)
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial || got.BootID != "boot-a" || got.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("confirmed ticket = %+v", got)
+	}
+	if err := s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); got.Trial {
+		t.Fatal("retry restored trial")
+	}
+}
+
 func TestTrialConsumptionAndConfirmation(t *testing.T) {
 	s, f, b := fixture(t)
 	m := candidate(t, s, b)
@@ -104,7 +164,7 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	// A directory-fsync failure happens AFTER rename made confirmed state
 	// visible. The reader must establish durability itself before disarming.
 	s.syncDirectory = func(string) error { return unix.EIO }
-	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) {
+	if err := s.Confirm("trial-boot", m.ImageSHA256); !errors.Is(err, unix.EIO) || errors.Is(err, ErrBootTicketRewrite) {
 		t.Fatalf("missing injected fsync failure: %v", err)
 	}
 	st, err := s.Status()
@@ -123,6 +183,69 @@ func TestVisibleConfirmationRequiresSuccessfulPersistenceBeforeGuardAccepts(t *t
 	}
 	if err := s.Confirm("trial-boot", m.ImageSHA256); err != nil {
 		t.Fatalf("durable retry failed: %v", err)
+	}
+}
+
+func TestBootTicketRewriteFailurePreservesDurableConfirmation(t *testing.T) {
+	s, _, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("boot-a"); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("{\"boot_id\":%q,\"image_sha256\":%q,\"trial\":true}\n", "boot-a", m.ImageSHA256)
+	ticketPath := filepath.Join(s.root, "boot.json")
+	if err := os.WriteFile(ticketPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// The state temp file syncs once. Later boot.json temp files fail the way
+	// a full FAT fails CreateTemp's successor: the rename never happens.
+	tempWrites := 0
+	s.syncFile = func(f *os.File) error {
+		if strings.Contains(f.Name(), ".write-") {
+			tempWrites++
+			if tempWrites > 1 {
+				return unix.ENOSPC
+			}
+		}
+		return f.Sync()
+	}
+	err := s.Confirm("boot-a", m.ImageSHA256)
+	if !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("confirm error = %v", err)
+	}
+	raw, err := os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("ticket changed: %q %v", raw, err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != m.ImageSHA256 || st.ConfirmedImage != m.ImageSHA256 || st.TrialImage != "" || st.ConfirmedBootID != "boot-a" {
+		t.Fatalf("status %+v %v", st, err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "boot-a", m.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog boundary = %v %v", ok, err)
+	}
+	if err = s.Confirm("boot-a", m.ImageSHA256); !errors.Is(err, ErrBootTicketRewrite) || !errors.Is(err, unix.ENOSPC) {
+		t.Fatalf("second rewrite error = %v", err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil || string(raw) != body {
+		t.Fatalf("second rewrite changed ticket: %q %v", raw, err)
+	}
+	s.syncFile = (*os.File).Sync
+	if err = s.Confirm("boot-a", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(ticketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ticket bootTicket
+	if err = json.Unmarshal(raw, &ticket); err != nil || ticket.Trial || ticket.BootID != "boot-a" || ticket.ImageSHA256 != m.ImageSHA256 {
+		t.Fatalf("repaired ticket = %s %v", raw, err)
 	}
 }
 
@@ -149,6 +272,55 @@ func TestConfirmedContextRequiresExactIdentityAndStateFileSync(t *testing.T) {
 	s.syncFile = func(*os.File) error { return unix.EIO }
 	if ok, err := s.ConfirmedContext(context.Background(), "trial-boot", m.ImageSHA256); ok || !errors.Is(err, unix.EIO) {
 		t.Fatalf("state file sync failure accepted: %v %v", ok, err)
+	}
+}
+
+func TestSplashPublicationIsTheWatchdogBoundary(t *testing.T) {
+	s, f, b := fixture(t)
+	m := candidate(t, s, b)
+	if err := s.Activate(m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.BeginBoot("trial-boot"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err == nil {
+		t.Fatal("splash completion accepted before the trial was known-good")
+	}
+	if err := s.AcceptTrialContext(context.Background(), "trial-boot", f.ImageSHA256); err == nil {
+		t.Fatal("wrong image accepted")
+	}
+	if err := s.AcceptTrialContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.Status()
+	if err != nil || st.Good != m.ImageSHA256 || st.Previous != f.ImageSHA256 || st.TrialImage != "" || st.ConfirmedImage != "" {
+		t.Fatalf("accepted trial recorded watchdog confirmation: %+v %v", st, err)
+	}
+	ok, err := s.ConfirmedContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if ok || err != nil {
+		t.Fatalf("watchdog disarmed before splash publication: %v %v", ok, err)
+	}
+	pending, err := s.SplashPendingContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if !pending || err != nil {
+		t.Fatalf("accepted trial is not waiting for its splash: %v %v", pending, err)
+	}
+	if err = s.AcceptTrialContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
+	}
+	ok, err = s.ConfirmedContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if !ok || err != nil {
+		t.Fatalf("watchdog did not observe splash publication: %v %v", ok, err)
+	}
+	pending, err = s.SplashPendingContext(context.Background(), "trial-boot", m.ImageSHA256)
+	if pending || err != nil {
+		t.Fatalf("splash still pending after publication: %v %v", pending, err)
+	}
+	if err = s.CompleteSplashContext(context.Background(), "trial-boot", m.ImageSHA256); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -618,6 +790,24 @@ func mustAbsent(t *testing.T, path string) {
 	}
 }
 
+func writeReleaseSplash(t *testing.T, s *Store, hash string) (string, string) {
+	t.Helper()
+	rbf, digest, e := SplashPaths(s.root, hash)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.MkdirAll(filepath.Dir(rbf), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(rbf, []byte("splash-"+hash), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(digest, []byte(hash+"\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	return rbf, digest
+}
+
 func releasePaths(t *testing.T, s *Store, hash string) (string, string) {
 	t.Helper()
 	image, e := s.ImagePath(hash)
@@ -660,6 +850,8 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	if e := os.WriteFile(note, []byte("keep\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
+	oldSplash, oldDigest := writeReleaseSplash(t, s, staleOld.ImageSHA256)
+	goodSplash, goodDigest := writeReleaseSplash(t, s, good.ImageSHA256)
 	s.availableBytes = func(string) (uint64, error) {
 		if _, e := os.Lstat(oldImage); e == nil {
 			return 0, nil
@@ -677,7 +869,9 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	}
 	mustAbsent(t, oldImage)
 	mustAbsent(t, oldManifest)
-	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
+	mustAbsent(t, oldSplash)
+	mustAbsent(t, oldDigest)
+	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, goodSplash, goodDigest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
 		mustExist(t, path)
 	}
 	if b, e := os.ReadFile(bootloader); e != nil || string(b) != "keep\n" {
@@ -923,6 +1117,30 @@ func TestStageLowSpaceWithoutSpillDoesNotPrune(t *testing.T) {
 	mustExist(t, manifestPath)
 	published, _ := releasePaths(t, s, staged.ImageSHA256)
 	mustAbsent(t, published)
+}
+
+func TestStageKeepsRoomForTheConfirmationSplash(t *testing.T) {
+	s, _, raw := fixture(t)
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	s.spillCandidates = func() []string { return nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	short := uint64(staged.ImageSize) + releaseHeadroom
+	if short >= releaseStorageNeed(staged.ImageSize) || SplashReserve != MaxStagedSplash+MaxSplashSidecar+MaxStagedSplash {
+		t.Fatal("splash reserve is not the temporary copy beyond the 1 MiB margin")
+	}
+	s.availableBytes = func(string) (uint64, error) { return short, nil }
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrInsufficientStorage) {
+		t.Fatalf("image plus 1 MiB margin accepted without splash reserve: %v", e)
+	}
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustAbsent(t, published)
+	s.availableBytes = func(string) (uint64, error) { return releaseStorageNeed(staged.ImageSize), nil }
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustExist(t, published)
 }
 
 func TestStageRejectsSpillInsideReleaseRoot(t *testing.T) {

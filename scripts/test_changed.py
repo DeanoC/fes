@@ -58,7 +58,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         modes = impact["test_modes"]
         add("parent", "parent Python regressions", ".",
             [sys.executable, "scripts/parent_tests.py",
-             "--video", str(modes["video"]).lower(), "--media", str(modes["media"]).lower()],
+             "--video", str(modes["video"]).lower(), "--media", str(modes["media"]).lower(),
+             *(["--full"] if full else ["--paths-json", json.dumps(impact["paths"])])],
             tools=["sh"] + (["docker"] if modes["media"] else []),
             files=["scripts/parent_tests.py", "tests"])
         add("parent", "working-tree generated consumer consistency", ".",
@@ -69,6 +70,8 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         host_run = [sys.executable, "scripts/host_tests.py"]
         if impact["test_modes"]["full_race"]:
             host_run.append("--full")
+        else:
+            host_run.extend(["--paths-json", json.dumps(impact["paths"])])
         add("host", "host Go tests", ".", host_run, tools=["go", "cc"],
             files=["scripts/host_tests.py", "sources/FogCast/go.mod",
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])

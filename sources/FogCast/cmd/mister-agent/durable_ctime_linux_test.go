@@ -46,5 +46,5 @@ func linuxFileCtime(info os.FileInfo) (int64, bool) {
 	if !ok || stat == nil {
 		return 0, false
 	}
-	return stat.Ctim.Sec*1e9 + stat.Ctim.Nsec, true
+	return int64(stat.Ctim.Sec)*1e9 + int64(stat.Ctim.Nsec), true
 }

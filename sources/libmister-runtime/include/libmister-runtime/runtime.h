@@ -295,16 +295,23 @@ struct CorePackageInspection {
 struct MenuGeometry {
  std::uint32_t width=0,height=0,stride=0,frame_bytes=0,slot_bytes=0;
 };
+// A region of a menu frame, in pixels.
+struct MenuRect {
+ std::uint16_t x=0,y=0,w=0,h=0;
+};
 struct MenuDisplayInfo {
  MenuGeometry geometry;
+ // Idle firmware scans XRGB (format 1). A session-display plane blends
+ // premultiplied RGBA (format 2) and reports where the machine picture lands.
+ std::uint16_t pixel_format=0;
+ MenuRect picture;
  bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Timing of the present that produced this info, for frame-time
- // diagnostics: the DDR copy, the slot submit, and the wait until scanout
- // shows the new slot. Zero when the hardware does not measure them.
- std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0;
- // Pixels written into the DDR slot by that present.
- std::uint32_t stored_pixels=0;
+ // diagnostics: writing back the client's pixels, the slot submit, and the
+ // wait until scanout shows the new slot, and for a blitter frame the run
+ // that drew it. Zero when not measured.
+ std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
 struct MenuDisplayStatus {
  bool available=false;
@@ -315,46 +322,54 @@ struct MenuDisplayStatus {
  std::string package_id;
  std::uint64_t generation=0;
  MenuGeometry geometry;
+ // Session planes only: the machine picture inside the launcher frame, and
+ // whether the launcher holds input. A shown plane may leave input with the
+ // machine, as a surround does.
+ MenuRect picture;
+ bool launcher_focus=false;
  std::uint32_t displayed_sequence=0,underflows=0;
- // This hardware accepts damaged commits (menu_frame_commit "damage").
- bool damage=false;
+ // The grant also covers the blitter's command lists and texture heap.
+ // Reported in the grant, not in status.
+ bool blitter=false;
+ // A list frame has run on this blitter grant. The grant takes CPU frames
+ // until then and only lists after. Not reported.
+ bool blitted=false;
  Error error;
 };
-// A changed region of a menu frame, in pixels.
-struct MenuRect {
- std::uint16_t x=0,y=0,w=0,h=0;
+constexpr std::size_t kMenuWrittenMaxRects=16;
+// Window bytes the client wrote, by window offset.
+struct MenuSpan {
+ std::uint32_t offset=0,bytes=0;
 };
-// The only regions of a commit's staging file that differ from the frame
-// the runtime last displayed (base_sequence). Everything else in the file
-// is ignored.
-struct MenuDamage {
- std::uint32_t base_sequence=0;
- std::vector<MenuRect> rects;
+constexpr std::size_t kMenuUploadedMaxSpans=16;
+// What a frame drew into its slot. A CPU frame names the regions it wrote
+// (empty: the whole frame). A blitter frame names count commands from first
+// in the list region, and the heap bytes it uploaded since its last frame.
+struct MenuDraw {
+ std::vector<MenuRect> written;
+ bool blit=false;
+ std::uint32_t first=0,count=0;
+ std::vector<MenuSpan> uploaded;
 };
-constexpr std::size_t kMenuDamageMaxRects=16;
 class Runtime;
+// One outstanding menu preparation: the client draws into slot of the
+// granted window, then commits that slot and what it drew. Preparations on a
+// generation count from 1, so a client whose last preparation was n knows
+// another peer could have written the shared heap when this one is not n+1.
 class MenuFrame final {
 public:
- static Error Create(std::unique_ptr<MenuFrame>*);
- ~MenuFrame();
+ MenuFrame()=default;
  MenuFrame(const MenuFrame&)=delete;
  MenuFrame& operator=(const MenuFrame&)=delete;
- MenuFrame(MenuFrame&&) noexcept;
- int fd() const {return fd_;}
- Error ValidateImmutable(int received_fd) const;
- Error ReadOnlyData(const unsigned char**) const;
- void SetDamage(MenuDamage damage) {damage_=std::move(damage);has_damage_=true;}
- // Null for a full frame.
- const MenuDamage* damage() const {return has_damage_?&damage_:nullptr;}
+ std::uint8_t slot() const {return slot_;}
+ std::uint64_t preparation() const {return preparation_count_;}
+ void SetDraw(MenuDraw draw) {draw_=std::move(draw);}
 private:
  friend class Runtime;
- explicit MenuFrame(int fd):fd_(fd){}
- int fd_=-1;
- mutable void* mapping_=nullptr;
  std::shared_ptr<void> preparation_;
- std::uint64_t generation_=0;
- MenuDamage damage_;
- bool has_damage_=false;
+ std::uint64_t generation_=0,preparation_count_=0;
+ std::uint8_t slot_=0;
+ MenuDraw draw_;
 };
 
 struct Status {
@@ -430,16 +445,23 @@ public:
   return {{ErrorCode::unsupported_interface,"menu display unavailable"},false,""};
  }
  virtual MenuDisplayStatus menu_display() const {return {};}
- virtual Error SetSessionDisplay(bool) {
+ virtual Error SetSessionDisplay(bool,bool) {
   return {ErrorCode::unsupported_interface,"session display unavailable","menu"};
  }
- virtual Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) {
+ // A new descriptor, owned by the caller, for the grant of both menu slots
+ // and, with a blitter, its lists and heap.
+ virtual Error ShareMenuWindow(int*) {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
- // Whether a damaged commit against base_sequence can be presented: the
- // hardware still holds exactly that frame. Checked before presenting, so a
- // stale base is an ordinary refusal and never a display fault.
- virtual bool AcceptsMenuDamage(std::uint32_t) const {return false;}
+ // The slot scanout is not showing, which the next frame is drawn into.
+ virtual Error MenuBackSlot(std::uint8_t*) const {
+  return {ErrorCode::unsupported_interface,"menu display unavailable"};
+ }
+ // Writes back what the client wrote for the fabric, runs the blitter for a
+ // blitter frame, then shows slot.
+ virtual Error PresentMenuSlot(std::uint8_t,const MenuDraw&,MenuDisplayInfo*) {
+  return {ErrorCode::unsupported_interface,"menu display unavailable"};
+ }
 	virtual Error FlushSave() { return {}; }
 	// Fault retirement revokes asynchronous input before capturing bound media.
 	virtual Error FlushFaultSave() { return FlushSave(); }
@@ -574,7 +596,9 @@ public:
 	Error Start();
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
-  std::uint64_t expected_generation,bool visible);
+  std::uint64_t expected_generation,bool visible,bool launcher_focus);
+ // blitter reports whether the grant covers the blitter's lists and heap.
+ Error ShareMenuWindow(std::uint64_t,int*,bool* blitter);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;

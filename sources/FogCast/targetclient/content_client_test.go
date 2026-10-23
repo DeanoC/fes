@@ -2,7 +2,6 @@ package targetclient_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -292,44 +291,4 @@ func (t *failingUploadTransport) RoundTrip(request *http.Request) (*http.Respons
 		err = errors.New("transport interrupted")
 	}
 	return nil, err
-}
-
-type contextResponseTransport struct {
-	t            *testing.T
-	mu           sync.Mutex
-	values       map[string]string
-	contextValue func(context.Context) string
-}
-
-func (t *contextResponseTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	key := request.Method + " " + request.URL.Path
-	want, ok := t.values[key]
-	if !ok {
-		t.t.Errorf("unexpected request %s", key)
-	}
-	if got := t.contextValue(request.Context()); got != want {
-		t.t.Errorf("%s context value = %q, want %q", key, got, want)
-	}
-
-	var response any
-	switch request.Method {
-	case http.MethodGet:
-		response = protocol.CacheProbeResponse{Present: false}
-	case http.MethodPut:
-		response = protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: protocol.SystemSNES, Content: protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"}}
-	case http.MethodPost:
-		system := protocol.SystemSNES
-		gameID, expectedCore, observedCore := "snes-synthetic", "SNES", "SNES"
-		response = protocol.CachedLaunchResponse{
-			Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &expectedCore, ObservedCore: &observedCore},
-			Content: protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"},
-		}
-	}
-	body, err := json.Marshal(response)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: request}, nil
 }

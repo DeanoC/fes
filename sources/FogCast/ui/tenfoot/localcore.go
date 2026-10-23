@@ -263,7 +263,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 			a.localStatus = ""
 			// A pair already held when the core becomes current starts its
 			// second here, not during the load.
-			if a.localSelectDown && a.localStartDown {
+			if a.localPair.anyHeld() {
 				a.localChordSince = time.Now()
 			}
 			if a.localStopAfterStart {
@@ -284,7 +284,7 @@ type localTitleLauncher interface {
 
 type localROMLauncher interface {
 	List(context.Context) ([]localcores.Core, error)
-	LaunchROM(context.Context, string, string) (localcores.LaunchResult, error)
+	LaunchROM(context.Context, string, string, string) (localcores.LaunchResult, error)
 }
 
 // startLocalTitleLocked plays one catalog row through the local socket.
@@ -352,7 +352,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				a.status = ""
 			}
 			a.localStatus = ""
-			if a.localSelectDown && a.localStartDown {
+			if a.localPair.anyHeld() {
 				a.localChordSince = time.Now()
 			}
 			if a.localStopAfterStart {
@@ -401,8 +401,7 @@ func (a *App) holdUnownedLocalRunLocked() {
 	a.localStopAfterStart = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
-	a.localSelectDown = false
-	a.localStartDown = false
+	a.localPair = chordPairs{}
 	a.localSent = nil
 	a.localPhase = localPhaseLaunching
 	a.localReconcileAfterFailure = true
@@ -425,15 +424,15 @@ func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	a.localStatusNext = time.Time{}
 }
 
-func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) (localcores.LaunchResult, error) {
+func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, string, error), game hostclient.Game) (localcores.LaunchResult, error) {
 	if titled, ok := client.(localTitleLauncher); ok {
 		return titled.LaunchTitle(ctx, game)
 	}
 	if client == nil || resolve == nil {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
-	romPath, err := resolve(ctx, game.ID)
-	if err != nil || strings.TrimSpace(romPath) == "" {
+	libraryRoot, relativePath, err := resolve(ctx, game.ID)
+	if err != nil || strings.TrimSpace(libraryRoot) == "" || strings.TrimSpace(relativePath) == "" {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	rommer, ok := client.(localROMLauncher)
@@ -458,7 +457,7 @@ func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func
 	if packageID == "" {
 		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
-	return rommer.LaunchROM(ctx, packageID, romPath)
+	return rommer.LaunchROM(ctx, packageID, libraryRoot, relativePath)
 }
 
 func localCartridgeCore(system string) string {
@@ -483,6 +482,10 @@ func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStopAfterStart = false
+	// Idle does not track pad pairs, and nothing was sent that a later core
+	// could hold.
+	a.localPair = chordPairs{}
+	a.localSent = nil
 	a.localStatus = localCoreFailureCopy(err, block)
 	a.statusLeaseRefusal = false
 	a.status = a.localStatus
@@ -543,7 +546,7 @@ func (a *App) beginLocalStopLocked() {
 			a.status = a.localStatus
 			a.localChordFired = false
 			a.localChordSince = time.Time{}
-			if a.localSelectDown && a.localStartDown {
+			if a.localPair.anyHeld() {
 				a.localChordSince = time.Now()
 			}
 			return
@@ -571,8 +574,7 @@ func (a *App) finishLocalCoreLocked() {
 		a.status = ""
 	}
 	a.localStatus = ""
-	a.localSelectDown = false
-	a.localStartDown = false
+	a.localPair = chordPairs{}
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
 	a.localStopAfterStart = false
@@ -588,6 +590,8 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 		a.localStartedAt = time.Time{}
 		a.localPresentsPaused = false
 		a.localLateAdopt = false
+		a.localPair = chordPairs{}
+		a.localSent = nil
 		a.localStatus = "The core did not confirm it started."
 		a.status = a.localStatus
 		a.roomWasParked = true
@@ -635,18 +639,18 @@ func localStatusStoppable(status localcores.RunStatus) bool {
 }
 
 // adoptStartupLocalRunLocked takes a running generation as this launcher's
-// session. Menu presents stay paused, and late adopt skips the stray menu
-// frame, because the core already owns HDMI. Select+Start stops that
-// generation. The In use copy is the session status. It does not claim this
-// process started the run.
+// session. Menu presents stay paused. Late adopt drains outstanding menu
+// work and skips the stray menu frame, because the core already owns HDMI.
+// An older menu failure does not keep the menu presenting. Select+Start
+// stops that generation. The In use copy is the session status. It does not
+// claim this process started the run.
 func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	a.applyStartupClaimLocked(status, localPhaseRunning)
 	a.localWatchStartup = false
 	a.localStopAfterStart = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
-	a.localSelectDown = false
-	a.localStartDown = false
+	a.localPair = chordPairs{}
 	a.localStatus = localInUseCopy
 	a.status = a.localStatus
 }
@@ -665,8 +669,7 @@ func (a *App) observeStartupPendingLocked(status localcores.RunStatus) {
 	a.localStopAfterStart = false
 	a.localChordSince = time.Time{}
 	a.localChordFired = false
-	a.localSelectDown = false
-	a.localStartDown = false
+	a.localPair = chordPairs{}
 	a.localStatus = label + a.localTitle + "…"
 	a.status = a.localStatus
 }
@@ -708,7 +711,7 @@ func (a *App) promoteWatchedStartupLocked(status localcores.RunStatus) {
 	}
 	// Loading time does not count toward the one-second hold. A chord that
 	// already completed is stopNow above; a pair still held starts again.
-	if a.localSelectDown && a.localStartDown {
+	if a.localPair.anyHeld() {
 		a.localChordSince = time.Now()
 	}
 }
@@ -845,6 +848,8 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 				a.localPresentsPaused = false
 				a.localLateAdopt = false
 				a.localStartedAt = time.Time{}
+				a.localPair = chordPairs{}
+				a.localSent = nil
 				a.localRedraw++
 				a.roomWasParked = true
 				return
@@ -858,10 +863,11 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 // It returns false when no local core owns the pad, so the menu keeps the event.
 // Launching and stopping consume the pad and do not forward it.
 //
-// Chord: a lone Select or Start is forwarded. When the second of the pair
-// goes down, any of the pair already sent is released immediately and both
-// are suppressed while both stay down. Releasing either before one second
-// cancels the stop and does not replay the swallowed press. At one second
+// Chord: Select and Start must be on the same pad. A lone Select or Start is
+// forwarded. When the second of the pair goes down, any of the pair already
+// sent is released immediately and both are suppressed while both stay down.
+// Releasing either before one second cancels the stop and does not replay
+// the swallowed press. At one second
 // Stop runs. The core therefore sees at most a brief press of whichever
 // button went down first, not a one-second hold. The one-second mark is
 // evaluated on pad events and on Tick; there is no extra timer.
@@ -921,18 +927,7 @@ func (a *App) noteLocalHeldLocked(e remoteinput.Event, now time.Time) {
 	if !ok {
 		return
 	}
-	switch e.Code {
-	case remoteinput.ButtonSelect:
-		a.localSelectDown = down
-	case remoteinput.ButtonStart:
-		a.localStartDown = down
-	}
-	if a.localSelectDown && a.localStartDown {
-		if a.localChordSince.IsZero() {
-			a.localChordSince = now
-		}
-	} else {
-		a.localChordSince = time.Time{}
+	if !a.localPair.press(e.Player, e.Code, down, &a.localChordSince, now) && !a.localPair.anyHeld() {
 		a.localChordFired = false
 	}
 }
@@ -942,41 +937,37 @@ func (a *App) localForwardLocked(e remoteinput.Event, now time.Time) []remoteinp
 	if !pair || (e.Code != remoteinput.ButtonSelect && e.Code != remoteinput.ButtonStart) {
 		return []remoteinput.Event{e}
 	}
-	if e.Code == remoteinput.ButtonSelect {
-		a.localSelectDown = down
-	} else {
-		a.localStartDown = down
-	}
-	if a.localSelectDown && a.localStartDown {
-		if a.localChordSince.IsZero() {
-			a.localChordSince = now
-		}
+	if a.localPair.press(e.Player, e.Code, down, &a.localChordSince, now) {
 		var out []remoteinput.Event
 		out = a.releaseSentLocked(remoteinput.ButtonSelect, e.Player, out)
 		out = a.releaseSentLocked(remoteinput.ButtonStart, e.Player, out)
 		return out
 	}
-	a.localChordSince = time.Time{}
-	a.localChordFired = false
+	// Another pad's chord stays armed; this pad is playing.
+	if !a.localPair.anyHeld() {
+		a.localChordFired = false
+	}
+	key := padKey{e.Player, e.Code}
 	if !down {
-		if a.localSent[e.Code] {
-			delete(a.localSent, e.Code)
+		if a.localSent[key] {
+			delete(a.localSent, key)
 			return []remoteinput.Event{e}
 		}
 		return nil
 	}
 	if a.localSent == nil {
-		a.localSent = map[remoteinput.Code]bool{}
+		a.localSent = map[padKey]bool{}
 	}
-	a.localSent[e.Code] = true
+	a.localSent[key] = true
 	return []remoteinput.Event{e}
 }
 
 func (a *App) releaseSentLocked(code remoteinput.Code, player uint8, out []remoteinput.Event) []remoteinput.Event {
-	if !a.localSent[code] {
+	key := padKey{player, code}
+	if !a.localSent[key] {
 		return out
 	}
-	delete(a.localSent, code)
+	delete(a.localSent, key)
 	return append(out, remoteinput.Event{
 		Player: player,
 		Device: remoteinput.DeviceGamepad,

@@ -48,18 +48,22 @@ type frameTraceRecord struct {
 	BeginUS     int64  `json:"begin_us,omitempty"`
 	StageUS     int64  `json:"stage_us,omitempty"`
 	CommitUS    int64  `json:"commit_us,omitempty"`
-	RTCopyUS    int64  `json:"runtime_copy_us,omitempty"`
+	RTCleanUS   int64  `json:"runtime_clean_us,omitempty"`
+	RTBlitUS    int64  `json:"runtime_blit_us,omitempty"`
 	RTSubmitUS  int64  `json:"runtime_submit_us,omitempty"`
 	RTWaitUS    int64  `json:"runtime_scanout_wait_us,omitempty"`
-	// Pixels staged by the client and stored to DDR by the runtime, and the
-	// shortcuts the worker took (docs/frame-trace.md).
-	StagedPixels   int64  `json:"staged_pixels,omitempty"`
-	RTStoredPixels int64  `json:"runtime_stored_pixels,omitempty"`
-	DamageRects    int    `json:"damage_rects,omitempty"`
-	StatusSkipped  bool   `json:"status_skipped,omitempty"`
-	Retried        bool   `json:"retried,omitempty"`
-	Presented      bool   `json:"presented,omitempty"`
-	Err            string `json:"err,omitempty"`
+	// Pixels the client wrote into the granted slot, and the shortcuts the
+	// worker took (docs/frame-trace.md).
+	StagedPixels int64 `json:"staged_pixels,omitempty"`
+	// A frame the blitter drew: its commands and the heap bytes uploaded.
+	Blitted       bool   `json:"blitted,omitempty"`
+	Commands      int64  `json:"commands,omitempty"`
+	UploadBytes   int64  `json:"upload_bytes,omitempty"`
+	DamageRects   int    `json:"damage_rects,omitempty"`
+	StatusSkipped bool   `json:"status_skipped,omitempty"`
+	Retried       bool   `json:"retried,omitempty"`
+	Presented     bool   `json:"presented,omitempty"`
+	Err           string `json:"err,omitempty"`
 }
 
 // frameTrace is an always-on ring of recent frame timings for the kit
@@ -102,8 +106,9 @@ func (f *frameTrace) present(p gfx.MenuPresentTrace) {
 		T: time.Now().UnixMicro(), Kind: "present", Seq: p.Seq, QueuedT: p.Queued.UnixMicro(),
 		FrameCopyUS: p.FrameCopyUS, QueueWaitUS: p.QueueWaitUS, StatusUS: p.StatusUS, PresentUS: p.PresentUS,
 		BeginUS: p.Timing.BeginUS, StageUS: p.Timing.StageUS, CommitUS: p.Timing.CommitUS,
-		RTCopyUS: p.Timing.RuntimeCopyUS, RTSubmitUS: p.Timing.RuntimeSubmitUS, RTWaitUS: p.Timing.RuntimeScanoutWaitUS,
-		StagedPixels: p.Timing.StagedPixels, RTStoredPixels: p.Timing.RuntimeStoredPixels,
+		RTCleanUS: p.Timing.RuntimeCleanUS, RTBlitUS: p.Timing.RuntimeBlitUS, RTSubmitUS: p.Timing.RuntimeSubmitUS,
+		RTWaitUS: p.Timing.RuntimeScanoutWaitUS, StagedPixels: p.Timing.StagedPixels,
+		Blitted: p.Blitted, Commands: p.Timing.Commands, UploadBytes: p.Timing.UploadBytes,
 		DamageRects: p.DamageRects, StatusSkipped: p.StatusSkipped, Retried: p.Retried,
 		Presented: p.Presented, Err: p.Err,
 	})

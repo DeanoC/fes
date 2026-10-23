@@ -59,6 +59,28 @@ func GenerateABI(abi *pack.ABIFile) (string, error) {
 	return b.String(), nil
 }
 
+// GenerateFabric emits C++14 constants for an internal fabric contract that
+// the runtime also reads. It emits no ABI identity or capability symbols.
+func GenerateFabric(fabric *pack.FabricFile) (string, error) {
+	if err := fabric.Validate(); err != nil {
+		return "", err
+	}
+	seen := map[string]bool{}
+	var b strings.Builder
+	writeGeneratedPreamble(&b, "packages/fabric/"+packageFileName(fabric.ID)+".yaml")
+	b.WriteString("#include <cstdint>\n\n")
+	b.WriteString("namespace mister {\nnamespace native {\nnamespace generated {\n\n")
+	for _, constant := range fabric.Constants {
+		if seen[constant.Name] {
+			return "", fmt.Errorf("fabric %q generates duplicate C++ constant %q", fabric.ID, constant.Name)
+		}
+		seen[constant.Name] = true
+		fmt.Fprintf(&b, "constexpr std::uint32_t %s = 0x%xu;\n", constant.Name, uint64(constant.Value))
+	}
+	b.WriteString("\n} // namespace generated\n} // namespace native\n} // namespace mister\n")
+	return b.String(), nil
+}
+
 func validateABISymbols(abi *pack.ABIFile) error {
 	prefix := abiSymbolPrefix(abi)
 	seen := map[string]bool{}
@@ -174,11 +196,4 @@ func packageFileName(id string) string {
 func cstring(value string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return `"` + replacer.Replace(value) + `"`
-}
-
-func boolLit(value bool) string {
-	if value {
-		return "true"
-	}
-	return "false"
 }

@@ -1,7 +1,7 @@
 # FES ZX81
 
 The standard core is a `fes.computer` 1.0 package (`fes.zx81`
-1.5.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
+1.6.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
 40-key matrix, one `.p` tape unit, fixed 720p60 HDMI, the session-display
 plane for kit launcher frames, and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
@@ -49,7 +49,7 @@ reaches uinput.
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.2 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.5 socketed format-3 package. The package seals `rom-map.json` alongside
+1.6 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses the first-party NMOS Z80 (`fes_z80_nmos`), a 52.224 MHz system clock, registered M10K and
@@ -91,14 +91,35 @@ display retains its live controls. The
 describe ownership and failure
 behavior.
 
+Kit software and core packages update independently. A 1.6.0 package declares
+the shared plane, `fes.fabric.video.display-plane` 1.0, as a required interface
+beside `fes.video.session-display` 1.0, and its plane reports pixel format 2. A
+1.5.0 package's opaque plane declares only the session display and reports
+format 1. Software with the shared plane refuses a session display without the
+plane, and older software does not know the plane, so each refuses the other
+version at compatibility, before programming. After programming, software with
+the plane also checks that the bitstream reports format 2. Installing software
+leaves library selections unchanged, so switch a ZX81 entry between installed
+versions with `core-select` when changing software. There is no compatibility
+path for the earlier plane.
+
+A 1.6.0 kit check therefore needs software with the shared plane selected, not
+just an image that contains it. A new image runs its built-in software only
+during its trial boot; after confirmation the supervisor restores the selected
+bundle ([kit software releases](kit-software-releases.md#activation-and-recovery)).
+Install and activate the `make kit-software` bundle, then restore the baseline
+bundle afterwards.
+
 ## Validation
 
 Component tests and Verilator live in `sources/misteross` in this FES repository.
-The current 1.5.0 display plane has a
+The earlier 1.5.0 opaque plane has a
 [frozen image/HDMI record](validation/2026-10-02-zx81-session-display.md),
 including manual BASIC load/list
 and preserved program pixels during live swap/eject. Input events were injected
 through keyboard/controller evdev paths; physical button acceptance is pending.
+The 1.6.0 shared display plane has simulation and seal evidence only; its kit
+check is pending.
 
 Earlier hardware diagnostics on the designated kit used a sealed OSS package and a derived
 keyboard-agent rootfs. Those are not exact-artifact acceptance of an

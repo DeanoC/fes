@@ -34,11 +34,12 @@ each seed, then sweeps the remaining weights. Both stop at the first candidate
 that meets every constraint. An accept callback may still reject that
 candidate; the search records it as failing and continues.
 
-GPU: ``--gpu-devices 0,1`` assigns staged/grid candidates to the requested
-physical devices and allows up to two concurrent route workers. Each nextpnr
-call leases its assigned device. First-pass stays sequential so the first
-closing seed is deterministic. Packing several seeds into one kernel is later;
-occupancy is per placement.
+GPU: ``--gpu-devices 0,1`` sizes the staged/grid worker pool. Each worker
+still passes its list entry as ``--gpu-device``, but gpu-run leases any free
+GPU and the dispatcher replaces that argument with the granted logical
+device. First-pass stays sequential so the first closing seed is
+deterministic. Packing several seeds into one kernel is later; occupancy is
+per placement.
 """
 
 from __future__ import annotations
@@ -218,7 +219,7 @@ def _run_nextpnr(
             core_id, nextpnr, fixture, seed, gpu, output=run_dir, device=device,
             qsf=qsf, sdc=sdc, weight=weight, critexp=critexp, extra=extra,
             env=env or {})
-        recipe_sha = pnr_recipe.recipe_digest(core_id)
+        recipe_sha = pnr_recipe.recipe_digest(core_id, nextpnr)
         if expected_recipe_digest is not None and recipe_sha != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed during placement search"
@@ -443,8 +444,8 @@ def search(
 ) -> list[Candidate]:
     if core_id is not None:
         if expected_recipe_digest is None:
-            expected_recipe_digest = pnr_recipe.recipe_digest(core_id)
-        elif pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            expected_recipe_digest = pnr_recipe.recipe_digest(core_id, nextpnr)
+        elif pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed before placement search"
             )
@@ -460,7 +461,7 @@ def search(
 
     def verify_recipe(candidate: Candidate) -> Candidate:
         if core_id is not None and (
-                pnr_recipe.recipe_digest(core_id) != expected_recipe_digest
+                pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest
                 or (candidate.recipe_sha256
                     and candidate.recipe_sha256 != expected_recipe_digest)):
             raise pnr_recipe.RecipeError(
@@ -618,11 +619,11 @@ def route_after_synth(
     """Place-and-route candidates after synth.json exists; promote the winner."""
     route_extra = tuple(extra)
     expected_recipe_digest = (
-        pnr_recipe.recipe_digest(core_id) if core_id is not None else None
+        pnr_recipe.recipe_digest(core_id, nextpnr) if core_id is not None else None
     )
     if core_id is not None:
-        recipe = pnr_recipe.recipe_for(core_id)
-        if pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+        recipe = pnr_recipe.recipe_for(core_id, nextpnr)
+        if pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest:
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed before placement search"
             )
@@ -675,7 +676,7 @@ def route_after_synth(
         expected_recipe_digest=expected_recipe_digest,
     )
     if (core_id is not None
-            and pnr_recipe.recipe_digest(core_id) != expected_recipe_digest):
+            and pnr_recipe.recipe_digest(core_id, nextpnr) != expected_recipe_digest):
         raise pnr_recipe.RecipeError(
             f"{core_id}: P&R recipe changed during placement search"
         )

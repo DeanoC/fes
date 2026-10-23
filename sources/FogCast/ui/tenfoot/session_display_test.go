@@ -108,10 +108,7 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		mu.Lock()
 		visible = append(visible, req.Visible)
 		mu.Unlock()
@@ -223,10 +220,7 @@ func TestKitDisplayOpenCloseFailureAndFreshInput(t *testing.T) {
 		if !ok || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || b.Target != prior.Target || b.TargetID != prior.TargetID || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID || feed.closes.Load() == 0 {
 			t.Error("display opened without captured identity or local-input neutralization")
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		mu.Lock()
 		visible = append(visible, req.Visible)
 		mu.Unlock()
@@ -343,10 +337,7 @@ func TestKitLostOpenResponseKeepsGuardedReturnReachable(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		if req.Visible {
 			opens.Add(1)
 			conn, _, err := w.(http.Hijacker).Hijack()
@@ -543,12 +534,19 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 
 func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	var displays, stops atomic.Int32
+	var mu sync.Mutex
+	var stopBody string
+	prior := kitDisplaySession()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session/display":
 			displays.Add(1)
 			writeKitDisplaySession(w, kitDisplaySession())
 		case "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			stopBody = string(raw)
+			mu.Unlock()
 			stops.Add(1)
 			io.WriteString(w, `{"state":"idle"}`)
 		default:
@@ -564,6 +562,16 @@ func TestKitSelectStartKeepsStopPriority(t *testing.T) {
 	waitFor(t, app, "chord Stop", func(s Snapshot) bool { return s.Session.State == "idle" })
 	if stops.Load() != 1 || displays.Load() != 0 || feed.saw(remoteinput.ButtonSelect, remoteinput.ActionPress) || feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
 		t.Fatal("Select/View opened controls or reached core ahead of Stop chord")
+	}
+	mu.Lock()
+	body := stopBody
+	mu.Unlock()
+	assertStopReleasesCapturedPlay(t, body, prior)
+	app.mu.Lock()
+	held := app.retainedIdleLease
+	app.mu.Unlock()
+	if held {
+		t.Fatal("released Select+Start still tracked a retained idle lease")
 	}
 }
 
@@ -746,10 +754,7 @@ func TestKitHostStopClearsReturningToPlay(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		var req struct {
-			Visible bool `json:"visible"`
-		}
-		json.NewDecoder(r.Body).Decode(&req)
+		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
 		if !req.Visible {
 			close(returning)
 			<-gate
@@ -802,4 +807,19 @@ func TestKitReturnToPlayClearsStatus(t *testing.T) {
 	if s := app.Snapshot().Status; s == sessionDisplayReturningStatus || s == playingHardwareRoomStatus {
 		t.Fatalf("host stop left play copy %q", s)
 	}
+}
+
+// decodeSessionDisplay reads a strict display request. The launcher's controls
+// take launcher focus; a return closes the plane.
+func decodeSessionDisplay(t *testing.T, r *http.Request) bool {
+	t.Helper()
+	var request protocol.SessionDisplayRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&request)
+	display, ok := request.Display()
+	if err != nil || !ok || display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+		t.Errorf("display request %+v: %v", request, err)
+	}
+	return display.Visible
 }

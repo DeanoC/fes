@@ -264,6 +264,10 @@ func TestReadUpdateGateReconcilesDurableTrialConfirmation(t *testing.T) {
 				if err := store.Confirm(bootID, candidate.ImageSHA256); err == nil {
 					t.Fatal("ordinary known-good boot accepted as consumed trial")
 				}
+				stayed, err := os.ReadFile(paths.BootJSON)
+				if err != nil || !bytes.Equal(ticket, stayed) {
+					t.Fatalf("rejected confirmation rewrote boot ticket: %s %v", stayed, err)
+				}
 				gate, err := ReadUpdateGate(paths)
 				if err != nil || !gate.Trial {
 					t.Fatalf("Good alone cleared trial: %+v %v", gate, err)
@@ -277,9 +281,17 @@ func TestReadUpdateGateReconcilesDurableTrialConfirmation(t *testing.T) {
 			if err != nil || after.Trial || after.Pending || after.Corrupt {
 				t.Fatalf("confirmed trial gate=%+v err=%v", after, err)
 			}
-			unchanged, err := os.ReadFile(paths.BootJSON)
-			if err != nil || !bytes.Equal(ticket, unchanged) {
-				t.Fatal("confirmation rewrote immutable boot ticket", err)
+			cleared, err := os.ReadFile(paths.BootJSON)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var recorded struct {
+				BootID      string `json:"boot_id"`
+				ImageSHA256 string `json:"image_sha256"`
+				Trial       bool   `json:"trial"`
+			}
+			if err := json.Unmarshal(cleared, &recorded); err != nil || recorded.Trial || recorded.BootID != bootID || recorded.ImageSHA256 != candidate.ImageSHA256 {
+				t.Fatalf("confirmed boot ticket = %s %v", cleared, err)
 			}
 			// An otherwise valid ticket for a different kernel boot or selected image
 			// cannot borrow this confirmation, including when Good equals trial image.

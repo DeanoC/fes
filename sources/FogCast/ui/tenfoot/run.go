@@ -13,7 +13,6 @@ import (
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/ui/gfx"
-	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
@@ -57,9 +56,6 @@ type Options struct {
 	Framebuffer string
 	MenuSocket  string
 	Input       string
-	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
-	// path. Empty is identity.
-	InputProfile string
 	// Theme is a built-in or pack name (default/classic, arcade/neon,
 	// night/sofa-dim) or a JSON/TOML
 	// file path. Empty is default.
@@ -96,6 +92,9 @@ type Options struct {
 	ReducedMotion    bool
 	ReducedMotionSet bool
 }
+
+// RoomInstallDirectory resolves the same room directory as the running launcher.
+func RoomInstallDirectory() string { return (Options{}).normalized().RoomsDir }
 
 func defaultRoomsDir(prefsPath string) string {
 	if strings.TrimSpace(prefsPath) == "" {
@@ -294,17 +293,6 @@ func sizedOptions(opts Options, dev interface{ Config() gfx.FBConfig }) Options 
 // configuredApp keeps application setup identical across native display backends.
 func configuredApp(opts Options) (*App, error) {
 	app := NewApp(NewClient(opts.APIBase, launcherHTTPClient(opts.APIToken, opts.TargetID)).withAPIHost(opts.APIHost), opts.Width, opts.Height, opts.MaxGames)
-	if spec := strings.TrimSpace(opts.InputProfile); spec != "" {
-		profile, err := inputmap.Resolve(spec)
-		if err != nil {
-			return nil, fmt.Errorf("input profile: %w", err)
-		}
-		remap, err := inputmap.NewRemapper(profile)
-		if err != nil {
-			return nil, fmt.Errorf("input profile: %w", err)
-		}
-		app.SetRemapper(remap)
-	}
 	look, err := theme.Resolve(opts.Theme)
 	if err != nil {
 		return nil, fmt.Errorf("theme: %w", err)

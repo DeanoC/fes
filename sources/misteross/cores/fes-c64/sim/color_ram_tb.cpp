@@ -69,7 +69,7 @@ int main() {
 
     top.addr_b = 1000;
     tick_b();
-    if (top.q_b != 0) return fail("video port read the unscanned scratch nybble");
+    if (top.q_b != 15) return fail("native VIC scratch read $DBE8");
 
     top.addr_a = 1023;
     top.eval();
@@ -83,7 +83,7 @@ int main() {
 
     top.addr_b = 1023;
     tick_b();
-    if (top.q_b != 0) return fail("video port read the last unscanned nybble");
+    if (top.q_b != 7) return fail("native VIC scratch read $DBFF");
 
     top.addr_b = 999;
     tick_b();

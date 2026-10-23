@@ -65,7 +65,7 @@ FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
 `/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
-execution identity. Traces are bounded to 64 MiB per process and 256 MiB
+execution identity. Traces are bounded to 128 MiB per process and 256 MiB
 per invocation, including child compilers; exceeding either bound cancels the
 private process group. Successful source Markdown opens for reading (including
 O_PATH) fail before sealing; output-only writes are distinguished. Trace size,
@@ -94,15 +94,27 @@ is preserved. Module relocation alone does not enter the functional projection.
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
 loader, Yosys and GPU overrides. It preserves only the GPU routing variables
-set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+set by an outer `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
 `GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
-functional input digest. It records one explicit GPU device (default 0),
+functional input digest when that outer lease is already active. Producers run
+outside `gpu-run`, so a normal seal does not see a grant. The sealed execution
+record sets `gpu_device` and `gpu_selection` to `lease`: gpu-run chooses any
+free GPU while nextpnr routes, after the record is sealed. The requested
+`--gpu-device` index is not that device and is not part of the digest.
+`BUILD_ID` is a synthesis parameter, so recording the granted id in the sealed
+record would change placement and RBF bytes whenever a different GPU was free.
+HIP and CUDA routes match each other and the CPU reference, so the bitstream
+does not depend on which physical GPU was granted. The route log line
+`FES-GPU-GRANT <id>` names the physical GPU that routed. SMS `build-summary.json`
+copies that grant, and the requested index, onto `route`; slot-card summaries
+copy them onto `gpu`. Neither copy enters `BUILD_ID`. The record also includes
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
 Only a single routing device is supported in this lane; use
 `--identity-version 2 --gpu-devices 0` for Coleco/ZX81, optionally with
-`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Execution
+`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Those
+flags size or label the request. They do not pin the lease. Execution
 inputs are rechecked before sealing and their full description is retained in
 `build-summary.json`; the canonical record includes their digest. Installation
 paths remain part of this conservative identity, so tool relocation does not
@@ -126,15 +138,58 @@ claimed by these host-side identity and exporter tests.
 
 Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
 table and a `cores/<core>/toolchain.lock`, and each lock pins its own
-nextpnr. `scripts/pnr_recipe.py` classifies every nextpnr a lock may pin
-(`NEXTPNR_PINS`: `9128800f` and `552ba246`). A recipe's
-`[recipes.pnr.flags]` must list exactly the options of its own lock's
-nextpnr, including options left at their default, and only values that
-differ from that nextpnr's defaults reach argv. A lock on an unclassified
-nextpnr fails validation, so moving a lock to a newer nextpnr starts by
-classifying the options it adds. Each distinct lock selects its own cached
-toolchain slot. Today every lock is still a byte copy of `toolchain.lock` on
-nextpnr `9128800f`, so all cores share that slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+nextpnr. Before a producer records its recipe or routes, `scripts/pnr_recipe.py`
+reads the authenticated binary's `--help` and matches the complete sorted CLI
+option-name set to a reviewed schema. The 96-option set has 56 recipe flags;
+the 105-option set has 65. Their source declarations are in
+`common/kernel/command.cc` and `mistral/main.cc`. Schema lookup uses the option
+set, so a moving PR head remains eligible when its option set is unchanged.
+The no-Python/no-GUI build also accepts each classified set with exactly these
+eight options absent: `gui`, `gui_no_aa`, `on_failure`, `post_route`, `pre_pack`,
+`pre_place`, `pre_route` and `run`. Any other added or missing CLI option,
+including a partial omission of those eight, fails closed with the difference
+listed.
+
+The nine options added after `9128800f` are classified once in the shared
+recipe defaults: placement and signed-DSP packing switches default off,
+`gpu-required` is a guard switch, the critical-cohort repair budget defaults
+to zero, its report and generic settings are inputs, and its calibration and
+router profile paths are outputs. Per-core flags may override these defaults;
+only values that differ from the selected compiler defaults reach argv. These
+schema matches permit recipe validation; they do not qualify route results
+from a newer pin.
+
+To register a nextpnr pin, compare the exact candidate commit with a classified
+ancestor. Compare `--help` from the candidate binary and audit option
+declarations in `common/kernel/command.cc` and `mistral/main.cc`, following
+settings into the architecture sources where needed. Do not infer the schema
+from a lock rationale or a pull-request title. Reuse a schema only when that
+audit confirms the option set and defaults are unchanged. Otherwise add a
+source-option-set schema and shared defaults, update the option type groups and
+any value constraints, and add per-core overrides only when a producer needs
+nondefault values. In `tests/test_pnr_recipes.py`, record the canonical JSON
+SHA256 in `FLAGS_SHA256` and add a temporary-lock regression showing that a
+candidate with the same option set accepts the schema and defaults do not
+change effective argv. Keep the extra/missing-option rejection tests. From
+`sources/misteross`, run:
+
+```sh
+python3 -m unittest discover -s tests -p test_pnr_recipes.py
+```
+
+The `0a253257` schema review is recorded in the
+[upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
+
+Each distinct lock selects its own cached toolchain slot. Pong's lock pins
+nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
+`8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1`; each selects its
+own slot. Apple II, C64, Coleco and Spectrum also pin nextpnr `5fe55f3d` for
+nextpnr #276's F0/F1 boundary `$ROUTETHRU` map; the Apple II, C64 and
+Spectrum locks are byte copies of each other and share one slot. The Coleco
+development shell and Atari ST video-part producer remain on `9128800f` and
+validate its C/D map. The other six per-core locks remain byte copies of
+`toolchain.lock` on nextpnr `9128800f`, so those cores share that slot.
+Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -166,13 +221,16 @@ qualification or hardware acceptance; those remain separate evidence gates.
 
 Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
 repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
-outside that lease. A producer's requested physical GPU id, from its
-`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
-dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
-visibility mask. The dispatcher is `scripts/nextpnr_lease.py`, run with
+outside that lease. The producer does not set `GPU_LEASE_IDS` or a vendor
+visibility mask. gpu-run picks a free GPU from the host inventory, or from a
+box-level `GPU_LEASE_IDS` override, and passes it through `FES_GPU_IDS` and
+`GPU_RUN_DEVICE`. The dispatcher is `scripts/nextpnr_lease.py`, run with
 `python -I`. It imports only the standard library, so an audited route reads
 only that file from the source tree, and every audited source closure lists
-it. Producers must run outside an outer
+it. For a whole-route lease the dispatcher passes `GPU_RUN_DEVICE` to nextpnr
+after gpu-run applies its visibility mask, and prints `FES-GPU-GRANT` with
+the physical id from `FES_GPU_IDS`. A phase-lease dispatcher prints the same
+line for each broker `GRANT`. That line is the device that routed. Producers must run outside an outer
 gpu-run so a lease cannot span synthesis or multiple routes. The dispatcher
 starts its route timer after the lease is granted, while the producer's audited
 deadline bounds queue wait plus route time and cancels the full process group
@@ -181,10 +239,11 @@ each worker releases its GPU before starting another route.
 
 When the selected `nextpnr-mistral` binary reads `GPU_LEASE_FD` (the
 DeanoC/nextpnr#224 client), the producer runs it under `gpu-run --phase-lease`
-instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for its
-requested physical GPU only for each GPU routing phase; packing, placement,
+instead. nextpnr then starts in a job slot with no GPU and asks gpu-run for
+one GPU, whichever is free, only for each GPU routing phase; packing, placement,
 timing analysis and bitstream writing hold no GPU. There is no visibility mask,
-so `--gpu-device` keeps the physical id. The dispatcher relays the lease socket
+so `--gpu-device` keeps the physical id from the broker grant, which the
+`FES-GPU-GRANT` line records. The dispatcher relays the lease socket
 and pauses the route budget while a GPU request waits, and the producer sets no
 outer deadline, so queue time never counts toward the route timeout. Any other
 nextpnr binary keeps the per-invocation lease above.
@@ -280,8 +339,9 @@ release it tests the SDRAM addon and all three HPS DDR ports at the memory clock
 100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
-OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
-because the pinned OSS packer cannot put DDR input registers on those pads.
+OSS rates select `RAM_OSS_HIGH_SPEED` and sample the bidirectional DQ pads
+with phase-shifted fabric registers. The compiler's later bidirectional DDR
+input support does not change that selected RTL path.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
 `build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the
 `cores/fes-ramtest/toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
@@ -297,6 +357,39 @@ synthesis. It retains the remap only when final memory timing improves without
 regressing the other clocks or reporting hold violations. Both routes remain
 host-only diagnostics; neither RBF is sealed or exported as a package.
 
+### SDRAM external timing model
+
+RAM Tester's external timing work lives in the nextpnr fork and is reusable
+by other FES cores. Start with the
+[IO-delay model and supported boundaries](https://github.com/DeanoC/nextpnr/blob/main/docs/mistral-io-delay.md),
+[GPIO characterization](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/gpio-timing/README.md)
+and [SDRAM board-budget fixture](https://github.com/DeanoC/nextpnr/blob/main/mistral/tests/ramtest-io/README.md).
+[nextpnr #153](https://github.com/DeanoC/nextpnr/pull/153) merged the compiler
+support and controlled hardware investigation;
+[#155](https://github.com/DeanoC/nextpnr/pull/155) records the subsequent
+placement study and incomplete external constraint coverage.
+
+The model has distinct boundaries. `set_input_delay` and `set_output_delay`
+provide external min/max requirements, reference edges and related-clock
+phases. The opt-in `QUARTUS_17_0_2_RAMTEST` profile supplies fitted pad
+envelopes for its documented device, pins, electrical settings and registered
+IO configurations. Unregistered fabric IO uses a routing-ingress/egress
+boundary and does not inherit that complete pad model or a characterized
+fast-corner hold bound.
+
+The existing `mistral/tests/ramtest-io/budget.py` combines the actual routed
+forwarded-clock arrival with Etron EM63B165 -6 timing and explicitly supplied
+board flight intervals and margin. Its example flight intervals are
+unmeasured assumptions. For the inverted SDRAM clock, the chip's rising edge
+corresponds to the controller clock's falling edge; the capture PLL phase
+must remain related. A changed clock route requires a fresh clock-arrival
+budget. Chip clock pulse width, load, turnaround and board/PVT qualification
+remain separate checks. Reuse this machinery with a core's actual primitive
+configuration and evidenced board inputs; neither internal Fmax nor a
+historical RAM Tester hardware pass supplies another core's external timing.
+
+### HPS DDR ports
+
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
 module: the fpga2sdram cell in the generated layout (a 128-bit port and two
 64-bit Avalon-MM ports) with a registered guard per port
@@ -311,7 +404,10 @@ the SDR mirror registers prove the layout.
 timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
-`CACHE_ROOT=/absolute/cache` selects the same root-lock HIP slot as Pong.
+`CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
+`toolchain.lock` (nextpnr `9128800f`). Pong's lock pins nextpnr `552ba246`,
+so Pong uses a separate slot; [shared compiler installation](#shared-compiler-installation)
+lists the other per-core slots.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
@@ -488,8 +584,11 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. The locks currently contain identical
-commits, so the shared compiler cache reuses one slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. Six locks contain the repository-level
+commits and share its compiler-cache slot. Apple II, C64 and Spectrum share
+a second slot on nextpnr `5fe55f3d` (nextpnr #276). Pong (nextpnr
+`552ba246`), ZX81 (`1eecf877`), RISC-V (`8f453ebc`) and Coleco (Yosys
+`5391eeb1` with nextpnr `5fe55f3d`) each have their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -646,7 +745,11 @@ MHz machine clock to the 74.25 MHz output clock. It reports an overrun as an
 invalid token and retains the latest undelivered HOLD control. The generic
 `fes_native_video.v` owns packed double-buffer capture, complete-frame
 publication at output frame boundaries, centered 2x scaling, and optional
-scanlines. Source pauses repeat the last complete frame. HOLD keeps HDMI
+scanlines. Its packed RAM read address is combinational; scanout registers the
+returned pixel and matching raster metadata. The separate PC/XT adapter uses
+three banks and registers both the packed address and each bank's local RAM
+read before bank/palette selection, with matching metadata latency.
+Source pauses repeat the last complete frame. HOLD keeps HDMI
 timing running, mutes RGB and aborts incoming/pending frames.
 
 `make sim-fes-native-video` exercises the consumer and clock crossing;
@@ -665,7 +768,7 @@ linking requires fresh exact-shell placement, containment and timing evidence;
 the raster reservation has only 16 M10Ks and cannot hold native frame capture. The
 [native contract](../../mister-packages/docs/video-parts.md#native-active-pixels)
 defines token validation and the initial geometry/encoding. Future RGB, SMS,
-overlay, CRT and DDR profiles require separate implementation and evidence.
+CRT and DDR profiles require separate implementation and evidence.
 
 The first video-parts layout is `fes.coleco-video.parts/1`. It reserves a
 Coleco bus 2.0 socket at placement columns 24–28, rows 1–19, and a video
@@ -754,8 +857,33 @@ digest/size. Compiler evidence and the frozen routed netlist remain in host
 caches; they are not installed on the target. Reuse validates the current
 functional inputs and original provenance, then independently checks the
 configuration header, actual CRAM fence, timing and clock/resource ownership.
-Other native geometries, DDR scanout, overlays, variable modes and audio parts
-remain subsequent work.
+Other native geometries, DDR scanout, variable modes and audio parts remain
+subsequent work. Launcher overlays and surrounds belong to the shell's
+[display plane](#display-plane), after the part.
+
+### Display plane
+
+`cores/fes-common/rtl/fes_display_plane.v` implements the
+`fes.video.session-display` plane and `fes.fabric.video.display-plane` 1.0
+([contract](../../mister-packages/docs/session-display.md)). A shell feeds it
+the finished 720p word in the video-part response layout (RGB888, DE, HS, VS,
+CE) after any part, and drives the HDMI pins from its output. The plane:
+
+- crosses GP opcodes 18–21 from the system clock in `fes_display_cdc`;
+- derives raster coordinates from the word's DE and VS edges and locks after a
+  whole frame matches the fixed 1650×750 timing with CE set;
+- reads premultiplied RGBA from the HPS DDR window through `fes_menu_video`;
+- blends `P + M × (256 − a − (a >> 7)) / 256` per channel with three unsigned
+  9×9 DSP products and saturation;
+- delays the whole word by three pixel clocks, so RGB and sync stay aligned;
+- reports the shell's machine picture rectangle through MENU_INFO 14–17.
+
+A closed, faulted, unlocked or reset-held plane returns the machine word
+unchanged. Losing lock or missing a pixel while visible is a scanout fault.
+`make sim-fes-display-plane` checks exact passthrough, the blend at alpha 255,
+128, 64 and 0 (saturating), the fixed latency, lock/relock and fault return.
+ZX81 is the only shell with a plane; [the display pipeline](../../../docs/display-pipeline.md)
+lists the remaining cores.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
@@ -942,7 +1070,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Registered Coleco v2, SMS and SG-1000 producers use their per-core lock files, all currently byte-identical to the repository-level pin: Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`. The old Coleco producer still selects the repository-level lock. Quartus needs neither lock. |
+| Toolchain selection | Apple II, C64, Coleco v2 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 also pins Yosys `5391eeb1`. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1237,9 +1365,10 @@ and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects. Its optional session
 hook admits display opcodes 18–21 only in the ZX81 board shell and declares
 HPS DDR plus `fes.video.session-display`. A held command/response crosses
-52.224/74.25 MHz with `zx81_display_cdc` toggle handshakes and stable payload
+52.224/74.25 MHz with `fes_display_cdc` toggle handshakes and stable payload
 registers. Execution hold rejects while the session plane is not quiesced;
-normal show/return does not use execution hold.
+normal show/return does not use execution hold. The GP command crosses
+52.224/74.25 MHz in the shared `fes_display_cdc`.
 
 ## FES ZX81 machine simulation
 
@@ -1317,10 +1446,16 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
+`fes.zx81` 1.6.0 package. It authenticates `cores/fes-zx81/toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
+M10K allowed and MLAB forbidden. The only DSP cells are exactly three unsigned
+`MISTRAL_MUL9X9` display-plane products; wider multipliers are forbidden. The issue-236 candidate profile uses setup-relative private LUT input assignment
+(`--arrival-pin-assignment`), seeds 1, 3 and 10 in that order, and starts at
+timing weight 300 with criticality exponent 5. Other search weights remain
+available. A new compiler or profile requires a fresh producer build and exact
+artifact qualification; retained-netlist timing is not a package seal.
+The machine ROM is `zx81_rom_link`:
 eight empty BEL-locked 1024×10 lanes at `MISTRAL_M10K.5.73.0` through
 `MISTRAL_M10K.5.80.0`, each with a synchronous read (`CFG_ASYNC_READ=0`,
 live `CLK1`, `B1EN` held high). The bank select is registered on that same
@@ -1340,12 +1475,14 @@ its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
-The session plane reuses `fes_menu_control`, `fes_menu_reader` and
-`fes_hps_ddr`. `fes_menu_video` selects its optional external-raster and
-complete-frame mode: ZX81 remains the only 1650×750 raster owner, and a
-submission completes only after every pixel of one frame arrived on time.
-`zx81_session_display` keeps the first launcher frame hidden, then selects
-its RGB at the next frame boundary. Closing waits for issued DDR responses to
+The ZX81 HDMI output passes through the shared
+`cores/fes-common/rtl/fes_display_plane.v`, the `fes.video.session-display`
+plane described under [display plane](#display-plane). It reuses
+`fes_menu_control`, `fes_menu_reader` and `fes_hps_ddr`. `fes_menu_video`
+selects its optional external-raster and complete-frame mode: ZX81 remains the
+only 1650×750 raster owner, and a submission completes only after every pixel
+of one frame arrived on time. The plane keeps the first launcher frame hidden,
+then blends it from the next frame boundary. Closing waits for issued DDR responses to
 drain and returns machine RGB at a frame boundary before acknowledging. A
 visible underflow contains the display and restores machine pixels; it never
 reprograms the FPGA or resets CPU/RAM/ROM, expansion, capture or audio. Unexpected
@@ -1676,7 +1813,8 @@ retaining II/II+ video, annunciator and language-card switches. Host execution
 reset initializes them. The machine regression installs an alternate reset
 vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
-`rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
+`rtl/cpu6502` (Arlet Ottens, renamed modules and an optional SO input) and
+the generic
 `rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
 `computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
 The endpoint owns no storage: accepted media words appear on a write port for
@@ -1741,87 +1879,464 @@ of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
 
-Spectrum's sixteen blank firmware lanes use synchronous 1024x10 M10K reads
-on the live system clock, with reads enabled and active-low writes disabled.
-The bank selector is registered with the M10K read address; a combinational
-bank mux and the existing final data register preserve two-stage latency.
-The ROM-map producer explicitly requires `CFG_ASYNC_READ=0`. Synthesized
-control ports are checked separately: every lane must share
-a live `CLK1`, hold `B1EN` high and active-low `A1EN` high, and keep clears
-inactive without secondary-clock or byte-enable connections. Lane BELs and
-INIT encoding are unchanged, but each newly built RBF needs its own map/base
-hash. The optional `sim-fes-spectrum-rom` target exercises the production
-branch with the selected Yosys `mem_sim.v` and nonzero linked-image contents;
-the normal Verilator branch alone does not test primitive wiring.
+`cores/fes-spectrum` builds four described cores from one shell on the
+`fes.computer` 1.0 mailbox: `fes.spectrum` 0.3.0 (48K), `fes.spectrum128`
+0.1.0 (128K/+2), `fes.spectrum-plus3` 0.1.0 (+2A/+3 without a disk drive) and
+`fes.pentagon` 0.1.0 (Pentagon 128). The `SPECTRUM_MODEL_*` define selects the
+model; [its README](../cores/fes-spectrum/README.md) lists each model's
+memory map, timing and firmware. The machine runs `fes_z80_nmos` on clock
+enables from `spectrum_ula.sv`, which owns the model's T-state rate, frame
+interrupt, contention, screen fetch, floating bus and rendering. Contention
+stretches the CPU clock: `spectrum_contention.sv` classifies the presented
+bus cycle, and the ULA holds `ce_n` and the following `ce_p` for the delay
+decided where the CPU first asks. The NMOS core exports its presented cycle
+kind and T state for this; it exposes no other new state.
 
-`cores/fes-spectrum` is `fes.spectrum` 0.2.0, a 48K ZX Spectrum on the same
-`fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
-built-in Kempston port, `.tap` player and four edge sockets are described in
-[its README](../cores/fes-spectrum/README.md). It reuses
-`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and selects the
-first-party NMOS CPU at native 3.5 MHz cadence by default. The explicit
-`--cpu fast` producer / `make build-fes-spectrum-fast` development lane uses
-the documented-only transaction CPU at 56 MHz, a registered memory/socket
-bridge and independent 3.5 MHz peripheral ticks. WAIT holds phase four until
-readiness and selected read data are captured together; phase five delivers
-the captured byte to the CPU. Internal writes commit once at that delivery,
-while socket STROBE launches once. One inactive clock rearms edge consumers.
-Both modes retain the ROM map and frozen 32/28-bit socket ABI. Normal mode
-uses system/audio and video PLLs. Fast mode uses system and video PLLs, with
-the audio serializer running on the 56 MHz system clock. Rational enables
-produce 48 kHz stereo frames and an average 12.288 MHz MCLK pin waveform;
-MCLK half-periods are two or three system clocks, and BCLK half-periods are
-nine or ten. These outputs do not clock fabric logic. The fast timing gate
-checks the actual 56 and 74.25 MHz domains. CPU mode, clocks, audio schedule
-and resource expectations enter build identity. No Sinclair ROM bytes are in the tree.
+The ULA renders each 8-pixel chunk (bitmap byte, ink, paper) in the system
+domain into one of three 320x240 frame banks; `spectrum_video.v` shows the
+newest complete bank 3x3 in 720p60 through the shared session-display plane.
+The 128K-class models add
+paged 128 KiB RAM and the `zonx_ay` AY-3-8912. The timing model matches Fuse
+1.6.0: the Fuse Z80 core tests' contention points, model boot traces and
+fetch-point race sweeps are recorded in the README; they are simulations.
+
+Firmware is 16, 32 or 64 blank synchronous 1024x10 M10K lanes (column 5 rows
+32-55 and 73-80, column 14 rows 32-63) on the live system clock, with reads
+enabled and active-low writes disabled. The lane selector is registered with
+the M10K read address and the final data register supplies stage two. The
+ROM-map producer requires `CFG_ASYNC_READ=0`, and every lane of the model must
+share a live `CLK1`, hold `B1EN` and active-low `A1EN` high, and keep clears
+inactive without secondary-clock or byte-enable connections; no lane beyond
+the model's may exist. The optional `sim-fes-spectrum-rom` target exercises
+the production branch with the selected Yosys `mem_sim.v`.
+
+`make build-fes-spectrum` and its model siblings (`scripts/build_fes_spectrum_oss.py
+--model`, `cores/fes-spectrum/toolchain.lock`, `make toolchain-fes-spectrum`)
+are the format-3 seals. Each model has its own FES recipe row; the shared
+producer names the core it builds in its record, so each P&R recipe digest
+enters that core's identity. Synthesis must keep exact block counts, three
+unsigned display-plane DSP products and the read-only plane DDR port, and the
+52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the four
+`FES_RESERVED_RECT` regions from `scripts/spectrum_slots.py`
+(`fes.spectrum-bus.sockets/1`, sockets 1–4). Socket validation admits a
+compiler-inserted `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of
+an already pinned boundary flip-flop. The shared `coleco_expansion` check
+requires the paired COMB/MCOMB half, exact physical pin map and ports, and a
+dedicated buffer output connected only to that flip-flop's data input.
+Clock-coverage outputs must remain unused, and each effective boundary data
+input must have exactly one driver or a direct defined constant. Every other
+shell cell inside a socket is rejected.
+
 The cassette player selects its pilot length from flag bit 7 and prefetches
 the next byte so each encoded half-pulse keeps its standard ROM width.
-`make sim-fes-spectrum-tape`, included in the aggregate, decodes all pilot,
-sync and data edges across mixed bytes and consecutive blocks, then checks
-partial tails and live eject/replacement.
-
-`make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
-`cores/fes-spectrum/toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
-seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
-lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
-from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
-Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
-verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
-The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
-exact physical pin map and ports, and a dedicated buffer output connected
-only to that flip-flop's data input. Clock-coverage outputs must remain
-unused, and each effective boundary data input must have exactly one driver
-or a direct defined constant. Older clock-only anchors may have disconnected
-data inputs. Every other shell cell inside a socket is rejected. The helper
-is a pinned functional source input; socket placement and CRAM fences retain
-their existing identities.
-Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
-RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
-frame timing in both modes. Every clock must close before either shell seals.
+Simulation is `make sim-fes-spectrum`: every model's machine with the open
+diagnostic firmware, the frame-bank video, the board mailbox and the tape
+decoder. `make sim-fes-spectrum-contention` replays the pinned Fuse Z80 tests.
 The previous TV80 shell seal is recorded in
-`docs/validation/2026-09-28-spectrum-pathfinder-seal.md`. A kit link of the
-48K BASIC ROM is recorded in
-`docs/validation/2026-09-28-spectrum-basic-kit.md`. Probe cards, keyboard
-checks, and tape checks remain open.
+`docs/validation/2026-09-28-spectrum-pathfinder-seal.md` and a kit link of the
+48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`; neither
+accepts these models.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.1.0, a package-only Commodore 64 pathfinder on
+`cores/fes-c64` is `fes.c64` 0.4.0, a package-only Commodore 64 pathfinder on
 the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
-joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+joystick, keyboard, a SID sample and a native drive sector read over IEC.
 The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
 runner confirms the live disk is ready before sending those inputs; it uses
 launch's existing ready input stream instead of attaching twice. This is an
 operator-gated diagnostic, not pre-release initial-disk mounting or write-back
 support. Atari ST's startup and durable writable-disk contract remains separate.
+A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
+vacant and observes external BASIC/KERNAL/character/1541 firmware on the real machine RTL.
+`scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
+firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
+screen-code output and recent CPU cycles with the production clock ratio.
+The default three-second observation budget is configurable.
+`--prg-fixture` is an explicit development launch for an `$0801` BASIC PRG
+whose genuine disk LOAD has already been checked. Fresh firmware must reach
+BASIC READY before the three-second installation. The harness sets the
+program/variable end pointers and device 8, then types RUN by default. The
+receipt labels this path as a PRG fixture and binds its bytes into checkpoint
+identity. Whole-state restores still require the original executable and
+inputs; fixture installation does not migrate or patch an older model's state.
+Both medium variants continue to run native drive firmware and guest
+fastloaders. This simulation shortcut does not qualify cold loading or runtime
+persistence.
+`--type-command` optionally types native C64 text through HID states after
+three seconds, with 50 ms press/release intervals. `--then-command` adds a
+later command and retains the RAM snapshot taken immediately before it.
+Per-second CPU/drive bus and load-pointer observations are flushed during execution.
+The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
+36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
+(16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
+column 14, rows 32–47. Character lanes 16–19 have registered CPU/VIC ports on
+the native clock. CPU reads take two clocks; VIC and independent drive reads
+one. Each source block appears once in the format-3 ROM map. CPU/VIC character
+visibility follows separate banking rules.
+Routed ROM validation checks nextpnr's normalized `MISTRAL_M10K` cells;
+character lanes require `CFG_TDP=1`, while the other lanes require it disabled.
+Fixed BELs, registered read mode, dimensions and blank INIT remain mandatory.
+`c64_vic_fetch` schedules native matrix/color and glyph reads. VC, VCBASE, RC
+and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
+BA stops CPU reads while pending writes finish. CPU bus strobes occur at
+cycle 26 and reads are sampled at cycle 43. The native 384×272 PAL view, including borders,
+is stored in three frame buffers, each using 51 explicit 2048×5 M10Ks.
+`c64_vic_sprite_fetch` supplies PAL pointer/three-byte accesses, DMA/display,
+MC/MCBASE, expansion flips and cycle-15 crunch. Its requests arbitrate with
+the matrix/glyph engine on the native video port without overlap. Combined
+BA stalls CPU reads; pending writes retain the three-cycle warning window.
+The write exemption follows the latched active bus direction, not the CPU's
+prepared next direction. This prevents a prepared store from retiring its
+stalled operand read. `make sim-fes-c64-ready` runs the actual motherboard's
+raster-read stabilizer across 51 VIC phases against pinned transistor-model
+write timings; its unit setup installs an open RAM program and aligns DMA.
+Late unowned accesses use the current CPU read/write bus value. The directed
+sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
+and sustained crunch. The motherboard diagnostic enables eight expanded
+sprites and requires CPU read stalls alongside IRQs and its PASS frame.
+`c64_vic_graphics_pixels` loads prefetched glyph/matrix/color metadata at the
+scroll slot and shifts the remaining bits across byte boundaries. It applies
+PAL 6569R3 mode changes through the dot4/dot6/dot7 stages. A late scroll write
+therefore affects the next byte, and a scroll increase can expose exhausted
+bits before the next load. Scroll latching is enabled in cycles15–54;
+blank graphics retain the last visible matrix/color metadata. Each frame
+page has its own read-bank mux, avoiding cross-page connections for invalid
+bank indices while retaining153denseM10Ks and the existing handoff.
+The isolated source-oracle replay checks 800,000
+dots; coupled tests cover late writes, carry, all banks and five valid modes.
+The 38-column border edges are X31/335, rather than the following byte edges.
+CPU palette-write latency and every fetch-mode/subphase combination remain
+unqualified.
+`c64_sid_envelope` supplies one eight-bit digital ADSR pipeline per voice.
+Its rate comparator, exponential divider, gate transitions, zero hold and
+ADSR delay behavior follow reSID's single-cycle model. AD/SR writes update
+only the selected voice; `$D41C` and SID mirrors expose the sampled ENV3 value
+through the motherboard's existing late read phase. The direct fallback mixer centers the
+voice codes, sums their signed envelope products, applies linear four-bit
+master gain and scales into signed 16-bit PCM. The offline source-oracle
+regression exercises 15.6 million system-clock edges. Each voice also has a
+`c64_sid_oscillator`: single triangle/saw/pulse/noise waveforms, 23-bit noise
+with a two-Phi2 shift pipeline, TEST transitions and floating-output decay.
+`$D41B` exposes voice 3's upper eight waveform bits. The oscillator uses the
+unstalled Phi2 enable; a SYS edge advances old oscillator state before a bus
+write, with reset taking priority. Warm reset retains phase, while power-up
+uses reSID's deterministic `$555555` fixture, not a hardware startup claim.
+All three oscillators advance before hard-sync clear decisions. The source
+MSB-rise flags and old SYNC bits determine clears, including suppression
+when a source is itself synced. Output uses post-sync phases, then saw-selected
+combinations may clear the local phase MSB without recalculating the rise latch.
+To reproduce the pinned reSID loop, voice 0's ring input observes source 2 before
+feedback; voices 1 and 2 observe their sources after feedback. Same-Phi CONTROL
+writes see all final source phases, while idle writes use committed phases.
+This is software-model ordering, not a physical SID ordering claim.
+The motherboard enables prepared phase sums when the system-to-CPU clock
+ratio is at least two, ensuring an idle SYS edge between Phi2 enables.
+The sum forwards final idle phase and frequency, including TEST and combined-wave clears;
+reset uses the retained phase and cleared frequency. The SID component defaults
+to direct calculation, which also handles ratios with adjacent Phi2 enables.
+The phase replay adds physical idle edges to the existing source-oracle inputs
+and checks the prepared value at Phi2 without changing their logical sequence.
+The same guard enables a 20-bit envelope helper containing the result of only
+the first state-pipeline transition: state-pipeline count, state, rate period
+and zero-hold flag. On idle edges it computes that transition from the state
+after any register write; on Phi2 it supplies those four fields before the
+remaining envelope/exponential/rate logic. CPU writes still follow Phi2 and
+reset remains last, retaining the old envelope value and ENV3 sample. The
+component defaults to the direct transition for dense standalone use.
+Prepared envelope and three-voice PCM tests reuse the original source-oracle
+fixtures; adding idle edges leaves their logical observations unchanged.
+All four non-noise combinations use the pinned reSID MOS6581 4,096-entry
+sample tables. Pulse/triangle substitutes the ring index; saw-selected
+combinations disable that substitution. Pulse combinations use the delayed
+pulse mask. Output precedes phase feedback, then the next pulse level compares
+the final phase. CONTROL writes repeat this evaluation after any TEST change,
+even if the register value is unchanged. The generator reproduces all sparse
+RTL lookups exactly; their header is in the producer's pinned source closure.
+The reference's edge latch remains held during TEST. The portable coupling
+oracle covers the complete simultaneous-rise/SYNC mask space, all voices,
+feedback/ring ordering and pre-write audio waveforms. It includes native
+fractional53/54 periods and Phi+27 writes, blocked writes and minimum preparation
+cadence. All seven noise combinations mask those waveforms with the noise taps;
+MOS6581 noise/pulse shaping precedes saw-selected phase feedback. Output feeds
+back into the eight tapped LFSR cells with TEST clear except during shift
+phase one. TEST falling applies the pinned selector-pair pre-writeback rules
+before the forced shift. The direct and prepared three-voice source-oracle
+checks include all 16 selectors and pre-write audio waveforms. This qualifies
+the selected software model, not physical mixed-noise SID behavior.
+
+At the native 53/54-SYS cadence, `c64_sid` sequences the three voices'
+waveform stages as three-edge lookup/finish sequences on Phi+1..Phi+9
+(`SEQUENCE_VOICES`, motherboard ratio at least thirty-one): Phi advances every accumulator,
+noise shift and hard sync; each voice then presents its combined-wave table
+index and ring state to the shared `c64_sid_wave_tables` unit on its lookup
+edge (Phi+1, Phi+4, Phi+7), which registers the index and then the four
+table values, and two edges after the request produces its wave,
+saw-selected feedback, noise write-back, decay and pulse, in reSID output
+order, reading its ring/sync source's current phase. A waveform-selecting
+CONTROL write issues its own lookup on the write edge and finishes two edges
+later, with the prepared phase sum refreshed on the following idle edge. The
+voice pipeline needs twelve SYS edges. The motherboard samples SID writes at
+edge 27, so a CONTROL write finishes at edge 29 and the refresh needs edge 30
+before the next Phi; ratios below 31 stay on the direct path because a 30-edge
+gap consumes the pre-feedback sum. The audio stage
+captures the final waveforms and old filter controls on Phi+10 and starts on
+Phi+11 with the
+updated envelope values; CPU writes on Phi therefore affect the next sample
+and reset cancels pending work. The default audio stage
+is `c64_sid_svf`: voice DAC/envelope products, a Chamberlin state-variable
+filter with Q20 MOS6581-shaped cutoff and 1/Q tables from
+`scripts/c64_sid_svf_tables.py`, LP/BP/HP routing, 3OFF and master volume,
+evaluated by a sequencer with one shared nibble-serial multiplier within 28
+edges. The exact reSID DAC, nonlinear filter and external output network
+translation (`c64_sid_audio`, output at Phi+50) remains behind `RESID_FILTER`,
+off in the package. The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52`
+leaves time for either result and idle state before the next transaction.
+Shorter ratios and default standalone instances use the direct linear-volume
+path. Signed-32 output is saturated to signed-16 PCM before the unchanged
+shared I2S transport.
+
+VCR current and cutoff tables are exact. Generated piecewise interpolation
+bounds individual gain/summer table errors to 4 integer units, mixer to 16,
+and reverse-opamp/kVg to 1; these are not final-PCM error bounds. The generators
+verify pinned, unchanged VICE dependencies. The portable audio regression
+compares the configured reference with both direct and prepared digital state
+over 23,052 Phi clocks, including minimum 41-SYS cadence, native 53/54 periods,
+writes and reset/restart. It checks wide output, PCM, readback and done/busy.
+Its initial ENV3 exclusion lasts only until the first non-reset Phi; subsequent
+warm-reset samples remain checked. Other register reads follow the core's
+zero-read contract. Other models/bias, paddles, bus decay, physical audio and
+routed/hardware acceptance remain open.
+
+The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
+reSID source at native 53/54-SYS periods and other directed write phases;
+native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
+regeneration and the explicit host-integer noise-state normalization are in
+the core README. All compiled reference dependencies are hash checked.
+Unsupported combinations retain the old OR formula without a claim that
+its update timing is unchanged. Host checks establish the stated model and
+lookup policy, not complete SID, audible HDMI or routed-core fidelity.
+`c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
+foreground priority and collision masks. Sprite X and pointer/row/display
+events use the same PAL cycle. The registered final DMA byte is captured at
+dot5, after its SYS30 read and before the dot7 halt release. An offline
+100,800-dot replay checks unchanged VICE sprite-renderer output with the PAL
+cycle table, reload-edge positions and late final-byte arrival. `c64_vic_collisions` commits collision
+masks at the following cycle boundary, defers read clearing and latches IRQ
+sources independently of their enable mask. The motherboard supplies the
+existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.
+The collision test replays 500,000 source-oracle ticks, while full-frame tests
+cover mixed sprites and borders across all banks. Register readback tests cover
+unused bits and write-protected light-pen result registers.
+The beam's sprite X coordinate and deterministic pointer, row and pending
+controls are registered one SYS edge before each dot. Guest-controlled sprite
+inputs retain their original dot sampling. The original framebuffer address,
+direct color and border/background source tags travel together for three native
+dots; D020/D021 are resolved then, and the complete write packet reaches memory one SYS later.
+Collision and sprite shift state remain on their original edges. Reset clears
+all pending stages. Shifting through blank dots drains the last visible pixels
+before frame publication. D022-D024 and sprite-color write latencies
+remain unqualified.
+`make sim-fes-c64-vic-timing` checks all PAL cycle/dot pairs, the fractional
+cadence, adjacent-dot register writes and the delayed transaction contract.
+`c64_frame_store` publishes complete frames to HDMI with a bundled-data
+mailbox; reader and queued complete buffers remain protected while the
+private buffer is written. The native clock runs independently of HDMI.
+HDMI presents the PAL view in a centered 960×720 viewport at fixed 720p60.
+Small rational accumulators select native floor(x×2/5), floor(y×17/45)
+coordinates without dividers. Light-pen capture, exact mode-transition quirks,
+physical subpixel phases and fresh route/seal/hardware acceptance remain open.
+HDMI maps the 16 indices through the fixed Colodore PAL RGB lookup: common
+VIC-II luma revision, brightness/contrast/saturation 50/100/50 and gamma
+2.8 to 2.2. Full-frame graphics tests calculate the expected RGB values from
+the published model and cover every colour at the HDMI pins. This does not
+simulate composite chroma mixing, scanlines or adjustable monitor controls.
+The D64 media mailbox is unchanged.
+See the core README.
+The motherboard registers its address decode, the main RAM's block-select
+output and both cartridge socket responses one system edge after the bus
+address or socket changes; every consumer samples them at edge 26 or later,
+so bus-level timing is unchanged while the port/cartridge-map compare, the
+column-spanning RAM mux and the reserved-rectangle sockets stay out of the
+device read mux path.
+The production `c64_drive1541` runs the shared 6502 at 1 MHz from a divided
+16 MHz reference predicted one system edge ahead into a register, with 2 KiB
+mirrored RAM, two `c64_via` slices and IEC inverter/ATN logic. Its independent ROM port reads the final 16 KiB of the
+linked firmware, retaining the $8000 mirror. Drive VIA access and CPU sampling
+share the late bus-cycle edge so input latches are acknowledged after sampling.
+`c64_gcr_read` recovers bits, sync and byte ready from nominal flux transitions.
+
+The existing D64 store feeds `c64_d64_medium`, which builds one 8 KiB GCR track
+cache. Nominal 300 rpm rotation, halftrack movement and physical density follow
+the drive VIA pins. Flux is hidden during media loading, ejection and the bounded
+track rebuild. Swapping media preserves both CPUs, RAM, head position and spindle
+angle. The write-protect input remains fixed, so general DOS disk-change
+sensing is unqualified. The standard 174,848-byte read-only D64 mailbox remains unchanged.
+`make sim-fes-c64-medium` compares all 35 tracks with an independent flux model;
+`make sim-fes-c64-medium-mailbox` covers actual upload, CRC/commit, replacement
+and ejection. The open diagnostic drive seeks and decodes an original sector,
+then sends six bytes through a diagnostic IEC handshake. No general DOS ROM is
+bundled. The standalone drive/VIA checks retain RAM aliases, both IRQ vectors,
+ports, edge latches, IFR/IER and timer behavior.
+The drive enables the CPU's active-low SO input: falling edges set V, while
+instruction writes occur on CPU enables and a held-low pin does not retrigger.
+Apple II and the C64 motherboard retain the default CPU mode with SO tied high. The shared NMOS
+CPU also writes the original operand during memory RMW's first store cycle,
+then the modified operand. This preserves hardware-visible register effects
+such as `INC $D019` acknowledging VIC IRQs. The C64 diagnostic uses that
+instruction, and its directed CPU test covers all 24 documented memory RMW
+opcode/address modes with CPU enable gaps.
+JSR performs a dummy stack read, pushes the return address, then reads the
+target high operand. A separate target-low latch preserves this NMOS bus
+order across RDY stalls and operands overlapping the stack page.
+`make sim-fes-c64-jsr` checks transistor-reference bus sequences and call/write
+timings through the motherboard's PAL badline arbitration.
+PHP/PHA also keep the NMOS bus order: dummy read, stack write, then the next
+opcode fetch. Delaying that fetch preserves stack/code aliasing and prevents
+the preceding write's BA exemption from retiring a prefetched instruction.
+`make sim-fes-c64-push` checks transistor-reference bus/state results and
+motherboard badline timings without changing their unstalled three-cycle length.
+The stable undocumented SAX family stores `A & X` in zero-page, zero-page,Y,
+absolute and (zero-page,X) modes without changing registers or flags. Its
+four opcodes use the corresponding NMOS store bus sequence, including wrapping.
+`make sim-fes-c64-sax` covers all modes, enabled cycle counts and register/flag
+preservation. Other undocumented instructions remain incomplete.
+AXS/SBX immediate (`$CB`) consumes two enabled read cycles and writes
+`(A & X) - operand` to X, with binary no-borrow C and result N/Z. Incoming
+carry and decimal mode do not affect the subtraction; A, Y, S, D, I and V
+remain unchanged. `make sim-fes-c64-axs` covers every subtraction input pair,
+independent A/X masks, status preservation and CPU enable gaps.
+`make sim-fes-c64-axs-oracle` independently checks 396 transistor-reference
+bus/state cases and 144 IRQ/NMI entry/stack cases from checked-in vectors.
+This opcode proof does not establish whole-demo completion.
+The shared CPU samples IRQ and its I mask through the enabled-cycle prefetch
+pipeline, including taken-branch polling and instructions following PLP.
+I updates require RDY, and latched hardware entry preserves the pushed B bit
+when IRQ is withdrawn. `make sim-fes-c64-irq` compares entry time and stack
+bytes with pinned transistor-model vectors across 40 arrival phases, mask
+changes, branches, RMW and enable gaps. NMI hijacking, every interrupt
+subphase and complete external bus equivalence remain unqualified.
+NMI edges survive CPU-enable gaps and use the instruction polling pipeline,
+including taken-branch timing, before entering the handler. NMI takes
+priority over simultaneous IRQ. `make sim-fes-c64-nmi` checks 7,840 entry
+and stack cases against pinned transistor-model results, including short
+pulses entirely between CPU enables. NMI hijacking and subphase behavior
+remain unqualified.
+
+`make sim-fes-c64-boot-build` observes the production drive and RTL medium.
+The helper requires external BASIC, KERNAL, character and 1541 firmware.
+The optional `--medium-oracle` lane replaces only the medium with the independent
+C++ rotation/flux model, built by `make sim-fes-c64-boot-oracle-build`.
+Both lanes run native drive firmware and guest fastloaders through the same
+6502, VIAs and digital reader. `make sim-fes-c64-gcr` checks all density zones.
+VIA serial shifting, disk writes, raw/protected tracks, analogue noise and NMOS
+SO subphases remain unqualified or unsupported.
+Both boot diagnostic builds use Verilator save/restore. A Verilator control
+file exposes only the read-only fields needed by the observer, allowing
+optimization of unused debug state. `C64_BOOT_FULL_VISIBILITY=1` selects the
+full writable variant. Executable/layout checks remain strict across modes. The helper's
+`--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
+complete RTL model, host clock counters, pending keyboard/capture events,
+partial frame collection, in-flight D64 uploads and the medium's angle/head position.
+Checkpoint metadata requires the same executable, firmware and immutable
+media-library hashes; a rebuild requires recapture. Scheduled insertions and
+the active media cursor are serialized with the host state. An explicit later
+insertion can be appended after restore, selecting a disk from the captured
+library without modifying earlier events or machine/drive state.
+Raw keyboard switches can be queued on cold boot with repeated
+`--key-event CYCLE HID DOWN` options (`DOWN` is 0 or 1). After restore,
+`--append-key-event CYCLE HID DOWN` adds events strictly after the saved clock
+and no earlier than the existing queue tail, preserving held keys and pending
+releases. Equal-cycle events allow chords. The observer records the complete
+accumulated schedule and the newly appended events; a subsequent restore needs
+no resubmission. Appending requires metadata with a complete keyboard schedule.
+Both the helper and simulator reject invalid HID usages, nonboolean values,
+past events and reordered queues. This allows trainer prompts and keyboard
+controls to be exercised from a proved loading checkpoint. The boot simulator
+still holds joystick buttons at zero, so this does not qualify joystick gameplay.
+`--save-final-state` retains an endpoint snapshot alongside an intermediate
+capture, and restores preserve the capture policy. The absolute observation
+endpoint can extend to 1800 machine seconds. Native LOAD must be verified before using a
+post-load checkpoint. This is development simulation, not runtime persistence.
+`--late-video` holds the independent HDMI renderer until the final five frames
+without qualifying continuous HDMI presentation. Native VIC rendering continues.
+The observer optionally records accepted SID stores with `--sid-trace` and
+post-pipeline PCM16 with `--audio-capture`. Store capture samples the pre-eval
+write strobe, banking and reset qualifiers, preserving identical stores and
+read-modify-write pairs. PCM uses post-eval point sampling at the absolute
+48 kHz phase (one sample every 1088 SYS clocks), independently of the HDMI
+renderer. It adds no anti-alias filter and excludes CDC/I2S transport. Capture
+defaults off; either sink can be changed after restore. Host Phi/store counters
+and the absolute clock preserve stream continuity across v4 checkpoints, while
+output sinks remain outside serialization. Older private formats require a
+fresh capture. Metadata identifies and hashes each enabled stream; the original
+CPU fixture checks store values/timestamps and cold-versus-restored stream
+concatenation, including complete-state equivalence with capture disabled.
+The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
+correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
+is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
+switch across all scan columns plus release, chords and modifier aliases.
+Reverse scanning and electrical ghosting remain unimplemented.
+The VIC bank follows CIA2 PA0/PA1 physical pin levels, including input
+pull-ups. The open diagnostic clears the output latch and makes those bank
+pins inputs before its checked PASS frame, verifying selection of bank zero.
+The fractional CPU enable predicts the following system tick into a register,
+preserving the original phase and pulse sequence while removing the phase
+adder from CPU RDY. Rates at or above half the system clock retain the direct
+comparison for adjacent pulses. `make sim-fes-c64-clock` checks the actual
+motherboard enable against an independent fractional reference through a full
+PAL second, including boundary/adjacent/full-rate parameter cases.
+The CPU BA input is registered only when the minimum Phi2 interval is at
+least 29 system clocks. The last relevant guest write is accepted at old
+cycle counter 26, changing BA after edge 27; registration captures it on
+edge 28, so edge 29 is the earliest safe retirement. Earlier beam and DMA
+changes settle before this point. Shorter and adjacent-enable parameter
+modes keep direct BA, while the active bus-write exemption remains live.
+Raw VIC BA/AEC and DMA outputs are unchanged. `make sim-fes-c64-ba-timing`
+checks enabled-edge retirement across native fractional cadence, guard
+boundaries, faster fallbacks, late writes and every reset phase.
+The machine uses a 985,248 Hz PAL Phi2 enable. Its VIC beam spans 312 lines
+of 63 Phi2 cycles; HDMI rendering still runs independently at 720p60. The
+open machine test checks the fractional Phi2 count on every system tick, and
+the VIC test checks the final PAL line, exact line length and frame wrap.
+The VIC raster compare is writable through `$D011.7`/`$D012`, independently
+of the beam position returned by reads. `$D019` retains the raster event until
+write-one acknowledgement; `$D01A` enables its level IRQ, ORed with CIA1 and
+cartridge IRQ at the CPU. A source can fire once per line, including an immediate
+compare write on an unfired line. Automatic line-zero comparison waits one
+Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
+open firmware checks CPU vector delivery and acknowledgement at stage 12.
+Light-pen capture, exact mode-transition quirks, full native overscan and
+physical subcycle timing remain outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
-NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
-`make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
-TOD, serial shifting and timer port outputs remain outside this slice.
+NMI. The old MOS 6526 model retains count-enable, force-load and one-shot
+pipelines; STOP leaves pending pipeline work intact. ICR source flags, bit 7
+and the physical interrupt pin have separate state, including delayed
+assertion/acknowledgement and the old timer-B read suppression corner.
+The diagnostic checks both CPU vectors, including NMI with IRQ disabled.
+`make sim-fes-c64-cia` adds directed register/port coverage, and
+`make sim-fes-c64-cia-reference` replays 385 programs against unchanged pinned
+VICE 3.10 sources at three bus schedules, checking every cycle and ordered
+interrupt edges. [The reference contract](../cores/fes-c64/sim/cia_timing.md)
+records fixture regeneration, provenance and limits. Eight TOD alarm programs
+cover both input-divider modes, masked flags, later mask enable and IRQ
+acknowledgement at the declared Phi2 pulse boundary. Directed CIA tests
+separately cover TOD BCD carry, noon
+and midnight, register masks, read latching, stop/restart, five/six-pulse input
+division and alarm IRQ acknowledgement. Both CIAs receive the same PAL 50 Hz
+power-supply pulse, derived from the free-running Phi enable without depending
+on CPU RDY or raster lengths. The threshold compare is registered only when
+the system clock is more than twice the Phi rate, so an idle edge refreshes
+it; adjacent enables compare the current accumulator and cannot double-tick
+a wrap. TOD time/alarm writes and illegal BCD carries
+follow the pinned VICE implementation, including the hour-12 write quirk.
+Exact analogue TOD input phase, write/tick collisions and physical-chip
+qualification remain open. External CNT edges, serial shifting, FLAG input
+and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `cores/fes-c64/toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
@@ -1841,22 +2356,33 @@ HIP only adds GPUs. The build record uses the audited static closure in
 `scripts/source_closures.json`: pinned inputs, the scripts they import, the
 toolchain recipe files, and the Commodore 64 core tree, excluding simulation,
 tests and markdown. That replaces the broad `scripts` and `cores/fes-common`
-roots. A compiler-read derive of this static closure is still open; this
-closure is not that trace. The seal does not pin synthesized M10K totals. The ROM is
-`c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
-Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+roots. A compiler-read derive of this static closure, and during the product
+HIP seal, is still open; this closure is not that trace. The seal is not run as
+part of this pathfinder slice, and it does not pin synthesized M10K totals. The
+ROM is
+`c64-firmware`, 36,864 bytes, with twenty column-5 lanes at rows 32–51
+and sixteen column-14 drive lanes at rows 32–47. Character lanes 16–19 use
+CPU/VIC read ports on the native system clock;
+all writes are disabled. Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at
-`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+`cycle_clock == 43`, forty-three 52.224 MHz clocks after the phi2 address
 capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
 netlist check rejects every other async M10K. Color RAM is a synchronous
-dual-port M10K, with independent system and pixel clocks; the CPU samples its
-registered read at cycle 16 and the VIC aligns its result with main RAM.
+dual-port M10K, with two native system-clock ports; the CPU samples its
+registered read at cycle 43 and the VIC fetches its matrix/color line.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. It takes the same `--gpu-router` and `--toolchain-root` as the
-shell: HIP masks the selected device, and CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`
-and passes `--gpu-device`. The card route must prove that backend, and the
-backend must be the one recorded on the frozen shell. The producer chooses
+shell. HIP is the default. CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID` and passes
+`--gpu-device` as the requested index. The card recipe records
+`gpu_selection` `lease` and, for CUDA, `gpu_device_requested`. It does not
+record that request as `gpu_device`, the device that routed. The summary field
+`gpu.gpu_device_granted` is the physical id from the route log's
+`FES-GPU-GRANT` line, and it is not part of the recipe hash. gpu-run leases
+any free GPU; the producer does not set `GPU_LEASE_IDS` or a device visibility
+mask. The card route must
+prove that backend, and the backend must be the one recorded on the frozen
+shell. The producer chooses
 probe mode from the socket and validates
 both legacy and physical PLL output maps. Frozen clocks are constrained by
 net; admission requires final analogue setup and hold on all three clocks
@@ -1865,7 +2391,8 @@ has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `3a5accbd`, Mistral `8fcc4cb4` and nextpnr
-`9128800f` from `cores/fes-c64/toolchain.lock`; its
+`9128800f` from `cores/fes-c64/toolchain.lock`; fresh routed and hardware
+validation remain required. Its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.
@@ -2215,6 +2742,54 @@ probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
+`cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
+Each lane has a kept local address register, driven by the same next-PC value
+and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
+ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
+7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
+PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+Operand selectors are decoded from the raw ROM read before independent
+system-edge output registers. Read latency, sequencer lead and instruction
+cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
+prove the original PC/call-stack/stall control equations, and prove local
+address-copy equality after reset. Symbolic checks retain the actual read and
+output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
+Both shorter address setup and longer ROM output paths require routed and
+Quartus qualification. The prefetch-empty flag compares its low pointer bits
+directly; all-input equivalence checks the original zero-difference equation.
+
+The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
+operand muxes retain only sources used by ADD words; other operations use the
+full muxes. The adder sum and carry flags are consumed only for ADD, so this
+specialization covers arbitrary guest firmware and register values. A reserved
+jump-source hold is retained automatically if the image uses it. Exhaustive
+table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
+preserved through synthesis, to separate their physical fanout from the full
+logic-operation muxes. The copies capture the same ROM stage on the same edge;
+symbolic read-alignment checks include both copies. DMA arbitration evaluates
+all four circular priority masks in parallel; whole-DMA sequential equivalence
+checks its state and interface against the original indexed priority loop.
+
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
+
+The native map disconnects inputs whose AND product is provably zero from
+compile-time pin constants, preserving the Boolean result while avoiding
+spurious primitive timing arcs through unused status data or selectors.
+Each ISA boundary preserves its one-bit request-reset register separately
+from the payload process, preventing cross-slot reset-flop merging without
+changing request/response latency. Whole-boundary equivalence proves all 80
+original state/interface bits for arbitrary request, response and reset streams.
+
+
+The CPU guest enable is predicted from phase 178..198 and registered on the
+phase-update edge, preserving its original cycle while removing divider
+comparison logic from DMA control fanout. Sequential equivalence checks phase,
+pin clock and enable against the original divider.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
@@ -2231,8 +2806,8 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, board-level HDMI integration, disk
-controller, physical socket layout, producer and sealed PC/XT package are not
+package identity. The remaining HID keyboard frontend, disk
+controller, physical socket layout, package producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
 remains closed until an exact shell and its physical sockets are qualified.
@@ -2354,9 +2929,20 @@ the PIC independently of address. The adapter supplies one setup, eight active a
 100 MHz clocks; address/CS remain stable through retirement of chip bus side
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
-and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+and HLT. Its saturating one/two-step binary/BCD decrement uses direct constant-step
+arithmetic and parallel digit borrows. SAT checks every 17-bit input against the
+original serial equations. Internal registers precompute both encodings between
+sampled falling count-clock edges; such edges cannot occur on adjacent fabric
+clocks. Reset/inactive counters clear these candidates, and current BCD selection
+applies at consumption. Induction checks candidate freshness at every consuming
+edge. Scalar terminal-count flags are precomputed in the same stage and selected
+in parallel with next-count data; original count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
+The imported PIC resolves circular priority using parallel per-level masks;
+Yosys SAT checks equivalence against its original rotation equations for
+arbitrary requests, service/mask vectors and nested modes. Register boundaries
+and the motherboard's bus setup/active/release timing are unchanged.
 
 Original `pcxt_dma.sv` implements the XT subset of the
 [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
@@ -2442,7 +3028,10 @@ See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exa
 ports, font layout, primary references and simulation coverage.
 
 At 100 MHz the independent guest streams use fractional master-dot enables:
-14.318180 MHz CGA and 16.257 MHz MDA. With standard IBM register values the
+14.318180 MHz CGA and 16.257 MHz MDA. Their clock-enable decode compares the
+current accumulator phase against the wrap threshold, without an addition on
+the CRTC enable path. SAT checks phase and enable equivalence at every phase
+value for both rates. With standard IBM register values the
 complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
@@ -2462,7 +3051,10 @@ three packed banks in the existing dual-clock framebuffer helper and transfers
 only stable publication/acknowledgement tokens across the 100/74.25 MHz domains.
 Capture never writes the displayed or published bank. Complete surfaces swap
 at output SOF; a pending third surface waits for ownership, and backpressure
-skips a whole source frame. Source pauses repeat the last complete frame.
+skips a whole source frame. The scanout registers the packed read address before distributed M10K fanout,
+then registers each 64 KiB bank's local RAM read before bank/palette selection.
+This removes the global three-bank read mux from the RAM-to-register path.
+Bank/subpixel/raster fields carry matching latency, preserving pixel timing. Source pauses repeat the last complete frame.
 HOLD mutes RGB/aborts partial capture while raster timing and complete-bank
 ownership continue. Coordinated resets are required in both domains.
 
@@ -2470,13 +3062,31 @@ CGA 640×200 RGBI and MDA 720×350 luminance scale by rational nearest-neighbour
 DDA to a centered 960×720 viewport in the existing fixed 1280×720p60 raster.
 CGA brown correction and MDA normal/bright luminance are applied before the
 shared effect. CGA stores four bits/pixel; MDA stores two, preserving its three
-levels. Both elaborated profiles reserve three 64 KiB banks. The board shell
-will select one output profile; the two-output machine simulation is not a
+levels. Both elaborated profiles reserve three 64 KiB banks. The diagnostic board shell
+selects one output profile; the two-output machine simulation is not a
 whole-device resource qualification. See the [core README](../cores/fes-pcxt/README.md#shared-directscanlines-output)
 for exact control/reset semantics, focused suites and diagnostic synthesis.
 
 Physical containment and exact-shell Direct/Scanlines parts still require a
-PC/XT board producer, reserved regions, clock/HDMI wiring and routed timing.
+reserved regions and routed timing. The diagnostic `fes_pcxt_top.sv` supplies
+100 MHz controller/capture clocks, a 74.25 MHz pixel PLL, coordinated reset
+release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
+assemble CPU/motherboard, separate ISA cards, real storage and one video
+pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
+through the sequential 64 KiB loader before machine release. Its continuous
+registered ROM read uses the existing completion-to-offer gap. Motherboard
+I/O strobes and PIC/PIT/PPI chip selects are registered predictions of the
+existing state/phase decode, preserving every active/release cycle while
+removing that decode from the peripheral's same-cycle control path. Warm reset/HOLD
+preserve storage/refresh; HOLD resets the machine and mutes video.
+`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
+synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
+Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
+unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+lease mask while removing only an identical redundant HIP mask; route settings
+and visibility are recorded in the diagnostic receipt.
+The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
+defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
 The new inline output changes neither linker/runtime policies nor the shared
 fabric definitions, and has no sealed RBF or hardware acceptance yet.
@@ -2668,6 +3278,11 @@ an optional external interrupt, identification and software interrupt).
 Other addresses fault. The CPU, memories, raster and I/O share the 74.25 MHz
 pixel clock; there is no second clock domain and no DDR.
 
+The CPU separates result capture in EXEC from completion in COMMIT. ALU,
+address/PC, branch, alignment, store and CSR operands cross that register
+boundary before side effects. This adds one execution cycle per instruction
+while preserving the shared pixel clock and precise instruction completions.
+
 The firmware is hand-written RV32I assembled by `cores/fes-riscv/firmware/assemble.py`
 into `firmware.hex` and four lane images. Source, assembler and images are
 pinned producer inputs, and `scripts/build_fes_riscv.py` re-assembles the
@@ -2813,8 +3428,8 @@ its embedded MIT notices and pinned upstream attribution; other moved files
 retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
 and constraints remain in their existing directories. The old Coleco producer
 selects the repository-level `toolchain.lock`. Registered Coleco, SMS and
-SG-1000 producers select per-core locks; identical lock contents share the
-same cache slot.
+SG-1000 producers select per-core locks. SMS and SG-1000 match the repository
+lock and share its slot. Coleco pins Yosys `5391eeb1` and uses its own slot.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
@@ -2832,10 +3447,8 @@ physical-chip equivalence.
 The contained `scripts/benchmark_fes_z80.py` diagnostic targets Cyclone V and
 records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
-misses the requested clock, after preserving the reports. The CPU contract
-records the selected 56 MHz route and the limits of its 16-times clock ratio.
-SG-1000, ZX81 and the default Spectrum producer select the NMOS variant; Spectrum has a separate
-documented-fast development producer. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
+misses the requested clock, after preserving the reports.
+SG-1000, ZX81 and the Spectrum models select the NMOS variant. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
 software vectors, synthetic waveforms or a timing-passing FPGA build.
@@ -2864,10 +3477,12 @@ separate evidence schema.
 ## Native menu display
 
 `python3 scripts/sim_fes_menu.py` checks exact frame length, burst bounds,
-stalls, pixel ordering, cancellation drain, switching and underflow recovery.
-The shared DDR wrapper owns port wiring and holds; menu scanout adds no second
-bridge or memory reservation policy. The described menu package is selected
-by the FES native image; exact image and kit acceptance are tracked separately.
+stalls, pixel ordering, cancellation drain, switching and underflow recovery,
+and the blitter's ops, faults and halt against the gfx reference.
+The shared DDR wrapper owns port wiring and holds; menu scanout and the
+blitter add no second bridge or memory reservation policy. The described menu
+package is selected by the FES native image; exact image and kit acceptance are
+tracked separately.
 
 ### Menu scanout diagnostics
 
@@ -2887,16 +3502,26 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 ### Described menu display producer
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
-with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
+with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
+`fes.video.menu-blitter` 1.0, no playable system identity. FES now selects it
+as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
-while diagnostics retain their no-GP gate. DDR layout and inactive write/port
-checks remain mandatory in both netlists. The package routes a first-pass
-pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7, 8.
+while diagnostics retain their no-GP gate. DDR layout and per-port write checks
+remain mandatory in both netlists: only port 1, the blitter's destination
+port, may write. Port 0 and port 2 commands have their write bit tied low,
+and write FIFOs 0, 1 and 3 and ports 3 to 5 are tied low. The diagnostics
+still require every write and ports 1 to 5 tied low. The package routes a
+first-pass pixel-clock ladder with seed 5 first, followed by 1, 2, 3, 4, 6, 7,
+8.
 
-The optional shared GP hook delegates menu requests to `fes_menu_control` in
-the same pixel-clock domain. Configuration selects fixed slots; sequence ACK
-means pending acceptance and completion is separately readable. Quiesce ACK
-waits for drain before execution hold. Runtime buffer transport/admission and
-exact-artifact menu acceptance are not established by source simulations.
+The optional shared GP hook delegates menu requests to `fes_menu_control` and
+MenuBlit requests to `fes_menu_blit_control` in the same pixel-clock domain.
+Configuration selects fixed slots; sequence ACK means pending acceptance and
+completion is separately readable. `fes_menu_blitter` runs command lists from
+the window into a slot: it reads and writes destinations on port 1, so a blend
+reads what earlier commands wrote, and reads commands and textures on port 2.
+Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
+both blitter ports to drain before execution hold. Runtime buffer
+transport/admission and exact-artifact menu acceptance are not established by
+source simulations.

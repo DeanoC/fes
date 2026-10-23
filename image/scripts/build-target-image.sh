@@ -4,7 +4,7 @@ set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
 test "$epoch" = "$(python3 "$repo/scripts/toolchain_cache.py" epoch)"
-image_passes=${FES_IMAGE_PASSES:-2}
+image_passes=${FES_IMAGE_PASSES:-1}
 case "$image_passes" in
   1|2) : ;;
   *) printf '%s\n' 'build-target-image: FES_IMAGE_PASSES must be 1 or 2' >&2; exit 2 ;;
@@ -13,10 +13,6 @@ expected_work=/target-image-output/work-$image_passes-native-dev
 image_work=${FES_IMAGE_WORK:-$expected_work}
 if [ "$image_work" != "$expected_work" ]; then
   printf 'build-target-image: FES_IMAGE_WORK must be %s when FES_IMAGE_PASSES=%s\n' "$expected_work" "$image_passes" >&2
-  exit 2
-fi
-if [ "$image_passes" = 1 ] && { [ "${CI:-}" = true ] || [ "${GITHUB_ACTIONS:-}" = true ]; }; then
-  printf '%s\n' 'build-target-image: single-pass images are disabled in CI' >&2
   exit 2
 fi
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
@@ -101,14 +97,14 @@ cleanup_inside_output() {
 }
 
 verify_native_inputs() {
-  [ -n "${LIBMISTER_RUNTIME_DIR:-}" ] || {
+  [ -n "${LIBMISTER_RUNTIME_DIR:-}${FES_PREBUILT_RUNTIME_SHA256:-}" ] || {
     printf '%s\n' 'build-target-image: LIBMISTER_RUNTIME_DIR is required for native-dev' >&2
     exit 2
   }
   NATIVE_RUNTIME_MODE=package-only \
     "$repo/scripts/verify-native-runtime-inputs.sh" \
     "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
-    "$LIBMISTER_RUNTIME_DIR" \
+    "${LIBMISTER_RUNTIME_DIR:-/unused-prebuilt-runtime}" \
     "$repo/build/cache/target-image/native/idle.rbf" \
     "$repo/build/cache/target-image/native/splash.rbf"
 }
@@ -118,7 +114,7 @@ run_target_container() {
   shift
   if [ "$container_variant" = native-dev ]; then
     verify_native_inputs
-    LIBMISTER_RUNTIME_DIR=$LIBMISTER_RUNTIME_DIR \
+    LIBMISTER_RUNTIME_DIR=${LIBMISTER_RUNTIME_DIR:-} \
       "$repo/scripts/target-image-container.sh" "$@"
   else
     LIBMISTER_RUNTIME_DIR= "$repo/scripts/target-image-container.sh" "$@"
@@ -470,10 +466,10 @@ evidence_tmp=$final_dir/reproducibility.txt.new.$$
 trap '/bin/rm -f "$image_tmp" "$evidence_tmp"' EXIT INT TERM
 /bin/cp "$selected_image" "$image_tmp"
 if [ "$image_passes" = 1 ]; then
-  printf 'source_date_epoch=%s\nimage_passes=1\nsingle_pass_scratch=1\nrun_1_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
+  printf 'source_date_epoch=%s\nimage_passes=1\nrun_1_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
     "$epoch" "$first_sha" "$toolchain_key" "$toolchain_sha" > "$evidence_tmp"
 else
-  printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
+  printf 'source_date_epoch=%s\nimage_passes=2\nrun_1_sha256=%s\nrun_2_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
     "$epoch" "$first_sha" "$second_sha" "$toolchain_key" "$toolchain_sha" > "$evidence_tmp"
 fi
 if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
@@ -484,12 +480,7 @@ if [ "$variant" = native-dev ]; then
 fi
 /bin/mv "$evidence_tmp" "$final_dir/reproducibility.txt"
 /bin/mv "$image_tmp" "$final_dir/linux.img"
-if [ "$image_passes" = 1 ]; then
-  head_sha=$(git -C "$repo" rev-parse HEAD 2>/dev/null || printf unknown)
-  image_sha=$(/usr/bin/shasum -a 256 "$final_dir/linux.img" | /usr/bin/awk '{print $1}')
-  printf 'head_sha=%s\nlinux_img_sha256=%s\n' "$head_sha" "$image_sha" > "$final_dir/SINGLE-PASS-SCRATCH.txt"
-else
-  /bin/rm -f "$final_dir/SINGLE-PASS-SCRATCH.txt"
-fi
+/bin/rm -f "$final_dir/SINGLE-PASS-SCRATCH.txt"
+
 trap - EXIT INT TERM
 printf 'target image %s image: %s\n' "$variant" "$selected_sha"

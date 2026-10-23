@@ -1,0 +1,5 @@
+ifeq ($(FES_WINDOW_VERSION),)
+$(error FES_WINDOW_VERSION, the driver source digest, must be set)
+endif
+obj-m := fes_window.o
+ccflags-y += -DFES_WINDOW_VERSION='"$(FES_WINDOW_VERSION)"'

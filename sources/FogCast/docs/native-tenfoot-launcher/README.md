@@ -60,7 +60,7 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Used by `fogcast-tenfoot -gfx linuxfb` with its native evdev input. |
-| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The base-image supervisor starts this client as the kit UI. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", pauses presents so the core owns HDMI, and resumes them after a Stop (F12, Guide or the Select+Start hold), or when that kit-local session is no longer running. |
+| menu-display | `gfx.NewMenuDisplay` (`menu_display.go`) | Software rasterizer; `Present` submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot -gfx menu-display` (`-menu-socket`, default `/run/mister-runtime.sock`) turns on change-driven presents and reuses the linuxfb app and evdev loop. Both direct CPU shells cache complete draw commands and textures, skipping identical raster work; menu-display uses frame revisions to skip byte comparison. An unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new idle menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. An idle generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). Host-testable. The base-image supervisor starts this client as the kit UI. For direct kit-local package launches, tenfoot opens the kit-local control socket, shows "Starting {title}…", and pauses presents after that loading frame is presented so the core owns HDMI. A failed or unpresented frame aborts the launch. Late adoption drains outstanding menu work and pauses without a loading frame; an older menu failure does not block that pause. Presents resume after a Stop (F12, Guide or the Select+Start hold), or when that kit-local session is no longer running. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
@@ -130,8 +130,6 @@ FOGCAST_API=http://127.0.0.1:8787 bin/fogcast-tenfoot
 FOGCAST_API_HOST=127.0.0.1:8787 bin/fogcast-tenfoot -api http://host.docker.internal:8787
 FOGCAST_TENFOOT_NO_ATTRACT=1 bin/fogcast-tenfoot
 FOGCAST_TENFOOT_SAFE_AREA=0 bin/fogcast-tenfoot
-bin/fogcast-tenfoot -input-profile identity
-FOGCAST_INPUT_PROFILE=swap-ab bin/fogcast-tenfoot
 bin/fogcast-tenfoot -theme arcade
 FOGCAST_THEME=night bin/fogcast-tenfoot
 bin/fogcast-tenfoot -debug-hud
@@ -213,10 +211,9 @@ lease fails closed.
 
 Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
-open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
-applies the shared `ui/inputmap` remapper after SDL button
-normalization (`CommandFromLogical`); empty is identity. Kit multi-device
-merge is the HIL proof; sofa still opens every SDL gamepad. Down from the last row (or last shelf/list
+open the sofa settings overlay). Sofa opens every SDL gamepad and reads the
+positions SDL's mapping gives it; to remap a pad here, give SDL a mapping in
+`SDL_GAMECONTROLLERCONFIG`. Down from the last row (or last shelf/list
 page) opens the focused title's detail pane; Up or East/B returns to browse.
 Left/Right in the pane cycle screenshots. South/A still launches, East/B still
 stops a live session, Start still quits, Guide still opens settings, North/Y
@@ -473,9 +470,18 @@ make tenfoot-smoke
   `fes.keyboard.hid` sessions post each SDL scancode as its HID usage
   (code `0x1000 + usage`), including Esc, Backspace and `/`.
 - `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
-  keeps the kit lease (rooms Soft-stop). Offered while the session is
-  active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). Shell exit (Start, Q, or window close) waits for
+  keeps the kit lease (rooms Soft-stop: East/B, Esc/Backspace, or `s`).
+  Kit Select+Start held for one second is the library session's completed
+  exit, not that Soft-stop. It posts `retain_lease` false with the captured
+  play: package generation when the play has one, otherwise the session id,
+  launch flight, game, and target. A missing flight is not posted unbound.
+  A chord queued during input keeps that captured play and does not stop a
+  replacement. Idle cleanup releases that play's grant. A grant retained on
+  another target, and a host-only stop that releases no kit grant, stays
+  tracked until shell exit or Release kit. A release that fails after the
+  play is idle retries the idle-grant release; a failure that leaves the
+  play running retries the bound stop. Offered while the session is
+  active, a stop is in flight, or retry-Stop lockout is set. Shell exit (Start, Q, or window close) waits for
   that in-flight Soft-stop. It then posts an empty body when the service is
   idle, or `{"release_idle":true}` when a play still survives, and retries a
   failed release. An empty body is not sent while a promoted play remains.

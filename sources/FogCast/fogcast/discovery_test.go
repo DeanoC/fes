@@ -52,7 +52,7 @@ func TestMonitorLeaseLossConcurrentRemoteInputAttachNoDeadlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.SetTargetReset(func() { close(resetStarted); input.Invalidate() })
+	s.SetTargetReset(func(string) { close(resetStarted); input.Invalidate() })
 	attachDone := make(chan struct{})
 	go func() { _ = input.Attach(context.Background(), "fes.pong"); close(attachDone) }()
 	select {
@@ -105,12 +105,86 @@ func TestMonitorOwnLaunchGrantDoesNotInvalidateSession(t *testing.T) {
 	}
 	s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "current", system: "fpga_native"}
 	invalidations := 0
-	s.SetTargetReset(func() { invalidations++ })
+	s.SetTargetReset(func(string) { invalidations++ })
 	if _, err := s.Health(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if invalidations != 0 || len(s.PlaySessions()) != 1 || !client.HasKitGrant() {
 		t.Fatalf("own grant invalidated: resets=%d plays=%+v held=%v", invalidations, s.PlaySessions(), client.HasKitGrant())
+	}
+}
+
+func TestNamedSiblingBootChangeResetsOnlyThatTargetsInput(t *testing.T) {
+	const kit2ID = "3aa1b84f-17b5-41f7-9fc7-f91bc4e8814a"
+	var boot atomic.Value
+	boot.Store("boot-before")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: kit2ID, BootID: boot.Load().(string), Ready: true})
+		case "/v1/kit/lease":
+			_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+		case "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	kit2 := targetclient.NewClient(base, "kit2-secret", srv.Client()).WithKitLease(
+		targetclient.NewKitLease(base, "kit2-secret", srv.Client(), "host", "test"),
+	)
+	dev := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive}}
+	service := newService(Config{
+		Targets: []TargetConfig{
+			{Name: "dev", TargetID: "4a6fb044-1fca-40ef-93ee-e6a9bb4ce56b", Enabled: true, Address: "http://dev.invalid"},
+			{Name: "kit2", TargetID: kit2ID, Enabled: true, Address: srv.URL, Agent: "kit2-secret"},
+		},
+		SelectedTarget: "dev", RequestTimeout: time.Second,
+	}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "kit2" {
+				return kit2, nil
+			}
+			return nil, errors.New("unexpected target factory request")
+		}),
+	)
+	service.executionMu.Lock()
+	service.activeTarget = "dev"
+	service.activeExecution = ExecutionFPGANative
+	service.activeGameID = "dev-game"
+	service.plays["dev"] = targetPlay{execution: ExecutionFPGANative, gameID: "dev-game"}
+	service.executionMu.Unlock()
+	inputAttached := map[string]bool{"dev": true, "kit2": true}
+	var resetNames []string
+	service.SetTargetReset(func(name string) {
+		resetNames = append(resetNames, name)
+		inputAttached[name] = false
+	})
+	if _, err := service.StatusTarget(context.Background(), "kit2"); err != nil {
+		t.Fatalf("initial kit2 status: %v", err)
+	}
+	service.executionMu.Lock()
+	service.plays["kit2"] = targetPlay{execution: ExecutionFPGANative, gameID: "kit2-game"}
+	service.executionMu.Unlock()
+	boot.Store("boot-after")
+	if _, err := service.StatusTarget(context.Background(), "kit2"); err != nil {
+		t.Fatalf("reconciled kit2 status: %v", err)
+	}
+	if len(resetNames) != 1 || resetNames[0] != "kit2" {
+		t.Fatalf("input reset targets = %v, want [kit2]", resetNames)
+	}
+	if inputAttached["kit2"] || !inputAttached["dev"] {
+		t.Fatalf("input attachments after kit2 reboot = %v", inputAttached)
+	}
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	if service.activeTarget != "dev" || service.activeGameID != "dev-game" {
+		t.Fatalf("foreground session changed: target=%q game=%q", service.activeTarget, service.activeGameID)
+	}
+	if _, ok := service.plays["kit2"]; ok {
+		t.Fatal("rebooted kit2 play survived")
 	}
 }
 
@@ -410,7 +484,7 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 	conn, remote := net.Pipe()
 	defer remote.Close()
 	defer conn.Close()
-	s.SetTargetReset(func() { conn.Close() })
+	s.SetTargetReset(func(string) { conn.Close() })
 	old.Close()
 	s.resolveTarget = func(context.Context, string) ([]string, error) { return []string{next.URL}, nil }
 	if _, err := s.Status(context.Background()); err != nil {
@@ -422,6 +496,92 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 	}
 	if client.EndpointURL().String() != next.URL || mutations.Load() != 0 {
 		t.Fatal("wrong endpoint or unexpected mutation")
+	}
+}
+
+func TestNamedSiblingStopDiscoversChangedAddress(t *testing.T) {
+	const kit2ID = "3aa1b84f-17b5-41f7-9fc7-f91bc4e8814a"
+	const generation = "kit2-generation"
+	var oldStops, newStops atomic.Int32
+	peer := func(stops *atomic.Int32) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/v1/health":
+				_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: kit2ID, BootID: "same-boot", Ready: true})
+			case "/v1/kit/claim":
+				_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "kit2-token", Status: kitlease.Status{State: "held", Generation: generation, ExpiresInMS: 60000}})
+			case "/v1/kit/lease":
+				_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "held", Generation: generation, Owner: "fogcast@test"})
+			case "/v1/status":
+				_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive})
+			case "/v1/stop":
+				if r.Header.Get(targetclient.KitLeaseHeader) != "kit2-token" {
+					t.Errorf("Stop lease header = %q", r.Header.Get(targetclient.KitLeaseHeader))
+				}
+				stops.Add(1)
+				_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+	}
+	old := peer(&oldStops)
+	next := peer(&newStops)
+	defer next.Close()
+	oldBase, _ := url.Parse(old.URL)
+	lease := targetclient.NewKitLease(oldBase, "kit2-secret", old.Client(), "host", "test")
+	kit2 := targetclient.NewClient(oldBase, "kit2-secret", old.Client()).WithKitLease(lease)
+	claimRequest, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, old.URL, nil)
+	if err := lease.Authorize(claimRequest, true); err != nil {
+		t.Fatalf("claim kit2 lease: %v", err)
+	}
+	dev := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive}}
+	service := newService(Config{
+		Targets: []TargetConfig{
+			{Name: "dev", TargetID: "4a6fb044-1fca-40ef-93ee-e6a9bb4ce56b", Enabled: true, Address: "http://dev.invalid"},
+			{Name: "kit2", TargetID: kit2ID, Enabled: true, Address: old.URL, Agent: "kit2-secret"},
+		},
+		SelectedTarget: "dev", RequestTimeout: time.Second,
+	}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "kit2" {
+				return kit2, nil
+			}
+			return nil, errors.New("unexpected target factory request")
+		}),
+	)
+	service.executionMu.Lock()
+	service.activeTarget = "dev"
+	service.activeExecution = ExecutionFPGANative
+	service.activeGameID = "dev-game"
+	service.plays["dev"] = targetPlay{execution: ExecutionFPGANative, gameID: "dev-game"}
+	service.executionMu.Unlock()
+	if _, err := service.StatusTarget(context.Background(), "kit2"); err != nil {
+		t.Fatalf("initial kit2 status: %v", err)
+	}
+	service.executionMu.Lock()
+	service.plays["kit2"] = targetPlay{execution: ExecutionFPGANative, gameID: "kit2-game"}
+	service.executionMu.Unlock()
+	old.Close()
+	service.resolveTarget = func(_ context.Context, targetID string) ([]string, error) {
+		if targetID != kit2ID {
+			t.Fatalf("discovery target ID = %q", targetID)
+		}
+		return []string{next.URL}, nil
+	}
+	if _, err := service.StopTarget(context.Background(), "kit2"); err != nil {
+		t.Fatalf("StopTarget after address change: %v", err)
+	}
+	if kit2.EndpointURL().String() != next.URL || oldStops.Load() != 0 || newStops.Load() != 1 {
+		t.Fatalf("endpoint=%s old stops=%d new stops=%d", kit2.EndpointURL(), oldStops.Load(), newStops.Load())
+	}
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	if _, ok := service.plays["dev"]; !ok {
+		t.Fatal("sibling Stop discarded foreground dev play")
+	}
+	if _, ok := service.plays["kit2"]; ok {
+		t.Fatal("stopped kit2 play survived")
 	}
 }
 
@@ -610,5 +770,47 @@ func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 				t.Fatal("target invalidation discarded independent host owner")
 			}
 		})
+	}
+}
+
+func TestTargetInvalidationPreservesOtherForegroundSession(t *testing.T) {
+	devURL, _ := url.Parse("http://127.0.0.1:8182")
+	kit2URL, _ := url.Parse("http://127.0.0.1:8282")
+	devClient := targetclient.NewClient(devURL, "dev", nil)
+	kit2Client := targetclient.NewClient(kit2URL, "kit2", nil)
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: devURL.String()},
+				{Name: "kit2", Enabled: true, Address: kit2URL.String()},
+			},
+			SelectedTarget: "dev",
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, devClient,
+	)
+	service.targetMu.Lock()
+	service.targetClients["kit2"] = kit2Client
+	service.targetMu.Unlock()
+	service.executionMu.Lock()
+	service.activeTarget = "dev"
+	service.activeExecution = ExecutionFPGANative
+	service.activeGameID = "dev-game"
+	service.plays["dev"] = targetPlay{execution: ExecutionFPGANative, gameID: "dev-game"}
+	service.plays["kit2"] = targetPlay{execution: ExecutionFPGANative, gameID: "kit2-game"}
+	service.executionMu.Unlock()
+
+	service.invalidateTargetSession(kit2Client)
+
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	if service.activeTarget != "dev" || service.activeExecution != ExecutionFPGANative || service.activeGameID != "dev-game" {
+		t.Fatalf("sibling invalidation cleared foreground session: target=%q execution=%q game=%q",
+			service.activeTarget, service.activeExecution, service.activeGameID)
+	}
+	if _, ok := service.plays["dev"]; !ok {
+		t.Fatal("sibling invalidation discarded foreground play")
+	}
+	if _, ok := service.plays["kit2"]; ok {
+		t.Fatal("invalidated target play survived")
 	}
 }

@@ -68,18 +68,27 @@ func TestSameFilterSavedShelfRefusesAnotherFilter(t *testing.T) {
 	}
 }
 
-func TestLibraryRetriesARefusedConnectionThenRestoresFocus(t *testing.T) {
-	var shelfDrops atomic.Int32
+func TestLibraryRetriesATruncatedResponseThenRestoresFocus(t *testing.T) {
+	var shelfFailures atomic.Int32
 	var shelfAttempts atomic.Int32
 	var launches atomic.Int32
-	shelfDrops.Store(1)
+	retryRelease := make(chan struct{})
+	var releaseRetry sync.Once
+	shelfFailures.Store(1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games" && !strings.Contains(r.URL.RawQuery, "collection=recents"):
-			shelfAttempts.Add(1)
-			if takeDrop(&shelfDrops) {
-				dropConn(w)
+			attempt := shelfAttempts.Add(1)
+			if takeDrop(&shelfFailures) {
+				writeTruncated(w, []byte(`{"games":[]}`))
 				return
+			}
+			if attempt > 1 {
+				select {
+				case <-retryRelease:
+				case <-r.Context().Done():
+					return
+				}
 			}
 			writeGames(w, availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive"))
 		case r.URL.Path == "/api/v1/platforms":
@@ -88,6 +97,8 @@ func TestLibraryRetriesARefusedConnectionThenRestoresFocus(t *testing.T) {
 			_, _ = w.Write([]byte(`{"collections":[]}`))
 		case r.URL.Path == "/api/v1/session":
 			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case r.URL.Path == "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
 			launches.Add(1)
 			http.Error(w, "unexpected launch", http.StatusInternalServerError)
@@ -109,6 +120,7 @@ func TestLibraryRetriesARefusedConnectionThenRestoresFocus(t *testing.T) {
 		snap := app.Snapshot()
 		if strings.Contains(snap.Status, "Can't reach the library") {
 			sawBanner = true
+			releaseRetry.Do(func() { close(retryRelease) })
 		}
 		if sawBanner && !snap.Loading && snap.LoadErr == "" && len(snap.Games) == 2 {
 			break
@@ -130,7 +142,7 @@ func TestLibraryRetriesARefusedConnectionThenRestoresFocus(t *testing.T) {
 		t.Fatalf("selected = %#v ok=%v", selected, ok)
 	}
 
-	shelfDrops.Store(1)
+	shelfFailures.Store(1)
 	before := shelfAttempts.Load()
 	app.mu.Lock()
 	app.reloadLocked()
@@ -156,12 +168,21 @@ func TestLibraryRetriesARefusedConnectionThenRestoresFocus(t *testing.T) {
 
 func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	var recentDrops atomic.Int32
+	retryRelease := make(chan struct{})
+	var releaseRetry sync.Once
+	release := func() { releaseRetry.Do(func() { close(retryRelease) }) }
 	recentDrops.Store(1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games" && strings.Contains(r.URL.RawQuery, "collection=recents"):
 			if takeDrop(&recentDrops) {
 				dropConn(w)
+				return
+			}
+			// Keep recovery behind the error observation instead of racing Tick.
+			select {
+			case <-retryRelease:
+			case <-r.Context().Done():
 				return
 			}
 			writeGames(w, availableGame("nes-pong", "Pong", "nes"))
@@ -180,13 +201,18 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
+	client := server.Client()
+	// A reused connection lets net/http silently retry the injected disconnect.
+	// Force a fresh connection so the application observes that failure.
+	client.Transport.(*http.Transport).DisableKeepAlives = true
+	app := NewApp(NewClient(server.URL, client), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
-	}), "/tmp/rooms")
+	}), "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
+	t.Cleanup(release)
 
 	saw := false
 	deadline := time.Now().Add(3 * time.Second)
@@ -195,6 +221,7 @@ func TestHomeRecentsRetryAfterARefusedConnection(t *testing.T) {
 		snap := app.Snapshot()
 		if recentDetail(snap) == "couldn't load recently played" {
 			saw = true
+			release()
 		}
 		if saw && homeHasRow(snap, HomeKindRecent, "nes-pong") && recentDetail(snap) != "couldn't load recently played" {
 			return
@@ -997,7 +1024,7 @@ func TestRecentsRecoverAfterATruncatedResponse(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, "arcade", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
-	}), "/tmp/rooms")
+	}), "")
 	app.SetHomeRooms(true)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

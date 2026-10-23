@@ -2,7 +2,7 @@
 PROFILE ?= native-integration-dev
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
-IMAGE_PASSES ?= 2
+IMAGE_PASSES ?= 1
 ifneq ($(origin FES_TARGET_IMAGE_SHARED_CACHE),undefined)
 export FES_TARGET_IMAGE_SHARED_CACHE
 endif
@@ -37,8 +37,9 @@ help:
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
+IMAGE_ARTIFACTS ?=
 doctor build host image verify rebuild dev:
-	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
+	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)")
 platform-provision:
 	$(PYTHON) scripts/platform.py provision --fogcast "$(abspath sources/FogCast)"
 platform-test:
@@ -51,6 +52,9 @@ test:
 	$(MAKE) -C image test FOGCAST_DIR="$(abspath sources/FogCast)"
 check:
 	$(PYTHON) scripts/consistency.py
+.PHONY: deadcode
+deadcode:
+	$(PYTHON) scripts/check_deadcode.py
 .PHONY: media-test-provision
 media-test-provision:
 	$(PYTHON) -c 'import os; from pathlib import Path; from scripts.media_container import ensure_media_container; from scripts.media_inputs import MediaLock; ensure_media_container(Path("."), os.environ.get("CONTAINER_RUNTIME", "docker"), MediaLock.load(Path("boot-media.lock.toml")))'

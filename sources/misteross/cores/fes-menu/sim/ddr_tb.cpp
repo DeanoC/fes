@@ -27,7 +27,9 @@ int main(int argc,char**argv){
  t.rootp->fes_menu_ddr__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
  for(int i=0;i<1000&&!t.quiesced;++i)tick();check(t.quiesced,"guard/reader drain");
  unsigned count=accepted();t.reset_hold=1;for(int i=0;i<20;++i)tick();check(!t.faulted&&accepted()==count,"ordered hold");
- t.reset_hold=0;for(int i=0;i<20;++i)tick();t.quiesce=0;
+ t.reset_hold=0;for(int i=0;i<20;++i)tick();check(t.quiesced,"drained after hold");
+ // The drained proof is registered; leaving quiesce still clears it at once.
+ t.quiesce=0;t.eval();check(!t.quiesced,"enable clears quiesced");
  for(int i=0;i<1650*750 && accepted()==count;++i)tick();check(accepted()>count,"restart after drained hold");
  t.reset_hold=1;for(int i=0;i<20;++i)tick();check(t.faulted,"unexpected hold fail closed");
  t.reset_hold=0;for(int i=0;i<1000;++i)tick();count=accepted();for(int i=0;i<1000;++i)tick();check(accepted()==count&&t.rgb==0,"fault cannot restart hidden-response stream");

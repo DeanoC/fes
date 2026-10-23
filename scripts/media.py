@@ -339,7 +339,10 @@ def select(root, profile):
         (Path(temporary) / 'go.mod').write_text(cold_build.git(root / 'sources/FogCast', 'show',
                                                            revisions['FogCast'] + ':go.mod') + '\n')
         toolchain = subprocess.check_output(['go', 'version'], cwd=temporary, env=env, text=True).strip()
-    image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    image_fingerprint, image_info = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    recorded = root / 'out' / profile / 'inputs.json'
+    artifacts = json.loads(recorded.read_text()).get('bootstrap_artifacts') if recorded.is_file() else None
+    image_fingerprint, _ = cold_build.bootstrap_fingerprint(image_fingerprint, image_info, artifacts)
     host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
     # The runtime lock is an FES-owned assembly overlay. Snapshot refreshes
@@ -351,7 +354,7 @@ def select(root, profile):
         lock_path = fogcast / 'build/native-runtime.inputs.lock.toml'
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_path.write_text(cold_build.selected_runtime_lock(
-            policy.read_text(), revisions['libmister-runtime']))
+            policy.read_text(), artifacts['provenance']['runtime'] if artifacts else revisions['libmister-runtime']))
     return image_fingerprint, host_fingerprint, fogcast, env
 
 
@@ -460,10 +463,11 @@ def prepare(root, profile):
                          splash=native_cache / 'splash.rbf')
     verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
     verify_file(inputs.splash_payload(), inputs.provenance.splash_size, inputs.provenance.splash_sha256, "splash provenance")
+    # make verify keyed the QEMU kernel cache to the verified pass's compiler.
     env = dict(env, NATIVE_RUNTIME_MODE=mode,
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
-               FOGCAST_DIR=str(fogcast))
+               FOGCAST_DIR=str(fogcast), FES_IMAGE_PASSES=str(cold['image_passes']))
     for recipe in cold_build.FORMAT2_RECIPES.values():
         env.pop(recipe.package_dir_env, None)
         env.pop(recipe.package_selection_env, None)
@@ -948,8 +952,7 @@ class Runner:
         try:
             self.create_and_start([image / 'scripts/target-image-container.sh', 'run', 'sh',
                       '/work/build/output/target-image/media-verify/verify.sh'], name,
-                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim),
-                              FES_IMAGE_PASSES=os.environ.get('IMAGE_PASSES', '2')))
+                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)))
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 
@@ -964,7 +967,7 @@ fail() { echo 'QEMU kernel cache is absent or stale; run make verify' >&2; exit 
 kernel_bare=/work/build/cache/target-image/linux-kernel.git
 kernel_source=/target-image-output/qemu-vexpress-source
 kernel_output=/target-image-output/qemu-vexpress-kernel
-toolchain_root=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}/host
+toolchain_root=${FES_IMAGE_WORK:-/target-image-output/work-1-native-dev}/host
 test -x "$toolchain_root/bin/arm-buildroot-linux-gnueabihf-gcc" || fail
 source_head=$(git --git-dir="$kernel_bare" rev-parse refs/target-image/pinned) || fail
 test -d "$kernel_source/.git" || fail

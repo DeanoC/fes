@@ -57,23 +57,15 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             appliance.export_release(self.root/'release', self.rootfs, self.kernel, version='v2', provenance=provenance(self.rootfs, self.kernel))
 
-    def test_single_pass_hil_release_records_pass_count_and_copies_marker(self):
-        self.assertEqual(appliance.release_version('hil-test',1),'hil-test-1p')
-        marker=self.root/'SINGLE-PASS-SCRATCH.txt';marker.write_text('head_sha='+'a'*40+'\nlinux_img_sha256='+appliance.digest(self.rootfs)+'\n')
-        result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
-        self.assertNotIn('image_passes',appliance.load_manifest(result.manifest))
+    def test_single_pass_release_records_pass_count_without_special_version(self):
+        p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=1)
+        result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='dev.1',provenance=p)
+        self.assertEqual(appliance.load_manifest(result.manifest)['version'],'dev.1')
         self.assertEqual(json.loads(result.evidence.read_text())['image_passes'],1)
-        self.assertEqual((result.directory/'SINGLE-PASS-SCRATCH.txt').read_bytes(),marker.read_bytes())
-        again=appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
-        self.assertEqual(again,result)
-        sealed = result.directory/'SINGLE-PASS-SCRATCH.txt'
-        sealed.chmod(0o644)
-        sealed.write_text(marker.read_text().replace('head_sha=','head_sha=b',1))
-        sealed.chmod(0o444)
-        with self.assertRaisesRegex(ValueError,'immutable release destination differs'):
-            appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
-        with self.assertRaisesRegex(ValueError,'HIL'):
-            appliance.export_release(self.root/'bad-single',self.rootfs,self.kernel,version='v1-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+        self.assertEqual(sorted(x.name for x in result.directory.iterdir()),['evidence.json','release.json','rootfs.img'])
+        self.assertEqual(appliance.export_release(result.directory,self.rootfs,self.kernel,version='dev.1',provenance=p),result)
+        with self.assertRaisesRegex(ValueError,'pass count differs'):
+            appliance.export_release(self.root/'wrong-passes',self.rootfs,self.kernel,version='dev.1',provenance=p,image_passes=2)
 
     def test_two_pass_manifest_keeps_legacy_bytes_and_legacy_manifest_loads(self):
         p=provenance(self.rootfs,self.kernel)
@@ -99,56 +91,39 @@ class ReleaseTests(unittest.TestCase):
             produced=appliance.release_manifest(self.rootfs,version=version,provenance=p,image_passes=passes)
             self.assertEqual(set(produced),legacy)
             self.assertNotIn(b'image_passes',appliance.canonical(produced))
-        marker=self.root/'produced-marker.txt'
-        marker.write_text('head_sha='+'a'*40+'\nlinux_img_sha256='+appliance.digest(self.rootfs)+'\n')
-        one=appliance.export_release(self.root/'legacy-1p',self.rootfs,self.kernel,version='hil-legacy-1p',provenance=p,image_passes=1,single_pass_marker=marker)
+        one=appliance.export_release(self.root/'legacy-1p',self.rootfs,self.kernel,version='dev.1',provenance=dataclasses.replace(p,image_passes=1))
         self.assertEqual(set(json.loads(one.manifest.read_text())),legacy)
         self.assertNotIn(b'image_passes',one.manifest.read_bytes())
         self.assertEqual(json.loads(one.evidence.read_text())['image_passes'],1)
         two=appliance.export_release(self.root/'legacy-2p',self.rootfs,self.kernel,version='v1',provenance=p)
         self.assertEqual(set(json.loads(two.manifest.read_text())),legacy)
-        self.assertNotIn('image_passes',json.loads(two.evidence.read_text()))
+        self.assertEqual(json.loads(two.evidence.read_text())['image_passes'],2)
         once=appliance.canonical(dict(json.loads(one.manifest.read_text()),image_passes=1))
         duplicate=once.decode().rstrip()[:-1]+',"image_passes":1}\n'
         malformed=self.root/'duplicate.json';malformed.write_text(duplicate)
         with self.assertRaisesRegex(ValueError,'duplicate JSON field'):
             appliance.load_manifest(malformed)
+    def test_bootstrap_and_media_admit_single_pass_but_reject_mismatched_evidence(self):
         import sys
+        import media
+        p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=1)
+        release=appliance.export_release(self.root/'single-release',self.rootfs,self.kernel,version='dev.1',provenance=p)
+        inputs=(self.rootfs,self.kernel,p,self.root,{},None)
         with contextlib.ExitStack() as stack:
-            stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(one.directory)]))
-            stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)))
-            stack.enter_context(mock.patch.object(appliance,'cached_media_container',side_effect=AssertionError('must reject before bootstrap')))
-            stderr=stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-            with self.assertRaises(SystemExit):
+            stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(release.directory)]))
+            stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
+            stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=inputs))
+            stack.enter_context(mock.patch.object(appliance,'cached_media_container',side_effect=RuntimeError('reached assembly')))
+            with self.assertRaisesRegex(RuntimeError,'reached assembly'):
                 appliance.main()
-            self.assertIn('single-pass scratch release cannot be bootstrapped',stderr.getvalue())
-        with mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)):
-            with self.assertRaisesRegex(ValueError,'single-pass scratch release cannot be bootstrapped'):
-                appliance_media.prepare(self.root,'native-integration-dev',one.directory,self.root/'bootstrap',self.root/'media-scratch')
+            with self.assertRaisesRegex(RuntimeError,'reached assembly'):
+                appliance_media.prepare(self.root,'native-integration-dev',release.directory,self.root/'bootstrap',self.root/'media-scratch')
+        wrong=(self.rootfs,self.kernel,dataclasses.replace(p,image_passes=2),self.root,{},None)
+        with mock.patch.object(appliance,'verified_inputs',return_value=wrong):
+            with self.assertRaisesRegex(ValueError,'pass count differs'):
+                appliance_media.prepare(self.root,'native-integration-dev',release.directory,self.root/'bootstrap',self.root/'scratch')
 
-    def test_bootstrap_refuses_single_pass_release_explicitly(self):
-        import sys
-        single=dict(appliance.release_manifest(self.rootfs,version='hil-1p',provenance=provenance(self.rootfs,self.kernel)),image_passes=1)
-        release=self.root/'single-release';release.mkdir()
-        (release/'release.json').write_bytes(appliance.canonical(single))
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(release)]))
-            stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)))
-            stack.enter_context(mock.patch.object(appliance,'cached_media_container',side_effect=AssertionError('must reject before bootstrap')))
-            stderr=stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-            with self.assertRaises(SystemExit):
-                appliance.main()
-            self.assertIn('single-pass scratch release cannot be bootstrapped',stderr.getvalue())
-
-    def test_appliance_media_refuses_single_pass_release_explicitly(self):
-        manifest=dict(appliance.release_manifest(self.rootfs,version='hil-1p',provenance=provenance(self.rootfs,self.kernel)),image_passes=1)
-        release=self.root/'single-media-release';release.mkdir()
-        (release/'release.json').write_bytes(appliance.canonical(manifest))
-        with mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)):
-            with self.assertRaisesRegex(ValueError,'single-pass scratch release cannot be bootstrapped'):
-                appliance_media.prepare(self.root,'native-integration-dev',release,self.root/'bootstrap',self.root/'scratch')
-
-    def test_media_kernel_cache_runner_forwards_selected_pass_count(self):
+    def test_media_kernel_cache_runner_forwards_verified_pass_count(self):
         import sys
         sys.path.insert(0,str(ROOT/'scripts'))
         import media
@@ -156,22 +131,50 @@ class ReleaseTests(unittest.TestCase):
         runner.runtime='fake-runtime'
         staged=self.root/'staged';staged.mkdir()
         with mock.patch.dict(os.environ,{'IMAGE_PASSES':'1'}), mock.patch.object(runner,'create_and_start') as start:
-            runner.child_verify(self.root/'image',staged,{'TARGET_IMAGE_CONTAINER_RUNTIME':'docker'})
-        self.assertEqual(start.call_args.kwargs['env']['FES_IMAGE_PASSES'],'1')
+            runner.child_verify(self.root/'image',staged,{'TARGET_IMAGE_CONTAINER_RUNTIME':'docker','FES_IMAGE_PASSES':'2'})
+        self.assertEqual(start.call_args.kwargs['env']['FES_IMAGE_PASSES'],'2')
 
-    def test_single_pass_cli_rejects_ci_and_non_hil_release_versions(self):
+    def test_release_cli_defaults_to_one_pass_in_ci_without_special_version(self):
         import sys
-        sys.path.insert(0,str(ROOT/'scripts'))
         import media
-        for env,version in (({'CI':'true'},'hil-smoke'),({'GITHUB_ACTIONS':'true'},'hil-smoke'),({},'scratch')):
-            with self.subTest(env=env,version=version):
-                with contextlib.ExitStack() as stack:
-                    stack.enter_context(mock.patch.dict(os.environ,env,clear=True))
-                    stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','release','--image-passes','1','--version',version]))
-                    stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
-                    stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)))
-                    stack.enter_context(mock.patch('builtins.print'))
-                    with self.assertRaises(SystemExit): appliance.main()
+        p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=1)
+        for env in ({}, {'CI':'true'}, {'GITHUB_ACTIONS':'true'}):
+            with self.subTest(env=env), contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.dict(os.environ,env,clear=True))
+                stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','release','--version','dev.1']))
+                stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
+                stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)))
+                export=stack.enter_context(mock.patch.object(appliance,'export_release'))
+                stack.enter_context(mock.patch('builtins.print'))
+                appliance.main()
+                self.assertEqual(export.call_args.kwargs['image_passes'],1)
+                self.assertEqual(export.call_args.kwargs['version'],'dev.1')
+
+    def test_release_cli_default_directory_separates_pass_evidence(self):
+        import sys
+        import media
+        outputs={}
+        for passes in (1,2):
+            p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=passes)
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','release','--version','dev.1','--image-passes',str(passes)]))
+                stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
+                stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)))
+                export=stack.enter_context(mock.patch.object(appliance,'export_release'))
+                stack.enter_context(mock.patch('builtins.print'))
+                appliance.main()
+            outputs[passes]=(export.call_args.args[0],p)
+        (one,p1),(two,p2)=outputs[1],outputs[2]
+        self.assertEqual(one.parent,two.parent)
+        self.assertEqual(one.parent.name,appliance.digest(self.rootfs))
+        self.assertEqual((one.name[-6:],two.name[-6:]),('-1pass','-2pass'))
+        # Identical rootfs and manifest bytes publish both pass records side by side.
+        first=appliance.export_release(self.root/one.name,self.rootfs,self.kernel,version='dev.1',provenance=p1)
+        second=appliance.export_release(self.root/two.name,self.rootfs,self.kernel,version='dev.1',provenance=p2)
+        self.assertEqual(first.manifest.read_bytes(),second.manifest.read_bytes())
+        self.assertEqual(appliance.export_release(second.directory,self.rootfs,self.kernel,version='dev.1',provenance=p2),second)
+        with self.assertRaisesRegex(ValueError,'immutable release destination differs'):
+            appliance.export_release(first.directory,self.rootfs,self.kernel,version='dev.1',provenance=p2)
 
     def test_reject_mismatched_provenance_and_unknown_manifest(self):
         p = dataclasses.replace(provenance(self.rootfs,self.kernel),rootfs_sha256='0'*64)
@@ -190,6 +193,40 @@ class ReleaseTests(unittest.TestCase):
         for offset,value in ((18,62),(52,3),(52,2)):
             data=arm_elf();struct.pack_into('<H' if offset==18 else '<I',data,offset,value);binary.write_bytes(data)
             with self.assertRaises(ValueError):appliance.validate_static_arm(binary)
+
+    def test_bootstrap_source_may_differ_from_packaged_software_revision(self):
+        software=provenance(self.rootfs,self.kernel)
+        factory_software=dataclasses.replace(software,fogcast_revision='f'*40)
+        factory=self.root/'factory.json'
+        factory.write_bytes(appliance.canonical(
+            appliance.release_manifest(self.rootfs,version='v1',provenance=factory_software)))
+        binary=self.root/'fes-boot';binary.write_bytes(arm_elf())
+        runner_root=self.root/'runner'
+        for name in appliance.BOOTSTRAP_RECIPE_FILES:
+            destination=runner_root/name
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(ROOT/name,destination)
+
+        class LocalRunner:
+            container='sha256:'+'8'*64
+            root=runner_root
+            def path(self,path):
+                Path(path).relative_to(self.root)
+                return str(path)
+            def disk(self,command):
+                output=Path(command[command.index('--output')+1])
+                output.write_bytes(b'bootstrap image')
+                return json.dumps({'image_sha256':appliance.digest(output)})
+
+        platform_build=fes_platform.platform_build_record(
+            '1'*64,'2'*64,software.fogcast_revision,'go1.26.5','3'*64)
+        result=appliance.assemble_bootstrap(runner_root/'out/bootstrap',binary,factory,self.kernel,
+            runner=LocalRunner(),binary_source_revision=platform_build['fogcast_revision'],
+            assembly_revision='a'*40,platform_build=platform_build)
+        evidence=json.loads(result.evidence.read_bytes())
+        self.assertNotEqual(factory_software.fogcast_revision,platform_build['fogcast_revision'])
+        self.assertEqual(evidence['binary_source_revision'],platform_build['fogcast_revision'])
+        self.assertEqual(evidence['platform_build']['fogcast_revision'],platform_build['fogcast_revision'])
 
     def test_reject_existing_unsealed_or_open_ended_bundle(self):
         for mutation in ('directory','file','extra'):
@@ -212,14 +249,17 @@ class ReleaseTests(unittest.TestCase):
         original=result.manifest.read_bytes()
         mutated=json.loads(original);mutated['image_sha256']='9'*64
         p=provenance(self.rootfs,self.kernel)
+        selected_revision='9'*40
         def build_arm(root,fogcast,output,env):
             Path(output).write_bytes(arm_elf())
             result.manifest.chmod(0o644);result.manifest.write_bytes(appliance.canonical(mutated))
-            return appliance.digest(output),fes_platform.platform_build_record('1'*64,'2'*64,p.fogcast_revision,'go1.26.5','3'*64)
+            return appliance.digest(output),fes_platform.platform_build_record('1'*64,'2'*64,selected_revision,'go1.26.5','3'*64)
         def assemble(output,binary,factory,kernel,**kwargs):
             self.assertEqual(Path(factory).read_bytes(),original,'CLI reopened mutable factory after verification')
             self.assertTrue(Path(output).is_absolute())
             self.assertIn('platform_build',kwargs)
+            self.assertEqual(kwargs['binary_source_revision'],selected_revision)
+            self.assertNotEqual(kwargs['binary_source_revision'],p.fogcast_revision)
             return appliance.BootstrapResult(Path(output))
         with mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(result.directory),'--output','out/test-bootstrap']), \
              mock.patch.object(media,'operation',return_value=contextlib.nullcontext()), \
@@ -230,6 +270,35 @@ class ReleaseTests(unittest.TestCase):
              mock.patch.object(appliance,'assemble_bootstrap',side_effect=assemble), \
              mock.patch('builtins.print'):
             appliance.main()
+
+    def test_appliance_media_rebuild_uses_bootstrap_source_revision(self):
+        software=dataclasses.replace(provenance(self.rootfs,self.kernel),fogcast_revision='b'*40)
+        release=appliance.export_release(self.root/'release-media',self.rootfs,self.kernel,
+                                         version='v1',provenance=software)
+        platform_build=fes_platform.platform_build_record('1'*64,'2'*64,'9'*40,'go1.26.5','3'*64)
+
+        class StopAtBootstrap(Exception):
+            pass
+
+        def build_binary(root,fogcast,output,env):
+            Path(output).write_bytes(arm_elf())
+            return appliance.digest(output),platform_build
+
+        def capture_bootstrap(*args,**kwargs):
+            self.assertEqual(kwargs['binary_source_revision'],platform_build['fogcast_revision'])
+            self.assertNotEqual(kwargs['binary_source_revision'],software.fogcast_revision)
+            raise StopAtBootstrap
+
+        with mock.patch.object(appliance,'verified_inputs',return_value=(
+                self.rootfs,self.kernel,software,self.root,{},None)), \
+             mock.patch.object(appliance_media,'compare_bundle'), \
+             mock.patch.object(appliance,'cached_media_container',return_value='sha256:'+'8'*64), \
+             mock.patch.object(appliance_media,'retained_assembly_revision',return_value='a'*40), \
+             mock.patch.object(appliance_media,'build_selected_binary',side_effect=build_binary), \
+             mock.patch.object(appliance,'assemble_bootstrap',side_effect=capture_bootstrap):
+            with self.assertRaises(StopAtBootstrap):
+                appliance_media.prepare(self.root,'native-integration-dev',release.directory,
+                    self.root/'bootstrap',self.root/'media-scratch')
 
     def test_cli_rejects_bootstrap_output_outside_checkout(self):
         import sys

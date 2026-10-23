@@ -14,10 +14,14 @@ import re
 import shutil
 import subprocess
 import tempfile
+import tomllib
 
 BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot')
 INTERFACES = {'runtime-protocol': '2', 'maintenance': 'fes-kit-maintenance-v1',
               'software-admission': 'fes-kit-software-v1'}
+MENU_SELECTION = 'usr/share/mister-runtime/selections/fes-menu.package.toml'
+INTERFACE_KEY = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}')
+VERSION = re.compile(r'(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})')
 
 
 def run(*args):
@@ -130,13 +134,78 @@ def base_contract(target, executables):
             'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
 
 
-def assemble(target, fogcast, runtime_revision):
+def menu_requirements(target):
+    """Interfaces the image's sealed menu package declares, as menu.<id> keys."""
+    selection = tomllib.loads((target / MENU_SELECTION).read_text())
+    package = selection.get('package_id')
+    if not isinstance(package, str) or not re.fullmatch('[0-9a-f]{64}', package):
+        raise ValueError('invalid menu package selection')
+    return menu_package_requirements(
+        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml')
+
+
+def menu_package_requirements(manifest):
+    """Interfaces a menu package manifest declares, as menu.<id> keys.
+
+    The runtime counts every declared interface when it admits the menu, so
+    optional declarations are required of the software too. Bootstrap artifact
+    selection (scripts/image_artifacts.py) applies the same check.
+    """
+    interfaces = tomllib.loads(manifest.read_text()).get('interfaces')
+    if not isinstance(interfaces, list) or not interfaces:
+        raise ValueError('menu package declares no interfaces')
+    requires = {}
+    for interface in interfaces:
+        if not isinstance(interface, dict):
+            raise ValueError(f'invalid menu package interface: {interface!r}')
+        name, major, minor = interface.get('id'), interface.get('major'), interface.get('minor')
+        name = name if isinstance(name, str) and INTERFACE_KEY.fullmatch(name) else ''
+        version = f'{major}.{minor}' if type(major) is int and type(minor) is int else ''
+        key = 'menu.' + name
+        if not name or not INTERFACE_KEY.fullmatch(key) or not VERSION.fullmatch(version) or key in requires:
+            raise ValueError(f'invalid menu package interface: {interface!r}')
+        requires[key] = version
+    return requires
+
+
+def runtime_menu_interfaces(runtime):
+    """Menu interfaces a runtime admits, from its .fes_menu_interfaces section."""
+    dump = run('readelf', '--string-dump=.fes_menu_interfaces', str(runtime))
+    provides = {}
+    for record in re.findall(r'^\s*\[\s*[0-9a-f]+\]\s+(\S.*)$', dump, re.M):
+        name, _, version = record.partition('=')
+        key = 'menu.' + name
+        if (not INTERFACE_KEY.fullmatch(name) or not INTERFACE_KEY.fullmatch(key)
+                or not VERSION.fullmatch(version) or key in provides):
+            raise ValueError(f'invalid menu interface record in {runtime}: {record!r}')
+        provides[key] = version
+    if not provides:
+        raise ValueError(f'runtime declares no menu interfaces: {runtime}')
+    return provides
+
+
+def unmet(provides, requires):
+    """Required interfaces not provided at the same major and at least that minor."""
+    missing = []
+    for key, version in sorted(requires.items()):
+        have, need = VERSION.fullmatch(provides.get(key, '')), VERSION.fullmatch(version)
+        if not have or not need or have[1] != need[1] or int(have[2]) < int(need[2]):
+            missing.append(f'{key} {version}')
+    return missing
+
+
+def assemble(target, fogcast, runtime_revision, window_driver):
     target = target.resolve()
     inputs = [target / 'usr/sbin' / name for name in BINARIES]
     for p in inputs:
         if p.is_symlink() or not p.is_file():
             raise ValueError(f'fresh regular executable required: {p}')
     contract = base_contract(target, inputs)
+    # The image records what its sealed menu needs; its own runtime must admit it.
+    requires = menu_requirements(target)
+    provides = runtime_menu_interfaces(target / 'usr/sbin/mister-runtime')
+    if missing := unmet(provides, requires):
+        raise ValueError('factory runtime does not accept the menu package interfaces: ' + ', '.join(missing))
     # Build-time helper identity is derived from the same selected FogCast
     # sources as its agent, and is recorded by the Makefile beside the helper.
     revision = (fogcast / 'bin/kit-software.revision').read_text().strip()
@@ -156,7 +225,16 @@ def assemble(target, fogcast, runtime_revision):
             raise ValueError('fresh factory assets must not be a symlink')
         if assets.exists():
             shutil.copytree(assets, payload / 'share/fogcast', symlinks=True)
-        metadata = {**contract, 'format': 1, 'version': 'factory-' + revision[:12],
+        # The runtime loads the fes-window driver its release carries.
+        window_driver = Path(window_driver)
+        if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
+                not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
+            raise ValueError('fes-window driver input must be fes_window.ko and its version')
+        (payload / 'share/fes-window').mkdir(parents=True)
+        for name in ('fes_window.ko', 'version'):
+            shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
+        metadata = {**contract, 'interfaces': {**contract['interfaces'], **provides},
+                    'format': 1, 'version': 'factory-' + revision[:12],
                     'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
         meta = temporary / 'metadata.json'
         meta.write_text(json.dumps(metadata))
@@ -175,7 +253,7 @@ def assemble(target, fogcast, runtime_revision):
         os.rename(payload, destination)
     base = target / 'etc/fes/software-base.json'
     base.parent.mkdir(parents=True, exist_ok=True)
-    base.write_text(json.dumps(contract, sort_keys=True, separators=(',', ':')) + '\n')
+    base.write_text(json.dumps({**contract, 'requires': requires}, sort_keys=True, separators=(',', ':')) + '\n')
     for name in BINARIES:
         p = target / 'usr/sbin' / name
         p.unlink()
@@ -195,6 +273,7 @@ def pack_update(base_root, payload, output, version, fogcast, runtime_revision):
     run(tool, 'verify-directory', '--root', str(base_root / 'usr/share/fes/software'),
         '--base', str(base_path))
     expected = json.loads(base_path.read_text())
+    requires = expected.pop('requires', {})
     executables = [payload / 'bin' / name for name in BINARIES]
     for p in executables:
         if p.is_symlink() or not p.is_file():
@@ -202,11 +281,16 @@ def pack_update(base_root, payload, output, version, fogcast, runtime_revision):
     actual = base_contract(base_root, executables)
     if expected != actual:
         raise ValueError('retained base ELF contract differs from recorded compatibility')
+    # The bundle lists the menu interfaces its runtime admits. A base image
+    # holds back a bundle that does not cover its own menu, so refuse it here.
+    provides = runtime_menu_interfaces(payload / 'bin/mister-runtime')
+    if missing := unmet(provides, requires):
+        raise ValueError('new runtime does not accept the base image menu interfaces: ' + ', '.join(missing))
     revision = (fogcast / 'bin/kit-software.revision').read_text().strip()
     if not re.fullmatch(r'[a-f0-9]{40}', revision) or not re.fullmatch(r'[a-f0-9]{40}', runtime_revision):
         raise ValueError('software provenance requires full source revisions')
-    metadata = {**expected, 'format': 1, 'version': version,
-                'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
+    metadata = {**expected, 'interfaces': {**expected['interfaces'], **provides}, 'format': 1,
+                'version': version, 'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
     with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as temporary:
         meta = Path(temporary) / 'metadata.json'
         meta.write_text(json.dumps(metadata))
@@ -224,11 +308,14 @@ def main():
     parser.add_argument('--version', help='software version label (update only)')
     parser.add_argument('--fogcast', type=Path, required=True)
     parser.add_argument('--runtime-revision', required=True)
+    parser.add_argument('--window-driver', type=Path, help='built fes-window driver directory (factory only)')
     args = parser.parse_args()
     if args.target:
         if args.payload or args.output or args.version:
             parser.error('--payload, --output and --version require --base-root')
-        assemble(args.target, args.fogcast, args.runtime_revision)
+        if not args.window_driver:
+            parser.error('--target requires --window-driver')
+        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver)
     else:
         if not args.payload or not args.output or not args.version:
             parser.error('--base-root requires --payload, --output and --version')

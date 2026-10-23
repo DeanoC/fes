@@ -101,12 +101,10 @@ see [core status](core-status.md) for packages and this page for ownership.
 The tracked modules contain the host, runtime, shared package definitions and
 FPGA product sources in one FES commit. Original repository URLs and imported
 histories are recorded in [config/source-imports.toml](../config/source-imports.toml).
-The current profile remains package-only and installs the ordered closed
-`fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest` and `fes.atari-st` set through the HIP/nextpnr
-route, as selected by [the default profile](../profiles/native-integration-dev.toml).
-`fes.menu` is idle display firmware, not a playable library entry. The image
-selector also admits `fes.c64`; its seal evidence is in [core status](core-status.md).
+The current profile remains package-only and installs `fes.menu` display firmware
+through HIP/nextpnr, plus the locked idle RBF. Playable packages are installed
+independently. See [modular updates](modular-updates.md) and
+[core status](core-status.md).
 
 `make check` validates committed module selection and cleanliness, FES native
 artifact policy, package YAML, generated consumers and shared fixtures. It
@@ -159,10 +157,9 @@ This does not require a fixed agent team for every change.
 
 ## Current profile
 
-The factory image is the ordered `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
-`fes.atari-st` set.
-The menu selection is not a playable core.
+The default image contains `fes.menu` display firmware and the locked idle RBF.
+Playable core installation is independent of the OS.
+
 Package, image and QEMU commands do not inherit NES, SNES, Mega Drive, or any
 other historical kit result. Later revisions need their own evidence.
 [Core status](core-status.md) is the package matrix.
@@ -177,10 +174,11 @@ other historical kit result. Later revisions need their own evidence.
 
 Dated notes under [validation/](validation/) describe the artifacts they name.
 
-A later LAN of capability-bearing nodes is drafted in
+A LAN of capability-bearing nodes is drafted in
 [mesh LAN](mesh-lan.md) and [mesh node protocol](mesh-node-protocol.md).
-The delivery direction agreed on 2026-10-01 is recorded there; individual
-wire/protocol strawmen still require the review described in those documents.
+On 22 October 2026 the kit became its own FogCast host (#863);
+[mesh under kit-as-host](mesh-kit-host.md) records that decision and
+supersedes the kit-side placement and pairing parts of those drafts.
 It keeps physical transitions in the
 runtime, session coordination in the FogCast agent, the library in
 FogCast, definitions in mister-packages, and image assembly in FES.

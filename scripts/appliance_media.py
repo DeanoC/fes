@@ -111,8 +111,10 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     """
     rootfs,kernel,provenance,fogcast,env,lock=appliance.verified_inputs(root,profile)
     manifest=appliance.load_manifest(Path(release_directory)/'release.json')
-    if appliance.recorded_image_passes(release_directory, manifest) == 1: raise ValueError('single-pass scratch release cannot be bootstrapped')
-    expected_release=appliance.export_release(scratch/'expected-release',rootfs,kernel,version=manifest['version'],provenance=provenance)
+    passes=appliance.recorded_image_passes(release_directory, manifest)
+    if passes != provenance.image_passes:
+        raise ValueError("release pass count differs from verified image")
+    expected_release=appliance.export_release(scratch/'expected-release',rootfs,kernel,version=manifest['version'],provenance=provenance,image_passes=passes)
     compare_bundle(release_directory,expected_release.directory,('rootfs.img','release.json','evidence.json'))
     sys.path.insert(0,str(Path(__file__).resolve().parent));import media
     runtime=os.environ.get('CONTAINER_RUNTIME','docker')
@@ -122,7 +124,7 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     binary=scratch/'fes-boot'
     binary_sha,platform_build=build_selected_binary(root,fogcast,binary,env)
     expected_bootstrap=appliance.assemble_bootstrap(scratch/'expected-bootstrap',binary,expected_release.manifest,kernel,
-        runner=runner,binary_source_revision=provenance.fogcast_revision,assembly_revision=assembly_revision,platform_build=platform_build)
+        runner=runner,binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build)
     compare_bundle(bootstrap_directory,expected_bootstrap.directory,('linux.img','evidence.json'))
     # Extract and compare the factory's idle bytes to the selected native lock.
     idle=scratch/'idle.rbf'

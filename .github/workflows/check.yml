@@ -20,6 +20,7 @@ jobs:
       cores: ${{ steps.plan.outputs.cores }}
       simulations: ${{ steps.plan.outputs.simulations }}
       test_modes: ${{ steps.plan.outputs.test_modes }}
+      paths: ${{ steps.plan.outputs.paths }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -46,6 +47,7 @@ jobs:
               output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
               output.write('cores=' + json.dumps(plan['cores']) + '\n')
               output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'])) + '\n')
+              output.write('paths=' + json.dumps(plan['paths']) + '\n')
               output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
@@ -92,9 +94,10 @@ jobs:
       - env:
           TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
-          make platform-provision
           if [ "$TEST_MEDIA" = true ]; then
+            make platform-provision
             # Registry resolution of the pinned base image flakes; the build is digest-locked.
             for attempt in 1 2 3; do
               make media-test-provision && break
@@ -102,9 +105,11 @@ jobs:
               sleep $((attempt * 20))
             done
           fi
-          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA"
-          make platform-test
-          make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
+          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA" --paths-json "$CHANGED_PATHS"
+          if [ "$TEST_MEDIA" = true ]; then
+            make platform-test
+            make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
+          fi
   consistency:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent
@@ -122,6 +127,10 @@ jobs:
             platform/go.sum
       - run: |
           make check
+      - name: Unused Go code
+        env:
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
+        run: python3 scripts/check_deadcode.py --paths-json "$CHANGED_PATHS"
   host:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host
@@ -146,9 +155,10 @@ jobs:
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
           SHARD: ${{ matrix.shard }}
+          CHANGED_PATHS: ${{ needs.plan.outputs.paths }}
         run: |
           if [ "$SHARD" = 1 ]; then make host; fi
-          flags=(--shard "$SHARD/3")
+          flags=(--shard "$SHARD/3" --paths-json "$CHANGED_PATHS")
           if [ "$TEST_FULL_RACE" = true ]; then flags+=(--full); fi
           python3 scripts/host_tests.py "${flags[@]}"
           if [ "$SHARD" = 3 ]; then make -C sources/FogCast test-ui; fi

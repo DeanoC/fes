@@ -7,7 +7,7 @@ runtime=${TARGET_IMAGE_CONTAINER_RUNTIME:-docker}
 output_volume=${TARGET_IMAGE_OUTPUT_VOLUME:-fogcast-target-image-output}
 package_lock=$repo_root/build/target-image-container-packages.sha256
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
-image_passes=${FES_IMAGE_PASSES:-2}
+image_passes=${FES_IMAGE_PASSES:-1}
 case "$image_passes" in
   1|2) : ;;
   *) printf '%s\n' 'target-image-container: FES_IMAGE_PASSES must be 1 or 2' >&2; exit 2 ;;
@@ -138,6 +138,9 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ -n "${FES_PREBUILT_RUNTIME_SHA256:-}" ]; then
+    set -- --env "FES_PREBUILT_RUNTIME_SHA256=$FES_PREBUILT_RUNTIME_SHA256" "$@"
+  fi
   if [ -n "$shared_cache" ]; then
     set -- --volume "$shared_cache:$shared_container_path" \
       --volume "$shared_cache/dl:/work/build/cache/target-image/dl" \

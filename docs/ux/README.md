@@ -56,7 +56,8 @@ for current owners, ordering and evidence.
 
 1. **Complete visible actions.** A Ready Home item needs a direction-and-Confirm
    route to Details while keeping direct Play. The kit Workshop needs a guarded
-   host-owned Next start save that actually works through its paired API.
+   Next start save through the kit's own host (#863 slice 6); the paired-API
+   route is retired with that change.
    Unsupported hosts must expose a truthful read-only state. Resolve Running
    setup uncertainty without claiming the machine has stopped (#768), and
    qualify the kit Library's stop/lease behavior (#805).
@@ -95,7 +96,7 @@ ownership of the underlying rules:
 | Input actions and physical controller bindings | [Controller bindings](../../sources/FogCast/docs/rooms-controller-bindings.md) |
 | Package, firmware, media and expansion readiness | [Launch composition](../../sources/FogCast/docs/launch-composition.md) |
 | ZX81 configuration, running state and media behavior | [Hardware rooms](../hardware-rooms.md) |
-| Destination defaults and mesh capabilities | [Mesh LAN](../mesh-lan.md), especially the M1 contract and placement policy |
+| Destination defaults and mesh capabilities | [Mesh under kit-as-host](../mesh-kit-host.md); the placement policy in [Mesh LAN](../mesh-lan.md) is historical for the kit |
 | Persistence and capability-specific progress | [Core persistence](../core-persistence.md) |
 | Build and hardware evidence | [Development](../development.md), [core status](../core-status.md), [kit sharing](../kit-sharing.md) |
 
@@ -244,9 +245,9 @@ does not itself change the household's chosen display.
 
 Keep these actions distinct. Remote control of a TV does not imply that its
 picture is streamed to the controlling screen. A capture preview does not
-establish a supported play destination. Choose compatible execution through the
-existing placement policy in the ordinary case; advanced overrides can remain
-available when useful.
+establish a supported play destination. On a kit there is one execution
+device, its own; a desktop chooses a kit by addressing that kit's host (#863).
+Advanced overrides can remain available when useful.
 
 The first UI slice displays and operates supported existing destination
 behavior. It does not add a placement algorithm, streaming, save migration or
@@ -257,9 +258,9 @@ For a busy destination, explain that it is in use and offer an available
 alternative. Loss of contact during play leaves the running state unknown; it
 does not prove that the game stopped or make a replacement session safe.
 
-First setup explains which named computer manages the library and how the kit
-connects to it. A freshly unpaired kit, an empty connected library and an
-established host going offline need different screens. Preserve a useful cached
+First setup explains that this kit manages its own library and which
+computers it reads as sources. A kit with no sources, an empty library and a
+source going offline need different screens. Preserve a useful cached
 browse state where supported. Offline launch eligibility is capability-specific:
 verify the selected native path rather than copying behavior from a different
 launcher or inferring that all offline entries can play.
@@ -488,10 +489,11 @@ restart, BASIC continuity and two-client cases still need their own evidence.
   On the reviewed paired-kit path, Hardware reads work but the host-owned
   expansion-selection PUT is denied by the launcher API. The room can still
   offer Fit & save. A mock that accepts the service call does not demonstrate
-  that a kit can save. The next change must add narrowly admitted paired save
-  behavior, retain the existing expected-package/expected-selection guards,
-  and expose a read-only explanation when that capability is absent. Host
-  configuration ownership and physical runtime ownership remain unchanged.
+  that a kit can save. #850 added a narrowly admitted paired save as an
+  interim; under #863 the save goes through the kit's own host once slice 6
+  lands, keeping the expected-package/expected-selection guards and a
+  read-only explanation when that capability is absent. Physical runtime
+  ownership remains unchanged.
 
 ## Remaining validation and later decisions
 

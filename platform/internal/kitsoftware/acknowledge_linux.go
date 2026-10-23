@@ -55,10 +55,17 @@ func acknowledgmentReason(a acknowledgmentAudit) string {
 	return "operator acknowledgment " + a.Request.Action + " of already-running prior release; automatic recovery remains spent; original failure: " + a.Failed.Reason
 }
 
+// failedReservation is the failed operation's existing maintenance reservation.
+// Held only reads it. Release ends it with the operation's stored grant.
+type failedReservation interface {
+	Held(context.Context, Request) error
+	Release(context.Context, Request) error
+}
+
 // acknowledgePrior has no restart facility. Its only authority is to finish an
 // exact blocked operation after independently proving its prior group healthy.
 // WorkerLock excludes the live supervisor, including its unreleased retry path.
-func acknowledgePrior(ctx context.Context, repo *FileRepository, admission Admission, req AcknowledgeRequest, stable func(context.Context) error) (AcknowledgeResult, error) {
+func acknowledgePrior(ctx context.Context, repo *FileRepository, reservation failedReservation, req AcknowledgeRequest, stable func(context.Context) error) (AcknowledgeResult, error) {
 	result := AcknowledgeResult{Action: req.Action, Operation: req.Operation, Selected: req.Selected, Generation: req.Generation}
 	if err := req.validate(); err != nil {
 		return result, err
@@ -74,6 +81,9 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, admission Admis
 	}
 	if state.Selected != req.Selected || state.Generation != req.Generation {
 		return result, ErrConflict
+	}
+	if err := repo.repairActionTaken(req.Action, "acknowledgment"); err != nil {
+		return result, err
 	}
 	entries, err := repo.entries()
 	if err != nil {
@@ -124,12 +134,18 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, admission Admis
 		if state.Pending == nil || *state.Pending != audit.Failed || audit.Failed.Phase != "blocked" {
 			return result, ErrConflict
 		}
-		// The exact supervisor-owned reservation may have reconciled to blocked
-		// across its agent restart. Acquire resumes only its matching private grant.
-		if err := admission.Acquire(ctx, audit.Failed.Request); err != nil {
+		// Prove the prior group healthy before anything changes. The reservation
+		// stays as the failed recovery left it, so a failed proof still leaves
+		// prepare-power-cycle its blocked reservation. Nothing resumes it: the
+		// release below ends a blocked reservation, as it does after any
+		// activation whose agent restarted.
+		if err := reservation.Held(ctx, audit.Failed.Request); err != nil {
 			return result, err
 		}
 		if err := stable(ctx); err != nil {
+			return result, err
+		}
+		if err := reservation.Held(ctx, audit.Failed.Request); err != nil {
 			return result, err
 		}
 		if err := repo.writeAcknowledgment(audit); err != nil {
@@ -143,7 +159,7 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, admission Admis
 	}
 	// A crash/lost reply here leaves Unreleased for the existing supervisor's
 	// exact idempotent release, never a new activation or a reset recovery budget.
-	if err := admission.Release(ctx, audit.Failed.Request); err != nil {
+	if err := reservation.Release(ctx, audit.Failed.Request); err != nil {
 		return result, err
 	}
 	if err := repo.Update(func(s *State) error {
@@ -157,6 +173,28 @@ func acknowledgePrior(ctx context.Context, repo *FileRepository, admission Admis
 	}
 	result.Completed = true
 	return result, nil
+}
+
+// repairActionTaken refuses an action identifier that another operator repair
+// has already recorded. One identifier names one operator act.
+func (r *FileRepository) repairActionTaken(action, own string) error {
+	if !software.ValidID(action) {
+		return ErrConflict
+	}
+	for _, kind := range []string{"acknowledgment", "power-cycle", "factory-selection"} {
+		if kind == own {
+			continue
+		}
+		var st unix.Stat_t
+		err := unix.Fstatat(int(r.dir.Fd()), kind+"-"+action+".json", &st, unix.AT_SYMLINK_NOFOLLOW)
+		if err == nil {
+			return ErrConflict
+		}
+		if !errors.Is(err, unix.ENOENT) {
+			return err
+		}
+	}
+	return nil
 }
 func (r *FileRepository) readAcknowledgment(action string) (acknowledgmentAudit, bool, error) {
 	var audit acknowledgmentAudit

@@ -16,10 +16,12 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_computer.hpp"
+#include "native/generated/fes_display_plane.hpp"
 #include "native/input.hpp"
+#include "native/menu_admission.hpp"
 #include "native/menu_display.hpp"
 #include "native/menu_underflow.hpp"
-#include "native/linux/menu_memory.hpp"
+#include "native/linux/menu_window.hpp"
 #include <thread>
 #include <chrono>
 #include "native/video.hpp"
@@ -66,6 +68,11 @@ bool HasMenu(const CoreDescriptor& descriptor) {
   if(interface.id==generated::FesApplicationInterfaceVideoMenuDisplayID)return true;
  return false;
 }
+bool HasMenuBlitter(const CoreDescriptor& descriptor) {
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesApplicationInterfaceVideoMenuBlitterID)return true;
+ return false;
+}
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
   descriptor.abi.id!=generated::FesComputerABIID)return false;
@@ -81,12 +88,26 @@ bool HasNativeVideoSocket(const CoreDescriptor& descriptor)
 		if (interface.id == "fes.fabric.video.native-pixels") return true;
 	return false;
 }
+} // namespace
+
+// Kit software packing reads the records from this section of the stripped binary.
+#if defined(__ELF__)
+#define MISTER_MENU_INTERFACE_SECTION __attribute__((section(".fes_menu_interfaces"), used))
+#else
+#define MISTER_MENU_INTERFACE_SECTION __attribute__((used))
+#endif
+#define MISTER_MENU_INTERFACE_RECORD(id, major, minor) id "=" #major "." #minor "\0"
+const char kMenuInterfaceRecords[] MISTER_MENU_INTERFACE_SECTION =
+	MISTER_MENU_INTERFACES(MISTER_MENU_INTERFACE_RECORD);
+
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
-  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
+  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=(HasMenuBlitter(descriptor)?4u:3u)||!HasMenu(descriptor))
   return {ErrorCode::invalid_package,"idle menu requires the described fes.menu video/DDR/menu package","admission"};
  return CheckCoreCompatibility(descriptor);
 }
+
+namespace {
 
 // Applications and simple computers share the boot-latched DDR port layout.
 bool RequiresHpsDdr(const CoreDescriptor& descriptor)
@@ -224,8 +245,8 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
-	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuMemory* menu_memory)
-	: menu_display_(menu_display),menu_memory_(menu_memory),opener_(opener), fpga_(fpga), idle_video_(idle_video),
+	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuWindow* menu_window)
+	: menu_display_(menu_display),menu_window_(menu_window),opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
 	  idle_recipe_(std::move(idle_recipe)),
@@ -412,8 +433,8 @@ void NativeHardware::ForgetActiveCore()
 HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	const std::string& system, const std::string& core)
 {
-	// The in-flight frame copy stops between rows once quiesce or programming begins.
-	CancelMenuCopies();
+	// No process writes the menu window once quiesce or programming begins.
+	RevokeMenuWindow();
 	const VideoQuiesceResult video = game_video_.Quiesce(
 		Deadline(clock_, timeouts_.video_ms));
 	log_.Write({operation, system, core, "hdmi_quiesce", video.error});
@@ -463,7 +484,7 @@ Error NativeHardware::AdmitCorePackageInternal(const std::string& directory,
 			"native video shell requires a video parts composition", "admission"};
 	if (error.ok() && RequiresHpsDdr(opened.descriptor) && !fpga_.BootHpsDdrLayout())
 		error = BootHpsDdrLayoutError();
-	if (error.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_memory_))
+	if (error.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_window_))
 		error = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
@@ -514,7 +535,7 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	if (compatibility.ok() && RequiresHpsDdr(opened.descriptor) &&
 		!fpga_.BootHpsDdrLayout())
 		compatibility = BootHpsDdrLayoutError();
-	if (compatibility.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_memory_))
+	if (compatibility.ok() && HasSessionDisplay(opened.descriptor) && (!menu_display_ || !menu_window_))
 		compatibility = {ErrorCode::unsupported_interface, "session presentation adapter unavailable", "admission"};
 	ProgrammingProfile profile = ProgrammingProfile::development_contained_v1;
 	CoreDriver* driver = nullptr;
@@ -685,8 +706,11 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesSimpleComputerInterfaceMediaBlobStreamMinor}};
 		if (fpga_.BootHpsDdrLayout())
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceMemoryHpsDdrID,1,0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_) {
 			computer.interfaces.push_back({generated::FesSimpleComputerInterfaceVideoSessionDisplayID,1,0});
+			computer.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
@@ -708,8 +732,10 @@ Capabilities NativeHardware::capabilities() const
 		if (fpga_.BootHpsDdrLayout())
 			application.interfaces.push_back(
 				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
-		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_memory_)
+		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_) {
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,0});
+  }
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
@@ -757,13 +783,17 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
 		// DDR follows the latched boot layout. Session display also needs both
-		// presentation adapters, matching admission of each interface.
+		// presentation adapters, matching admission of each interface. Its
+		// shared plane is advertised with it.
 		if (fpga_.BootHpsDdrLayout())
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_window_) {
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
+			computer_io.interfaces.push_back({kDisplayPlaneInterfaceID,
+				generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
+		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
@@ -1251,9 +1281,10 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			"native video shell requires a video parts composition", "admission"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
  const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
+ const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor);
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
- if(menu&&(!menu_display_||!menu_memory_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
- if(session_display&&(!menu_display_||!menu_memory_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};
+ if(menu&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
+ if(session_display&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};
  if(menu){const auto checked=CheckMenu(admitted->opened_.descriptor);if(!checked.ok())return {checked,false,""};}
 	Error error = RecheckCorePackage(admitted->opened_);
 	if (error.ok() && admitted->composition_) error=RecheckCoreComposition(*admitted->composition_);
@@ -1360,8 +1391,8 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		}
 	}
  if(menu||session_display) {
-  error=menu_memory_->InitializeBlack();
-  if(error.ok()){menu_memory_->AllowCopies();menu_underflow_streak_=0;}
+  error=menu_window_->Activate(true,blitter);
+  if(error.ok())menu_underflow_streak_=0;
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
  }
@@ -1434,16 +1465,26 @@ HardwareResult NativeHardware::LoadCoreInternal(
    // count here is a fault in this image, not history from the previous core.
    if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
+   if(error.ok()&&info.pixel_format!=generated::FesApplicationMenuPixelFormat)
+    error={ErrorCode::io_failed,"idle menu must scan the XRGB format","menu"};
+   MenuBlitState blit;
+   if(error.ok()&&blitter)error=menu_display_->ReadBlit(Deadline(clock_,timeouts_.core_io_ms),&blit);
+   if(error.ok()&&(blit.busy||blit.faulted||blit.completed))
+    error={ErrorCode::io_failed,"menu blitter initial state is not idle","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
-   menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
+   menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_slot_=0;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
+   // Admission required the declared shared plane; the live bitstream must be it.
+   if(error.ok()&&info.pixel_format!=generated::FesDisplayPlanePixelFormatPremultipliedRgba)
+    error={ErrorCode::io_failed,"session display must blend premultiplied RGBA","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
-   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
+   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.picture=info.picture;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,
@@ -1467,31 +1508,40 @@ HardwareResult NativeHardware::LoadCoreInternal(
 	return {{}, true, identified.observed_core};
 }
 
-Error NativeHardware::SetSessionDisplay(bool visible)
+Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
 {
  if(!active_package_||!HasSessionDisplay(active_package_->info().descriptor)||
-  !menu_status_.session||!menu_display_||!menu_memory_)
+  !menu_status_.session||!menu_display_||!menu_window_)
   return {ErrorCode::unsupported_interface,"session display is inactive","menu"};
+ if(!visible&&launcher_focus)
+  return {ErrorCode::invalid_request,"a closed session display leaves input with the machine","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  if(visible) {
-  if(menu_status_.available)return {};
-  // Neutralize held machine keys before handing navigation to the UI. There
-  // is no execution hold here: BASIC, RAM and expansions keep running.
-  const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
-  Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
-  if(home&&error.code==ErrorCode::unsupported_interface)error={};
+  if(launcher_focus&&!session_display_focused_) {
+   // Neutralize held machine keys before handing navigation to the UI. There
+   // is no execution hold here: BASIC, RAM and expansions keep running.
+   const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
+   Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+   if(home&&error.code==ErrorCode::unsupported_interface)error={};
+   // A shown plane stays up with the machine still holding input.
+   if(!error.ok())return menu_status_.available?error:FailMenuPresent(error);
+  }
+  // Moving focus on a shown plane keeps its grant and frames.
+  if(menu_status_.available){session_display_focused_=launcher_focus;return {};}
+  // Hiding revoked the grant. The plane's slots keep their pixels.
+  Error error=menu_window_->Activate(false,false);
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
-  session_display_focused_=true;
+  session_display_focused_=launcher_focus;
   MenuDisplayInfo info;error=menu_display_->ReadInfo(deadline,&info);
   if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||
    info.displayed_sequence!=menu_status_.displayed_sequence))
    error={ErrorCode::io_failed,"session display enable did not preserve slot ownership","menu"};
   if(!error.ok())return FailMenuPresent(error);
-  menu_memory_->AllowCopies();menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
+  menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
   return {};
  }
- CancelMenuCopies();
+ RevokeMenuWindow();
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
  menu_status_.available=false;
@@ -1530,7 +1580,7 @@ HardwareResult NativeHardware::LoadIdle()
 }
 HardwareResult NativeHardware::LoadSplashIdle()
 {
-	CancelMenuCopies();
+	RevokeMenuWindow();
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
 	core_data_file_.reset();
 	core_snapshot_.clear();
@@ -1586,8 +1636,8 @@ HardwareResult NativeHardware::LoadSplashIdle()
 }
 
 
-void NativeHardware::CancelMenuCopies()
-{if(menu_memory_)menu_memory_->CancelCopies();}
+void NativeHardware::RevokeMenuWindow()
+{if(menu_window_)menu_window_->Revoke();}
 bool NativeHardware::MenuReactivationAllowed()
 {
  const auto now=clock_.NowMs();
@@ -1599,7 +1649,7 @@ bool NativeHardware::MenuReactivationAllowed()
 Error NativeHardware::FailMenuPresent(const Error& error)
 {
  if(menu_status_.session) {
-  CancelMenuCopies();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+  RevokeMenuWindow();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
   // The only physical recovery is disabling this plane. Never execute hold,
   // program another core, or spend the idle-menu reactivation budget here.
   MenuDisplayInfo info;
@@ -1613,19 +1663,35 @@ Error NativeHardware::FailMenuPresent(const Error& error)
  // The runtime's present failure path calls LoadIdle. Keeping the package
  // selects menu reactivation; clearing it selects splash. The counter resets
  // on that program, so the streak does not carry into the new image.
- menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+ RevokeMenuWindow();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
  if(!menu_directory_.empty()&&MenuReactivationAllowed()){++menu_reactivations_;return error;}
  menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
 }
-bool NativeHardware::AcceptsMenuDamage(std::uint32_t base_sequence) const
+Error NativeHardware::ShareMenuWindow(int* fd)
 {
- return menu_status_.available&&!menu_unsafe_&&menu_memory_&&base_sequence!=0&&
-  base_sequence==menu_status_.displayed_sequence&&menu_memory_->HasShadow(base_sequence);
-}
-Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* output)
-{
- if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_memory_)
+ if(!menu_status_.available||menu_unsafe_||!menu_window_)
   return {ErrorCode::busy,"menu presentation unavailable","menu"};
+ return menu_window_->Share(fd);
+}
+Error NativeHardware::MenuBackSlot(std::uint8_t* slot) const
+{
+ if(!slot||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_window_)
+  return {ErrorCode::busy,"menu presentation unavailable","menu"};
+ *slot=std::uint8_t(menu_slot_^1);return {};
+}
+Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,MenuDisplayInfo* output)
+{
+ if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_window_)
+  return {ErrorCode::busy,"menu presentation unavailable","menu"};
+ // Scanout is reading the other slot, so a wrong slot is a client error,
+ // refused before it can reach the display.
+ if(slot!=std::uint8_t(menu_slot_^1))return {ErrorCode::invalid_request,"menu commit names the displayed slot","menu"};
+ // A list needs the blitter's grant. That grant takes CPU frames until a list
+ // has run, then only lists: a CPU frame's write-back leaves its lines valid
+ // in the PL310, and a CPU write over what the blitter drew could make such a
+ // stale line dirty and evict it over the blitter's pixels.
+ if(draw.blit?!menu_status_.blitter:menu_status_.blitted)
+  return {ErrorCode::invalid_request,draw.blit?"menu grant has no blitter":"menu grant takes only lists after its first list","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  MenuDisplayInfo info;Error error=menu_display_->ReadInfo(deadline,&info);
  // History accumulated before this present is not a reason to reject it.
@@ -1635,13 +1701,44 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
   error={ErrorCode::io_failed,"menu slot ownership or scanout state changed","menu"};
  if(error.ok()&&info.displayed_sequence==std::numeric_limits<std::uint32_t>::max())
   error={ErrorCode::io_failed,"menu sequence exhausted","menu"};
- const auto slot=std::uint8_t(menu_slot_^1);
  const auto sequence=info.displayed_sequence+1;
  using Steady=std::chrono::steady_clock;
  const auto micros=[](Steady::time_point from,Steady::time_point to){
   return std::uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(to-from).count());};
- const auto copy_start=Steady::now();
- if(error.ok())error=menu_memory_->CopyRgba(slot,frame,sequence);
+ MenuBlitState blit;
+ if(error.ok()&&draw.blit) {
+  error=menu_display_->ReadBlit(deadline,&blit);
+  if(error.ok()&&(blit.busy||blit.faulted))error={ErrorCode::io_failed,"menu blitter is not idle","menu"};
+ }
+ // The client wrote through its cached mapping; fpga2sdram bypasses the
+ // caches, so its lines reach DDR before the fabric reads them.
+ const auto clean_start=Steady::now();
+ if(error.ok())error=draw.blit?menu_window_->CleanBlit(draw.first,draw.count,draw.uploaded):menu_window_->Clean(slot,draw.written);
+ const auto blit_start=Steady::now();
+ if(error.ok()&&draw.blit) {
+  const std::uint16_t completed=std::uint16_t(blit.completed+1);
+  error=menu_display_->RunBlit(draw.first,draw.count,slot,deadline);
+  while(error.ok()) {
+   error=menu_display_->ReadBlit(deadline,&blit);if(!error.ok())break;
+   if(blit.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(blit.fault),"menu"};break;}
+   if(blit.completed==completed&&!blit.busy)break;
+   if(blit.completed==std::uint16_t(completed-1)&&!blit.busy) {
+    // Completion can land between the separate count and state requests.
+    // Confirm this ambiguous old-count/idle pair before treating it as a fault.
+    MenuBlitState confirmation;
+    error=menu_display_->ReadBlit(deadline,&confirmation);if(!error.ok())break;
+    if(confirmation.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(confirmation.fault),"menu"};break;}
+    if(confirmation.completed==completed&&!confirmation.busy){blit=confirmation;break;}
+    if(confirmation.completed==std::uint16_t(completed-1)&&!confirmation.busy) {
+     error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;
+    }
+    blit=confirmation;
+   }
+   if(blit.completed!=std::uint16_t(completed-1)||!blit.busy){error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;}
+   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu blitter completion timed out","menu"};break;}
+   std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+ }
  const auto submit_start=Steady::now();
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
  const auto wait_start=Steady::now();
@@ -1657,8 +1754,10 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
-   info.copy_us=micros(copy_start,submit_start);info.submit_us=micros(submit_start,wait_start);info.scanout_wait_us=micros(wait_start,Steady::now());
-   info.stored_pixels=std::uint32_t(menu_memory_->last_stored_pixels());
+   if(draw.blit)menu_status_.blitted=true;
+   info.clean_us=micros(clean_start,blit_start);info.blit_us=micros(blit_start,submit_start);
+   info.submit_us=micros(submit_start,wait_start);
+   info.scanout_wait_us=micros(wait_start,Steady::now());
    *output=info;return {};
   }
   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}

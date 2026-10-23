@@ -117,12 +117,6 @@ func (q *FrameQueue) HighWaterMark() int {
 	return q.highWater
 }
 
-func (q *FrameQueue) Depth() int {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return len(q.items)
-}
-
 func (q *FrameQueue) signal() {
 	select {
 	case q.notify <- struct{}{}:
@@ -198,36 +192,6 @@ func (q *EncodedFrameQueue) Pop(ctx context.Context) (EncodedFrame, bool) {
 		case <-q.notify:
 		}
 	}
-}
-
-func (q *EncodedFrameQueue) Close() {
-	q.mu.Lock()
-	if !q.closed {
-		q.closed = true
-		q.signal()
-	}
-	q.mu.Unlock()
-}
-
-func (q *EncodedFrameQueue) Drops() uint64 {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.drops
-}
-
-func (q *EncodedFrameQueue) Depth() int {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.hasFrame {
-		return 1
-	}
-	return 0
-}
-
-func (q *EncodedFrameQueue) HighWaterMark() int {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return q.highWater
 }
 
 func (q *EncodedFrameQueue) signal() {

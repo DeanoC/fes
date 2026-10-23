@@ -1463,10 +1463,6 @@ func validateLaunchBoxAttributes(start xml.StartElement, member, family string) 
 	return nil
 }
 
-func launchBoxSelectedField(family, field string) bool {
-	return launchBoxSelectedFieldBit(family, field) != 0
-}
-
 func launchBoxSelectedFieldBit(family, field string) uint64 {
 	fields := []string{}
 	switch family {

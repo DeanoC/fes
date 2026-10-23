@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -70,6 +71,28 @@ func TestAppSafeAreaNudgePersists(t *testing.T) {
 	}
 	if app.Snapshot().Grid.Safe.Left != insetsFromPct(1280, 720, got.SafeAreaPct).Left {
 		t.Fatalf("grid insets = %+v", app.Snapshot().Grid.Safe)
+	}
+}
+
+// Saving a setting from the menu rewrites tenfoot.json. The pad profiles in
+// it survive.
+func TestPersistingASettingKeepsPadProfiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tenfoot.json")
+	const guid = "0300e9f51f08000001e4000010010000"
+	saved := inputmap.Profile{Preset: inputmap.PresetSwapAB, Bindings: map[string]string{"l": "keypad-1"}}
+	if err := saveTenfootPrefs(path, tenfootPrefs{Controllers: map[string]inputmap.Profile{guid: saved}}); err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp(nil, 1280, 720, 10)
+	app.SetPrefsPath(path)
+	app.SetSafeAreaPct(0.05)
+	app.HandleCommand(CmdSafeAreaIn, app.lastInput)
+	got, err := loadTenfootPrefs(path)
+	if err != nil || got.SafeAreaPct < 0.054 {
+		t.Fatalf("safe area was not saved: %#v %v", got, err)
+	}
+	if p := got.Controllers[guid]; p.Preset != saved.Preset || p.Bindings["l"] != "keypad-1" {
+		t.Fatalf("saving the safe area changed the pad profile: %#v", got.Controllers)
 	}
 }
 

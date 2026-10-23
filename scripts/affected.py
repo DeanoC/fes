@@ -21,17 +21,14 @@ EXPANSION_ROOT = 'sources/misteross/expansion'
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
 PARENT_ROOTS = ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers')
-# CI selection/compiler and shared generator policy stay fail-broad: changing
-# the planner, gate, simulation matrix, Verilator pin, generator or their
-# regression suites must still exercise every lane and core.
+# Actual simulation infrastructure changes exercise every simulation. Planner
+# regressions and software runners are software: they do not change RTL.
 CI_BROAD_INPUTS = frozenset({
-    'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
-    'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
-    'scripts/consistency.py',
-    'tests/test_affected.py', 'tests/test_test_changed.py', 'tests/test_ci_gate.py',
-    'tests/test_generate.py', 'tests/test_consistency.py',
-    'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
-    'tests/test_test_policy.py',
+    'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
+})
+SOFTWARE_CI_INPUTS = frozenset({
+    'Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+    'scripts/test_policy.py',
 })
 
 
@@ -40,7 +37,8 @@ CI_BROAD_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
+    'bootstrap.sh',
+    'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
@@ -58,7 +56,7 @@ CORE_DIRECTORIES = {
     'fes-c64': ('c64',), 'fes-spectrum': ('spectrum',), 'fes-atari-st': ('atari-st',),
     'fes-ramtest': ('ramtest',), 'fes-riscv': ('riscv',), 'fes-pcxt': ('pcxt',),
 }
-# ZX81's in-session plane reuses these MENU scanout units and DDR model.
+# The shared session-display plane reuses these MENU scanout units and DDR model.
 # Other MENU implementation files remain owned solely by the idle core.
 MENU_SESSION_INPUTS = frozenset({
     'rtl/fes_menu_reader.v', 'rtl/fes_menu_control.v', 'rtl/fes_menu_video.v',
@@ -91,6 +89,8 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
+    'fes_display_plane.v': ('zx81', 'spectrum'),
+    'fes_display_cdc.v': ('zx81', 'spectrum'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -116,17 +116,26 @@ def fpga_cores(path):
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
         return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
+    if relative.as_posix() == 'cores/fes-zx81/expansions/zonx_ay.v':
+        return ('zx81', 'atari-st', 'spectrum'), 'shared AY/YM sound engine consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
+    if relative.as_posix() == 'cores/fes-ramtest/constraints.qsf':
+        return ('ramtest', 'pcxt'), 'shared DE10-Nano SDRAM/HDMI diagnostic pins'
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
+    if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
+        return ('menu', 'zx81', 'spectrum'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
                 'sim/native_socket_top.v', 'sim/native_socket_tb.cpp',
                 'generated/fes_native_video.vh'):
             return ('coleco',), 'native video consumers'
+        if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
+                'sim/display_plane_top.v', 'sim/display_plane_tb.cpp'):
+            return ('zx81',), 'shared session-display plane consumers'
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
             if parts[2] == 'rtl':
@@ -136,7 +145,7 @@ def fpga_cores(path):
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81'), 'idle and running-session display consumers'
+            return ('menu', 'zx81', 'spectrum'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -161,14 +170,14 @@ def fpga_cores(path):
             return (core,), core + ' simulation recipe'
         if parts[1] in ('benchmark_fes_z80.py', 'test_fes_z80_vectors.py', 'test_fes_z80_pin_trace.py'):
             return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
-        if parts[1] == 'sim_fes_zx81_session.py':
-            return ('zx81',), 'ZX81 session-display simulation recipe'
+        if parts[1] in ('sim_fes_zx81_session.py', 'sim_fes_display_plane.py'):
+            return ('zx81',), 'session-display plane simulation recipe'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:
             return ('c64',), 'Commodore 64 socket/card recipe'
-        if parts[1] == 'sim_fes_spectrum_turbo.py':
-            return ('spectrum',), 'Spectrum turbo simulation and performance recipe'
+        if parts[1] == 'sim_fes_spectrum.py':
+            return ('spectrum',), 'Spectrum model simulation recipe'
         if parts[1] in SPECTRUM_SCRIPTS:
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
@@ -190,7 +199,7 @@ def changed_paths(root, base, head='HEAD'):
 
 def documentation(path):
     parts = Path(path).parts
-    return ('docs' in parts or path.endswith('.md')) and Path(path).name != 'AGENTS.md'
+    return 'docs' in parts or path.endswith('.md')
 
 
 def plan(paths):
@@ -199,6 +208,27 @@ def plan(paths):
     reasons = []
     for path in sorted(set(paths)):
         if documentation(path):
+            continue
+        if path in CI_BROAD_INPUTS:
+            selected.update(('parent', 'fpga'))
+            cores.update(CORES)
+            reasons.append(f'{path}: simulation infrastructure; all core simulations')
+            continue
+        if path in SOFTWARE_CI_INPUTS:
+            selected.update(LANES)
+            reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
+            continue
+        if path == 'scripts/host_tests.py':
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: host test runner and its regressions')
+            continue
+        if path == 'config/core-recipes.toml':
+            selected.update(('parent', 'fpga'))
+            reasons.append(f'{path}: core recipe and producer tests; RTL unchanged')
+            continue
+        if path in ('scripts/host_affected.py', 'tests/test_host_affected.py'):
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: host package selection and its regressions')
             continue
         if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
             selected.update(('parent', 'host'))
@@ -211,6 +241,9 @@ def plan(paths):
                     for prefix in PARENT_ROOTS)):
             selected.add('parent')
             reasons.append(f'{path}: parent orchestration/tests/assembly; component sources unchanged')
+        elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
+            selected.update(LANES)
+            reasons.append(f'{path}: contract tooling software; generated RTL unchanged')
         elif owner is None or owner == 'contracts':
             selected.update(LANES)
             cores.update(CORES)

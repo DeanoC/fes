@@ -12,6 +12,16 @@ Never relax a seal or timing check; stop and report instead.
 
 Delete superseded code instead of keeping compatibility shims or "kept for older kits" branches.
 
+A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
+
+## PR scope
+
+- One scope per PR. Don't bundle unrelated fixes.
+- The PR body says `Closes #N` for the issue it resolves. Agents may open that issue themselves when opening the PR.
+- Small, self-explanatory PRs may skip the issue and the `Closes #N` line.
+- Before opening a PR, check for an open PR that already covers the change, and don't duplicate it.
+- Stay inside the repo and the scope the task names.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
@@ -26,12 +36,17 @@ Outside agent sessions have ignored these rules. Obey them.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
-   install one. After use, restore the designated baseline image and bundle
-   the status file names, and log that restore. Activating the baseline
-   bundle does not change the booted image. If the booted image is not the
-   named baseline, restore that image, verify the boot, then activate a
-   compatible baseline bundle and verify it before logging the kit
-   restored. Confirm the kit is idle and lease-free before you release it.
+   install one. Software goes before the image: before an image change,
+   activate a bundle the new image accepts (`fes-update` refuses an image
+   whose menu interfaces the selected bundle lacks). After use, restore the
+   designated baseline image and bundle the status file names, and log that
+   restore. Activating the baseline bundle does not change the booted image.
+   If the booted image is not the named baseline, first activate the
+   baseline bundle if the running image accepts it, then restore that image
+   and verify the boot; otherwise restore and verify the image, then
+   activate the baseline bundle. Verify the active bundle before logging the
+   kit restored. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
@@ -44,6 +59,10 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+Firmware, ROMs, media and software may be placed on either kit. Use the
+applicable kit lease and supported install, activation or media-delivery path;
+these rules do not require keeping those artifacts on a host or Powerboat.
 
 GPU jobs follow the [Shared GPUs](AGENTS.md#shared-gpus) section.
 

@@ -17,16 +17,19 @@ import (
 )
 
 type ApplianceStatus struct {
-	BootID       string `json:"boot_id"`
-	ImageSHA256  string `json:"image_sha256"`
-	Trial        bool   `json:"trial"`
-	RawIdleReady bool   `json:"raw_idle_ready"`
-	Good         string `json:"good"`
-	Previous     string `json:"previous"`
-	Pending      string `json:"pending"`
-	TrialBootID  string `json:"trial_boot_id"`
-	TrialImage   string `json:"trial_image"`
-	Corrupt      bool   `json:"corrupt"`
+	BootID        string `json:"boot_id"`
+	ImageSHA256   string `json:"image_sha256"`
+	Trial         bool   `json:"trial"`
+	RawIdleReady  bool   `json:"raw_idle_ready"`
+	Good          string `json:"good"`
+	Previous      string `json:"previous"`
+	Pending       string `json:"pending"`
+	TrialBootID   string `json:"trial_boot_id"`
+	TrialImage    string `json:"trial_image"`
+	Corrupt       bool   `json:"corrupt"`
+	FatIdleSHA256 string `json:"fat_idle_sha256,omitempty"`
+	IdleSHA256    string `json:"idle_sha256,omitempty"`
+	SplashWarning string `json:"splash_warning,omitempty"`
 }
 
 func (c *Client) ApplianceStatus(ctx context.Context) (ApplianceStatus, error) {

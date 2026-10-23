@@ -90,13 +90,14 @@ input.o
 linux_input.o
 media_data.o
 menu_display.o
-menu_memory.o
+menu_window.o
 mmio.o
 production_hardware.o
 runtime.o
 sha256.o
 video.o
 video_recipe.o
+window_driver.o
 EOF
 ar t "$archive" | grep -v '^__\.SYMDEF' >"$temporary/archive-members"
 LC_ALL=C sort -o "$temporary/archive-members" "$temporary/archive-members"

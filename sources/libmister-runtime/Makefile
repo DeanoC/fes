@@ -48,7 +48,7 @@ LIB_SOURCES := \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
 	src/native/menu_display.cpp \
-	src/native/linux/menu_memory.cpp \
+	src/native/linux/menu_window.cpp \
 	src/native/diagnostic.cpp \
 	src/native/sha256.cpp \
 	src/native/input.cpp \
@@ -58,6 +58,7 @@ LIB_SOURCES := \
 	src/native/linux/fpga_manager.cpp \
 	src/native/linux/i2c.cpp \
 	src/native/linux/mmio.cpp \
+	src/native/linux/window_driver.cpp \
 	src/linux/production_hardware.cpp
 LIB_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(LIB_SOURCES)) \
 	$(BUILD_DIR)/src/native/linux/linux_input.o
@@ -74,8 +75,7 @@ DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
-	$(BUILD_DIR)/tests/unit/menu_memory_test \
-	$(BUILD_DIR)/tests/unit/menu_damage_test \
+	$(BUILD_DIR)/tests/unit/menu_window_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
@@ -88,6 +88,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/fpga_manager_test \
 	$(BUILD_DIR)/tests/unit/mmio_test \
+	$(BUILD_DIR)/tests/unit/window_driver_test \
 	$(BUILD_DIR)/tests/unit/off_t_test \
 	$(BUILD_DIR)/tests/unit/video_recipe_test \
 	$(BUILD_DIR)/tests/unit/adv7513_test \
@@ -157,11 +158,11 @@ $(BUILD_DIR)/tests/unit/menu_frame_transport_test: tests/unit/menu_frame_transpo
 
 $(BUILD_DIR)/tests/unit/runtime_test: tests/unit/runtime_test.cpp \
 		tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
-		 src/runtime.cpp src/native/linux/menu_memory.cpp src/native/diagnostic.cpp
+		 src/runtime.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/runtime_test.cpp \
 		tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
-		 src/runtime.cpp src/native/linux/menu_memory.cpp src/native/diagnostic.cpp -o "$@"
+		 src/runtime.cpp src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/diagnostic_test: tests/unit/diagnostic_test.cpp \
 		src/native/diagnostic.cpp
@@ -257,6 +258,12 @@ $(BUILD_DIR)/tests/unit/mmio_test: tests/unit/mmio_test.cpp \
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
 		tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "$@"
 
+$(BUILD_DIR)/tests/unit/window_driver_test: tests/unit/window_driver_test.cpp \
+		src/native/linux/window_driver.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
+		tests/unit/window_driver_test.cpp src/native/linux/window_driver.cpp -o "$@"
+
 $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/unit/off_t_test.cpp -o "$@"
@@ -268,10 +275,10 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
-		src/native/linux/i2c.cpp src/native/linux/input.cpp
+		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
@@ -282,19 +289,19 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
-		src/native/linux/i2c.cpp src/native/linux/input.cpp \
+		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		 -o "$@"
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
-		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
 		src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/protocol_test.cpp \
-		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
 		src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
 		src/native/diagnostic.cpp -o "$@"
 
@@ -303,7 +310,7 @@ $(BUILD_DIR)/tests/integration/daemon_server_test: \
 		tests/support/fake_hardware.cpp \
 		src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
-		src/linux/stderr_log.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/linux/stderr_log.cpp  src/runtime.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
@@ -312,7 +319,7 @@ $(BUILD_DIR)/tests/integration/daemon_server_test: \
 		tests/support/fake_hardware.cpp \
 		src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
-		src/linux/stderr_log.cpp  src/runtime.cpp src/native/linux/menu_memory.cpp \
+		src/linux/stderr_log.cpp  src/runtime.cpp \
 		src/native/diagnostic.cpp -o "$@"
 
 $(TEST_BINS): $(TEST_HEADERS)
@@ -371,8 +378,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 21 ]] || { \
-		echo "canonical archive must contain exactly 21 production members" >&2; \
+	[[ "$$member_count" == 22 ]] || { \
+		echo "canonical archive must contain exactly 22 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -403,7 +410,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/menu_display.cpp|src/native/linux/menu_memory.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_composition.cpp|src/native/core_data.cpp|src/native/media_data.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/menu_display.cpp|src/native/linux/menu_window.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/window_driver.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -413,7 +420,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_memory.o\nsrc/native/linux/mmio.o\nsrc/native/media_data.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_window.o\nsrc/native/linux/mmio.o\nsrc/native/linux/window_driver.o\nsrc/native/media_data.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \
@@ -479,10 +486,6 @@ $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 
-$(BUILD_DIR)/tests/unit/menu_memory_test: tests/unit/menu_memory_test.cpp src/native/linux/menu_memory.cpp
-	@mkdir -p "$(dir $@)"
-	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
-
-$(BUILD_DIR)/tests/unit/menu_damage_test: tests/unit/menu_damage_test.cpp src/native/linux/menu_memory.cpp
+$(BUILD_DIR)/tests/unit/menu_window_test: tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"

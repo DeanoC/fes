@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ type MenuPresenter interface {
 	Present(context.Context, uint64, []byte) (menudisplay.Result, error)
 }
 
-// MenuDamagePresenter is a MenuPresenter that can stage only the rectangles
+// MenuDamagePresenter is a MenuPresenter that can write only the rectangles
 // that changed since the frame the runtime is showing.
 type MenuDamagePresenter interface {
 	PresentDamage(context.Context, uint64, []byte, menudisplay.Damage) (menudisplay.Result, error)
@@ -30,8 +31,12 @@ type menuPixels struct {
 }
 
 type queuedMenuFrame struct {
-	buffer     *menuPixels
-	pixels     []byte
+	buffer *menuPixels
+	pixels []byte
+	// list is the frame as blitter commands when isList; pixels and buffer
+	// are then nil.
+	list       []menudisplay.BlitOp
+	isList     bool
 	generation uint64
 	known      bool
 	seq        uint64
@@ -67,6 +72,8 @@ type MenuPresentTrace struct {
 	// Retried means a shortcut was refused and the frame went again with a
 	// fresh status and complete pixels.
 	Retried bool
+	// Blitted means the blitter drew the frame from a command list.
+	Blitted bool
 }
 
 // QueuedSeq is the sequence of the last frame queued for presentation, so a
@@ -100,6 +107,11 @@ type menuSessionBinding struct {
 // runtime's display. Session presenters never follow a replacement machine.
 var ErrSessionDisplayChanged = errors.New("session display changed before presentation")
 
+// ErrMenuFrameNotPresented means the newest submission finished without a
+// successful Present and the runtime did not report a more specific error.
+// WaitIdle returns it so a launch handoff cannot treat that frame as shown.
+var ErrMenuFrameNotPresented = errors.New("menu frame was not presented")
+
 // submittedMenuFrame is the last frame queued for the runtime while
 // change-driven presents are on. pixels is immutable and may alias the
 // queued frame's buffer.
@@ -108,6 +120,8 @@ type submittedMenuFrame struct {
 	revision      uint64
 	revisionKnown bool
 	pixels        []byte
+	list          []menudisplay.BlitOp
+	isList        bool
 	generation    uint64
 	seq           uint64
 }
@@ -125,6 +139,13 @@ const (
 // MenuDisplay uses the same software painter as linuxfb and submits complete
 // immutable frames to the local runtime. A one-slot queue keeps the most recent
 // frame while a previous display acknowledgment is in flight.
+//
+// When the runtime's last grant for the idle menu included the menu blitter,
+// a frame records blitter commands instead of drawing on the CPU, and the
+// fabric draws it. Each frame picks its mode at its first call. A grant
+// without the blitter, such as a session plane, gets CPU pixels: the worker
+// rasterizes a list that reaches one. A frame that needs more than the
+// blitter holds is rasterized and copied whole.
 type MenuDisplay struct {
 	*Software
 	traceSink    func(MenuPresentTrace)
@@ -145,14 +166,20 @@ type MenuDisplay struct {
 	nextSeq      uint64
 	submitted    *submittedMenuFrame
 	freeBuffers  []*menuPixels
-	now          func() time.Time
-	probeQueued  bool
-	probeEpoch   uint64
-	lastProbe    time.Time
-	backoff      time.Duration
-	backoffUntil time.Time
-	hasPresented bool
-	presentedGen uint64
+	// drawing is the buffer the Software device draws into; previous is the
+	// last frame taken from it, which Software may still copy back.
+	drawing, previous *menuPixels
+	now               func() time.Time
+	probeQueued       bool
+	probeEpoch        uint64
+	lastProbe         time.Time
+	backoff           time.Duration
+	backoffUntil      time.Time
+	hasPresented      bool
+	presentedGen      uint64
+	// presentedSeq is the submission sequence last shown on this binding.
+	// Zero means none. A status probe may acknowledge only this sequence.
+	presentedSeq uint64
 	binding      menuSessionBinding
 	bindingEpoch uint64
 	// Change-driven worker shortcuts. statusCache is the runtime status as of
@@ -167,6 +194,29 @@ type MenuDisplay struct {
 	baseSeq          uint64
 	baseGen          uint64
 	baseEpoch        uint64
+	// settled is the newest submission that finished on this binding.
+	// WaitIdle fails when it was not presented. False until the first
+	// completion, so an empty queue with no submission is idle. A status
+	// probe records a presented outcome only for presentedSeq.
+	settled          bool
+	settledPresented bool
+	settledErr       error
+	// blitReady is whether the last idle-menu grant had the blitter; the
+	// worker sets it.
+	blitReady bool
+	// Render thread: the frame's mode, its commands, and the last finished
+	// frame. cpuStale means the Software buffer lacks that frame because the
+	// blitter drew it; needBase means the list frame has not yet decided
+	// whether it starts from the frame before it.
+	mode      frameMode
+	ops       []menudisplay.BlitOp
+	needBase  bool
+	lastOps   []menudisplay.BlitOp
+	lastList  bool
+	cpuStale  bool
+	blitCache blitCaches
+	// scratch is the worker's CPU raster of a list frame.
+	scratch []byte
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -188,7 +238,8 @@ func newMenuDisplayWithClient(client MenuPresenter) (*MenuDisplay, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	d := &MenuDisplay{Software: sw, client: client, frames: make(chan queuedMenuFrame, 1), ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	d := &MenuDisplay{Software: sw, client: client, frames: make(chan queuedMenuFrame, 1), ctx: ctx, cancel: cancel, done: make(chan struct{}),
+		drawing: &menuPixels{pixels: sw.Framebuffer().Pix}, blitCache: newBlitCaches()}
 	go d.run()
 	return d, nil
 }
@@ -215,10 +266,13 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	reportSoftwareReady(false)
 	d.binding = binding
 	d.bindingEpoch++
+	d.blitReady = false
 	d.known = false
 	d.generation = 0
 	d.hasPresented = false
+	d.presentedSeq = 0
 	d.lastErr = nil
+	d.clearSettledLocked()
 	d.forgetSubmissionLocked()
 	d.dropShortcutsLocked()
 	d.clearPaceLocked()
@@ -278,12 +332,16 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	if d == nil {
 		return
 	}
+	list, isList := d.finishFrame()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.closed || d.paused {
 		return
 	}
-	pix := d.Software.Framebuffer().Pix
+	var pix []byte
+	if !isList {
+		pix = d.Software.Framebuffer().Pix
+	}
 	probe := false
 	if d.changeDriven {
 		now := d.clock()
@@ -298,6 +356,8 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		if previous := d.submitted; previous != nil && d.generation == previous.generation {
 			if revisionKnown && previous.revisionKnown {
 				unchanged = revision == previous.revision
+			} else if isList || previous.isList {
+				unchanged = isList && previous.isList && slices.Equal(list, previous.list)
 			} else {
 				unchanged = bytes.Equal(pix, previous.pixels)
 			}
@@ -322,23 +382,31 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 	}
 	var buffer *menuPixels
 	var copyUS int64
-	if probe {
+	switch {
+	case probe && d.submitted.isList:
+		list, isList = d.submitted.list, true
+	case probe:
 		buffer = d.submitted.buffer
 		if buffer == nil {
 			buffer = d.copyFrameLocked(d.submitted.pixels)
 		} else {
 			buffer.refs++
 		}
-	} else {
+	case !isList:
 		copyStart := time.Now()
-		buffer = d.copyFrameLocked(pix)
+		buffer = d.takeFrameLocked()
 		copyUS = time.Since(copyStart).Microseconds()
 	}
-	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
+	frame := queuedMenuFrame{buffer: buffer, list: list, isList: isList, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
+	if buffer != nil {
+		frame.pixels = buffer.pixels
+	}
 	if d.changeDriven && !probe {
 		d.forgetSubmissionLocked()
-		buffer.refs++
-		d.submitted = &submittedMenuFrame{pixels: frame.pixels, buffer: buffer, generation: d.generation, seq: seq, revision: revision, revisionKnown: revisionKnown}
+		if buffer != nil {
+			buffer.refs++
+		}
+		d.submitted = &submittedMenuFrame{pixels: frame.pixels, buffer: buffer, list: list, isList: isList, generation: d.generation, seq: seq, revision: revision, revisionKnown: revisionKnown}
 	}
 	d.sendFrameLocked(frame)
 }
@@ -351,20 +419,48 @@ func (d *MenuDisplay) FramePending() bool {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.framePendingLocked()
+}
+
+func (d *MenuDisplay) framePendingLocked() bool {
 	return d.pending > 0 || d.flight != nil || d.probeQueued
 }
 
-// WaitIdle waits until every submitted menu frame has completed its runtime
-// transaction. Call before Pause when the final visible frame must survive.
+// WaitIdle waits until every submitted menu frame has finished its runtime
+// transaction. The newest finished submission must have been presented.
+// A failed Status or Present, or a frame that never reached the display, is
+// returned so a launch handoff cannot pause and dispatch on it. Call before
+// Pause when the final visible frame must survive. The caller retries or
+// abandons; WaitIdle does not. Late adoption submits no frame and uses
+// WaitPending so an older failure does not block that pause.
 func (d *MenuDisplay) WaitIdle(ctx context.Context) error {
+	return d.waitIdle(ctx, true)
+}
+
+// WaitPending waits until queued and in-flight menu work has finished.
+// It does not report that work's outcome. Late adoption uses it when this
+// handoff submitted no loading frame, so an older failure cannot block the
+// pause while a core already owns HDMI.
+func (d *MenuDisplay) WaitPending(ctx context.Context) error {
+	return d.waitIdle(ctx, false)
+}
+
+func (d *MenuDisplay) waitIdle(ctx context.Context, acknowledge bool) error {
 	if d == nil {
 		return nil
 	}
 	t := time.NewTicker(time.Millisecond)
 	defer t.Stop()
 	for {
-		if !d.FramePending() {
-			return nil
+		d.mu.Lock()
+		idle := !d.framePendingLocked()
+		var err error
+		if idle && acknowledge {
+			err = idleHandoffError(d.settled, d.settledPresented, d.settledErr)
+		}
+		d.mu.Unlock()
+		if idle {
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -374,6 +470,19 @@ func (d *MenuDisplay) WaitIdle(ctx context.Context) error {
 		case <-t.C:
 		}
 	}
+}
+
+// idleHandoffError is the result of an idle WaitIdle. Nothing finished yet is
+// success. A finished submission that was presented is success. Otherwise the
+// runtime error is returned, or ErrMenuFrameNotPresented when there is none.
+func idleHandoffError(settled, presented bool, err error) error {
+	if !settled || (presented && err == nil) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return ErrMenuFrameNotPresented
 }
 
 // Pause prevents new submissions, discards queued frames, forgets the last
@@ -459,7 +568,7 @@ func (d *MenuDisplay) run() {
 			var err error
 			var result menudisplay.Result
 			var statusUS, presentUS int64
-			presented, genChanged, cached, retried := false, false, false, false
+			presented, genChanged, cached, retried, blitted := false, false, false, false, false
 			statusSkipped := false
 			damageRects := 0
 			for attempt := 0; ; attempt++ {
@@ -481,7 +590,7 @@ func (d *MenuDisplay) run() {
 					err = d.acceptStatusLocked(frame, status)
 					d.mu.Unlock()
 				}
-				var damage *menudisplay.Damage
+				damaged := 0
 				if err == nil && status.Available {
 					if status.Underflows > menudisplay.TransientUnderflowCap {
 						err = errors.New("menu scanout underflow")
@@ -489,18 +598,13 @@ func (d *MenuDisplay) run() {
 						err = errors.New("menu generation changed before presentation")
 						genChanged = true
 					} else {
-						damage = d.damageFor(frame, status)
 						presentStart := time.Now()
-						if damage != nil {
-							result, err = d.client.(MenuDamagePresenter).PresentDamage(d.ctx, status.Generation, frame.pixels, *damage)
-						} else {
-							result, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
-						}
+						result, damaged, blitted, err = d.presentFrame(frame, status, true)
 						presentUS += time.Since(presentStart).Microseconds()
 						presented = err == nil
 					}
 				}
-				if err != nil && attempt == 0 && (cached || damage != nil) && d.ctx.Err() == nil {
+				if err != nil && attempt == 0 && (cached || damaged > 0) && d.ctx.Err() == nil {
 					// A shortcut's assumption no longer holds, for example a
 					// new generation or another frame on screen. Ask the
 					// runtime and send the complete frame once.
@@ -510,8 +614,8 @@ func (d *MenuDisplay) run() {
 					retried = true
 					continue
 				}
-				if presented && damage != nil {
-					damageRects = len(damage.Rects)
+				if presented {
+					damageRects = damaged
 				}
 				break
 			}
@@ -528,14 +632,15 @@ func (d *MenuDisplay) run() {
 				continue
 			}
 			d.lastErr = err
+			d.noteSettledLocked(presented, err)
 			if !presented {
 				d.forgetLocked(frame.seq)
 				d.dropShortcutsLocked()
 			} else {
-				d.rememberShownLocked(frame, status, result, cached)
+				d.rememberShownLocked(frame, status, result, cached, blitted)
 			}
 			if d.changeDriven {
-				d.notePresentResultLocked(presented, genChanged, err, status)
+				d.notePresentResultLocked(presented, genChanged, err, status, frame.seq)
 			}
 			d.releaseBufferLocked(frame.buffer)
 			d.pending--
@@ -547,7 +652,7 @@ func (d *MenuDisplay) run() {
 				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
 					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
 					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing,
-					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried}
+					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried, Blitted: presented && blitted}
 				if err != nil {
 					trace.Err = err.Error()
 				}
@@ -567,11 +672,18 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 	err = d.acceptStatusLocked(frame, status)
 	if err == nil && status.Available && status.Underflows <= menudisplay.TransientUnderflowCap &&
 		d.hasPresented && status.Generation == d.presentedGen {
-		// Validate the binding and clear recovered state under one lock: an
+		// Validate the binding and clear recovered pacing under one lock: an
 		// old probe must not clear an error after a new binding is installed.
+		// A healthy status at this generation only acknowledges the handoff
+		// when this probe's submission is the sequence that was presented.
+		// An older frame left on screen must not turn a newer failed frame
+		// into a successful launch.
 		d.clearProbeQueuedLocked(frame.epoch)
 		d.lastProbe = d.clock()
 		d.lastErr = nil
+		if frame.seq != 0 && frame.seq == d.presentedSeq {
+			d.noteSettledLocked(true, nil)
+		}
 		d.resetBackoffLocked()
 		d.reportSoftwareReadyLocked(status)
 		d.mu.Unlock()
@@ -589,7 +701,7 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 		d.finishProbeLocked(frame, status, err, false)
 		return
 	}
-	_, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
+	_, _, _, err = d.presentFrame(frame, status, false)
 	d.finishProbeLocked(frame, status, err, err == nil)
 }
 
@@ -628,15 +740,29 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.known = true
 	}
 	d.lastErr = err
+	d.noteSettledLocked(presented, err)
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
+		d.presentedSeq = frame.seq
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		d.noteGenerationLocked(frame.seq, status.Generation)
 		return
 	}
 	d.armBackoffLocked(d.clock(), menuWaitCap(err, status))
+}
+
+func (d *MenuDisplay) noteSettledLocked(presented bool, err error) {
+	d.settled = true
+	d.settledPresented = presented
+	d.settledErr = err
+}
+
+func (d *MenuDisplay) clearSettledLocked() {
+	d.settled = false
+	d.settledPresented = false
+	d.settledErr = nil
 }
 
 // forgetLocked drops the remembered frame when seq is still that frame.
@@ -660,11 +786,12 @@ func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
 	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
 }
 
-func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status) {
+func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status, seq uint64) {
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
+		d.presentedSeq = seq
 		d.lastProbe = d.clock()
 		d.resetBackoffLocked()
 		return
@@ -803,8 +930,13 @@ func (d *MenuDisplay) Close() {
 		d.releaseBufferLocked(frame.buffer)
 	default:
 	}
+	d.releaseBufferLocked(d.previous)
+	d.previous = nil
 	d.freeBuffers = nil
 	d.mu.Unlock()
+	if closer, ok := d.client.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
 	d.Software.Close()
 }
 
@@ -813,16 +945,33 @@ var _ Device = (*MenuDisplay)(nil)
 // Buffers return to the bounded pool only after both the worker/queue and
 // remembered submission release them. A probe shares immutable submitted bytes.
 func (d *MenuDisplay) copyFrameLocked(pix []byte) *menuPixels {
-	var buffer *menuPixels
-	if n := len(d.freeBuffers); n > 0 {
-		buffer = d.freeBuffers[n-1]
-		d.freeBuffers = d.freeBuffers[:n-1]
-	} else {
-		buffer = &menuPixels{pixels: make([]byte, len(pix))}
-	}
+	buffer := d.freeBufferLocked()
 	copy(buffer.pixels, pix)
 	buffer.refs = 1
 	return buffer
+}
+
+func (d *MenuDisplay) freeBufferLocked() *menuPixels {
+	if n := len(d.freeBuffers); n > 0 {
+		buffer := d.freeBuffers[n-1]
+		d.freeBuffers = d.freeBuffers[:n-1]
+		return buffer
+	}
+	return &menuPixels{pixels: make([]byte, len(d.drawing.pixels))}
+}
+
+// takeFrameLocked hands the finished frame on without copying it: Software
+// draws the next frame into a free buffer. The frame holds one reference for
+// the caller and one while Software may still copy it back for a frame that
+// does not start with Clear; the swap after that releases it.
+func (d *MenuDisplay) takeFrameLocked() *menuPixels {
+	next := d.freeBufferLocked()
+	done := d.drawing
+	d.Software.swapFramebuffer(next.pixels)
+	d.releaseBufferLocked(d.previous)
+	d.drawing, d.previous = next, done
+	done.refs = 2
+	return done
 }
 
 func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
@@ -837,10 +986,13 @@ func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
 
 // cachedStatusLocked returns the status remembered from the last successful
 // present while change-driven presents are on, the binding is unchanged and
-// the runtime was asked within the probe interval. Only a runtime that
-// advertises damage is trusted this way; older runtimes are asked per frame.
+// the runtime was asked within the probe interval. Only a client that
+// presents damage relies on it; another asks the runtime per frame.
 func (d *MenuDisplay) cachedStatusLocked(frame queuedMenuFrame) (menudisplay.Status, bool) {
-	if !d.changeDriven || !d.statusCacheOK || !d.statusCache.Damage || d.statusCacheEpoch != frame.epoch || d.paused ||
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
+		return menudisplay.Status{}, false
+	}
+	if !d.changeDriven || !d.statusCacheOK || d.statusCacheEpoch != frame.epoch || d.paused ||
 		!d.clock().Before(d.statusCacheAt.Add(menuProbeInterval)) {
 		return menudisplay.Status{}, false
 	}
@@ -850,7 +1002,7 @@ func (d *MenuDisplay) cachedStatusLocked(frame queuedMenuFrame) (menudisplay.Sta
 // rememberShownLocked records a successful present as the next frame's
 // status and damage base. A cached status keeps the time the runtime was
 // last asked, so status is still read at least once per probe interval.
-func (d *MenuDisplay) rememberShownLocked(frame queuedMenuFrame, status menudisplay.Status, result menudisplay.Result, cached bool) {
+func (d *MenuDisplay) rememberShownLocked(frame queuedMenuFrame, status menudisplay.Status, result menudisplay.Result, cached, blitted bool) {
 	if !d.changeDriven {
 		return
 	}
@@ -860,8 +1012,71 @@ func (d *MenuDisplay) rememberShownLocked(frame queuedMenuFrame, status menudisp
 	status.DisplayedSequence, status.Underflows = result.DisplayedSequence, result.Underflows
 	d.statusCache, d.statusCacheOK, d.statusCacheEpoch = status, true, frame.epoch
 	d.releaseBufferLocked(d.base)
+	d.base = nil
+	if blitted || frame.buffer == nil {
+		// CPU damage cannot build on a frame the blitter drew.
+		return
+	}
 	frame.buffer.refs++
 	d.base, d.baseSeq, d.baseGen, d.baseEpoch = frame.buffer, result.DisplayedSequence, status.Generation, frame.epoch
+}
+
+// presentFrame shows frame at status's generation. On a blitter grant every
+// frame is a list: a CPU frame becomes one whole copy, because the grant
+// refuses CPU commits after its first list. A list too large for the
+// blitter is rasterized and copied whole. A grant without the blitter takes
+// pixels, rasterizing a list; damaged presents may write only what changed.
+// It reports the damage rectangles sent and whether the blitter drew.
+func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Status, damaged bool) (menudisplay.Result, int, bool, error) {
+	if blitter, ok := d.client.(MenuBlitPresenter); ok {
+		grant, err := blitter.Grant(d.ctx, status.Generation)
+		if err != nil {
+			return menudisplay.Result{}, 0, false, err
+		}
+		d.noteGrant(frame, grant)
+		if grant.Blitter {
+			ops := frame.list
+			if !frame.isList {
+				ops = copyFrameOps(frame.pixels)
+			}
+			result, err := blitter.PresentBlit(d.ctx, status.Generation, menudisplay.BlitFrame{Ops: ops})
+			if errors.Is(err, menudisplay.ErrBlitTooLarge) && frame.isList {
+				result, err = blitter.PresentBlit(d.ctx, status.Generation, menudisplay.BlitFrame{Ops: copyFrameOps(d.rasterScratch(frame.list))})
+			}
+			return result, 0, true, err
+		}
+	}
+	if frame.isList {
+		result, err := d.client.Present(d.ctx, status.Generation, d.rasterScratch(frame.list))
+		return result, 0, false, err
+	}
+	if damaged {
+		if damage := d.damageFor(frame, status); damage != nil {
+			result, err := d.client.(MenuDamagePresenter).PresentDamage(d.ctx, status.Generation, frame.pixels, *damage)
+			return result, len(damage.Rects), false, err
+		}
+	}
+	result, err := d.client.Present(d.ctx, status.Generation, frame.pixels)
+	return result, 0, false, err
+}
+
+// noteGrant records whether the idle menu's grant has the blitter, which
+// picks the mode of the next frame drawn.
+func (d *MenuDisplay) noteGrant(frame queuedMenuFrame, grant menudisplay.Grant) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if frame.epoch == d.bindingEpoch && frame.binding.packageID == "" {
+		d.blitReady = grant.Blitter
+	}
+}
+
+// rasterScratch draws a list frame into the worker's frame buffer.
+func (d *MenuDisplay) rasterScratch(ops []menudisplay.BlitOp) []byte {
+	if d.scratch == nil {
+		d.scratch = make([]byte, menudisplay.FrameBytes)
+	}
+	rasterOps(d.scratch, menudisplay.Stride, ops)
+	return d.scratch
 }
 
 func (d *MenuDisplay) dropShortcutsLocked() {
@@ -873,7 +1088,7 @@ func (d *MenuDisplay) dropShortcutsLocked() {
 // damageFor returns the rectangles where frame differs from the frame the
 // runtime is showing for this display, or nil when the frame must go whole.
 func (d *MenuDisplay) damageFor(frame queuedMenuFrame, status menudisplay.Status) *menudisplay.Damage {
-	if _, ok := d.client.(MenuDamagePresenter); !ok || !status.Damage {
+	if _, ok := d.client.(MenuDamagePresenter); !ok {
 		return nil
 	}
 	d.mu.Lock()

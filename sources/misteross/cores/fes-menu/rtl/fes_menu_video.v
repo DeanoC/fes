@@ -19,6 +19,8 @@ module fes_menu_video #(
     output wire quiesced,
     output reg [31:0] underflows = 32'd0,
     output wire [23:0] rgb,
+    // The DDR word's top byte. Session planes treat it as premultiplied alpha.
+    output wire [7:0] alpha,
     output wire de, hs, vs,
     output wire [27:0] address,
     output wire [7:0] burstcount,
@@ -58,6 +60,7 @@ module fes_menu_video #(
     assign hs = h >= 11'd1390 && h < 11'd1430;
     assign vs = v >= 10'd725 && v < 10'd730;
     assign rgb = de && running && pixel_matches ? pixel_bgrx[23:0] : 24'd0;
+    assign alpha = de && running && pixel_matches ? pixel_bgrx[31:24] : 8'd0;
     assign quiesced = (!enable || quiesce) && reader_idle && state == DRAIN;
     assign submit_ready = running && !pending && (state == DISPLAY || state == DRAIN);
 

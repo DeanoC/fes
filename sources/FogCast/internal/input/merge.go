@@ -165,8 +165,12 @@ func sendSnapshotDiff(inner bridge.Sink, prev, next remoteinput.Snapshot) error 
 	return nil
 }
 
-// padMerge is the legacy single-pad path. Both sources collapse onto player 0
-// and the virtual gamepad sees only the merged snapshot.
+// padMerge is the legacy single-pad path. The virtual gamepad sees one merged
+// snapshot. Remote players collapse onto player 0. Kit-local pads keep their
+// own players and are unioned, so one pad's release leaves the other pad's
+// holds in place. A departure changes nothing here: tenfoot has already sent
+// the departed pad's releases, and a keyboard shaped onto player 0 may still
+// hold controls.
 type padMerge struct {
 	mu     sync.Mutex
 	inner  bridge.Sink
@@ -193,7 +197,9 @@ func (p *padMerge) apply(source inputSource, f protocol.InputFrame) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	event := frameEvent(f)
-	event.Player = 0
+	if source != sourceLocal {
+		event.Player = 0
+	}
 	if err := p.states[source].Apply(event); err != nil {
 		return err
 	}
@@ -206,7 +212,9 @@ func (p *padMerge) apply(source inputSource, f protocol.InputFrame) error {
 }
 
 func (p *padMerge) mergedLocked() remoteinput.Snapshot {
-	return mergeSnapshots(p.states[sourceLocal].SnapshotForPlayer(0), p.states[sourceRemote].SnapshotForPlayer(0))
+	local := &p.states[sourceLocal]
+	pads := mergeSnapshots(local.SnapshotForPlayer(0), local.SnapshotForPlayer(1))
+	return mergeSnapshots(pads, p.states[sourceRemote].SnapshotForPlayer(0))
 }
 
 func (p *padMerge) ReleaseSource(source inputSource) error {

@@ -12,8 +12,8 @@ use as the `fes.application` interface `fes.memory.hps-ddr` 1.0.
 | --- | --- |
 | mister-packages | The interface, its capability bit 8, the port layout constants, the window and the SDR mirror registers ([application I/O](../sources/mister-packages/docs/application-io.md#hps-ddr)) |
 | misteross | `cores/fes-common/rtl/fes_hps_ddr.v`, the splash that carries the layout at boot, and the `fes.ramtest` tester |
-| libmister-runtime | Admission of the interface, and releasing the SDR FPGA ports after the layout check |
-| FES image | Pinning the splash as the idle core, FAT `/idle.rbf`, and deriving the U-Boot that loads it (`core=idle.rbf`) before it enables the bridges |
+| libmister-runtime | Admission of the interface, releasing the SDR FPGA ports after the layout check, and loading the fes-window driver with the window |
+| FES image | The [fes-window driver](../image/kernel/fes-window/README.md), which maps window grants cached and cleans them for fpga2sdram; pinning the splash as the idle core, FAT `/idle.rbf`, and deriving the U-Boot that loads it (`core=idle.rbf`) before it enables the bridges |
 
 FogCast admits the interface from the registry the runtime advertises. It has
 no DDR-specific code.
@@ -36,11 +36,14 @@ Without `latched`, the registry omits `fes.memory.hps-ddr`, admission and
 inspection return `unsupported_interface`, and port release is refused. The
 diagnostic kind is `hps_ddr.boot`.
 
-The U-Boot and FAT boot core change only with new media. A card provisioned
-before FES derived its U-Boot still boots `core=menu.rbf` from FAT
-`/menu.rbf`. It keeps working for cores that do not use DDR. Unless that
-`/menu.rbf` latched the layout, the card does not offer `fes.memory.hps-ddr`
-until it is reprovisioned. A network update does not change the boot files
+U-Boot and the kernel change only with new media. A confirmed appliance update
+refreshes FAT `/idle.rbf` from the confirmed image's sealed idle core and does
+not rewrite U-Boot, the kernel, or other FAT boot files. The trial boot still
+programs the splash from the previous confirmation; that layout stays latched
+until the next boot. A card provisioned before FES derived its U-Boot still
+boots `core=menu.rbf` from FAT `/menu.rbf`. It keeps working for cores that do
+not use DDR. Unless that `/menu.rbf` latched the layout, the card does not
+offer `fes.memory.hps-ddr` until it is reprovisioned
 ([bootable media](bootable-media.md#u-boot-and-the-fat-idle-core)).
 
 The SDR registers `CPORTWIDTH` through `PORTCFG` show the loaded core's

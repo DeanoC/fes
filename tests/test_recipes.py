@@ -105,30 +105,40 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipes.recipe_for("fes.menu").lock_path,
                          "cores/fes-menu/toolchain.lock")
 
-    def test_each_recipe_lists_the_options_of_its_own_lock_nextpnr(self):
-        # The parent registry checks only the shape of each flags table; the
-        # misteross builder owns every classified nextpnr pin's option schema.
+    def test_each_recipe_uses_a_classified_schema_and_its_own_lock(self):
+        # nextpnr schemas are selected by the executable's exact option set,
+        # not by its commit pin. Keep checking each recipe's own lock here and
+        # ask the source checkout to validate its flags against every known set.
         import json
         import tomllib
         source = Path(__file__).resolve().parents[1] / "sources/misteross"
         program = (
             "import json\nfrom scripts import pnr_recipe\n"
+            "def matching_schemas(core):\n"
+            " matches = []\n"
+            " for option_names in pnr_recipe._SOURCE_OPTION_SET_SCHEMAS:\n"
+            "  try:\n"
+            "   schema = pnr_recipe.validate_option_names(core, option_names)\n"
+            "  except pnr_recipe.RecipeError:\n"
+            "   continue\n"
+            "  matches.append(sorted(schema))\n"
+            " return matches\n"
             "print(json.dumps({core: [pnr_recipe.nextpnr_pin(core),"
-            " sorted(pnr_recipe.recipe_for(core)['flags']),"
-            " sorted(pnr_recipe.NEXTPNR_PINS[pnr_recipe.nextpnr_pin(core)])]"
+            " sorted(pnr_recipe.recipe_for(core)['flags']), matching_schemas(core)]"
             " for core in json.loads(input())}))\n")
         result = subprocess.run([sys.executable, "-c", program], cwd=source, check=True,
                                 input=json.dumps(sorted(recipes.FORMAT2_RECIPES)),
                                 capture_output=True, text=True, timeout=60)
         selected = json.loads(result.stdout)
         self.assertEqual(set(selected), set(recipes.FORMAT2_RECIPES))
-        for core_id, (pin, flags, options) in selected.items():
+        for core_id, (pin, flags, schemas) in selected.items():
             with self.subTest(core=core_id):
                 recipe = recipes.recipe_for(core_id)
                 lock = tomllib.loads((source / recipe.lock_path).read_text())
                 self.assertEqual(pin, lock["tool"]["nextpnr"]["commit"])
                 self.assertEqual(sorted(recipe.pnr["flags"]), flags)
-                self.assertEqual(flags, options)
+                self.assertTrue(schemas)
+                self.assertIn(flags, schemas)
 
     def assert_existing_descriptors(self):
         self.assertTrue(

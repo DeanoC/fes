@@ -88,10 +88,3 @@ func checkColor(L *lua.LState, idx int) gfx.Color {
 		return gfx.Color{}
 	}
 }
-
-func optColor(L *lua.LState, idx int, def gfx.Color) gfx.Color {
-	if L.Get(idx) == lua.LNil {
-		return def
-	}
-	return checkColor(L, idx)
-}

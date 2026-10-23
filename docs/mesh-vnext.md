@@ -1,5 +1,7 @@
 # Mesh v-next: onboarding/pairing, two-kit placement, hardening slices, HIL2 acceptance
 
+**Partly superseded (22 October 2026):** Q16 is revised below. Pairing hardening (P1–P3, P4b), two-kit placement (§3) and the launcher credentials (§4 P4a) are cancelled under [#863](https://github.com/DeanoC/fes/issues/863); see [mesh under kit-as-host](mesh-kit-host.md).
+
 **Status:** draft. Not a wire freeze, not an implementation claim, and
 not a default flip for `[mesh] ensure` or `[mesh] placement`. The M1
 capability, title/backend, identity, availability, and ownership baseline

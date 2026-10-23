@@ -246,7 +246,7 @@ func TestProtocol2StatusRequiresASuccessfulReadOnlyReply(t *testing.T) {
 
 func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
-	menu := `,"menu_display":{"available":false,"package_id":"` + strings.Repeat("a", 64) + `","generation":0,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"staging_format":"rgba8888","displayed_sequence":0,"underflows":0,"error":{"code":"io_failed","message":"map immutable menu staging: Operation not permitted","phase":"menu_memory"}}`
+	menu := `,"menu_display":{"available":false,"package_id":"` + strings.Repeat("a", 64) + `","generation":0,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":0,"underflows":0,"error":{"code":"io_failed","message":"open fes-window: No such file or directory","phase":"menu_window"}}`
 	withMenu := strings.Replace(valid, `"inspected_package":null`, `"inspected_package":null`+menu, 1)
 	fixture := newSequenceSocketFixture(t, []string{withMenu + "\n"})
 	status, err := NewClient(fixture.path).Protocol2Status(context.Background())
@@ -254,29 +254,26 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 		t.Fatalf("menu status rejected as idle: %#v, %v", status, err)
 	}
 	fixture.wait(t)
-	malformed := strings.Replace(withMenu, `"staging_format":"rgba8888"`, `"staging_format":"rgba8888","surprise":true`, 1)
+	malformed := strings.Replace(withMenu, `"format":"bgrx8888"`, `"format":"bgrx8888","surprise":true`, 1)
 	if _, err := decodeProtocol2Response([]byte(malformed)); !errors.Is(err, errInvalidRuntimeResponse) {
 		t.Fatalf("unknown menu evidence accepted: %v", err)
 	}
-	// EncodeResponse appends "damage":true on menu_display when the runtime
-	// can take damaged presents. Ordinary status must still decode.
-	capable := strings.Replace(withMenu, `"underflows":0`, `"underflows":0,"damage":true`, 1)
-	fixture = newSequenceSocketFixture(t, []string{capable + "\n"})
-	status, err = NewClient(fixture.path).Protocol2Status(context.Background())
-	if err != nil || !validIdle(status) || status.MenuDisplay == nil || !status.MenuDisplay.Damage {
-		t.Fatalf("damage capability rejected: %#v, %v", status, err)
-	}
-	fixture.wait(t)
-	for _, bad := range []string{`"damage":false`, `"damage":1`, `"damage":null`} {
-		if _, err := decodeProtocol2Response([]byte(strings.Replace(capable, `"damage":true`, bad, 1))); !errors.Is(err, errInvalidRuntimeResponse) {
-			t.Fatalf("damage shape %s accepted: %v", bad, err)
+	// Clients draw into granted slots; the staging format and damage
+	// capability of the copying runtime are no longer status fields.
+	for _, stale := range []string{
+		strings.Replace(withMenu, `"underflows":0`, `"underflows":0,"damage":true`, 1),
+		strings.Replace(withMenu, `"slots":2,"format":"bgrx8888"`, `"staging_format":"rgba8888"`, 1),
+		strings.Replace(withMenu, `"format":"bgrx8888"`, `"format":8888`, 1),
+	} {
+		if _, err := decodeProtocol2Response([]byte(stale)); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("stale menu shape accepted: %v", err)
 		}
 	}
 }
 
 func TestProtocol2StatusAcceptsPromotedMenuFailures(t *testing.T) {
 	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
-	for _, phase := range []string{"menu", "menu_memory"} {
+	for _, phase := range []string{"menu", "menu_window"} {
 		t.Run(phase, func(t *testing.T) {
 			withError := strings.Replace(valid, `"error":null`, `"error":{"code":"io_failed","message":"menu scanout failed","phase":"`+phase+`"}`, 1)
 			fixture := newSequenceSocketFixture(t, []string{withError + "\n"})

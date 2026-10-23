@@ -59,29 +59,44 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
                     event_count <= event_count + 1'b1;
                     row_count <= next_row_count; row_offset <= next_row_offset;
                     last_colour <= palette_zero;
-                    case (capture_bank)
-                        2'd0: begin
-                            events0[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows0[row] <= {next_row_count, next_row_offset};
-                        end
-                        2'd1: begin
-                            events1[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows1[row] <= {next_row_count, next_row_offset};
-                        end
-                        2'd2: begin
-                            events2[event_count[EVENT_BITS-1:0]] <= {x, palette_zero};
-                            rows2[row] <= {next_row_count, next_row_offset};
-                        end
-                        default: capture_overflow <= 1'b1;
-                    endcase
+                    if (capture_bank == 2'd3) capture_overflow <= 1'b1;
                 end
             end
+        end
+    end
+    // Register each run write and commit it to its bank's RAMs one edge later,
+    // so reset, capture start and the run decision end at these registers
+    // instead of at the M10K enables. Output reads a bank only after the
+    // parent publishes it at frame end, long after its last run is written.
+    reg write_valid;
+    reg [1:0] write_bank;
+    reg [EVENT_BITS-1:0] write_event;
+    reg [17:0] write_run;
+    reg [8:0] write_row;
+    reg [EVENT_BITS+8:0] write_descriptor;
+    always @(posedge clk_sys) begin
+        write_valid <= !reset_sys && !capture_start && append && event_count != (EVENT_BITS+1)'(EVENTS) &&
+                       capture_bank != 2'd3;
+        write_bank <= capture_bank;
+        write_event <= event_count[EVENT_BITS-1:0];
+        write_run <= {x, palette_zero};
+        write_row <= row;
+        write_descriptor <= {next_row_count, next_row_offset};
+    end
+    always @(posedge clk_sys) begin
+        if (write_valid) begin
+            case (write_bank)
+                2'd0: begin events0[write_event] <= write_run; rows0[write_row] <= write_descriptor; end
+                2'd1: begin events1[write_event] <= write_run; rows1[write_row] <= write_descriptor; end
+                default: begin events2[write_event] <= write_run; rows2[write_row] <= write_descriptor; end
+            endcase
         end
     end
 
     reg [EVENT_BITS+8:0] desc0, desc1, desc2;
     reg [17:0] head0, head1, head2;
-    wire [EVENT_BITS+8:0] descriptor = output_bank == 2'd0 ? desc0 : output_bank == 2'd1 ? desc1 : desc2;
+    wire [8:0] descriptor_count = output_bank == 2'd0 ? desc0[EVENT_BITS+8:EVENT_BITS] :
+        output_bank == 2'd1 ? desc1[EVENT_BITS+8:EVENT_BITS] : desc2[EVENT_BITS+8:EVENT_BITS];
     reg [17:0] held0, held1, held2;
     reg held_valid;
     wire [17:0] current0 = held_valid ? held0 : head0;
@@ -96,8 +111,15 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
     wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
-    wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
-        output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
+    // Each RAM uses its own row descriptor on line start. The selected bank
+    // therefore reaches its event address without a cross-bank descriptor mux;
+    // the other banks' prefetched heads remain speculative.
+    wire [EVENT_BITS-1:0] read_pointer0 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc0[EVENT_BITS-1:0] : next_pointer;
+    wire [EVENT_BITS-1:0] read_pointer1 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc1[EVENT_BITS-1:0] : next_pointer;
+    wire [EVENT_BITS-1:0] read_pointer2 = output_sof ? {EVENT_BITS{1'b0}} :
+        output_line_start ? desc2[EVENT_BITS-1:0] : next_pointer;
     // Publication can select a bank on this same SOF edge. Increment each
     // descriptor independently so that late bank selection does not precede
     // an EVENT_BITS-wide carry chain. SOF retains its fixed event-zero origin.
@@ -115,22 +137,26 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // cross-domain bank selection and the descriptor/event immutability.
     always @(posedge clk_pixel) begin
         desc0 <= rows0[output_row]; desc1 <= rows1[output_row]; desc2 <= rows2[output_row];
-        head0 <= events0[read_pointer]; head1 <= events1[read_pointer]; head2 <= events2[read_pointer];
+        head0 <= events0[read_pointer0]; head1 <= events1[read_pointer1]; head2 <= events2[read_pointer2];
         if (reset_pixel) begin
             next_pointer <= 1; remaining <= 0; colour <= 0;
-            held_valid <= 1'b0; held0 <= 0; held1 <= 0; held2 <= 0;
+            held_valid <= 1'b0;
         end else if (output_sof || output_line_start) begin
             held_valid <= 1'b0;
             next_pointer <= line_successor;
-            remaining <= descriptor[EVENT_BITS+8:EVENT_BITS];
+            remaining <= descriptor_count;
             colour <= 0;
         end else if (consume_current) begin
             held_valid <= 1'b0;
             colour <= consume_head[8:0]; remaining <= remaining - 1'b1;
             if (remaining > 9'd1) next_pointer <= next_pointer + 1'b1;
         end else if (!held_valid) begin
-            held0 <= head0; held1 <= head1; held2 <= head2;
             held_valid <= 1'b1;
+        end
+        // Held events are read only while held_valid, so load them whenever
+        // it is clear. Neither the consume decision nor reset enables them.
+        if (!held_valid) begin
+            held0 <= head0; held1 <= head1; held2 <= head2;
         end
     end
 endmodule

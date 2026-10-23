@@ -553,6 +553,8 @@ std::vector<uint32_t> directed_program() {
         a.emit(B(2, 0, 0, 0));                                   // beq x0,x0,+2 -> misaligned branch
         a.emit(LW(4, 0, SCRATCH + 0)); result(a, 4, 0);
         a.emit(LW(4, 0, SCRATCH + 12)); result(a, 4, beq_at + 2);
+        a.emit(B(2, 0, 0, 1));                                   // untaken bne to +2 must not trap
+        a.emit(LW(4, 0, SCRATCH + 12)); result(a, 4, beq_at + 2);   // previous mtval is unchanged
     }
     {
         // Fetch fault: jump outside RAM; the handler returns to the saved address.
