@@ -1020,6 +1020,23 @@ public:
 		return RestoreAfterSaveFailure("save_media", system, core, generation, hardware_.FlushSave());
 	}
 
+	Error CaptureZx81Tape(const std::string& path, const std::string& package_id, std::uint64_t generation)
+	{
+		if (!ValidPackageId(package_id) || generation == 0 || path.empty())
+			return Invalid("invalid ZX81 tape capture");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			if (!rejected.ok()) return rejected;
+			busy_ = true; system = status_.system; core = status_.core;
+		}
+		const Error error = hardware_.CaptureZx81Tape(path);
+		FinishMediaUnit();
+		Log("capture_zx81_tape", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
 	Error EjectMedia(const std::string& package_id, std::uint64_t generation,
 		std::uint8_t unit)
 	{

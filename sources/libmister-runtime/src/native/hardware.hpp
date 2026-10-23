@@ -125,6 +125,7 @@ public:
     Error InsertLibraryComputerMedia(std::uint8_t, const std::string&, std::uint32_t,
         const std::string&, const MediaDataBinding&) override;
 	Error EjectComputerMedia(std::uint8_t unit) override;
+	Error CaptureZx81Tape(const std::string& path) override;
 
 private:
 	Error AdmitCorePackageInternal(const std::string&, const std::string&, bool,

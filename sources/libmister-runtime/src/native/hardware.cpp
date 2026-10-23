@@ -23,6 +23,8 @@
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
 #include <thread>
+#include <fcntl.h>
+#include <unistd.h>
 #include <chrono>
 #include "native/video.hpp"
 
@@ -982,6 +984,33 @@ Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& 
         return {ErrorCode::save_failed,inserted.message,"media_data"};
     }
     return inserted;
+}
+
+Error NativeHardware::CaptureZx81Tape(const std::string& path)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->TapeWriteCapable())
+		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
+	if (path.empty() || path[0] != '/' || path.size() > 4095 || path.find('\0') != std::string::npos)
+		return {ErrorCode::invalid_request, "invalid ZX81 tape path", "request"};
+	std::vector<unsigned char> bytes;
+	Error error = driver->CaptureZx81Tape(clock_, Deadline(clock_, timeouts_.media_io_ms), &bytes);
+	if (!error.ok()) return error;
+	const int fd = open(path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+	if (fd < 0) return {ErrorCode::save_failed, "cannot write ZX81 tape", "media_data"};
+	std::size_t at = 0;
+	while (at < bytes.size()) {
+		const ssize_t wrote = write(fd, bytes.data() + at, bytes.size() - at);
+		if (wrote < 0) {
+			close(fd);
+			return {ErrorCode::save_failed, "cannot write ZX81 tape", "media_data"};
+		}
+		at += static_cast<std::size_t>(wrote);
+	}
+	if (fsync(fd) != 0 || close(fd) != 0)
+		return {ErrorCode::save_failed, "cannot sync ZX81 tape", "media_data"};
+	return {};
 }
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)

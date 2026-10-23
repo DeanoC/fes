@@ -162,6 +162,10 @@ std::string Controller::Handle(const std::string& line)
     case Operation::save_media:
         result=runtime_.SaveMedia(request.expected_package_id,request.expected_generation,request.media_unit);
         break;
+	case Operation::capture_zx81_tape:
+		result = runtime_.CaptureZx81Tape(request.media_path, request.expected_package_id,
+			request.expected_generation);
+		break;
 	case Operation::eject_media:
 		result = runtime_.EjectMedia(request.expected_package_id,
 			request.expected_generation, request.media_unit);

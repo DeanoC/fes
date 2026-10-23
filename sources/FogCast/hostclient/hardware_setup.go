@@ -26,13 +26,27 @@ type HardwareTape struct {
 	Controls  string `json:"controls"`
 	SHA256    string `json:"sha256"`
 	RAMKB     int    `json:"ram_kb"`
+	// MediaID is set when the tape is already stored. Selection must not import it again.
+	MediaID string `json:"media_id,omitempty"`
 }
 
 func (c *Client) ZX81Tapes(ctx context.Context) ([]HardwareTape, error) {
+	return c.ZX81TapesForGame(ctx, "")
+}
+
+// ZX81TapesForGame returns starter cassettes plus programs this machine saved.
+func (c *Client) ZX81TapesForGame(ctx context.Context, gameID string) ([]HardwareTape, error) {
+	path := "/api/v1/library/zx81-tapes"
+	if gameID != "" {
+		if protocol.ValidateGameID(gameID) != nil {
+			return nil, fmt.Errorf("invalid tape game")
+		}
+		path += "?game_id=" + url.QueryEscape(gameID)
+	}
 	var result struct {
 		Tapes []HardwareTape `json:"tapes"`
 	}
-	err := c.getJSON(ctx, "/api/v1/library/zx81-tapes", &result)
+	err := c.getJSON(ctx, path, &result)
 	return result.Tapes, err
 }
 

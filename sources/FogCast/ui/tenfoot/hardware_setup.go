@@ -56,7 +56,11 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 	s.HardwareMode = "tapes"
 	s.Status = "Loading starter cassettes…"
 	var tapes []hostclient.HardwareTape
-	a.coreLibraryAsyncLocked(func(ctx context.Context) error { var err error; tapes, err = a.client.ZX81Tapes(ctx); return err }, func() {
+	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+		var err error
+		tapes, err = a.client.ZX81TapesForGame(ctx, action.GameID)
+		return err
+	}, func() {
 		s.Tapes = tapes
 		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN. Each starter tape shows its recommended RAM."
 	})
@@ -126,15 +130,23 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		role, id := "", ""
 		if tape != nil {
-			media, err := a.client.ImportZX81Tape(ctx, *tape)
-			if err != nil {
-				return err
-			}
+			var err error
 			role, err = a.zx81HardwareTapeRole(ctx, pkg)
 			if err != nil {
 				return err
 			}
-			id = media.MediaID
+			if tape.MediaID != "" {
+				if protocol.ValidateDigest(tape.MediaID) != nil {
+					return fmt.Errorf("invalid saved cassette")
+				}
+				id = tape.MediaID
+			} else {
+				media, err := a.client.ImportZX81Tape(ctx, *tape)
+				if err != nil {
+					return err
+				}
+				id = media.MediaID
+			}
 		}
 		var err error
 		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, id)

@@ -2811,6 +2811,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 			ctx, cancel = serviceTimeout(parent, timeout)
 			defer cancel()
 		}
+		s.rememberZX81Program(ctx, client, kitPlay)
 		if canSave && boundDisk {
 			status, err = saving.StopWithMediaSave(ctx)
 		} else {
