@@ -2135,3 +2135,65 @@ The user's unlimited route-budget authorization remains in force. No hardware,
 production lock, RTL, shared contract, clock constraint or timing waiver changed.
 Artifacts and the separate complete-union/report/receipt checks are in
 `out/mistral-line-index-route-20261023/`.
+
+
+## Corrected-model checkpoint searches and architectural next step
+
+The extra final-placement pass uses the exact corrected checkpoint, original
+clocks and captured calibration. Before admission it reproduces the complete
+RBF and both full timing reports byte for byte. Fresh discovery finds 24 eligible
+cells and seven candidate moves; all seven reject under the unchanged native
+clock/endpoint-margin or 20 ps gain guards. No move is retained. The output RBF,
+full timing report and complete endpoint report remain byte-identical, with all
+17,199 rows, 33 setup failures / -482 ps, zero hold failures / +822 ps and 105
+unsupported boundaries. Complete calibration values and native success/failure
+identity sets also match. This is a derived-checkpoint search, not another
+same-recipe full route or seed qualification.
+
+The worst CPU control LUT is excluded by the ordinary move footprint: its
+output feeds an arithmetic B input, and an input net has a fixed BUF.A user.
+Read-only native checks show its complete upstream launch coverage passes in
+both skew frames. The downstream check passes only through the existing explicit
+proof of unobserved arithmetic SO/CO leaves; all directly selected-net sinks
+have successful native analogue arcs. Ordinary caller admission remains unchanged.
+
+An OUT-only selected-net reroute diagnostic keeps all cells, parameters, bindings
+and pin maps fixed. It uses those native source/downstream proofs, the existing
+route transaction and complete both-frame clock/endpoint guards. Two distinct
+native measurements give -149 ps and +16 ps worst-sink gain. Neither reaches the
+unchanged 20 ps admission threshold; no route is retained. Exact full RBF/report
+rollback passes, and every cell connection matches by its complete net/alias
+identity (serialized integer bit numbers are local to each JSON export).
+
+The existing unmodified private LUT-to-arithmetic copy pass is also screened
+without routing or applying a copy. A paired fresh-placement report/listing
+checks 20 estimated sites and qualifies none; both placement JSON and timing
+report bytes remain exact. A separate host diagnostic first reconstructs the
+actual corrected checkpoint exactly, then removes only routes in memory while
+keeping its placement and original unfiltered timing report. This discovers the
+actual worst control edge, but qualifies no placement site. The listing restores
+its complete unrouted graph, pins and route stores byte for byte. Initial CLI
+rejection and a diagnostic-helper compile error are retained separately; neither
+ran a route. No compiler admission or implementation is changed by these screens.
+
+The two charged searches take 103.66652875812724 and 39.32369616813958 seconds.
+Accounting now contains **77 route/search receipts**, cumulative
+**85,712.20881765196069 seconds**, preserving each prior prefix and verifying all
+77 receipt objects, file hashes and exact Decimal charges. Host-only placement,
+readback and listing checks add no route charge. Artifacts are under
+`out/corrected-checkpoint-eight-trials-20261023/`,
+`out/corrected-cpu-control-audit-20261023/`,
+`out/corrected-cpu-control-reroute-20261023/`,
+`out/corrected-cpu-driver-copy-listing-20261023/` and
+`out/corrected-checkpoint-copy-listing-20261023/`.
+
+Mistral #19 is merged, including the model correction and review tests. The
+current CPU path still combines operand selection, addition and writeback in
+one cycle; one-hot controls, ADD source specialization and dedicated carry
+mapping already exist, and the prior forced ADD0 map regressed matched routes.
+The next architectural proposal is a 100 MHz two-phase EU with registered
+operands before ALU/writeback. This needs coordinated sequencer, ROM lead,
+jump-flush, flag and BIU handling plus a measured guest-cycle throughput budget.
+It is a proposal, not an RTL change or accepted timing result. Display/PIC and
+physical endpoint qualification remain separate work. No production lock,
+shared contract, clock, timing waiver or hardware state changes here.
