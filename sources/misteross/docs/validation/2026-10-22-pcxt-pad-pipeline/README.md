@@ -1852,3 +1852,66 @@ Evidence is in `out/final-move-rediscovery-route-20261023/` and
 The new journal SHA256 is
 `b84824339c422fcafee3657ab54e14bd244f098af1830a2ac95f7e3b291c4601`.
 Evidence class: host-only fresh GPU diagnostics and native checks. No hardware ran.
+
+### 23 October: reset/HOLD separation proofs and rejected resynthesis pair
+
+A separate initialized register can drive video HOLD while the original reset
+register drives execution/storage. Both sample the identical original decode on
+the same system edge. The isolated default-off `nomerge` attribute prototype
+preserves those FF identities without `keep` semantics. The reviewed change is
+[Yosys draft #31](https://github.com/DeanoC/yosys/pull/31), commit
+`230e9a58e988eb990a290ef2dc2897e8eb23b3d8`, based on `a75fe777`.
+The pinned `3a5accbd` runtime passes 22 focused, four baseline, four threaded and
+six integrated regression cases; the unpatched binary rejects a marked case.
+GitHub Linux and macOS builds pass for the delivery commit. No toolchain lock
+or production RTL changes accompany this diagnostic.
+
+Original/candidate synthesis succeeds with frozen identical inputs. A reviewed
+mapped compositional proof retains all 4,865 interface obligations and adds
+3,076 state equalities as outputs, with zero assumptions. Its explicit initialized
+base and first induction step pass; a wrong-init mutation produces an actual
+counterexample. Native logic/FF semantics remain real; matched opaque primitive
+composition requires identical semantics and initialization. Independent clock
+transitions are preserved. This is digital equivalence, not CDC qualification.
+
+Resynthesis removes the candidate's exact old NOR17 root identity. A separate
+matched diagnostic therefore omits reduction balancing on **both** variants;
+it is not the seven-failure recipe. Completed routes report:
+
+| Variant | Endpoint rows | Setup failures | Worst setup | Hold failures / minimum |
+| --- | ---: | ---: | ---: | ---: |
+| Resynthesized original | 17,199 | 88 | -1,271 ps | 0 / +675 ps |
+| Resynthesized reset/HOLD copy | 17,200 | 205 | -1,561 ps | 0 / +709 ps |
+
+Both exit with timing failure and retain 105 unsupported records / `complete=false`.
+The candidate is rejected. The complete literal union retains 15,758 common,
+1,441 original-only and 1,442 candidate-only rows without inventing endpoint
+correspondence. Independent replay reproduces all four comparison outputs
+(gzip compared after decompression); full 50,276 raw and 85,964 routed graph
+patches reconstruct the exact graphs. Both zero-trial native readbacks reconstruct
+their whole saved RBFs exactly. These checks do not independently reproduce STA.
+
+This pair adds exactly `4835.1470302860254` seconds. Accounting now has 72 unique
+full-route receipts and `81076.25628621363987` cumulative seconds. The complete
+70-entry prefix with SHA256
+`b84824339c422fcafee3657ab54e14bd244f098af1830a2ac95f7e3b291c4601`
+is preserved. The resulting journal SHA256 is
+`ba1d82f309778e805019552131e4c0cd096d355151391b2c2e63c56ac6f2bb62`.
+Proofs are in `out/reset-hold-nomerge-20261023/`; completed route evidence and
+independent accounting review are in `out/reset-hold-route-20261023/`.
+
+A smaller host-only prototype instead copies one native FF and inverter, adds
+two nets and rewires four verified consumers of the frozen b4 graph. Every other
+raw object and the old NOR17 root remain exact. Initialized native base/induction,
+equal-substitution context checks, three semantic counterexamples and five
+structural negative controls pass. A complete 1,944-branch / 5,527-terminal clock
+census puts the sole pixel capture inside those four edges; 1,065 source-unknown
+terminals remain explicitly unknown. Paired native packing succeeds and preserves
+the copy and NOR17 transform. Packed constant-control evidence is source-derived,
+since serialized JSON omits `pin_data`. Fresh routing of this separately reviewed
+prototype is pending in `out/mapped-reset-replication-route-20261023/`; no result,
+new charge or acceptance is inferred here.
+
+The seven-failure / -270 ps b4 research reference remains unchanged. Both FES
+and nextpnr PRs remain draft. Physical coverage, seed, producer and exact-artifact
+hardware gates remain open. Evidence class: host diagnostics only; no hardware ran.
