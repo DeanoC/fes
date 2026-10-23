@@ -86,7 +86,9 @@ Neither move rebinds the plane or grants a new display generation.
 A plane that refuses the surround is closed. The session then keeps machine
 pixels only, and the room opens and closes the plane as before. The **TV
 surround · kit HDMI** setting (`surround` in `tenfoot.json`, on by default)
-turns it off. Per-system and theme art are later work.
+turns it off. Settings does not open while a machine runs, so the setting is
+changed on the launcher between sessions and applies from the next launch.
+Per-system and theme art are later work.
 
 A disabled, faulted or not-yet-visible plane returns machine pixels
 unchanged. A display failure never stops, resets or reprograms the machine.

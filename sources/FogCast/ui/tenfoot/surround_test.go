@@ -184,3 +184,40 @@ func TestKitSurroundStopLeavesNoStaleDisplayNotice(t *testing.T) {
 		t.Fatalf("notice %q outlived the session", app.roomSessionNotice)
 	}
 }
+
+// A kit HIL looked for the surround setting during play, but Settings stays
+// closed while a machine runs. The setting changes between sessions, and the
+// next session keeps machine pixels only with input on the machine.
+func TestKitSurroundTurnsOffInSettingsBetweenSessions(t *testing.T) {
+	kit, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	if app.Snapshot().Settings.Open {
+		t.Fatal("settings opened over a running machine")
+	}
+	app.mu.Lock()
+	app.applySessionLocked(hostclient.SessionResult{State: "idle"})
+	app.mu.Unlock()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "surround", now)
+	app.HandleCommand(CmdSelect, now)
+	if row := app.Snapshot().Settings.Rows[settingsRowSurround]; row.Value != "Off" {
+		t.Fatalf("toggled row = %#v", row)
+	}
+	app.HandleCommand(CmdBack, now)
+	next := computerTapeDisplaySession()
+	next.ID += "-next"
+	app.mu.Lock()
+	app.applySessionLocked(next)
+	app.mu.Unlock()
+	for i := 0; i < 5; i++ {
+		app.Tick(time.Now())
+	}
+	if got := kit.requests(); len(got) != 1 || got[0] != protocol.SessionDisplayShown {
+		t.Fatalf("display requests = %+v", got)
+	}
+	if snap := app.Snapshot(); snap.Surround.Active || !snap.GPUParked || !app.ForwardsPlayHID() || !app.coreOwnsPadInput() {
+		t.Fatalf("next session: surround=%v parked=%v", snap.Surround.Active, snap.GPUParked)
+	}
+}
