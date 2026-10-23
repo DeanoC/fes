@@ -81,10 +81,11 @@ A frame uses two JSON lines on **one connection**:
 {"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"written":[[96,50,32,10],[600,500,8,8]]}
 ```
 
-Begin returns `menu_frame` with the generation and `slot`, the one scanout is
-not showing. The client draws into that slot only between this response and
-its commit; the first frame after a grant goes to slot 1 and slots alternate
-after each presented frame. Commit names the same slot and, optionally, the
+Begin returns `menu_frame` with the generation, `slot`, the one scanout is
+not showing, and `preparation`, which counts the generation's begins from 1.
+The client draws into that slot only between this response and its commit;
+the first frame after a grant goes to slot 1 and slots alternate after each
+presented frame. Commit names the same slot and, optionally, the
 1–16 `[x,y,w,h]` rectangles inside 1280×720 it wrote. Without `written` the
 whole frame counts as written. The client tracks what each slot holds: a slot
 two frames old needs this frame's changes and the previous frame's.
@@ -97,7 +98,10 @@ inside the heap:
 {"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1,"list":{"first":0,"count":819},"uploaded":[[16777216,65536]]}
 ```
 
-The client writes the list and uploads between begin and commit. The runtime
+The client writes the list and uploads between begin and commit. Every peer
+shares the heap, so a client can keep textures there across frames only while
+no other peer has begun one: when a begin's `preparation` is not one more than
+the client's own last, it must upload again everything it draws. The runtime
 writes back the list's commands and the uploads, checks that the blitter is
 idle, runs it into the slot, waits for its completed count, then submits the
 slot as below. The completed count and busy state use separate GP reads, so a
@@ -246,8 +250,9 @@ sequence marker and a final-column row/sequence marker. It maps the grant once
 and draws every frame whole into its slot. On a blitter grant it writes the
 same pattern as 819 FILL commands and commits that list, and it reports
 `blitter=1` and the average `blit_avg_ms`. Its first list switches that grant
-to lists, so a CPU client on the same generation, such as tenfoot, has its
-commits refused until the next activation. The client checks generation,
+to lists, so a client that draws only CPU frames on the same generation has
+its commits refused until the next activation. tenfoot draws lists on a
+blitter grant, so it keeps drawing after the pattern client. The client checks generation,
 geometry, format, the grant, completion sequence and an underflow delta of at
 most one scanline, and prints frame count, elapsed time,
 average/maximum commit latency and its own CPU/RSS. Measure daemon CPU separately

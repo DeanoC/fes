@@ -101,7 +101,8 @@ func (c *FrameCache) DrawTextWeight(x, y int, text string, size int, weight Weig
 }
 
 // CacheBackdrop marks one reusable command prefix in a complete frame. CPU
-// painters keep one framebuffer copy; unsupported painters replay normally.
+// painters keep one framebuffer copy; unsupported painters, and a menu
+// display frame the blitter draws, replay normally.
 // The checkpoint is deferred so identical whole frames still do no raster work.
 func (c *FrameCache) CacheBackdrop() {
 	if !c.active || !c.clear || c.checkpoint >= 0 {
@@ -125,6 +126,11 @@ func (c *FrameCache) captureBackdrop() {
 		}
 	}
 	fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
+	if fb == nil {
+		// The blitter draws this frame; there are no CPU pixels to keep.
+		c.backdropValid = false
+		return
+	}
 	if cap(c.backdropPixels) < len(fb.Pix) {
 		c.backdropPixels = make([]byte, len(fb.Pix))
 	}
@@ -178,7 +184,7 @@ func (c *FrameCache) flush() {
 	start := 0
 	if c.checkpoint >= 0 {
 		fb := c.device.(interface{ frameSurface() *image.RGBA }).frameSurface()
-		if c.backdropValid && fb.Rect == c.backdropBounds && fb.Stride == c.backdropStride && len(fb.Pix) == len(c.backdropPixels) && slices.Equal(c.current[:c.checkpoint], c.backdropCommands) {
+		if fb != nil && c.backdropValid && fb.Rect == c.backdropBounds && fb.Stride == c.backdropStride && len(fb.Pix) == len(c.backdropPixels) && slices.Equal(c.current[:c.checkpoint], c.backdropCommands) {
 			c.restoreBackdrop(fb)
 			c.device.SetBlend(c.backdropBlend)
 		} else {

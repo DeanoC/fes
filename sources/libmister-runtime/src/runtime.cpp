@@ -242,7 +242,8 @@ public:
   if(!preparation_.expired())return Busy("one menu preparation is already outstanding");
   std::unique_ptr<MenuFrame> frame(new MenuFrame);
   error=hardware_.MenuBackSlot(&frame->slot_);if(!error.ok())return error;
-  frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;
+  if(prepared_generation_!=generation) {prepared_generation_=generation;preparations_=0;}
+  frame->preparation_=std::make_shared<int>(0);frame->generation_=generation;frame->preparation_count_=++preparations_;
   preparation_=frame->preparation_;*output=std::move(frame);return {};
  }
  Error PresentMenuFrame(std::uint64_t generation,MenuFrame& frame,MenuDisplayInfo* output)
@@ -1473,6 +1474,9 @@ public:
 	std::uint64_t next_generation_;
  std::uint64_t next_menu_generation_=0;
  std::weak_ptr<void> preparation_;
+ // Preparations begun on prepared_generation_, which tell a client whether
+ // another peer drew on the grant since its own last frame.
+ std::uint64_t prepared_generation_=0,preparations_=0;
 	std::uint64_t active_generation_;
 	std::uint64_t pending_fault_generation_;
 	std::thread fault_thread_;
