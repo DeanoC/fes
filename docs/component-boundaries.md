@@ -174,10 +174,11 @@ other historical kit result. Later revisions need their own evidence.
 
 Dated notes under [validation/](validation/) describe the artifacts they name.
 
-A later LAN of capability-bearing nodes is drafted in
+A LAN of capability-bearing nodes is drafted in
 [mesh LAN](mesh-lan.md) and [mesh node protocol](mesh-node-protocol.md).
-The delivery direction agreed on 2026-10-01 is recorded there; individual
-wire/protocol strawmen still require the review described in those documents.
+On 22 October 2026 the kit became its own FogCast host (#863);
+[mesh under kit-as-host](mesh-kit-host.md) records that decision and
+supersedes the kit-side placement and pairing parts of those drafts.
 It keeps physical transitions in the
 runtime, session coordination in the FogCast agent, the library in
 FogCast, definitions in mister-packages, and image assembly in FES.

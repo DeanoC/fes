@@ -102,8 +102,12 @@ exact-package development diagnostic from 2026-10-03; its identity and clock
 results are in the
 [SG-1000 README](../sources/misteross/cores/fes-sg1000/README.md#memory-and-host-interfaces).
 The Spectrum 0.2.0 packages diagnosed that day (native and the deleted 56 MHz
-variant) are superseded by the Spectrum models below, which have no kit
-evidence yet. These checks did not assemble or replace the appliance image.
+variant) are superseded by the current models below. Their [22 Oct Kit A
+diagnostic](validation/2026-10-22-spectrum-models-seal.md) records each model
+booting its named ROM and running a typed BASIC line, beeper edges captured on
+all four, and FLASH at 16-frame intervals on the 128K, +3 and Pentagon models.
+Tape, joysticks, AY music and expansion remain untested on hardware; no game or
+demo was tested. These checks did not assemble or replace the appliance image.
 Physical NMOS pin equivalence remains open.
 
 The named `fes.sms` 1.4.0 package, open Mode 4 ROM and installed image have
