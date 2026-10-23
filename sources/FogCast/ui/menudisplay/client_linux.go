@@ -51,8 +51,11 @@ type window struct {
 	// before it, nil for a whole frame.
 	held   [Slots]uint64
 	damage []Rect
-	// heap is the textures resident in a blitter grant's heap.
-	heap *blitHeap
+	// heap is the textures resident in a blitter grant's heap. Every socket
+	// peer shares that heap, so it holds only while no other peer has begun
+	// a frame: prepared is this client's last preparation of the generation.
+	heap     *blitHeap
+	prepared uint64
 }
 type Status struct {
 	Available         bool   `json:"available"`
@@ -83,6 +86,7 @@ type reply struct {
 	MenuFrame   *struct {
 		Generation        uint64  `json:"generation"`
 		Slot              *int    `json:"slot"`
+		Preparation       uint64  `json:"preparation"`
 		Format            string  `json:"format"`
 		Slots             int     `json:"slots"`
 		SlotBytes         int     `json:"slot_bytes"`
@@ -387,7 +391,7 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	if err != nil {
 		return Result{}, err
 	}
-	conn, slot, err := c.begin(ctx, generation)
+	conn, slot, err := c.begin(ctx, w, generation)
 	if err != nil {
 		return Result{}, err
 	}
@@ -468,11 +472,20 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 			w.heap.reset()
 		}
 	}()
-	conn, slot, err := c.begin(ctx, generation)
+	shared := w.prepared
+	conn, slot, err := c.begin(ctx, w, generation)
 	if err != nil {
 		return Result{}, err
 	}
 	defer conn.Close()
+	if w.prepared != shared+1 {
+		// Another peer began a frame since this client's last and may have
+		// written the heap. The frame fit, so it fits the empty heap.
+		w.heap.reset()
+		if placed, err = w.heap.place(frame); err != nil {
+			return Result{}, err
+		}
+	}
 	staged := time.Now()
 	timing.BeginUS = staged.Sub(began).Microseconds()
 	count := len(frame.Ops)
@@ -508,8 +521,9 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 	return result, nil
 }
 
-// begin opens a frame: it asks the runtime for the slot to draw.
-func (c *Client) begin(ctx context.Context, generation uint64) (*net.UnixConn, int, error) {
+// begin opens a frame: it asks the runtime for the slot to draw, and
+// records the preparation in w.
+func (c *Client) begin(ctx context.Context, w *window, generation uint64) (*net.UnixConn, int, error) {
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return nil, 0, err
@@ -527,10 +541,11 @@ func (c *Client) begin(ctx context.Context, generation uint64) (*net.UnixConn, i
 		return nil, 0, err
 	}
 	p := prepared.MenuFrame
-	if len(fds) != 0 || p == nil || p.Generation != generation || p.Slot == nil || *p.Slot < 0 || *p.Slot >= Slots || p.DisplayedSequence != nil {
+	if len(fds) != 0 || p == nil || p.Generation != generation || p.Slot == nil || *p.Slot < 0 || *p.Slot >= Slots || p.Preparation == 0 || p.DisplayedSequence != nil {
 		conn.Close()
 		return nil, 0, errors.New("invalid menu preparation")
 	}
+	w.prepared = p.Preparation
 	return conn, *p.Slot, nil
 }
 

@@ -88,6 +88,8 @@ struct MenuFrameReply {
  enum class Kind {granted,prepared,presented} kind=Kind::presented;
  std::uint64_t generation=0;
  std::uint8_t slot=0;
+ // A preparation's count on its generation.
+ std::uint64_t preparation=0;
  // A grant that also covers the blitter's lists and heap.
  bool blitter=false;
  std::uint32_t displayed_sequence=0,underflows=0;

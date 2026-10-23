@@ -41,6 +41,8 @@ type fakeRuntime struct {
 	ddr       []byte
 	// refuse fails the next commit with this message.
 	refuse string
+	// preparations counts begins on preparedGen.
+	preparedGen, preparations uint64
 }
 
 func newFakeRuntime(t *testing.T) (*fakeRuntime, string) {
@@ -118,7 +120,11 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304%s}}`, f.generation, blitter), f.window)
 	case "menu_frame_begin":
 		slot := f.shown ^ 1
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d}}`, f.generation, slot), -1)
+		if f.preparedGen != f.generation {
+			f.preparedGen, f.preparations = f.generation, 0
+		}
+		f.preparations++
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, f.generation, slot, f.preparations), -1)
 		line, fds, err := readLine(conn)
 		if err != nil || len(fds) != 0 || json.Unmarshal(line, &request) != nil ||
 			request["operation"] != "menu_frame_commit" || request["slot"] != float64(slot) {

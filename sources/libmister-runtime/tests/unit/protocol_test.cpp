@@ -1055,9 +1055,9 @@ void TestMenuProtocolRequestsAndStatus()
  // Status does not report the blitter; the grant does.
  status.menu_display.blitter=true;
  assert(mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,nullptr).find("blitter")==std::string::npos);
- mister::daemon::MenuFrameReply prepared;prepared.kind=mister::daemon::MenuFrameReply::Kind::prepared;prepared.generation=1;prepared.slot=0;
+ mister::daemon::MenuFrameReply prepared;prepared.kind=mister::daemon::MenuFrameReply::Kind::prepared;prepared.generation=1;prepared.slot=0;prepared.preparation=4;
  const auto begun=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&prepared);
- assert(begun.find("\"menu_frame\":{\"generation\":1,\"slot\":0}")!=std::string::npos);
+ assert(begun.find("\"menu_frame\":{\"generation\":1,\"slot\":0,\"preparation\":4}")!=std::string::npos);
  mister::daemon::MenuFrameReply granted;granted.kind=mister::daemon::MenuFrameReply::Kind::granted;granted.generation=1;
  const auto window=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
  assert(window.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304}")!=std::string::npos);

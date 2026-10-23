@@ -193,7 +193,7 @@ std::string Controller::BeginMenuFrame(const Request& request,std::unique_ptr<Me
 {
  const auto error=runtime_.BeginMenuFrame(request.expected_generation,frame);
  MenuFrameReply reply;reply.kind=MenuFrameReply::Kind::prepared;reply.generation=request.expected_generation;
- if(error.ok())reply.slot=(*frame)->slot();
+ if(error.ok()) {reply.slot=(*frame)->slot();reply.preparation=(*frame)->preparation();}
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame)

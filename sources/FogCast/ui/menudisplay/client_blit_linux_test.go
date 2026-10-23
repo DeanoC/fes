@@ -152,6 +152,34 @@ func TestPresentBlitUploadsAgainAfterAFailedCommit(t *testing.T) {
 	}
 }
 
+func TestPresentBlitUploadsAgainAfterAnotherPeerDrew(t *testing.T) {
+	runtime, path := newBlitRuntime(t)
+	ctx := context.Background()
+	first, second := New(path), New(path)
+	defer first.Close()
+	defer second.Close()
+	a, b := pattern(64, 64, 5), pattern(64, 64, 200)
+	opsA := []BlitOp{{Kind: BlitFill, W: Width, H: Height, Color: 0xff000000}, {Kind: BlitCopy, X: 8, Y: 8, W: 64, H: 64, Source: a}}
+	opsB := []BlitOp{{Kind: BlitFill, W: Width, H: Height, Color: 0xff000000}, {Kind: BlitCopy, X: 8, Y: 8, W: 64, H: 64, Source: b}}
+	for i, step := range []struct {
+		client *Client
+		ops    []BlitOp
+	}{{first, opsA}, {first, opsA}, {second, opsB}, {first, opsA}} {
+		if _, err := step.client.PresentBlit(ctx, 7, BlitFrame{Ops: step.ops}); err != nil {
+			t.Fatal(err)
+		}
+		// The second client's upload took the first's heap offset, so the
+		// first client's next frame must upload its source again.
+		_, uploaded := runtime.commit(i)["uploaded"]
+		if want := i != 1; uploaded != want {
+			t.Fatalf("frame %d uploaded=%v", i, uploaded)
+		}
+		if got, want := runtime.slot(1-i%2), expectFrame(make([]byte, FrameBytes), step.ops); !bytes.Equal(got, want) {
+			t.Fatalf("frame %d differs from its list", i)
+		}
+	}
+}
+
 func TestPresentBlitTransientSourcesAreUploadedEveryFrame(t *testing.T) {
 	runtime, path := newBlitRuntime(t)
 	client := New(path)

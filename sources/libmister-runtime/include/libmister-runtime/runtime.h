@@ -353,18 +353,21 @@ struct MenuDraw {
 };
 class Runtime;
 // One outstanding menu preparation: the client draws into slot of the
-// granted window, then commits that slot and what it drew.
+// granted window, then commits that slot and what it drew. Preparations on a
+// generation count from 1, so a client whose last preparation was n knows
+// another peer could have written the shared heap when this one is not n+1.
 class MenuFrame final {
 public:
  MenuFrame()=default;
  MenuFrame(const MenuFrame&)=delete;
  MenuFrame& operator=(const MenuFrame&)=delete;
  std::uint8_t slot() const {return slot_;}
+ std::uint64_t preparation() const {return preparation_count_;}
  void SetDraw(MenuDraw draw) {draw_=std::move(draw);}
 private:
  friend class Runtime;
  std::shared_ptr<void> preparation_;
- std::uint64_t generation_=0;
+ std::uint64_t generation_=0,preparation_count_=0;
  std::uint8_t slot_=0;
  MenuDraw draw_;
 };
