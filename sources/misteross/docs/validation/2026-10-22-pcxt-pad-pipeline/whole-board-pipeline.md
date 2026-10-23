@@ -106,10 +106,36 @@ a timing miss, not whole-board closure or physical IO/reset/kit acceptance.
 Required broad integration checks will be completed after the candidate is
 stable; no fresh parent/component pass is claimed for this commit yet.
 
+## Explicit aligned memory regions: seed qualification in progress
+
+Frozen commit `e24b88ed` decodes RAM with A19:16 below `A` and firmware at
+`F`, in both the motherboard router and defensive storage backend. This is
+symbolically identical to the old full-width bounds for every address, kind
+and write direction. The ISA-hole admission mutation rejects. All 42 focused
+tests, motherboard/memory simulations, the full 16-suite simulation and
+`make check` pass. Mapped arithmetic cells fall from 1418 to 1376; no
+arithmetic cell is attributed to the former RAM comparison. FFs remain 3954,
+M10Ks 268, and all CPU, dot-predictor and local-ROM boundaries pass.
+
+Seed 1 completes with all collector bindings intact: 17132 rows, 17127 timed,
+6 setup failures / -274 ps, zero hold failures / +776 ps, 105 unsupported
+records and `complete=false`. The motherboard dispatch miss is gone. CPU,
+PIC and other logic all pass (minimum setup +335 / +263 / +253 ps); the six
+remaining misses are CGA VRAM address captures. This is a targeted path repair,
+not a qualified whole-board timing winner. The source, compiler, full repair
+recipe and 100/74.25 MHz clock contract are held fixed for seeds 1/2/3.
+Seeds 2 and 3 are running; no two-of-three gate has passed.
+
+A separate private CRTC address-register prototype passes all 252 state and
+interface equivalence points against the combinational row-plus-column MA.
+It maintains MA at the same CRTC edge without adding a memory-read cycle.
+The horizontal-wrap mutation rejects, including live horizontal-total changes.
+It is not adopted into RTL and has no routed timing result.
+
 ## Route accounting
 
-Receipt 84 adds exactly 204.8982303389348 charged seconds. All 84
+Receipt 85 adds exactly 157.97779908310622 charged seconds. All 85
 unique receipt objects, hashes and Decimal charges verify, preserving the
-original 83-row journal prefix. Cumulative charge including the pre-journal
-amount is 93958.19320650771199 seconds. User authorization remains
-unlimited route budget. Journal SHA-256: `ddc5ceb1a4e6120f730dac873a2bf0bcbd9ba6df827f8277a54841c1d45ed19e`.
+original 84-row journal prefix. Cumulative charge including the pre-journal
+amount is 94116.17100559081821 seconds. User authorization remains
+unlimited route budget. Journal SHA-256: `199ee7476b623813bcbb49444387f65ef7c0bf3677104d4aa8d1ac0f3cbfe732`.
