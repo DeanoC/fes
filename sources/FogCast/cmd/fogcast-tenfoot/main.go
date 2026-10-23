@@ -33,7 +33,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 0 && (args[0] == "room-install" || args[0] == "room-rollback") {
+	if len(args) > 0 && (args[0] == "room-install" || args[0] == "room-rollback" || args[0] == "room-export") {
 		return roomCommand(args, stdout, stderr)
 	}
 	_ = stdout

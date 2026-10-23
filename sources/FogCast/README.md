@@ -478,3 +478,10 @@ previous selection; a first-install rollback reveals the built-in default.
 See [room delivery](docs/rooms.md#installing-and-opening-rooms). The binary's
 embedded snapshots remain offline recovery defaults, rather than a required
 route for delivering ordinary room updates.
+
+Portable room files use the same installer and rollback path:
+`fogcast-tenfoot room-export --output home.room.zip PACK_DIRECTORY`, then
+`fogcast-tenfoot room-install home.room.zip` on the launcher's machine. Export
+validates before publishing; import checks the bounded archive privately before
+changing the selected snapshot. No source checkout is needed to install it.
+See [room installation](docs/rooms.md#installing-and-opening-rooms).

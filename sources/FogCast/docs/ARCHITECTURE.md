@@ -3423,14 +3423,21 @@ and package-generation checks.
 
 ### Independently installed rooms
 
-`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
-room's `room.toml`, Lua and artwork into the local launcher's room directory.
-The default resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then
-uses the persistent config location shared with the launcher. Use `--rooms`
-when the running launcher uses a custom room directory. A loose pack inside the
-rooms directory can be installed directly; a source that contains the
+`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY_OR_ARCHIVE`
+snapshots a room's `room.toml`, Lua and artwork into the local launcher's room
+directory. It accepts either a source directory or a portable ZIP. The default
+resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then uses the
+persistent config location shared with the launcher. Use `--rooms` when the
+running launcher uses a custom room directory. A loose pack inside the rooms
+directory can be installed directly; a directory source that contains the
 installation directory is rejected. Installation uses POSIX file locking on
 Linux/macOS. This is local installation, not a host-to-kit transfer API.
+
+`fogcast-tenfoot room-export --output FILE PACK_DIRECTORY` validates a source
+directory and atomically publishes a portable ZIP. The ZIP stores the pack
+files at its root. Import extracts and validates the archive privately before
+the ordinary installer changes the selected snapshot; no source checkout is
+needed on the launcher's machine.
 
 Installation checks the manifest, main script, icon presence and syntax of all
 Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
@@ -3471,4 +3478,12 @@ fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 # To recover an update that fails only during a later interaction:
 fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
+```
+
+To transfer a pack as one file, export it on the source machine and install the
+archive on the launcher's machine:
+
+```sh
+fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
+fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```
