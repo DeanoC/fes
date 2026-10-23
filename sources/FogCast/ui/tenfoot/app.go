@@ -166,7 +166,9 @@ type SessionSnapshot struct {
 	ControlsNotice    string
 	ControlsOpen      bool
 	MediaSelector     bool
-	HardwareRoom      bool
+	// KeypadSelect keeps Select with a keypad machine; Guide opens controls.
+	KeypadSelect bool
+	HardwareRoom bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -1123,7 +1125,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			}
 			return
 		case CmdSearch, CmdDetails:
-			if a.sessionLiveMediaOfferedLocked() {
+			if a.sessionMediaOfferedLocked() {
 				a.openTapePickerLocked()
 			}
 			return
@@ -2822,7 +2824,7 @@ func (a *App) handlePlayHIDKey(name string, down bool, now time.Time) bool {
 	}
 	if loadTapeChromeKey(name) {
 		a.mu.Lock()
-		open := down && a.sessionLiveMediaOfferedLocked()
+		open := down && a.sessionMediaOfferedLocked()
 		a.mu.Unlock()
 		if open {
 			a.Press(CmdSearch, now)
@@ -3373,10 +3375,11 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentActive: devActive,
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
-		LoadTape:          a.sessionLiveMediaOfferedLocked(),
+		LoadTape:          a.sessionMediaOfferedLocked(),
 		ControlsNotice:    a.roomSessionNotice,
 		ControlsOpen:      a.roomDuringPlay,
-		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked(),
+		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionMediaOfferedLocked(),
+		KeypadSelect:      a.sessionKeypadLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

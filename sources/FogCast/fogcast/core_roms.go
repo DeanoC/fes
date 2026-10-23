@@ -21,6 +21,23 @@ type coreROMCatalog interface {
 	SelectCoreEntryROM(context.Context, string, string, string, int64, string, string) (catalog.CoreEntryROM, error)
 }
 
+type cartridgeOverrideKey struct{}
+
+type cartridgeOverride struct{ gameID, mediaID string }
+
+// WithCartridge runs one launch of gameID with mediaID as its cartridge, in
+// place of the title's binding. The library binding is never changed: the
+// next ordinary launch of the title uses its own cartridge again.
+func WithCartridge(ctx context.Context, gameID, mediaID string) context.Context {
+	return context.WithValue(ctx, cartridgeOverrideKey{}, cartridgeOverride{gameID, mediaID})
+}
+
+// CartridgeFromContext is the swap cartridge for gameID, if any.
+func CartridgeFromContext(ctx context.Context, gameID string) (string, bool) {
+	o, ok := ctx.Value(cartridgeOverrideKey{}).(cartridgeOverride)
+	return o.mediaID, ok && o.gameID == gameID
+}
+
 func romAdmissionError() error {
 	return &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "required ROM must select an exact-size binary for this package and named ROM requirement"}
 }
@@ -103,6 +120,13 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	}
 	if selected.MediaID == "" || selected.PackageID != entry.PackageID || selected.ROMID != reqID || selected.SourceSize != reqSize {
 		return selected, nil, romAdmissionError()
+	}
+	// A cartridge swap over play replaces only a single linked cartridge.
+	if mediaID, ok := CartridgeFromContext(ctx, entry.GameID); ok {
+		if descriptor.Format != 3 || descriptor.ROM.Role != "cartridge" {
+			return selected, nil, romAdmissionError()
+		}
+		selected.MediaID = mediaID
 	}
 	object, reader, err := media.OpenCoreMedia(ctx, selected.MediaID)
 	if err != nil {
