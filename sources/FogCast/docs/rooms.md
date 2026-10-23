@@ -34,6 +34,31 @@ The directory precedence is `-rooms DIR`, `tenfoot.json` `rooms_dir`,
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
+First-party source packs declare the same `example.*` ids as the built-in
+rooms, so installing one updates that room instead of creating a second entry.
+Use the already installed launcher binary, with the room source directory
+available on the same machine:
+
+```sh
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/fes-cores
+```
+
+On a kit, omit `--rooms` to use its configured room directory. Reopen Rooms
+and select Home (or the updated room) to trial the new Lua and artwork in the
+running launcher. No Go compilation, agent restart, MENU build or OS rebuild
+is needed. The current room stays pinned to its old snapshot until reopened.
+To undo an update:
+
+```sh
+fogcast-tenfoot room-rollback --rooms /path/to/rooms example.fes-cores
+```
+
+Reopen the room again. The previous installed snapshot returns; rolling back
+a first install reveals the built-in room. Invalid Lua is rejected before
+selection, and a failed runtime trial restores the previous selection.
+Built-in rooms remain the offline recovery defaults; refreshing those binary
+snapshots is a software update, separate from normal room-pack delivery.
+
 Open **Home** with **h** / **Home** on a keyboard, or **hold B** on a
 gamepad (a shortcut, not the only Home route). When `home` is `rooms`
 and `home_room` names a pack that can be opened, start and Home open
