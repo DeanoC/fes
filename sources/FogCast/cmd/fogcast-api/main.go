@@ -1210,7 +1210,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		paths.Config = *configPath
 	}
 	config, err := loadAPIConfig(paths.Config, *metadataConfigPath)
-	config.StorageConfigPath = filepath.Join(filepath.Dir(paths.Config), "drives.json")
+	config.StorageConfigPath = filepath.Join(filepath.Dir(paths.Config), "host-drives.json")
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1

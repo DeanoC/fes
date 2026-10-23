@@ -3503,7 +3503,7 @@ with `nosuid,nodev,noexec`; desktop users use `udisksctl` without interactive
 authorization. FAT, exFAT and ext4 use the kit kernel; NTFS uses `ntfs-3g`.
 Desktop hosts need `lsblk` and an existing mount or desktop device permission.
 
-The host composes `storage.Manager` with `drives.json` beside its canonical
+The host composes `storage.Manager` with `host-drives.json` beside its canonical
 configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
 its existing persistent configuration directory. Writes atomically replace a
 0600 file, including credentials; inventory and save responses expose only
