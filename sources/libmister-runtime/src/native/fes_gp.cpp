@@ -499,6 +499,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesApplicationCapabilityMemoryHpsDdr;
 			else if (interface.id == FesApplicationInterfaceVideoMenuDisplayID)
 				capabilities |= FesApplicationCapabilityVideoMenuDisplay;
+			else if (interface.id == FesApplicationInterfaceVideoMenuBlitterID)
+				capabilities |= FesApplicationCapabilityVideoMenuBlitter;
 			continue;
 		}
 		if (computer) {
@@ -555,7 +557,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
 				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
 				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts |
-				FesApplicationCapabilityMemoryHpsDdr | FesApplicationCapabilityVideoMenuDisplay;
+				FesApplicationCapabilityMemoryHpsDdr | FesApplicationCapabilityVideoMenuDisplay |
+				FesApplicationCapabilityVideoMenuBlitter;
 			const std::uint16_t simple_computer_mask = FesSimpleComputerCapabilityKeyboard |
 				FesSimpleComputerCapabilityVideoFixed720p60 |
 				FesSimpleComputerCapabilityMediaBlob |

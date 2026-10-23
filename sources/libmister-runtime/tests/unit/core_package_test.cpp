@@ -371,6 +371,14 @@ void TestApplicationCompatibilityComposesInterfaces()
 		menu.interfaces.back().required=false;
 		assert(!mister::native::CheckCoreCompatibility(menu).ok());
 		menu.interfaces.back().required=true;
+		auto blitter = menu;
+		blitter.interfaces.push_back({"fes.video.menu-blitter",1,0,true});
+		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().required=false;
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().required=true;
+		blitter.interfaces.erase(blitter.interfaces.begin()+2);
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
 		menu.interfaces.erase(menu.interfaces.begin()+1);
 		assert(!mister::native::CheckCoreCompatibility(menu).ok());
 	}

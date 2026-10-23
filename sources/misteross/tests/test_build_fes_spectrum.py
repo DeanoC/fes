@@ -101,6 +101,16 @@ class BuildFesSpectrumTests(unittest.TestCase):
                              for source in producer.RTL_SOURCES))
         self.assertEqual(sum("/z80/" in p for p in producer.RTL_SOURCES), 4)
 
+    def test_tool_authentication_activates_the_selected_model_recipe(self):
+        auth = {name: SimpleNamespace(path=Path(f"/cache/{name}"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")}
+        with patch.object(producer, "_authenticate_tools", return_value=auth), \
+             patch.object(producer.pnr_recipe, "validate_nextpnr_tool") as validate:
+            result = producer._authenticate_spectrum_tools(
+                ROOT, cache_root=Path("/cache"), gpu_router="CUDA", core_id="fes.spectrum128")
+        self.assertIs(result, auth)
+        validate.assert_called_once_with("fes.spectrum128", auth["nextpnr-mistral"].path)
+
     def test_model_changes_build_identity(self):
         # Shared source-closure validation has its own suite; retain these
         # concrete producer fields to check model-specific identity inputs.
@@ -362,11 +372,13 @@ class BuildFesSpectrumTests(unittest.TestCase):
             self.assertEqual(run(["--gpu-router", "CUDA", "--toolchain-root", str(toolchain),
                                   "--model", "pentagon"]), 0)
             authenticate.assert_called_once_with(
-                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA",
+                core_id="fes.pentagon")
             self.assertEqual(commands.call_args.kwargs["model"], "pentagon")
             self.assertEqual(run([]), 0)
             authenticate.assert_called_once_with(
-                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP",
+                core_id="fes.spectrum")
             self.assertEqual(commands.call_args.kwargs["model"], "48")
 
     def test_manifest_names_each_model_and_its_firmware(self):

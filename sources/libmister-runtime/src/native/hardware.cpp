@@ -68,6 +68,11 @@ bool HasMenu(const CoreDescriptor& descriptor) {
   if(interface.id==generated::FesApplicationInterfaceVideoMenuDisplayID)return true;
  return false;
 }
+bool HasMenuBlitter(const CoreDescriptor& descriptor) {
+ for(const auto& interface:descriptor.interfaces)
+  if(interface.id==generated::FesApplicationInterfaceVideoMenuBlitterID)return true;
+ return false;
+}
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
   descriptor.abi.id!=generated::FesComputerABIID)return false;
@@ -97,7 +102,7 @@ const char kMenuInterfaceRecords[] MISTER_MENU_INTERFACE_SECTION =
 
 Error CheckMenu(const CoreDescriptor& descriptor) {
  if(descriptor.format!=2||descriptor.core.id!="fes.menu"||!descriptor.core.system.empty()||
-  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=3||!HasMenu(descriptor))
+  descriptor.abi.id!=generated::FesApplicationABIID||descriptor.interfaces.size()!=(HasMenuBlitter(descriptor)?4u:3u)||!HasMenu(descriptor))
   return {ErrorCode::invalid_package,"idle menu requires the described fes.menu video/DDR/menu package","admission"};
  return CheckCoreCompatibility(descriptor);
 }
@@ -727,8 +732,10 @@ Capabilities NativeHardware::capabilities() const
 		if (fpga_.BootHpsDdrLayout())
 			application.interfaces.push_back(
 				{generated::FesApplicationInterfaceMemoryHpsDdrID, 1, 0});
-		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_)
+		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_) {
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,0});
+  }
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
@@ -1274,6 +1281,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			"native video shell requires a video parts composition", "admission"}, false, ""};
  const bool menu=HasMenu(admitted->opened_.descriptor);
  const bool session_display=HasSessionDisplay(admitted->opened_.descriptor);
+ const bool blitter=menu&&HasMenuBlitter(admitted->opened_.descriptor);
  if(menu&&!allow_menu)return {{ErrorCode::unsupported_interface,"menu packages require idle configuration","admission"},false,""};
  if(menu&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"menu presentation adapter unavailable","admission"},false,""};
  if(session_display&&(!menu_display_||!menu_window_))return {{ErrorCode::unsupported_interface,"session presentation adapter unavailable","admission"},false,""};
@@ -1383,7 +1391,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		}
 	}
  if(menu||session_display) {
-  error=menu_window_->Activate(true);
+  error=menu_window_->Activate(true,blitter);
   if(error.ok())menu_underflow_streak_=0;
   if(error.ok())error=menu_display_->Configure(Deadline(clock_,timeouts_.core_io_ms));
   if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
@@ -1459,9 +1467,13 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
    if(error.ok()&&info.pixel_format!=generated::FesApplicationMenuPixelFormat)
     error={ErrorCode::io_failed,"idle menu must scan the XRGB format","menu"};
+   MenuBlitState blit;
+   if(error.ok()&&blitter)error=menu_display_->ReadBlit(Deadline(clock_,timeouts_.core_io_ms),&blit);
+   if(error.ok()&&(blit.busy||blit.faulted||blit.completed))
+    error={ErrorCode::io_failed,"menu blitter initial state is not idle","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
-   menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_slot_=0;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
@@ -1517,7 +1529,7 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   // Moving focus on a shown plane keeps its grant and frames.
   if(menu_status_.available){session_display_focused_=launcher_focus;return {};}
   // Hiding revoked the grant. The plane's slots keep their pixels.
-  Error error=menu_window_->Activate(false);
+  Error error=menu_window_->Activate(false,false);
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
   session_display_focused_=launcher_focus;
@@ -1667,13 +1679,19 @@ Error NativeHardware::MenuBackSlot(std::uint8_t* slot) const
   return {ErrorCode::busy,"menu presentation unavailable","menu"};
  *slot=std::uint8_t(menu_slot_^1);return {};
 }
-Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const std::vector<MenuRect>& written,MenuDisplayInfo* output)
+Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const MenuDraw& draw,MenuDisplayInfo* output)
 {
  if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_window_)
   return {ErrorCode::busy,"menu presentation unavailable","menu"};
  // Scanout is reading the other slot, so a wrong slot is a client error,
  // refused before it can reach the display.
  if(slot!=std::uint8_t(menu_slot_^1))return {ErrorCode::invalid_request,"menu commit names the displayed slot","menu"};
+ // A list needs the blitter's grant. That grant takes CPU frames until a list
+ // has run, then only lists: a CPU frame's write-back leaves its lines valid
+ // in the PL310, and a CPU write over what the blitter drew could make such a
+ // stale line dirty and evict it over the blitter's pixels.
+ if(draw.blit?!menu_status_.blitter:menu_status_.blitted)
+  return {ErrorCode::invalid_request,draw.blit?"menu grant has no blitter":"menu grant takes only lists after its first list","menu"};
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  MenuDisplayInfo info;Error error=menu_display_->ReadInfo(deadline,&info);
  // History accumulated before this present is not a reason to reject it.
@@ -1687,10 +1705,40 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const std::vector<MenuRe
  using Steady=std::chrono::steady_clock;
  const auto micros=[](Steady::time_point from,Steady::time_point to){
   return std::uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(to-from).count());};
- // The client drew through its cached mapping; fpga2sdram bypasses the
- // caches, so its lines reach DDR before the slot is submitted.
+ MenuBlitState blit;
+ if(error.ok()&&draw.blit) {
+  error=menu_display_->ReadBlit(deadline,&blit);
+  if(error.ok()&&(blit.busy||blit.faulted))error={ErrorCode::io_failed,"menu blitter is not idle","menu"};
+ }
+ // The client wrote through its cached mapping; fpga2sdram bypasses the
+ // caches, so its lines reach DDR before the fabric reads them.
  const auto clean_start=Steady::now();
- if(error.ok())error=menu_window_->Clean(slot,written);
+ if(error.ok())error=draw.blit?menu_window_->CleanBlit(draw.first,draw.count,draw.uploaded):menu_window_->Clean(slot,draw.written);
+ const auto blit_start=Steady::now();
+ if(error.ok()&&draw.blit) {
+  const std::uint16_t completed=std::uint16_t(blit.completed+1);
+  error=menu_display_->RunBlit(draw.first,draw.count,slot,deadline);
+  while(error.ok()) {
+   error=menu_display_->ReadBlit(deadline,&blit);if(!error.ok())break;
+   if(blit.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(blit.fault),"menu"};break;}
+   if(blit.completed==completed&&!blit.busy)break;
+   if(blit.completed==std::uint16_t(completed-1)&&!blit.busy) {
+    // Completion can land between the separate count and state requests.
+    // Confirm this ambiguous old-count/idle pair before treating it as a fault.
+    MenuBlitState confirmation;
+    error=menu_display_->ReadBlit(deadline,&confirmation);if(!error.ok())break;
+    if(confirmation.faulted){error={ErrorCode::io_failed,"menu blitter fault "+std::to_string(confirmation.fault),"menu"};break;}
+    if(confirmation.completed==completed&&!confirmation.busy){blit=confirmation;break;}
+    if(confirmation.completed==std::uint16_t(completed-1)&&!confirmation.busy) {
+     error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;
+    }
+    blit=confirmation;
+   }
+   if(blit.completed!=std::uint16_t(completed-1)||!blit.busy){error={ErrorCode::io_failed,"menu blitter completion does not match its run","menu"};break;}
+   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu blitter completion timed out","menu"};break;}
+   std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+ }
  const auto submit_start=Steady::now();
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
  const auto wait_start=Steady::now();
@@ -1706,7 +1754,9 @@ Error NativeHardware::PresentMenuSlot(std::uint8_t slot,const std::vector<MenuRe
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
-   info.clean_us=micros(clean_start,submit_start);info.submit_us=micros(submit_start,wait_start);
+   if(draw.blit)menu_status_.blitted=true;
+   info.clean_us=micros(clean_start,blit_start);info.blit_us=micros(blit_start,submit_start);
+   info.submit_us=micros(submit_start,wait_start);
    info.scanout_wait_us=micros(wait_start,Steady::now());
    *output=info;return {};
   }

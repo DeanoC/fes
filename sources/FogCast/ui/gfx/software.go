@@ -5,6 +5,8 @@ import (
 	"image"
 	"math"
 	"runtime"
+
+	"github.com/DeanoC/FogCast/ui/menudisplay"
 )
 
 // Software is a CGO-free Device with portable Go and an optional ARM NEON alpha
@@ -41,6 +43,8 @@ type swBitmap struct {
 	opaque                       bool
 	resizeHintSrc, resizeHintDst Rect
 	resizeHintValid              bool
+	// blit is this bitmap as a menu blitter source, made on first use.
+	blit *menudisplay.BlitSource
 }
 
 const scaledBitmapBudget = 8 << 20

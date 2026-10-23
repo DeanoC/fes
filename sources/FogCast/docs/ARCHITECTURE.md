@@ -1221,6 +1221,17 @@ wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a
 grant revoked mid-frame fails that frame. Submission runs off the pad loop.
+When the idle menu's grant includes the menu blitter, `MenuDisplay` records
+each frame as blitter commands instead of rastering it (`ui/gfx/menu_blit.go`):
+fills, copies and blends that draw the pixels `Software` would, with scaled
+draws, text and debug glyphs made into cached bitmaps. The client uploads each
+bitmap a frame reads into the grant's texture heap once, keeps it there while
+it is reachable and the heap has room, writes the list and commits it; the
+fabric draws the slot (`ui/menudisplay/blit.go`). The first frame after a
+grant is drawn on the CPU and goes as one copy, since a blitter grant refuses
+CPU frames after its first list. A session plane or a menu without the
+blitter gets CPU pixels, rasterizing a list that reaches it, and a list too
+large for the blitter is rasterized and copied whole.
 `fogcast-tenfoot -gfx menu-display` is the client of that socket and
 opts into change-driven presents. An unchanged frame reads menu status once
 a second and is submitted again when the generation changes. Status errors,

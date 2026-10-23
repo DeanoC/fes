@@ -208,10 +208,11 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
 
 def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None,
                                  toolchain_root: Path | None = None,
-                                 gpu_router: str = SPECTRUM_GPU_ROUTER):
+                                 gpu_router: str = SPECTRUM_GPU_ROUTER,
+                                 core_id: str | None = None):
     _backend, architectures, configuration = gpu_choice(gpu_router)
     root_path = root / SPECTRUM_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
-    return _authenticate_tools(
+    authenticated = _authenticate_tools(
         root,
         lock_path=root / SPECTRUM_TOOLCHAIN_LOCK,
         toolchain_root=root_path,
@@ -220,6 +221,12 @@ def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None,
         hip_architectures=architectures,
         cache_root=cache_root,
     )
+    if core_id is not None:
+        try:
+            pnr_recipe.validate_nextpnr_tool(core_id, authenticated["nextpnr-mistral"].path)
+        except pnr_recipe.RecipeError as exc:
+            raise BuildError(f"nextpnr recipe option validation failed: {exc}") from exc
+    return authenticated
 
 
 def _require_clean_source(root: Path, *, identity_version: int = 2, model: str = "48") -> tuple[str, str]:
@@ -351,7 +358,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     return yosys, route
 
 
-def validate_routed_shell(routed: dict) -> dict:
+def validate_routed_shell(
+    routed: dict, *, nextpnr_commit: str = pnr_recipe.nextpnr_pin("fes.spectrum")
+) -> dict:
     """Every socket holds only pinned boundary FFs and verified paired buffers."""
     top = routed.get("modules", {}).get(TOP, {})
     cells = top.get("cells", {})
@@ -365,9 +374,11 @@ def validate_routed_shell(routed: dict) -> dict:
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     try:
-        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        route_through = coleco_expansion.boundary_route_through_cells(
+            top, expected, nextpnr_commit=nextpnr_commit)
         coleco_expansion.validate_clock_anchors(top, {
-            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name},
+            nextpnr_commit=nextpnr_commit)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
     drivers = {}
@@ -635,7 +646,6 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
           toolchain_root: Path | None = None) -> Path:
     _area_budget({}, max_aluts)
     machine = model_for(model)
-    pnr = pnr_for(machine)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -643,7 +653,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     repository, revision = _require_clean_source(root, identity_version=identity_version, model=model)
     backend, architectures, _configuration = gpu_choice(gpu_router)
     authenticated = _authenticate_spectrum_tools(
-        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+        core_id=machine.core_id)
+    pnr = pnr_for(machine)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
@@ -708,7 +720,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
         final_tools = _authenticate_spectrum_tools(
-            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+            core_id=machine.core_id)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version, model=model) != (repository, revision):
@@ -741,7 +754,8 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None, model: str = "48
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
     authenticated = _authenticate_spectrum_tools(
-        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router,
+        core_id=machine.core_id)
     output = _prepare_output(root, relative=machine.output, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
         name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, model=model)

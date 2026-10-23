@@ -49,11 +49,16 @@ type frameTraceRecord struct {
 	StageUS     int64  `json:"stage_us,omitempty"`
 	CommitUS    int64  `json:"commit_us,omitempty"`
 	RTCleanUS   int64  `json:"runtime_clean_us,omitempty"`
+	RTBlitUS    int64  `json:"runtime_blit_us,omitempty"`
 	RTSubmitUS  int64  `json:"runtime_submit_us,omitempty"`
 	RTWaitUS    int64  `json:"runtime_scanout_wait_us,omitempty"`
 	// Pixels the client wrote into the granted slot, and the shortcuts the
 	// worker took (docs/frame-trace.md).
-	StagedPixels  int64  `json:"staged_pixels,omitempty"`
+	StagedPixels int64 `json:"staged_pixels,omitempty"`
+	// A frame the blitter drew: its commands and the heap bytes uploaded.
+	Blitted       bool   `json:"blitted,omitempty"`
+	Commands      int64  `json:"commands,omitempty"`
+	UploadBytes   int64  `json:"upload_bytes,omitempty"`
 	DamageRects   int    `json:"damage_rects,omitempty"`
 	StatusSkipped bool   `json:"status_skipped,omitempty"`
 	Retried       bool   `json:"retried,omitempty"`
@@ -101,9 +106,10 @@ func (f *frameTrace) present(p gfx.MenuPresentTrace) {
 		T: time.Now().UnixMicro(), Kind: "present", Seq: p.Seq, QueuedT: p.Queued.UnixMicro(),
 		FrameCopyUS: p.FrameCopyUS, QueueWaitUS: p.QueueWaitUS, StatusUS: p.StatusUS, PresentUS: p.PresentUS,
 		BeginUS: p.Timing.BeginUS, StageUS: p.Timing.StageUS, CommitUS: p.Timing.CommitUS,
-		RTCleanUS: p.Timing.RuntimeCleanUS, RTSubmitUS: p.Timing.RuntimeSubmitUS, RTWaitUS: p.Timing.RuntimeScanoutWaitUS,
-		StagedPixels: p.Timing.StagedPixels,
-		DamageRects:  p.DamageRects, StatusSkipped: p.StatusSkipped, Retried: p.Retried,
+		RTCleanUS: p.Timing.RuntimeCleanUS, RTBlitUS: p.Timing.RuntimeBlitUS, RTSubmitUS: p.Timing.RuntimeSubmitUS,
+		RTWaitUS: p.Timing.RuntimeScanoutWaitUS, StagedPixels: p.Timing.StagedPixels,
+		Blitted: p.Blitted, Commands: p.Timing.Commands, UploadBytes: p.Timing.UploadBytes,
+		DamageRects: p.DamageRects, StatusSkipped: p.StatusSkipped, Retried: p.Retried,
 		Presented: p.Presented, Err: p.Err,
 	})
 }

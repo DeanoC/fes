@@ -78,7 +78,9 @@ def routed_shell_fixture():
     return {"modules": {"top": top}}
 
 
-def add_boundary_route_throughs(top):
+def add_boundary_route_throughs(
+    top, *, nextpnr_commit=coleco_expansion.NEXTPNR_ROUTETHRU_REMAP
+):
     """Add the compiler's paired buffers, including private routed aliases."""
     ground = 19000
     top["cells"]["$PACKER_GND"] = {
@@ -103,7 +105,8 @@ def add_boundary_route_throughs(top):
             "attributes": {
                 "NEXTPNR_BEL": f"{comb}.{column}.{row}.{6 * alm + half}",
                 "FES_PINMAP_V1": json.dumps({"count": 2, "pins": {
-                    "A": [0, "D" if half else "C"], "Q": [0, "COMBOUT"]}}).encode().hex()},
+                    "A": [0, coleco_expansion.ROUTETHROUGH_INPUT_PINS[nextpnr_commit][half]],
+                    "Q": [0, "COMBOUT"]}}).encode().hex()},
             "port_directions": {"A": "input", "Q": "output"},
             "connections": {"A": source, "Q": [stub]},
         }

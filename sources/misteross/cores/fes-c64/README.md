@@ -596,8 +596,8 @@ firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `cores/fes-c64/toolchain.lock` (Yosys `3a5accbd`,
-Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
-static closure in `scripts/source_closures.json`. The seal also requires both
+Mistral `8fcc4cb4`, nextpnr `5fe55f3d` from nextpnr #276). The build record uses
+the audited static closure in `scripts/source_closures.json`. The seal also requires both
 achieved system-PLL outputs within 1 Hz of 52,224,000 Hz and 12,288,000 Hz.
 The [C64 build contract](../../docs/architecture.md#fes-commodore-64) states
 the packed M/N/K coefficients that fix those frequencies before the placer
