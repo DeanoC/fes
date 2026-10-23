@@ -88,16 +88,28 @@ original full-width sum/carry definition for every phase under that flag
 relation. Threshold mutations reject for both rates.
 
 All 40 focused tests pass with pinned Yosys, including address/TC mutation
-rejection. The DMA and complete-frame display simulations pass. The complete
-16-suite rerun and frozen whole-board synthesis/route are pending. These are
-host proofs and simulations, not timing, physical IO/reset or kit acceptance.
+rejection. The DMA and complete-frame display simulations pass. All 16 simulation suites and `make check` pass. Frozen board synthesis has
+3954 FFs and 268 M10Ks, both dot-enable FFs on the system clock and all 104
+independent boot-address FFs. Actual DMA payload enables have only state,
+grant, guest pulse and the registered reset as launch sources.
+
+The complete final route has 17132 rows (17127 setup/hold-timed), **one setup
+failure / -305 ps**, zero hold failures / +728 ps minimum, 105 unsupported
+records and `complete=false`. CPU, PIC and display all pass their emitted
+rows, with minimum setup +133, +689 and +19 ps respectively. The remaining
+capture is `system.machine.board.state_MISTRAL_FF_Q_3/DATAIN`: DMA state feeds
+the RAM address decode through a wide carry chain before state dispatch.
+All clock contracts are unchanged and all collector bindings pass.
+The full three-profile endpoint union and paired reports are retained in
+`grant-dot-route-comparison.json` and its companion artifacts. This is still
+a timing miss, not whole-board closure or physical IO/reset/kit acceptance.
 Required broad integration checks will be completed after the candidate is
 stable; no fresh parent/component pass is claimed for this commit yet.
 
 ## Route accounting
 
-Receipt 83 adds exactly 1251.239453698974 charged seconds. All 83
+Receipt 84 adds exactly 204.8982303389348 charged seconds. All 84
 unique receipt objects, hashes and Decimal charges verify, preserving the
-original 82-row journal prefix. Cumulative charge including the pre-journal
-amount is 93753.29497616877719 seconds. User authorization remains
-unlimited route budget. Journal SHA-256: `f6503930973e624ba58b40e257912c471921aacb423fa37a794d67239236d577`.
+original 83-row journal prefix. Cumulative charge including the pre-journal
+amount is 93958.19320650771199 seconds. User authorization remains
+unlimited route budget. Journal SHA-256: `ddc5ceb1a4e6120f730dac873a2bf0bcbd9ba6df827f8277a54841c1d45ed19e`.
