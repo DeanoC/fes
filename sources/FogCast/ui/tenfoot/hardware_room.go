@@ -84,6 +84,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 		a.openNestedRoomLocked(hardwareRoomID)
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
+		a.room.SetOverlay(a.roomOverlayLocked())
 		a.room.Resume()
 		a.dropRoomNavActionsLocked()
 	}

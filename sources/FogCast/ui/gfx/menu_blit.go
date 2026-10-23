@@ -92,7 +92,7 @@ func (d *MenuDisplay) BeginFrame() {
 func (d *MenuDisplay) Clear(c Color) {
 	if d.latch() == frameBlit {
 		d.needBase = false
-		d.ops = append(d.ops[:0], menudisplay.BlitOp{Kind: menudisplay.BlitFill, W: d.Software.w, H: d.Software.h, Color: argb(c)})
+		d.ops = append(d.ops[:0], menudisplay.BlitOp{Kind: menudisplay.BlitFill, W: d.Software.w, H: d.Software.h, Color: argb(premultiplied(c))})
 		return
 	}
 	d.cpuStale = false
@@ -111,14 +111,15 @@ func (d *MenuDisplay) FillRect(rect Rect, c Color) {
 	if !ok {
 		return
 	}
-	kind := menudisplay.BlitFill
+	// A replacing fill stores the premultiplied colour, as Software does.
+	kind, fill := menudisplay.BlitFill, premultiplied(c)
 	if s.blend == BlendAlpha && c.A != 255 {
 		if c.A == 0 {
 			return
 		}
-		kind = menudisplay.BlitFillBlend
+		kind, fill = menudisplay.BlitFillBlend, c
 	}
-	d.ops = append(d.ops, menudisplay.BlitOp{Kind: kind, X: x0, Y: y0, W: x1 - x0, H: y1 - y0, Color: argb(c)})
+	d.ops = append(d.ops, menudisplay.BlitOp{Kind: kind, X: x0, Y: y0, W: x1 - x0, H: y1 - y0, Color: argb(fill)})
 }
 
 func (d *MenuDisplay) Draw(tex Texture, src *Rect, dst Rect) {

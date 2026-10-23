@@ -37,6 +37,7 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("time", lua.LNumber(0))
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
+	t.RawSetString("overlay", lua.LBool(false))
 	th := r.opts.Theme
 	colors := L.NewTable()
 	background := FormatHexColor(th.SofaBackground)

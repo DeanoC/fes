@@ -10,6 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func surroundPixels(t *testing.T, picture image.Rectangle) *image.RGBA {
@@ -146,6 +147,81 @@ func TestSurroundSettingTogglesAndPersists(t *testing.T) {
 	got, err := loadTenfootPrefs(path)
 	if err != nil || got.Surround == nil || *got.Surround {
 		t.Fatalf("prefs = %#v err=%v", got, err)
+	}
+}
+
+const overlayRoomScript = `
+function load() end
+function draw()
+  gfx.clear(room.overlay and {r=0,g=0,b=0,a=160} or "#122738")
+  gfx.text("Hardware room", 20, 20, {size=24})
+end
+`
+
+// The hardware room opened over a running machine on the kit plane sees
+// room.overlay and clears translucently; leaving it restores the surround.
+// A machine with removable media opens its media selector instead, so this
+// one has none.
+func TestKitRoomOverTheMachineIsAnOverlay(t *testing.T) {
+	session := computerTapeDisplaySession()
+	session.CorePackage.ActiveInterfaces = session.CorePackage.ActiveInterfaces[1:]
+	session.CorePackage.MediaUnits = nil
+	_, app, _ := newSurroundKit(t, session)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{testRoomPack(t, hardwareRoomID, overlayRoomScript)}), "")
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active })
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "room overlay", func(s Snapshot) bool {
+		return s.Room.DuringPlay && s.Room.Frame.HasClear && s.Room.Frame.Clear == gfx.RGBA(0, 0, 0, 160)
+	})
+	app.mu.Lock()
+	app.sessionDisplayUncertain = true
+	uncertain := app.roomOverlayLocked()
+	app.sessionDisplayUncertain = false
+	app.mu.Unlock()
+	if uncertain {
+		t.Fatal("an uncertain plane drew the room translucently")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "surround after the overlay", func(s Snapshot) bool { return !s.Room.DuringPlay && s.Surround.Active })
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.roomOverlayLocked() {
+		t.Fatal("overlay outlived the room visit")
+	}
+}
+
+// Only a running session's kit plane with confirmed launcher focus is an
+// overlay; host windows, a shown or closed plane and an uncertain one are not.
+func TestRoomOverlayNeedsTheFocusedKitPlaneOfARunningMachine(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 20)
+	t.Cleanup(app.Stop)
+	display, err := gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	set := func() {
+		app.menuDisplay, app.session.State = display, "active"
+		app.sessionDisplay, app.sessionDisplayUncertain = protocol.SessionDisplayFocused, false
+	}
+	set()
+	if !app.roomOverlayLocked() {
+		t.Fatal("focused kit plane over a running machine is not an overlay")
+	}
+	for name, change := range map[string]func(){
+		"host window":   func() { app.menuDisplay = nil },
+		"no session":    func() { app.session.State = "idle" },
+		"surround":      func() { app.sessionDisplay = protocol.SessionDisplayShown },
+		"closed plane":  func() { app.sessionDisplay = protocol.SessionDisplayClosed },
+		"unknown plane": func() { app.sessionDisplayUncertain = true },
+	} {
+		set()
+		change()
+		if app.roomOverlayLocked() {
+			t.Fatalf("%s drew the room translucently", name)
+		}
 	}
 }
 

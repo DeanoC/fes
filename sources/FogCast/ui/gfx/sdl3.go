@@ -21,6 +21,7 @@ type SDLBackend struct {
 	r        *C.SDL_Renderer
 	next     uint64
 	textures map[uint64]*C.SDL_Texture
+	blend    BlendMode
 	// masks are masks expanded in a colour, kept while each frame draws
 	// them.
 	masks map[sdlMaskKey]*sdlMask
@@ -57,7 +58,10 @@ func WrapSDLRenderer(renderer unsafe.Pointer, logicalW, logicalH int) (*SDLBacke
 
 func (s *SDLBackend) BeginFrame() {}
 
+// Clear and replacing fills store the premultiplied form, as Software does,
+// so a translucent colour shows the same over black on every display.
 func (s *SDLBackend) Clear(c Color) {
+	c = premultiplied(c)
 	C.SDL_SetRenderDrawColor(s.r, C.Uint8(c.R), C.Uint8(c.G), C.Uint8(c.B), C.Uint8(c.A))
 	C.SDL_RenderClear(s.r)
 }
@@ -127,6 +131,9 @@ func (s *SDLBackend) Destroy(tex Texture) {
 }
 
 func (s *SDLBackend) FillRect(rect Rect, c Color) {
+	if s.blend != BlendAlpha {
+		c = premultiplied(c)
+	}
 	C.SDL_SetRenderDrawColor(s.r, C.Uint8(c.R), C.Uint8(c.G), C.Uint8(c.B), C.Uint8(c.A))
 	r := C.SDL_FRect{x: C.float(rect.X), y: C.float(rect.Y), w: C.float(rect.W), h: C.float(rect.H)}
 	C.SDL_RenderFillRect(s.r, &r)
@@ -147,6 +154,7 @@ func (s *SDLBackend) Draw(tex Texture, src *Rect, dst Rect) {
 }
 
 func (s *SDLBackend) SetBlend(mode BlendMode) {
+	s.blend = mode
 	if mode == BlendAlpha {
 		C.SDL_SetRenderDrawBlendMode(s.r, C.SDL_BLENDMODE_BLEND)
 		return

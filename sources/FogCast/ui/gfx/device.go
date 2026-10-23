@@ -39,7 +39,9 @@ type Rect struct {
 	X, Y, W, H float32
 }
 
-// Color is an 8-bit RGBA value. A is 255 for opaque fills.
+// Color is a straight (not premultiplied) 8-bit RGBA value. A is 255 for
+// opaque fills. A translucent color clears or replaces to its premultiplied
+// form, so the kit's session plane blends it correctly over the machine.
 type Color struct {
 	R, G, B, A uint8
 }
@@ -54,7 +56,7 @@ func RGBA(r, g, b, a uint8) Color { return Color{R: r, G: g, B: b, A: a} }
 type BlendMode int
 
 const (
-	// BlendNone replaces destination pixels.
+	// BlendNone replaces destination pixels with the premultiplied color.
 	BlendNone BlendMode = iota
 	// BlendAlpha uses source alpha (SDL_BLENDMODE_BLEND on the SDL path).
 	BlendAlpha

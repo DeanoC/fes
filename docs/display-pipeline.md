@@ -60,9 +60,10 @@ out = saturate(P + (M × (256 − a − (a >> 7))) >> 8)
 
 Alpha 0 returns `M` exactly and alpha 255 returns `P` exactly. Three
 unsigned 9×9 DSP products compute it. Go's `image.RGBA` and the tenfoot
-software renderer already produce premultiplied RGBA when they draw onto a
-cleared transparent frame. Today's launcher draws opaque frames, which replace
-the machine picture as before.
+software renderer produce premultiplied RGBA. Colours are given with straight
+alpha, and clears and replacing fills store them premultiplied. Most launcher
+frames are opaque and replace the machine picture. The surround and the
+in-play hardware room are translucent, as described below.
 
 Each shell reports where its machine picture lands in the 1280×720 raster
 (x, y, width and height). FogCast uses that rectangle to cut the surround's
@@ -82,6 +83,20 @@ active. It draws a fully clear frame until the runtime reports the picture
 rectangle. The hardware room takes launcher focus on the same plane and draws
 over the surround. Returning gives input back with the surround still shown.
 Neither move rebinds the plane or grants a new display generation.
+
+While the hardware room is open, the plane keeps the machine visible behind
+it. Tenfoot sets `room.overlay` when the room is drawn over a running machine
+on the kit plane with launcher focus. In that mode the hardware room:
+
+- clears to a dark scrim (alpha 200), which leaves the machine at about 21%
+  brightness;
+- draws its controls as solid surfaces in the visual-language dark roles:
+  light text on dark panels, and dark text on the light-green primary actions;
+- drops its machine illustration, so the real machine shows through.
+
+Host windows never set the flag and keep the opaque room. The painter stores
+every colour premultiplied, so a translucent clear never adds light to the
+machine on the plane.
 
 A plane that refuses the surround is closed. The session then keeps machine
 pixels only, and the room opens and closes the plane as before. The **TV
