@@ -28,7 +28,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | --- | --- |
 | Host | Parent regressions/consumer consistency; host, appliance and shared expansion linker Go race tests; host UI tests |
 | `sources/misteross/expansion` Go module | Parent checks and host/target consumers, including the shared linker tests; no FPGA simulations |
-| Runtime | Parent checks, runtime software suite and host protocol consumers |
+| Runtime | Parent checks, runtime software suite and host protocol consumers (native test-only sources omit host) |
 | Shared contracts | All software lanes and their dependent consumers |
 | Parent-owned roots (`scripts/`, `tests/`, `image/`, `platform/`, `profiles/`, `containers/`) | Parent regressions and generated-consumer consistency; no component lanes or core simulations |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
@@ -332,3 +332,27 @@ headers, rebuilds every test binary and reruns the suite. Scheduled/manual runs
 and `test-changed --full` retain this exhaustive mode. Direct `make test` remains
 exhaustive. Inspect selection with
 `python3 scripts/runtime_tests.py --plan-only --paths-json '["sources/libmister-runtime/src/native/input.cpp"]'`.
+
+Native C/C++ test sources under runtime `tests/unit`, `tests/integration` and
+`tests/support` select runtime and the relevant parent integration checks without
+the host Go/UI lane. Production source or protocol headers, fixtures, shell
+scripts, build inputs and unclassified paths retain host consumer checks.
+Mixed changes union their lanes, including both sides of renames and deletions;
+manual/scheduled all-input runs retain every lane. Local `--full` still expands
+checks only inside selected lanes.
+
+### Reviewed parent planner inputs
+
+Edits to `scripts/affected.py`, `scripts/ci_gate.py`, `scripts/check_diff.py`
+and their reviewed regression modules (`test_affected`, `test_ci_gate`,
+`test_check_diff`, `test_test_changed`) select parent policy and build groups.
+These retain workflow, integration, source/receipt and status consumers while
+omitting unrelated media, package and acceptance suites. Mixed changes add their
+consumer groups; accompanying guides retain their documentation readers.
+Unassigned test modules still run.
+
+Changes to `parent_affected.py`, `parent_tests.py`, `test_parent_affected.py`,
+shared test-mode policy, other unreviewed inputs, or an omitted/unknown path list
+retain the full parent suite. Manual/scheduled full plans and `--full` remain
+exhaustive. This selection changes parent checks only; component lane selection
+and the integration gate stay unchanged.
