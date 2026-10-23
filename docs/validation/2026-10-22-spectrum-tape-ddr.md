@@ -11,21 +11,24 @@ is not acceptance of an image or release.
 
 ## Artifacts
 
-Source FES `7589e281` (`sources/misteross`), producers
+Source FES `4ece1b62` (`sources/misteross`): this branch with main merged at
+`aece5983` (#970's HPS DDR bridge, #1007's nextpnr pins and #1011's HDMI
+input clock delay), then the Spectrum lock moved to nextpnr main. Producers
 `scripts/build_fes_spectrum_oss.py --model {48,128,plus3,pentagon}` and
 `scripts/build_fes_zx81_oss.py`, locks `cores/fes-spectrum/toolchain.lock`
-and `cores/fes-zx81/toolchain.lock` (both unchanged by this branch),
-first-pass placement search in each recipe's seed order. Every core is
+(nextpnr main `6abd522f`, Yosys `3a5accbd`, Mistral `8fcc4cb4`) and
+`cores/fes-zx81/toolchain.lock` (unchanged), HIP router, first-pass placement
+search in each recipe's seed order. Every core is
 constrained to a 52.224 MHz system clock, the 74.25 MHz pixel clock and a
 12.288 MHz audio clock.
 
 | Core | Seed | System MHz | Pixel MHz | Audio MHz | COMB | FF | M10K | MUL9X9 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fes.spectrum` 0.4.0 | 5 | 56.83 | 99.34 | 231.00 | 9,361 | 4,989 | 129 (16 TDP) | 3 |
-| `fes.spectrum128` 0.2.0 | 5 | 53.94 | 102.21 | 185.19 | 10,373 | 5,251 | 225 (32 TDP) | 3 |
-| `fes.spectrum-plus3` 0.2.0 | 4 | 52.88 | 101.74 | 189.07 | 10,416 | 5,254 | 257 (32 TDP) | 3 |
-| `fes.pentagon` 0.2.0 | 5 | 55.56 | 94.09 | 218.05 | 10,270 | 5,247 | 225 (32 TDP) | 3 |
-| `fes.zx81` 1.6.0 | 1 | 53.99 | 76.55 | 162.76 | 6,671 | 3,018 | 164 (16 TDP) | 3 |
+| `fes.spectrum` 0.4.0 | 5 | 53.51 | 96.65 | 164.88 | 9,303 | 4,989 | 129 (16 TDP) | 3 |
+| `fes.spectrum128` 0.2.0 | 5 | 53.31 | 93.81 | 195.54 | 10,296 | 5,251 | 225 (32 TDP) | 3 |
+| `fes.spectrum-plus3` 0.2.0 | 4 | 52.47 | 94.28 | 145.71 | 10,449 | 5,254 | 257 (32 TDP) | 3 |
+| `fes.pentagon` 0.2.0 | 6 | 52.74 | 89.17 | 204.88 | 10,318 | 5,247 | 225 (32 TDP) | 3 |
+| `fes.zx81` 1.6.0 | 1 | 52.94 | 85.30 | 197.78 | 6,686 | 3,018 | 164 (16 TDP) | 3 |
 
 The M10K column counts every block, including the true-dual-port screen
 banks. The tape image's 64 true-dual-port blocks are gone from every model;
@@ -35,16 +38,24 @@ predecessor. The producer's synthesis gate checks the plain and TDP counts
 exactly for each model, the display plane's read-only port 0, live commands
 and writes on port 1 (the tape store) and every other port tied off.
 
-- `fes.spectrum` 0.4.0: package `d813d96e9072d2ea76abe96e478a68c3fb2112e2d7972c3fb691a837dbc26d1a`, build `8804db32d06f464d0097d5aa2bcb5194`, RBF sha256 `e28b75e6ce4b59bbb1476399b67d330cbc7a9102975d290cf069632c926f787a` (2,629,000 bytes)
-- `fes.spectrum128` 0.2.0: package `e9215941a376e00d2542bbd0bf0172f241435a51cf06ce300c05748d615b9a6e`, build `5f18fd7b20d92a1dbd6f1dc9f084b9ba`, RBF sha256 `d89e22b12859b26936dfac50854cc009e812e2c35686f968ce918ffe0c3ddf6f` (2,939,167 bytes)
-- `fes.spectrum-plus3` 0.2.0: package `2371a801cab800d969efc987951a92d93ddbd79dc091f0774f0afbada995829a`, build `7b9cd7edb907e593c7a4cf998c4672ce`, RBF sha256 `c46df6224a09a3f2d1af25726909a8e67e1b5cafbdd29a2ecac0157e77c40c00` (3,051,091 bytes)
-- `fes.pentagon` 0.2.0: package `128f8548f63eb78eeedd880af631d2da7bba7afa0ec9d353b5fcfca6355ca841`, build `26b7bcb5362439a716297d35084cb51d`, RBF sha256 `fbc9c001965cfa466e46bce650a9cf36a23643e50c941967fb481033c84ad402` (2,929,483 bytes)
-- `fes.zx81` 1.6.0: package `81aac1752347565f7899a71993ef57c8a591e28b76b37fbde2dc2f95000c670a`, build `7b59aa6a1d6d239e3232cd8d30dd43c0`, RBF sha256 `67c09a30cb12d66b35915006c095a5f3879d3316acbb30cb38a3045c513e6626` (2,672,391 bytes)
+- `fes.spectrum` 0.4.0: package `b74f993d305834fe3abda0f14e74040cc9524f77fd45521549f7b4d2f9d55f0a`, build `7dcaa01e27fc1195ee50bc7654040abe`, RBF sha256 `f084a6a1b5247e5af96d4f1566d38930a58dd659dd2186ffb33e71f64c15a779` (2,619,211 bytes)
+- `fes.spectrum128` 0.2.0: package `bd52005ab7689cc5957df3b883c15274100c14b6c35f38ddb1e509370df21b78`, build `831a58bda812821e1cfd88d00d91c6b9`, RBF sha256 `e427ca52d552c0ee6464cfead6d9351a6d554e3f5d94b55edf81e62ec63ecb36` (2,967,300 bytes)
+- `fes.spectrum-plus3` 0.2.0: package `df6654142e2ff1d7128a006dda28c6f9c521b5dc167af3d48fe251d3e0458548`, build `66b32e14442004fdf6713e2b4f36a0ed`, RBF sha256 `4992472fd042c55358be2b66b57d06f057489b68e404c261ab78a51ad3b0ed69` (3,074,058 bytes)
+- `fes.pentagon` 0.2.0: package `fb4fddca6e9bf50f6a1abe84a14cd0a8040cd9d4b8622cab8ea4f91bf5be27fe`, build `9fd06a630356525c4dd85751c55776f6`, RBF sha256 `4d399c387986eb5481710fba01cbbb66ac40c87c8f8e944ed91fc474c1a7e0d6` (2,962,893 bytes)
+- `fes.zx81` 1.6.0: package `6344a9b78782b3beb5231c85c66106c22ce2e0ea0c798303abd0bd94f06f2c21`, build `7447fc704a5b63da61ab39a4019f43dd`, RBF sha256 `9917d10276524d9d4b5fe5283231a7e81ee211ed5ccf2ac447580177f306fbe8` (2,702,245 bytes)
 
-The +2A/+3 closed on its second seed: on seed 5 the router held one overused
-wire for many iterations and the analogue timing repair then ran past the
-recipe's 600-second route lease. Every other model closed on its recipe's
-first seed (5 for the Spectrum models, 1 for the ZX81).
+The Spectrum lock moved because #1007 had pinned it to nextpnr `5fe55f3d`
+(the #276 head): there the 48K, 128K and Pentagon closed with less margin
+(53.26, 52.53 and 52.96 MHz), and the +2A/+3 missed its system clock on all
+ten recipe seeds, best seed 5 at 51.78 MHz. nextpnr main `6abd522f` contains
+#276 as merged with the same F0/F1 boundary `$ROUTETHRU` map, now registered
+in `scripts/coleco_expansion.py`. On it the 48K and 128K closed on their recipe's
+first seed (5), the ZX81 on seed 1, the +2A/+3 on its second (seed 4; seed 5 reached
+48.83 MHz) and the Pentagon on its sixth (seed 6; seeds 5, 4, 2, 1 and 3
+reached 0.94, 0.93, 0.998, 0.996 and 0.90 of the target). Earlier seals of
+these versions from `7589e281` (`d813d96e…`, `e9215941…`, `2371a801…`,
+`128f8548…`, `81aac175…`) are superseded and are the archives the kit runs
+below used.
 
 ## The tape path
 
@@ -124,8 +135,9 @@ v1 and v2.
 
 ## Kit A check
 
-The sealed archives ran on kit A through an isolated private host built from
-the branch, which converts tapes (`~/tmp/c997/hil997.py` driving a local
+These runs used the superseded `7589e281` archives; the archives sealed above
+have not run on a kit. Those archives ran on kit A through an isolated
+private host built from the branch, which converts tapes (`~/tmp/c997/hil997.py` driving a local
 `fogcast-api` container, under `calmkoala-c997-overlay.sh`). The kit's image
 `88e85ec5` was not changed; the branch's kit software was installed and
 activated for each run only, and the baseline software `999a6ea5` (previous
@@ -221,9 +233,10 @@ to this core; #1003 tracks it.
 
 ## Not established
 
-- An `fes.spectrum-plus3` archive that holds the HDMI link with the runtime's
-  default input clock delay: `2371a801…` loads tapes but drops the link about
-  once a second on kit A, and holds it with any other `0xBA` delay (#1003).
+- Any of the archives sealed above on a kit. The superseded +2A/+3 archive
+  `2371a801…` dropped the HDMI link at the old `0xBA` delay (none) and held it
+  at −0.8 ns, which the runtime now programs (#1011, merged; record
+  [2026-10-23 HDMI input clock delay](2026-10-23-hdmi-input-clock-delay.md)).
 - Commercial games and demos, and their custom loaders, on hardware; on the
   host they rest on the converter's Fuse comparison and the deck simulation.
 - Swapping or ejecting a cassette during a session, and a tape near the 16 MiB

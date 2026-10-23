@@ -182,8 +182,9 @@ The `0a253257` schema review is recorded in the
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
 nextpnr `552ba246` (fes#887), and Coleco's pins Yosys `5391eeb1`; each selects
-its own slot. Apple II, C64, Coleco and Spectrum also pin nextpnr `5fe55f3d`
-for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. The Coleco development
+its own slot. Apple II, C64 and Coleco also pin nextpnr `5fe55f3d` for nextpnr
+#276's F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main
+`6abd522f`, which contains #276 as merged and keeps that map. The Coleco development
 shell and Atari ST video-part producer remain on `9128800f` and validate its
 C/D map. The remaining per-core locks that match `toolchain.lock` share its
 slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
@@ -1064,7 +1065,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Apple II, C64, Coleco v2 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 also pins Yosys `5391eeb1`. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
+| Toolchain selection | Apple II, C64 and Coleco v2 use nextpnr `5fe55f3d` (#276), and Spectrum uses nextpnr main `6abd522f` (#276 merged); each validates the F0/F1 boundary `$ROUTETHRU` map. Coleco v2 also pins Yosys `5391eeb1`. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
