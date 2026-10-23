@@ -108,10 +108,14 @@ requests wherever they do not protect the operation being performed.
    Offline first boot and an empty playable-core inventory still need kit evidence.
 3. **Separate UI engine and room delivery.** Kit software currently bundles the
    engine with agent/runtime; first-party room examples are embedded in Go.
-   Promote the existing external room loader into an install/update/select
-   operation with atomic replacement, bounded pack validation and a recoverable
-   default room. A Lua/art change must not compile Go, restart the agent or
-   rebuild MENU. Engine/API changes remain software updates.
+   The existing room installer now provides bounded validation, immutable
+   snapshots, atomic selection, live reopen and rollback. First-party source
+   packs declare their public `example.*` ids, so the installed launcher can
+   update the same room without compiling Go, restarting the agent or rebuilding
+   MENU. Embedded snapshots remain offline recovery defaults; refreshing those
+   defaults and engine/API changes are software updates. Remote room catalog
+   distribution and end-to-end kit install/reopen evidence remain separate work;
+   see [room installation](../sources/FogCast/docs/rooms.md#installing-and-opening-rooms).
 4. **Finish installer dependency handling.** Install a chosen core with its
    matching video/expansion packages. Show download/install/ready states and
    missing user-supplied firmware. Cancel/retry must preserve the previous
