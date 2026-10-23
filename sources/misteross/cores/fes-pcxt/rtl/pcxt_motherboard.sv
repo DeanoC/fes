@@ -64,8 +64,10 @@ module pcxt_motherboard (
     wire [7:0] request_wdata = dma_owner ? dma_wdata : cycle_wdata;
     wire [1:0] request_kind = dma_owner ? dma_kind : cycle_kind;
     wire request_write = dma_owner ? dma_write : cycle_write;
-    wire ram = request_kind == 0 && request_address < 20'ha0000;
-    wire rom = request_kind == 0 && request_address >= 20'hf0000;
+    // RAM and ROM bounds are aligned to 64 KiB; low address bits cannot
+    // affect dispatch. Keep this region decode out of a wide carry chain.
+    wire ram = request_kind == 0 && request_address[19:16] < 4'ha;
+    wire rom = request_kind == 0 && request_address[19:16] == 4'hf;
     // XT motherboard ignores A15:10. PIC uses A0; PIT/PPI use A1:0;
     // DMA uses A3:0 and the write-only page latch uses A1:0.
     wire pic = !dma_owner && request_kind == 1 && request_address[9:5] == 1;

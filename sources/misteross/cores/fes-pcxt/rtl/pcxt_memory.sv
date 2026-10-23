@@ -96,7 +96,7 @@ module pcxt_memory (
                 memory_seen <= 1; odd <= address[0];
                 // Defensively reject ISA holes and ROM writes even if a
                 // caller bypasses the motherboard's own address protection.
-                physical <= address < 20'ha0000 || (address >= 20'hf0000 && !write_cycle);
+                physical <= address[19:16] < 4'ha || (address[19:16] == 4'hf && !write_cycle);
                 held_address <= {7'd0, address[19:1]};
                 held_data <= {wdata, wdata};
                 held_lanes <= address[0] ? 2'b10 : 2'b01;

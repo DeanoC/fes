@@ -90,7 +90,11 @@ DQM writes preserve its neighbour. Physical halfword offsets are guest byte
 addresses shifted right by one, interpreted in the controller's packed
 bank/row/column map. Only `00000–9FFFF` RAM and `F0000–FFFFF` firmware use
 storage. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
-video VRAM stays on the ISA cards.
+video VRAM stays on the ISA cards. The router and defensive backend use
+A19:16 for these aligned 64 KiB regions (RAM below `A`, firmware at `F`),
+avoiding a wide carry-chain comparison in dispatch. Symbolic comparison with
+the original full-width bounds covers every address, request kind and write
+direction; a mutation admitting the `A` hole is rejected.
 
 A separate firmware byte VALID/READY/DONE port writes the 64 KiB firmware
 window, with a 16-bit offset. It admits writes only while the machine's warm
