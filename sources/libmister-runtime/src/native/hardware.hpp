@@ -126,6 +126,7 @@ public:
         const std::string&, const MediaDataBinding&) override;
 	Error EjectComputerMedia(std::uint8_t unit) override;
 	Error CaptureZx81Tape(const std::string& path) override;
+	Error AcknowledgeZx81Tape() override;
 
 private:
 	Error AdmitCorePackageInternal(const std::string&, const std::string&, bool,

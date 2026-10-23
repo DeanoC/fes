@@ -227,6 +227,10 @@ public:
 	{
 		return hardware_.CaptureZx81Tape(path);
 	}
+	Error AcknowledgeZx81Tape() override
+	{
+		return hardware_.AcknowledgeZx81Tape();
+	}
 
 private:
 	native::PosixArtifactOpener opener_;

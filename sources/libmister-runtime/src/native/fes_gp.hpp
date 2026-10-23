@@ -99,6 +99,8 @@ public:
 		std::uint64_t deadline);
 	Error CaptureMedia(std::uint8_t unit, Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
 	Error CaptureZx81Tape(Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
+	Error AcknowledgeZx81Tape(std::uint64_t deadline);
+	Error EnsureZx81TapeSaved(std::uint64_t deadline);
 	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);

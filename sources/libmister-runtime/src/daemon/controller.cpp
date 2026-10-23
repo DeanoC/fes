@@ -166,6 +166,10 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.CaptureZx81Tape(request.media_path, request.expected_package_id,
 			request.expected_generation);
 		break;
+	case Operation::acknowledge_zx81_tape:
+		result = runtime_.AcknowledgeZx81Tape(request.expected_package_id,
+			request.expected_generation);
+		break;
 	case Operation::eject_media:
 		result = runtime_.EjectMedia(request.expected_package_id,
 			request.expected_generation, request.media_unit);

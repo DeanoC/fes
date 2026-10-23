@@ -587,11 +587,14 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "computer media units are unavailable", "request"};
 	}
-	// Writes the raw .p from a completed BASIC SAVE. An empty capture is an
-	// error; callers that stop the machine ignore that case.
+	// Writes a completed BASIC SAVE image. An empty file means no SAVE is pending.
 	virtual Error CaptureZx81Tape(const std::string&)
 	{
 		return {ErrorCode::unsupported_interface, "ZX81 tape capture is inactive", "request"};
+	}
+	virtual Error AcknowledgeZx81Tape()
+	{
+		return {ErrorCode::unsupported_interface, "ZX81 tape acknowledgement is inactive", "request"};
 	}
 };
 
@@ -661,6 +664,8 @@ public:
 		std::uint64_t expected_generation, std::uint8_t unit, std::uint32_t size);
     Error SaveMedia(const std::string& expected_package_id, std::uint64_t expected_generation, std::uint8_t unit);
 	Error CaptureZx81Tape(const std::string& path, const std::string& expected_package_id,
+		std::uint64_t expected_generation);
+	Error AcknowledgeZx81Tape(const std::string& expected_package_id,
 		std::uint64_t expected_generation);
     Error InsertLibraryMedia(const std::string& path, const std::string& expected_package_id,
         std::uint64_t expected_generation, std::uint8_t unit, std::uint32_t size,

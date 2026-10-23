@@ -309,6 +309,12 @@ Physical controller acceptance remains pending.
 tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
 `fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum, ZX81 tape and
 Atari ST media interfaces are independent and must be required when declared.
+`fes.media.zx81-tape-write` 1.0 is admitted only with the base ZX81 tape
+interface. Its snapshot capture leaves a completed SAVE frozen and dirty until
+the host has durably stored the `.p` and issues a package/generation-bound
+acknowledgement. Stop and other save-flushing transitions fail closed while a
+dirty snapshot remains; a clean snapshot does not block them. Host coverage
+does not establish exact-artifact hardware acceptance.
 Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
 core latched the port layout, including a kit without presentation adapters.
 Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is

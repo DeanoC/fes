@@ -11,7 +11,7 @@ import (
 )
 
 // CaptureZX81Tape reads the SAVE image from the running machine. The body is
-// the raw .p. A machine that has not completed SAVE returns an error.
+// the raw .p. A machine with no pending SAVE returns HTTP 204 and an empty body.
 func (c *Client) CaptureZX81Tape(ctx context.Context, packageID string, generation uint64) ([]byte, error) {
 	binding := protocol.MediaUnitBinding{PackageID: packageID, Generation: generation, Unit: protocol.Zx81TapeUnit}
 	if c == nil || !binding.Valid() || binding.Unit != protocol.Zx81TapeUnit {
@@ -36,10 +36,24 @@ func (c *Client) CaptureZX81Tape(ctx context.Context, packageID string, generati
 		return nil, fmt.Errorf("read ZX81 tape: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusNoContent {
+			return nil, nil
+		}
 		return nil, decodeResponse(&http.Response{StatusCode: response.StatusCode, Body: io.NopCloser(bytes.NewReader(data)), Header: response.Header}, &struct{}{})
 	}
 	if int64(len(data)) > protocol.Zx81TapeMaxBytes || !protocol.AdmitZx81TapeSize(int64(len(data))) {
 		return nil, fmt.Errorf("ZX81 tape capture is the wrong size")
 	}
 	return data, nil
+}
+
+// AcknowledgeZX81Tape confirms that the host catalog has durably stored the
+// current SAVE image before the running generation is allowed to Stop.
+func (c *Client) AcknowledgeZX81Tape(ctx context.Context, packageID string, generation uint64) error {
+	binding := protocol.MediaUnitBinding{PackageID: packageID, Generation: generation, Unit: protocol.Zx81TapeUnit}
+	if c == nil || !binding.Valid() {
+		return protocol.MediaUnitRequestError()
+	}
+	_, err := c.mediaUnitRequestBudget(ctx, "/v1/zx81-tape/acknowledge", 0, http.NoBody, binding, nil, 0)
+	return err
 }

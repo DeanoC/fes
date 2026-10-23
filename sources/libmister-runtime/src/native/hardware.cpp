@@ -33,9 +33,12 @@
 #include <atomic>
 #include <cctype>
 #include <cerrno>
+#include <cstdlib>
+#include <limits.h>
 #include <limits>
 #include <memory>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 #include <utility>
 
@@ -63,6 +66,30 @@ bool RequiresFesGamepad(const CoreDescriptor& descriptor)
 		if (interface.id == generated::FesGpInterfaceGamepadID && interface.required)
 			return true;
 	return false;
+}
+
+bool Zx81CaptureDirectory(const std::string& path, std::string* directory)
+{
+	if (path.empty() || path.size() > 4095 || path.find('\0') != std::string::npos)
+		return false;
+	const std::size_t slash = path.rfind('/');
+	if (slash == std::string::npos || path.substr(slash + 1) != "program.p")
+		return false;
+	const std::string parent = path.substr(0, slash);
+	const std::size_t parent_slash = parent.rfind('/');
+	const std::string name = parent.substr(parent_slash == std::string::npos ? 0 : parent_slash + 1);
+	const std::string prefix = "fogcast-zx81-tape-";
+	if (name.compare(0, prefix.size(), prefix) != 0)
+		return false;
+	char resolved[PATH_MAX];
+	if (realpath(parent.c_str(), resolved) == nullptr || parent != resolved)
+		return false;
+	struct stat info;
+	if (stat(parent.c_str(), &info) != 0 || !S_ISDIR(info.st_mode) ||
+		info.st_uid != geteuid() || (info.st_mode & 0777) != 0700)
+		return false;
+	*directory = parent;
+	return true;
 }
 
 bool HasMenu(const CoreDescriptor& descriptor) {
@@ -310,6 +337,12 @@ Error NativeHardware::StopInput(std::uint64_t deadline)
 
 Error NativeHardware::FlushSave()
 {
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver != nullptr && driver->TapeWriteCapable()) {
+		const Error tape = driver->EnsureZx81TapeSaved(Deadline(clock_, timeouts_.media_io_ms));
+		if (!tape.ok()) return tape;
+	}
     const Error media = FlushMediaSave();
     if (!media.ok()) return media;
 	if (core_data_file_) {
@@ -800,6 +833,9 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaZx81TapeID,
 				generated::FesComputerInterfaceMediaZx81TapeMajor,
 				generated::FesComputerInterfaceMediaZx81TapeMinor},
+			{generated::FesComputerInterfaceMediaZx81TapeWriteID,
+				generated::FesComputerInterfaceMediaZx81TapeWriteMajor,
+				generated::FesComputerInterfaceMediaZx81TapeWriteMinor},
 			{kSpectrumExpansionBusID, 1, 0},
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
@@ -1024,25 +1060,56 @@ Error NativeHardware::CaptureZx81Tape(const std::string& path)
 		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
 	if (driver == nullptr || !driver->TapeWriteCapable())
 		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
-	if (path.empty() || path[0] != '/' || path.size() > 4095 || path.find('\0') != std::string::npos)
-		return {ErrorCode::invalid_request, "invalid ZX81 tape path", "request"};
+	std::string directory;
+	if (!Zx81CaptureDirectory(path, &directory))
+		return {ErrorCode::invalid_request, "invalid ZX81 tape capture destination", "request"};
 	std::vector<unsigned char> bytes;
 	Error error = driver->CaptureZx81Tape(clock_, Deadline(clock_, timeouts_.media_io_ms), &bytes);
 	if (!error.ok()) return error;
-	const int fd = open(path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
-	if (fd < 0) return {ErrorCode::save_failed, "cannot write ZX81 tape", "media_data"};
+	const int dir_fd = open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (dir_fd < 0) return {ErrorCode::save_failed, "cannot open ZX81 tape capture directory", "media_data"};
+	struct stat directory_info;
+	if (fstat(dir_fd, &directory_info) != 0 || !S_ISDIR(directory_info.st_mode) ||
+		directory_info.st_uid != geteuid() || (directory_info.st_mode & 0777) != 0700) {
+		close(dir_fd);
+		return {ErrorCode::invalid_request, "unsafe ZX81 tape capture directory", "request"};
+	}
+	const int fd = openat(dir_fd, "program.p",
+		O_CREAT | O_WRONLY | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (fd < 0) {
+		close(dir_fd);
+		return {ErrorCode::save_failed, "cannot create ZX81 tape capture", "media_data"};
+	}
 	std::size_t at = 0;
 	while (at < bytes.size()) {
 		const ssize_t wrote = write(fd, bytes.data() + at, bytes.size() - at);
-		if (wrote < 0) {
+		if (wrote < 0 && errno == EINTR) continue;
+		if (wrote <= 0) {
 			close(fd);
+			unlinkat(dir_fd, "program.p", 0);
+			close(dir_fd);
 			return {ErrorCode::save_failed, "cannot write ZX81 tape", "media_data"};
 		}
 		at += static_cast<std::size_t>(wrote);
 	}
-	if (fsync(fd) != 0 || close(fd) != 0)
+	const bool file_synced = fsync(fd) == 0;
+	const bool file_closed = close(fd) == 0;
+	if (!file_synced || !file_closed || fsync(dir_fd) != 0) {
+		unlinkat(dir_fd, "program.p", 0);
+		close(dir_fd);
 		return {ErrorCode::save_failed, "cannot sync ZX81 tape", "media_data"};
+	}
+	close(dir_fd);
 	return {};
+}
+
+Error NativeHardware::AcknowledgeZx81Tape()
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->TapeWriteCapable())
+		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
+	return driver->AcknowledgeZx81Tape(Deadline(clock_, timeouts_.media_io_ms));
 }
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)

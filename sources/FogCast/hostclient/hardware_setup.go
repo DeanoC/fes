@@ -15,8 +15,9 @@ import (
 	"github.com/DeanoC/misteross/expansion"
 )
 
-// HardwareTape is an attributed default tape, served by the host. Its bytes are
-// imported on explicit selection; simply opening the shelf changes nothing.
+// HardwareTape is an attributed starter cassette or a saved program. Starter
+// bytes are imported on explicit selection; saved programs already have a
+// MediaID. Simply opening the shelf changes nothing.
 type HardwareTape struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`

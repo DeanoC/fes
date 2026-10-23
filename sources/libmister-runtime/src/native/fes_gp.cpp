@@ -139,6 +139,7 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityMediaZx81Tape |
 	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy |
 	FesComputerCapabilityMouseRelative | FesComputerCapabilityMediaAtariStFloppyWrite |
+	FesComputerCapabilityMediaZx81TapeWrite |
     FesComputerCapabilityMediaAtariStFloppyGeometry |
 	FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityVideoSessionDisplay);
 
@@ -455,6 +456,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMouseRelative;
 			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID)
 				capabilities |= FesComputerCapabilityMediaAtariStFloppyWrite;
+			else if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID)
+				capabilities |= FesComputerCapabilityMediaZx81TapeWrite;
             else if (interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID)
                 capabilities |= FesComputerCapabilityMediaAtariStFloppyGeometry;
 			else if (interface.id == FesComputerInterfaceGamepadPortsID)
@@ -1400,14 +1403,25 @@ Error FesGpCoreDriver::CaptureZx81Tape(Clock& clock, std::uint64_t deadline,
 	const std::uint16_t flags = info[FesComputerMediaSnapshotFlagsField];
 	const std::uint16_t known = FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask |
 		FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask;
+	const std::uint16_t ready_frozen = FesComputerMediaSnapshotReadyMask |
+		FesComputerMediaSnapshotFrozenMask;
 	if ((flags & ~known) != 0 ||
-		(flags & known) != (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask | FesComputerMediaSnapshotFrozenMask) ||
+		(flags & (ready_frozen | FesComputerMediaSnapshotBusyMask)) != ready_frozen ||
 		info[FesComputerMediaSnapshotLayoutTagField] != FesComputerZx81TapeLayoutTag ||
 		info[FesComputerMediaSnapshotLayoutMajorField] != FesComputerZx81TapeLayoutMajor ||
 		info[FesComputerMediaSnapshotLayoutMinorField] != FesComputerZx81TapeLayoutMinor ||
-		size < FesComputerZx81TapeMinBytes || size > FesComputerZx81TapeMaxBytes ||
 		info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes) {
 		error = Io("invalid frozen ZX81 tape snapshot");
+		resume();
+		return error;
+	}
+	if ((flags & FesComputerMediaSnapshotDirtyMask) == 0) {
+		error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0,
+			FesComputerMediaSnapshotResume, deadline);
+		return error;
+	}
+	if (size < FesComputerZx81TapeMinBytes || size > FesComputerZx81TapeMaxBytes) {
+		error = Io("invalid frozen ZX81 tape size");
 		resume();
 		return error;
 	}
@@ -1453,9 +1467,51 @@ Error FesGpCoreDriver::CaptureZx81Tape(Clock& clock, std::uint64_t deadline,
 		resume();
 		return error;
 	}
-	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0, FesComputerMediaSnapshotSaved, deadline);
-	if (!error.ok()) return error;
+	// Keep the completed snapshot frozen and dirty until the host has durably
+	// stored the library row and explicitly acknowledges it.
 	*output = std::move(bytes);
+	return {};
+}
+
+Error FesGpCoreDriver::AcknowledgeZx81Tape(std::uint64_t deadline)
+{
+	if (!TapeWriteCapable())
+		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	std::uint16_t flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &flags);
+	if (!error.ok()) return WithPhase(error, "save");
+	const std::uint16_t required = FesComputerMediaSnapshotReadyMask |
+		FesComputerMediaSnapshotDirtyMask | FesComputerMediaSnapshotFrozenMask;
+	const std::uint16_t known = required | FesComputerMediaSnapshotBusyMask;
+	if ((flags & ~known) != 0 ||
+		(flags & (required | FesComputerMediaSnapshotBusyMask)) != required)
+		return {ErrorCode::save_failed, "ZX81 SAVE snapshot is not awaiting acknowledgement", "save"};
+	return ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0,
+		FesComputerMediaSnapshotSaved, deadline);
+}
+
+Error FesGpCoreDriver::EnsureZx81TapeSaved(std::uint64_t deadline)
+{
+	if (!TapeWriteCapable()) return {};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0,
+		FesComputerMediaSnapshotFreeze, deadline);
+	if (!error.ok()) return error;
+	std::uint16_t flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &flags);
+	if (!error.ok()) return WithPhase(error, "save");
+	const std::uint16_t required = FesComputerMediaSnapshotReadyMask |
+		FesComputerMediaSnapshotFrozenMask;
+	const std::uint16_t known = required | FesComputerMediaSnapshotDirtyMask |
+		FesComputerMediaSnapshotBusyMask;
+	if ((flags & ~known) != 0 ||
+		(flags & (required | FesComputerMediaSnapshotBusyMask)) != required)
+		return {ErrorCode::io_failed, "invalid frozen ZX81 tape state", "save"};
+	if ((flags & FesComputerMediaSnapshotDirtyMask) != 0)
+		return {ErrorCode::save_failed, "ZX81 SAVE must be stored before stopping", "save"};
 	return {};
 }
 
