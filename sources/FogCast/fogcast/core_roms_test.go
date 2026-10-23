@@ -627,7 +627,10 @@ func TestCartridgeSwapReplacesOnlyThatLaunchesCartridge(t *testing.T) {
 
 func TestCartridgeSwapRelaunchPassesReplacementThroughTargetLinker(t *testing.T) {
 	ctx := context.Background()
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, linkedColecoPackageFixture(t), "Cartridge title")
+	// The target linker reparses and relinks the full Coleco ROM map on each
+	// launch. This test checks link identities, not activation latency, so use
+	// the same generous budget as the other full-map race tests.
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, linkedColecoPackageFixture(t), "Cartridge title", 2*time.Minute)
 	originalBytes := bytes.Repeat([]byte{0x5a}, 8192)
 	original, _, err := s.ImportCoreMedia(ctx, int64(len(originalBytes)), bytes.NewReader(originalBytes))
 	if err != nil {
