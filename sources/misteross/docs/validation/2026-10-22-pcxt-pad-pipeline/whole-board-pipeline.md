@@ -124,7 +124,22 @@ PIC and other logic all pass (minimum setup +335 / +263 / +253 ps); the six
 remaining misses are CGA VRAM address captures. This is a targeted path repair,
 not a qualified whole-board timing winner. The source, compiler, full repair
 recipe and 100/74.25 MHz clock contract are held fixed for seeds 1/2/3.
-Seeds 2 and 3 are running; no two-of-three gate has passed.
+Seeds 2 and 3 complete with zero reported setup or hold failures. Seed 2 has
+minimum setup/hold +168/+788 ps; seed 3 +49/+773 ps. Each has the same 17132
+rows, 17127 timed rows and 105 unsupported identities. The strict audit verifies
+all artifact hashes, final analogue/cache/calibration state, exact source,
+compiler, environment, clock contracts and commands except the seed. The full
+17132-row three-seed union is retained. The **reported fabric setup/hold
+2-of-3 gate passes**; physical whole-board qualification remains false.
+
+The selected replay seed is 2. A fresh synthesis and diagnostic producer replay
+is in progress from the same frozen committed module bytes. The compiler
+remains the diagnostic b85677cf branch binary, not a production pin adoption.
+A live comparison with reviewed nextpnr main shows divergence (112 commits on
+the diagnostic side, 11 on main). These results do not authorize adopting that
+research branch or reopening closed #266. Authenticated production-toolchain
+admission, external IO/reset modeling and exact-artifact hardware acceptance
+remain separate requirements.
 
 A separate private CRTC address-register prototype passes all 252 state and
 interface equivalence points against the combinational row-plus-column MA.
@@ -134,8 +149,9 @@ It is not adopted into RTL and has no routed timing result.
 
 ## Route accounting
 
-Receipt 85 adds exactly 157.97779908310622 charged seconds. All 85
-unique receipt objects, hashes and Decimal charges verify, preserving the
-original 84-row journal prefix. Cumulative charge including the pre-journal
-amount is 94116.17100559081821 seconds. User authorization remains
-unlimited route budget. Journal SHA-256: `199ee7476b623813bcbb49444387f65ef7c0bf3677104d4aa8d1ac0f3cbfe732`.
+Receipts 86 and 87 add exactly 178.85749023593962 and
+170.77271825773641 charged seconds. All 87 unique receipt
+objects, hashes and Decimal charges verify, preserving the original 85-row
+journal prefix. Cumulative charge including the pre-journal amount is
+94465.80121408449424 seconds. User authorization remains unlimited
+route budget. Journal SHA-256: `113a58cc199c44783fe189be6732d871492748d0dc400c4c2e3e68233dc5e311`.
