@@ -15,7 +15,7 @@ module fes_menu_blend (
     output reg [31:0] result = 32'd0
 );
     // Stage 1 registers the operands and each channel's |s-d|, stage 2 the
-    // product, stage 3 holds it, stage 4 the result.
+    // product, stage 3 x = d*255 +/- product + 1, stage 4 the result.
     reg [7:0] a1 = 8'd0;
     reg [23:0] s1 = 24'd0, d1 = 24'd0, s2 = 24'd0, d2 = 24'd0, s3 = 24'd0, d3 = 24'd0;
     reg zero2 = 1'b0, full2 = 1'b0, zero3 = 1'b0, full3 = 1'b0;
@@ -24,19 +24,17 @@ module fes_menu_blend (
     generate for (c = 0; c < 3; c = c + 1) begin : channel
         wire [7:0] s = source[c * 8 +: 8], d = destination[c * 8 +: 8];
         reg [7:0] difference = 8'd0;
-        reg below1 = 1'b0, below2 = 1'b0, below3 = 1'b0;
-        reg [15:0] base2 = 16'd0, base3 = 16'd0, product2 = 16'd0, product = 16'd0;
+        reg below1 = 1'b0, below2 = 1'b0;
+        reg [15:0] base2 = 16'd0, product2 = 16'd0;
+        reg [16:0] x = 17'd0;
         always @(posedge clk) begin
             difference <= s >= d ? s - d : d - s;
             below1 <= s < d;
             product2 <= {8'd0, difference} * {8'd0, a1};
             base2 <= {d1[c * 8 +: 8], 8'd0} - {8'd0, d1[c * 8 +: 8]};
             below2 <= below1;
-            product <= product2;
-            base3 <= base2;
-            below3 <= below2;
+            x <= (below2 ? {1'b0, base2} - {1'b0, product2} : {1'b0, base2} + {1'b0, product2}) + 17'd1;
         end
-        wire [16:0] x = (below3 ? {1'b0, base3} - {1'b0, product} : {1'b0, base3} + {1'b0, product}) + 17'd1;
         wire [16:0] quotient = (x + (x >> 8)) >> 8;
         assign blended[c * 8 +: 8] = quotient[7:0];
     end endgenerate

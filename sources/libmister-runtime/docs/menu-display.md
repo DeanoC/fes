@@ -58,7 +58,7 @@ grant.
 
 A menu package with `fes.video.menu-blitter` gets a larger grant, and its
 `menu_frame` adds the layout of the
-[blitter](../../mister-packages/docs/application-io.md#menu-blitter-10):
+[blitter](../../mister-packages/docs/application-io.md#menu-blitter-11):
 
 ```json
 "blitter":{"minor":1,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}

@@ -232,7 +232,7 @@ int main(int argc, char** argv) {
 		for (int w = 1; w <= 24; ++w)
 			for (int x = 0; x < 2; ++x)
 				for (int phase = 0; phase < 8; ++phase)
-					list.push_back(Command::make(EXPAND, random_colour(random), 2 + 32 * x + 64 * (phase % 4), 100 + 2 * w + 60 * (phase / 4), w, 2,
+					list.push_back(Command::make(EXPAND, random_colour(random), 2 + 33 * x + 64 * (phase % 4), 100 + 2 * w + 60 * (phase / 4), w, 2,
 						HEAP + 256 * uint32_t(w) + uint32_t(phase), w + 3));
 		list.push_back(Command::make(EXPAND, 0xff102030u, 0, 300, W, 3, HEAP + 7, W + 1));
 		list.push_back(Command::make(EXPAND, 0x80ffffffu, 1, 310, W - 1, 3, HEAP + 5000, W - 1));
