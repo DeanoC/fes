@@ -129,18 +129,21 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json", "fx68k-slang.sv", "microrom.mem", "nanorom.mem",
 )
+# DSP modes whose signedness configuration matches Quartus (DeanoC/yosys#25,
+# DeanoC/nextpnr#219). The 18x19 modes stay forbidden: their sign-bit mapping
+# has no Quartus reference yet.
+DSP_RESOURCES = frozenset({"MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL27X27"})
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP", "altiobuf_bidir",
-})
+}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {
     "altera_pll": 2,
     "cyclonev_hps_interface_mpu_general_purpose": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1,
 }
 FORBIDDEN_RESOURCES = frozenset({
-    "MISTRAL_MLAB", "MISTRAL_MUL9X9", "MISTRAL_MUL18X18", "MISTRAL_MUL18X19",
-    "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27",
+    "MISTRAL_MLAB", "MISTRAL_MUL18X19", "MISTRAL_MUL18X19_COMBINED",
 })
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
@@ -369,7 +372,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "-G SINGLE_RANK_REFRESH=1 -G SLOT_REFRESH=1 "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
-        f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"
+        f"synth_intel_alm -nolutram -top {TOP}; {cache_constraints} stat; write_json synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
