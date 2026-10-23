@@ -553,7 +553,7 @@ func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
 		media, err := a.client.ImportZX81Tape(ctx, tape)
 		var result hostclient.SessionResult
 		if err == nil {
-			result, err = a.client.ReplaceLiveMediaForSession(ctx, prior, media.MediaID, tape.Filename)
+			result, err = a.client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, tape.Filename)
 		}
 		a.finishTapeArm(gen, prior, result, err)
 	}()

@@ -948,9 +948,19 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.beginSessionDisplayLocked(false, false)
 		return
 	}
-	if a.mediaControlsDirect && a.roomDuringPlay && !a.tapePickerOpen && cmd == CmdBack {
-		a.resumeRoomSessionLocked()
-		return
+	if a.mediaControlsDirect && a.roomDuringPlay {
+		if cmd == CmdSettings {
+			return
+		}
+		if !a.tapePickerOpen {
+			switch cmd {
+			case CmdBack, CmdHome, CmdLayoutCycle:
+				a.resumeRoomSessionLocked()
+			case CmdStop:
+				a.startStopLocked()
+			}
+			return
+		}
 	}
 	a.localStatus = ""
 	if a.coreLibrary.Open {
