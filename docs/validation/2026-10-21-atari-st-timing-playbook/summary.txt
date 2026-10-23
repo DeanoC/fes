@@ -272,7 +272,9 @@ Equivalence (memory-equivalence.json, floppy-equivalence.json)
 
 Routes, final signoff pixel/sys[0] MHz (targets 74.25/52.22)
 2b79837a on 5fe55f3d; 27350d01 and v3 (its pre-review form) on 14d21d4b. DSP
-is the producer's Yosys program without -nodsp.
+is the producer's Yosys program without -nodsp. These are zero-BUILD_ID
+experiment routes: RTL timing evidence, not a seal or a hardware result (see
+Hardware qualification below).
 
       without DSP                                            with DSP
 seed  27350d01           v3                 2b79837a           v3                 2b79837a
@@ -321,5 +323,38 @@ prepare on Powerboat, HIP, toolchain slot cbaf90e3 (Yosys 3a5accbd, Mistral
     and launcher match the baseline.
 - Not covered on hardware: keyboard, audio, floppy, absolute mouse mode and
   the Scanlines part, which was imported but not launched.
-370ac9a4 and later commits only merge main and add this record; the ST's RTL,
-Yosys program and toolchain are those of 77fe784c.
+370ac9a4 and 8a99a676 only merge main and add this record. 4a86c2a6 then merges
+main's #897, which rewrites the IKBD mouse threshold compare in st_ikbd.sv. The
+Yosys program and toolchain are still 77fe784c's, but the ST RTL is not, so
+package 872f5ca8 does not include #897.
+
+Hardware qualification (2026-10-23)
+No hardware result covers the package this head builds. Deano waived kit HIL
+for #952 on 2026-10-23 (via Bob): the Atari ST is optional (optional = true in
+config/core-recipes.toml), so the PR merges on simulation evidence, without a
+kit run.
+- The route tables in this file are zero-BUILD_ID experiment routes, apart
+  from the 811a5a34 column, which is #913's production search. They measure
+  the RTL's timing on the nextpnr named with each table. They are not a
+  producer seal and not a hardware result.
+- Kit A, 2026-10-22 (recorded in the PR): package ce53eb16 from 98bc5767
+  (nextpnr 14d21d4b). It predates the renderer change (27350d01), the SDRAM
+  arbiter (98bccf8a, 2b79837a) and the lock move to 5fe55f3d.
+- Kit A, 2026-10-23 (above): package 872f5ca8 from 77fe784c. It is a
+  boot-to-desktop smoke run, not acceptance. The HIL script scores import
+  through Stop and the baseline check; it leaves the desktop and the mouse at
+  its default FAIL for the operator, who judged both from the HDMI frames.
+- st_ikbd.sv is in the producer's source closure, so #897 gives the head's
+  package a new BUILD_ID. That package has no seal and no kit run.
+Evidence that remains valid at the head:
+- make -k sim-fes-atari-st on Verilator 5.032 at 4a86c2a6: rc 0, 65 PASS
+  lines. The input/audio sim includes #897's mouse threshold boundary cases.
+- Yosys equivalence, each with its base-case miter: renderer-equivalence.json
+  (98bc5767 to 27350d01), memory-equivalence.json and floppy-equivalence.json
+  (3dd3f857 to 2b79837a). Those modules are unchanged at the head; the only
+  ST RTL change since 2b79837a is #897's st_ikbd.sv, and #897's PR records a
+  Yosys sat -prove of its threshold compare.
+- The Verilator lockstep runs of the renderer and st_memory, above.
+- The 14d21d4b and 5fe55f3d route tables, as RTL timing evidence: every routed
+  seed in them passes the routed seal checks, and 2b79837a passes 11 of 12
+  seeds without DSP. None of these routes includes #897.
