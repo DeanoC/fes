@@ -577,7 +577,8 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
         await harness.waitForSnapshot(s => s.storageText.includes('Media: /Disks'));
         const writes=harness.fixtureEvidence().filter(r => r.method==='PUT'&&r.path==='/api/v1/storage/drives');
         assert.equal(writes.length,1);
-        const body=JSON.parse(writes[0].requestBody);
+        const raw=harness.fixtureServer.records.find(r => r.method==='PUT'&&r.path==='/api/v1/storage/drives');
+        const body=JSON.parse(raw.requestBody);
         assert.equal(body.password_set,true);assert.equal(body.password,undefined);assert.equal(body.media_folder,'Disks');
         await harness.click('#storage-dialog > button');
         assert.equal(await harness.evaluate("getComputedStyle(document.querySelector('#storage-dialog')).display"),'none');
