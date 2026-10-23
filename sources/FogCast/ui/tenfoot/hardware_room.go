@@ -45,7 +45,7 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 	if !a.liveControlsOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock {
 		return false
 	}
-	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
+	if a.needsSessionDisplayLocked() && a.sessionMediaOfferedLocked() {
 		return true
 	}
 	if a.roomsIndex == nil {
@@ -67,7 +67,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 		a.beginSessionDisplayLocked(protocol.SessionDisplayFocused, false)
 		return
 	}
-	if a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked() {
+	if a.needsSessionDisplayLocked() && a.sessionMediaOfferedLocked() {
 		a.roomDuringPlay = true
 		a.mediaControlsDirect = true
 		a.syncGPUParkLocked()

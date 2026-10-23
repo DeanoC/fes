@@ -471,3 +471,71 @@ func TestCartridgeROMMediaContractVersionBounds(t *testing.T) {
 		})
 	}
 }
+
+// A cartridge swap over play links another cartridge for one launch of the
+// title and never rewrites the title's own binding.
+func TestCartridgeSwapReplacesOnlyThatLaunchesCartridge(t *testing.T) {
+	for _, role := range []string{"firmware", "cartridge"} {
+		t.Run(role, func(t *testing.T) {
+			ctx := context.Background()
+			root := t.TempDir()
+			store, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &defaultMediaPackageClient{packageLibraryClient: &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}}
+			s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			s.corePackages = packages
+			archive := libraryROMPackageFixture(t, role)
+			installed, _, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry, err := s.CreateCoreEntry(ctx, "ROM title", installed.PackageID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			own, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0x5a}, 1024))
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, _, err := store.ImportCoreMedia(ctx, bytes.Repeat([]byte{0xa5}, 1024))
+			if err != nil {
+				t.Fatal(err)
+			}
+			short, _, err := store.ImportCoreMedia(ctx, []byte("short"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, installed.Descriptor.ROM.ID, "", own.MediaID); err != nil {
+				t.Fatal(err)
+			}
+			swapped, data, err := s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, other.MediaID), entry, installed.Descriptor)
+			if role == "firmware" {
+				// Firmware is not a cartridge; the swap never replaces it.
+				if err == nil {
+					t.Fatal("firmware ROM swapped as a cartridge")
+				}
+				return
+			}
+			if err != nil || swapped.MediaID != other.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0xa5}, 1024)) {
+				t.Fatalf("swap read %+v %v", swapped, err)
+			}
+			if _, _, err = s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, short.MediaID), entry, installed.Descriptor); err == nil {
+				t.Fatal("wrong-size swap cartridge admitted")
+			}
+			if selected, data, err := s.readCoreEntryROM(WithCartridge(ctx, "another-title", other.MediaID), entry, installed.Descriptor); err != nil ||
+				selected.MediaID != own.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0x5a}, 1024)) {
+				t.Fatalf("another title's swap applied: %+v %v", selected, err)
+			}
+			if binding, err := store.CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+				t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
+			}
+		})
+	}
+}

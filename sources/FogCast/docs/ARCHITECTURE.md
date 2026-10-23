@@ -750,6 +750,22 @@ native, and `change-tape` accepts that execution. Both paths are distinct from
 launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
+### Cartridge swap over play (Coleco)
+
+A running `fes.application` machine with one linked cartridge (`rom_link` on
+its session package) and the kit session plane also opens **Change media**
+from Home or Guide, as a cartridge picker. Its Select stays the machine's
+keypad `*`. The cartridge is linked into the bitstream, so there is no
+eject and no live insert. The picker admits `.col`, `.rom` or `.bin` files of
+exactly the running cartridge's size. Choosing one imports it and posts
+`POST /api/v1/session/cartridge {media_id, name}` with the captured session
+and package-generation binding. The host relaunches the same title on the
+same kit with that cartridge for this one launch, the same way any launch
+replaces the running core. The title's own cartridge binding is unchanged,
+so the next ordinary launch uses its own cartridge again. The reply is the
+new generation; it retires the old plane and its focus, the picker closes,
+and play continues on the new load.
+
 Operator/diagnostics CLI:
 
 ```text

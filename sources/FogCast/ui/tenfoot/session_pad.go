@@ -12,6 +12,24 @@ func (a *App) coreOwnsPadInput() bool {
 	return a.localCoreBusyLocked() || a.needsSessionDisplayLocked() && a.session.State == "active" && (!a.roomDuringPlay || a.sessionDisplayBusy)
 }
 
+// sessionKeypadLocked is a running machine with keypad ports, such as the
+// Coleco. Its Select is the keypad * key, so Select stays with the machine
+// and Home or Guide opens the media selector.
+func (a *App) sessionKeypadLocked() bool {
+	p := a.session.CorePackage
+	if p == nil {
+		return false
+	}
+	ports, keypad := false, false
+	for _, i := range p.ActiveInterfaces {
+		if i.Major == 1 && i.Minor == 0 {
+			ports = ports || i.ID == "fes.gamepad.ports"
+			keypad = keypad || i.ID == "fes.keypad.ports"
+		}
+	}
+	return ports && keypad
+}
+
 func (a *App) suppressHeldSessionPadLocked() {
 	if a.playPadSuppressed == nil {
 		a.playPadSuppressed = make(map[padKey]bool)
@@ -80,7 +98,7 @@ func (a *App) sessionPadLocked(e remoteinput.Event, now time.Time) (bool, []remo
 			return true, nil
 		}
 		if e.Code == remoteinput.ButtonSelect {
-			if !a.liveControlsOfferedLocked() {
+			if !a.liveControlsOfferedLocked() || a.sessionKeypadLocked() {
 				if a.playPadSuppressed[key] {
 					if !down {
 						delete(a.playPadSuppressed, key)

@@ -225,7 +225,11 @@ func (s Snapshot) HeaderHint() string {
 			if s.Session.MediaSelector {
 				label = "change media"
 			}
-			hint += "  " + hardwareRoomWord(kind) + " " + label
+			word := hardwareRoomWord(kind)
+			if s.Session.KeypadSelect && word == "SELECT" {
+				word = "GUIDE"
+			}
+			hint += "  " + word + " " + label
 		}
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h

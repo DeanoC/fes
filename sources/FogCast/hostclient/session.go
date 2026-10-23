@@ -79,6 +79,15 @@ type SessionCorePackage struct {
 	Gamepad          bool                       `json:"gamepad"`
 	ABI              SessionCoreABI             `json:"abi"`
 	ActiveInterfaces []SessionCoreInterface     `json:"active_interfaces"`
+	// ROMLink is the single ROM linked into this load, such as a cartridge.
+	ROMLink *SessionROMLink `json:"rom_link,omitempty"`
+}
+
+// SessionROMLink identifies the ROM bytes linked into the running bitstream.
+type SessionROMLink struct {
+	ROMID        string `json:"rom_id"`
+	SourceSHA256 string `json:"source_sha256"`
+	SourceSize   int64  `json:"source_size"`
 }
 
 // SessionComposition is the expansion identity verified for the active load.
