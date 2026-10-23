@@ -80,10 +80,12 @@ std::uint16_t MenuBlitterMinor(const CoreDescriptor& descriptor) {
 }
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
-  descriptor.abi.id!=generated::FesComputerABIID)return false;
+  descriptor.abi.id!=generated::FesComputerABIID&&
+  descriptor.abi.id!=generated::FesApplicationABIID)return false;
  for(const auto& interface:descriptor.interfaces)
   if((interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
-   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID)&&
+   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID||
+   interface.id==generated::FesApplicationInterfaceVideoSessionDisplayID)&&
    interface.required&&interface.major==1&&interface.minor==0)return true;
  return false;
 }
@@ -285,14 +287,20 @@ void NativeHardware::ForwardInputFault(std::uint64_t generation, Error error)
 Error NativeHardware::StopInput(std::uint64_t deadline)
 {
 	if (!input_open_) {
+		if (input_identity_verified_)
+			input_identity_verified_->store(false);
 		if (input_delivery_enabled_)
 			input_delivery_enabled_->store(false);
+		input_identity_verified_.reset();
 		input_delivery_enabled_.reset();
 		return {};
 	}
 	const Error error = input_.Stop(deadline);
+	if (input_identity_verified_)
+		input_identity_verified_->store(false);
 	if (input_delivery_enabled_)
 		input_delivery_enabled_->store(false);
+	input_identity_verified_.reset();
 	input_delivery_enabled_.reset();
 	input_open_ = false;
 	return error;
@@ -387,19 +395,23 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 	}
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
-	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
+	const std::shared_ptr<std::atomic<bool>> identity_verified =
 		std::make_shared<std::atomic<bool>>(false);
+	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
+		std::make_shared<std::atomic<bool>>(!session_display_focused_);
 	Error error = input_.Open(input_identity_, active_input_recipe_,
 		Deadline(clock_, timeouts_.core_io_ms),
-		[driver, context, delivery_enabled](std::uint16_t map,
+		[driver, context, identity_verified, delivery_enabled](std::uint16_t map,
 			std::uint64_t deadline) {
-			if (!delivery_enabled->load()) return Error{};
+			if (!identity_verified->load() ||
+				(map != 0 && !delivery_enabled->load())) return Error{};
 			return driver->SetButtons(context, map, deadline).error;
 		});
 	if (!error.ok()) return WithPhase(std::move(error), "input");
 	input_open_ = true;
+	input_identity_verified_ = identity_verified;
 	input_delivery_enabled_ = delivery_enabled;
-	delivery_enabled->store(true);
+	identity_verified->store(true);
 	error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
 	if (error.ok()) {
 		error = input_.Start(generation,
@@ -740,6 +752,9 @@ Capabilities NativeHardware::capabilities() const
 		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_) {
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,generated::FesApplicationInterfaceVideoMenuBlitterMinor});
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoSessionDisplayID,1,0});
+   application.interfaces.push_back({kDisplayPlaneInterfaceID,
+    generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
   }
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
@@ -831,10 +846,27 @@ Capabilities NativeHardware::capabilities() const
 Error NativeHardware::SetController(std::uint8_t port, std::uint16_t buttons,
 	std::uint16_t keypad)
 {
+	if (session_display_focused_ && (buttons != 0 || keypad != 0))
+		return {}; // UI focus never sends navigation buttons to the running machine.
 	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
 	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->SetController(
 		port, buttons, keypad, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+// ReleaseControllers lets go of every controller port. A core without
+// controller ports has nothing to release.
+Error NativeHardware::ReleaseControllers()
+{
+	const std::uint8_t ports = active_package_->info().descriptor.abi.id == generated::FesComputerABIID ?
+		std::uint8_t(generated::FesComputerControllerPortCount) :
+		std::uint8_t(generated::FesApplicationControllerPortCount);
+	for (std::uint8_t port = 0; port < ports; ++port) {
+		const Error error = SetController(port, 0, 0);
+		if (error.code == ErrorCode::unsupported_interface) return {};
+		if (!error.ok()) return error;
+	}
+	return {};
 }
 
 Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)
@@ -1316,23 +1348,29 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		admitted->opened_.descriptor.core.id, "input_stop", error});
 	if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 	std::shared_ptr<std::atomic<bool>> identity_verified;
+	std::shared_ptr<std::atomic<bool>> input_delivery_enabled;
 	if (fes_gamepad) {
 		identity_verified = std::make_shared<std::atomic<bool>>(false);
+		input_delivery_enabled = std::make_shared<std::atomic<bool>>(true);
 		CoreDriver* const input_driver = admitted->driver_;
 		CoreDriverContext input_context;
 		input_context.generation = generation;
 		error = input_.Open(input_identity_, FesGpInputRecipe(),
 			Deadline(clock_, timeouts_.core_io_ms),
-			[input_driver, input_context, identity_verified](std::uint16_t map,
+			[input_driver, input_context, identity_verified, input_delivery_enabled](std::uint16_t map,
 				std::uint64_t deadline) {
-				if (!identity_verified->load()) return Error{};
+				// Identity admission gates every write. Focus suppresses nonzero
+				// snapshots but still permits neutralization.
+				if (!identity_verified->load() ||
+					(map != 0 && !input_delivery_enabled->load())) return Error{};
 				return input_driver->SetButtons(input_context, map, deadline).error;
 			});
 		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 			admitted->opened_.descriptor.core.id, "input_open", error});
 		if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 		input_open_ = true;
-		input_delivery_enabled_ = identity_verified;
+		input_identity_verified_ = identity_verified;
+		input_delivery_enabled_ = input_delivery_enabled;
 	}
 	const HardwareResult quiesced = QuiesceForReplacement("load_core",
 		admitted->opened_.descriptor.core.system,
@@ -1525,21 +1563,40 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  if(visible) {
   if(launcher_focus&&!session_display_focused_) {
-   // Neutralize held machine keys before handing navigation to the UI. There
-   // is no execution hold here: BASIC, RAM and expansions keep running.
-   const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
-   Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
-   if(home&&error.code==ErrorCode::unsupported_interface)error={};
+   // Neutralize held machine keys and controllers before handing navigation
+   // to the UI. There is no execution hold here: the machine keeps running.
+   const std::string& abi=active_package_->info().descriptor.abi.id;
+   Error error;
+   const bool gamepad=RequiresFesGamepad(active_package_->info().descriptor);
+   if(gamepad&&input_delivery_enabled_) {
+    input_delivery_enabled_->store(false);
+    input_.SetButtonDeliveryEnabled(false);
+    error=input_.Neutralize(deadline);
+   }
+   if(error.ok()&&abi==generated::FesComputerABIID){
+    error=SetKeyboardHid({});
+    if(error.code==ErrorCode::unsupported_interface)error={};
+   }else if(error.ok()&&abi==generated::FesSimpleComputerABIID){
+    error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+   }
+   if(error.ok())error=ReleaseControllers();
    // A shown plane stays up with the machine still holding input.
-   if(!error.ok())return menu_status_.available?error:FailMenuPresent(error);
+   if(!error.ok()) {
+    if(gamepad&&input_delivery_enabled_) {
+     const bool enabled=!session_display_focused_;
+     input_delivery_enabled_->store(enabled);
+     input_.SetButtonDeliveryEnabled(enabled);
+    }
+    return menu_status_.available?error:FailMenuPresent(error);
+   }
   }
   // Moving focus on a shown plane keeps its grant and frames.
-  if(menu_status_.available){session_display_focused_=launcher_focus;return {};}
+  if(menu_status_.available){SetSessionDisplayInputFocus(launcher_focus);return {};}
   // Hiding revoked the grant. The plane's slots keep their pixels.
   Error error=menu_window_->Activate(false,false);
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
-  session_display_focused_=launcher_focus;
+  SetSessionDisplayInputFocus(launcher_focus);
   MenuDisplayInfo info;error=menu_display_->ReadInfo(deadline,&info);
   if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||
    info.displayed_sequence!=menu_status_.displayed_sequence))
@@ -1552,9 +1609,9 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
  menu_status_.available=false;
- if(!error.ok()){menu_status_.error=error;session_display_focused_=true;return error;}
+ if(!error.ok()){menu_status_.error=error;SetSessionDisplayInputFocus(true);return error;}
  menu_status_.displayed_sequence=info.displayed_sequence;
- session_display_focused_=false;menu_underflow_streak_=0;
+ SetSessionDisplayInputFocus(false);menu_underflow_streak_=0;
  return {};
 }
 
@@ -1645,6 +1702,16 @@ HardwareResult NativeHardware::LoadSplashIdle()
 
 void NativeHardware::RevokeMenuWindow()
 {if(menu_window_)menu_window_->Revoke();}
+void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
+{
+ session_display_focused_=launcher_focus;
+ if(input_delivery_enabled_&&active_package_&&
+  RequiresFesGamepad(active_package_->info().descriptor)) {
+  const bool enabled=!launcher_focus;
+  input_delivery_enabled_->store(enabled);
+  input_.SetButtonDeliveryEnabled(enabled);
+ }
+}
 bool NativeHardware::MenuReactivationAllowed()
 {
  const auto now=clock_.NowMs();
@@ -1662,7 +1729,7 @@ Error NativeHardware::FailMenuPresent(const Error& error)
   MenuDisplayInfo info;
   const Error drained=menu_display_->Quiesce(Deadline(clock_,timeouts_.core_io_ms),
    active_package_?&active_package_->info().descriptor:nullptr,&info);
-  session_display_focused_=!drained.ok();
+  SetSessionDisplayInputFocus(!drained.ok());
   if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
   if(!drained.ok())menu_status_.error={error.code,error.message+"; session display quiesce failed: "+drained.message,"menu"};
   return menu_status_.error;

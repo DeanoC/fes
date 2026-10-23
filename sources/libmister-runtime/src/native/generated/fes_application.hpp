@@ -219,6 +219,10 @@ constexpr const char* FesApplicationInterfaceVideoMenuBlitterID = "fes.video.men
 constexpr std::uint16_t FesApplicationInterfaceVideoMenuBlitterMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceVideoMenuBlitterMinor = 1u;
 constexpr std::uint32_t FesApplicationCapabilityVideoMenuBlitter = 0x400u;
+constexpr const char* FesApplicationInterfaceVideoSessionDisplayID = "fes.video.session-display";
+constexpr std::uint16_t FesApplicationInterfaceVideoSessionDisplayMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceVideoSessionDisplayMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityVideoSessionDisplay = 0x800u;
 
 } // namespace generated
 } // namespace native

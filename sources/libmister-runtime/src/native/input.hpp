@@ -67,6 +67,7 @@ public:
 	virtual ~InputSession() {}
 	virtual Error Open(const InputDeviceIdentity&, const InputRecipe&,
 		std::uint64_t absolute_deadline_ms, ButtonWriter = {}) = 0;
+	virtual void SetButtonDeliveryEnabled(bool enabled) = 0;
 	virtual Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, Error)> on_fault) = 0;
 	virtual Error Neutralize(std::uint64_t absolute_deadline_ms) = 0;
@@ -83,6 +84,7 @@ public:
 
 	Error Open(const InputDeviceIdentity&, const InputRecipe&,
 		std::uint64_t, ButtonWriter = {}) override;
+	void SetButtonDeliveryEnabled(bool enabled) override;
 	Error Start(std::uint64_t,
 		std::function<void(std::uint64_t, Error)>) override;
 	Error Neutralize(std::uint64_t) override;

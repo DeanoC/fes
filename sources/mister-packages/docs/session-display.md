@@ -2,8 +2,9 @@
 
 `fes.simple-computer` 1.0 packages can declare required `fes.memory.hps-ddr`
 1.0 (capability bit 8) and `fes.video.session-display` 1.0 (bit 9);
-`fes.computer` 1.0 packages use bits 12 and 13. The display requires DDR and
-the ABI's existing fixed video interface. These capabilities do not change the
+`fes.computer` 1.0 packages use bits 12 and 13, and `fes.application` 1.0
+machines, such as the Coleco native shell, use bits 8 and 11. The display
+requires DDR and the ABI's existing fixed video interface. These capabilities do not change the
 ABI version, tag, transport, keyboard or media contracts of packages that omit
 them. A declared operational capability must be required at exactly version
 1.0. Live identity must match the declared bits before the runtime releases
@@ -13,7 +14,15 @@ The DDR window and boot-latched port layout are identical to the application
 ABI. The display uses the same GP opcodes 18 through 21, `Menu*` indices and
 state bits, fixed 1280×720 layout and two 4 MiB slots. The application
 `fes.video.menu-display` interface remains an idle-firmware contract; this
-interface belongs to the active machine.
+interface belongs to the active machine, and no package declares both.
+
+When the launcher takes focus on a shown plane, the runtime neutralizes the
+machine's keyboard and releases every controller port. For a declared single
+`fes.gamepad`, it sends a zero button snapshot and gates the input worker's
+nonzero snapshots until focus returns. While the launcher has focus, FogCast
+drops controller presses and consumes controller releases into the retained
+source snapshot without publishing them. A release therefore cannot replay as
+a held button after focus returns.
 
 ## Blending and picture rectangle
 
