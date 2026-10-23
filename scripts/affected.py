@@ -218,6 +218,10 @@ def plan(paths):
             selected.update(LANES)
             reasons.append(f'{path}: software CI infrastructure; RTL unchanged')
             continue
+        if path in ('scripts/runtime_tests.py', 'tests/test_runtime_tests.py'):
+            selected.update(('parent', 'runtime'))
+            reasons.append(f'{path}: runtime check selection and its regressions')
+            continue
         if path == 'scripts/host_tests.py':
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: host test runner and its regressions')
