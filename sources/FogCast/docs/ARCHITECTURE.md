@@ -2560,6 +2560,10 @@ port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
 releases its held keys independently.
 
+On a keypad session, a portless pad's Select reaches the focused launcher while
+its controls own input, including the cartridge picker. During play the
+portless pad cannot send Select to the machine or use it as a menu command.
+
 If an HDMI control transition leaves display ownership uncertain, a portless
 pad's B uses the same guarded return-to-play operation as a ported pad. Other
 menu commands stay blocked until display ownership is known.
