@@ -1,5 +1,7 @@
 # Mesh LAN — Phase 3 execution brief
 
+**Superseded (22 October 2026):** the kit is its own FogCast host ([#863](https://github.com/DeanoC/fes/issues/863)). The kit-side placement, pairing and paired-listener material on this page is historical; the current design is [mesh under kit-as-host](mesh-kit-host.md), which also lists what from here stays in use.
+
 **Status:** Slices 1–6 are on main (#212, #213, #214, #216, #219,
 #221). Before Slice 8, no production code installed a placement ask:
 `SetMeshPlacementAsk` and the display preference setter were called
