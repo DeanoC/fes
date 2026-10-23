@@ -473,7 +473,7 @@
       }
     }
   },
-  "repeat": "route-system-rom-verified with identical native command/source/environment and corrected preflight/postflight self-binding; pending",
+  "repeat": "Completed with successful preflight/postflight and byte-exact complete RBF/timing/endpoint reproduction; see final-route-summary.json. The original receipt stays rejected.",
   "accounting": {
     "completed_route_search_receipts": 80,
     "prior_79_prefix_exact": true,
