@@ -80,10 +80,12 @@ std::uint16_t MenuBlitterMinor(const CoreDescriptor& descriptor) {
 }
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
  if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
-  descriptor.abi.id!=generated::FesComputerABIID)return false;
+  descriptor.abi.id!=generated::FesComputerABIID&&
+  descriptor.abi.id!=generated::FesApplicationABIID)return false;
  for(const auto& interface:descriptor.interfaces)
   if((interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
-   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID)&&
+   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID||
+   interface.id==generated::FesApplicationInterfaceVideoSessionDisplayID)&&
    interface.required&&interface.major==1&&interface.minor==0)return true;
  return false;
 }
@@ -740,6 +742,9 @@ Capabilities NativeHardware::capabilities() const
 		if(fpga_.BootHpsDdrLayout()&&menu_display_&&menu_window_) {
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuDisplayID,1,0});
    application.interfaces.push_back({generated::FesApplicationInterfaceVideoMenuBlitterID,1,generated::FesApplicationInterfaceVideoMenuBlitterMinor});
+   application.interfaces.push_back({generated::FesApplicationInterfaceVideoSessionDisplayID,1,0});
+   application.interfaces.push_back({kDisplayPlaneInterfaceID,
+    generated::FesDisplayPlaneMajor, generated::FesDisplayPlaneMinor});
   }
 		std::sort(application.interfaces.begin(), application.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
@@ -831,10 +836,27 @@ Capabilities NativeHardware::capabilities() const
 Error NativeHardware::SetController(std::uint8_t port, std::uint16_t buttons,
 	std::uint16_t keypad)
 {
+	if (session_display_focused_ && (buttons != 0 || keypad != 0))
+		return {}; // UI focus never sends navigation buttons to the running machine.
 	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
 	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->SetController(
 		port, buttons, keypad, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+// ReleaseControllers lets go of every controller port. A core without
+// controller ports has nothing to release.
+Error NativeHardware::ReleaseControllers()
+{
+	const std::uint8_t ports = active_package_->info().descriptor.abi.id == generated::FesComputerABIID ?
+		std::uint8_t(generated::FesComputerControllerPortCount) :
+		std::uint8_t(generated::FesApplicationControllerPortCount);
+	for (std::uint8_t port = 0; port < ports; ++port) {
+		const Error error = SetController(port, 0, 0);
+		if (error.code == ErrorCode::unsupported_interface) return {};
+		if (!error.ok()) return error;
+	}
+	return {};
 }
 
 Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)
@@ -1525,11 +1547,17 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
  const auto deadline=Deadline(clock_,timeouts_.core_io_ms);
  if(visible) {
   if(launcher_focus&&!session_display_focused_) {
-   // Neutralize held machine keys before handing navigation to the UI. There
-   // is no execution hold here: BASIC, RAM and expansions keep running.
-   const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
-   Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
-   if(home&&error.code==ErrorCode::unsupported_interface)error={};
+   // Neutralize held machine keys and controllers before handing navigation
+   // to the UI. There is no execution hold here: the machine keeps running.
+   const std::string& abi=active_package_->info().descriptor.abi.id;
+   Error error;
+   if(abi==generated::FesComputerABIID){
+    error=SetKeyboardHid({});
+    if(error.code==ErrorCode::unsupported_interface)error={};
+   }else if(abi==generated::FesSimpleComputerABIID){
+    error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+   }
+   if(error.ok())error=ReleaseControllers();
    // A shown plane stays up with the machine still holding input.
    if(!error.ok())return menu_status_.available?error:FailMenuPresent(error);
   }

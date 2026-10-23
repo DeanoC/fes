@@ -134,6 +134,7 @@ private:
  void RevokeMenuWindow();
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
+ Error ReleaseControllers();
  MenuDisplayDriver* menu_display_;
  MenuWindow* menu_window_;
  MenuDisplayStatus menu_status_;
