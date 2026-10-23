@@ -340,3 +340,19 @@ scripts, build inputs and unclassified paths retain host consumer checks.
 Mixed changes union their lanes, including both sides of renames and deletions;
 manual/scheduled all-input runs retain every lane. Local `--full` still expands
 checks only inside selected lanes.
+
+### Reviewed parent planner inputs
+
+Edits to `scripts/affected.py`, `scripts/ci_gate.py`, `scripts/check_diff.py`
+and their reviewed regression modules (`test_affected`, `test_ci_gate`,
+`test_check_diff`, `test_test_changed`) select parent policy and build groups.
+These retain workflow, integration, source/receipt and status consumers while
+omitting unrelated media, package and acceptance suites. Mixed changes add their
+consumer groups; accompanying guides retain their documentation readers.
+Unassigned test modules still run.
+
+Changes to `parent_affected.py`, `parent_tests.py`, `test_parent_affected.py`,
+shared test-mode policy, other unreviewed inputs, or an omitted/unknown path list
+retain the full parent suite. Manual/scheduled full plans and `--full` remain
+exhaustive. This selection changes parent checks only; component lane selection
+and the integration gate stay unchanged.
