@@ -42,6 +42,8 @@ type frameCommand struct {
 	text       string
 	x, y, size int
 	weight     Weight
+	mask       *Mask
+	maskSrc    image.Rectangle
 }
 
 // NewFrameCache wraps an exclusively owned painter. The caller closes device.
@@ -98,6 +100,11 @@ func (c *FrameCache) DrawText(x, y int, text string, size int, color Color) {
 func (c *FrameCache) DrawTextWeight(x, y int, text string, size int, weight Weight, color Color) {
 	c.painted = true
 	c.record(frameCommand{op: OpDrawText, x: x, y: y, text: text, size: size, weight: NormalizeWeight(weight), color: color})
+}
+
+func (c *FrameCache) DrawMask(m *Mask, src image.Rectangle, x, y int, color Color) {
+	c.painted = true
+	c.record(frameCommand{op: OpDrawMask, x: x, y: y, color: color, mask: m, maskSrc: src})
 }
 
 // CacheBackdrop marks one reusable command prefix in a complete frame. CPU
@@ -218,6 +225,8 @@ func (c *FrameCache) execute(command frameCommand) {
 		c.device.DebugText(command.x, command.y, command.text, command.size)
 	case OpDrawText:
 		c.device.DrawTextWeight(command.x, command.y, command.text, command.size, command.weight, command.color)
+	case OpDrawMask:
+		c.device.DrawMask(command.mask, command.maskSrc, command.x, command.y, command.color)
 	}
 }
 

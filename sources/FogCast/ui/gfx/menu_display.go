@@ -201,14 +201,16 @@ type MenuDisplay struct {
 	settled          bool
 	settledPresented bool
 	settledErr       error
-	// blitReady is whether the last idle-menu grant had the blitter; the
-	// worker sets it.
+	// blitReady is whether the last idle-menu grant had the blitter, and
+	// blitMinor that blitter's minor; the worker sets them.
 	blitReady bool
+	blitMinor int
 	// Render thread: the frame's mode, its commands, and the last finished
 	// frame. cpuStale means the Software buffer lacks that frame because the
 	// blitter drew it; needBase means the list frame has not yet decided
 	// whether it starts from the frame before it.
 	mode      frameMode
+	expand    bool
 	ops       []menudisplay.BlitOp
 	needBase  bool
 	lastOps   []menudisplay.BlitOp
@@ -1038,6 +1040,9 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 			ops := frame.list
 			if !frame.isList {
 				ops = copyFrameOps(frame.pixels)
+			} else if grant.BlitterMinor < menudisplay.ExpandMinor && slices.ContainsFunc(ops, isExpand) {
+				// Drawn for a blitter that expands; this one does not.
+				ops = copyFrameOps(d.rasterScratch(ops))
 			}
 			result, err := blitter.PresentBlit(d.ctx, status.Generation, menudisplay.BlitFrame{Ops: ops})
 			if errors.Is(err, menudisplay.ErrBlitTooLarge) && frame.isList {
@@ -1066,9 +1071,11 @@ func (d *MenuDisplay) noteGrant(frame queuedMenuFrame, grant menudisplay.Grant) 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if frame.epoch == d.bindingEpoch && frame.binding.packageID == "" {
-		d.blitReady = grant.Blitter
+		d.blitReady, d.blitMinor = grant.Blitter, grant.BlitterMinor
 	}
 }
+
+func isExpand(op menudisplay.BlitOp) bool { return op.Kind == menudisplay.BlitExpand }
 
 // rasterScratch draws a list frame into the worker's frame buffer.
 func (d *MenuDisplay) rasterScratch(ops []menudisplay.BlitOp) []byte {

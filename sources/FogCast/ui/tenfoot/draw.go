@@ -22,6 +22,11 @@ type gpuTexture struct {
 	seq          int
 	labelSource  string
 	labelDisplay string
+	// A text entry in labels has no texture. w×h is its layout box, and
+	// drawMask draws mask's maskSrc part at maskAt from the box's top-left.
+	mask    *gfx.Mask
+	maskSrc image.Rectangle
+	maskAt  image.Point
 }
 
 func presentFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture, parked bool) bool {
@@ -59,7 +64,7 @@ func applyGPUPark(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 			delete(textures, id)
 		}
 		if !parked {
-			destroyTextures(dev, labels)
+			clear(labels)
 		}
 		drawNowPlaying(dev, snap, textures, labels)
 		return true
@@ -140,6 +145,22 @@ func drawGPU(dev gfx.Device, tex gpuTexture, x, y, w, h float32) {
 	dev.Draw(tex.tex, nil, gfx.Rect{X: x, Y: y, W: w, H: h})
 }
 
+// drawMask draws a text entry with its box's top-left at x, y in c.
+func drawMask(dev gfx.Device, text gpuTexture, x, y int, c gfx.Color) {
+	if text.mask != nil {
+		dev.DrawMask(text.mask, text.maskSrc, x+text.maskAt.X, y+text.maskAt.Y, c)
+	}
+}
+
+// dropUnusedLabels forgets the text entries this frame did not draw.
+func dropUnusedLabels(labels map[string]gpuTexture, used map[string]struct{}) {
+	for key := range labels {
+		if _, ok := used[key]; !ok {
+			delete(labels, key)
+		}
+	}
+}
+
 func drawTheme(snap Snapshot) theme.Theme {
 	return snap.Theme.Complete()
 }
@@ -188,13 +209,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)
 	drawDebugHUD(dev, snap)
-	for key, item := range labels {
-		if _, ok := used[key]; ok {
-			continue
-		}
-		dev.Destroy(item.tex)
-		delete(labels, key)
-	}
+	dropUnusedLabels(labels, used)
 	dev.Present()
 }
 
@@ -297,28 +312,20 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 			labelMu.Unlock()
 			tex.labelSource = text
 			labels[key] = tex
-			drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))
+			drawMask(dev, tex, x, y, labelColor)
 			return
 		}
-		img := rasterizeLabelWithFace(face, display, maxW, sizePx)
+		laid, laidOK := layoutLabel(face, display, maxW, sizePx)
 		labelMu.Unlock()
-		if img == nil {
+		if !laidOK {
 			delete(used, key)
 			return
 		}
-		uploaded, err := uploadTexture(dev, img)
-		if err != nil {
-			delete(used, key)
-			return
-		}
-		if ok {
-			dev.Destroy(tex.tex)
-		}
-		tex = uploaded
+		tex = laid
 		tex.labelSource, tex.labelDisplay = text, display
 		labels[key] = tex
 	}
-	drawGPU(dev, tex, float32(x), float32(y), float32(tex.w), float32(tex.h))
+	drawMask(dev, tex, x, y, labelColor)
 }
 
 func drawHeader(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -476,13 +483,7 @@ func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 	drawTapePicker(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)
 	drawDebugHUD(dev, snap)
-	for key, item := range labels {
-		if _, ok := used[key]; ok {
-			continue
-		}
-		dev.Destroy(item.tex)
-		delete(labels, key)
-	}
+	dropUnusedLabels(labels, used)
 	dev.Present()
 }
 
@@ -883,13 +884,7 @@ func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuT
 	if title != "" && titleH > 0 {
 		drawLabel(dev, labels, used, "attract-title", x+24, y+stageH+12, w-48, 28, title)
 	}
-	for key, item := range labels {
-		if _, ok := used[key]; ok {
-			continue
-		}
-		dev.Destroy(item.tex)
-		delete(labels, key)
-	}
+	dropUnusedLabels(labels, used)
 	dev.Present()
 }
 
@@ -934,8 +929,11 @@ func placeholderColor(title string) (uint8, uint8, uint8) {
 }
 
 func destroyTextures(dev gfx.Device, textures map[string]gpuTexture) {
+	// Text entries hold no texture.
 	for id, item := range textures {
-		dev.Destroy(item.tex)
+		if item.tex.Valid() {
+			dev.Destroy(item.tex)
+		}
 		delete(textures, id)
 	}
 }

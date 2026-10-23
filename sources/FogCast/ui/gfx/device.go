@@ -84,7 +84,11 @@ type Device interface {
 	DrawText(x, y int, text string, sizePx int, c Color)
 	// DrawTextWeight is DrawText with an explicit Regular or Bold face.
 	// WeightRegular matches DrawText. There is no italic or medium face.
+	// The text's ink mask (UIText) is drawn with its top-left at x, y.
 	DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color)
+	// DrawMask draws the src part of m with its top-left at x, y in c,
+	// source-over, with c's alpha scaled by the coverage: A·m/255.
+	DrawMask(m *Mask, src image.Rectangle, x, y int, c Color)
 
 	Close()
 }

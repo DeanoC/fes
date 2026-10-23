@@ -1091,8 +1091,11 @@ goroutine holds the stream.
 Source entry points are `ui/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `ui/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
-embedded Go Regular and Go Bold, and
-`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
+embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
+`DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
+masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
+face and copied into a mask per string, and a mask draws in any colour with
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
 SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
@@ -1131,9 +1134,9 @@ dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
 runtime menu socket with change-driven presents. The direct CPU loop records
 complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
-textures skip rasterization. Label textures are keyed by slot, width and font
+textures skip rasterization. Labels are keyed by slot, width and font
 size; unchanged source strings bypass fitting, and source changes reuse the
-texture when the fitted visible text is identical. A clipped lease countdown
+mask when the fitted visible text is identical. A clipped lease countdown
 therefore cannot invalidate a scene whose visible header has not changed.
 Texture mutations preserve draw order and invalidate
 reuse. Settings marks a backdrop checkpoint after dimming and painting its
@@ -1241,10 +1244,14 @@ grant revoked mid-frame fails that frame. Submission runs off the pad loop.
 When the idle menu's grant includes the menu blitter, `MenuDisplay` records
 each frame as blitter commands instead of rastering it (`ui/gfx/menu_blit.go`):
 fills, copies and blends that draw the pixels `Software` would, with scaled
-draws, text and debug glyphs made into cached bitmaps. The client uploads each
-bitmap a frame reads into the grant's texture heap once, keeps it there while
-it is reachable and the heap has room, writes the list and commits it; the
-fabric draws the slot (`ui/menudisplay/blit.go`). The first frame after a
+draws and debug glyphs made into cached bitmaps. Text masks are expands when
+the grant's blitter is minor 1 or later; on a 1.0 blitter each mask is
+expanded in its colour on the CPU and blended, which draws the same pixels.
+The client uploads each bitmap or mask a frame reads into the grant's texture
+heap once, keeps it there while it is reachable and the heap has room, writes
+the list and commits it; the fabric draws the slot (`ui/menudisplay/blit.go`).
+A frame recorded with expands that meets a 1.0 grant is rasterized and copied
+whole. The first frame after a
 grant is drawn on the CPU and goes as one copy, since a blitter grant refuses
 CPU frames after its first list. A session plane or a menu without the
 blitter gets CPU pixels, rasterizing a list that reaches it, and a list too

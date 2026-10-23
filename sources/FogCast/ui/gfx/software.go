@@ -319,8 +319,17 @@ func (s *Software) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *Software) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	m, src := UIText(text, sizePx, w, 0)
+	s.DrawMask(m, src, x, y, c)
+}
+
+func (s *Software) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
 	s.restorePrevious()
-	blitText(s, x, y, RasterizeTextWeight(text, sizePx, w, c, 0))
+	src, at, ok := clipMask(m, src, x, y, s.w, s.h)
+	if !ok || c.A == 0 {
+		return
+	}
+	expandRows(s.pix, s.stride, m.Pix, m.W, src, at, c)
 }
 
 func (s *Software) Close() {

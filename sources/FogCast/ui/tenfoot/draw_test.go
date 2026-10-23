@@ -206,17 +206,14 @@ func TestAttractReuploadUsesUpdateWhenSizeMatches(t *testing.T) {
 	}
 }
 
-func TestParkEntryDestroysLabels(t *testing.T) {
+func TestParkEntryDropsLabels(t *testing.T) {
 	rec := gfx.NewRecorder()
-	label, err := rec.CreateRGBA(testDrawRGBA(4, 4))
-	if err != nil {
-		t.Fatal(err)
-	}
-	labels := map[string]gpuTexture{"stale": {tex: label, w: 4, h: 4}}
+	mask, src := gfx.UIText("stale", 16, gfx.WeightRegular, 0)
+	labels := map[string]gpuTexture{"stale": {w: src.Dx(), h: src.Dy(), mask: mask, maskSrc: src}}
 	snap := Snapshot{GPUParked: true, Grid: testDrawGrid()}
 	_ = presentFrame(rec, snap, map[string]gpuTexture{}, labels, false)
-	if rec.Alive(label) {
-		t.Fatal("park entry should destroy existing label textures")
+	if _, ok := labels["stale"]; ok {
+		t.Fatal("park entry should drop existing labels")
 	}
 }
 
@@ -273,21 +270,18 @@ func TestDrawLabelReusesClippedGlyphs(t *testing.T) {
 	}
 	rec.Calls = nil
 	second := draw(prefix+"TTL 88s", 160)
-	if first.tex != second.tex || second.labelSource != prefix+"TTL 88s" {
-		t.Fatal("hidden suffix replaced texture or failed to remember source")
+	if first.mask == nil || first.mask != second.mask || second.labelSource != prefix+"TTL 88s" {
+		t.Fatal("hidden suffix replaced the mask or failed to remember source")
 	}
-	for _, call := range rec.Calls {
-		if call.Op == "CreateRGBA" || call.Op == "Destroy" {
-			t.Fatalf("hidden suffix mutated texture: %s", call.Op)
-		}
+	if len(rec.Calls) != 1 || rec.Calls[0].Op != "DrawMask" || rec.Calls[0].Mask != first.mask {
+		t.Fatalf("hidden suffix drew %v", rec.Ops())
 	}
 	changed := draw("Lease free", 160)
-	if changed.tex == first.tex || rec.Alive(first.tex) || !rec.Alive(changed.tex) {
-		t.Fatal("visible change failed to replace texture")
+	if changed.mask == first.mask || changed.labelDisplay != "Lease free" {
+		t.Fatal("visible change failed to replace the mask")
 	}
-	resized := draw("Lease free", 80)
-	if resized.tex == changed.tex {
-		t.Fatal("width change reused texture")
+	if narrow := draw("Lease", 20); narrow.w > 20 || narrow.maskAt.X+narrow.maskSrc.Dx() > 20 {
+		t.Fatalf("narrow label %+v draws past its width", narrow)
 	}
 }
 

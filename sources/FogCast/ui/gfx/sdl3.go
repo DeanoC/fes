@@ -152,16 +152,25 @@ func (s *SDLBackend) DrawText(x, y int, text string, sizePx int, c Color) {
 }
 
 func (s *SDLBackend) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
-	img := RasterizeTextWeight(text, sizePx, w, c, 0)
-	if img == nil {
+	m, src := UIText(text, sizePx, w, 0)
+	s.DrawMask(m, src, x, y, c)
+}
+
+func (s *SDLBackend) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	if m == nil {
 		return
 	}
+	part := src.Intersect(m.Bounds())
+	if part.Empty() {
+		return
+	}
+	img := ExpandMask(m, part, c)
 	tex, err := s.CreateRGBA(img)
 	if err != nil {
 		return
 	}
-	b := img.Bounds()
-	s.Draw(tex, nil, Rect{X: float32(x), Y: float32(y), W: float32(b.Dx()), H: float32(b.Dy())})
+	at := image.Pt(x, y).Add(part.Min.Sub(src.Min))
+	s.Draw(tex, nil, Rect{X: float32(at.X), Y: float32(at.Y), W: float32(part.Dx()), H: float32(part.Dy())})
 	s.Destroy(tex)
 }
 
