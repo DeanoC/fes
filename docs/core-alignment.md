@@ -33,13 +33,13 @@ These are the choices already in the tree at `6d9939c2`.
    programs a kit.
 2. Registered producers use per-core locks named by `lock_path` in
    `config/core-recipes.toml`. Every lock except those of Pong, RISC-V, ZX81,
-   Atari ST and Coleco matches the repository-level
+   Apple II, Atari ST, C64, Coleco and Spectrum matches the repository-level
    `sources/misteross/toolchain.lock`: Yosys `3a5accbd`, Mistral `8fcc4cb4`,
    nextpnr `9128800f`, deliberately before nextpnr #172. Pong's lock keeps that
    Yosys and Mistral and pins nextpnr `552ba246` (fes#887), RISC-V's pins
-   `8f453ebc`, ZX81's pins `1eecf877` (fes#936) and Atari ST's pins `5fe55f3d`
-   (DeanoC/nextpnr#276, fes#910).
-   Coleco pins Yosys `5391eeb1` with the same Mistral and nextpnr commits.
+   `8f453ebc` and ZX81's pins `1eecf877` (fes#936). Apple II, Atari ST
+   (fes#910), C64, Coleco and Spectrum pin `5fe55f3d` (DeanoC/nextpnr#276,
+   fes#1007), and Coleco also pins Yosys `5391eeb1`.
    Each distinct lock has its own cache slot. HIP architectures are
    `gfx1100;gfx1201`. Pin changes stay scoped to the affected core. The
    repository-level lock remains for unregistered consumers.

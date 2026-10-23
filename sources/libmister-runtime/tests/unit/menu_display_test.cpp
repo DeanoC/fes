@@ -21,6 +21,7 @@ public:
  std::uint32_t response=0xf5000000;
  bool toggle=false;
  bool fail_commit_read=false;
+ std::uint16_t blit_state=0,blit_completed=0;
  Error Read32(std::uint32_t,std::uint32_t* out) override {
   if(fail_commit_read&&!commands.empty()&&commands.back()[0]==21&&commands.back()[1]==2){fail_commit_read=false;return {ErrorCode::io_failed,"lost submit ACK"};}
   *out=response;return {};
@@ -33,6 +34,8 @@ public:
   if(op==18){if(index>=words.size()||arg){data=3;error=true;}else data=words[index];}
   if(op==19) words[9]=9;
   if(op==20) words[9]=(arg?3:9)|(words[9]&16);
+  if(op==22&&index==3)data=blit_state;
+  if(op==22&&index==4)data=blit_completed;
   response=0xf5000000u|unsigned(toggle)*0x800000u|unsigned(error)*0x400000u|data;return {};
  }
 };
@@ -52,6 +55,31 @@ void TestAmbiguousSessionSubmitOnlyRealignsAndQuiesces()
  }
  assert(e.commands[before+16][0]==20&&e.commands[before+16][2]==0);
 }
+void TestBlitRunAndState()
+{
+ Endpoint e;TestClock clock;FesGp gp(e,clock);MenuDisplayDriver display(gp,clock);
+ // A run stages first, count and slot in order; its ACK means started.
+ assert(display.RunBlit(32760,8,1,1000).ok());
+ assert((e.commands==std::vector<std::array<unsigned,3>>{{{22,0,32760}},{{22,1,8}},{{22,2,1}}}));
+ // The whole region is one list; anything outside it, or another slot, never reaches the GP.
+ assert(display.RunBlit(0,32768,0,1000).ok());
+ const auto before=e.commands.size();
+ for(const auto& bad:std::vector<std::array<std::uint32_t,3>>{{{0,0,0}},{{32768,1,0}},{{32760,9,0}},{{0,1,2}}})
+  assert(!display.RunBlit(bad[0],bad[1],std::uint8_t(bad[2]),1000).ok());
+ assert(e.commands.size()==before);
+ // The count is read before the state: it advances in the clock the run goes idle.
+ MenuBlitState state;e.blit_state=1;e.blit_completed=0xffff;
+ assert(display.ReadBlit(1000,&state).ok()&&state.busy&&!state.faulted&&state.completed==0xffff);
+ assert(e.commands[e.commands.size()-2]==(std::array<unsigned,3>{{22,4,0}}));
+ assert(e.commands.back()==(std::array<unsigned,3>{{22,3,0}}));
+ e.blit_state=0x0402;
+ assert(display.ReadBlit(1000,&state).ok()&&!state.busy&&state.faulted&&state.fault==4);
+ // A fault code exactly when faulted, and no other bits.
+ for(const std::uint16_t bad:{std::uint16_t(0x0002),std::uint16_t(0x0300),std::uint16_t(0x0004),std::uint16_t(0x0800)}) {
+  e.blit_state=bad;assert(!display.ReadBlit(1000,&state).ok());
+ }
+ assert(!display.ReadBlit(1000,nullptr).ok());
+}
 void TestSessionPlaneReportsFormatAndPicture()
 {
  Endpoint e;TestClock clock;FesGp gp(e,clock);MenuDisplayDriver display(gp,clock);MenuDisplayInfo info;
@@ -67,6 +95,7 @@ void TestSessionPlaneReportsFormatAndPicture()
 }
 int main(){
  TestAmbiguousSessionSubmitOnlyRealignsAndQuiesces();
+ TestBlitRunAndState();
  TestSessionPlaneReportsFormatAndPicture();
  Endpoint e;TestClock clock;FesGp gp(e,clock);MenuDisplayDriver display(gp,clock);MenuDisplayInfo info;
  assert(display.ReadInfo(1000,&info).ok());assert(info.geometry.frame_bytes==3686400&&info.geometry.slot_bytes==4194304);
@@ -79,5 +108,5 @@ int main(){
  for(auto i=before;i<e.commands.size();++i)assert(e.commands[i][0]!=19);
  e.words[0]=1280;e.words[9]=0x8000;assert(!display.ReadInfo(1000,&info).ok());
  before=e.commands.size();assert(!display.ReadInfo(1000,nullptr).ok());assert(e.commands.size()==before);
- puts("menu driver geometry/counters/ordered submission/invalid-state tests passed");
+ puts("menu driver geometry/counters/ordered submission/invalid-state/blit tests passed");
 }

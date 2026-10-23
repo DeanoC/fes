@@ -15,6 +15,11 @@ import image_artifacts as artifacts
 import build
 
 
+MENU_INTERFACES = (('fes.video.fixed-720p60', 1, 0), ('fes.memory.hps-ddr', 1, 0),
+                   ('fes.video.menu-display', 1, 0))
+needs_readelf = unittest.skipUnless(shutil.which('readelf'), 'needs readelf from binutils')
+
+
 def static_arm_elf():
     data = bytearray(256)
     data[:16] = b'\x7fELF\x01\x01\x01' + bytes(9)
@@ -25,6 +30,36 @@ def static_arm_elf():
     return data
 
 
+def runtime_elf(interfaces):
+    """ARM runtime whose .fes_menu_interfaces section lists interfaces; None omits it."""
+    names = [b'', b'.shstrtab'] + ([] if interfaces is None else [b'.fes_menu_interfaces'])
+    strings = b'\0'.join(names) + b'\0'
+    records = b''.join(f'{name}={major}.{minor}\0'.encode() for name, major, minor in interfaces or ())
+    data = bytearray(52) + strings + (b'' if interfaces is None else records + b'\0')
+    sections = [bytes(40), struct.pack('<10I', 1, 3, 0, 0, 52, len(strings), 0, 0, 1, 0)]
+    if interfaces is not None:
+        sections.append(struct.pack('<10I', len(b'\0.shstrtab\0'), 1, 2, 0, 52 + len(strings),
+                                    len(records) + 1, 0, 0, 1, 0))
+    data[:16] = b'\x7fELF\x01\x01\x01' + bytes(9)
+    struct.pack_into('<HHIIIIIHHHHHH', data, 16, 2, 40, 1, 0, 0, len(data),
+                     0x05000000, 52, 0, 0, 40, len(sections), 1)
+    return bytes(data) + b''.join(sections)
+
+
+def menu_manifest(interfaces):
+    return ''.join(f'[[interfaces]]\nid = "{name}"\nmajor = {major}\nminor = {minor}\nrequired = true\n\n'
+                   for name, major, minor in interfaces)
+
+
+def inspect_only(run=subprocess.run):
+    """Allow readelf inspection; any other subprocess would build something."""
+    def checked(args, *rest, **kwargs):
+        if list(args)[:1] != ['readelf']:
+            raise AssertionError('must not compile')
+        return run(args, *rest, **kwargs)
+    return checked
+
+
 class ImageArtifactsTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -33,12 +68,13 @@ class ImageArtifactsTests(unittest.TestCase):
         (self.root / 'bin').mkdir()
         for name in artifacts.BINARIES:
             binary = (static_arm_elf() if name in ('fes-kit-data', 'fes-kit-software')
+                      else runtime_elf(MENU_INTERFACES) if name == 'mister-runtime'
                       else b'\x7fELF\x01\x01' + b'\0' * 12 + b'\x28\0' + name.encode())
             (self.root / 'bin' / name).write_bytes(binary)
         identity = 'a' * 64
         core = self.root / 'core-packages' / identity
         core.mkdir(parents=True)
-        (core / 'manifest.toml').write_text('fixture')
+        (core / 'manifest.toml').write_text(menu_manifest(MENU_INTERFACES))
         (core / 'core.rbf').write_bytes(b'firmware')
         selection = self.root / 'fes-menu.package-selection.toml'
         selection.write_text('fixture selection')
@@ -54,6 +90,12 @@ class ImageArtifactsTests(unittest.TestCase):
     def write_manifest(self):
         (self.root / 'artifacts.json').write_text(json.dumps(self.manifest))
 
+    def replace_runtime(self, binary):
+        (self.root / 'bin/mister-runtime').write_bytes(binary)
+        self.manifest['binaries']['mister-runtime'] = artifacts.sha(self.root / 'bin/mister-runtime')
+        self.write_manifest()
+
+    @needs_readelf
     def test_stage_preserves_original_provenance_and_binary(self):
         destination = self.root / 'snapshot'
         destination.mkdir()
@@ -136,11 +178,12 @@ class ImageArtifactsTests(unittest.TestCase):
         lock = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
         self.assertEqual(lock['mister_runtime']['commit'], self.manifest['provenance']['runtime'])
 
+    @needs_readelf
     def test_pack_independent_binaries_without_source_or_image(self):
         selection = self.root / 'menu.toml'
         selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a' * 64 + '"\n')
         output = self.root / 'packed'
-        with patch('subprocess.run', side_effect=AssertionError('must not compile')):
+        with patch('subprocess.run', side_effect=inspect_only()):
             artifacts.pack(self.root / 'bin', self.root / 'core-packages' / ('a' * 64),
                            selection, '3' * 40, '4' * 40, output)
         manifest, _ = artifacts.load(output)
@@ -148,6 +191,41 @@ class ImageArtifactsTests(unittest.TestCase):
         self.assertEqual(manifest['provenance'], {'fogcast': '3' * 40, 'runtime': '4' * 40})
         self.assertEqual((output / 'fes-menu.package-selection.toml').stat().st_mode & 0o777, 0o444)
 
+    @needs_readelf
+    def test_runtime_without_menu_interface_records_is_refused_before_assembly(self):
+        # An export from an image whose runtime predates these records stops
+        # here, not after minutes of Buildroot in target-finalize (#1008).
+        self.replace_runtime(runtime_elf(None))
+        with self.assertRaisesRegex(ValueError, 'lacks valid menu interface records'):
+            artifacts.load(self.root)
+        with patch.object(sys, 'argv', ['build.py', 'image', '--artifacts', str(self.root)]), \
+             patch.object(build, 'validate', side_effect=AssertionError('must stop first')):
+            with self.assertRaisesRegex(ValueError, 'lacks valid menu interface records'):
+                build.main()
+        selection = self.root / 'menu.toml'
+        selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a' * 64 + '"\n')
+        output = self.root / 'packed'
+        with self.assertRaisesRegex(ValueError, 'lacks valid menu interface records'):
+            artifacts.pack(self.root / 'bin', self.root / 'core-packages' / ('a' * 64),
+                           selection, '3' * 40, '4' * 40, output)
+        self.assertFalse(output.exists())
+
+    @needs_readelf
+    def test_runtime_must_accept_every_menu_interface(self):
+        manifest = self.root / 'core-packages' / ('a' * 64) / 'manifest.toml'
+        for interfaces, missing in (
+                (MENU_INTERFACES + (('fes.video.menu-blitter', 1, 0),), 'menu.fes.video.menu-blitter 1.0'),
+                (MENU_INTERFACES[:2] + (('fes.video.menu-display', 1, 1),), 'menu.fes.video.menu-display 1.1')):
+            with self.subTest(missing=missing):
+                manifest.write_text(menu_manifest(interfaces))
+                self.manifest['packages'][0]['manifest_sha256'] = artifacts.sha(manifest)
+                self.write_manifest()
+                with self.assertRaisesRegex(ValueError, 'does not accept its MENU interfaces: ' + missing):
+                    artifacts.load(self.root)
+        self.replace_runtime(runtime_elf(MENU_INTERFACES[:2] + (('fes.video.menu-display', 1, 2),)))
+        artifacts.load(self.root)
+
+    @needs_readelf
     def test_export_real_ext4_image(self):
         tools = os.defpath + ':/usr/sbin:/sbin'
         mke2fs = shutil.which('mke2fs', path=tools)
@@ -189,6 +267,7 @@ class ImageArtifactsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'already exists'):
             artifacts.export(self.root, output)
 
+    @needs_readelf
     def test_artifact_identity_survives_receipt_roundtrip(self):
         manifest, packages = artifacts.load(self.root)
         info = {'bootstrap_artifacts': manifest}

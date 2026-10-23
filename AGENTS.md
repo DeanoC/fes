@@ -191,6 +191,8 @@ first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
 are legitimate and must not be killed; they wait their turn like everyone else.
+GPU work on an Apple silicon Mac (nextpnr built with `-DGPU_ROUTER=METAL`) goes
+through the same `gpu-run`, which leases its one Metal GPU as id 0.
 
 nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
 timing and route evidence are interchangeable: references, pins, seed results and
@@ -221,6 +223,17 @@ in `/var/tmp/gpu-leases` (directory mode `0700`, files mode `0600`) unless
 is admitted under the cap it started with, so a capped waiter already at its
 allowance does not block another job from taking a free GPU.
 
+On macOS `gpu-run` reads process identity from libproc instead of `/proc` and
+checks the lease directory with `statfs(2)`. The Metal GPU comes from ioreg:
+a Mac with one Metal device (every Apple silicon Mac) leases it as id 0, which
+is also nextpnr's Metal device index; a Mac with several needs `GPU_LEASE_IDS`
+and `GPU_LEASE_VENDOR=apple`. Metal has no visibility mask, so a grant exports
+no mask and `GPU_RUN_DEVICE` is the physical id. Metal has no device nodes
+either. A GPU route proves it used the leased GPU when ioreg shows a Metal user
+client that nextpnr opened on it, or when nextpnr logs
+`backend metal:<registry id>:... ready` with the leased GPU's registry id. CPU
+fallback output fails the route, as on Linux.
+
 Install on a host by symlinking the scripts into `~/bin` (the link target is
 the checkout, so the scripts keep finding each other):
 
@@ -228,6 +241,17 @@ the checkout, so the scripts keep finding each other):
 mkdir -p "$HOME/bin"
 ln -sfn "$HOME/fes/scripts/gpu-run" "$HOME/bin/gpu-run"
 ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
+```
+
+A Mac installs the same links from its checkout. macOS does not put `~/bin`
+on `PATH`, so add it to the login shell too:
+
+```sh
+FES="$HOME/Projects/fes"   # the main checkout, not a task worktree
+mkdir -p "$HOME/bin"
+ln -sfn "$FES/scripts/gpu-run" "$HOME/bin/gpu-run"
+ln -sfn "$FES/scripts/gpu-status" "$HOME/bin/gpu-status"
+grep -qs 'HOME/bin' "$HOME/.zprofile" || echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.zprofile"
 ```
 
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75

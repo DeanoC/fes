@@ -181,11 +181,14 @@ The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
-nextpnr `552ba246` (fes#887), RISC-V's `8f453ebc`, ZX81's `1eecf877` (fes#936),
-Atari ST's `5fe55f3d` (fes#910), and Coleco's pins Yosys `5391eeb1`; each
-distinct lock selects its own slot. The other per-core locks remain byte copies of `toolchain.lock`
-on nextpnr `9128800f`, so those cores share that slot. Placement seeds and
-weights, clock checks, routing mode, GPU binding,
+nextpnr `552ba246` (fes#887), RISC-V's `8f453ebc`, ZX81's `1eecf877`
+(fes#936), and Coleco's pins Yosys `5391eeb1`; each distinct lock selects its
+own slot. Apple II, Atari ST (fes#910), C64, Coleco and Spectrum also pin
+nextpnr `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map. The
+Atari ST video-part producer authenticates the ST lock and validates the same
+map. The Coleco development shell remains on `9128800f` and validates its C/D
+map. The remaining per-core locks that match `toolchain.lock` share its
+slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -1063,7 +1066,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Registered Coleco v2, SMS and SG-1000 producers use their per-core lock files. SMS and SG-1000 are byte-identical to the repository-level pin (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Coleco v2 pins Yosys `5391eeb1` with the same nextpnr and Mistral. The old Coleco producer still selects the repository-level lock. Quartus needs neither lock. |
+| Toolchain selection | Apple II, C64, Coleco v2 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 also pins Yosys `5391eeb1`. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1831,8 +1834,7 @@ The shell QSF adds the four named `FES_RESERVED_RECT` regions of
 `scripts/apple2_slots.py`. Socket validation admits a compiler-inserted
 `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of an already
 pinned boundary flip-flop. The shared `coleco_expansion` check requires the
-paired COMB/MCOMB half, a buffer pin map whose input is dedicated to that half
-(C/D, E or F), and a dedicated buffer
+paired COMB/MCOMB half, the exact physical pin map, and a dedicated buffer
 output connected only to that flip-flop's data input. Clock-coverage outputs
 must remain unused. A matching name or the same tile is not enough. Every
 other shell cell inside a socket is rejected, and every firmware destination
@@ -1915,9 +1917,8 @@ unsigned display-plane DSP products and the read-only plane DDR port, and the
 (`fes.spectrum-bus.sockets/1`, sockets 1–4). Socket validation admits a
 compiler-inserted `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of
 an already pinned boundary flip-flop. The shared `coleco_expansion` check
-requires the paired COMB/MCOMB half, a buffer pin map whose input is dedicated
-to that half (C/D, E or F), exact ports, and a dedicated buffer output connected
-only to that flip-flop's data input.
+requires the paired COMB/MCOMB half, exact physical pin map and ports, and a
+dedicated buffer output connected only to that flip-flop's data input.
 Clock-coverage outputs must remain unused, and each effective boundary data
 input must have exactly one driver or a direct defined constant. Every other
 shell cell inside a socket is rejected.

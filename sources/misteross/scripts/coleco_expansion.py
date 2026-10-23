@@ -29,6 +29,12 @@ SOCKET_CLOCK_COVERAGE_ARCS = (
     'TCLK.24.4.0.WIRE.24.4.CLK0',
     'WIRE.24.4.CLK0.WIRE.24.4.CLKT[9]',
 )
+NEXTPNR_PRE_ROUTETHRU_REMAP = '9128800fa6e77c4138088a7107a95376ba47ff15'
+NEXTPNR_ROUTETHRU_REMAP = '5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe'
+ROUTETHROUGH_INPUT_PINS = {
+    NEXTPNR_PRE_ROUTETHRU_REMAP: ('C', 'D'),
+    NEXTPNR_ROUTETHRU_REMAP: ('F0', 'F1'),
+}
 
 
 def socket_bels() -> dict[str, str]:
@@ -89,12 +95,13 @@ def _connection_endpoints(top: dict) -> dict[int, set[tuple[str, str, str]]]:
     return endpoints
 
 
-def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> set[str]:
+def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str], *,
+                                 nextpnr_commit: str = NEXTPNR_ROUTETHRU_REMAP) -> set[str]:
     """Admit only a dedicated, physically paired buffer for a known boundary FF.
 
-    Older compiler snapshots have no explicit route-through. New snapshots
-    place one at the FF's own combinational half and serialize its physical
-    pin map. A name alone never admits another cell into a reserved socket.
+    Older compiler snapshots have no explicit route-through. The input pin
+    follows the producer's authenticated nextpnr lock. A name alone never
+    admits another cell into a reserved socket.
     """
     cells = top.get('cells', {})
     endpoints = _connection_endpoints(top)
@@ -107,6 +114,9 @@ def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> se
         buffer_name = name + '$ROUTETHRU'
         if buffer_name not in cells:
             continue
+        input_pins = ROUTETHROUGH_INPUT_PINS.get(nextpnr_commit)
+        if input_pins is None:
+            raise ValueError(f'unsupported boundary route-through compiler pin: {nextpnr_commit}')
         buffer = cells[buffer_name]
         parts = bel.split('.')
         if len(parts) != 4 or parts[0] != 'MISTRAL_FF' or \
@@ -134,20 +144,19 @@ def boundary_route_through_cells(top: dict, boundary_bels: dict[str, str]) -> se
             mapping = json.loads(bytes.fromhex(buffer['attributes']['FES_PINMAP_V1']))
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(f'boundary route-through pin map is malformed: {buffer_name}') from exc
-        # The input may be any pin dedicated to the buffer's own half: C/D, or
-        # the faster E/F that nextpnr chooses since its fastest-first legaliser.
-        allowed = [{'count': 2, 'pins': {'A': [0, pin], 'Q': [0, 'COMBOUT']}}
-                   for pin in (('C', 'E0', 'F0'), ('D', 'E1', 'F1'))[half]]
-        if mapping not in allowed or type(mapping['count']) is not int or \
+        expected = {'count': 2, 'pins': {'A': [0, input_pins[half]],
+                                         'Q': [0, 'COMBOUT']}}
+        if mapping != expected or type(mapping['count']) is not int or \
                 any(type(pin[0]) is not int for pin in mapping['pins'].values()):
             raise ValueError(f'boundary route-through pin map changed: {buffer_name}')
         result.add(buffer_name)
     return result
 
 
-def validate_clock_anchors(top: dict, anchor_bels: dict[str, str]) -> None:
+def validate_clock_anchors(top: dict, anchor_bels: dict[str, str], *,
+                           nextpnr_commit: str = NEXTPNR_ROUTETHRU_REMAP) -> None:
     """Check clock-only FFs and their buffers without changing frozen routes."""
-    boundary_route_through_cells(top, anchor_bels)
+    boundary_route_through_cells(top, anchor_bels, nextpnr_commit=nextpnr_commit)
     endpoints = _connection_endpoints(top)
     for name in anchor_bels:
         q = top['cells'][name].get('connections', {}).get('Q', [])
@@ -244,7 +253,8 @@ def prepare_shell_netlist(path: Path, *, version: int = 1) -> None:
     path.write_text(json.dumps(design, indent=2) + '\n')
 
 
-def validate_routed_shell(path: Path, *, version: int = 1) -> None:
+def validate_routed_shell(path: Path, *, version: int = 1,
+                          nextpnr_commit: str = NEXTPNR_ROUTETHRU_REMAP) -> None:
     """Require every reserved BEL to be vacant except the pinned edge FFs."""
     if version not in (1, 2):
         raise ValueError('unsupported Coleco socket version')
@@ -268,7 +278,8 @@ def validate_routed_shell(path: Path, *, version: int = 1) -> None:
         if not isinstance(cell, dict) or cell.get('type') != 'MISTRAL_FF' or \
                 cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'Coleco routed socket boundary changed: {name}')
-    allowed.update(boundary_route_through_cells(top, boundary_bels))
+    allowed.update(boundary_route_through_cells(
+        top, boundary_bels, nextpnr_commit=nextpnr_commit))
     for name, cell in cells.items():
         bel = cell.get('attributes', {}).get('NEXTPNR_BEL', '')
         parts = bel.split('.')

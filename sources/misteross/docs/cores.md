@@ -258,7 +258,8 @@ Each registered package authenticates the lock named by its `lock_path` in
 `config/core-recipes.toml`. A lock can move to another nextpnr that
 `scripts/pnr_recipe.py` classifies; that core then gets its own slot. Pong's
 lock has moved to nextpnr `552ba246`, RISC-V's to `8f453ebc`, ZX81's to
-`1eecf877`, Atari ST's to `5fe55f3d`, and Coleco's pins Yosys `5391eeb1`; each distinct lock has
+`1eecf877`, and Apple II's, Atari ST's, C64's, Coleco's and Spectrum's to
+`5fe55f3d`; Coleco's also pins Yosys `5391eeb1`. Each distinct lock has
 its own slot. The other per-core lock files still contain the same
 bytes as `toolchain.lock` and therefore share one cached compiler slot. Use the
 matching `make toolchain-fes-<core>` target to provision a local toolchain.

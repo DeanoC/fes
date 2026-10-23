@@ -65,8 +65,8 @@ struct Request {
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
  std::uint8_t menu_slot=0;
- // Regions a menu commit wrote; empty for the whole frame.
- std::vector<MenuRect> menu_written;
+ // What a menu commit drew.
+ MenuDraw menu_draw;
  bool visible=false,launcher_focus=false;
 	std::uint8_t media_unit = 0;
 	MediaDataBinding media_binding;
@@ -88,9 +88,11 @@ struct MenuFrameReply {
  enum class Kind {granted,prepared,presented} kind=Kind::presented;
  std::uint64_t generation=0;
  std::uint8_t slot=0;
+ // A grant that also covers the blitter's lists and heap.
+ bool blitter=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Present timing, encoded as menu_frame.timing on a commit reply.
- std::uint32_t clean_us=0,submit_us=0,scanout_wait_us=0;
+ std::uint32_t clean_us=0,blit_us=0,submit_us=0,scanout_wait_us=0;
 };
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and

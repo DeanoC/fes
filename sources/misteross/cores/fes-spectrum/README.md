@@ -161,9 +161,8 @@ as TDP blocks: 110/80 for the 48K, 190/96 for the 128K and Pentagon, 222/96
 for the +2A/+3), exactly three
 unsigned display-plane DSP products and the read-only plane DDR port. The
 producer checks every pinned socket boundary and admits compiler-inserted
-route-through buffers only at the paired combinational half, with a buffer
-input dedicated to that half (C/D, E or F) and a dedicated connection to the
-boundary flip-flop.
+route-through buffers only at the paired combinational half, with the exact
+physical pin map and a dedicated connection to the boundary flip-flop.
 
 The 2026-10-22 host seals of all four packages, with their package
 identities, clock results and resources, are in

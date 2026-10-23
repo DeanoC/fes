@@ -85,12 +85,21 @@ path list runs full analysis. A skip is reported explicitly in the CI step log.
 
 ## Affected host Go packages
 
-For a change set containing only Go source/test files in FogCast, its appliance
-module or the shared expansion module, routine host checks run the changed
+For Go source/test edits in FogCast, its appliance module or the shared expansion
+module, routine host checks run the changed
 packages and their transitive import consumers. Test and external-test imports
 also count as dependencies. The selector reads both native and race build
 variants with `go list`; selection happens before the existing three-way sharding.
 Each selected package retains its existing functional/race policy.
+
+Accompanying Markdown guides in the root `docs/` tree, a selected Go module's
+`docs/` tree, or the root/module `README.md` and `AGENTS.md` do not restore the
+whole host suite. The selector uses `go list` embed metadata from both native
+and race variants: a guide below a package with production or test embed inputs
+retains the full suite, including deleted files covered by directory embeds.
+This is deliberately conservative rather than trying to reproduce Go's pattern
+matching. Markdown in `testdata`, package-local assets, guide symlinks and
+unreviewed locations also retain full coverage.
 
 Both CI and `test-changed` pass the same changed-path list, including both sides
 of renames and local edits for local runs. The host runner reports the selected
@@ -100,8 +109,9 @@ package identities. To inspect a specific change without executing tests:
 python3 scripts/host_tests.py --plan-only --paths-json '["sources/FogCast/cmd/fogcast/main.go"]'
 ```
 
-A mixed/non-Go change set, dependency lock change, missing/deleted whole package
-or omitted path list keeps the complete routine host suite. A Go listing error
+A non-Go change outside those reviewed guides, dependency lock change,
+missing/deleted whole package or omitted path list keeps the complete routine
+host suite. A Go listing error
 fails the check. `--full` and scheduled/manual coverage never narrow packages.
 This is native Go import coverage; it does not infer runtime file reads or
 cross-platform behavior. Host builds, browser checks, parent regressions and
@@ -118,6 +128,7 @@ Routine reviewed changes select parent integration groups before test setup:
 | Appliance module or target-image selector | All groups, including media |
 | Recognized parent test modules outside the policy group | Policy, build and the owning group, plus cross-group fixture consumers |
 | `scripts/appliance.py`, `appliance_inside.py`, `appliance_media.py`, `appliance_media_inside.py`, `appliance_expand_dry_run.py` | Policy, build and media |
+| Documentation alongside code/tests | Keep the code groups and add the documentation-reading test modules |
 | Selection-policy scripts/tests, other parent scripts/tests, image/platform, configuration, shared definitions, unknown paths | All groups |
 
 Policy includes planner, generated-consumer and image-boundary checks. Build
@@ -131,8 +142,17 @@ The existing video/media modes can add their owning groups and still control
 extended classes. New unassigned test modules always run until reviewed and
 assigned. Import failures remain failures even when groups are filtered.
 
+Documentation in a mixed change does not restore every group. The explicit
+`DOCUMENTATION_MODULES` set retains link, image-assembly, consistency,
+coordination, core-build and bundle tests that check repository guides. Update
+that set when adding a documentation reader outside those modules. Temporary
+Markdown fixtures do not make a test a repository-documentation reader.
+Documentation-only CI continues through its existing always-run checks; this
+selection affects the parent lane when code or tests also changed.
+
 CI and the local affected runner pass the same changed-path list. The parent
-JSON report includes groups and selected/omitted test IDs. For example:
+JSON report includes groups, retained documentation modules and selected/omitted
+test IDs. For example:
 
 ```sh
 python3 scripts/parent_tests.py --video false --media false --plan-only \
