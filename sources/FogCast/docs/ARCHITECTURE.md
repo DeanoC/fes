@@ -3312,8 +3312,10 @@ neutralizes the mouse. The fence ends focused when the runtime confirms
 launcher focus. After a refusal it follows the focus that the session's reply
 reports, and after an unconfirmed failure it stays focused. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
-bounded 1..16384-byte tape imports and live replace/clear/display operations.
-These do not change the library's next-start media selection.
+media imports of at most the largest image the media selector inserts
+(839,680 bytes, a declared-geometry Atari ST floppy) and live
+replace/clear/display operations. The unit still checks its exact format and
+size on insert. These do not change the library's next-start media selection.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has
