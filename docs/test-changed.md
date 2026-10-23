@@ -92,6 +92,16 @@ also count as dependencies. The selector reads both native and race build
 variants with `go list`; selection happens before the existing three-way sharding.
 Each selected package retains its existing functional/race policy.
 
+CI also passes `--build-host-if-needed` to the host runner. When the validated
+change set contains only Go `_test.go` files and safe accompanying guides, the
+runner skips the additional standalone `make host` binary build. All selected Go
+tests still run. Production Go, build/dependency inputs, uncertain ownership or
+embedded guides, omitted paths, and full/scheduled runs keep the build on shard 1.
+The JSON report records whether the build is required and scheduled on that
+shard; a required build failure fails the runner before tests start. Plain
+`make host` remains unconditional, and local host test runs include no binary
+build unless the option is supplied.
+
 Accompanying Markdown guides in the root `docs/` tree, a selected Go module's
 `docs/` tree, or the root/module `README.md` and `AGENTS.md` do not restore the
 whole host suite. The selector uses `go list` embed metadata from both native
