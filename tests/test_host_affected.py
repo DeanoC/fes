@@ -27,6 +27,75 @@ class SelectionTests(unittest.TestCase):
                         package('external', external=['github.com/example/lib']),
                         package('unrelated')]
 
+    def host_report(self, paths, flags=(), extra_records=(), execute=False, failure=0):
+        records = [*self.records, *extra_records]
+        for module in host_affected.MODULES[1:]:
+            records.append({'ImportPath': 'github.com/example/' + module.rsplit('/', 1)[-1],
+                            'Dir': str(self.root / module), 'Module': {'Dir': str(self.root / module)}})
+        args = list(flags)
+        if paths is not None:
+            args += ['--paths-json', json.dumps(paths)]
+        if not execute:
+            args.append('--plan-only')
+        with patch.object(host_tests, '__file__', str(self.root / 'scripts/host_tests.py')), \
+                patch.object(host_affected, 'listing', return_value=records), \
+                patch.object(host_tests.subprocess, 'check_output',
+                             return_value='\n'.join(r['ImportPath'] for r in self.records)), \
+                patch.object(host_tests.subprocess, 'run',
+                             return_value=subprocess.CompletedProcess([], failure)) as run, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            code = host_tests.main(args)
+        return code, json.loads(output.getvalue()), run.call_args_list
+
+    def test_optional_host_build_skips_only_verified_test_inputs(self):
+        test = 'sources/FogCast/lib/lib_test.go'
+        cases = (([test], (), False), ([test, 'docs/development.md'], (), False),
+                 (['sources/FogCast/lib/lib.go'], (), True),
+                 ([test, 'sources/FogCast/go.mod'], (), True),
+                 ([test, 'Makefile'], (), True), ([test, 'unknown/file'], (), True),
+                 (['sources/FogCast/gone/deleted_test.go'], (), True),
+                 (['<new-branch>'], (), True), (None, (), True), ([], (), True),
+                 ([test], ('--full',), True))
+        for paths, flags, required in cases:
+            with self.subTest(paths=paths, flags=flags):
+                code, report, _ = self.host_report(paths, (*flags, '--build-host-if-needed'))
+                self.assertEqual(code, 0)
+                self.assertEqual(report['host_build']['required'], required)
+                _, normal, _ = self.host_report(paths, flags)
+                tests = [c for c in report['commands'] if c['argv'] != ['make', 'host']]
+                self.assertEqual(tests, normal['commands'])
+                self.assertTrue(tests)
+
+    def test_embedded_guide_keeps_host_build_for_test_edits(self):
+        module = self.root / host_affected.MODULES[0]
+        record = {'ImportPath': 'github.com/example/root', 'Dir': str(module),
+                  'Module': {'Dir': str(module)}, 'TestEmbedPatterns': ['docs']}
+        _, report, _ = self.host_report(
+            ['sources/FogCast/lib/lib_test.go', 'sources/FogCast/docs/guide.md'],
+            ['--build-host-if-needed'], [record])
+        self.assertTrue(report['host_build']['required'])
+        self.assertEqual(report['commands'][0]['argv'], ['make', 'host'])
+
+    def test_optional_host_build_runs_only_on_first_shard(self):
+        for filename, required in (('lib_test.go', False), ('lib.go', True)):
+            builds = []
+            for shard in range(1, 4):
+                _, report, _ = self.host_report(['sources/FogCast/lib/' + filename],
+                    ['--build-host-if-needed', '--shard', f'{shard}/3'])
+                self.assertEqual(report['host_build']['scheduled'], required and shard == 1)
+                builds += [c for c in report['commands'] if c['argv'] == ['make', 'host']]
+            self.assertEqual(len(builds), int(required))
+
+    def test_required_host_build_failure_stops_tests_and_fails_runner(self):
+        code, report, calls = self.host_report(['sources/FogCast/lib/lib.go'],
+            ['--build-host-if-needed'], execute=True, failure=9)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].args[0], ['make', 'host'])
+        self.assertEqual(calls[0].kwargs['cwd'], self.root)
+        self.assertEqual(report['results'], [{'label': 'host binary build', 'returncode': 9}])
+        self.assertTrue(report['not_started'])
+
     def test_selector_changes_run_host_lane_without_core_simulation(self):
         for path in ('scripts/host_affected.py', 'tests/test_host_affected.py'):
             plan = affected.plan([path])
