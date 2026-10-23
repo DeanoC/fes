@@ -102,6 +102,11 @@ stopped. Kit A was logged FREE; Kit B and the shared host were untouched.
   fails this test.
 - `sim-fes-c64-video`: complete text, monochrome bitmap and multicolour bitmap
   frames passed in every bank after the raster coordinate change.
+- `sim-fes-c64-checkpoint`: RTL and oracle full state/frame comparisons,
+  exact PCM/SID split continuity, schedule validation and observer restores
+  passed. The harness now collects the initial active-first frame; it still
+  accepts only exact full frames at VSYNC. FPGA RTL and test cycle budgets
+  are unchanged by that harness correction.
 - `go test ./ui/tenfoot`: passed after the caption correction.
 - `make check`: passed. The initial affected-test run was blocked by sandbox
   socket permissions; the unrestricted affected run is recorded separately.

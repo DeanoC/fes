@@ -63,7 +63,10 @@ int main(int argc, char **argv) {
     uint64_t sys_edge = 0, pixel_edge = 0;
     std::vector<uint8_t> frame, last_frame;
     bool previous_vsync = false;
-    bool recording = false;
+    // An active-first raster can start with a complete frame before its first
+    // VSYNC. Collect immediately; the VSYNC boundary below accepts only an
+    // exact 1280x720 frame and discards any partial startup frame.
+    bool recording = true;
     struct Cycle { uint16_t bus, pc; uint8_t data, state; };
     Cycle history[64] = {};
     unsigned history_count = 0;
