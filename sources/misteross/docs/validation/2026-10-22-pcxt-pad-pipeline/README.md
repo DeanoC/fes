@@ -1956,3 +1956,37 @@ Evidence is retained in `out/mapped-reset-replication-route-20261023/` and
 `out/mapped-reset-replication-source-audit-20261023/`. No production RTL, lock,
 clock, module/shared contract or hardware transition changes. The seven-failure
 reference and all seed, coverage, producer and hardware gates remain unchanged.
+
+
+### Source-guard isolation confirmed by observed carry restoration (23 October)
+
+The original readback failures remain retained. A separate host observer captures
+actual carry metadata immediately after the unchanged native pack/check flow.
+Both cases produce packed JSON byte-for-byte identical to their frozen pack
+outputs, including all 1,349 arithmetic cells and 119 roots. JSON omits cluster
+offsets; the frontend also omits the 119 unconnected root-CI ports serialized as
+empty input connections. These losses explain the earlier reconstruction checks.
+
+The reviewed host helper restores only the observed cluster metadata, after strict
+typed parameter/attribute, connectivity, root/child and native geometry checks.
+Its empty-root-CI rule requires both observed null net/driver/users and the actual
+routed JSON input/empty-connection record. Connected and other missing ports
+remain rejected. The original 42-input limit, native legality, cache, whole-RBF
+and source-coverage guards are unchanged. No production compiler changes result.
+
+The restored baseline reproduces its whole RBF and all 28 previous source-audit
+results exactly. Eleven mutation controls reject at their reviewed gates. The
+copy then reconstructs its whole RBF exactly and passes read-only graph, pin and
+route checks. All 28 walks exhaust with zero enumeration issues on both cases.
+The existing production source guard passes **0/28 baseline versus 28/28 copy**.
+The full 1,920-hint identity union retains 28 changed records with no missing or
+added identities; the copy removes the upstream reset-to-pixel null-window
+relationship from these PIC source cones. Maximum diagnostic work is 2,535 versus
+2,532; enumeration limits do not replace production guard checks.
+
+This confirms the source-guard obstruction and its isolation, not whole timing
+coverage, physical CDC qualification or adoption. The copy still has 216 setup
+failures / -1,461 ps and remains rejected; the seven-failure reference is unchanged.
+Evidence is in `out/mapped-reset-replication-source-audit-20261023/`, especially
+`carry-pack-observer-v2/` and `carry-observed-restore-v4/`. All of these builds,
+packs, readbacks and controls are host diagnostics; route accounting remains 74.
