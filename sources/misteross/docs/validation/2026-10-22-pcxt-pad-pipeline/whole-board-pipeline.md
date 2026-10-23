@@ -132,8 +132,13 @@ compiler, environment, clock contracts and commands except the seed. The full
 17132-row three-seed union is retained. The **reported fabric setup/hold
 2-of-3 gate passes**; physical whole-board qualification remains false.
 
-The selected replay seed is 2. A fresh synthesis and diagnostic producer replay
-is in progress from the same frozen committed module bytes. The compiler
+The selected replay seed is 2. A fresh synthesis regenerates byte-identical
+ROM banks, microcode and mapped JSON from the frozen committed module bytes.
+The fresh diagnostic seed-2 route then reproduces all five artifacts byte for
+byte: `diagnostic.rbf`, `routed.json`, `timing.json`, `endpoints.json` and
+`timing-state.json`. Its native return code is zero and all collector bindings
+pass. `region-fresh-byte-comparison.json` retains the five exact hashes.
+This is a fresh diagnostic replay, not authenticated production admission. The compiler
 remains the diagnostic b85677cf branch binary, not a production pin adoption.
 A live comparison with reviewed nextpnr main shows divergence (112 commits on
 the diagnostic side, 11 on main). These results do not authorize adopting that
@@ -149,9 +154,8 @@ It is not adopted into RTL and has no routed timing result.
 
 ## Route accounting
 
-Receipts 86 and 87 add exactly 178.85749023593962 and
-170.77271825773641 charged seconds. All 87 unique receipt
-objects, hashes and Decimal charges verify, preserving the original 85-row
-journal prefix. Cumulative charge including the pre-journal amount is
-94465.80121408449424 seconds. User authorization remains unlimited
-route budget. Journal SHA-256: `113a58cc199c44783fe189be6732d871492748d0dc400c4c2e3e68233dc5e311`.
+Receipt 88 adds exactly 122.53326528705657 charged seconds. All 88
+unique receipt objects, hashes and Decimal charges verify, preserving the
+original 87-row journal prefix. Cumulative charge including the pre-journal
+amount is 94588.33447937155081 seconds. User authorization remains
+unlimited route budget. Journal SHA-256: `0b15cbb42bbecfdf3b5ef0192530efa6273a605af873df68e829777a1d932719`.
