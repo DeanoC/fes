@@ -395,6 +395,7 @@ public:
 		descriptors.push_back(open_calls);
 		return {};
 	}
+	void SetButtonDeliveryEnabled(bool) override {}
 	mister::Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, mister::Error)> callback) override
 	{
@@ -482,6 +483,10 @@ public:
 	{
 		writers.push_back(writer);
 		return native_.Open(identity, recipe, deadline, std::move(writer));
+	}
+	void SetButtonDeliveryEnabled(bool enabled) override
+	{
+		native_.SetButtonDeliveryEnabled(enabled);
 	}
 	mister::Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, mister::Error)> callback) override
@@ -1755,7 +1760,8 @@ void TestApplicationSessionDisplayMutesSingleGamepad()
  mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
  MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
  RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
- FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());RecordingInput input(events,clock);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());
+ mister_test::FakeInputDevice device;RetainingNativeInput input(device,clock);
  TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
  const InputDeviceIdentity identity={"test",0,0,0,0};
  NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
@@ -1773,6 +1779,16 @@ void TestApplicationSessionDisplayMutesSingleGamepad()
  auto loaded=hardware.LoadCore(std::move(admitted),17);
  if(!loaded.error.ok())fprintf(stderr,"single-gamepad session activation: %s\n",loaded.error.message.c_str());
  assert(loaded.error.ok()&&hardware.menu_display().session&&!hardware.menu_display().available);
+ assert(device.WaitUntilReading());
+
+ std::size_t input_reads=0;
+ auto push_report=[&](InputControl control,std::int32_t value) {
+  device.Push({control,value});
+  device.Push({InputControl::synchronize,0});
+  device.Push({InputControl::horizontal,0});
+  input_reads+=3;
+  assert(device.WaitForReads(input_reads));
+ };
 
  const auto button_arguments=[&](std::size_t begin) {
   std::vector<std::uint16_t> arguments;
@@ -1787,21 +1803,21 @@ void TestApplicationSessionDisplayMutesSingleGamepad()
  script.Reply();script.Info(3,0);
  assert(hardware.SetSessionDisplay(true,false).ok());
  auto writes=mmio.writes.size();script.Reply();
- assert(input.Deliver(0x10,10000).ok());
- auto arguments=button_arguments(writes);
- assert(arguments.size()==1&&arguments[0]==0x10);
-
- writes=mmio.writes.size();script.Reply();
  assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus);
- arguments=button_arguments(writes);
+ auto arguments=button_arguments(writes);
  assert(arguments.size()==1&&arguments[0]==0);
- writes=mmio.writes.size();
- assert(input.Deliver(0x20,10000).ok()&&mmio.writes.size()==writes);
+ push_report(InputControl::a,1);
+ assert(button_arguments(writes).size()==1); // A is held only for the launcher.
 
  assert(hardware.SetSessionDisplay(true,false).ok()&&!hardware.menu_display().launcher_focus);
- script.Reply();assert(input.Deliver(0x20,10000).ok());
+ script.Reply();push_report(InputControl::b,1);
  arguments=button_arguments(writes);
- assert(arguments.size()==1&&arguments[0]==0x20);
+ assert(arguments.size()==2&&arguments[0]==0&&arguments[1]==0x20);
+ push_report(InputControl::a,0);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==2&&arguments[1]==0x20);
+ // NativeHardware joins the worker on teardown and sends its final neutral.
+ script.Reply();
 }
 
 // A session package built before the shared plane (ZX81 1.5.0) declares no

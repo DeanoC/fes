@@ -1570,6 +1570,7 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
    const bool gamepad=RequiresFesGamepad(active_package_->info().descriptor);
    if(gamepad&&input_delivery_enabled_) {
     input_delivery_enabled_->store(false);
+    input_.SetButtonDeliveryEnabled(false);
     error=input_.Neutralize(deadline);
    }
    if(error.ok()&&abi==generated::FesComputerABIID){
@@ -1581,8 +1582,11 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
    if(error.ok())error=ReleaseControllers();
    // A shown plane stays up with the machine still holding input.
    if(!error.ok()) {
-    if(gamepad&&input_delivery_enabled_)
-     input_delivery_enabled_->store(!session_display_focused_);
+    if(gamepad&&input_delivery_enabled_) {
+     const bool enabled=!session_display_focused_;
+     input_delivery_enabled_->store(enabled);
+     input_.SetButtonDeliveryEnabled(enabled);
+    }
     return menu_status_.available?error:FailMenuPresent(error);
    }
   }
@@ -1702,8 +1706,11 @@ void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
 {
  session_display_focused_=launcher_focus;
  if(input_delivery_enabled_&&active_package_&&
-  RequiresFesGamepad(active_package_->info().descriptor))
-  input_delivery_enabled_->store(!launcher_focus);
+  RequiresFesGamepad(active_package_->info().descriptor)) {
+  const bool enabled=!launcher_focus;
+  input_delivery_enabled_->store(enabled);
+  input_.SetButtonDeliveryEnabled(enabled);
+ }
 }
 bool NativeHardware::MenuReactivationAllowed()
 {

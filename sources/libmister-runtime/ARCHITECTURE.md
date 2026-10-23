@@ -247,9 +247,12 @@ FPGA scanout waits for a complete submitted frame before switching HDMI pixels.
 Taking launcher focus neutralizes the keyboard first. Moving focus on a shown
 plane keeps its generation, grant and preparation. Close drains the plane
 without execution hold and revokes the display generation and preparation.
-Navigation key snapshots are suppressed while the launcher holds focus. The
-native adapter owns that gate: a close or failure that cannot prove the plane
-drained keeps launcher focus, and status reports it as `menu_display.focus`.
+Navigation key snapshots are suppressed while the launcher holds focus. For a
+single gamepad, button snapshots are muted as well; controls observed while the
+launcher has focus stay suppressed until they are released, so a later full
+snapshot cannot restore them. The native adapter owns that gate: a close or
+failure that cannot prove the plane drained keeps launcher focus, and status
+reports it as `menu_display.focus`.
 Stop/replacement drain the display before their existing execution hold.
 
 A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.
