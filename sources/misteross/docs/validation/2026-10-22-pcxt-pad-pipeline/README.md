@@ -1732,3 +1732,55 @@ separate native diagnostic before changing any guard. Geometric possibilities
 do not establish live shortlist eligibility or timing gain. Shared FES RTL,
 constraints, locks and contracts remain unchanged. Both PRs remain draft;
 no hardware ran and timing/coverage/producer/exact-artifact gates remain open.
+
+### Canonical empty-ALM move: retained 165 ps CGA gain
+
+Compiler `c93d81a7eff027c94e879d713ffcb8f03492c140` (binary
+`d9e25b4dd46eaf5ee946496812e2647fb01a624afa2662b993e05422e143c562`)
+adds bounded proofs for canonical empty-ALM mask/mode transitions and direct
+incident COMBOUT output-selector ownership. All six LUT/FF BELs and internal
+observers must be absent in the empty frame. Complete native fields, moved
+truth, stationary state and exact rollback remain guarded. Original malformed
+selectors and empty-target fields reject before placement previews. Indexed
+ownership avoids repeated full-netlist scans. Default zero remains disabled;
+legacy callers and timing/coverage guards are unchanged.
+
+Host evidence passes 72 native LAB/MLAB/both-half cases and seven CLI controls,
+with exact parent/default/zero empty-design CPU preparation bytes. Four actual
+board-graph native trials reach forced-false callbacks and restore exactly.
+Eight final negative controls reject four released remote-output equal-value
+faults and four foreign-owned NLUT-to-REG faults. Earlier fixture-selection
+failures remain retained; the final eight do not claim acquisition coverage.
+Independent LOW source, fixture, host and runner reviews pass. All 3,393 frozen
+source files match the committed tree and pinned submodule blobs.
+
+A fresh matched pair keeps the original b4 synthesis, seed 1, weight 2,000,
+exponent 5, 100 MHz system/CPU/microcode, 74.25 MHz pixel, QSF/SDC and earlier
+repair recipe. The candidate alone adds `--critical-final-move-budget 16`.
+Nine cells are eligible; four destinations are tried. Three MLAB targets reject
+native timing/clock margin checks. One CGA ALUT5 moves from
+`MISTRAL_COMB.18.9.43` to `MISTRAL_COMB.17.9.13`, retaining its type and pinmap.
+Its failing RGBI capture improves from −434 to −269 ps, a 165 ps gain. Whole-board
+WNS improves from −434 to −270 ps. Eight setup failures remain; both runs retain
+17,199 rows (17,194 timed), zero hold failures, +822 ps minimum hold, 105
+unsupported boundaries and `complete=false`.
+
+Complete emitted endpoint and clock nonregression passes. The full logical
+nonattribute inventory is identical; one cell BEL attribute and six routing
+aliases change. Independent replay reproduces every comparison output,
+including lossless graph patches, endpoint/domain unions, metadata, clock
+reports and failing witnesses. The retained actual RBF reconstructs exactly
+from its saved routed graph in a separate zero-trial native readback. This
+readback establishes neither STA reproduction nor hardware acceptance.
+
+This becomes the research timing reference, with PIC −270 ps, CPU −25/−25 ps,
+and display −26/−269/−234/−265/−266 ps failures still open. No production recipe,
+lock or seal is selected. Original constraints, FES RTL and shared contracts
+remain unchanged; both PRs remain draft. Same-recipe seed, complete physical
+coverage, fresh producer and exact-artifact hardware gates remain open.
+
+Evidence is in `out/empty-alm-final-move-route-20261023/` and
+`out/empty-alm-move-proposal-20261023/`. Accounting now covers 68 unique
+whole-route receipts, cumulative `71226.12229338567657` seconds; this pair adds
+`2043.199011807330` seconds. The prior 66-entry prefix is preserved exactly,
+and independent replay verifies the decimal sum. No hardware ran.
