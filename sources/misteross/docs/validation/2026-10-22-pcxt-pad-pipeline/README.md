@@ -1909,9 +1909,50 @@ census puts the sole pixel capture inside those four edges; 1,065 source-unknown
 terminals remain explicitly unknown. Paired native packing succeeds and preserves
 the copy and NOR17 transform. Packed constant-control evidence is source-derived,
 since serialized JSON omits `pin_data`. Fresh routing of this separately reviewed
-prototype is pending in `out/mapped-reset-replication-route-20261023/`; no result,
-new charge or acceptance is inferred here.
+prototype is recorded below; packing alone conferred no timing or native-readback
+acceptance.
 
 The seven-failure / -270 ps b4 research reference remains unchanged. Both FES
 and nextpnr PRs remain draft. Physical coverage, seed, producer and exact-artifact
 hardware gates remain open. Evidence class: host diagnostics only; no hardware ran.
+
+
+### Exact-b4 mapped reset copy: rejected (23 October)
+
+The matched seed-1 pair retains the original NOR17 transform and latest b856
+rediscovery recipe at 100 MHz / 74.25 MHz. The fresh baseline RBF, timing and
+endpoint reports reproduce the retained seven-failure reference byte for byte.
+
+| Variant | Endpoint rows | Setup failures | Worst setup | Hold failures / minimum |
+| --- | ---: | ---: | ---: | ---: |
+| Exact-b4 baseline | 17,199 | 7 | -270 ps | 0 / +822 ps |
+| Minimal mapped reset copy | 17,200 | 216 | -1,461 ps | 0 / +747 ps |
+
+Both runs exit with timing failure and retain 105 unsupported records /
+`complete=false`. The copy is rejected. The complete literal endpoint union
+retains all 17,199 common rows and one copy-only row. Independent replay
+reproduces five comparison outputs (gzip compared after decompression), and
+all eight raw / 92,652 routed graph differences reconstruct the exact graphs.
+
+The baseline native whole-RBF readback passes. The copy readback and unchanged
+source audit both reject the restored model at the native legality / FF-cache
+check, before producing source hints. The failure is retained; no copy source
+guard or native legality success is claimed. A separate printing-only helper
+diagnostic reports 31 illegal BEL cells, all in LAB 33,15, and zero FF-cache
+mismatches. A second diagnostic isolates the conservative LAB input-count check:
+47 exceeds its limit of 42; all ALM, control-set and MLAB checks pass. Carry-chain
+sharing metadata restoration remains under investigation. The original rejection
+is retained; live-route legality versus incomplete restoration is unresolved.
+The baseline source audit exhausts all 28 walks with zero enumeration issues,
+but all 28 production guards remain false.
+
+This pair adds exactly `3668.7970947101712` seconds. Accounting now has 74 unique
+full-route receipts and `84745.05338092381107` cumulative seconds. The complete
+72-entry prefix with SHA256
+`ba1d82f309778e805019552131e4c0cd096d355151391b2c2e63c56ac6f2bb62`
+is preserved. The resulting journal SHA256 is
+`3951c26be9bb9c6641cbafd706639daa0cfb9b52db487ffb6094fcd57f6e7d8b`.
+Evidence is retained in `out/mapped-reset-replication-route-20261023/` and
+`out/mapped-reset-replication-source-audit-20261023/`. No production RTL, lock,
+clock, module/shared contract or hardware transition changes. The seven-failure
+reference and all seed, coverage, producer and hardware gates remain unchanged.
