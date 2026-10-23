@@ -68,6 +68,8 @@ class CpuSelectionTest(unittest.TestCase):
         expressions += '\n' + re.search(r'    pcxt_logic_operand1_mux u_operand1_mux \(.*?    \);', source, re.S)[0]
         adder = source[source.index('    mcl86_adder u_adder ('):source.index('    );', source.index('    mcl86_adder u_adder ('))]
         actual_add = [re.search(r'\.' + port + r'\s*\(\s*(\w+)\s*\)', adder)[1] for port in ('a', 'b')]
+        self.assertEqual(actual_add, ['eu_execute_add_operand0', 'eu_execute_add_operand1'])
+        actual_add = ['eu_add_operand0', 'eu_add_operand1']
         ports = ', '.join('input [' + ('7:0' if n == 'PFQ_TOP_BYTE' else '15:0') + '] ' + n
                           for n in DATA_NAMES)
         # Follow the real ROM-instance bindings as well as the real operand
@@ -183,7 +185,7 @@ class CpuSelectionTest(unittest.TestCase):
                 wire [31:0] word;
                 wire [15:0] s0, s1, a0, a1;
                 mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(clk_rom),
-                    .reset(1'b0), .next_addr(12'b0), .dout(word),
+                    .reset(1'b0), .advance(1'b1), .next_addr(12'b0), .dout(word),
                     .operand_select0(s0), .operand_select1(s1), .add_select0(a0), .add_select1(a1));
                 assign ok = word == original_word &&
                             s0 == (16'h1 << original_word[23:20]) &&
@@ -209,13 +211,13 @@ class CpuSelectionTest(unittest.TestCase):
         source = source.replace('reg [11:0] read_address;',
             'reg [11:0] read_address; assign read_addresses[lane*12 +: 12] = read_address;')
         fixture = r"""
-          module proof(input clk, reset, input [11:0] next_addr, output ok);
+          module proof(input clk, reset, advance, input [11:0] next_addr, output ok);
             reg [11:0] pc;
             reg seen_reset = 0;
             always @(posedge clk) if (reset) seen_reset <= 1;
-            always @(posedge clk) if (reset) pc <= 12'h020; else pc <= next_addr;
+            always @(posedge clk) if (reset) pc <= 12'h020; else if (advance) pc <= next_addr;
             wire [47:0] addresses;
-            mcl86_ucode dut(.clk(clk), .clk_rom(clk), .reset(reset), .next_addr(next_addr),
+            mcl86_ucode dut(.clk(clk), .clk_rom(clk), .reset(reset), .advance(advance), .next_addr(next_addr),
               .rom_payload(32'b0), .read_addresses(addresses), .dout(),
               .operand_select0(), .operand_select1(), .add_select0(), .add_select1());
             assign ok = !seen_reset || addresses == {4{pc}};
@@ -235,7 +237,7 @@ class CpuSelectionTest(unittest.TestCase):
     def test_microcode_next_address_matches_original_sequencer(self):
         source = (VENDOR / 'mcl86_eu_core.sv').read_text()
         block = source[source.index('    always_comb begin : next_microcode_pc'):
-                       source.index('    mcl86_ucode u_ucode_rom')]
+                       source.index('    mcl86_ucode #')]
         writes = re.findall(r'\beu_rom_address\s*<=\s*(.*?);', source, re.S)
         self.assertEqual([w.strip() for w in writes], ["13'h0020", 'eu_rom_address_next'])
         self.assertRegex(source, r'\.next_addr\s*\(\s*eu_rom_address_next\[11:0\]\s*\)')
@@ -246,6 +248,7 @@ class CpuSelectionTest(unittest.TestCase):
             input eu_stall_pipeline, eu_jump_boolean, FES_MC_JUMP7_USED,
             input [2:0] eu_opcode_type, eu_opcode_jump_src, output ok);
             reg [12:0] eu_rom_address_next, expected;
+            wire [7:0] eu_dispatch_byte = PFQ_TOP_BYTE;
         """ + block + r"""
             always @* begin
               if (!eu_stall_pipeline && eu_opcode_type == 3'h1 && eu_jump_boolean) begin
@@ -280,7 +283,7 @@ class CpuSelectionTest(unittest.TestCase):
         self.assertEqual(len(re.findall(r'\beu_stall_pipeline\s*<=', source)), 3)
         self.assertEqual(len(re.findall(r'\beu_calling_address(?:\[[^]]+\])?\s*<=', source)), 3)
         next_pc = source[source.index('    always_comb begin : next_microcode_pc'):
-                         source.index('    mcl86_ucode u_ucode_rom')]
+                         source.index('    mcl86_ucode #')]
         # Original sequential JUMP block, including overlapping call/return
         # nonblocking writes and the reserved-source hold used by this import.
         reference = r"""
@@ -312,7 +315,8 @@ class CpuSelectionTest(unittest.TestCase):
               input eu_jump_boolean, eu_opcode_jump_call, FES_MC_JUMP7_USED,
               input [2:0] eu_opcode_type, eu_opcode_jump_src,
               output reg [12:0] eu_rom_address, output reg [51:0] eu_calling_address,
-              output reg eu_stall_pipeline);
+              output reg eu_stall_pipeline, input eu_execute);
+              wire [7:0] eu_dispatch_byte = PFQ_TOP_BYTE;
               reg [12:0] eu_rom_address_next;
             """ + next_logic + r"""
               always @(posedge clk) begin
@@ -320,7 +324,7 @@ class CpuSelectionTest(unittest.TestCase):
                   eu_rom_address <= 13'h0020;
                   eu_calling_address <= 0;
                   eu_stall_pipeline <= 0;
-                end else begin
+                end else if (eu_execute) begin
             """ + body + ' end end endmodule\n'
         fixture = module('reference', reference) + module('actual',
             'eu_rom_address <= eu_rom_address_next;\n' + actual, next_pc)
@@ -352,4 +356,5 @@ class MicrocodeFactsTest(unittest.TestCase):
             self.assertEqual(masks, expected)
             jump7 = any(((w >> 28) & 7) == 1 and ((w >> 20) & 7) == 7 for w in words)
             self.assertIn("FES_MC_JUMP7_USED = 1'b" + str(int(jump7)), facts)
+            self.assertIn(f"FES_MC_RESET_WORD = 32'h{words[0x20]:08x}", facts)
             self.assertEqual(len(words), 4096)

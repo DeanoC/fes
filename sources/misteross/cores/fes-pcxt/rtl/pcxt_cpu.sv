@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Development 8088 frontend. clk MUST be 100 MHz for the imported EU timing
-// table. The fractional pin clock is data, never a second RTL clock domain.
-// clk_rom is the same 100 MHz source shifted 180 degrees, not an independent clock.
+// Development 8088 frontend. clk stays at 100 MHz for the BIU timing
+// counter and guest divider; the EU uses operand/execute phases on this clock. The fractional pin clock is data, never a second RTL clock domain.
+// clk_rom is a phase-shifted edge from the same source, not an independent clock.
 module pcxt_cpu (
     input wire clk, clk_rom, reset, intr, nmi,
     output wire cycle_valid,

@@ -320,8 +320,20 @@ The CPU import splits its unchanged microcode into four byte-wide ROMs, each
 with a local system-edge address register driven by the same next PC and reset
 as the CPU PC. A separate +90-degree PLL output reads the ROMs; the next system
 edge captures the word and decoded operand controls. Read and instruction
-latency are preserved. The shorter 2.5 ns address path and longer 7.5 ns ROM
+alignment is preserved in microword steps. The shorter 2.5 ns address path and longer 7.5 ns ROM
 output path both require qualification; SDRAM capture remains at +180 degrees.
+
+The CPU now executes each microword in two 100 MHz phases: register operands
+and dispatch byte, then execute/writeback. PC, local ROM address and word/control
+registers advance together on execute edges, preserving their relative
+microcode alignment. The BIU and guest pin-clock generator remain full rate;
+one strobe-valid edge prevents held commands from repeating queue/timer actions.
+Completion capture remains full rate. This changes microinstruction throughput,
+so unchanged pin frequency does not imply unchanged instruction cycle timing.
+Run `python3 scripts/sim_fes_pcxt.py --suite cpu-timing` for checked NOP,
+dependent ADD/ADC, branch and REP-copy timing workloads. The two-phase datapath
+has no new clock domain or timing exception. See the
+[CPU import notes](vendor/mcl86/README.md) for the proof and timing boundaries.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
 operand muxes retain only sources used by ADD words; other operations use the
