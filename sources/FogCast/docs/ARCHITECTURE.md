@@ -3165,7 +3165,13 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
-requirement to insert media. When a disk is selected, the launch includes its
+requirement to insert media. The library can also format a blank FAT12 `.st`
+(`POST /api/v1/library/atari-st-disks`) and bind it as that title's drive A.
+Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
+1.0 and required base and writable floppy interfaces. Store-only creation does
+not inspect or require a package.
+The host stores the formatted bytes in the content-addressed media store; later
+GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and
@@ -3427,7 +3433,8 @@ unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
 only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
-and package-generation checks.
+and package-generation checks. A blank disk from the library uses one of these
+twelve layouts, defaulting to 80 tracks, 2 heads and 9 sectors.
 
 
 ### Independently installed rooms

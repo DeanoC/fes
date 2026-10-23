@@ -200,7 +200,7 @@ function normalizePlan(plan = {}) {
       ? normalizeQueue(plan.editionPreferencePut, 'editionPreferencePut') : null,
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
       if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)
-          && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines))$/.test(route)) {
+          && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines)|POST \/api\/v1\/library\/atari-st-disks)$/.test(route)) {
         throw new TypeError(`invalid core fixture route: ${route}`);
       }
       return [route, normalizeQueue(responses, route)];
@@ -766,7 +766,7 @@ class FixtureServer extends EventEmitter {
       requestTransferEncoding: boundedText(record.requestTransferEncoding, '', 24),
       requestBody: record.path === '/api/v1/session/launch' || record.path === '/api/v1/session/stop'
         || record.path === '/api/v1/library/settings'
-        || /^\/api\/v1\/(core-catalog|core-packages|core-media|library\/(core-entries|video-parts))(\/|$)/.test(record.path)
+        || /^\/api\/v1\/(core-catalog|core-packages|core-media|library\/(core-entries|video-parts|atari-st-disks))(\/|$)/.test(record.path)
         ? boundedText(record.requestBody, '', 512)
         : undefined,
       responseOrder: record.responseOrder,
@@ -1480,6 +1480,8 @@ class BrowserPage {
           videoChoices: text('#core-video-choices'),
           entry: document.querySelector('#core-entry-select')?.value || '',
           package: document.querySelector('#core-package-select')?.value || '',
+          blankDisabled: document.querySelector('#core-blank-disk')?.disabled === true,
+          blankStatus: text('#core-blank-disk-status'),
         },
         settingsHidden: document.querySelector('#settings')?.hidden !== false,
         settingsAttract: document.querySelector('#settings-attract-idle')?.value || '',
