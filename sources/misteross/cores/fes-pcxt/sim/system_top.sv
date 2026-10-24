@@ -25,6 +25,6 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0) (
         .address(firmware_address), .data(firmware_data));
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES)) system (
-        .clk_rom(~clk), .clk_pin(clk), .audio_valid(), .audio_sample(), .*);
+        .clk_pin(clk), .audio_valid(), .audio_sample(), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

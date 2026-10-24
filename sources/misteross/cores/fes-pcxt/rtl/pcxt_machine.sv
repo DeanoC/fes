@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
 module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
-    input wire clk, clk_rom, reset,
+    input wire clk, reset,
     output wire memory_valid,
     input wire memory_ready, memory_done,
     input wire [7:0] memory_rdata,
@@ -33,7 +33,7 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
     assign accepted = cycle_valid && cycle_ready;
     assign completed = cycle_done;
     pcxt_cpu cpu (
-        .clk(clk), .clk_rom(clk_rom), .reset(reset), .intr(intr), .nmi(1'b0),
+        .clk(clk), .reset(reset), .intr(intr), .nmi(1'b0),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),
         .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock),

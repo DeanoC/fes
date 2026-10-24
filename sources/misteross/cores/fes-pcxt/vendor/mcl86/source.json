@@ -7,8 +7,11 @@
     "Generate ADD source masks and reserved jump-source usage from all control-ROM words; specialize only unobservable ADD inputs and unused jump-source hold paths. Factor jump conditions as parallel Boolean logic without changing their truth table.",
     "Preserve only the full logic operand-1 selection as a combinational module and map it after generic synthesis to two native LUT levels; prioritize measured BIU-return and immediate sources on fast inputs. ADD muxes remain inferred independently.",
     "Compute prefetch-empty by direct low-four-bit pointer equality, equivalent to a zero four-bit pointer difference for every pointer value; retain the occupancy subtraction for other queue flags.",
-    "Split the unchanged microcode into four byte-lane ROMs with independent system-edge next-PC address copies. Decode operand controls from the raw ROM output before independent system-edge logic/ADD registers; preserve the original instruction/read latency.",
-    "Factor the original microcode-PC next-value equations without changing jump, stall, reset or call-stack behavior; drive the CPU PC and local ROM address copies from the same next value."
+    "Split the unchanged microcode into four byte-lane ROMs with independent system-edge next-PC address copies. Decode operand controls from the raw ROM output before independent system-edge logic/ADD registers; preserve the logical sequencer lead.",
+    "Factor the original microcode-PC next-value equations without changing jump, stall, reset or call-stack behavior; drive the CPU PC and local ROM address copies from the same next value.",
+    "Use alternating operand-read and execute/writeback phases at the unchanged100MHz fabric clock. Register ALU operands and dispatch byte; advance ROM/PC/control stages only on execute; consume each held BIU strobe once while retaining the full-rate BIU and completion capture.",
+    "Generate the reset-entry word from the unchanged image and reset ROM word/control outputs to it, so a one-cycle reset cannot execute a stale in-flight word.",
+    "Read the local-address microcode ROMs on the ordinary100MHz system edge between execute edges; preserve execute-word latency and remove the obsolete phase-shifted ROM clock interface and PLL output."
   ],
   "files": [
     {
@@ -19,19 +22,19 @@
     {
       "path": "mcl86_eu_core.sv",
       "upstream_path": "rtl/8088/mcl86_eu_core.sv",
-      "sha256": "10bfc479b4a2520edcbb5828296186d7058e8d56542a5c986090ffd91c01dadc",
+      "sha256": "10e5ad46947fe38fb1d444244101aadf7acf61022464737194b9ed815bdc983d",
       "upstream_sha256": "da02b6c6a8250f58dc893e5582089c6795ad923274c4f8c5d5e1f02582252b00"
     },
     {
       "path": "mcl86_biu_max.sv",
       "upstream_path": "rtl/8088/mcl86_biu_max.sv",
-      "sha256": "d9d5a6db423c37ed9e9ef2d11db561a79d563256f097a33273cb27ad417ae03f",
+      "sha256": "d38dc22fca1b6d671cc58a2ab008d70fb9d410ff0dea8339b4a11ce71507379d",
       "upstream_sha256": "f1c0fbe1aa66fcd6860b54e8b0e6ba7d80349fbfc9b63d7a2a42c6885b8d6e38"
     },
     {
       "path": "mcl86_ucode.sv",
       "upstream_path": "rtl/8088/mcl86_ucode.sv",
-      "sha256": "76dedffde75d1ecbe78ecf475924f3fd9d463cc74e6532fb1bd6d10404e81a0e",
+      "sha256": "73a5353528631701e875d409c793bb7f2a43867fac365a31b6757adf4f2113be",
       "upstream_sha256": "805fab34c53b7618c16efc071168b7869f59cdf7e4056eaa9fc3f7b471e094c9"
     },
     {
@@ -42,7 +45,7 @@
     {
       "path": "i8088.sv",
       "upstream_path": "rtl/8088/wrappers/i8088.sv",
-      "sha256": "095f6778dfa5c66d0fee4a9d40bfdc5c8707e75abfd4d3a5500cf772ba2f54ea",
+      "sha256": "8c9ec45f850927f98a27a9ded326d85d774b4f1abc2d4f19197d9cbbc7df158f",
       "upstream_sha256": "d98caf279beb14d290f8f9758c98f2eaad0e5445db2503389b141c3824f097e1"
     },
     {

@@ -390,6 +390,14 @@ remain separate checks. Reuse this machinery with a core's actual primitive
 configuration and evidenced board inputs; neither internal Fmax nor a
 historical RAM Tester hardware pass supplies another core's external timing.
 
+The PC/XT retained-route uncertainty screen is
+`scripts/screen_fes_pcxt_uncertainty.py`. It reads explicit TimeQuest increments
+for each clock edge pair at all four corners and subtracts their conservative
+maxima from every paired native setup/hold row. Missing budgets and unpaired
+rows remain explicit failures. The diagnostic binds the original producer RBF
+and embedded report to the clock-branch reference; it neither changes the
+compiler model nor supplies external board requirements or hardware acceptance.
+
 ### HPS DDR ports
 
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port
@@ -2770,18 +2778,29 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
 `cpu_roms` emits four byte lanes from the unchanged 4096-word microcode image.
 Each lane has a kept local address register, driven by the same next-PC value
-and reset as the CPU's microcode PC. The board supplies a dedicated 100 MHz
-ROM read clock at +90 degrees, giving address setup 2.5 ns and ROM read/output
-7.5 ns. Its separate SDRAM capture clock stays at +180 degrees. These are actual
-PLL outputs; the 100 MHz system and 74.25 MHz pixel targets are unchanged.
+and reset as the CPU's microcode PC. The intervening operand-phase system edge
+reads each ROM before the next execute edge captures its word. Address setup
+and ROM output paths each have a full 10 ns system cycle. The former +90-degree
+ROM clock and its private ports are removed. The separate SDRAM capture clock
+stays at +180 degrees; system and pixel targets remain 100 and 74.25 MHz.
 Operand selectors are decoded from the raw ROM read before independent
-system-edge output registers. Read latency, sequencer lead and instruction
-cycles are unchanged. Checks reconstruct all 4096 words from the byte lanes,
-prove the original PC/call-stack/stall control equations, and prove local
-address-copy equality after reset. Symbolic checks retain the actual read and
-output stages at 90/180/270 degrees, with arbitrary registered-address payloads.
-Both shorter address setup and longer ROM output paths require routed and
-Quartus qualification. The prefetch-empty flag compares its low pointer bits
+system-edge output registers. The EU alternates operand-read and
+execute/writeback phases on that physical clock. Four 16-bit operand registers
+separate selection from the ALU; a registered prefetch byte preserves dispatch
+when the BIU consumes it. Architectural state, local ROM addresses and
+word/control outputs advance together on execute edges. Reset initializes the
+outputs from the generated reset-entry word. The BIU and sticky completion
+capture remain active every physical cycle; a private strobe-valid signal
+prevents duplicate consumption of a held command. No new clock domain or
+multicycle exception is introduced. Sequencer lead is preserved, but maximum
+EU throughput becomes 50 million microwords per second and guest instruction
+latencies can increase. The `cpu-timing` simulation measures that tradeoff;
+unchanged pin clocks do not establish silicon cycle conformance. Checks
+reconstruct all 4096 words from the byte lanes, prove the original
+PC/call-stack/stall equations under execute holds, and prove local address-copy
+equality after reset. Symbolic checks retain the actual read and
+output stages across both phases, with arbitrary registered-address payloads
+and resets. Both full-cycle paths require fresh routed and Quartus qualification. The prefetch-empty flag compares its low pointer bits
 directly; all-input equivalence checks the original zero-difference equation.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
@@ -2791,10 +2810,10 @@ specialization covers arbitrary guest firmware and register values. A reserved
 jump-source hold is retained automatically if the image uses it. Exhaustive
 table checks and symbolic operand/jump-condition checks cover these boundaries. ADD controls use independent rising-edge register processes,
 preserved through synthesis, to separate their physical fanout from the full
-logic-operation muxes. The copies capture the same ROM stage on the same edge;
+logic-operation muxes. The copies capture the same ROM stage on the same enabled edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
-checks its state and interface against the original indexed priority loop.
+checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits. Motherboard local reads retain their phase-8 sample in an independent byte register and copy it to the shared memory/ISA return register at phase-17 completion. The existing nine release clocks absorb this staging; CPU and DMA completion cycles are unchanged. An inductive check proves the original sampled byte and completed return value with the actual peripherals.
 
 Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
@@ -3062,6 +3081,13 @@ complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
 change the running raster without BIOS interception or frame reconstruction.
+Each card captures its rendering inputs before colour selection. The complete
+pixel/DE/sync/SOF/EOL snapshot is emitted one system cycle later; cadence and
+pixel order are preserved. The MDA status nonzero predicate retains its original
+bus-visible cycle. A prepared memory-write/byte-select register keeps VRAM
+address/type decode off commit enables without adding a transaction cycle.
+Symbolic checks prove the retimed stream and status behavior for arbitrary
+inputs/reset, and the write eligibility at every possible endpoint commit.
 The card stream feeds `pcxt_video.sv`, a shell-owned adapter into the existing
 `fes.fabric.video.raster-rgb888` 1.0 interface. `pcxt_video_output.sv` selects the
 unchanged shared Direct or Scanlines part behind the existing two-register
@@ -3107,8 +3133,10 @@ removing that decode from the peripheral's same-cycle control path. Warm reset/H
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
-Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
-unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+Its default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
+with unchanged 100/74.25 MHz constraints. An explicit unsigned 64-bit `--seed`
+selects a reproducible diagnostic run; it does not start a seed search. The
+receipt binds that seed and all generated ROM/facts bytes. The producer preserves `gpu-run`'s ROCr
 lease mask while removing only an identical redundant HIP mask; route settings
 and visibility are recorded in the diagnostic receipt.
 The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)

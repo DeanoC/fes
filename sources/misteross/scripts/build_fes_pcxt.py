@@ -80,8 +80,12 @@ def main():
     parser.add_argument('--mda', action='store_true')
     parser.add_argument('--scanlines', action='store_true')
     parser.add_argument('--synth-only', action='store_true')
+    parser.add_argument('--seed', type=int, default=3,
+                        help='nextpnr seed (default: 3, passing CGA Direct diagnostic recipe)')
     parser.add_argument('--route-timeout', type=int, default=1800)
     args = parser.parse_args()
+    if not 0 <= args.seed < (1 << 64):
+        parser.error('--seed must be an unsigned 64-bit integer')
     if args.route_timeout <= 0:
         parser.error('--route-timeout must be positive')
     tools = authenticate_tools(ROOT, args.cache_root, args.gpu_router)
@@ -105,7 +109,7 @@ def main():
                'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                'working_tree_changes': subprocess.check_output(['git', 'status', '--porcelain', '--', '.'], cwd=ROOT, text=True).splitlines(),
                'sources': sources, 'tools': {k: v.identity for k, v in tools.items()},
-               'mda': args.mda, 'scanlines': args.scanlines, 'seed': 1,
+               'mda': args.mda, 'scanlines': args.scanlines, 'seed': args.seed,
                'gpu_router': args.gpu_router, 'route_timeout_seconds': args.route_timeout,
                'route_timeout_basis': 'nextpnr work time; GPU lease waits excluded by the common runner',
                'placement': {'timing_weight': PLACER_TIMING_WEIGHT,
@@ -120,7 +124,7 @@ def main():
     try:
         board_inputs(output)
         receipt['generated_roms'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                                     for p in sorted(output.glob('*.mem'))}
+                                     for p in sorted([*output.glob('*.mem'), *output.glob('*.hex'), *output.glob('*.vh')])}
         save()
         program = yosys_program(output, args.mda, args.scanlines, synthesis_command())
         with (output / 'yosys.log').open('w') as log:
@@ -133,7 +137,7 @@ def main():
         if not args.synth_only:
             command = [str(tools['nextpnr-mistral'].path), '--json', 'synth.json',
                        '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / QSF), '--sdc', str(ROOT / SDC),
-                       '--freq', '100', '--seed', '1', '--router', 'gpu',
+                       '--freq', '100', '--seed', str(args.seed), '--router', 'gpu',
                        '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
                        '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
                        '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',

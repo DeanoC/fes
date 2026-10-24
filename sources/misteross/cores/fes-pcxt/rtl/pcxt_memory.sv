@@ -45,7 +45,11 @@ module pcxt_memory (
     assign memory_ready = initialized && !cold_reset && !reset && !busy && !memory_seen;
     assign firmware_ready = initialized && !cold_reset && reset && !busy && !firmware_seen;
     /* verilator lint_off PINCONNECTEMPTY */
-    sdram_addon_port #(.BYTE_MASK_ENABLED(1), .SINGLE_RANK_REFRESH(1)) controller (
+    // Separate the controller state/enable muxes from the physical pad FFs.
+    // The existing controller mode delays command, address, data and OE
+    // together and compensates its read-capture count for the extra cycle.
+    sdram_addon_port #(.BYTE_MASK_ENABLED(1), .SINGLE_RANK_REFRESH(1),
+                       .IO_OUTPUT_REGISTERS(1)) controller (
         .clk(clk), .clk_pin(clk_pin), .reset(cold_reset), .rate(2'd3),
         .refresh_window(1'b0), .refresh_pending(), .initialized(initialized),
         .start(busy && physical), .write(held_write), .addr(held_address),
@@ -92,7 +96,7 @@ module pcxt_memory (
                 memory_seen <= 1; odd <= address[0];
                 // Defensively reject ISA holes and ROM writes even if a
                 // caller bypasses the motherboard's own address protection.
-                physical <= address < 20'ha0000 || (address >= 20'hf0000 && !write_cycle);
+                physical <= address[19:16] < 4'ha || (address[19:16] == 4'hf && !write_cycle);
                 held_address <= {7'd0, address[19:1]};
                 held_data <= {wdata, wdata};
                 held_lanes <= address[0] ? 2'b10 : 2'b01;

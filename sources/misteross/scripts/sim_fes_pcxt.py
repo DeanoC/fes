@@ -90,12 +90,19 @@ SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                    'cores/fes-pcxt/rtl/pcxt_boot.sv'))
 
 
-def board_inputs(output):
-    cpu_inputs(output, '../firmware/diagnostic')
-    data = (output / 'diagnostic.bin').read_bytes()
+def boot_roms(output, data):
+    """Emit eight contiguous 8 KiB banks for the local-address boot ROMs."""
     if len(data) != 65536:
         raise ValueError('PC/XT diagnostic must be exactly 64 KiB')
-    (output / 'pcxt_diagnostic.hex').write_text(''.join(f'{b:02x}\n' for b in data))
+    for bank in range(8):
+        payload = data[bank * 8192:(bank + 1) * 8192]
+        (output / f'pcxt_diagnostic.bank{bank}.hex').write_text(
+            ''.join(f'{byte:02x}\n' for byte in payload))
+
+
+def board_inputs(output):
+    cpu_inputs(output, '../firmware/diagnostic')
+    boot_roms(output, (output / 'diagnostic.bin').read_bytes())
 
 
 def verify_vendor(name):
@@ -138,6 +145,7 @@ def cpu_roms(output):
         '// Generated from the verified MCL86 control ROM.\n' +
         ''.join(f"localparam [15:0] FES_MC_ADD_OP{i}_MASK = 16'h{mask:04x};\n"
                 for i, mask in enumerate(add_masks)) +
+        f"localparam [31:0] FES_MC_RESET_WORD = 32'h{words[0x20]:08x};\n" +
         f"localparam FES_MC_JUMP7_USED = 1'b{int(jump7)};\n")
 
 
@@ -153,13 +161,13 @@ def cpu_inputs(output, diagnostic="diagnostic"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
-    parser.add_argument('--suite', choices=('all', 'system', 'system-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine'), default='all')
+    parser.add_argument('--suite', choices=('all', 'system', 'system-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine'), default='all')
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
     output = ROOT / 'build/sim/fes-pcxt'
     output.mkdir(parents=True, exist_ok=True)
-    for suite in ('system', 'system-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine') if args.suite == 'all' else (args.suite,):
+    for suite in ('system', 'system-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine') if args.suite == 'all' else (args.suite,):
         build = output / suite
         build.mkdir(parents=True, exist_ok=True)
         sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
@@ -203,14 +211,14 @@ def main():
             sources = sources[:-1] + MEMORY_SOURCES + ('cores/fes-pcxt/sim/memory_machine_top.sv', 'cores/fes-pcxt/sim/memory_machine_tb.cpp')
         if suite == 'video-machine':
             sources = sources[:-1] + VIDEO_SOURCES[:-1] + ('cores/fes-pcxt/sim/video_machine_top.sv', 'cores/fes-pcxt/sim/video_machine_tb.cpp')
-        if suite in ('cpu', 'machine', 'display-machine', 'video-machine', 'memory-machine'):
-            cpu_inputs(build, 'display' if suite in ('display-machine', 'video-machine', 'memory-machine') else 'motherboard' if suite == 'machine' else 'diagnostic')
+        if suite in ('cpu', 'cpu-timing', 'machine', 'display-machine', 'video-machine', 'memory-machine'):
+            cpu_inputs(build, 'display' if suite in ('display-machine', 'video-machine', 'memory-machine') else 'motherboard' if suite == 'machine' else 'eu_timing' if suite == 'cpu-timing' else 'diagnostic')
         if suite in ('system', 'system-mda'):
             for name in ('kf8259', 'kf8253', 'kf8255'):
                 verify_vendor(name)
             board_inputs(build)
             sources = SYSTEM_SOURCES + (MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/system_top.sv', 'cores/fes-pcxt/sim/system_tb.cpp')
-        top = 'system_top' if suite in ('system', 'system-mda') else 'video_top' if suite in ('video', 'video-mda') else 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite.replace('-', '_') + '_top'
+        top = 'cpu_top' if suite == 'cpu-timing' else 'system_top' if suite in ('system', 'system-mda') else 'video_top' if suite in ('video', 'video-mda') else 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite.replace('-', '_') + '_top'
         subprocess.run([args.verilator, '--cc', '--exe', '--build', '-Wall',
                         *(['--timescale-override', '1ns/1ps',
                            str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt')] if suite != 'isa' else []),
@@ -229,7 +237,8 @@ def main():
         for delay in (0, 1, 2) if suite in ('memory', 'memory-machine', 'system', 'system-mda') else (None,):
             subprocess.run([str(build / ('V' + top)),
                             *(['mda'] if suite == 'video-mda' else []),
-                            *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine', 'video-machine', 'memory-machine') else []),
+                            *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'cpu-timing', 'machine', 'display-machine', 'video-machine', 'memory-machine') else []),
+                            *(['timing'] if suite == 'cpu-timing' else []),
                             *([str(delay)] if delay is not None else []),
                             *(['mda'] if suite == 'system-mda' else [])],
                            cwd=build, check=True)

@@ -90,7 +90,11 @@ DQM writes preserve its neighbour. Physical halfword offsets are guest byte
 addresses shifted right by one, interpreted in the controller's packed
 bank/row/column map. Only `00000–9FFFF` RAM and `F0000–FFFFF` firmware use
 storage. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
-video VRAM stays on the ISA cards.
+video VRAM stays on the ISA cards. The router and defensive backend use
+A19:16 for these aligned 64 KiB regions (RAM below `A`, firmware at `F`),
+avoiding a wide carry-chain comparison in dispatch. Symbolic comparison with
+the original full-width bounds covers every address, request kind and write
+direction; a mutation admitting the `A` hole is rejected.
 
 A separate firmware byte VALID/READY/DONE port writes the 64 KiB firmware
 window, with a 16-bit offset. It admits writes only while the machine's warm
@@ -111,6 +115,13 @@ Cold reset does not establish a storage-retention guarantee.
 
 The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
 refresh and the established additional fabric stage after input capture.
+Its output-register mode adds one aligned cycle to command/address, write data
+and output enable, with the matching read-capture count adjustment. Plain
+command/address registers can pack into the pads without moving the controller
+state/enable muxes there. This configuration still needs routed and hardware
+qualification. The digital cold-reset model allows already-issued commands to
+drain until CKE falls, then requires a fresh initialization sequence; it retains
+bank recovery state and RAM contents across FPGA reset.
 `clk_pin` is the phase-0 controller clock used for the inverted SDRAM clock
 output. The board diagnostic supplies captured `dq_rise/dq_fall`, bidirectional
 pads and PLL phases; their physical setup/hold constraints remain unqualified. The diagnostic synthesis retains
@@ -139,6 +150,13 @@ Direct/Scanlines in the reusable board system.
 runs the locked Cyclone V diagnostic frontend and `check -assert`, writing
 `build/synth/fes-pcxt/memory/diagnostic.json`. It covers the backend/controller,
 without the CPU, cards, framebuffer or board capture/pads.
+
+The diagnostic boot ROM is emitted as eight contiguous 8 KiB banks. Each bank
+has its own registered read address to limit address-counter fanout across the
+RAM blocks. Bank selection follows the synchronous read; the loader's public
+address, valid/ready/done protocol and reset behavior are unchanged. The full
+image and interrupted-load tests cover every byte across all bank boundaries.
+This is a timing candidate until a frozen whole-board route validates it.
 
 ## ISA display cards
 
@@ -300,7 +318,7 @@ byte port for a later user-selected loader; no production HPS loader or sealed
 firmware map is claimed.
 
 `rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
-fabric input capture clock, a dedicated +90-degree 100 MHz CPU ROM clock,
+fabric input capture clock, system-clock CPU ROM reads,
 inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.
@@ -311,10 +329,23 @@ clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
 The CPU import splits its unchanged microcode into four byte-wide ROMs, each
 with a local system-edge address register driven by the same next PC and reset
-as the CPU PC. A separate +90-degree PLL output reads the ROMs; the next system
-edge captures the word and decoded operand controls. Read and instruction
-latency are preserved. The shorter 2.5 ns address path and longer 7.5 ns ROM
-output path both require qualification; SDRAM capture remains at +180 degrees.
+as the CPU PC. The intervening operand-phase system edge reads the ROMs;
+the next execute edge captures the word and decoded operand controls. Both
+address setup and registered ROM output paths have one ordinary 10 ns system
+cycle. The dedicated +90-degree ROM clock and its private ports are removed;
+SDRAM capture remains at +180 degrees. Microcode lead is preserved.
+
+The CPU now executes each microword in two 100 MHz phases: register operands
+and dispatch byte, then execute/writeback. PC, local ROM address and word/control
+registers advance together on execute edges, preserving their relative
+microcode alignment. The BIU and guest pin-clock generator remain full rate;
+one strobe-valid edge prevents held commands from repeating queue/timer actions.
+Completion capture remains full rate. This changes microinstruction throughput,
+so unchanged pin frequency does not imply unchanged instruction cycle timing.
+Run `python3 scripts/sim_fes_pcxt.py --suite cpu-timing` for checked NOP,
+dependent ADD/ADC, branch and REP-copy timing workloads. The two-phase datapath
+has no new clock domain or timing exception. See the
+[CPU import notes](vendor/mcl86/README.md) for the proof and timing boundaries.
 
 The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
 operand muxes retain only sources used by ADD words; other operations use the
@@ -326,7 +357,7 @@ preserved through synthesis, to separate their physical fanout from the full
 logic-operation muxes. The copies capture the same ROM stage on the same edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
-checks its state and interface against the original indexed priority loop.
+checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits. Motherboard local reads retain their phase-8 sample in an independent byte register and copy it to the shared memory/ISA return register at phase-17 completion. The existing nine release clocks absorb this staging; CPU and DMA completion cycles are unchanged. An inductive check proves the original sampled byte and completed return value with the actual peripherals.
 
 Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
@@ -342,6 +373,11 @@ Each ISA boundary preserves its one-bit request-reset register separately
 from the payload process, preventing cross-slot reset-flop merging without
 changing request/response latency. Whole-boundary equivalence proves all 80
 original state/interface bits for arbitrary request, response and reset streams.
+The ISA endpoint records commit eligibility when preparation completes and clears
+it on commit or reset. This removes the repeated state decode from device
+write enables without changing bus latency. Whole-endpoint temporal induction
+checks all outputs against the original protocol for arbitrary streams after
+reset, including tag changes, wait states and reset during a transaction.
 
 
 The PIC import uses formally checked parallel
@@ -366,8 +402,8 @@ FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CAC
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 ```
 
-The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with per-pin
-nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Without
+The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed
+nextpnr main `b9ffde2d`, Yosys `3a5accbd` and the Mistral timing-line fix `9ab65220`. Without
 `CACHE_ROOT`, the toolchain and build commands both use the repository-local
 `build/toolchain/fes-pcxt` install. Select
 `PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and
@@ -377,13 +413,15 @@ the separate Quartus cross-check.
 Each invocation retains a separate directory beneath
 `build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
 assembled firmware, microcode, synthesis/netlist/resource counts and a
-`diagnostic.json` source/tool receipt. The normal command attempts one seed-1
+`diagnostic.json` source/tool receipt. The normal command attempts one seed-3
 GPU route with a bounded 1800-second timeout and retains failures. Placement
 uses fixed timing weight 2000 and criticality exponent 5, as in the existing
-Coleco socket lane; there is no placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
+Coleco socket lane. Override the unsigned 64-bit seed with `PCXT_BUILD_ARGS='--seed 2'`
+or direct `--seed 2`; there is no automatic placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
 synthesis outside the lease. Invoke the producer directly; an outer `gpu-run`
 is rejected. GPU queue waits do not consume the 1800-second route work budget.
-The receipt records the route command, timeout, wall duration, initial visibility
+The receipt hashes all generated microcode, bank ROMs and facts headers, and
+records the selected seed, route command, timeout, wall duration, initial visibility
 restrictions and the backend/device identities reported by nextpnr. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
 `diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
@@ -391,6 +429,24 @@ clock-domain pair so remaining failures can be traced without rerouting.
 A route is diagnostic: SDRAM pad setup/hold, retention,
 physical containment, package sealing and hardware acceptance require separate
 qualification. There is no automatic Quartus fallback or kit programming.
+
+```sh
+python3 scripts/screen_fes_pcxt_uncertainty.py \
+  --diagnostic /absolute/diagnostic \
+  --quartus-comparison /absolute/clock-reference \
+  --output /absolute/screen.json
+```
+
+This command
+checks a retained producer report against explicit four-corner setup/hold
+uncertainty increments from its matched Quartus clock reference. It verifies
+the producer receipt, RBF identity and retained reference summaries, preserves
+all endpoint identities, and returns nonzero on negative headroom or incomplete
+coverage. The reference includes both PLLs; its small pixel counter is not the
+actual pixel fabric. This is a host-only reference screen, not a native timing
+model or whole-board acceptance. External IO, reset/CDC and physical board
+requirements remain separate. No producer constraints or artifacts are changed.
+
 No factory package selection or shared contract changes are made.
 
 The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`
@@ -417,9 +473,13 @@ the sampled pixel and ROM-phase paths reach 73.30 and 83.26 MHz respectively.
 These are sampled-path upper bounds, not whole-design Quartus signoff; clock
 uncertainty is also excluded. The old timer undercharges physical LUT pins
 and M10K clock-to-output. Timing closure remains open in [#840](https://github.com/DeanoC/fes/issues/840).
-The next check reroutes with per-pin nextpnr `552ba246` and requires a Quartus
-pass at unchanged clocks. Other display profiles, SDRAM pad timing/retention,
-package sealing and hardware acceptance remain open.
+The later RTL checkpoint `e799cd7a` passes all reported fabric setup/hold checks
+on seeds 2 and 3 with reviewed nextpnr main `b9ffde2d` and Mistral `9ab65220`,
+at unchanged clocks; seed 1 fails. The complete 17187-row timing inventory,
+authenticated compiler replay and remaining physical boundaries are retained in
+[the whole-board evidence](../../docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md).
+External IO/reset timing, whole-design Quartus qualification, other display
+profiles, SDRAM retention, package sealing and hardware acceptance remain open.
 
 Both system suites run in the default simulation family. They check interrupted
 cold loading, a pause near the end of loading, reset during an issued CPU
@@ -433,8 +493,8 @@ occurs alongside palette selection. Bank/subpixel/raster fields have matching
 latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
 all-input Yosys SAT checks, as do the PIT decrements. CPU checks reconstruct every
 control-ROM word from its four byte lanes, prove the PC/call-stack/stall
-projection and local address-copy invariant, check read alignment at
-90/180/270 degrees, and compare real operand
+projection and local address-copy invariant, prove read alignment across the
+operand/execute phases under arbitrary resets and payloads, and compare real operand
 selection against the imported equations;
 `cpu_roms` derives four byte-lane images from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
@@ -562,6 +622,14 @@ clear resets status, command, request, temporary, byte pointer and masks while
 preserving address/count/mode/page programming. Undefined register reads use
 `FF`; the temporary register reads zero because memory-to-memory is unsupported.
 
+At a grant, the controller snapshots the candidate address and terminal count
+before checking whether service is allowed. Rejected-service snapshots stay
+inactive; every valid service overwrites them before use. The motherboard
+consumes payload and TC only with a valid request. This removes the service-mode
+and priority decision from the payload-register enables without adding a cycle.
+Symbolic checks compare all other state and observable outputs and preserve
+snapshot equality throughout active service; wrong address/TC mutations reject.
+
 DMA2/3 exercise real registered ISA endpoints; DMA1 uses the same contract
 (the current fixture has no DMA1 card). Memory-to-device first reads memory,
 then commits the peripheral write; device-to-memory commits the peripheral
@@ -590,12 +658,28 @@ a delayed refresh can latch one further request. This supplies the guest-visible
 refresh bus activity; the separate physical SDRAM controller owns its actual
 SDRAM refresh commands and retention qualification.
 
+The fractional master-dot accumulator registers a prediction of the next wrap
+flag. Reset establishes zero phase and no pulse; the inductive phase-range and
+wrap-identity check proves every CGA/MDA pulse stays on its original cycle.
+The downstream CRTC enables therefore start at a register rather than a wide
+phase comparison. Threshold mutations reject for both dot rates. No guest or
+fabric clock frequency, raster period or renderer latency changes.
+
 CGA and MDA are separate ISA expansion cards. Each owns its VRAM, memory
 and register decode, and raster state on the registered endpoint/commit
 boundary. The motherboard routes the `B8000–BFFFF` and `B0000–B7FFF`
 apertures to ISA and contains no display registers. See
 [ISA display cards](#isa-display-cards). Physical socket placement,
 production HDMI egress and kit hardware acceptance remain unqualified.
+
+Each card registers its rendering inputs before colour selection. Pixel enable,
+DE, HS/VS and SOF/EOL travel with the same snapshot, adding one 100 MHz cycle
+to the complete output stream without changing raster cadence. MDA status uses
+a separate equivalent nonzero predicate at its original bus-visible cycle.
+VRAM byte-write eligibility is registered during ISA prepare, before commit;
+this adds no bus cycle and keeps address/type decode off the write-enable path.
+Symbolic checks cover arbitrary render inputs/resets/markers and every committed
+request, including a rejected undelayed-frame-marker mutation.
 
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
@@ -747,9 +831,8 @@ motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 and mapped cell counts.
 Both CPU and machine synthesis regenerate the original microcode and its
 derived operand-select ROM through the same verified helper as simulation.
-The CPU/machine synthesis fixtures expose a separate `clk_rom` input, which
-must be 100 MHz shifted 180 degrees from `clk`; simulation derives it from
-the opposite edge. Board builds supply the existing memory PLL phase.
+CPU and machine fixtures use the same 100 MHz system edge for the CPU and
+registered microcode reads; no separate ROM clock input is required.
 The display variant synthesizes both ISA cards, their VRAM and the registered
 backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
 None of these variants synthesizes the testbench RAM or diagnostic system ROM.

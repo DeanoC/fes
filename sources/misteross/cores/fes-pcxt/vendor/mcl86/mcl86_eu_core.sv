@@ -40,7 +40,7 @@
 //   width-tagged bus requests and never learns how wide the bus really is.
 //
 //   Execution is microcoded. Each 8086 instruction is a subroutine in a 4Kx32
-//   ROM; the sequencer retires one microword per clock, decoding it into a
+//   ROM; the sequencer retires one microword per two clocks, decoding it into a
 //   type / destination / two operand-select fields. Instruction dispatch is
 //   itself a microcode jump - the opcode byte from the queue is concatenated
 //   into the microcode address to vector into that instruction's handler.
@@ -62,7 +62,7 @@
 //   address counter runs TWO microwords ahead of the word being executed. Hence:
 //
 //   1. A taken jump has already admitted the next two words, so the sequencer
-//      raises eu_stall_pipeline for one clock to squash them.
+//      raises eu_stall_pipeline for one execute edge to squash them.
 //   2. RTL that identifies an instruction by watching the microcode PC hit a
 //      constant is watching an address the sequencer also GRAZES on its way past
 //      a neighbouring routine. A marker must sit deep enough into its own arm
@@ -111,11 +111,11 @@ module mcl86_eu_core
     (
         // System Interface
         input  wire        CORE_CLK_INT,          // High-speed core clock
-        input  wire        CORE_CLK_ROM,          // 180-degree ROM read clock
         input  wire        RESET_INT,             // Synchronous reset (active high)
         input  wire        TEST_N_INT,            // Test pin input (active low, can be tied high)
         input  wire        FAKE286_FLAGS,         // Make PUSHF expose 80286 reserved FLAGS bits
         // EU to BIU Command Interface
+        output wire        EU_BIU_STROBE,         // Consume held command strobes once per microword
         output wire [15:0] EU_BIU_COMMAND,        // Command word to BIU for bus operations
         output wire [15:0] EU_BIU_DATAOUT,        // Data output to BIU for write operations
         output wire [15:0] EU_REGISTER_R3,        // Temporary register R3 for BIU addressing
@@ -148,6 +148,35 @@ module mcl86_eu_core
     // hierarchical name from the Verilator SST harness (sim/sst/sst_main.cpp
     // reaches them as sst_tb.dut.u_eu_core.<name>). Renaming any of them breaks
     // the test harness silently - the C++ macro just stops resolving.
+    // All physical clocks stay at 100 MHz. Read operands on phase 0;
+    // execute/writeback and advance the microcode pipeline on phase 1.
+    reg eu_execute;
+    reg [7:0] eu_dispatch_byte;
+    reg [15:0] eu_execute_operand0, eu_execute_operand1;
+    reg [15:0] eu_execute_add_operand0, eu_execute_add_operand1;
+    always_ff @(posedge CORE_CLK_INT) begin : eu_operand_stage
+        if (RESET_INT) begin
+            eu_execute <= 1'b0;
+            eu_dispatch_byte <= 8'b0;
+            eu_execute_operand0 <= 16'b0;
+            eu_execute_operand1 <= 16'b0;
+            eu_execute_add_operand0 <= 16'b0;
+            eu_execute_add_operand1 <= 16'b0;
+        end else begin
+            eu_execute <= !eu_execute;
+            if (!eu_execute) begin
+                eu_dispatch_byte <= PFQ_TOP_BYTE;
+                eu_execute_operand0 <= eu_operand0;
+                eu_execute_operand1 <= eu_operand1;
+                eu_execute_add_operand0 <= eu_add_operand0;
+                eu_execute_add_operand1 <= eu_add_operand1;
+            end
+        end
+    end
+    // The command written on an execute edge is consumed at the following
+    // operand edge. Persistent request/data fields remain valid on both phases.
+    assign EU_BIU_STROBE = !RESET_INT && !eu_execute;
+
     reg  [12:0] eu_rom_address;         // Microcode PC. Runs 2 words ahead of the executing word
     reg  [51:0] eu_calling_address;     // 4-deep call stack: four 13-bit return addresses, shifted
     reg         eu_stall_pipeline;      // Squash the 2 words already in flight behind a taken jump
@@ -305,8 +334,8 @@ module mcl86_eu_core
         if (eu_stall_pipeline == 1'b0 && eu_opcode_type == 3'h1 && eu_jump_boolean == 1'b1) begin
             case (eu_opcode_jump_src)
                 3'h0: eu_rom_address_next = eu_opcode_immediate[12:0];
-                3'h1: eu_rom_address_next = {4'b0, 1'b1, PFQ_TOP_BYTE};
-                3'h2: eu_rom_address_next = {eu_opcode_immediate[4:0], PFQ_TOP_BYTE[7:6], PFQ_TOP_BYTE[2:0], 3'b0};
+                3'h1: eu_rom_address_next = {4'b0, 1'b1, eu_dispatch_byte};
+                3'h2: eu_rom_address_next = {eu_opcode_immediate[4:0], eu_dispatch_byte[7:6], eu_dispatch_byte[2:0], 3'b0};
                 3'h3: eu_rom_address_next = eu_calling_address[12:0];
                 3'h4: eu_rom_address_next = {eu_opcode_immediate[7:0], eu_biu_dataout[3:0], 1'b0};
                 3'h5: eu_rom_address_next = {eu_opcode_immediate[6:0], eu_biu_dataout[3:0], 2'b0};
@@ -316,10 +345,10 @@ module mcl86_eu_core
         end
     end
 
-    mcl86_ucode u_ucode_rom (
+    mcl86_ucode #(.RESET_WORD(FES_MC_RESET_WORD)) u_ucode_rom (
         .add_select0 (eu_add_select0),
         .add_select1 (eu_add_select1),
-        .clk_rom  ( CORE_CLK_ROM         ),
+        .advance ( eu_execute ),
         .clk  ( CORE_CLK_INT         ),
         .reset ( RESET_INT ),
         .next_addr ( eu_rom_address_next[11:0] ),
@@ -487,17 +516,17 @@ module mcl86_eu_core
     // eu_alu0 = NOP (no operation)
     // eu_alu1 = JUMP (control transfer, handled separately)
     assign eu_alu2 = adder_out;                              // ADD
-    assign eu_alu3 = {eu_operand0[7:0], eu_operand0[15:8]};  // BYTESWAP
-    assign eu_alu4 = eu_operand0 & eu_operand1;              // AND
+    assign eu_alu3 = {eu_execute_operand0[7:0], eu_execute_operand0[15:8]};  // BYTESWAP
+    assign eu_alu4 = eu_execute_operand0 & eu_execute_operand1;              // AND
     // Fake 286 PUSHF: the serialising microword is FLAGS | F002. Substitute
     // {4'b0000, FLAGS[11:0]} | 0002 here, on the OR result only, instead of in
     // the operand multiplexers. The 31-bit microword compare then stays off the
     // ROM -> operand -> adder -> writeback critical path of the core clock.
     assign eu_alu5 = (FAKE286_FLAGS && eu_pushf_serialize) ?
                          {4'b0000, eu_flags[11:2], 1'b1, eu_flags[0]} :
-                         (eu_operand0 | eu_operand1);                // OR
-    assign eu_alu6 = eu_operand0 ^ eu_operand1;              // XOR
-    assign eu_alu7 = {1'b0, eu_operand0[15:1]};              // SHR
+                         (eu_execute_operand0 | eu_execute_operand1);                // OR
+    assign eu_alu6 = eu_execute_operand0 ^ eu_execute_operand1;              // XOR
+    assign eu_alu7 = {1'b0, eu_execute_operand0[15:1]};              // SHR
 
     //--------------------------------------------------------------------------
     // ALU Output Multiplexer
@@ -536,8 +565,8 @@ module mcl86_eu_core
     // are observed only by ADD writeback/flag updates, so unused ADD sources
     // can leave this timing cone without restricting guest firmware or data.
     mcl86_adder u_adder (
-        .a      (eu_add_operand0),
-        .b      (eu_add_operand1),
+        .a      (eu_execute_add_operand0),
+        .b      (eu_execute_add_operand1),
         .sum    (adder_out),
         .carry  (carry)
     );
@@ -590,7 +619,7 @@ module mcl86_eu_core
     // EU Microsequencer
     //--------------------------------------------------------------------------
     // Controls microcode execution, register updates, flag generation, and
-    // pipeline flow. One microword retires per clock unless a taken jump stalls
+    // pipeline flow. One microword retires per execute edge unless a taken jump stalls
     // the pipe.
     //
     // Several blocks below identify a macro-instruction by comparing the
@@ -599,12 +628,30 @@ module mcl86_eu_core
     // into its own microcode arm that a neighbouring arm's overshoot cannot graze
     // it. tools/uccheck.py scrapes these constants out of this file and reports
     // every marker that more than one path can reach.
+    // Capture completion at the physical clock even while the EU is reading
+    // operands. Polling microcode sees a sticky completion, never a missed pulse.
+    always_ff @(posedge CORE_CLK_INT) begin : eu_biu_completion_stage
+        if (RESET_INT) begin
+            biu_done_d1 <= 1'b0;
+            biu_done_d2 <= 1'b0;
+            eu_biu_req_d1 <= 1'b0;
+            biu_done_caught <= 1'b0;
+        end else begin
+            biu_done_d1   <= BIU_DONE;
+            biu_done_d2   <= biu_done_d1;
+            eu_biu_req_d1 <= eu_biu_req;
+
+            if      (biu_done_d2   == 1'b0 && biu_done_d1 == 1'b1) begin
+                biu_done_caught <= 1'b1;
+            end
+            else if (eu_biu_req_d1 == 1'b1 && eu_biu_req  == 1'b0) begin
+                biu_done_caught <= 1'b0;
+            end
+        end
+    end
+
     always_ff @(posedge CORE_CLK_INT) begin : proc_eu_microsequencer
         if (RESET_INT == 1'b1) begin
-            biu_done_d1         <=   '0;
-            biu_done_d2         <=   '0;
-            eu_biu_req_d1       <=   '0;
-            biu_done_caught     <=   '0;
             eu_flag_t_d         <=   '0;
             eu_tr_latched       <=   '0;
             eu_add_carry        <=   '0;
@@ -635,7 +682,7 @@ module mcl86_eu_core
             intr_enable_delayed <=   '0;
             idiv_opcode         <=   '0;
         end
-        else begin
+        else if (eu_execute) begin
             eu_rom_address <= eu_rom_address_next;
             // Delay the INTR enable flag until after the next instruction begins.
             // No delay when it is disabled.
@@ -664,23 +711,6 @@ module mcl86_eu_core
             end
             else if (eu_tf_debounce == 1'b1) begin
                 eu_tr_latched <= 1'b0;
-            end
-
-            // Latch the done bit from the biu.
-            // Debounce it when the request is released.
-            //
-            // Req/ack: the rising edge of BIU_DONE makes biu_done_caught sticky so
-            // microcode polling system_signals[6] cannot miss a completion; it
-            // clears only once microcode drops the request.
-            biu_done_d1   <= BIU_DONE;
-            biu_done_d2   <= biu_done_d1;
-            eu_biu_req_d1 <= eu_biu_req;
-
-            if      (biu_done_d2   == 1'b0 && biu_done_d1 == 1'b1) begin
-                biu_done_caught <= 1'b1;
-            end
-            else if (eu_biu_req_d1 == 1'b1 && eu_biu_req  == 1'b0) begin
-                biu_done_caught <= 1'b0;
             end
 
             //------------------------------------------------------------------

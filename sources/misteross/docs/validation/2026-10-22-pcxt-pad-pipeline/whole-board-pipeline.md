@@ -1,0 +1,365 @@
+# Whole-board display and boot timing candidates, 2026-10-23
+
+Owner: misteross. Base: `547f0c20a2a66dfdf87d551399c9b9e2524b146e`.
+No shared definitions, toolchain lock, clock frequency, pad contract or kit change.
+Evidence is host simulation and diagnostic routing, not hardware acceptance.
+
+## Display-only route: rejected for timing
+
+Frozen source `0f84601bdf0b6dbb70c4397c9115bdba00972bd0`, unchanged
+corrected diagnostic compiler and seed-1 recipe from the CPU checkpoint.
+System 100 MHz, SDRAM capture +180 degrees, pixel 74.25 MHz.
+
+| Complete final routed inventory | CPU checkpoint | Display pipeline |
+| --- | ---: | ---: |
+| Rows | 17709 | 17742 |
+| Setup failures | 72 | 229 |
+| Worst setup, ps | -1575 | -2658 |
+| Hold failures | 0 | 0 |
+| Minimum hold, ps | 789 | 778 |
+| Unsupported records | 105 | 105 |
+
+The CPU still passes all emitted CPU rows, but its setup margin falls from
+934 to 27 ps. PIC has 7 failures, display 90, and other logic 132. The worst
+capture is DMA transfer-address enable. Thus the structural renderer pipeline
+and prepared VRAM writes are not a qualified timing improvement. Keep the
+passing CPU checkpoint as the comparison baseline; do not promote this profile.
+
+The collector completed with native timing-miss return code 1 and all input
+bindings intact. Complete setup/hold endpoint union, both unsupported inventories,
+clock equality and all output artifact hashes are retained under
+`out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/`.
+
+## Boot-ROM banking: routed, whole-board closure still open
+
+Frozen source `1860f14260e150937b0fdb372f8d59b250b14bf1` adds eight
+bank-local read-address registers. The same generated firmware is emitted as
+eight contiguous 8 KiB files; reconstructing them is byte-for-byte equal to the
+previous 64 KiB image (SHA-256
+`afe432903f7911042397c6d645471e32bdece8e4c06fb38193dc0e870d27b85b`).
+Mapped actual board synthesis retains 104 distinct system-clocked local address
+FFs and reduces boot M10Ks from 64 to 14, board M10Ks from 318 to 268.
+Board FFs are 3952. This is a resource/structure result, not routed timing.
+
+All 35 focused tests pass with the pinned Yosys, and all 16 PC/XT simulation
+suites pass. An independent old/new loader comparison covers 132529 accepted
+bytes, two complete images and a one-cycle mid-load reset. `make check` passes
+after committing module bytes. The intermediate parent/component `make test-changed` run is incomplete;
+its retained partial results do not constitute a completed check.
+
+The frozen combined boot/display route completes with all input bindings intact:
+17128 rows, 17123 setup/hold-timed rows, 85 setup failures, worst setup -1467 ps,
+zero hold failures, minimum hold +738 ps, 105 unsupported records and
+`complete=false`. All surviving clocks are exactly equal to the CPU baseline.
+All 345 emitted boot-loader rows pass (minimum setup +556 ps, hold +1236 ps).
+CPU has zero setup failures / +512 ps minimum; PIC has 7 / -1439 ps,
+display 35 / -1111 ps, other logic 43 / -1467 ps. The worst captures are DMA
+terminal-count and transfer-address enables. The result improves the rejected
+display route but does not close the board; the baseline's 72 failing rows
+remain fewer than this candidate's 85. Complete endpoint union and unsupported
+details are retained in `boot-route-comparison.json` and its companion files.
+
+All 842 selected parent tests pass. The intermediate component run was
+intentionally stopped when the next focused fixes were ready, retaining its
+partial log and interruption record. It is not a completed `make test-changed`
+pass. The earlier direct 16-suite simulation has passed. A DMA grant-snapshot prototype proves all 457 state/qualified-
+transaction obligations with an active-service snapshot invariant. Both
+address and terminal-count mutations reject. Standalone mapping keeps 357 FFs,
+adds two LUTs (679 to 681), and reduces terminal-enable cell depth from seven
+to two. This is a structural candidate, not routed timing acceptance.
+ No winning
+profile, two-of-three seed gate, fresh producer, physical IO/reset qualification
+or kit acceptance has been obtained. The 105 unsupported records remain open.
+A separate private DMA decode-order prototype passes all 453 state/interface
+equivalence points; it has not been adopted into RTL or routed.
+
+## DMA grant snapshots and exact dot-enable prediction: source frozen
+
+Commit `b8f144d8` moves the address/terminal snapshot before service validation
+at the same grant edge. Inactive TC may differ; the actual motherboard latches
+TC only with a valid DMA request. All other observable outputs/state and active
+snapshots retain the proved relation. No new DMA cycle is added.
+
+The fractional-dot predictor computes the next phase's wrap flag in a FF,
+removing the wide compare from CRTC enables. Reset establishes the phase range
+and flag identity; one-step induction proves that both CGA and MDA keep their
+exact original pulse cycles. The arithmetic proof still compares against the
+original full-width sum/carry definition for every phase under that flag
+relation. Threshold mutations reject for both rates.
+
+All 40 focused tests pass with pinned Yosys, including address/TC mutation
+rejection. The DMA and complete-frame display simulations pass. All 16 simulation suites and `make check` pass. Frozen board synthesis has
+3954 FFs and 268 M10Ks, both dot-enable FFs on the system clock and all 104
+independent boot-address FFs. Actual DMA payload enables have only state,
+grant, guest pulse and the registered reset as launch sources.
+
+The complete final route has 17132 rows (17127 setup/hold-timed), **one setup
+failure / -305 ps**, zero hold failures / +728 ps minimum, 105 unsupported
+records and `complete=false`. CPU, PIC and display all pass their emitted
+rows, with minimum setup +133, +689 and +19 ps respectively. The remaining
+capture is `system.machine.board.state_MISTRAL_FF_Q_3/DATAIN`: DMA state feeds
+the RAM address decode through a wide carry chain before state dispatch.
+All clock contracts are unchanged and all collector bindings pass.
+The full three-profile endpoint union and paired reports are retained in
+`grant-dot-route-comparison.json` and its companion artifacts. This is still
+a timing miss, not whole-board closure or physical IO/reset/kit acceptance.
+Required broad integration checks will be completed after the candidate is
+stable; no fresh parent/component pass is claimed for this commit yet.
+
+## Explicit aligned memory regions: seed qualification in progress
+
+Frozen commit `e24b88ed` decodes RAM with A19:16 below `A` and firmware at
+`F`, in both the motherboard router and defensive storage backend. This is
+symbolically identical to the old full-width bounds for every address, kind
+and write direction. The ISA-hole admission mutation rejects. All 42 focused
+tests, motherboard/memory simulations, the full 16-suite simulation and
+`make check` pass. Mapped arithmetic cells fall from 1418 to 1376; no
+arithmetic cell is attributed to the former RAM comparison. FFs remain 3954,
+M10Ks 268, and all CPU, dot-predictor and local-ROM boundaries pass.
+
+Seed 1 completes with all collector bindings intact: 17132 rows, 17127 timed,
+6 setup failures / -274 ps, zero hold failures / +776 ps, 105 unsupported
+records and `complete=false`. The motherboard dispatch miss is gone. CPU,
+PIC and other logic all pass (minimum setup +335 / +263 / +253 ps); the six
+remaining misses are CGA VRAM address captures. This is a targeted path repair,
+not a qualified whole-board timing winner. The source, compiler, full repair
+recipe and 100/74.25 MHz clock contract are held fixed for seeds 1/2/3.
+Seeds 2 and 3 complete with zero reported setup or hold failures. Seed 2 has
+minimum setup/hold +168/+788 ps; seed 3 +49/+773 ps. Each has the same 17132
+rows, 17127 timed rows and 105 unsupported identities. The strict audit verifies
+all artifact hashes, final analogue/cache/calibration state, exact source,
+compiler, environment, clock contracts and commands except the seed. The full
+17132-row three-seed union is retained. The **reported fabric setup/hold
+2-of-3 gate passes**; physical whole-board qualification remains false.
+
+The selected replay seed is 2. A fresh synthesis regenerates byte-identical
+ROM banks, microcode and mapped JSON from the frozen committed module bytes.
+The fresh diagnostic seed-2 route then reproduces all five artifacts byte for
+byte: `diagnostic.rbf`, `routed.json`, `timing.json`, `endpoints.json` and
+`timing-state.json`. Its native return code is zero and all collector bindings
+pass. `region-fresh-byte-comparison.json` retains the five exact hashes.
+This is a fresh diagnostic replay, not authenticated production admission. The compiler
+remains the diagnostic b85677cf branch binary, not a production pin adoption.
+A live comparison with reviewed nextpnr main shows divergence (112 commits on
+the diagnostic side, 11 on main). These results do not authorize adopting that
+research branch or reopening closed #266. Authenticated production-toolchain
+admission, external IO/reset modeling and exact-artifact hardware acceptance
+remain separate requirements.
+
+A separate private CRTC address-register prototype passes all 252 state and
+interface equivalence points against the combinational row-plus-column MA.
+It maintains MA at the same CRTC edge without adding a memory-read cycle.
+The horizontal-wrap mutation rejects, including live horizontal-total changes.
+It is not adopted into RTL and has no routed timing result.
+
+## Stable-source broad validation and reviewed-main comparison
+
+The complete stable-source `make test-changed --base 547f0c20` passes:
+842 parent tests, 1283 component tests (one optional host oracle skipped),
+generated-consumer consistency and all 16 PC/XT RTL simulation suites. Its log
+is `stable-region-test-changed.log`. The earlier intentionally stopped run
+remains separate and is not counted as a pass.
+
+An unmodified checkout of reviewed nextpnr main
+`b9ffde2d360ef3fc56c67074bfed2ddfe7933535` builds with merged Mistral
+`9ab6522077948fc3dd2e074338874f92e848fc44`. Its standard producer profile
+uses the same frozen RTL, clocks, HeAP weight2000/critexp5 and GPU router,
+without the research branch's hard-block, LUT-swap or final-move options.
+All three final reports preserve every one of the 17127 reference timed
+endpoint identities; setup and hold are both checked and clock contracts are
+exact. Reference physical IO/reset obligations remain unqualified.
+
+| Reviewed-main standard profile | Setup failures | Minimum setup ps | Hold failures | Minimum hold ps |
+| --- | ---: | ---: | ---: | ---: |
+| Seed 1 | 0 | 86 | 0 | 703 |
+| Seed 2 | 3 | -189 | 0 | 789 |
+| Seed 3 | 9 | -756 | 0 | 785 |
+
+Thus this standard-profile matrix **fails 2-of-3 qualification** despite seed 1
+passing (system101.52MHz, pixel74.73MHz). The actual core lock stays unchanged.
+The failures are DMA/motherboard data/state and one pixel bank register, not
+the CRTC VRAM paths. The private CRTC prototype is therefore not adopted.
+A separate reviewed-main budget32 critical-cohort profile is being tested;
+it is an existing default-off compiler feature, with no timing waiver or
+research-branch code imported. A temporary lock proposal provisions the
+reviewed pair through the official immutable cache builder, without changing
+the selected core lock. Compiler tests remain pending; the interrupted initial
+run with missing common test binaries is retained separately from the full
+rerun after all targets were built.
+
+## Route accounting
+
+Receipts 89-91 add exactly 99.68203672394156, 174.6483835540712, 177.7076671998948
+charged seconds. All 91 unique receipt objects, hashes and Decimal charges
+verify, preserving the original 88-row journal prefix. Cumulative charge
+including the pre-journal amount is 95040.37256684945837 seconds.
+User authorization remains unlimited route budget. Journal SHA-256:
+`d8c48302660404b4ba490b2353805b1318aa97e36e90858a9cec31f8fbdff478`.
+
+### Reviewed cohort placement trial
+
+Reviewed nextpnr main with its existing cohort budget 32 also failed on the frozen region-decode source, seed 2: nine setup violations, -458 ps worst setup, no hold failures and +784 ps minimum hold. Full 17127 timed identities and unchanged clock contracts were audited. This profile is rejected; it is not combined with other profiles to claim a seed gate. Receipt 92 retains the failed run and its 185.2980316360481-second charge, bringing the exact cumulative charge to 95225.67059848550647 seconds.
+
+The reviewed-main monolithic host test was stopped after growing to approximately 45 GiB resident plus 37 GiB swapped; that full-suite run is not passing evidence. Separate investigation is tracked by DeanoC/nextpnr#288.
+
+### Configuration predecode and local read staging
+
+Commit 46cd75db adds twelve per-channel DMA mode-decode configuration bits. All 481 state/interface equivalence points pass against the original live mode-byte decode; wrong reset and programmed-channel mutations reject. The seven focused DMA proof tests and native DMA suite pass. This is a functional/proof result, not a new routed timing pass.
+
+The motherboard read pipeline samples local peripherals at the original phase-8 edge into an independent byte register and transfers that byte into the shared return register at phase 17. It preserves the existing eight active and nine release clocks. An original-behavior ghost return register and the local-phase bound are proved together by temporal induction over the actual motherboard/peripheral RTL. The phase bound is proved, not assumed. The native motherboard suite passes the same 378 transactions in 17245445 clocks. CPU and DMA consume the payload on completion; its inactive intermediate value is not a public read sample.
+
+Initial whole-module equivalence attempts retained 2900 proved points but could not prove the return-data invariant after cutting state/phase relationships; they are retained as failed proof attempts. The single-design temporal proof retains those relationships and passes. Negative tests change the peripheral sample edge or the completed byte and require an actual failed proof, not a parser error. Initial negative-test assertions used a different Yosys diagnostic spelling; the proof rejection was present, and the assertion was corrected. No FPGA or kit ran.
+
+### Reviewed-main fabric gate and authenticated replay
+
+Frozen RTL checkpoint `e799cd7a97f6a536160ea3ba275df68628565a75` passes the fixed three-seed **reported fabric** gate with reviewed nextpnr `b9ffde2d360ef3fc56c67074bfed2ddfe7933535` and Mistral `9ab6522077948fc3dd2e074338874f92e848fc44`. Only the seed changes; source, compiler, environment, input bindings and native recipe are identical. System/capture targets remain 100 MHz and pixel 74.25 MHz. All three runs have the exact same complete 17187 timed identities, every reported row has paired setup/hold checks, and all 20 new FFs have DATAIN/ENA/SCLR coverage.
+
+| Seed | Setup failures | Worst setup | Hold failures | Minimum hold |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 2 | -297 ps | 0 | +771 ps |
+| 2 | 0 | +22 ps | 0 | +767 ps |
+| 3 | 0 | +55 ps | 0 | +764 ps |
+
+The DMA-only seed-3 comparison has four display setup failures, worst -465 ps, and no hold failures (+714 ps minimum). It is retained as a failed intermediate route, not mixed into the accepted recipe. Cross-source private endpoint renames are retained in full unions; the three-seed gate compares the entire identical new identity set, not an intersection.
+
+The official published cache, selected using an explicit temporary candidate lock, reproduces seed 2's RBF, timing and model reports byte for byte. Its routed JSON differs only in `/creator`: the two builds encode the same reviewed source with different version labels. The RBF SHA256 is `d004b81c8cfbe5714ae76843885acddc7ab50b04bbab1404b5849f513126206b`. This is an authenticated replay of the frozen synthesized input, **not** a fresh producer build.
+
+Mapped structure has 3974 FFs and 268 M10Ks. Immutable source-span witnesses identify the twelve DMA predecode FFs and eight read-snapshot FFs even when Yosys removes or inverts their aliases; all are system-clocked. The shared return DATAIN cones exclude direct local-peripheral launches. All 104 independent boot-address FFs, fourteen boot M10Ks, registered dot enables, aligned region decode and shallow DMA snapshot enables retain their checked structure.
+
+The stable checkpoint passes `make check`, all 842 parent tests, 1289 component tests (one optional oracle skipped), all 16 PC/XT simulation suites and generated-consumer consistency. The new native motherboard check retains 378 transactions in 17245445 clocks. These are host checks and routed fabric evidence; no kit ran.
+
+All 105 prior unqualified physical-boundary roles remain accounted for in the new route: 28 HDMI, 21 registered SDRAM/clock, two byte-mask, 32 bidirectional data/OE, sixteen SDRAM capture, four reset-clear and two HPS I2C endpoints. The four reset roles are rebound by immutable RTL source spans, not guessed private aliases. The five reference untimed rows are also retained. Physical whole-board timing, external board/chip budgets, reset/CDC qualification, exact-artifact Quartus checks and hardware acceptance are still open. The full compiler host suite is not claimed as passing evidence.
+
+The diagnostic producer now selects reviewed main and the merged Mistral timing-line correction through its private core lock; other core/global pins are unchanged. It defaults to seed 3, exposes unsigned-64-bit `--seed` for reproduction, and records every generated `.mem`, `.hex` and facts `.vh` file. A fresh ordinary producer run is the next check. No factory/package/runtime contract or hardware acceptance is added.
+
+Receipts 93-97 retain all five new routes, including the failed DMA-only and seed-1 runs. The original 92-receipt prefix is exact; all 97 receipt objects, hashes and Decimal charges verify. Exact cumulative charge: 96582.15624318644347 seconds.
+
+### Fresh ordinary producer and final producer checks
+
+The ordinary producer from clean committed `bc588c5ef93f64876c5cc9071426077907a1d611` completes with its actual private lock, authenticated published tools and default seed 3. It uses no temporary lock or command override. All fourteen generated ROM/facts files and all source/tool bindings verify before capture; the source working tree is clean. Its RBF is byte-identical to the frozen passing seed-3 artifact: SHA256 `dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd`.
+
+The complete 17187-row native inventory has zero setup and hold failures, +55 ps worst setup and +764 ps minimum hold. All twenty added configuration/snapshot FFs have paired DATAIN/ENA/SCLR coverage. The native report uses the producer's normal 64-path diagnostic limit; the complete detailed endpoint inventory remains present. The full synthesized JSON matches the frozen design under explicit source/toolchain/generated-root prefix renaming only; no graph fields or parameters are omitted. A first comparison that removed only source attributes still found path-bearing generated identifiers, so the exact prefix bijection is recorded separately.
+
+The producer/pin delta passes `make check`, its four focused producer tests, 842 parent tests, 1290 component tests (one optional oracle skipped), all sixteen XT simulation suites and generated-consumer consistency. These checks use the authenticated selected Yosys. This remains routed/host diagnostic evidence, not physical whole-board or hardware acceptance. No kit was claimed or touched and no shared/runtime/factory contract changed.
+
+### Rejected further IO staging experiment
+
+An isolated immutable proposal `ac8bdeeaf58585c6e86556c9e17a033be1abae5f` captures all four peripheral read bytes independently at phase 8 and fully predecodes display byte lanes and CRTC write kinds during endpoint preparation. It preserves phase-17 completion and the original ISA commit cycles. It passes eight focused proof tests (including negative mutations), native motherboard transactions and complete CGA/MDA frame checks. Mapped size is 4002 FFs and 268 M10Ks; all 52 pipeline/configuration FFs have source-owned clock and paired endpoint coverage.
+
+Despite those structural/proof results, its unchanged-clock ordinary recipe fails both tested seeds: seed 2 has nine setup failures / -778 ps worst setup, seed 3 thirteen / -582 ps; neither has hold failures (minimum +765/+701 ps). Both complete native inventories contain 17263 paired timed rows. With two failures the two-of-three gate cannot pass, so seed 1 is not run. The proposal is rejected and not adopted or pushed; the passing ordinary producer remains unchanged. Failed captures and the original source archive are retained.
+
+Receipts 98-100 cover the ordinary producer and both failed proposal routes. The original 97-receipt prefix is exact; every one of the 100 receipt objects, hashes and Decimal charges verifies. Exact cumulative charge is 97306.21721360552997 seconds.
+
+### Remaining physical board inputs
+
+The user's targets are Kit A (MiSTer Pi) and Kit B (SuperStation One), using standard MiSTer SDRAM interfaces. [Retro Remake's SuperStation specifications](https://retroremake.co/pages/superstation%E1%B5%92%E2%81%BF%E1%B5%89) advertise 128 MB SDRAM but do not supply the fitted chip timing grade or routed flight/load bounds. The [MiSTer SDRAM assembly reference](https://github.com/MiSTer-devel/Main_MiSTer/wiki/SDRAM-Board-Assembly-%28DIY%29) covers multiple board/chip variants and warns that its BOM may be stale. A common bus interface does not establish interchangeable physical budgets. No chip timing or trace delay is inferred from those descriptions.
+
+RAM Tester's existing budget helper is specifically the EM63B165 -6 model, and its example board intervals are explicitly unmeasured. It also requires an actual final analogue forwarded-clock report with both edges. The next bounded diagnostic is a clock-pad probe using the existing characterized 30 pF reference envelope only; zero output delays instrument arrival extraction and are not asserted board requirements. No board flights, chip timings or acceptance margins are invented. Full physical IO/reset/CDC, clock uncertainty, whole-design exact-artifact Quartus, retention and kit acceptance remain open.
+
+### Clock-pad probe and DQ packing compatibility
+
+The final reference clock-pad probe uses the unchanged ordinary producer input and an isolated QSF/SDC overlay. Only SDRAM_CLK declares the characterized 30 pF reference profile. Zero external delays instrument clock arrival extraction; they are not board requirements. Both forwarded edges have complete final setup/hold records. The rising pad transfer is launched by the falling system-clock edge and has a 1.244..6.810 ns arrival interval; the falling transfer is launched by the rising edge and has a 1.244..6.830 ns interval. Independently combining these bounds gives high/low pulse lower bounds of -0.566/-0.586 ns. This model cannot prove a positive pulse width; it does not measure a negative hardware waveform. The diagnostic route fails timing and is retained without replacing the passing baseline.
+
+The existing RAM Tester corner audit already distinguishes conservative independent envelopes from correlated fitted transfers. Its surrogate clock routes and assumed board flights cannot supply correlation credit for this XT route. The native registered-pad model uses zero conservative early bounds rather than promoting observed fitted minima into guaranteed silicon limits. No phase shift, narrowed envelope or timing waiver is adopted.
+
+A separate host-only pack probe adds fast input/data/output-enable register hints to the sixteen SDRAM DQ pads. All sixteen become MISTRAL_SDRIO with IOREG_IN/OUT/OE enabled. Input capture remains on clocks[1]; data and OE remain on clocks[0]. All sixteen original fabric input-capture registers are absorbed. This establishes compatibility of the existing RTL with IO packing; it supplies no routed timing or hardware result. The probe does not enable a pad profile, does not change the producer constraints and is not an accepted variant. Dynamic DQM masks, board/chip bounds, bus turnaround and capture-to-controller timing still require their own checks.
+
+Receipt 101 records the clock-pad route and its 185.74247418902814-second charge. The original 100-receipt prefix is preserved; cumulative charge is 97491.95968779455811 seconds. Journal SHA256 is `18404c836a33f41ba8bcad3f071bf8e4ac6f75d977ba34be0383ec8fbbc5614c`. The passing functional checkpoint and normal producer remain unchanged. No kit was claimed or touched.
+
+### Local Quartus SDRAM boundary comparison
+
+The build host is Powerboat. Quartus Prime Lite 17.0.2 Build 602 is installed at `/home/deano/intelFPGA_lite/17.0/quartus`; local TimeQuest runs successfully. The earlier SSH-to-self authentication failure was incorrectly treated as a remote tooling blocker and supplies no evidence that Quartus is unavailable.
+
+An isolated whole-RTL comparison first requires three loop-variable declarations to be hoisted for the Quartus 17 parser, the vendor-supported FALSE spelling for disabled bidirectional bus hold, and a behavioral tri-state equivalent of MISTRAL_IO for HPS I2C. These adaptations remain in ignored comparison copies. The frozen source and passing ordinary producer are unchanged. Quartus synthesis then expands the two display VRAMs into 163840 storage registers; the whole design reports 167512 registers. The owned fit is stopped and all attempts retained. This unsuitable mapping is not a timing result or a failure of the OSS block-memory implementation.
+
+A narrower comparison instantiates the exact frozen `pcxt_memory` and `sdram_addon_port` RTL, copies the board's memory PLL and DQ wrapper, and makes the host request interface virtual. It retains the original 100 MHz system clock and 180-degree capture clock. Quartus fits 237 registers and one PLL. Source and generated-input hashes are checked; the only postfit QSF edit allowed by that audit is Quartus's exact LAST_QUARTUS_VERSION metadata suffix. No external input/output requirements or false paths are asserted. PLL uncertainty is derived. Both the initial unspecified-load fit and a separate explicit 30 pF reference-load fit complete; the load is a declared characterization condition, not measured kit loading.
+
+The 30 pF fit has all sixteen capture sources checked for both setup and hold at every corner. The capture handoff has a 5 ns launch/capture relationship. Forwarded-clock reports verify the physical rising pad edge is launched by the falling system-clock edge and vice versa. Synthetic zero delays expose arrivals only and fail their arbitrary output requirement; those failures are not converted into board acceptance. Same-corner pulse arithmetic removes the ideal launch edge, retains the fitted clock prefix, and is invariant under a common prefix translation.
+
+| Quartus reference corner | Capture handoff setup | Capture handoff hold | Fitted high lower bound | Fitted low lower bound |
+| --- | ---: | ---: | ---: | ---: |
+| Slow 100 C | +1.673 ns | +4.340 ns | 2.287 ns | 2.889 ns |
+| Slow -40 C | +1.838 ns | +4.419 ns | 2.613 ns | 2.947 ns |
+| Fast 100 C | +3.020 ns | +4.691 ns | 3.677 ns | 4.267 ns |
+| Fast -40 C | +3.339 ns | +4.703 ns | 3.835 ns | 4.210 ns |
+
+These values describe different Quartus-fitted wiring. They do not grant correlation credit to the OSS route, establish a chip pulse-width requirement, or qualify a native model. The complete unconstrained-path reports are retained: neither the virtual host interface nor external SDRAM setup/hold has an asserted physical budget. The initial unspecified-load fit also passes all sixteen handoffs, but it is not a matched 30 pF comparison. No capture phase, latency, clock rate, producer constraint or timing bound changes follow from either fit.
+
+Evidence is retained under `out/pcxt-whole-board-closure-20261023/quartus-whole-rtl-oracle`, `quartus-sdram-oracle` and `quartus-sdram-reference30`, with per-corner reports, input receipts and machine-readable summaries. These are CPU-only comparison fits, with no new GPU route receipt; the 101-entry route journal is unchanged. No hardware ran. The next physical step remains a qualified correlated model for the actual OSS clock/pad paths and verified chip/board requirements, followed by external-channel and exact-artifact checks.
+
+### Actual OSS clock-route comparison
+
+The reference fit above is not an exact clock-resource match. Its generic Quartus wrapper chooses the top PLL with counters C6/C5 and G4/G7, and needs an explicit `PLL_COMPENSATION_MODE DIRECT` assignment to match the requested direct mode. The actual OSS source uses FPLL `(0,14)`, C6/C7 and G2/G3. Those reference differences are retained and no timing credit is transferred from the earlier fit.
+
+A topology audit now decodes the actual ordinary producer RBF and checks its physical clock bindings against its own routed JSON. All 4107 system-clock and 48 capture-clock physical pip bindings match. Mistral's existing active-route export omits default-selected DCMUX/TCLK and SCLK links, hiding two used edges in the SDRAM clock branch. An isolated diagnostic decoder retains raw selected links; each branch must also be present in the actual source bindings, because a default selection alone does not prove use. Missing-binding and wrong-branch mutations reject. All decoder timing fields are -1 placeholders; this audit measures topology only. No compiler, library pin, producer or timing bound is changed.
+
+Two forced-location attempts use the wrong top-PLL counter coordinates and fail placement; they are retained without inferring illegal native clock connectivity. The checked-in PLL quad Quartus oracle establishes native `(0,14)` C6/C7 at physical counter Y20/Y21. Correcting those locations and the explicit DIRECT assignment produces a successful fit on G2/G3. Its local pad branch still differs, so a further isolated RCF changes only that branch's row-clock selection. The resulting Quartus RBF decodes to the exact same nine-edge GCLK-to-SDRAM_CLK branch as the OSS RBF. Input mux selections for G2/G3 also agree. Other clock branches and fabric placement remain the reference fit.
+
+All sixteen capture-to-controller sources retain paired setup/hold checks at every corner. The final exact-branch comparison reports:
+
+| Corner | Handoff setup | Handoff hold | Fitted high lower bound | Fitted low lower bound |
+| --- | ---: | ---: | ---: | ---: |
+| Slow 100 C | +1.595 ns | +4.402 ns | 3.191 ns | 3.774 ns |
+| Slow -40 C | +1.757 ns | +4.478 ns | 3.513 ns | 3.849 ns |
+| Fast 100 C | +2.997 ns | +4.677 ns | 4.035 ns | 4.633 ns |
+| Fast -40 C | +3.321 ns | +4.683 ns | 4.196 ns | 4.572 ns |
+
+The machine-readable [clock-route comparison](clock-route-comparison.json) binds the source and comparison RBF hashes, all ten nodes and nine edges, decoder identity, input bindings and qualification limits. Raw captures are under `out/pcxt-whole-board-closure-20261023/quartus-sdram-clock-match` and `quartus-sdram-exact-clock-branch`; failed attempts and prior reference fits remain separate. The ordinary source RBF stays `dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd`.
+
+This is a matched forwarded-clock-branch reference, not a whole-artifact Quartus reconstruction. The 30 pF condition is declared, not measured. Common clock side branches, complete electrical/corner correlation, chip/board setup/hold and pulse-width requirements, DQM, bus turnaround, consumption-cycle identity, reset/CDC and whole-design uncertainty still require qualification. No positive pulse or handoff number overrides those missing checks. GPU route receipts remain at 101; these are CPU-only oracle/decoding runs. No hardware ran.
+
+### Explicit setup/hold uncertainty screen
+
+The local Quartus reference now includes both source PLL configurations, at their native physical sites/counters/global roots, with the exact SDRAM forwarded-clock branch retained. A preserved eight-bit pixel counter supplies same-clock pixel paths for uncertainty extraction; it is not the actual pixel fabric. Native video FPLL `(0,31)` C6 maps to Quartus physical counter Y33, as the checked-in two-PLL fixture establishes. An initial Y37 mapping attempt fails and is retained without inferring illegal native clock connectivity.
+
+`scripts/screen_fes_pcxt_uncertainty.py` checks the producer's embedded report and RBF hash against the branch reference, verifies retained reference summaries, extracts explicit setup/hold uncertainty increments for each clock edge pair at all four corners, and screens the complete native inventory. It rejects changed evidence, incomplete corners, missing or ambiguous increments, negative/nonfinite budgets, duplicate endpoints and relaxed clock targets. No native model, source clock, SDC or producer behavior changes. Nine focused host tests pass, including setup/hold failures and substitution/coverage rejection cases.
+
+The [machine-readable uncertainty screen](uncertainty-screen.json) retains all 17196 endpoint rows: 17187 paired rows have both reference budgets, and nine unpaired rows remain explicit. Per-pair worst reference setup/hold budgets are 100/0 ps for system-to-system, 90/70 ps for capture-to-system, and 200/0 ps for pixel-to-pixel. Zero is an explicitly reported TimeQuest hold increment, not an assumed missing value. These remain reference conditions; they are not measured oscillator/board bounds or a complete physical model.
+
+The source's reported fabric gate is unchanged, but its setup headroom fails this uncertainty screen: two system-clock enables have adjusted margins -45 ps (CRTC register enable) and -2 ps (VRAM enable). All screened hold margins stay positive. No failures or unpaired rows are waived, and the tool returns nonzero. No hardware ran. The restored private pin reproduces the baseline synthesis; the CRTC trial and separate slower-memory feasibility work are recorded below.
+
+### Rejected write-select trial and physical read boundary
+
+The unchanged private toolchain was restored through its authenticated bootstrap. Re-synthesizing the frozen baseline reproduces the entire previous JSON after normalizing only the recorded generated/tool-cache root prefixes; no fields are omitted. The programmed CRTC write-select trial passes full-state sequential equivalence, including all 128 programmed register bits; wrong-reset and wrong-mask variants fail that proof. Its fixed-recipe seeds 2 and 3 nevertheless fail native setup: 317 paths at -2.813 ns and 18 paths at -1.233 ns respectively. Both have positive reported hold margins. The trial is rejected without running seed 1 or changing the selected RTL. The complete route journal retains 106 receipts, including both failed trials and their measured charges.
+
+The [manufacturer's MiSTer Pi SDRAM schematic](https://github.com/Retro-Remake/Hardware_MiSTER-Pi/blob/787c33cd60fe0c1f3df9a369744b675022676c2d/Hardware/SDRAM/SDRAM.pdf) specifies two AS4C32M16SB-6TIN devices, shared address-pin byte masks, tied-high CKE and an inverter for the second chip select. The controller already drives masks on A11/A12. Its separate CKE/DQML/DQMH shell outputs are diagnostic mirrors, not separate signals on that published module connector; they are not silently waived from the native inventory. This establishes a published reference, not either kit's fitted revision or trace bounds. Kit B's integrated memory remains unverified.
+
+The [chip manufacturer's revision 1.4 datasheet](https://www.alliancememory.com/wp-content/uploads/AllianceMemory_512M_SDRAM_Bdie_AS4C32M16SB-7TXN-6TIN-7BIN__Rev1.4_June2024NK.pdf), tables 16/17, specifies the -6 device's CL2 minimum period of 10 ns, maximum access of 6 ns, minimum output hold of 2.5 ns, and input setup/hold of 1.5/0.8 ns under its stated electrical conditions. The published clock high/low minima are 2 ns. Those conditions are not measured kit loading, edge rates or flight times.
+
+A zero-flight chip-pin diagnostic applies those explicit CL2 requirements to the fitted reference at all four corners. It checks the actual address/command/data connector nets, with masks on A11/A12. This is an optimistic conditional scenario, not a consumption-cycle proof, native-model adoption or kit acceptance. The earlier fabric-DQ reference misses slow-100C input setup by 9.557 ns and output setup by 6.195 ns.
+
+A separate reference keeps the exact nine-edge forwarded-clock branch and packs all sixteen existing DQ input, data and output-enable registers into IO cells, with explicit zero input-delay selectors. No sample edge or RTL latency changes. Decoder and fitter audits verify the branch and every packed pad. At every corner all 51 output channels pass setup/hold; worst margins are +1.978/+2.766 ns. Input setup improves but all sixteen channels still fail: worst -3.949 ns. All input holds remain positive, minimum +4.856 ns. Three IO-to-fabric capture handoffs fail setup at the slow corners, worst -1.434 ns; all handoff holds pass. The new reference is not a replacement for the ordinary producer artifact.
+
+A hypothetical common capture-clock translation would need more than 3.949 ns to repair input setup and less than 4.856 ns to retain input hold under these reference conditions: only a 0.907 ns open interval before board bounds. Such a shift also reduces the following system-edge handoff budget. This algebra does not qualify a new PLL phase or justify a multicycle exception. It identifies the read-capture and transfer boundary as an architectural obstacle; packing or additional route seeds alone does not solve it. The next implementation needs an explicit valid-word/capture-cycle contract and transfer pipeline, followed by fresh physical setup/hold checks. System/pixel/source clocks remain unchanged.
+
+The whole-RTL Quartus comparison also retains a local trial separating video RAM read processes. It still expands the display RAM and maps 167512 registers, so its unsuitable fit was stopped. No read-during-write waiver or RTL change is adopted. Raw comparisons, rejected trials, source/tool identities and reports are retained under `out/pcxt-whole-board-closure-20261023`. All evidence here is host-only; no kit was claimed or programmed.
+
+### Separate 50 MHz SDRAM feasibility profile
+
+An isolated default-off prototype retains the 100 MHz CPU/frontend and 74.25 MHz pixel clocks, while running the SDRAM controller at 50 MHz with a 180-degree 50 MHz capture clock from the same PLL. The existing held-request/completion interface crosses related clocks; it does not add an asynchronous request queue. The controller input stage follows the slower clock. Its explicit refresh threshold is 349, giving a 350-clock nominal interval of 7 us with room for command retirement; the tests bound observed refresh gaps to 390 slow clocks. A slow-domain reset stretcher retains one-fast-cycle cold resets, and initialization remains gated during that reset. No new mode is adopted by the selected producer.
+
+The private source is `7950b95c4c29c2a400f72c5757d4ca48b5212cd3`. The unchanged default memory implementation passes a 464-point sequential-equivalence proof. The slower variant passes all three mask-delay cases with 10507 reads, 8491 writes, 160 warm-reset and 80 cold-reset phases, plus short cold-reset pulses on both divider phases. Removing reset stretching or using the late refresh threshold fails the corresponding check. The complete CGA Direct system simulation also passes all three mask-delay cases through cold and warm boots, DMA, refresh and 4950000 checked active pixels per case. These are digital-model results, not physical chip timing evidence.
+
+A Quartus reference now contains the actual 100 MHz frontend and 50 MHz controller/capture clocks, with the same prototype memory RTL and exact nine-edge forwarded-clock branch decoded from native seed 2. The native memory uses C5/G1 while the CPU remains C6/G2 and capture C7/G3; the pixel global root is G0. The comparison preserves those requested physical sites/counters/roots and uses a declared 30 pF condition. An initial fit retaining stale MLAB placements fails; a separate fit removes all remaining fabric placements and succeeds. Other placement and clock side branches differ from the native board.
+
+Across all four corners the reference checks all sixteen inputs, 51 output channels and sixteen capture handoffs. Every setup/hold check passes under the explicit zero-flight chip-pin scenario:
+
+| Reference boundary | Worst setup | Worst hold |
+| --- | ---: | ---: |
+| Chip data to capture | +6.038 ns | +4.861 ns |
+| Data/OE/address/command outputs | +6.989 ns | +7.753 ns |
+| Capture to controller fabric | +2.751 ns | +10.605 ns |
+
+Each corner also reports 270 register paths, including 68 frontend-to-controller and 46 controller-to-frontend paths. All pass setup and hold; worst register-only margins across corners are +2.751/+0.144 ns. The separate synthetic zero-delay clock-observation row is excluded from those register figures. These are reference paths, not bounds transferred into the native model. Kit revision/chip identity, electrical conditions, board delays, turnaround, consumption-cycle correspondence and reset/CDC qualification remain open.
+
+The three fresh native routes retain the original placement recipe and complete reports:
+
+| Seed | Legacy gate exit | Setup failures | Worst setup | Hold failures | Minimum hold |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1 | 8 | -433 ps | 0 | +787 ps |
+| 2 | 0 | 0 | +307 ps | 0 | +797 ps |
+| 3 | 1 | 22 | -362 ps | 0 | +784 ps |
+
+This is not a qualified gate. Each report has 17165 paired and 274 unpaired rows, and the compiler only recognizes equal-period declared phase relations. The 100/50 MHz crossings need explicit compiler timing support. In addition, the legacy detailed report assigns its first launch event to an entire net, obscuring mixed launch identities; [nextpnr #294](https://github.com/DeanoC/nextpnr/pull/294) adds an actual launch event per endpoint, with all fourteen timing-report tests passing. An additional default-off harmonic-clock implementation is being checked against independent edge enumeration, without changing the selected toolchain. No missing crossing, uncertainty or physical IO requirement is waived.
+
+The unchanged selected source at `d09ae1105` passes `make check` and the complete `make test-changed --base 5f33d986c1d377946b447a92e1a704d988eda238` run: 842 parent tests, 1299 component tests (one optional oracle skipped), all sixteen XT suites, and every other RTL lane selected by that command. The first sandboxed attempt fails because socket fixtures cannot bind; the successful host rerun and both logs are retained. [Machine-readable follow-up evidence](closure-followup.json) records source identities, reference summaries and trial accounting. The 106-entry journal verifies every full receipt, hash and decimal charge, with cumulative charged wall time 98433.87671378627359 seconds. This includes failures and lease/placement/route wall time; it is not a GPU-seconds claim. No kit ran, no shared/runtime contract changed, and no package was promoted.

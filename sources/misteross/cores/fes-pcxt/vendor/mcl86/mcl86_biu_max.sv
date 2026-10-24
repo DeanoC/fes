@@ -129,6 +129,7 @@ module mcl86_biu_max
         output logic  [2:0] S2_S0_OUT,              // Max-mode status for the 8288 (see table above)
 
         // EU to BIU Signals
+        input  wire         EU_BIU_STROBE,          // Held command action is valid on this edge
         input  wire  [15:0] EU_BIU_COMMAND,         // Packed command word (decoded below)
         input  wire  [15:0] EU_BIU_DATAOUT,         // Write data / segment-register load value
         input  wire  [15:0] EU_REGISTER_R3,         // Address (offset) for the requested transfer
@@ -320,7 +321,7 @@ module mcl86_biu_max
     //  eu_biu_strobe[1:0] are available for only one clock cycle and cause BIU to take immediate action.
     //  eu_biu_req stays asserted until the BIU is available to service the request.
     assign eu_prefix_seg                  = EU_BIU_COMMAND[14];
-    assign eu_biu_strobe[1:0]             = EU_BIU_COMMAND[13:12]; // 01=opcode fetch 10=clock load 11=load segment register(eu_biu_req_code has the regiter#)
+    assign eu_biu_strobe[1:0]             = EU_BIU_STROBE ? EU_BIU_COMMAND[13:12] : 2'b00; // 01=opcode fetch 10=clock load 11=load segment register(eu_biu_req_code has the regiter#)
     assign eu_biu_segment[1:0]            = EU_BIU_COMMAND[11:10];
     assign eu_biu_req                     = EU_BIU_COMMAND[9];
     assign eu_biu_req_code                = EU_BIU_COMMAND[8:4];

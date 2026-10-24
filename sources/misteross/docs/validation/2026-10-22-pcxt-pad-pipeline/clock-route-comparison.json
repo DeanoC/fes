@@ -1,0 +1,104 @@
+{
+  "PLL_compensation": "DIRECT",
+  "Quartus_counter_locations": [
+    "PLLOUTPUTCOUNTER_X0_Y20_N1",
+    "PLLOUTPUTCOUNTER_X0_Y21_N1"
+  ],
+  "all16_capture_handoffs_paired_at_all4_corners": true,
+  "all9_edges_identical": true,
+  "capture_phase_ns": 5,
+  "classification": "Host-only Quartus reference with exact OSS SDRAM forwarded-clock branch; no whole-board or hardware acceptance",
+  "comparison_rbf_sha256": "7af5eaa46f1587099b33f67cc599fa480cfcb8d6de4b0b2065c6e5d27ad10a11",
+  "corners": {
+    "7_slow_1100mv_-40c": {
+      "fitted_high_lower_ns": 3.513,
+      "fitted_low_lower_ns": 3.849,
+      "handoff_hold_wns_ns": 4.478,
+      "handoff_setup_wns_ns": 1.757
+    },
+    "7_slow_1100mv_100c": {
+      "fitted_high_lower_ns": 3.191,
+      "fitted_low_lower_ns": 3.774,
+      "handoff_hold_wns_ns": 4.402,
+      "handoff_setup_wns_ns": 1.595
+    },
+    "MIN_fast_1100mv_-40c": {
+      "fitted_high_lower_ns": 4.196,
+      "fitted_low_lower_ns": 4.572,
+      "handoff_hold_wns_ns": 4.683,
+      "handoff_setup_wns_ns": 3.321
+    },
+    "MIN_fast_1100mv_100c": {
+      "fitted_high_lower_ns": 4.035,
+      "fitted_low_lower_ns": 4.633,
+      "handoff_hold_wns_ns": 4.677,
+      "handoff_setup_wns_ns": 2.997
+    }
+  },
+  "declared_reference_load_pf": 30,
+  "decoder": {
+    "binary_sha256": "8dcedd9622675f3d439c7a039de5a5332b8f0961ca84606e0ffafce1cf3df9f2",
+    "default_clock_edges_omitted_by_original_helper": 2,
+    "negative_controls_rejected": [
+      "missing recorded binding",
+      "wrong physical clock branch"
+    ],
+    "raw_selected_export_sha256": "5368cf01348a0ae7870fb24d2ef0c748d586a2c9b1c6f66251cd7099de4bca7a",
+    "scope": "Retain default DCMUX/TCLK and SCLK clock links omitted by active-route heuristic; selection alone does not prove use. Branch use checked against explicit source bindings. All timing columns are -1 placeholders.",
+    "source_sha256": "f309eb9cdc17be151401af3d17e0c669ebb6042704a84c9ec365a18a24a92bc7"
+  },
+  "forwarded_branch": [
+    "GCLK.000.036.0002",
+    "SCLK.077.000.0009",
+    "SCLKB1.077.000.0027",
+    "SCLKB2.077.000.0028",
+    "BCLK.067.000.0008",
+    "BCLKB.067.000.0008",
+    "XCLKB1.070.000.0008",
+    "XCLKB2A.070.000.0008",
+    "TCLK.070.000.0015",
+    "DCMUX.070.000.0015"
+  ],
+  "global_clock_roots": [
+    2,
+    3
+  ],
+  "hardware_acceptance": false,
+  "limits": [
+    "Clock side branches and loads differ from whole OSS design",
+    "Controller/capture fabric placement is the reference fit, not whole OSS routing",
+    "Same-corner fitted pulse arithmetic does not replace clock uncertainty, board waveform or chip pulse requirements",
+    "No external SDRAM setup/hold, masks or bus-turnaround qualification",
+    "All synthesized source and constraint identities retained; producer remains unchanged",
+    "No bound or correlation credit adopted into native timing",
+    "No kit programming"
+  ],
+  "measured_kit_load": false,
+  "native_PLL_site": "FPLL.000.014",
+  "native_clock_binding_audit": {
+    "clocks[0]": {
+      "all_bound_physical_pips_match": true,
+      "missing_decoded_edges": [],
+      "physical_bound_pips": 4107
+    },
+    "clocks[1]": {
+      "all_bound_physical_pips_match": true,
+      "missing_decoded_edges": [],
+      "physical_bound_pips": 48
+    }
+  },
+  "output_counters": [
+    6,
+    7
+  ],
+  "pad": "PIN_AD20",
+  "period_ns": 10,
+  "physical_qualification": false,
+  "schema": 1,
+  "source_compiler": {
+    "mistral": "9ab6522077948fc3dd2e074338874f92e848fc44",
+    "nextpnr": "b9ffde2d360ef3fc56c67074bfed2ddfe7933535"
+  },
+  "source_rbf_sha256": "dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd",
+  "source_routed_sha256": "a4cf5830581571374328e9483950ff4bf571728bd797593bbfefabd7edccf113"
+}

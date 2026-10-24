@@ -113,16 +113,19 @@ class CounterEquivalenceTest(unittest.TestCase):
 
     def test_display_phase_and_enable_are_cycle_exact(self):
         source = (CORE / 'expansions/pcxt_display_card.sv').read_text()
-        start = source.index('    reg [26:0] phase;')
-        logic = source[start:source.index('    reg [3:0] dot;', start)]
-        logic = logic.replace('    reg [26:0] phase;', '')
+        logic = '\n'.join(re.findall(r'    localparam integer DOT_(?:RATE|WRAP) = [^;]+;', source))
         update = re.search(r'phase <= (dot_ce[^;]+);', source).group(1)
+        # The reset/inductive property in test_pcxt_dot_enable.py establishes
+        # the registered flag relation at every reachable edge. Under that
+        # relation retain the original all-phase arithmetic/carry comparison.
         fixture = r"""module proof #(parameter bit MDA=0)(input [26:0] phase, output ok);
-        """ + logic + 'wire [26:0] actual_next = ' + update + ';\n' + r"""
+        """ + logic + r"""
           wire [27:0] old_sum = {1'b0,phase} + (MDA ? 28'd16257000 : 28'd14318180);
           wire old_enable = old_sum >= 28'd100000000;
+          wire dot_ce = old_enable;
           wire [26:0] old_next = old_enable ? 27'(old_sum - 28'd100000000) : old_sum[26:0];
-          assign ok = dot_ce == old_enable && actual_next == old_next;
+        """ + 'wire [26:0] actual_next = ' + update + ';\n' + r"""
+          assign ok = (phase >= 27'(DOT_WRAP)) == old_enable && actual_next == old_next;
         endmodule
         """
         for mda in (0, 1):
