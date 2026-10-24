@@ -152,10 +152,46 @@ It maintains MA at the same CRTC edge without adding a memory-read cycle.
 The horizontal-wrap mutation rejects, including live horizontal-total changes.
 It is not adopted into RTL and has no routed timing result.
 
+## Stable-source broad validation and reviewed-main comparison
+
+The complete stable-source `make test-changed --base 547f0c20` passes:
+842 parent tests, 1283 component tests (one optional host oracle skipped),
+generated-consumer consistency and all 16 PC/XT RTL simulation suites. Its log
+is `stable-region-test-changed.log`. The earlier intentionally stopped run
+remains separate and is not counted as a pass.
+
+An unmodified checkout of reviewed nextpnr main
+`b9ffde2d360ef3fc56c67074bfed2ddfe7933535` builds with merged Mistral
+`9ab6522077948fc3dd2e074338874f92e848fc44`. Its standard producer profile
+uses the same frozen RTL, clocks, HeAP weight2000/critexp5 and GPU router,
+without the research branch's hard-block, LUT-swap or final-move options.
+All three final reports preserve every one of the 17127 reference timed
+endpoint identities; setup and hold are both checked and clock contracts are
+exact. Reference physical IO/reset obligations remain unqualified.
+
+| Reviewed-main standard profile | Setup failures | Minimum setup ps | Hold failures | Minimum hold ps |
+| --- | ---: | ---: | ---: | ---: |
+| Seed 1 | 0 | 86 | 0 | 703 |
+| Seed 2 | 3 | -189 | 0 | 789 |
+| Seed 3 | 9 | -756 | 0 | 785 |
+
+Thus this standard-profile matrix **fails 2-of-3 qualification** despite seed 1
+passing (system101.52MHz, pixel74.73MHz). The actual core lock stays unchanged.
+The failures are DMA/motherboard data/state and one pixel bank register, not
+the CRTC VRAM paths. The private CRTC prototype is therefore not adopted.
+A separate reviewed-main budget32 critical-cohort profile is being tested;
+it is an existing default-off compiler feature, with no timing waiver or
+research-branch code imported. A temporary lock proposal provisions the
+reviewed pair through the official immutable cache builder, without changing
+the selected core lock. Compiler tests remain pending; the interrupted initial
+run with missing common test binaries is retained separately from the full
+rerun after all targets were built.
+
 ## Route accounting
 
-Receipt 88 adds exactly 122.53326528705657 charged seconds. All 88
-unique receipt objects, hashes and Decimal charges verify, preserving the
-original 87-row journal prefix. Cumulative charge including the pre-journal
-amount is 94588.33447937155081 seconds. User authorization remains
-unlimited route budget. Journal SHA-256: `0b15cbb42bbecfdf3b5ef0192530efa6273a605af873df68e829777a1d932719`.
+Receipts 89-91 add exactly 99.68203672394156, 174.6483835540712, 177.7076671998948
+charged seconds. All 91 unique receipt objects, hashes and Decimal charges
+verify, preserving the original 88-row journal prefix. Cumulative charge
+including the pre-journal amount is 95040.37256684945837 seconds.
+User authorization remains unlimited route budget. Journal SHA-256:
+`d8c48302660404b4ba490b2353805b1318aa97e36e90858a9cec31f8fbdff478`.
