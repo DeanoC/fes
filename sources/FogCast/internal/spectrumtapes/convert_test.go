@@ -555,6 +555,44 @@ func TestEdgelessPulseExtendsDataBlock(t *testing.T) {
 	}
 }
 
+// A generalised block whose data alphabet has one symbol stores its symbols in
+// zero bytes. After the pilot they still play: every symbol decodes as 0.
+func TestOneSymbolDataPlaysAfterPilot(t *testing.T) {
+	tz := newTZX()
+	tz.generalised(0, []sym{{0, []int{1000}}}, 1, [][2]int{{0, 4}}, []sym{{0, []int{300, 300}}}, 2, 5, nil)
+	blocks, err := read(tz.b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := newEngine(blocks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []uint32
+	for len(got) < 14 {
+		tstates, _, err := e.next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, tstates)
+	}
+	want := []uint32{1000, 1000, 1000, 1000, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("edges %v, want %v", got, want)
+	}
+	pzx, err := Convert(tz.b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, is48 := range modes() {
+		want, _ := fuseRuns(blocks, is48)
+		got, _ := deckRuns(pzx, is48)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("first difference %s", firstDifference(got, want))
+		}
+	}
+}
+
 func TestConvertRejects(t *testing.T) {
 	loop := newTZX()
 	loop.tone(100, 1)

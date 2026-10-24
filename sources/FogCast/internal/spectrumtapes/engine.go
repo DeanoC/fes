@@ -498,12 +498,19 @@ func (e *engine) generalisedEdge(b *block) (uint32, bool, int) {
 				e.symbolsThroughRun = 0
 				e.run++
 				if uint32(e.run) == table.inBlock {
-					if b.dataTable.symbols == nil || len(b.data) == 0 {
+					// A one-symbol alphabet takes zero bits a symbol, so its
+					// data stream is empty while the block still has
+					// symbols; libspectrum on glibc plays them (malloc(0) is
+					// not NULL), as the TZX format means.
+					if b.dataTable.symbols == nil || b.dataTable.inBlock == 0 {
 						e.state = statePause
 					} else {
 						e.state = stateData1
 						e.bitsThroughByte, e.bytesThroughStream, e.symbolsThroughStream = 0, 0, 0
-						e.currentB = b.data[0]
+						e.currentB = 0
+						if len(b.data) > 0 {
+							e.currentB = b.data[0]
+						}
 						e.currentSymbol = e.dataSymbol()
 					}
 				}
