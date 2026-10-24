@@ -2424,7 +2424,21 @@ func libraryPlayDestination(game hostclient.Game) rooms.Destination {
 
 func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp, packageID, expectedPackageID string) {
 	if packageID != "" {
-		if _, err := a.client.SelectCoreEntryPackage(ctx, game.ID, expectedPackageID, packageID); err != nil {
+		_, err := a.client.SelectCoreEntryPackage(ctx, game.ID, expectedPackageID, packageID)
+		if err != nil {
+			// The host may commit the compare-and-swap and lose its response.
+			// Confirm the saved entry before deciding that retry must remain
+			// pending or that another selection should stop this launch.
+			if current, readErr := a.client.CoreEntry(ctx, game.ID); readErr == nil {
+				switch {
+				case current.PackageID == packageID:
+					err = nil
+				case current.PackageID != expectedPackageID:
+					err = errors.New("saved package selection changed while launch was pending")
+				}
+			}
+		}
+		if err != nil {
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			if a.launch.GameID != game.ID {

@@ -332,8 +332,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if r.Method == http.MethodPut && launcherCoreEntryPath(r.URL.Path) {
-			// The body stays the caller's exact package selection. This shares
-			// the paired-kit target check and targetMu lock with ROM selection.
+			// The body stays the caller's exact package selection. Compatibility
+			// and persistence checks must use this kit, even when another target
+			// remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
 			a.routes.ServeHTTP(w, r)
 			return
 		}

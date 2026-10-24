@@ -91,7 +91,7 @@ func hardwareExpansion(t *testing.T, inspection corepackage.Inspection, changes 
 
 func TestShelfComputersListsZX81AndC64Only(t *testing.T) {
 	ctx := context.Background()
-	archive, _ := hardwareZX81Fixture(t, true)
+	archive, _ := hardwareZX81Fixture(t, true, false)
 	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
 	store := s.catalog.(*catalog.Store)
 	if _, err := store.CreateCoreEntry(ctx, "Commodore 64", "fes.c64", entry.PackageID); err != nil {
@@ -133,7 +133,7 @@ func (c invalidShelfMediaCatalog) CoreMediaInfo(context.Context, string) (catalo
 
 func TestShelfComputerRequiresZX81LinkerAndValidSelectedMedia(t *testing.T) {
 	ctx := context.Background()
-	archive, _ := hardwareZX81Fixture(t, false)
+	archive, _ := hardwareZX81Fixture(t, false, false)
 	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "ZX81 with tape", time.Minute)
 	listed, err := s.ShelfComputers(ctx)
 	if err != nil || len(listed) != 1 || listed[0].Ready {

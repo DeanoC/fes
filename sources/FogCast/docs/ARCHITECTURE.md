@@ -996,6 +996,12 @@ saving that package selection and then uses the ordinary launch path. Package,
 firmware, media and persistence checks remain on the host; an exact-package
 expansion keeps the existing package selected.
 
+Paired package selection scopes compatibility and persistence checks to the kit
+making the request, even while another kit remains foreground. If the selection
+reply is ambiguous, Tenfoot reads the saved entry: the requested package
+confirms the selection, the old package keeps retry available, and a different
+package reports a conflict without overwriting it.
+
 The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the setup room.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`

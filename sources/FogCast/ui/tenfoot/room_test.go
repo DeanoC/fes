@@ -107,9 +107,17 @@ func TestWorkshopLaunchRetryRepeatsFailedPackageSelection(t *testing.T) {
 	gameID, oldPackage, nextPackage := "zx81-workshop", strings.Repeat("a", 64), strings.Repeat("b", 64)
 	var mu sync.Mutex
 	selections, launches := 0, 0
+	currentPackage := oldPackage
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/library/core-entries/" + gameID:
+			if r.Method == http.MethodGet {
+				mu.Lock()
+				current := currentPackage
+				mu.Unlock()
+				_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: gameID, CoreID: "fes.zx81", PackageID: current})
+				return
+			}
 			mu.Lock()
 			selections++
 			attempt := selections
@@ -125,6 +133,9 @@ func TestWorkshopLaunchRetryRepeatsFailedPackageSelection(t *testing.T) {
 				_, _ = io.WriteString(w, `{"error":{"code":"TEMPORARY","message":"package selection unavailable"}}`)
 				return
 			}
+			mu.Lock()
+			currentPackage = nextPackage
+			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: gameID, CoreID: "fes.zx81", PackageID: nextPackage})
 		case "/api/v1/session/launch":
 			mu.Lock()
@@ -181,6 +192,143 @@ func TestWorkshopLaunchRetryRepeatsFailedPackageSelection(t *testing.T) {
 	mu.Unlock()
 	if phase != "ok" || selectionCount != 2 || launchCount != 1 {
 		t.Fatalf("retry phase=%q selections=%d launches=%d", phase, selectionCount, launchCount)
+	}
+}
+
+func TestWorkshopLaunchRetryRecoversCommittedSelectionWithLostReply(t *testing.T) {
+	gameID, oldPackage, nextPackage := "zx81-workshop", strings.Repeat("a", 64), strings.Repeat("b", 64)
+	var mu sync.Mutex
+	selections, entryReads, launches := 0, 0, 0
+	currentPackage := oldPackage
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries/" + gameID:
+			if r.Method == http.MethodGet {
+				mu.Lock()
+				entryReads++
+				read := entryReads
+				current := currentPackage
+				mu.Unlock()
+				if read == 1 {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, _ = io.WriteString(w, `{"error":{"code":"TEMPORARY","message":"selection confirmation unavailable"}}`)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: gameID, CoreID: "fes.zx81", PackageID: current})
+				return
+			}
+			mu.Lock()
+			selections++
+			attempt := selections
+			if attempt == 1 {
+				currentPackage = nextPackage // The PUT committed, but its response is lost.
+			}
+			current := currentPackage
+			mu.Unlock()
+			var body map[string]string
+			if r.Method != http.MethodPut || json.NewDecoder(r.Body).Decode(&body) != nil || body["expected_package_id"] != oldPackage || body["package_id"] != nextPackage {
+				t.Errorf("package selection request %s body %+v", r.Method, body)
+				http.Error(w, "wrong package selection", http.StatusBadRequest)
+				return
+			}
+			if attempt > 1 || current == nextPackage {
+				w.WriteHeader(http.StatusConflict)
+				_, _ = io.WriteString(w, `{"error":{"code":"STALE_REVISION","message":"core entry selection changed"}}`)
+				return
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"error":{"code":"TEMPORARY","message":"package selection response lost"}}`)
+		case "/api/v1/session/launch":
+			mu.Lock()
+			launches++
+			mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "active", "game_id": gameID})
+		case "/api/v1/debug/ui-events":
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	game := availableGame(gameID, "Workshop ZX81", "zx81")
+	app := &App{client: NewClient(server.URL, server.Client()), room: &rooms.Instance{}, games: []hostclient.Game{game}}
+	app.mu.Lock()
+	app.startLaunchGameWithPackageLocked(game, nextPackage, oldPackage)
+	app.mu.Unlock()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		app.mu.Lock()
+		phase := app.launch.Phase
+		app.mu.Unlock()
+		if phase == "error" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	app.mu.Lock()
+	if app.launch.Phase != "error" || app.launchPackageID != nextPackage || app.launchExpectedPackageID != oldPackage {
+		app.mu.Unlock()
+		t.Fatalf("lost selection did not remain retryable: launch=%+v package=%q expected=%q", app.launch, app.launchPackageID, app.launchExpectedPackageID)
+	}
+	app.handleLaunchOverlayLocked(CmdSelect)
+	app.mu.Unlock()
+
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		app.mu.Lock()
+		phase := app.launch.Phase
+		app.mu.Unlock()
+		if phase == "ok" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	app.mu.Lock()
+	phase := app.launch.Phase
+	app.mu.Unlock()
+	mu.Lock()
+	selectionCount, readCount, launchCount := selections, entryReads, launches
+	mu.Unlock()
+	if phase != "ok" || selectionCount != 2 || readCount != 2 || launchCount != 1 {
+		t.Fatalf("retry phase=%q selections=%d entry reads=%d launches=%d", phase, selectionCount, readCount, launchCount)
+	}
+}
+
+func TestWorkshopLaunchDoesNotOverwriteAChangedPackageSelection(t *testing.T) {
+	gameID, oldPackage, nextPackage, otherPackage := "zx81-workshop", strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	selections, launches := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries/" + gameID:
+			if r.Method == http.MethodGet {
+				_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: gameID, CoreID: "fes.zx81", PackageID: otherPackage})
+				return
+			}
+			selections++
+			w.WriteHeader(http.StatusConflict)
+			_, _ = io.WriteString(w, `{"error":{"code":"STALE_REVISION","message":"core entry selection changed"}}`)
+		case "/api/v1/session/launch":
+			launches++
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "active", "game_id": gameID})
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	app := &App{
+		client:          NewClient(server.URL, server.Client()),
+		launch:          LaunchSnapshot{GameID: gameID, Phase: "launching"},
+		launchPackageID: nextPackage, launchExpectedPackageID: oldPackage,
+	}
+	app.doLaunch(context.Background(), availableGame(gameID, "Workshop ZX81", "zx81"), ClientStamp{}, nextPackage, oldPackage)
+	if app.launch.Phase != "error" || !strings.Contains(app.launch.Message, "saved package selection changed") {
+		t.Fatalf("changed package was not reported as a conflict: %+v", app.launch)
+	}
+	if app.launchPackageID != nextPackage || app.launchExpectedPackageID != oldPackage || selections != 1 || launches != 0 {
+		t.Fatalf("conflicting selection state: package=%q expected=%q PUTs=%d launches=%d", app.launchPackageID, app.launchExpectedPackageID, selections, launches)
 	}
 }
 
