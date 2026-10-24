@@ -462,3 +462,43 @@ reference has minimum high/low bound 8.187 ns under its declared conditions,
 versus the published chip's 2 ns requirement; native fanout, board loads/flight
 and jitter remain unqualified. [Verification evidence](board50-verification.json)
 retains the exact scope, test results and hashes. No hardware ran.
+
+
+### Stricter FF clear reference: separate fresh cohort
+
+Nextpnr [#296](https://github.com/DeanoC/nextpnr/pull/296), source
+`fdf0462df26d18bfb308248249e1798a0b58667c`, adds an explicit default-off
+`--mistral-ff-reset-reference`. Its local clear recovery reference is 170 ps;
+the historical 270 ps hold floor remains. Three Quartus fixture families give
+1648 observations across four corners: maximum recovery 164 ps and removal
+75 ps. These bounds do not qualify reset pulse width, slew, routing fast
+corners, PLL relock or MTBF. Inactive, disconnected constant-high clears keep
+the ordinary calibration model; missing signal clears still reject. No timing
+exceptions or failure overrides are added.
+
+Three fresh native routes use this stricter model and the same frozen board50
+source/synthesis, harmonic-clock option, placement recipe and Mistral source.
+This is a separate recipe from the earlier ordinary-clear cohort.
+
+| Seed | Raw setup ns | Hold ns | Reference-screened setup ns |
+| --- | ---: | ---: | ---: |
+| 1 | +0.784 | +0.779 | +0.704 |
+| 2 | +0.881 | +0.783 | +0.801 |
+| 3 | +0.565 | +0.750 | +0.365 |
+
+All three have identical 17709 paired logical endpoint identities, including
+625 clear checks under the stricter reference. Clock topology/RBF audits pass.
+Nine unpaired rows remain, so the overall reference screen still fails closed.
+All 63 compiler timing/IO tests, seven parser cases and the CLI/checkpoint test
+pass at the committed compiler source. Portable Quartus refits also pass.
+Two earlier captures fail on inactive-clear calibration after routing; their
+source, binaries, receipts and artifacts are retained separately.
+
+[Reset-reference evidence](board50-reset-reference.json) records hashes and
+limits. Receipts 117-121 retain those two failures and three successful fresh
+routes. The previous 116-entry prefix is exact. Cumulative charged wall time
+is 100144.64048435585514741 seconds (not GPU time); journal SHA256 is
+`340d7fb18e6722180da2c4cd37035bb36f2ef3cd0360aff55596314eb4da4050`.
+Whole-board physical qualification remains open: external IO/OE/feedback,
+reset/CDC, actual board load/flight/CS2 and waveform obligations remain.
+No hardware ran, compiler pin changed, or runtime/shared contract changed.

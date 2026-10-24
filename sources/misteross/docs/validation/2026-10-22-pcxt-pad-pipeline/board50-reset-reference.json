@@ -1,0 +1,95 @@
+{
+  "scope": "Fresh CPU100/board50 three-seed native routes with stricter local FF clear recovery reference, unchanged historical hold floor and harmonic related-clock timing. No exceptions or failure overrides. All paired paths and partial uncertainty screen pass; nine unpaired paths and physical IO/reset obligations remain open.",
+  "nextpnr_source_commit": "fdf0462df26d18bfb308248249e1798a0b58667c",
+  "nextpnr_binary_sha256": "f07480f365b12401d3f9805ced153b4e77fcba4ce3698520423de4fae07f0da0",
+  "model_ps": {
+    "clear_recovery": 170,
+    "clear_removal_hold_floor": 270
+  },
+  "host_tests": {
+    "C++": 63,
+    "parser_cases": 7,
+    "CLI": 1
+  },
+  "host_logs_sha256": {
+    "reset-profile-v2-tests.log": "a48ce391eb269e6636c3cc84bf43ba7fa77ced5114c3c4f46d3930ea95875129",
+    "reset-profile-v2-cli-parser-tests.log": "16c829541a79fefb03fd219ea309532d7f2a969c88d915a97cc7f55d6b3813d9"
+  },
+  "rows": [
+    {
+      "seed": 1,
+      "setup_wns_ns": 0.7839999794960022,
+      "hold_min_ns": 0.7789999842643738,
+      "adjusted_setup_wns_ns": 0.7039999794960022,
+      "adjusted_hold_min_ns": 0.7789999842643738,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "paired_clear_rows": 625,
+      "clear_setup_wns_ns": 14.20300006866455,
+      "clear_hold_min_ns": 1.8049999475479126,
+      "receipt_sha256": "36a31f804dd132431d8cc8729a8809ef5026f28a0d7c7bace9e9a7fe4bfe9b5e",
+      "clock_topology_audit_sha256": "37044a4378aaf5e784904204a2a8c4c84fcd144fbb9dcc421906b6b8eadc4097",
+      "reference_screen_sha256": "2a30ef85ee5379f82e7f7236f6f5af956ff3a37ea4efbedc6ad7cde988f31f0b"
+    },
+    {
+      "seed": 2,
+      "setup_wns_ns": 0.8809999823570251,
+      "hold_min_ns": 0.7829999923706055,
+      "adjusted_setup_wns_ns": 0.8009999823570252,
+      "adjusted_hold_min_ns": 0.7829999923706055,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "paired_clear_rows": 625,
+      "clear_setup_wns_ns": 16.10700035095215,
+      "clear_hold_min_ns": 0.9520000219345093,
+      "receipt_sha256": "a9f7c5a4003d24be60e10f4c870078f1e8e6b57798652f63d40b84c75728ad8a",
+      "clock_topology_audit_sha256": "dbb9a027e559f1ae7eb6b38fba57877295c299a9631bf95b658017b0c591c4da",
+      "reference_screen_sha256": "6f35726f0be8cb60f10a11f3f67d82442a50e35a3a2698a8338a58054f90340e"
+    },
+    {
+      "seed": 3,
+      "setup_wns_ns": 0.5649999976158142,
+      "hold_min_ns": 0.75,
+      "adjusted_setup_wns_ns": 0.3649999976158142,
+      "adjusted_hold_min_ns": 0.75,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "paired_clear_rows": 625,
+      "clear_setup_wns_ns": 14.770000457763672,
+      "clear_hold_min_ns": 1.559000015258789,
+      "receipt_sha256": "6d1c72551fb14206836e41a684f2e6f9145b6e8210756b97973b170e32585d16",
+      "clock_topology_audit_sha256": "a33d739c60f256a1b9d596ca193c434cf71fa5ac131e02ac3a0a75874d1e94c0",
+      "reference_screen_sha256": "33d6f9e331241a6f6f13572ff92ac16b99ded682ab52b089abe8108c9dcad143"
+    }
+  ],
+  "same_paired_identities_all_three": true,
+  "native_three_of_three_pass": true,
+  "physical_whole_board_qualified": false,
+  "hardware": false,
+  "accounting": {
+    "completed_route_search_receipts": 121,
+    "prior_116_prefix_exact": true,
+    "all_new_receipts_artifacts_and_remapped_immutable_input_bindings_verified": true,
+    "new_charge_seconds": "479.57431827299297",
+    "cumulative_charge_seconds": "100144.64048435585514741",
+    "pre_journal_charge_seconds": "14417.71786836162136",
+    "journal_sha256": "340d7fb18e6722180da2c4cd37035bb36f2ef3cd0360aff55596314eb4da4050"
+  },
+  "compiler_pr": "https://github.com/DeanoC/nextpnr/pull/296",
+  "base_fes_commit": "8630492dfb",
+  "rtl_source_commit": "959bc4f7b230e921258b55b8cb0db987117d4e5f",
+  "characterization": {
+    "observations": 1648,
+    "maximum_recovery_ps": 164,
+    "maximum_removal_ps": 75,
+    "corners": 4,
+    "hardware": false
+  },
+  "retained_failed_source": "19c13c49605d6476d692bc0bbe6de186f23e7d31",
+  "qualification_limits": [
+    "Nine unpaired paths remain: four PLL clears and five video CDC transfers.",
+    "No physical reset pulse, slew, fast routing, PLL relock or MTBF qualification.",
+    "External IO/OE/feedback, actual board loads/flight/CS2 and waveform qualification remain open.",
+    "No kit claimed or programmed; no toolchain pin, ordinary producer, runtime/shared contract or acceptance changed."
+  ]
+}
