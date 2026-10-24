@@ -189,7 +189,7 @@ func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
 	pack := examplePack(t, "example.fes-cores")
 	local := &fakeLocalCores{cores: []localcores.Core{
 		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "FES ColecoVision", Needs: "parts", Launchable: false, Block: "Needs a video part"},
-		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware", Inputs: []string{"keyboard"}},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs machine ROM", Inputs: []string{"keyboard"}},
 	}}
 	svc := &homeComputerServices{computers: []hostclient.ShelfComputer{
 		{GameID: "fpga-c64", Title: "Commodore 64", CoreID: "fes.c64", PackageID: coreC64ShelfID, Ready: true},

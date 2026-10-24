@@ -2409,9 +2409,10 @@ through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
 follows library launch admission, including selected video parts, required and
 selected removable media, package composition, and the format-2 ZX81 machine
-ROM linker. If kit-local listing fails, Home still reads the host shelf and
-shows any available host cards; with no host cards, it shows the kit-listing
-error.
+ROM linker. The format-2 ZX81 local row is blocked because local `LoadCore`
+loads only the installed archive and does not splice the machine ROM. If
+kit-local listing fails, Home still reads the host shelf and shows any
+available host cards; with no host cards, it shows the kit-listing error.
 
 ### Home-computer packages and slot cards
 
