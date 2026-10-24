@@ -689,6 +689,9 @@ func currentMediaLabel(s hostclient.SessionResult) string {
 			return "Media loading…"
 		}
 	}
+	if s.MediaEjected {
+		return "No media inserted"
+	}
 	if s.MediaName != "" {
 		return "Inserted: " + s.MediaName
 	}

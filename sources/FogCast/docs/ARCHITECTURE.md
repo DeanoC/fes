@@ -3379,7 +3379,10 @@ reporting old media as current. Status clears the cached name and binding after
 it observes an inactive or changed session, preventing a restarted runtime from
 reviving a filename when it reuses a package generation. Existing launch
 selections and adopted sessions have no recorded original filename and display
-that the name is unavailable. Empty and loading units show their observed state.
+that the name is unavailable. A confirmed eject also carries `media_ejected` in
+the session projection for legacy `fes.simple-computer` media, so tenfoot can
+show no media without treating an unknown launch filename as an empty unit.
+Empty and loading units show their observed state.
 The name is presentation only; admission continues to use the captured session, target,
 package and generation.
 

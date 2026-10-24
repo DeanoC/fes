@@ -3,13 +3,17 @@
 Scope: FogCast session presentation and tenfoot selector header. Base
 `4bd64a993f125d9fa56730631ed5097077102df4`; final executable source
 `ac755a54e88fa3676d8a54c97b17467b6851c672`. Host USB/SMB media browsing
-is covered separately by PR #1041. This change adds no browsing API, catalog
-schema, runtime or FPGA change.
+is covered separately by PR #1041. This follow-up changes FogCast's Go runtime
+adapter and session presentation; it adds no browsing API or catalog schema
+change and does not change the C++ libmister-runtime or FPGA behavior.
 
 The header shows the last confirmed live-insert filename for the captured target
-and package generation. Empty/loading units take precedence. Eject and uncertain
-mutation replies clear the name. Launch selections and adopted sessions whose
-original filenames were never recorded show that the name is unavailable.
+and package generation. Empty/loading units take precedence. A confirmed eject
+clears the filename and records that legacy `fes.simple-computer` media is empty;
+an uncertain mutation reply clears the filename without claiming an empty unit.
+Completed no-change rejections retain the confirmed filename. Launch selections
+and adopted sessions whose original filenames were never recorded show that the
+name is unavailable.
 
 ## Software checks
 

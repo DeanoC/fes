@@ -30,6 +30,17 @@ func TestCurrentMediaLabel(t *testing.T) {
 	if got := currentMediaLabel(session); got != "Inserted media name unavailable" {
 		t.Fatal(got)
 	}
+	legacy := hostclient.SessionResult{
+		CorePackage:  &hostclient.SessionCorePackage{ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}},
+		MediaEjected: true,
+	}
+	if got := currentMediaLabel(legacy); got != "No media inserted" {
+		t.Fatalf("confirmed legacy eject label = %q", got)
+	}
+	legacy.MediaEjected = false
+	if got := currentMediaLabel(legacy); got != "Inserted media name unavailable" {
+		t.Fatalf("unknown legacy media label = %q", got)
+	}
 }
 
 func TestUncertainMediaInsertClearsDisplayedName(t *testing.T) {

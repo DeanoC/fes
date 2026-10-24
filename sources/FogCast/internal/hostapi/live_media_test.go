@@ -125,15 +125,39 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 	if !strings.Contains(stillInserted.Body.String(), `"media_name":"other.p"`) {
 		t.Fatalf("no-op eject rejection lost confirmed name: %s", stillInserted.Body)
 	}
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "completed eject rejection", Phase: "input", NoChange: true}
+	cw = httptest.NewRecorder()
+	handler.ServeHTTP(cw, clear)
+	if cw.Code == http.StatusOK || !strings.Contains(cw.Body.String(), `"no_change":true`) {
+		t.Fatalf("completed eject rejection status=%d body=%s", cw.Code, cw.Body)
+	}
+	stillInserted = serve(t, handler, http.MethodGet, "/api/v1/session")
+	if !strings.Contains(stillInserted.Body.String(), `"media_name":"other.p"`) {
+		t.Fatalf("completed eject rejection lost confirmed name: %s", stillInserted.Body)
+	}
 
 	service.err = nil
 	cw = httptest.NewRecorder()
 	handler.ServeHTTP(cw, clear)
-	if cw.Code != http.StatusOK || service.clearCalls != 2 {
+	if cw.Code != http.StatusOK || service.clearCalls != 3 {
 		t.Fatalf("eject status=%d body=%s calls=%d", cw.Code, cw.Body, service.clearCalls)
 	}
 	if strings.Contains(cw.Body.String(), `"media_name"`) {
 		t.Fatalf("ejected media still named: %s", cw.Body)
+	}
+	if !strings.Contains(cw.Body.String(), `"media_ejected":true`) {
+		t.Fatalf("confirmed eject state missing: %s", cw.Body)
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_ejected":true`) {
+		t.Fatalf("confirmed eject state was not retained: %s", current.Body)
+	}
+	reinsert := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"after.p"}`))
+	reinsert.Host = "127.0.0.1"
+	reinsert.Header = r.Header.Clone()
+	reinsertReply := httptest.NewRecorder()
+	handler.ServeHTTP(reinsertReply, reinsert)
+	if reinsertReply.Code != http.StatusOK || !strings.Contains(reinsertReply.Body.String(), `"media_name":"after.p"`) || strings.Contains(reinsertReply.Body.String(), `"media_ejected"`) {
+		t.Fatalf("reinsertion did not replace the confirmed-empty state: %d %s", reinsertReply.Code, reinsertReply.Body)
 	}
 
 	if len(input.detach) != detachedBefore {

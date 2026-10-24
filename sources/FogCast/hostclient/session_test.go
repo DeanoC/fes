@@ -136,6 +136,13 @@ func TestDecodeSessionPreservesMediaNameWhitespace(t *testing.T) {
 	}
 }
 
+func TestDecodeSessionPreservesConfirmedMediaEject(t *testing.T) {
+	result, err := DecodeSession(http.StatusOK, []byte(`{"state":"active","media_ejected":true}`))
+	if err != nil || !result.MediaEjected {
+		t.Fatalf("confirmed eject = %+v, error = %v", result, err)
+	}
+}
+
 func TestDecodeSessionRecognizesExactComputerKeyboardHID(t *testing.T) {
 	body := func(abi, keyboard string) []byte {
 		return []byte(`{"state":"active","execution":"fpga_native","core_package":{"package_id":"` + strings.Repeat("a", 64) +

@@ -74,20 +74,21 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
-	ID          string                      `json:"id"`
-	Target      string                      `json:"target,omitempty"`
-	TargetID    string                      `json:"target_id,omitempty"`
-	Connection  *fogcast.TargetConnection   `json:"connection,omitempty"`
-	State       protocol.State              `json:"state"`
-	GameID      *string                     `json:"game_id,omitempty"`
-	System      *protocol.System            `json:"system,omitempty"`
-	Execution   string                      `json:"execution,omitempty"`
-	Media       string                      `json:"media,omitempty"`
-	MediaName   string                      `json:"media_name,omitempty"`
-	Progress    *sessionProgress            `json:"progress,omitempty"`
-	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
-	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
-	FlightID    string                      `json:"flight_id,omitempty"`
+	ID           string                      `json:"id"`
+	Target       string                      `json:"target,omitempty"`
+	TargetID     string                      `json:"target_id,omitempty"`
+	Connection   *fogcast.TargetConnection   `json:"connection,omitempty"`
+	State        protocol.State              `json:"state"`
+	GameID       *string                     `json:"game_id,omitempty"`
+	System       *protocol.System            `json:"system,omitempty"`
+	Execution    string                      `json:"execution,omitempty"`
+	Media        string                      `json:"media,omitempty"`
+	MediaName    string                      `json:"media_name,omitempty"`
+	MediaEjected bool                        `json:"media_ejected,omitempty"`
+	Progress     *sessionProgress            `json:"progress,omitempty"`
+	Input        *host.RemoteInputStatus     `json:"input,omitempty"`
+	CorePackage  *protocol.CorePackageStatus `json:"core_package,omitempty"`
+	FlightID     string                      `json:"flight_id,omitempty"`
 }
 
 // sessionEvent is one public host session event. Protocol 1 fields are
@@ -124,6 +125,7 @@ type sessionCoordinator struct {
 	liveMediaName     string
 	liveMediaBinding  protocol.DevelopmentMediaBinding
 	liveMediaFlightID string
+	liveMediaEjected  bool
 	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	mu                sync.Mutex
@@ -1815,7 +1817,7 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	result.ID = s.id
 	result.FlightID = s.flightID
 	execution := s.execution
-	name, binding, mediaFlightID := s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID
+	name, binding, mediaFlightID, mediaEjected := s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID, s.liveMediaEjected
 	s.mu.Unlock()
 	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
 		result.Target, result.TargetID = "", ""
@@ -1833,7 +1835,10 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 		st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation
 	if mediaBindingMatches {
 		unit, observed := protocol.MediaUnit(st.CorePackage, 0)
-		if !observed || unit.State == protocol.MediaUnitReady {
+		if !observed {
+			result.MediaName = name
+			result.MediaEjected = mediaEjected
+		} else if unit.State == protocol.MediaUnitReady {
 			result.MediaName = name
 		}
 	} else if st.State != "" {
@@ -1858,6 +1863,7 @@ func (s *sessionCoordinator) clearLiveMediaNameLocked() {
 	s.liveMediaName = ""
 	s.liveMediaBinding = protocol.DevelopmentMediaBinding{}
 	s.liveMediaFlightID = ""
+	s.liveMediaEjected = false
 }
 
 func busyError() error {

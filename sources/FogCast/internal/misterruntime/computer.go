@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -282,7 +283,13 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 }
 
 // EjectMedia empties one unit of the exact generation and returns the units.
-func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) ([]protocol.MediaUnitStatus, *protocol.APIError) {
+func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (units []protocol.MediaUnitStatus, apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() {
 		return nil, protocol.MediaUnitRequestError()
 	}
@@ -299,19 +306,44 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 	if _, ok := computerMediaUnitState(before, b); !ok {
 		return nil, protocol.MediaUnitIdentityError()
 	}
+	dispatched = true
 	response, err := control.EjectMedia(ctx, b.PackageID, b.Generation, b.Unit)
 	r.noteDispatch("eject_media", err == nil)
 	if err != nil {
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media unit eject is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return nil, mapProtocol2Error(response.Error)
+		apiErr := mapProtocol2Error(response.Error)
+		if completedComputerMediaEjectRejection(response.Error) {
+			apiErr.NoChange = true
+		}
+		return nil, apiErr
 	}
 	state, ok := computerMediaUnitState(response, b)
 	if !ok || state != protocol.MediaUnitEmpty {
 		return nil, unavailableError()
 	}
 	return cloneMediaUnits(response.Capabilities.MediaUnits), nil
+}
+
+// A GP command rejection is an acknowledged response, so the computer
+// endpoint did not apply the eject. Transport errors and invalid acknowledgements
+// remain uncertain because they do not identify a completed rejection.
+func completedComputerMediaEjectRejection(remote *Protocol2Error) bool {
+	const prefix = "FES GP command rejected with response "
+	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" || !strings.HasPrefix(remote.Message, prefix) {
+		return false
+	}
+	code := strings.TrimPrefix(remote.Message, prefix)
+	if code == "" {
+		return false
+	}
+	for _, digit := range code {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // MediaUnits reads the live unit states of one exact fes.computer generation,
