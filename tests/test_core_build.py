@@ -1,5 +1,6 @@
 """The selected profile controls the complete installed FPGA core set."""
 from contextlib import ExitStack, contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -661,6 +662,14 @@ class CoreBuildTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            image = root / 'image'
+            (image / 'build').mkdir(parents=True)
+            shutil.copyfile(build.IMAGE / 'build/native-inputs.toml',
+                            image / 'build/native-inputs.toml')
+            (image / 'build/target-image.sources.lock.toml').write_text(
+                '[container]\nimage = "docker.io/library/debian:12.11-slim"\n'
+                'platform = "linux/amd64"\n' +
+                'digest = "sha256:' + 'a' * 64 + '"\n')
             fogcast = root / 'FogCast'
             (fogcast / 'build').mkdir(parents=True)
             (fogcast / 'build/native-runtime.inputs.lock.toml').write_text('lock')
@@ -684,6 +693,9 @@ class CoreBuildTest(unittest.TestCase):
                 if (len(args) >= 3 and
                         Path(args[0]).name == 'target-image-container.sh' and
                         args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh']):
+                    with (image / 'build/cache/.kit-sdk-sources.lock').open('a') as competing_lock:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(competing_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     captured['env'] = kwargs['env']
                     captured['assembly_lock'] = real_tomllib_loads(
                         (fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
@@ -712,6 +724,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.sys, 'argv',
                                  ['build.py', 'image' if artifacts else 'build', '--profile', 'native-integration-dev'] +
                                  (['--artifacts', '/explicit-artifacts'] if artifacts else [])),
+                    patch.object(build, 'IMAGE', image),
                     patch('image_artifacts.load', return_value=(artifact_manifest, packages)),
                     patch('image_artifacts.stage', return_value=(artifact_manifest, packages)),
                     patch.object(build, 'validate', return_value=revisions),
