@@ -2,11 +2,13 @@ package rooms
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
 func preparedComputer(id, title, coreID string) hostclient.Game {
@@ -67,6 +69,7 @@ func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
 	if len(frame.Ops) >= 80 {
 		t.Fatalf("computers draw used %d ops", len(frame.Ops))
 	}
+	assertRowContrast(t, frame)
 	queries := svc.recorded()
 	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 2 || queries[0].CoreIDs[0] != "fes.zx81" || queries[0].CoreIDs[1] != "fes.c64" {
 		t.Fatalf("queries %+v", queries)
@@ -154,6 +157,7 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	if len(frame.Ops) >= 80 {
 		t.Fatalf("empty computers draw used %d ops", len(frame.Ops))
 	}
+	assertRowContrast(t, frame)
 	r.Input("select")
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("empty select launched %+v", acts)
@@ -161,4 +165,54 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	if r.Err() != nil {
 		t.Fatal(r.Err())
 	}
+}
+
+// assertRowContrast checks every text run against the plate behind it.
+// Unfocused Computers rows used the sofa's near-white label on a light page.
+func assertRowContrast(t *testing.T, frame Frame) {
+	t.Helper()
+	var rows int
+	for _, op := range frame.Ops {
+		if op.Kind != OpText || op.Text == "" {
+			continue
+		}
+		plate := frame.Clear
+		for _, under := range frame.Ops {
+			if under.Kind != OpRect {
+				continue
+			}
+			if op.X >= under.X && op.Y >= under.Y && op.X < under.X+under.W && op.Y < under.Y+under.H {
+				plate = under.Color
+			}
+		}
+		ratio := contrastRatio(op.Color, plate)
+		if ratio < 7 {
+			t.Fatalf("text %q contrast %.2f against plate #%02x%02x%02x", op.Text, ratio, plate.R, plate.G, plate.B)
+		}
+		if op.Size >= 22 {
+			rows++
+		}
+	}
+	if rows == 0 && !strings.Contains(frameText(frame), "No prepared") {
+		t.Fatal("no row text to check")
+	}
+}
+
+func contrastRatio(a, b gfx.Color) float64 {
+	la, lb := relativeLuminance(a), relativeLuminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+func relativeLuminance(c gfx.Color) float64 {
+	channel := func(v uint8) float64 {
+		s := float64(v) / 255
+		if s <= 0.04045 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	return 0.2126*channel(c.R) + 0.7152*channel(c.G) + 0.0722*channel(c.B)
 }

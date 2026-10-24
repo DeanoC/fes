@@ -6,5 +6,5 @@ version = 1
 main = "main.lua"
 
 [theme]
-background = "#F4F0E8"
-accent = "#235A46"
+background = "#141916"
+accent = "#B6E2A1"
