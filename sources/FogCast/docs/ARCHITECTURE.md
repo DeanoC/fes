@@ -3392,6 +3392,8 @@ show no media without treating an unknown launch filename as an empty unit.
 Empty and loading units show their observed state. Numeric GP rejections from a
 dispatched insert do not retain the prior filename: the runtime cannot
 distinguish a `MediaBegin` rejection from a later data or commit rejection.
+Completed busy rejections from media-unit insert or eject retain the prior
+filename; a confirmed eject clears it.
 The name is presentation only; admission continues to use the captured session, target,
 package and generation.
 

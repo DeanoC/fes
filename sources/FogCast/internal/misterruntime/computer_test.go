@@ -262,7 +262,7 @@ func TestRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T) {
 func testRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T, iface protocol.RuntimeContract, sizeBytes int64) {
 	t.Helper()
 	disk := bytes.Repeat([]byte{0xa5}, int(sizeBytes))
-	for _, name := range []string{"success", "lost reply", "not ready", "runtime error", "short", "wrong size", "stale generation", "absent unit"} {
+	for _, name := range []string{"success", "lost reply", "not ready", "runtime error", "busy rejection", "short", "wrong size", "stale generation", "absent unit"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			t.Setenv("TMPDIR", root)
@@ -305,13 +305,18 @@ func testRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T, iface protoc
 					failed.OK = false
 					failed.Error = &Protocol2Error{Code: "io_failed", Message: "media transfer failed", Phase: "transport"}
 					return failed, nil
+				case "busy rejection":
+					failed := before
+					failed.OK = false
+					failed.Error = &Protocol2Error{Code: "busy", Message: "tape loader is busy", Phase: "input"}
+					return failed, nil
 				}
 				return after, nil
 			}
 			units, apiErr := NewRuntime(control, "", 0, 0).InsertMedia(context.Background(), context.Background(), size, body, binding)
 			wantCalls := 0
 			switch name {
-			case "success", "lost reply", "not ready", "runtime error":
+			case "success", "lost reply", "not ready", "runtime error", "busy rejection":
 				wantCalls = 1
 			}
 			if calls != wantCalls || (apiErr == nil) != (name == "success") {
@@ -322,6 +327,9 @@ func testRuntimeInsertMediaStagesOnceAndRequiresReady(t *testing.T, iface protoc
 			}
 			if name == "lost reply" && (apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "transfer") {
 				t.Fatalf("lost reply %+v", apiErr)
+			}
+			if name == "busy rejection" && (apiErr.Code != protocol.CodeBusy || !apiErr.NoChange) {
+				t.Fatalf("busy insert rejection did not guarantee no change: %#v", apiErr)
 			}
 			if entries, _ := os.ReadDir(root); len(entries) != 0 {
 				t.Fatalf("staging retained %v", entries)
@@ -355,6 +363,14 @@ func TestRuntimeEjectMediaRequiresEmpty(t *testing.T) {
 	}
 	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || !apiErr.NoChange {
 		t.Fatalf("completed eject rejection did not guarantee no change: %#v", apiErr)
+	}
+	control.eject = func(context.Context, string, uint64, uint8) (Protocol2Response, error) {
+		return Protocol2Response{OK: false, Error: &Protocol2Error{
+			Code: "busy", Message: "tape loader is busy", Phase: "input",
+		}}, nil
+	}
+	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || apiErr.Code != protocol.CodeBusy || !apiErr.NoChange {
+		t.Fatalf("busy eject rejection did not guarantee no change: %#v", apiErr)
 	}
 	control.eject = func(context.Context, string, uint64, uint8) (Protocol2Response, error) {
 		return Protocol2Response{}, errors.New("lost")

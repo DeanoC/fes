@@ -118,7 +118,7 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 	service.err = protocol.LiveMediaBusyError()
 	cw := httptest.NewRecorder()
 	handler.ServeHTTP(cw, clear)
-	if cw.Code != http.StatusConflict || service.clearCalls != 1 {
+	if cw.Code != http.StatusConflict || service.clearCalls != 1 || !strings.Contains(cw.Body.String(), `"no_change":true`) {
 		t.Fatalf("busy eject status=%d body=%s calls=%d", cw.Code, cw.Body, service.clearCalls)
 	}
 	stillInserted := serve(t, handler, http.MethodGet, "/api/v1/session")

@@ -267,7 +267,13 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media unit insert is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return nil, mapProtocol2Error(response.Error)
+		apiErr := mapProtocol2Error(response.Error)
+		if response.Error != nil && response.Error.Code == "busy" {
+			// The runtime rejected the insert before media changed; the mounted
+			// unit and its confirmed host filename remain valid.
+			apiErr.NoChange = true
+		}
+		return nil, apiErr
 	}
 	state, ok := computerMediaUnitState(response, b)
 	if !ok || state != protocol.MediaUnitReady {
@@ -314,7 +320,7 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 	}
 	if !response.OK || response.Error != nil {
 		apiErr := mapProtocol2Error(response.Error)
-		if completedComputerMediaEjectRejection(response.Error) {
+		if (response.Error != nil && response.Error.Code == "busy") || completedComputerMediaEjectRejection(response.Error) {
 			apiErr.NoChange = true
 		}
 		return nil, apiErr
