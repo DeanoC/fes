@@ -1200,7 +1200,7 @@ function draw() end`
 
 func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	other := memPack(t, "other", "function draw() end", nil)
-	src := "function on_input(cmd)\n if cmd == 'right' then rooms.open('other') elseif cmd == 'left' then rooms.open('missing') elseif cmd == 'back' then rooms.back() end\n return true\nend\nfunction draw() end"
+	src := "function on_input(cmd)\n if cmd == 'right' then rooms.open('other', {game_id = 'selected-game'}) elseif cmd == 'left' then rooms.open('missing') elseif cmd == 'back' then rooms.back() end\n return true\nend\nfunction draw() end"
 	self := memPack(t, "self", src, nil)
 	r := newRoom(t, self, Options{Index: NewIndex([]Pack{self, other})})
 	if err := r.Load(); err != nil {
@@ -1209,7 +1209,7 @@ func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	r.Input("right")
 	r.Input("back")
 	acts := r.TakeActions()
-	if len(acts) != 2 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "other" || acts[1].Kind != ActionBack {
+	if len(acts) != 2 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "other" || acts[0].InitialGameID != "selected-game" || acts[1].Kind != ActionBack {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Input("left")

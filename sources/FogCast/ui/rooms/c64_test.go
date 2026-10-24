@@ -2,7 +2,9 @@ package rooms
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,11 +25,33 @@ func TestHomeDrawHardBudgetStays48ms(t *testing.T) {
 
 type c64Host struct {
 	fakeServices
-	snap hostclient.HardwareSnapshot
+	hardwareMu  sync.Mutex
+	snap        hostclient.HardwareSnapshot
+	hardwareErr error
+}
+
+type c64ServicesWithEmptyHardware struct {
+	Services
+}
+
+func (c64ServicesWithEmptyHardware) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
+	return hostclient.HardwareSnapshot{}, nil
+}
+
+func (c64ServicesWithEmptyHardware) SelectCoreEntryExpansion(context.Context, string, string, string, string) (hostclient.CoreEntryExpansion, error) {
+	return hostclient.CoreEntryExpansion{}, nil
 }
 
 func (h *c64Host) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
-	return h.snap, nil
+	h.hardwareMu.Lock()
+	defer h.hardwareMu.Unlock()
+	return h.snap, h.hardwareErr
+}
+
+func (h *c64Host) setHardwareError(err error) {
+	h.hardwareMu.Lock()
+	defer h.hardwareMu.Unlock()
+	h.hardwareErr = err
 }
 
 func (h *c64Host) SelectCoreEntryExpansion(context.Context, string, string, string, string) (hostclient.CoreEntryExpansion, error) {
@@ -57,13 +81,20 @@ func c64DiskSession(gameID string) *hostclient.SessionResult {
 	}
 }
 
-func loadC64(t *testing.T, svc Services) *Instance {
+func loadC64(t *testing.T, svc Services, initialGameID ...string) *Instance {
 	t.Helper()
 	pack := examplePack(t, "example.c64")
 	if !pack.Valid() || pack.Title != "Commodore 64" {
 		t.Fatalf("pack %+v", pack.Manifest)
 	}
-	r := newRoom(t, pack, Options{Services: svc, Width: 1280, Height: 720})
+	if _, ok := svc.(HardwareServices); !ok {
+		svc = c64ServicesWithEmptyHardware{Services: svc}
+	}
+	opts := Options{Services: svc, Width: 1280, Height: 720}
+	if len(initialGameID) > 0 {
+		opts.InitialGameID = initialGameID[0]
+	}
+	r := newRoom(t, pack, opts)
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
@@ -181,6 +212,60 @@ func TestC64RoomBlocksStartWhileAnotherTitleRuns(t *testing.T) {
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("busy machine acted %+v", acts)
 	}
+}
+
+func TestC64RoomUsesInitialGameIDWithoutChangingDirectOpen(t *testing.T) {
+	first := preparedComputer("fpga-c64-first", "First C64 title", "fes.c64")
+	second := preparedComputer("fpga-c64-second", "Second C64 title", "fes.c64")
+	svc := &fakeServices{games: []hostclient.Game{first, second}}
+
+	direct := loadC64(t, svc)
+	directFrame := stepUntil(t, direct, func(f Frame) bool {
+		return strings.Contains(frameText(f), "First C64 title")
+	})
+	if strings.Contains(frameText(directFrame), "Second C64 title") {
+		t.Fatalf("direct open changed its default selection\n%s", frameText(directFrame))
+	}
+
+	selected := loadC64(t, svc, second.ID)
+	selectedFrame := stepUntil(t, selected, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Second C64 title")
+	})
+	if strings.Contains(frameText(selectedFrame), "First C64 title") {
+		t.Fatalf("initial selection opened a different entry\n%s", frameText(selectedFrame))
+	}
+}
+
+func TestC64RoomDisablesLiveControlsAfterRefreshFailure(t *testing.T) {
+	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
+	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+	host.snap.Session = c64DiskSession(game.ID)
+	r := loadC64(t, host)
+	r.SetSessionState("active")
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Stop machine") && strings.Contains(frameText(f), "Running: this Commodore 64")
+	})
+
+	host.setHardwareError(errors.New("temporary read failure"))
+	r.Resume()
+	failed := stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Running: status unavailable") && strings.Contains(frameText(f), "Status unavailable")
+	})
+	if strings.Contains(frameText(failed), "Stop machine") {
+		t.Fatalf("failed refresh left Stop visible\n%s", frameText(failed))
+	}
+	r.Activate("start")
+	r.Activate("disk")
+	r.Activate("resume")
+	if actions := r.TakeActions(); len(actions) != 0 {
+		t.Fatalf("failed refresh left session controls active: %+v", actions)
+	}
+
+	host.setHardwareError(nil)
+	r.Resume()
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Stop machine") && strings.Contains(frameText(f), "Running: this Commodore 64")
+	})
 }
 
 func TestC64RoomEmptyLibraryDoesNotLaunch(t *testing.T) {

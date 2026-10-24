@@ -32,6 +32,7 @@ local entry_i, edition_i = 1, 1
 local focus = "start"
 local controls = {}
 local live
+local hardware_unavailable = false
 local message = "Choose a Commodore 64 entry."
 local rev = 0
 local last_hw = 0
@@ -45,8 +46,9 @@ local held_entry, held_edition, held_rev, held_overlay = -1, -1, -1, false
 local held_message = ""
 
 local nav = store.get("navigation", {})
-local chosen = nav.game_id or ""
-local chosen_edition = nav.edition_id or ""
+local initial_game_id = room.initial_game_id or ""
+local chosen = initial_game_id ~= "" and initial_game_id or nav.game_id or ""
+local chosen_edition = initial_game_id ~= "" and initial_game_id or nav.edition_id or ""
 if nav.focus and nav.focus ~= "" then focus = nav.focus end
 
 local function take()
@@ -162,16 +164,24 @@ end
 local function place(list)
   entries = list or {}
   entry_i, edition_i = 1, 1
+  local selected = false
   for i, entry in ipairs(entries) do
     if entry.id == chosen then
       entry_i, edition_i = i, 1
+      if initial_game_id ~= "" and entry.id == initial_game_id then selected = true end
     end
     local eds = editions_of(entry)
     for j, ed in ipairs(eds) do
       if chosen_edition ~= "" and ed.id == chosen_edition then
         entry_i, edition_i = i, j
+        if initial_game_id ~= "" and ed.id == initial_game_id then selected = true end
       end
     end
+  end
+  if initial_game_id ~= "" and not selected then
+    entries = {}
+    entry_i, edition_i = 1, 1
+    message = "The selected Commodore 64 entry is no longer available."
   end
   rev = rev + 1
 end
@@ -180,7 +190,13 @@ local function read_hardware()
   hw_busy = true
   hardware.read(function(value, err)
     hw_busy = false
-    if value and not err then live = value.session end
+    if value and not err then
+      live = value.session
+      hardware_unavailable = false
+    else
+      live = nil
+      hardware_unavailable = true
+    end
     rev = rev + 1
   end)
 end
@@ -229,6 +245,7 @@ local function model_line(game)
   return line
 end
 local function running_line()
+  if hardware_unavailable then return "Running: status unavailable" end
   local state = play_state()
   if state == "active" and this_machine() then return "Running: this Commodore 64" end
   if state == "active" then return "Running: another title" end
@@ -325,7 +342,7 @@ local function picture(part)
   if part == "upper" then return end
 
   local state = play_state()
-  local can_start = game and game.launchable and state ~= "active"
+  local can_start = game and game.launchable and state ~= "active" and not hardware_unavailable
   local label = "Start machine"
   local enabled = can_start and true or false
   local fn = function()
@@ -335,6 +352,9 @@ local function picture(part)
     label = "Stop machine"
     enabled = true
     fn = function() session.stop(live) end
+  elseif hardware_unavailable then
+    label = "Status unavailable"
+    enabled = false
   elseif state == "active" then
     label = "Machine in use"
     enabled = false
@@ -345,7 +365,7 @@ local function picture(part)
   button("disk", "Choose disk", 692, 530, 200, 44, this_machine() and live.removable_available, function()
     session.open_tape(live)
   end)
-  button("resume", "Return to play", 908, 530, 188, 44, state == "active", function() session.resume() end)
+  button("resume", "Return to play", 908, 530, 188, 44, state == "active" and not hardware_unavailable, function() session.resume() end)
   text("Stop clears memory. The saved disk stays on the library entry.", 24, 586, 15, C.label, 900)
 
   if part == "lower" then

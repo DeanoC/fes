@@ -158,7 +158,7 @@ local function open_setup()
   if type(item) ~= "table" then return false end
   local room_id = SETUP[item.core_id or ""]
   if not room_id then return false end
-  rooms.open(room_id)
+  rooms.open(room_id, { game_id = item.id })
   return true
 end
 

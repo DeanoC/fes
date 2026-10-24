@@ -289,7 +289,7 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 		}
 		a.roomPickerOpen = false
 		if ok && pack.Revision != "" {
-			a.openInstalledRoomLocked(pack, true)
+			a.openInstalledRoomLocked(pack, true, "")
 			return
 		}
 		a.closeAllRoomsLocked()
