@@ -144,6 +144,15 @@ local function editions_of(entry)
   for _, v in ipairs(entry.variants or {}) do add(v) end
   return out
 end
+local function has_game_id(list, id)
+  for _, entry in ipairs(list or {}) do
+    if entry.id == id then return true end
+    for _, edition in ipairs(editions_of(entry)) do
+      if edition.id == id then return true end
+    end
+  end
+  return false
+end
 local function focused()
   local entry = entries[entry_i]
   if not entry then return nil end
@@ -179,11 +188,23 @@ local function place(list)
     end
   end
   if initial_game_id ~= "" and not selected then
-    entries = {}
-    entry_i, edition_i = 1, 1
     message = "The selected Commodore 64 entry is no longer available."
+  elseif initial_game_id ~= "" then
+    message = "Choose a Commodore 64 entry."
   end
   rev = rev + 1
+end
+local function place_selected(list)
+  if initial_game_id == "" or has_game_id(list, initial_game_id) then
+    place(list)
+    return
+  end
+  library.game(initial_game_id, function(detail, detail_err)
+    if detail and not detail_err and is_c64(detail) and has_game_id({detail}, initial_game_id) then
+      list[#list + 1] = detail
+    end
+    place(list)
+  end)
 end
 local function read_hardware()
   if hw_busy then return end
@@ -464,7 +485,12 @@ end
 function load()
   last_hw = room.time
   read_hardware()
-  library.query({platform = "fpga", sort = "title", limit = 500}, function(games, err)
+  library.query({
+    platform = "fpga",
+    core_ids = { "fes.c64" },
+    sort = "title",
+    limit = 2000,
+  }, function(games, err)
     if err then
       message = err
       entries = {}
@@ -496,12 +522,12 @@ function load()
             for _, item in ipairs(prepared) do
               merged[#merged + 1] = replacements[item.id] or item
             end
-            place(merged)
+            place_selected(merged)
           end
         end)
       end
     end
-    if pending == 0 then place(prepared) end
+    if pending == 0 then place_selected(prepared) end
   end)
 end
 

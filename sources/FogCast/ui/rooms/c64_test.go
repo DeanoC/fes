@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -233,6 +234,53 @@ func TestC64RoomUsesInitialGameIDWithoutChangingDirectOpen(t *testing.T) {
 	})
 	if strings.Contains(frameText(selectedFrame), "First C64 title") {
 		t.Fatalf("initial selection opened a different entry\n%s", frameText(selectedFrame))
+	}
+}
+
+func TestC64RoomFiltersLargeLibraryAndFetchesSelectedGameBeyondLimit(t *testing.T) {
+	games := make([]hostclient.Game, 0, 2601)
+	for i := 0; i < 600; i++ {
+		games = append(games, preparedComputer(fmt.Sprintf("fpga-other-%04d", i), fmt.Sprintf("Other core title %04d", i), "fes.pong"))
+	}
+	for i := 0; i < 2000; i++ {
+		games = append(games, preparedComputer(fmt.Sprintf("fpga-c64-%04d", i), fmt.Sprintf("C64 title %04d", i), "fes.c64"))
+	}
+	selected := preparedComputer("fpga-c64-beyond-limit", "C64 title beyond the query limit", "fes.c64")
+	games = append(games, selected)
+	svc := &fakeServices{games: games}
+
+	r := loadC64(t, svc, selected.ID)
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), selected.Title)
+	})
+	queries := svc.recorded()
+	if len(queries) != 1 || queries[0].Platform != "fpga" || len(queries[0].CoreIDs) != 1 || queries[0].CoreIDs[0] != "fes.c64" {
+		t.Fatalf("C64 query did not filter prepared core rows: %+v", queries)
+	}
+	if limits := svc.recordedQueryLimits(); len(limits) != 1 || limits[0] != 2000 {
+		t.Fatalf("C64 query limit = %v, want [2000]", limits)
+	}
+}
+
+func TestC64RoomKeepsOtherEntriesWhenInitialSelectionIsGone(t *testing.T) {
+	first := preparedComputer("fpga-c64-first", "First remaining C64 title", "fes.c64")
+	second := preparedComputer("fpga-c64-second", "Second remaining C64 title", "fes.c64")
+	r := loadC64(t, &fakeServices{games: []hostclient.Game{first, second}}, "fpga-c64-gone")
+	stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "The selected Commodore 64 entry is no longer available.") && strings.Contains(text, first.Title) && strings.Contains(text, "Start machine")
+	})
+	r.Activate("start")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != first.ID {
+		t.Fatalf("remaining first entry launch %+v", acts)
+	}
+	r.Activate("machine")
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), second.Title) })
+	r.Activate("start")
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != second.ID {
+		t.Fatalf("remaining second entry launch %+v", acts)
 	}
 }
 
