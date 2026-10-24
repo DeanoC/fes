@@ -1,0 +1,30 @@
+=== RUN   TestHomeWatchdogDiagnostic
+    home_watchdog_diagnostic_test.go:52: cycle=0 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=1 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=2 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=3 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=4 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=5 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=6 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=7 frames=100 max_draw=28.31493ms
+    home_watchdog_diagnostic_test.go:52: cycle=8 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=9 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=10 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=11 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=12 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=13 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=14 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=15 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=16 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=17 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=18 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=19 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=20 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=21 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=22 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=23 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=24 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:52: cycle=25 frames=100 max_draw=28.42511ms
+    home_watchdog_diagnostic_test.go:41: cycle=26 frame=1 timing={Async:3.60769ms Update:133.58µs Draw:54.27414ms Total:58.08436ms}: room example.fes-cores: draw callback: script exceeded 48ms budget (elapsed 54.12ms; script run 54.06ms: thread cpu 17.62ms, 3 voluntary/90 involuntary switches)
+--- FAIL: TestHomeWatchdogDiagnostic (70.75s)
+FAIL
