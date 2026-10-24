@@ -1,0 +1,14 @@
+{
+  "fes_revision": "a7295164daae31c94dc3ce244e48317d462dd4dc",
+  "files": {
+    "core-packages/b40eb73fd7c48fc8b59d2894c2ebbf5b1201009aa84b307f38e67fd848817489/core.rbf": "71a17a903e2cc7543e72e66e4e414256300d60ff351fdb6445050d93b5de1f82",
+    "core-packages/b40eb73fd7c48fc8b59d2894c2ebbf5b1201009aa84b307f38e67fd848817489/manifest.toml": "99aa7a53f89be0122d60321b7ef13bb28cdc0ee87c25e1bfa3e2e5f468da5afc",
+    "fes-menu.package-selection.toml": "be7b08975599c4a288522e5c8d029c490e701c451bf9c043de9f0a1d40928272",
+    "inputs.json": "799a3e3cd8d1ae88d37153c81e9a86010e2401b8db48ba79b2f87dec278934cb",
+    "library-report.tsv": "85b3ddf6aebd25a58a8ea736d081e028fd7bdab35a4567be67f01a07848dd926",
+    "linux.img": "eca3f1b03ef5e412e8ff43beee14674ffaca4872b272e2c33c03c3bff4887277",
+    "manifest.tsv": "b9b6db18458cdfab3653775b23250cdf39851e346bb861fe7ec61ba3a181f4c9",
+    "reproducibility.txt": "c5446b54ababbcd2867aa91d2c3770625b5cbf112c82983f4f155e770da96875"
+  },
+  "inputs": "346842d21056a07baba38c10c442cee1be490c0afef29d21f416bd319a20192a"
+}

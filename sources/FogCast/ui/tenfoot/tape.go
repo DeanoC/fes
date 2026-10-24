@@ -13,6 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -54,50 +55,6 @@ type TapePickerSnapshot struct {
 
 func tapePickerHint(kind InputKind) string {
 	return selectWord(kind) + " insert  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
-}
-
-func tapePickerRoots(home string, libraries []hostclient.LibraryRoot) []TapePickerRow {
-	rows := []TapePickerRow{
-		{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true},
-		{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK},
-	}
-	seen := map[string]bool{}
-	addRoot := func(name, path string) {
-		path = filepath.Clean(strings.TrimSpace(path))
-		if path == "" || path == "." || seen[path] || blockprobe.Skips(path) {
-			return
-		}
-		info, err := os.Stat(path)
-		if err != nil || !info.IsDir() {
-			return
-		}
-		seen[path] = true
-		if strings.TrimSpace(name) == "" {
-			name = filepath.Base(path)
-		}
-		rows = append(rows, TapePickerRow{
-			Name: name,
-			Path: path,
-			Kind: tapePickerKindRoot,
-		})
-	}
-	addRoot("Home", home)
-	for _, lib := range libraries {
-		label := strings.TrimSpace(lib.System)
-		if label == "" {
-			label = strings.TrimSpace(lib.ID)
-		}
-		if label == "" {
-			label = "Library"
-		} else {
-			label = "Library · " + label
-		}
-		addRoot(label, lib.Root)
-	}
-	for _, extra := range []string{"/Volumes", "/media", "/run/media"} {
-		addRoot(filepath.Base(extra), extra)
-	}
-	return rows
 }
 
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
@@ -192,7 +149,7 @@ func (a *App) tapePickerSnapshotLocked() TapePickerSnapshot {
 	return TapePickerSnapshot{
 		Open:   true,
 		Title:  tapePickerTitle,
-		Path:   a.tapePickerPath,
+		Path:   a.pickerDisplayPathLocked(a.tapePickerPath),
 		Index:  a.tapePickerIndex,
 		Rows:   append([]TapePickerRow(nil), a.tapePickerRows...),
 		Status: status,
@@ -247,6 +204,7 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerSession = a.session
 	a.tapePickerBusy = false
 	a.tapePickerGen++
+	a.refreshStorageRootsLocked()
 	a.showTapePickerRootsLocked("Choose tape or disk media for the running machine.")
 	if a.client != nil && hostclient.LiveMediaCapable(a.session.CorePackage) {
 		parent := a.ctx
@@ -284,10 +242,12 @@ func (a *App) appendTapeStartersLocked() {
 }
 
 func (a *App) showTapePickerRootsLocked(status string) {
-	home, _ := os.UserHomeDir()
 	a.tapePickerAtRoots = true
 	a.tapePickerPath = ""
-	a.tapePickerRows = tapePickerRoots(home, a.hostSettings.Libraries)
+	a.tapePickerRows = []TapePickerRow{{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true}}
+	for _, r := range a.storagePickerRootsLocked("media") {
+		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: r.Name, Path: r.Path, Kind: r.Kind})
+	}
 	a.appendTapeStartersLocked()
 	a.tapePickerIndex = 0
 	a.tapePickerStatus = status
@@ -295,6 +255,14 @@ func (a *App) showTapePickerRootsLocked(status string) {
 }
 
 func (a *App) showTapePickerDirLocked(path, status string) {
+	if path == "" {
+		a.showTapePickerRootsLocked("")
+		return
+	}
+	if _, _, _, ok := splitDrivePath(path); ok {
+		a.loadDrivePickerDirLocked(path, "tape")
+		return
+	}
 	rows, err := listTapePickerDir(a.tapePickerSession.CorePackage, path)
 	if err != nil {
 		a.tapePickerStatus = err.Error()
@@ -502,7 +470,7 @@ func (a *App) startTapeArmLocked(path string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doTapeArm(ctx, gen, a.tapePickerSession, path)
+	go a.doTapeArm(ctx, gen, a.tapePickerSession, path, a.driveManagerLocked())
 }
 
 func (a *App) startTapeEjectLocked() {
@@ -531,8 +499,8 @@ func (a *App) startTapeEjectLocked() {
 	go a.doTapeEject(ctx, gen, a.tapePickerSession)
 }
 
-func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string) {
-	result, err := importAndArmTape(ctx, a.client, prior, path)
+func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string, manager *storage.Manager) {
+	result, err := importAndArmTape(ctx, a.client, prior, path, manager)
 	a.finishTapeArm(gen, prior, result, err)
 }
 
@@ -652,15 +620,18 @@ func ejectRetryable(err error) bool {
 	return api.Code == protocol.CodeMiSTerUnavailable
 }
 
-func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string) (hostclient.SessionResult, error) {
+func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string, manager *storage.Manager) (hostclient.SessionResult, error) {
 	if client == nil {
 		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
 	}
-	file, size, name, err := openRemovableFile(prior.CorePackage, path)
+	file, size, name, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
 	if err != nil {
 		return hostclient.SessionResult{}, err
 	}
 	defer file.Close()
+	if !hostclient.AdmitRemovableMedia(prior.CorePackage, name, size) {
+		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
+	}
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
 		return hostclient.SessionResult{}, err
@@ -669,24 +640,6 @@ func importAndArmTape(ctx context.Context, client *Client, prior hostclient.Sess
 		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
 	}
 	return client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
-}
-
-func openRemovableFile(p *hostclient.SessionCorePackage, path string) (*os.File, int64, string, error) {
-	file, err := os.Open(strings.TrimSpace(path))
-	if err != nil {
-		return nil, 0, "", err
-	}
-	info, err := file.Stat()
-	name := filepath.Base(path)
-	if err != nil {
-		file.Close()
-		return nil, 0, "", err
-	}
-	if !info.Mode().IsRegular() || !hostclient.AdmitRemovableMedia(p, name, info.Size()) {
-		file.Close()
-		return nil, 0, "", fmt.Errorf("media must match the running machine's format and size limits")
-	}
-	return file, info.Size(), name, nil
 }
 
 // A selector opened from play returns directly to the captured machine.

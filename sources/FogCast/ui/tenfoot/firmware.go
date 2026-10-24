@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
@@ -56,35 +57,6 @@ func colecoBIOSSelectable(size int64, kind string) bool {
 
 func firmwarePickerHint(kind InputKind) string {
 	return selectWord(kind) + " import  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
-}
-
-func openColecoBIOSFile(path string) (*os.File, int64, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, 0, fmt.Errorf("Coleco BIOS path is empty")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	ok := false
-	defer func() {
-		if !ok {
-			_ = file.Close()
-		}
-	}()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, 0, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, 0, fmt.Errorf("Coleco BIOS path is not a regular file")
-	}
-	if info.Size() != protocol.FirmwareBytes {
-		return nil, 0, fmt.Errorf("Coleco BIOS must be exactly %d bytes (this file is %d)", protocol.FirmwareBytes, info.Size())
-	}
-	ok = true
-	return file, info.Size(), nil
 }
 
 func firmwarePickerRoots(home string, libraries []hostclient.LibraryRoot) []FirmwarePickerRow {
@@ -185,7 +157,7 @@ func firmwarePickerRowLabel(row FirmwarePickerRow) string {
 	case firmwarePickerKindFile:
 		label := row.Name + "  ·  " + formatByteSize(row.Size)
 		if row.Selectable {
-			return label + "  ·  Coleco BIOS"
+			return label + "  ·  Firmware"
 		}
 		return label
 	case firmwarePickerKindDir, firmwarePickerKindRoot, firmwarePickerKindParent:
@@ -214,8 +186,8 @@ func (a *App) firmwarePickerSnapshotLocked() FirmwarePickerSnapshot {
 	}
 	return FirmwarePickerSnapshot{
 		Open:   true,
-		Title:  firmwarePickerTitle,
-		Path:   a.firmwarePickerPath,
+		Title:  a.firmwarePickerTitleLocked(),
+		Path:   a.pickerDisplayPathLocked(a.firmwarePickerPath),
 		Index:  a.firmwarePickerIndex,
 		Rows:   append([]FirmwarePickerRow(nil), a.firmwarePickerRows...),
 		Status: a.firmwarePickerStatus,
@@ -248,26 +220,67 @@ func (a *App) openFirmwarePickerLocked(game hostclient.Game) {
 	a.firmwarePickerOpen = true
 	a.firmwarePickerBusy = false
 	a.firmwarePickerGen++
-	a.showFirmwarePickerRootsLocked("Choose an 8192-byte Coleco BIOS.")
+	a.showFirmwarePickerRootsLocked(a.firmwarePickerPromptLocked())
+	a.refreshStorageRootsLocked()
+}
+
+func (a *App) entryFirmwarePickerLocked() bool {
+	return a.firmwarePickerGame.ROMRole == protocol.FirmwareRole && a.firmwarePickerGame.ROMID != "" && a.firmwarePickerGame.ROMSourceSize > 0
+}
+
+func (a *App) firmwarePickerRequiredSizeLocked() int64 {
+	if a.entryFirmwarePickerLocked() {
+		return a.firmwarePickerGame.ROMSourceSize
+	}
+	return protocol.FirmwareBytes
+}
+
+func (a *App) firmwarePickerTitleLocked() string {
+	if a.entryFirmwarePickerLocked() {
+		return "Import package firmware"
+	}
+	return firmwarePickerTitle
+}
+
+func (a *App) firmwarePickerPromptLocked() string {
+	if a.entryFirmwarePickerLocked() {
+		return fmt.Sprintf("Choose a %d-byte firmware ROM for this title.", a.firmwarePickerRequiredSizeLocked())
+	}
+	return "Choose an 8192-byte Coleco BIOS."
+}
+
+func (a *App) markFirmwarePickerRowsLocked(rows []FirmwarePickerRow) {
+	want := a.firmwarePickerRequiredSizeLocked()
+	for i := range rows {
+		rows[i].Selectable = rows[i].Kind == firmwarePickerKindFile && rows[i].Size == want
+	}
 }
 
 func (a *App) showFirmwarePickerRootsLocked(status string) {
-	home, _ := os.UserHomeDir()
 	a.firmwarePickerAtRoots = true
 	a.firmwarePickerPath = ""
-	a.firmwarePickerRows = firmwarePickerRoots(home, a.hostSettings.Libraries)
+	a.firmwarePickerRows = a.storagePickerRootsLocked("bios")
 	a.firmwarePickerIndex = 0
 	a.firmwarePickerStatus = status
 	a.status = status
 }
 
 func (a *App) showFirmwarePickerDirLocked(path, status string) {
+	if path == "" {
+		a.showFirmwarePickerRootsLocked("")
+		return
+	}
+	if _, _, _, ok := splitDrivePath(path); ok {
+		a.loadDrivePickerDirLocked(path, "firmware")
+		return
+	}
 	rows, err := listFirmwarePickerDir(path)
 	if err != nil {
 		a.firmwarePickerStatus = err.Error()
 		a.status = a.firmwarePickerStatus
 		return
 	}
+	a.markFirmwarePickerRowsLocked(rows)
 	a.firmwarePickerAtRoots = false
 	a.firmwarePickerPath = filepath.Clean(path)
 	a.firmwarePickerRows = rows
@@ -284,7 +297,7 @@ func (a *App) handleFirmwarePickerLocked(cmd Command) {
 	}
 	if a.firmwarePickerBusy {
 		if cmd == CmdBack {
-			a.firmwarePickerStatus = "Coleco BIOS import in progress"
+			a.firmwarePickerStatus = "Firmware import in progress"
 			a.status = a.firmwarePickerStatus
 		}
 		return
@@ -296,7 +309,7 @@ func (a *App) handleFirmwarePickerLocked(cmd Command) {
 				a.closeFirmwarePickerLocked()
 				return
 			}
-			a.showFirmwarePickerRootsLocked("Choose an 8192-byte Coleco BIOS.")
+			a.showFirmwarePickerRootsLocked(a.firmwarePickerPromptLocked())
 		}
 		return
 	}
@@ -335,7 +348,7 @@ func (a *App) firmwarePickerBackLocked() {
 	path := a.firmwarePickerPath
 	parent := filepath.Dir(path)
 	if parent == path || parent == "." {
-		a.showFirmwarePickerRootsLocked("Choose an 8192-byte Coleco BIOS.")
+		a.showFirmwarePickerRootsLocked(a.firmwarePickerPromptLocked())
 		return
 	}
 	for _, row := range a.firmwarePickerRows {
@@ -355,9 +368,9 @@ func (a *App) firmwarePickerDetailsLocked() {
 	switch row.Kind {
 	case firmwarePickerKindFile:
 		if row.Selectable {
-			a.firmwarePickerStatus = row.Name + " is an 8192-byte Coleco BIOS. Confirm to import."
+			a.firmwarePickerStatus = fmt.Sprintf("%s is a %d-byte firmware ROM. Confirm to import.", row.Name, row.Size)
 		} else {
-			a.firmwarePickerStatus = fmt.Sprintf("%s is %d bytes. Coleco BIOS must be exactly %d bytes.", row.Name, row.Size, protocol.FirmwareBytes)
+			a.firmwarePickerStatus = fmt.Sprintf("%s is %d bytes. Firmware must be exactly %d bytes.", row.Name, row.Size, a.firmwarePickerRequiredSizeLocked())
 		}
 		a.status = a.firmwarePickerStatus
 	case firmwarePickerKindDir, firmwarePickerKindRoot:
@@ -383,7 +396,7 @@ func (a *App) firmwarePickerConfirmLocked() {
 		a.firmwarePickerBackLocked()
 	case firmwarePickerKindFile:
 		if !row.Selectable {
-			a.firmwarePickerStatus = fmt.Sprintf("Coleco BIOS must be exactly %d bytes (this file is %d).", protocol.FirmwareBytes, row.Size)
+			a.firmwarePickerStatus = fmt.Sprintf("Firmware must be exactly %d bytes (this file is %d).", a.firmwarePickerRequiredSizeLocked(), row.Size)
 			a.status = a.firmwarePickerStatus
 			return
 		}
@@ -415,7 +428,7 @@ func (a *App) submitFirmwarePathOSKLocked() {
 	path := strings.TrimSpace(a.settingsOSKField.Buffer)
 	a.closeSettingsOSKLocked()
 	if path == "" {
-		a.firmwarePickerStatus = "Coleco BIOS path is empty"
+		a.firmwarePickerStatus = "Firmware path is empty"
 		a.status = a.firmwarePickerStatus
 		return
 	}
@@ -448,7 +461,12 @@ func (a *App) startFirmwareImportLocked(path string) {
 	a.firmwarePickerBusy = true
 	a.firmwarePickerGen++
 	gen := a.firmwarePickerGen
-	a.firmwarePickerStatus = "Importing Coleco BIOS…"
+	game := a.firmwarePickerGame
+	if a.entryFirmwarePickerLocked() {
+		a.firmwarePickerStatus = "Importing package firmware…"
+	} else {
+		a.firmwarePickerStatus = "Importing Coleco BIOS…"
+	}
 	a.status = a.firmwarePickerStatus
 	gameID := strings.TrimSpace(a.firmwarePickerGame.ID)
 	ids := a.firmwareRefreshIDsLocked(gameID)
@@ -456,7 +474,7 @@ func (a *App) startFirmwareImportLocked(path string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doFirmwareImport(ctx, gen, path, ids)
+	go a.doFirmwareImport(ctx, gen, path, ids, a.driveManagerLocked(), game)
 }
 
 func (a *App) firmwareRefreshIDsLocked(gameID string) []string {
@@ -485,13 +503,18 @@ func (a *App) firmwareRefreshIDsLocked(gameID string) []string {
 	return ids
 }
 
-func (a *App) doFirmwareImport(ctx context.Context, gen int, path string, refreshIDs []string) {
-	err := importAndSelectColecoBIOS(ctx, a.client, path)
+func (a *App) doFirmwareImport(ctx context.Context, gen int, path string, refreshIDs []string, manager *storage.Manager, game hostclient.Game) {
+	var err error
+	if game.ROMRole == protocol.FirmwareRole && game.ROMID != "" {
+		err = importAndSelectCoreFirmwareROM(ctx, a.client, game, path, manager)
+	} else {
+		err = importAndSelectColecoBIOS(ctx, a.client, path, manager)
+	}
 	var games []hostclient.Game
 	if err == nil {
 		games = a.fetchFirmwareGames(ctx, refreshIDs)
 		if len(refreshIDs) > 0 && !firmwareGamesContain(games, refreshIDs[0]) {
-			err = fmt.Errorf("library did not refresh after Coleco BIOS import")
+			err = fmt.Errorf("library did not refresh after firmware import")
 		}
 	}
 	a.mu.Lock()
@@ -514,18 +537,58 @@ func (a *App) doFirmwareImport(ctx context.Context, gen int, path string, refres
 		return
 	}
 	a.closeFirmwarePickerLocked()
-	a.status = "Coleco BIOS imported. Ready titles can Play."
+	if game.ROMRole == protocol.FirmwareRole && game.ROMID != "" {
+		a.status = "Package firmware imported. Ready titles can Play."
+	} else {
+		a.status = "Coleco BIOS imported. Ready titles can Play."
+	}
 }
 
-func importAndSelectColecoBIOS(ctx context.Context, client *Client, path string) error {
-	if client == nil {
-		return fmt.Errorf("host API is unavailable")
+func importAndSelectCoreFirmwareROM(ctx context.Context, client *Client, game hostclient.Game, path string, manager *storage.Manager) error {
+	if client == nil || game.ID == "" || game.ROMRole != protocol.FirmwareRole || game.ROMID == "" || game.ROMSourceSize < 1 {
+		return fmt.Errorf("firmware ROM requirement is unavailable")
 	}
-	file, size, err := openColecoBIOSFile(path)
+	file, size, _, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+	if size != game.ROMSourceSize {
+		return fmt.Errorf("firmware ROM must be exactly %d bytes", game.ROMSourceSize)
+	}
+	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
+	if err != nil {
+		return err
+	}
+	if media.Size != game.ROMSourceSize {
+		return fmt.Errorf("imported firmware ROM size differs")
+	}
+	entry, err := client.CoreEntry(ctx, game.ID)
+	if err != nil {
+		return err
+	}
+	selection, err := client.SelectCoreEntryROM(ctx, game.ID, entry.PackageID, game.ROMID, game.ROMMediaID, media.MediaID)
+	if err != nil {
+		return err
+	}
+	if selection.GameID != game.ID || selection.PackageID != entry.PackageID || selection.ROMID != game.ROMID || selection.MediaID != media.MediaID {
+		return fmt.Errorf("selected firmware ROM identity mismatch")
+	}
+	return nil
+}
+
+func importAndSelectColecoBIOS(ctx context.Context, client *Client, path string, manager *storage.Manager) error {
+	if client == nil {
+		return fmt.Errorf("host API is unavailable")
+	}
+	file, size, _, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if size != protocol.FirmwareBytes {
+		return fmt.Errorf("Coleco BIOS must be exactly %d bytes", protocol.FirmwareBytes)
+	}
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
 		return err
