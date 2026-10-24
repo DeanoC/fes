@@ -208,6 +208,13 @@ func TestLiveMediaNoChangeRejectionsPreserveName(t *testing.T) {
 	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"first.p"`) {
 		t.Fatalf("busy insert lost prior filename: %s", current.Body.String())
 	}
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "completed insert rejection", Phase: "input", NoChange: true}
+	if rejected := request("/api/v1/session/live-media", "second.p"); rejected.Code == http.StatusOK || !strings.Contains(rejected.Body.String(), `"no_change":true`) {
+		t.Fatalf("acknowledged insert rejection = %d %s", rejected.Code, rejected.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"first.p"`) {
+		t.Fatalf("acknowledged insert rejection lost prior filename: %s", current.Body.String())
+	}
 	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "reply lost", Phase: "transfer"}
 	if uncertain := request("/api/v1/session/live-media", "second.p"); uncertain.Code == http.StatusOK {
 		t.Fatalf("uncertain insert unexpectedly succeeded: %s", uncertain.Body.String())

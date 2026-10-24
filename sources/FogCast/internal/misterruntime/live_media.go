@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -191,21 +192,21 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 }
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
-	// Loader invalid-state (GP error 4) is already "busy", including when the
-	// runtime still reports the raw Exchange rejection. A poisoned toggle,
-	// deadline, or unstable ACK may still arrive as phase=input io_failed;
-	// those transport glitches stay retryable. GP error 2 is invalid index.
-	// The runtime retries the legacy eject before that string is returned, so
-	// a leaked "response 2" is a hard mismatch, not loader contention. A hard
-	// MMIO failure or any other invalid clear acknowledgement stays
-	// unavailable, even when its phase is input.
+	// Loader invalid-state (GP error 4) is "busy". Other completed GP command
+	// rejections guarantee no media change, but retain their unavailable
+	// classification. A poisoned toggle, deadline, or unstable ACK may still
+	// arrive as phase=input io_failed and remains uncertain.
 	if remote != nil && (remote.Code == "busy" || loaderInvalidState(remote)) {
 		return protocol.LiveMediaBusyError()
 	}
 	if inputTransportGlitch(remote) {
 		return protocol.LiveMediaInputUncertainError()
 	}
-	return mapProtocol2Error(remote)
+	apiErr := mapProtocol2Error(remote)
+	if acknowledgedGPCommandRejection(remote) {
+		apiErr.NoChange = true
+	}
+	return apiErr
 }
 
 func loaderInvalidState(remote *Protocol2Error) bool {
@@ -213,6 +214,19 @@ func loaderInvalidState(remote *Protocol2Error) bool {
 		return false
 	}
 	return remote.Message == "FES GP command rejected with response 4"
+}
+
+func acknowledgedGPCommandRejection(remote *Protocol2Error) bool {
+	const prefix = "FES GP command rejected with response "
+	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" || !strings.HasPrefix(remote.Message, prefix) {
+		return false
+	}
+	response := strings.TrimPrefix(remote.Message, prefix)
+	if response == "" {
+		return false
+	}
+	_, err := strconv.ParseUint(response, 10, 32)
+	return err == nil
 }
 
 func inputTransportGlitch(remote *Protocol2Error) bool {
