@@ -2736,11 +2736,51 @@ func (a *App) forwardsKeyboardHIDLocked() bool {
 // scancode is the Keyboard/Keypad usage). HID sessions forward the usage
 // without chrome keys or a character map; other sessions keep the named-key
 // path of HandlePlayHIDKey.
+// hidKeyboardF12 is the USB HID Keyboard/Keypad usage for F12.
+const hidKeyboardF12 = 0x45
+
+func mediaSelectorKey(name string, usage uint8) bool {
+	if usage == hidKeyboardF12 {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(name), "f12")
+}
+
+// openRunningMediaSelector opens the running machine's media selector.
+// An empty tape and a folder with no .p files still open: Eject and a typed
+// path stay available. A kit-local core keeps F12 as Stop, so this returns
+// false there.
+func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
+	a.mu.Lock()
+	offer := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked() && a.sessionLiveMediaOfferedLocked()
+	a.mu.Unlock()
+	if !offer {
+		return false
+	}
+	if down {
+		a.Press(CmdHome, now)
+	}
+	return true
+}
+
 func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
 	}
 	if a.consumeSuppressedPlayKey(name, down) {
+		return true
+	}
+	if mediaSelectorKey(name, usage) {
+		// F12 is the running selector. A kit-local core keeps it as Stop.
+		// Every other session consumes the key, including an empty tape and
+		// a folder that has no .p files, so it is never forwarded.
+		if a.localCoreOwnsInput() {
+			if down {
+				a.RequestLocalStop()
+			}
+			return true
+		}
+		a.openRunningMediaSelector(down, now)
 		return true
 	}
 	if a.handlePlayingRoomKey(name, down, now) {

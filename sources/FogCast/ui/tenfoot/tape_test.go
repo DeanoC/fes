@@ -582,6 +582,121 @@ func tapeTestPackage() *hostclient.SessionCorePackage {
 	return &hostclient.SessionCorePackage{ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}
 }
 
+func zx81ComputerTapePackage() *hostclient.SessionCorePackage {
+	tape := protocol.Zx81TapeInterface()
+	return &hostclient.SessionCorePackage{
+		ABI:              hostclient.SessionCoreABI{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}},
+		MediaUnits: []protocol.MediaUnitStatus{{
+			Unit: protocol.Zx81TapeUnit, Interface: tape, MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: "empty",
+		}},
+	}
+}
+
+func TestTapePickerOffersEmuhdMount(t *testing.T) {
+	t.Parallel()
+	found := false
+	for _, path := range tapePickerVolumeRoots {
+		if path == "/mnt/emuhd" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("selector must offer /mnt/emuhd, where ZX81 games sit beside /mnt/emuhd/BIOS")
+	}
+}
+
+func TestEmptyDirectoryDoesNotHideTapePicker(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not a tape"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := listTapePickerDir(zx81ComputerTapePackage(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) == 0 || rows[0].Kind != tapePickerKindParent {
+		t.Fatalf("empty library must stay browsable: %+v", rows)
+	}
+	for _, row := range rows {
+		if row.Kind == tapePickerKindFile && row.Selectable {
+			t.Fatalf("non-.p file was selectable: %+v", row)
+		}
+	}
+	roots := tapePickerRoots("", []hostclient.LibraryRoot{{ID: "usb", System: "zx81", Root: dir}})
+	if len(roots) < 2 || roots[0].Kind != tapePickerKindEject || !roots[0].Selectable || roots[1].Kind != tapePickerKindOSK {
+		t.Fatalf("eject and typed path must lead an empty library: %+v", roots)
+	}
+	saw := false
+	for _, row := range roots {
+		if row.Kind == tapePickerKindRoot && row.Path == dir {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("empty library root omitted: %+v", roots)
+	}
+}
+
+func TestTapePickerReachesPFilesBesideBIOS(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "BIOS"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	games := filepath.Join(root, "ZX81")
+	if err := os.Mkdir(games, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const game = "3D Monster Maze.p"
+	if err := os.WriteFile(filepath.Join(games, game), []byte("zx81-game"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev := append([]string(nil), tapePickerVolumeRoots...)
+	tapePickerVolumeRoots = []string{root}
+	t.Cleanup(func() { tapePickerVolumeRoots = prev })
+	roots := tapePickerRoots("", nil)
+	saw := false
+	for _, row := range roots {
+		if row.Kind == tapePickerKindRoot && row.Path == root {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("emuhd stand-in missing from roots: %+v", roots)
+	}
+	top, err := listTapePickerDir(zx81ComputerTapePackage(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bios, shelf bool
+	for _, row := range top {
+		if row.Name == "BIOS/" && row.Kind == tapePickerKindDir {
+			bios = true
+		}
+		if row.Name == "ZX81/" && row.Kind == tapePickerKindDir {
+			shelf = true
+		}
+	}
+	if !bios || !shelf {
+		t.Fatalf("BIOS and games must both be listed beside each other: %+v", top)
+	}
+	rows, err := listTapePickerDir(zx81ComputerTapePackage(), games)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tape TapePickerRow
+	for _, row := range rows {
+		if row.Name == game {
+			tape = row
+		}
+	}
+	if !tape.Selectable || tape.Kind != tapePickerKindFile || tape.Size != 9 {
+		t.Fatalf("real .p beside BIOS was not selectable: %+v", tape)
+	}
+}
+
 func TestMediaPickerUsesRunningDiskFormat(t *testing.T) {
 	dir := t.TempDir()
 	for name, size := range map[string]int{"disk.d64": 174848, "wrong.dsk": 174848, "short.d64": 10} {

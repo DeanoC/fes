@@ -94,11 +94,19 @@ func tapePickerRoots(home string, libraries []hostclient.LibraryRoot) []TapePick
 		}
 		addRoot(label, lib.Root)
 	}
-	for _, extra := range []string{"/Volumes", "/media", "/run/media"} {
+	// These mounts are offered whenever the directory exists. An empty
+	// directory still opens: missing .p files do not hide the selector.
+	// /mnt/emuhd is the kit volume that holds BIOS and, beside it, real
+	// ZX81 games.
+	for _, extra := range tapePickerVolumeRoots {
 		addRoot(filepath.Base(extra), extra)
 	}
 	return rows
 }
+
+// tapePickerVolumeRoots are browsable mounts for the running selector.
+// /mnt/emuhd sits next to /mnt/emuhd/BIOS, where the kit's ZX81 .p games live.
+var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media", "/mnt/emuhd"}
 
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))

@@ -122,9 +122,11 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	if s := v.Session; s != nil {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		// Menu-display kits show the room only when the running package reports
-		// the session-display plane. That includes fes.computer ZX81.
-		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		// An empty tape unit is still removable media. The workshop button
+		// follows that offer, so a library with no .p files does not hide it.
+		// Menu-display kits also require the session-display plane.
+		tapeAvailable := (tapeErr == nil || hostclient.RemovableMediaCapable(s.CorePackage)) &&
+			(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
