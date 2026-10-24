@@ -263,8 +263,9 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		pairedStop := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop"
 		pairedLaunch := r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch"
 		pairedMedia := launcherLiveMutation(r.Method, r.URL.Path)
+		pairedStorage := storageOperation(r.Method, r.URL.Path) || r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/firmware"
 		pairedImport := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/core-media" || launcherTapeImportPath(r.URL.Path))
-		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport {
+		if !pairedRead && !pairedStop && !pairedLaunch && !pairedMedia && !pairedImport && !pairedStorage {
 			a.targetMu.Lock()
 			defer a.targetMu.Unlock()
 		}
@@ -279,6 +280,10 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		}
 		if !launcherOperation(r.Method, r.URL.Path) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "launcher operation is unavailable")
+			return
+		}
+		if pairedStorage {
+			a.routes.ServeHTTP(w, r)
 			return
 		}
 		if pairedMedia {
@@ -301,7 +306,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if pairedRead {
-			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" || r.URL.Path == "/api/v1/kit/software/releases" {
+			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || launcherCoreEntryPath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" || r.URL.Path == "/api/v1/kit/software/releases" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}
 			r = r.WithContext(withLauncherTarget(r.Context(), name))
@@ -317,6 +322,12 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		if r.Method == http.MethodPut && launcherExpansionSelectionPath(r.URL.Path) {
 			// The body stays the caller's exact selection. This does not
 			// rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPut && launcherROMSelectionPath(r.URL.Path) {
+			// The body stays the caller's exact named-ROM selection. This does
+			// not rewrite a target or move the foreground host selection.
 			a.routes.ServeHTTP(w, r)
 			return
 		}
@@ -389,8 +400,8 @@ func (a *applicationHandler) launcherMeshContentTarget(headerID string, paired m
 	return false
 }
 
-// launcherPairedRead is a catalogue or presentation GET any enabled paired
-// kit may perform, whether or not that kit is the selected target.
+// launcherPairedRead is a catalogue, presentation, or core-entry GET any
+// enabled paired kit may perform, whether or not that kit is the selected target.
 func launcherPairedRead(method, path string) bool {
 	if method != http.MethodGet {
 		return false
@@ -399,7 +410,7 @@ func launcherPairedRead(method, path string) bool {
 	case "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes":
 		return true
 	}
-	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
+	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path)
 }
 
 func launcherGamePath(path string) bool {
@@ -529,17 +540,41 @@ func rewriteLauncherLaunch(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func launcherOperation(method, path string) bool {
+	if storageOperation(method, path) || method == http.MethodPut && path == "/api/v1/library/firmware" {
+		return true
+	}
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
 	if method == http.MethodPut && launcherExpansionSelectionPath(path) {
 		return true
 	}
+	if method == http.MethodPut && launcherROMSelectionPath(path) {
+		return true
+	}
 	switch method + " " + path {
 	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
 		return true
 	}
-	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))
+	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path) || launcherCoreEntryPath(path))
+}
+
+func launcherCoreEntryPath(path string) bool {
+	const prefix = "/api/v1/library/core-entries/"
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	game := path[len(prefix):]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
+}
+
+func launcherROMSelectionPath(path string) bool {
+	const prefix, suffix = "/api/v1/library/core-entries/", "/rom"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
 }
 
 // launcherExpansionSelectionPath admits one next-start write: the

@@ -311,6 +311,8 @@ verify_root() {
     required_paths='/sbin/init
 /usr/bin/busybox
 /usr/bin/readlink
+/usr/bin/lsblk
+/usr/bin/ntfs-3g
 /usr/share/fes/software/bin/mister-runtime
 /usr/share/fes/software/bin/fogcast-kit
 /usr/share/fes/software/bin/fogcast-tenfoot
@@ -349,6 +351,13 @@ verify_root() {
     [ -e "$root$required" ] || {
       printf 'verify-target-image: missing required path: %s\n' "$required" >&2
       exit 1
+    }
+  done
+
+  for storage_tool in lsblk ntfs-3g; do
+    [ -x "$root/usr/bin/$storage_tool" ] || {
+      printf 'verify-target-image: storage tool is not executable: %s\n' "$storage_tool" >&2
+      return 1
     }
   done
 

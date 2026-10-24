@@ -510,10 +510,11 @@
           const file = el('input',''); file.type = 'file'; file.setAttribute('aria-label','Choose ' + r.id);
           const upload = el('button','Import and choose ' + r.role); upload.type = 'button';
           upload.addEventListener('click', () => { void controller.importSetupROM(r.id,file.files[0]); });
+          const drive=el('button','From host drive');drive.type='button';drive.addEventListener('click',() => root.FogCastStorage?.pick({purpose:'bios',onSelect:file => controller.importSetupROM(r.id,file)}));
           const stored = el('input',''); stored.type = 'text'; stored.placeholder = 'Imported ROM SHA-256'; stored.setAttribute('aria-label','Imported digest for ' + r.id);
           const useStored = el('button','Choose stored ROM'); useStored.type = 'button';
           useStored.addEventListener('click', () => { void controller.useStoredSetupROM(r.id,stored.value.trim()); });
-          const children = [legend,status,file,upload,stored,useStored];
+          const children = [legend,status,file,upload,drive,stored,useStored];
           if (r.binding === 'household-firmware') {
             const select = el('button','Use this BIOS for the household'); select.type = 'button'; select.disabled = !choice;
             select.addEventListener('click', () => { void controller.selectSetupFirmware(r.id); }); children.push(select);
@@ -577,7 +578,7 @@
       for (const id of ['core-blank-disk-name', 'core-blank-disk-geometry', 'core-blank-disk']) {
         if (byId(id)) byId(id).disabled = state.busy || state.loading || !blankReady;
       }
-      for (const id of ['core-package-check','core-media-import','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
+      for (const id of ['core-package-check','core-media-import','core-media-drive','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
         byId(id).disabled = state.busy || state.loading || !state.packageId ||
           (id.startsWith('core-entry-') && id !== 'core-entry-create' && !entry);
       }
@@ -600,6 +601,7 @@
     click('core-package-import', () => controller.importPackage(byId('core-package-file').files[0]));
     click('core-package-check', () => controller.checkCompatibility());
     click('core-media-import', () => controller.importMedia(byId('core-media-file').files[0]));
+    if(byId('core-media-drive')) click('core-media-drive',() => root.FogCastStorage?.pick({purpose:'media',onSelect:file => controller.importMedia(file)}));
     if (byId('core-blank-disk')) click('core-blank-disk', () => {
       const parts = String(byId('core-blank-disk-geometry').value || '').split(',').map(Number);
       controller.createBlankDisk(byId('core-blank-disk-name').value, {tracks: parts[0], heads: parts[1], sectors: parts[2]});

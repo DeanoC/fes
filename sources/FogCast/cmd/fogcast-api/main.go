@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
@@ -254,6 +256,9 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		}
 	}
 	var serverOptions []hostapi.ServerOption
+	if config.StorageConfigPath != "" {
+		serverOptions = append(serverOptions, hostapi.WithStorage(storage.New(config.StorageConfigPath)))
+	}
 	var cleanup []func() error
 	metadataConfig := metadata.RuntimeConfig{
 		Root: config.MetadataRoot, Configured: config.Metadata.Configured, Enabled: config.Metadata.Enabled,
@@ -1205,6 +1210,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		paths.Config = *configPath
 	}
 	config, err := loadAPIConfig(paths.Config, *metadataConfigPath)
+	config.StorageConfigPath = filepath.Join(filepath.Dir(paths.Config), "host-drives.json")
 	if err != nil {
 		fmt.Fprintln(stderr, "fogcast-api: configuration load failed")
 		return 1

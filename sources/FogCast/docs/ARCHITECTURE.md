@@ -730,8 +730,7 @@ unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. It applies the active interface and reported size limits
 before import; the host and runtime validate the object again. ZX81 also
 shows the existing starter-tape shelf. Files come from the launcher machine
-(home, mounted media and accessible library roots); the picker does not browse
-remote host paths. Import, insert and eject retain the session captured when
+(home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
 observed DDR and display interfaces, and a supported observed unit 0 for disk
 or Spectrum media. The host, target agent and runtime adapter share that
@@ -934,13 +933,15 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. It admits one
-library write: `PUT /api/v1/library/core-entries/{game_id}/expansion` for a
-strict game ID. The body is the existing compare-and-swap selection and is
-forwarded unchanged; the foreground target is not replaced. Slot writes,
-presentation edits, other library PUTs and settings stay denied. It does not expose
-full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
-uses `GET /api/v1/launcher/kit-lease` for an authenticated,
+IDs so uncached room selections can load their detail row. For named ROM
+selection it admits `GET /api/v1/library/core-entries/{game_id}` and
+`PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
+admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
+single-entry expansion selection. Both selection bodies are forwarded
+unchanged after paired-target checks; neither replaces the foreground target.
+Slot writes, presentation edits, other library PUTs and settings stay denied.
+It does not expose full `/api/v1/library/settings`, which contains host
+filesystem roots. Tenfoot uses `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
 state, owner, purpose, generation, expiry, reachability, and readiness.
 Paired-kit lease and launch guards use this projection; selected-target host
@@ -3496,6 +3497,75 @@ fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
 ```
 
+## BIOS and media drives
+
+**Settings → BIOS & media drives** in tenfoot selects either **This device**
+(the kit or computer running tenfoot) or **FogCast host** (the API server).
+Both locations can discover USB filesystems, remember a drive by filesystem
+UUID, and add an SMB share as `//server/share` (also `smb://server/share`).
+SMB accepts an optional username, domain and password; an empty username uses
+Guest. A nonstandard SMB port can be included as `//server:port/share`.
+Connections and separate BIOS/media start folders are saved on the machine
+that owns the drive. They survive launcher and host restarts. The kit keeps
+local SMB passwords in memory because its `drives.json` is on FAT; after
+tenfoot restarts, enter those passwords again. Host-side SMB passwords remain
+in the host's private configuration directory. Disconnected saved drives
+remain listed; opening them again reconnects or reports an error.
+
+The browser's Settings has the host drive manager. **From host drive** in
+FPGA library setup and media import browses those same host drives. A browser
+cannot inspect a kit's locally attached USB devices; use the kit's tenfoot
+settings for those. Tenfoot's BIOS, Systems ROM/media, expansion, next-start
+cassette and live tape/disk selectors all include saved local and host drives.
+USB discovery and mounting use Linux block-device tools and are available on
+Linux kits and hosts. Other Tenfoot platforms can use SMB shares but do not
+discover or mount local USB volumes. Import continues through the existing
+media store and explicit BIOS/media selection APIs. Selecting a drive or
+folder never changes a running core. Drive inventory refreshes can arrive while
+a root picker is open; they preserve the highlighted row so a pending Select
+cannot be redirected to another action.
+
+`storage` owns connection settings, USB discovery, rooted enumeration and
+bounded regular-file reads. SMB2/3 is read directly with the Go SMB client;
+it needs neither a kernel mount nor root privileges. Each operation owns its
+connection, and cancellation closes the socket. USB discovery filters sysfs
+through `appliance/blockprobe` before querying only usable USB devices with
+`lsblk`; internal SD/system disks and optical or not-ready devices are excluded.
+An existing USB mount is reused only when its current block-device identity
+matches the discovered volume. A stale kit mount is unmounted before the
+reconnected volume is mounted read-only with `nosuid,nodev,noexec`; desktop
+users use `udisksctl` without interactive authorization. FAT, exFAT and ext4
+use the kit kernel; NTFS uses `ntfs-3g`. Desktop Linux hosts need `lsblk` and
+an existing mount or desktop device permission.
+
+The host composes `storage.Manager` with `host-drives.json` beside its canonical
+configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
+its existing persistent configuration directory. Host drives are household
+resources shared by browser Settings and authenticated paired launchers; they
+are not private to one kit. Every paired operation still requires the
+configured bearer and matching target identity. The host atomically replaces a
+0600 file that includes credentials; inventory and save responses expose only
+`password_set`. Blank password plus `password_set:true` preserves a stored
+password only while the SMB destination and account stay unchanged; clearing
+it is explicit. Tenfoot writes local drive metadata without passwords and holds
+local SMB passwords only for its process lifetime. When it reads an older
+`drives.json` containing a password, it removes that field atomically and keeps
+the value only in memory until tenfoot exits. This protects the secret from
+plain FAT file access but requires re-entry after a restart. The local and host
+stores remain independent of library settings and target selection.
+
+The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
+drive-relative `entries`/`file` operations, and the existing explicit household
+firmware selection. A paired launcher may manage and browse these household
+host drives by design; it cannot address another kit's private local storage.
+The Coleco firmware selection is likewise a single household slot, updated
+only through the explicit BIOS selection flow, not a per-target setting. API
+reads cannot address arbitrary host paths: USB reads use `os.Root`, reject
+escaping paths and nonregular files, and ordinary reads are limited to 32 MiB.
+Expansion archive reads use their declared archive bound. SMB reads stay
+relative to the selected share. Directory and connection work runs outside the
+tenfoot app lock. Existing game/session/package admission and captured
+live-media identity checks remain in force after import.
 To transfer a pack as one file, export it on the source machine and install the
 archive on the launcher's machine:
 
