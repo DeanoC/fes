@@ -205,6 +205,66 @@ if env -u FES_PACKAGE_IDS TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_R
     sh "$container_script" run true >/dev/null 2>&1; then
   echo 'invalid selected image passes accepted by container wrapper' >&2; exit 1
 fi
+# kit-sdk asks the same builder for the toolchain only, and drops image inputs first.
+cat > "$fixture/fake-sdk-runtime" <<'RUNTIME'
+#!/bin/sh
+printf '%s\n' "$*" >> "$SDK_CONTAINER_LOG"
+if [ "$1" = image ] && [ "$2" = inspect ]; then
+  if [ "${SDK_BASE_PRESENT:-0}" = 1 ]; then exit 0; else exit 1; fi
+fi
+printf 'LIBMISTER_RUNTIME_DIR=%s\n' "${LIBMISTER_RUNTIME_DIR-<unset>}" >> "$SDK_CONTAINER_LOG"
+printf 'FES_PACKAGE_IDS=%s\n' "${FES_PACKAGE_IDS-<unset>}" >> "$SDK_CONTAINER_LOG"
+printf 'FOGCAST_DIR=%s\n' "${FOGCAST_DIR-<unset>}" >> "$SDK_CONTAINER_LOG"
+printf 'NATIVE_RUNTIME_INPUT_LOCK=%s\n' "${NATIVE_RUNTIME_INPUT_LOCK-<unset>}" >> "$SDK_CONTAINER_LOG"
+RUNTIME
+chmod +x "$fixture/fake-sdk-runtime"
+mkdir -p "$fixture/sdk-container-cache"
+: > "$fixture/sdk-container.log"
+if env -u TARGET_IMAGE_BUILD_ONCE -u TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE \
+    TARGET_IMAGE_TEST_CONTAINER=1 \
+    TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-sdk-runtime" \
+    SDK_CONTAINER_LOG="$fixture/sdk-container.log" \
+    FES_TARGET_IMAGE_SHARED_CACHE="$fixture/sdk-container-cache" \
+    LIBMISTER_RUNTIME_DIR=/no/such/runtime \
+    NATIVE_RUNTIME_INPUT_LOCK=/no/such.lock \
+    FOGCAST_DIR=/no/such/fogcast \
+    FES_PACKAGE_IDS=fes.pong \
+    sh "$build_script" --ensure-kit-sdk >"$fixture/kit-sdk-container.out" 2>"$fixture/kit-sdk-container.err"; then
+  echo 'kit-sdk container path published nothing and still succeeded' >&2
+  exit 1
+fi
+grep -Fq 'toolchain cache failed validation' "$fixture/kit-sdk-container.err"
+sdk_base_spec=$(python3 - "$repo/build/target-image.sources.lock.toml" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as lock_file:
+    container = tomllib.load(lock_file)["container"]
+print(container["platform"])
+print(container["image"] + "@" + container["digest"])
+PY
+)
+sdk_base_platform=$(printf '%s\n' "$sdk_base_spec" | sed -n '1p')
+sdk_base_ref=$(printf '%s\n' "$sdk_base_spec" | sed -n '2p')
+grep -Fq "image inspect $sdk_base_ref" "$fixture/sdk-container.log"
+grep -Fq "pull --platform $sdk_base_platform $sdk_base_ref" "$fixture/sdk-container.log"
+grep -Fq '/work/scripts/fetch-target-image-sources.sh kit-sdk' "$fixture/sdk-container.log"
+grep -Fq -- '--inside-fetch-toolchain' "$fixture/sdk-container.log"
+grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
+! grep -Fq -- '--inside-toolchain ' "$fixture/sdk-container.log"
+! grep -Fq idle.rbf "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
+! grep -Fq 'verify-native-runtime-inputs' "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
+test "$(grep -c 'LIBMISTER_RUNTIME_DIR=<unset>' "$fixture/sdk-container.log")" -eq 3
+make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=podman > "$fixture/kit-sdk-podman.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-podman.make"
+TARGET_IMAGE_CONTAINER_RUNTIME=podman \
+  make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=docker > "$fixture/kit-sdk-explicit-runtime.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-explicit-runtime.make"
+make -s -C "$repo/.." -n kit-sdk > "$fixture/kit-sdk-default.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="docker"' "$fixture/kit-sdk-default.make"
+grep -Fq 'FES_PACKAGE_IDS=<unset>' "$fixture/sdk-container.log"
+grep -Fq 'FOGCAST_DIR=<unset>' "$fixture/sdk-container.log"
+grep -Fq 'NATIVE_RUNTIME_INPUT_LOCK=<unset>' "$fixture/sdk-container.log"
 FES_VIDEO_PARTS_DIR="$fixture" sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 1
 printf corrupt >> "$fixture/recipe/build/cache/target-image/toolchains/$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)/host.tar"
@@ -256,6 +316,46 @@ builds_before=$(wc -l < "$fixture/recipe/toolchain-builds.log")
 printf corrupt >> "$shared_toolchain"
 sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_before + 1))"
+# The standalone publisher and --ensure-toolchain share one key and one archive.
+python3 - "$build_script" <<'PY'
+import pathlib, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+def body(name):
+    start = text.index(f"{name}() {{")
+    return text[start:text.index("\n}\n", start)]
+for name in ("inside_toolchain", "inside_kit_sdk"):
+    if "publish_toolchain" not in body(name):
+        raise SystemExit(f"{name} does not call publish_toolchain")
+if "toolchain_make" not in body("publish_toolchain") or "toolchain_make" not in body("fetch_toolchain_sources"):
+    raise SystemExit("toolchain build and fetch diverged")
+PY
+grep -Fq 'run make kit-sdk' "$repo/../scripts/kit_software.py"
+! grep -Fq 'qualify/build its base image first' "$repo/../scripts/kit_software.py"
+sdk_key=$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)
+sdk_sha=$(python3 "$fixture/recipe/scripts/toolchain_cache.py" status)
+cp "$shared/toolchains/$sdk_key/host.tar" "$fixture/ensure-host.tar"
+cp "$shared/toolchains/$sdk_key/receipt.json" "$fixture/ensure-receipt.json"
+rm -rf "$shared/toolchains"
+builds_at_sdk=$(wc -l < "$fixture/recipe/toolchain-builds.log")
+kit_sdk_sha=$(LIBMISTER_RUNTIME_DIR=/no/such/runtime \
+  NATIVE_RUNTIME_INPUT_LOCK=/no/such.lock \
+  FOGCAST_DIR=/no/such/fogcast \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk)
+test "$kit_sdk_sha" = "$sdk_sha"
+test "$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)" = "$sdk_key"
+cmp "$fixture/ensure-host.tar" "$shared/toolchains/$sdk_key/host.tar"
+cmp "$fixture/ensure-receipt.json" "$shared/toolchains/$sdk_key/receipt.json"
+python3 - "$shared/toolchains/$sdk_key/receipt.json" "$sdk_key" "$sdk_sha" <<'PY'
+import json, sys
+receipt = json.load(open(sys.argv[1]))
+if receipt["key"] != sys.argv[2] or receipt["sha256"] != sys.argv[3]:
+    raise SystemExit("kit-sdk receipt does not match the ensure-toolchain archive")
+PY
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_at_sdk + 1))"
+sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk >/dev/null
+sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_at_sdk + 1))"
+cmp "$fixture/ensure-host.tar" "$shared/toolchains/$sdk_key/host.tar"
 grep -Fq 'shared_cache=1' "$fixture/output/native-dev/reproducibility.txt"
 grep -Fq 'ccache_pass_1=1' "$fixture/output/native-dev/reproducibility.txt"
 grep -Fq 'ccache_pass_2=0' "$fixture/output/native-dev/reproducibility.txt"
