@@ -3373,6 +3373,12 @@ read imports this verified image into the existing core-media store and binds
 it with the existing compare-and-swap selection API. An explicit selection is
 preserved. This lets the normal Workshop start path satisfy firmware admission
 without opening the import prompt.
+When a title switches between format-3 ZX81 packages that declare the same
+`machine-rom` firmware ID and exact source size, the host rebinds the existing
+media ID to the selected package with the media-ID compare-and-swap API. This
+preserves both the provisioned image and a user-selected image; a selection
+whose ROM ID or size differs remains stale and blocks launch until explicitly
+replaced.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises

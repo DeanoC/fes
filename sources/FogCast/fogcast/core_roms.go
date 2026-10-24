@@ -102,10 +102,15 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	if descriptor.Format == 4 && len(descriptor.ROMs) == 2 {
 		reqID, reqSize = descriptor.ROMs[1].ID, descriptor.ROMs[1].SourceSize
 	}
-	if selected.MediaID == "" && entry.CoreID == "fes.zx81" && descriptor.Core.ID == "fes.zx81" &&
-		descriptor.Format == 3 && descriptor.ROM != nil && descriptor.ROM.ID == "machine-rom" &&
+	if entry.CoreID == "fes.zx81" && descriptor.Core.ID == entry.CoreID && descriptor.Format == 3 &&
+		descriptor.ROM != nil && descriptor.ROM.ID == "machine-rom" &&
 		descriptor.ROM.Role == protocol.FirmwareRole && descriptor.ROM.SourceSize == zx81machine.MachineROMBytes {
-		selected, err = s.provisionZX81MachineROM(ctx, entry, descriptor.ROM)
+		switch {
+		case selected.MediaID == "":
+			selected, err = s.provisionZX81MachineROM(ctx, entry, descriptor.ROM)
+		case selected.PackageID != entry.PackageID && selected.ROMID == reqID && selected.SourceSize == reqSize:
+			selected, err = s.rebindZX81MachineROM(ctx, entry, selected, descriptor.ROM)
+		}
 		if err != nil {
 			return selected, nil, err
 		}
@@ -126,6 +131,28 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 		return selected, nil, romAdmissionError()
 	}
 	return selected, data, nil
+}
+
+// rebindZX81MachineROM carries a saved firmware binary across package changes
+// only when the active package declares the same named, exact-size contract.
+// The media digest is the compare-and-swap value, so concurrent user choices
+// are not overwritten.
+func (s *Service) rebindZX81MachineROM(ctx context.Context, entry catalog.CoreEntry, selected catalog.CoreEntryROM, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
+	roms, ok := s.catalog.(coreROMCatalog)
+	if !ok {
+		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	rebound, err := roms.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, requirement.ID, requirement.SourceSize, selected.MediaID, selected.MediaID)
+	if err == nil {
+		return rebound, nil
+	}
+	// A concurrent request may already have migrated or replaced the selection.
+	// Keep its winner only if it now matches the active package's exact contract.
+	current, readErr := roms.CoreEntryROM(ctx, entry.GameID)
+	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
+		return current, nil
+	}
+	return catalog.CoreEntryROM{}, romSelectionError(err)
 }
 
 // provisionZX81MachineROM binds the bundled standard BASIC image only when a
