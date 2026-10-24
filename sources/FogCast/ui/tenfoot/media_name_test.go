@@ -44,7 +44,7 @@ func TestUncertainMediaInsertClearsDisplayedName(t *testing.T) {
 func TestPreflightMediaInsertErrorKeepsDisplayedName(t *testing.T) {
 	prior := hostclient.SessionResult{ID: "session", Target: "dev", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: "package", Generation: 9}, MediaName: "old.d64"}
 	app := &App{session: prior, tapePickerGen: 1, tapePickerOpen: true}
-	_, dispatched, err := importAndArmTape(context.Background(), &Client{}, prior, filepath.Join(t.TempDir(), "missing.d64"))
+	_, dispatched, err := importAndArmTape(context.Background(), &Client{}, prior, filepath.Join(t.TempDir(), "missing.d64"), nil)
 	if err == nil || dispatched {
 		t.Fatalf("preflight result dispatched=%v error=%v", dispatched, err)
 	}

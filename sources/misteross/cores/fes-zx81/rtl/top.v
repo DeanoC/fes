@@ -37,6 +37,13 @@ module top #(
     wire [14:0] tape_size;
     wire [13:0] tape_addr;
     wire [7:0] tape_data;
+    wire save_ready, save_busy, save_changed;
+    wire [14:0] save_size;
+    wire [7:0] save_q;
+    wire media_read_req;
+    wire [19:0] media_read_addr;
+    reg save_read_ready;
+    always @(posedge clk_sys) save_read_ready <= media_read_req;
     wire ce_6m5;
     wire video_pixel;
     wire hblank;
@@ -105,7 +112,7 @@ module top #(
     wire [15:0] display_argument, display_response_data;
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_ZX81_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
+        .ENABLE_ZX81_TAPE(1), .ENABLE_ZX81_TAPE_WRITE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (
@@ -113,8 +120,10 @@ module top #(
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
         .controller_buttons(),
         .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
-        .media_write_busy(tape_busy), .media_changed(1'b0), .media_frozen(),
-        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
+        .media_write_busy(tape_busy), .media_changed(save_changed), .media_frozen(),
+        .media_read_req(media_read_req), .media_read_addr(media_read_addr),
+        .media_read_ready(save_read_ready), .media_read_data(save_q),
+        .save_ready(save_ready), .save_busy(save_busy), .save_size(save_size),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1),
         .unit0_state(unit0_state), .unit0_size(unit0_size),
@@ -188,6 +197,8 @@ module top #(
         .tape_data(tape_data),
         .tape_addr_out(tape_addr),
         .tape_busy(tape_busy),
+        .save_ready(save_ready), .save_busy(save_busy), .save_changed(save_changed),
+        .save_size(save_size), .save_addr(media_read_addr[13:0]), .save_q(save_q),
         .ce_6m5(ce_6m5),
         .video_pixel(video_pixel),
         .hblank(hblank),

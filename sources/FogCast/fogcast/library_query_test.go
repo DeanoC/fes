@@ -14,6 +14,62 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+type groupedCoreEntryQueryCatalog struct {
+	*fakeServiceCatalog
+	entries []catalog.CoreEntry
+	groups  map[string][]catalog.Game
+}
+
+func (c *groupedCoreEntryQueryCatalog) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
+	return append([]catalog.CoreEntry(nil), c.entries...), nil
+}
+
+func (c *groupedCoreEntryQueryCatalog) GamesInGroup(_ context.Context, groupKey string, _ int) ([]catalog.Game, error) {
+	return append([]catalog.Game(nil), c.groups[groupKey]...), nil
+}
+
+func newGroupedCoreIDQueryService(t *testing.T) (*Service, catalog.Game) {
+	t.Helper()
+	ctx := context.Background()
+	users, err := libraryuser.Open(filepath.Join(t.TempDir(), "user.sqlite3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = users.Close() })
+
+	matching := catalog.Game{
+		ID: "zx81-sonic-entry", Title: "Sonic (Japan)", CanonicalTitle: "Sonic", Region: "japan",
+		System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable,
+		RootOnline: true, GroupKey: "sonic-group", VariantCount: 2,
+	}
+	unrelated := catalog.Game{
+		ID: "pong-sonic-entry", Title: "Sonic (USA)", CanonicalTitle: "Sonic", Region: "usa",
+		System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable,
+		RootOnline: true, GroupKey: "sonic-group", VariantCount: 2,
+	}
+	store := &groupedCoreEntryQueryCatalog{
+		fakeServiceCatalog: &fakeServiceCatalog{games: []catalog.Game{matching, unrelated}},
+		entries: []catalog.CoreEntry{
+			{GameID: matching.ID, CoreID: "fes.zx81"},
+			{GameID: unrelated.ID, CoreID: "fes.pong"},
+		},
+		groups: map[string][]catalog.Game{"sonic-group": []catalog.Game{matching, unrelated}},
+	}
+	service := newService(
+		Config{RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
+		Paths{Staging: "/private/staging"}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{},
+		WithUserLibrary(users),
+	)
+	if err := users.RecordPlay(ctx, matching.ID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if err := users.RecordPlay(ctx, unrelated.ID); err != nil {
+		t.Fatal(err)
+	}
+	return service, matching
+}
+
 func TestQueryGamesMapsMalformedCursorToBadRequest(t *testing.T) {
 	store := &fakeServiceCatalog{queryErr: catalog.ErrInvalidQuery}
 	service := newTestService(store, &fakeServicePreparer{}, &fakeServiceClient{})
@@ -71,6 +127,26 @@ func TestQueryRecentsAppliesTextFilterAndOpaqueCursor(t *testing.T) {
 	}
 	_, err = service.QueryGames(ctx, catalog.Query{Collection: "recents", Cursor: "not-a-cursor"})
 	assertServiceErrorCode(t, err, protocol.CodeBadRequest)
+}
+
+func TestQueryRecentsFiltersCoreIDsBeforeGroupingAndPaging(t *testing.T) {
+	service, matching := newGroupedCoreIDQueryService(t)
+	page, err := service.QueryGames(context.Background(), catalog.Query{
+		Collection: "recents", CoreIDs: []string{" fes.zx81 "}, Grouped: true, Limit: 1,
+	})
+	if err != nil || len(page.Games) != 1 || page.Games[0].ID != matching.ID || page.NextCursor != "" {
+		t.Fatalf("filtered recents = %+v, %v", page, err)
+	}
+}
+
+func TestQueryContinueFiltersCoreIDsBeforeChoosingGroupedCandidate(t *testing.T) {
+	service, matching := newGroupedCoreIDQueryService(t)
+	page, err := service.QueryGames(context.Background(), catalog.Query{
+		Collection: "continue", CoreIDs: []string{"fes.zx81"}, Grouped: true,
+	})
+	if err != nil || len(page.Games) != 1 || page.Games[0].ID != matching.ID {
+		t.Fatalf("filtered continue = %+v, %v", page, err)
+	}
 }
 
 func TestQueryContinueUnplayedAndRecentlyAdded(t *testing.T) {

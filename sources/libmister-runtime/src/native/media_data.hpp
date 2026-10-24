@@ -11,10 +11,12 @@ struct MediaDataIdentity {
     std::string core_id, game_id, base_media_id;
     std::uint8_t unit = 0;
 };
+enum class MediaDataLayout { atari_st, zx81_tape };
 struct MediaDiskRecord {
     MediaDataIdentity identity;
     std::vector<unsigned char> bytes;
     std::string revision = "absent";
+    MediaDataLayout layout = MediaDataLayout::atari_st;
 };
 bool ValidMediaDataIdentity(const MediaDataIdentity&);
 std::string MediaDataNamespace(const MediaDataIdentity&);

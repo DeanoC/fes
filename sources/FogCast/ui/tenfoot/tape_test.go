@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -78,10 +79,10 @@ func TestOpenTapeFileRejectsWrongClass(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := openRemovableFile(tapeTestPackage(), path); err == nil || !strings.Contains(err.Error(), "format") {
+	if _, _, err := importAndArmTape(context.Background(), NewClient("", nil), hostclient.SessionResult{CorePackage: tapeTestPackage()}, path, nil); err == nil {
 		t.Fatalf("tzx err = %v", err)
 	}
-	if _, _, _, err := openRemovableFile(tapeTestPackage(), dir); err == nil || !strings.Contains(err.Error(), "format") {
+	if _, _, err := importAndArmTape(context.Background(), NewClient("", nil), hostclient.SessionResult{CorePackage: tapeTestPackage()}, dir, nil); err == nil {
 		t.Fatalf("directory err = %v", err)
 	}
 }

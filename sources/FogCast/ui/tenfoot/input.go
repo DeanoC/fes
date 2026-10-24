@@ -240,7 +240,9 @@ func absAxis(v int) int {
 }
 
 // Repeater emits held-direction repeats without blocking the frame loop.
+// Methods synchronize frame-loop input with asynchronous session handoffs.
 type Repeater struct {
+	mu        sync.Mutex
 	held      Command
 	heldSince time.Time
 	lastFire  time.Time
@@ -248,6 +250,8 @@ type Repeater struct {
 
 // Down records a newly pressed command. Repeat only applies to movement.
 func (r *Repeater) Down(cmd Command, now time.Time) Command {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if cmd == CmdNone {
 		return CmdNone
 	}
@@ -261,6 +265,8 @@ func (r *Repeater) Down(cmd Command, now time.Time) Command {
 
 // Arm starts hold-repeat for cmd without emitting a focus move.
 func (r *Repeater) Arm(cmd Command, now time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !isHoldable(cmd) {
 		return
 	}
@@ -271,6 +277,8 @@ func (r *Repeater) Arm(cmd Command, now time.Time) {
 
 // Up clears a held movement command.
 func (r *Repeater) Up(cmd Command) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.held == cmd {
 		r.held = CmdNone
 	}
@@ -278,11 +286,22 @@ func (r *Repeater) Up(cmd Command) {
 
 // Clear drops any armed hold-repeat.
 func (r *Repeater) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.held = CmdNone
+}
+
+// Held returns the currently armed movement command.
+func (r *Repeater) Held() Command {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.held
 }
 
 // Tick returns a movement command when the hold repeat interval elapses.
 func (r *Repeater) Tick(now time.Time) Command {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if !isHoldable(r.held) {
 		return CmdNone
 	}
@@ -354,7 +373,7 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 		app.Press(cmd, now)
 		held[cmd] = true
 	}
-	if !pressed[app.repeat.held] {
+	if !pressed[app.repeat.Held()] {
 		for cmd := range held {
 			if !isHoldable(cmd) {
 				continue

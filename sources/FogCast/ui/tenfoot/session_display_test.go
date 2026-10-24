@@ -717,6 +717,67 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	}
 }
 
+func TestKitTapePickerArmsSavedZX81ProgramWithoutReimport(t *testing.T) {
+	prior := computerTapeKitSession()
+	digest := strings.Repeat("c", 64)
+	saved := hostclient.HardwareTape{ID: "saved-" + digest, Name: "Saved program 2026-10-24 00:00", Filename: "saved.p", License: "Saved", SHA256: digest, MediaID: digest, RAMKB: 1}
+	var imports, arms atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/zx81-tapes":
+			if r.URL.Query().Get("game_id") != prior.GameID {
+				t.Errorf("saved cassette lookup game_id = %q, want %q", r.URL.Query().Get("game_id"), prior.GameID)
+			}
+			json.NewEncoder(w).Encode(map[string]any{"tapes": []hostclient.HardwareTape{saved}})
+		case "/api/v1/library/zx81-tapes/" + saved.ID + "/import":
+			imports.Add(1)
+			http.Error(w, "saved media must not be imported again", http.StatusBadRequest)
+		case "/api/v1/session/live-media":
+			arms.Add(1)
+			binding, ok := protocol.DevelopmentMediaHeaders(r.Header)
+			var request protocol.LiveMediaRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
+			if !ok || binding.PackageID != prior.CorePackage.PackageID || binding.Generation != prior.CorePackage.Generation || binding.Target != prior.Target || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID || request.MediaID != digest || request.Name != saved.Filename {
+				t.Error("saved cassette live arm lost captured identity or media ID")
+			}
+			writeKitDisplaySession(w, prior)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.openTapePickerLocked()
+	app.mu.Unlock()
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "saved ZX81 cassette row", func(s Snapshot) bool {
+		for _, row := range s.TapePicker.Rows {
+			if row.Starter != nil && row.Starter.MediaID == digest {
+				return true
+			}
+		}
+		return false
+	})
+	selectTapeNamedRow(t, app, saved.Name)
+	snapshot := app.Snapshot()
+	if label := tapePickerRowLabel(snapshot.TapePicker.Rows[snapshot.TapePicker.Index]); !strings.Contains(label, "Saved program") {
+		t.Fatalf("saved cassette label = %q", label)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "saved ZX81 cassette armed", func(s Snapshot) bool {
+		return !s.TapePicker.Open && s.Status == "Tape armed."
+	})
+	if imports.Load() != 0 || arms.Load() != 1 {
+		t.Fatalf("saved selection imports=%d arms=%d", imports.Load(), arms.Load())
+	}
+}
+
 type countingSessionMenu struct {
 	mu     sync.Mutex
 	status menudisplay.Status

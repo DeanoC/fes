@@ -62,6 +62,8 @@ const (
 )
 
 type Config struct {
+	// StorageConfigPath is selected by the API composition beside its canonical config.
+	StorageConfigPath   string
 	CoreCatalogPath     string
 	CoreLibrarySourceID string
 	BaseURL             string
