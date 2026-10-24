@@ -1,0 +1,3224 @@
+{
+  "scope": "Default-off CPU100/board50 diagnostic candidate, not production or whole-board physical acceptance. Actual integrated RTL and QSF bytes match the frozen three-seed candidate; only the QSF filename changes. Public producer option is synthesis-only while harmonic compiler support remains unpinned.",
+  "base_commit": "a17b334f0109ad90a9d152b45ce8c358c735f90b",
+  "frozen_route_source": "b03528b33bc734b4015e89d6902293c15deeb727",
+  "integrated_rtl_and_qsf_sha256": {
+    "cores/fes-pcxt/constraints-board50.qsf": "f9fc17549425994750ed7355ed81396b4fc920cf79bb9d408a591fd38a39bd04",
+    "cores/fes-pcxt/expansions/pcxt_cga_card.sv": "60c114dacf3273d65d164bbaae01ff459ee77d68ef9f36497ffd42fe792c87bb",
+    "cores/fes-pcxt/expansions/pcxt_display_card.sv": "63cb0b4e051dc3af20afc054803e01707bd5bc0c2ef03eeeeb7b80c11d5e6c31",
+    "cores/fes-pcxt/expansions/pcxt_mda_card.sv": "493411c9ad1419036cd4e66bad720197d7f2b397d7e56c8e3f1c91b5d6e1c076",
+    "cores/fes-pcxt/rtl/fes_pcxt_top.sv": "d769b9ae79234cc3deb494718d6063e8ca3cb67b2e2e943e863351bb49e0a183",
+    "cores/fes-pcxt/rtl/pcxt_display_bus.sv": "2e8133ef9c32d42d76985cc1d42cb0032b2f966ca8b0e045241b720e31663bad",
+    "cores/fes-pcxt/rtl/pcxt_machine.sv": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e",
+    "cores/fes-pcxt/rtl/pcxt_memory.sv": "944526d30fe0e1789f4403849e1f7570634c0d4de1c697324ba7abdd9bedb69b",
+    "cores/fes-pcxt/rtl/pcxt_motherboard.sv": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e",
+    "cores/fes-pcxt/rtl/pcxt_speaker.sv": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60",
+    "cores/fes-pcxt/rtl/pcxt_system.sv": "9b420174dfd487ad592ca80f1809a79e2b3fb071aaba68723f8295750e5eff37"
+  },
+  "files": {
+    "board50-v2-native-summary.json": {
+      "sha256": "f642802f6b7df114ebd54829ae08f66ccd53c9bc89fde0db39ff23b480a5877d",
+      "evidence": {
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "scope": "Raw native three-seed whole-fabric gate only. Exact same complete paired sink-port/launch/capture identity set in all3seeds; native physical driver nets may differ with FF route-through packing. Explicit harmonic timing covers the related CPU100/board50 crossings. Clock uncertainty, physical IO/reset and hardware gates remain open.",
+        "rows": [
+          {
+            "seed": 1,
+            "returncode": 0,
+            "setup_failures": 0,
+            "setup_wns_ns": 1.253000020980835,
+            "hold_failures": 0,
+            "hold_min_ns": 0.6690000295639038,
+            "paired_rows": 17709,
+            "unpaired_rows": 9,
+            "charged_seconds": 129.22759764222428,
+            "receipt_sha256": "a75541bb116fc37f4dc5b19c7c62dc5d7b6edf89f7dbb6acf66cdb96f2e739d4"
+          },
+          {
+            "seed": 2,
+            "returncode": 0,
+            "setup_failures": 0,
+            "setup_wns_ns": 1.059999942779541,
+            "hold_failures": 0,
+            "hold_min_ns": 0.6809999942779541,
+            "paired_rows": 17709,
+            "unpaired_rows": 9,
+            "charged_seconds": 134.8613409800455,
+            "receipt_sha256": "8bbb35a64514c47425274a51f2865a944c97ad3c863034432b9df194b90553ab"
+          },
+          {
+            "seed": 3,
+            "returncode": 0,
+            "setup_failures": 0,
+            "setup_wns_ns": 1.6649999618530273,
+            "hold_failures": 0,
+            "hold_min_ns": 0.7319999933242798,
+            "paired_rows": 17709,
+            "unpaired_rows": 9,
+            "charged_seconds": 133.91742289206013,
+            "receipt_sha256": "1f85df4765f3c5c836ea3f5afab5ec6e23d41dd3781f69d1c29cb6c2d5b75490"
+          }
+        ],
+        "same_paired_endpoint_identities_all_three": true,
+        "raw_native_two_of_three_pass": true,
+        "physical_whole_board_qualified": false,
+        "hardware": false
+      }
+    },
+    "board50-v2-chip-reference-summary.json": {
+      "sha256": "d57d20e5a2a3f882c20da796ef468ccf3dac605e43a6e04760564f26af5e952c",
+      "evidence": {
+        "scope": "Four-corner fitted reference at the published AS4C32M16SB-6TIN CL2 chip requirements, declared30pF and zero board flight. Actual board50 memory frontend/controller and capture RTL, all16 DQ input/data/OE packed. Fitted wiring and other clock branches differ from native full board; no physical-kit or exact-artifact acceptance.",
+        "input_binding_sha256": "2076838b09d633f2f9bafe3c60f39543f77e2fca6e7e4b4e8e8b55ad1b75eeb2",
+        "rbf_sha256": "f26ffc806b608b172cc5bbf1fb8cc6562f97584b59b6f46783270554a7402b06",
+        "corners": {
+          "7_slow_1100mv_100c": {
+            "input": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 6.038,
+                "report_sha256": "a60e012318e70a4701d7ac7c2751a562177503cc66c8c36151cbf21e4e2334c0"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 7.182,
+                "report_sha256": "9e79868fe319f55dd0f5cfa1b2ecee16c349e14b1ad3ed70cdfdbb6851ff8e21"
+              }
+            },
+            "output": {
+              "setup": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 7.033,
+                "report_sha256": "66e1e159a7521e043c2de0c38c6893907c392e35bc5bf292a9599a308878c234"
+              },
+              "hold": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 7.753,
+                "report_sha256": "c8fd5d9bf754691709f96e6c74ab37511d0cd4d70db729f31ba3d3663963099c"
+              }
+            },
+            "handoff": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 2.458,
+                "report_sha256": "7338e7ac1ad8f4d41f3d6c151edbcaba6bb13f583a3b9ea31c535413288102be"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 11.369,
+                "report_sha256": "5b3fe038fb88d9ad0e3e3c2fa98a54a16f0a924eb4c3945a29551dd7869757ed"
+              }
+            }
+          },
+          "7_slow_1100mv_-40c": {
+            "input": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 6.678,
+                "report_sha256": "cc4ae64e4861f0e4e93874f6518c4ea72a0a309a936b2f485b5c077de0b80f2a"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 6.722,
+                "report_sha256": "92a097f5a27bb4704e451617a4244fa29d7febd2181924eb98d3e4e519bf1fab"
+              }
+            },
+            "output": {
+              "setup": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 6.989,
+                "report_sha256": "43078e5b21bd6bc630a43cac58b0fba198e96546532cefd951899bdd65e84b2d"
+              },
+              "hold": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 7.849,
+                "report_sha256": "25e1115d89bf73dccdfd696a7f39ae2df32ed2d8a1a1fb10917d5a37d65c00b3"
+              }
+            },
+            "handoff": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 2.576,
+                "report_sha256": "edbb76dcd8c2ef4da7f5daac30d8cc4d67ea49998569f7b6926231b1f8695d5f"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 11.445,
+                "report_sha256": "0070cd074200bcef21f9c046b5f39ebc5e849052a00cf230180badea47764088"
+              }
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "input": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 8.734,
+                "report_sha256": "5e021907599faf4cae9b43bf15b5fe4637c89a46b341008835a65409e26a9657"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 5.476,
+                "report_sha256": "1cc075ed6e3e1bc34171e7fecb4e45b287a63b32fe540f00e6ce0fb35913dd87"
+              }
+            },
+            "output": {
+              "setup": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 7.698,
+                "report_sha256": "6a1404b82e2cf0b0a575c937410f36211aee9384260995d5853e96fae920f660"
+              },
+              "hold": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 8.243,
+                "report_sha256": "e3224a1009d8549cacc4a275e0e6a7f8759216f852ac4df40f3987beaae817a2"
+              }
+            },
+            "handoff": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 6.153,
+                "report_sha256": "2a8587917fc5c4075c334c259688a625fe0e4b7883406703d895f5c3192dd68a"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 10.64,
+                "report_sha256": "f328f3cdd433fab78f32b2e7498491d27b93f7896a28ddf20a9f0a0036b79c24"
+              }
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "input": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 9.333,
+                "report_sha256": "a458cbc99f958deda8638bbfb0a8679e5082191ef712377e2db44b5fd1c36bf2"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 4.861,
+                "report_sha256": "8a0158d03e0c6160aecd8ede4d15bbe15409d45f884eeb1bb132ca18db73ab5b"
+              }
+            },
+            "output": {
+              "setup": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 7.701,
+                "report_sha256": "d9a80d29e172fa7feb06ee8753ef5fe30ceab6caa4bb7ec46c64a66594739e7d"
+              },
+              "hold": {
+                "paths": 51,
+                "violated": 0,
+                "wns_ns": 8.37,
+                "report_sha256": "a707eb4958124cb6dd833cc14a577998f446af400828baeac06613d833d3eb9e"
+              }
+            },
+            "handoff": {
+              "setup": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 6.463,
+                "report_sha256": "3ad4275ce14a7d42bdf53d3cd1bc734a11a4a33ef928664ee073bcb18fc09e33"
+              },
+              "hold": {
+                "paths": 16,
+                "violated": 0,
+                "wns_ns": 10.598,
+                "report_sha256": "39ea488b01e45727052b155e563aa30f031b3391e6503d7e637236820726adfa"
+              }
+            }
+          }
+        },
+        "all_reported_chip_reference_setup_hold_pass": true,
+        "hardware": false
+      }
+    },
+    "board50-v2-accounting.json": {
+      "sha256": "7e4a62cba70a1b00073da572ec19f62dee22d71bb462f0d6c8bb0acf2897e6c9",
+      "evidence": {
+        "completed_route_search_receipts": 116,
+        "new_native_routes": 3,
+        "new_sandbox_preflight_failures": 2,
+        "prior_111_prefix_exact": true,
+        "new_receipts_and_artifact_hashes_verified": true,
+        "new_charge_seconds": "398.22810607403516741",
+        "cumulative_charge_seconds": "99665.06616608286217741",
+        "pre_journal_charge_seconds": "14417.71786836162136",
+        "journal_sha256": "02f1a133cd95f81ddd779632dd6948686760af750ad6b2d782f22ef8c8757ade"
+      }
+    },
+    "harmonic-bank-accounting.json": {
+      "sha256": "d0ee651f9d6bbb4d06392ba760ee940aef5c412e02a457c81f61196304f48d38",
+      "evidence": {
+        "completed_route_search_receipts": 111,
+        "prior_106_prefix_exact": true,
+        "all_new_receipt_artifact_hashes_verified": true,
+        "journal_sha256": "a23fd0f9e90379ac17377462842ff99b1d0f9ff46c71b813789273d40caeed38",
+        "new_charge_seconds": "832.96134622255342",
+        "cumulative_charge_seconds": "99266.83806000882701",
+        "new_summaries": [
+          {
+            "case": "out/pcxt-whole-board-closure-20261023/route-memory50-harmonic-seed1",
+            "final_endpoint_summary": {
+              "paired_rows": 17430,
+              "unpaired_rows": 9,
+              "setup_failures": 8,
+              "setup_wns_ns": -0.43299999833106995,
+              "hold_failures": 0,
+              "hold_min_ns": 0.7870000004768372
+            }
+          },
+          {
+            "case": "out/pcxt-whole-board-closure-20261023/route-memory50-harmonic-seed2",
+            "final_endpoint_summary": {
+              "paired_rows": 17430,
+              "unpaired_rows": 9,
+              "setup_failures": 0,
+              "setup_wns_ns": 0.3070000112056732,
+              "hold_failures": 0,
+              "hold_min_ns": 0.796999990940094
+            }
+          },
+          {
+            "case": "out/pcxt-whole-board-closure-20261023/route-memory50-harmonic-seed3",
+            "final_endpoint_summary": {
+              "paired_rows": 17430,
+              "unpaired_rows": 9,
+              "setup_failures": 22,
+              "setup_wns_ns": -0.3619999885559082,
+              "hold_failures": 0,
+              "hold_min_ns": 0.7839999794960022
+            }
+          },
+          {
+            "case": "out/pcxt-whole-board-closure-20261023/route-memory50-bank-enable-seed2",
+            "final_endpoint_summary": {
+              "paired_rows": 17430,
+              "unpaired_rows": 9,
+              "setup_failures": 9,
+              "setup_wns_ns": -0.9100000262260437,
+              "hold_failures": 0,
+              "hold_min_ns": 0.7919999957084656
+            }
+          },
+          {
+            "case": "out/pcxt-whole-board-closure-20261023/route-memory50-bank-enable-seed3",
+            "final_endpoint_summary": {
+              "paired_rows": 17430,
+              "unpaired_rows": 9,
+              "setup_failures": 3,
+              "setup_wns_ns": -0.5630000233650208,
+              "hold_failures": 0,
+              "hold_min_ns": 0.7770000100135803
+            }
+          }
+        ],
+        "journal_only_charge_seconds": "84849.12019164720565",
+        "pre_journal_charge_seconds": "14417.71786836162136",
+        "cumulative_includes_pre_journal_amount": true
+      }
+    },
+    "system-board50-v2-cga/receipt.json": {
+      "sha256": "dfcd8ec3c62b7e111998eb26dc0203bcd2e2a678be83902aca7ae4dc1bf83a73",
+      "evidence": {
+        "scope": "Unadopted whole-system functional simulation: CPU100, motherboard/storage50, pixel74.25; same CPU/ISA/HDMI checks, tightened physical refresh cycle bound. Digital chip model only, no board timing acceptance.",
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "command": [
+          "verilator",
+          "--cc",
+          "--exe",
+          "--build",
+          "-j",
+          "2",
+          "-Wall",
+          "-Wno-SYNCASYNCNET",
+          "--timescale-override",
+          "1ns/1ps",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/cpu.vlt",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/chipset.vlt",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255",
+          "--top-module",
+          "system_top",
+          "--Mdir",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/build",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/generated",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim",
+          "-CFLAGS",
+          "-std=c++17 -O2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_bridge.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_boundary.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_isa_probe.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_6845.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xtio.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_dma.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/i8088.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu_bus.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/coleco_video_dpram.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video_output.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_boot.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/memory_top.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/system_top.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/system_tb.cpp"
+        ],
+        "binding": {
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_bridge.sv": "bbbab8a1ad69f476836723a812f13736e51aaa8c2a1cbe0ce5ac6ba4027bb8ab",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_boundary.sv": "e364ca44804669671af9cdf50fe783836e1f2ddd6461ac16de7122d528753248",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv": "cf4e667e8a4d71db01fddcf1d440e31eaef7b1999bda8c0140b7e14c69da071f",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_isa_probe.sv": "6bd7aa4350aa8d8005fd688ea10396950b4357a374bdc190d5f7201069a7d6a4",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_6845.sv": "8e92fd18bca6b82b7a15785e8c775d693d0696ccb496003ff8633f1e729c0e56",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv": "63cb0b4e051dc3af20afc054803e01707bd5bc0c2ef03eeeeb7b80c11d5e6c31",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv": "60c114dacf3273d65d164bbaae01ff459ee77d68ef9f36497ffd42fe792c87bb",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv": "493411c9ad1419036cd4e66bad720197d7f2b397d7e56c8e3f1c91b5d6e1c076",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv": "2e8133ef9c32d42d76985cc1d42cb0032b2f966ca8b0e045241b720e31663bad",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259.sv": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv": "c6991c3fea4647db02ad07e78ca4c7a99f0126c050137e8b624b663820b4ec92",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv": "b4fb1634a6721b83a2dd926d102d943e0655cced14f960a73938f06ef3821cca",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv": "e55c15c6aa487c6b0c69af72c767b1fd2bd10f498b6567f88de3120feef3c5d7",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253.sv": "cc0d63e629e6869cbc0dda09497f7a27485ec5111af4ac0c891b2a6ba9242a31",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv": "08fdb53ae2db6d2de5a8b80ba84b2021de9ee6aa01a17890cdd9aa926e6e374b",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv": "1b9a556831217b8daa21e4cdf83486bc6a4bda73439397477ed9479a2596b4e8",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255.sv": "de4c680b800c878619c268afdcd378b0204ff12a3fb6e2ac01284628c5b81d65",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv": "ab6f130d75939ccfcad9b4552502b71ea8d526f5bc6cfc233c52b17252c4fb91",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv": "efdfcd7ad874d23bfa98291d8926aef041e072902776fdedddb5e2411456bfdf",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv": "b055610eb0b629be7b85ce5a42c7aa22c4494b9c8bbe42dee7547e23bd508deb",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv": "06e8fe6b914549b01257ea7ce2da9b6d79042eac09ea1528ada563432b4f5af2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xtio.sv": "a0033adf071326374168254b1f6a77b0442d62be9141306841acb67b9285beb7",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv": "2fd03c26aeb544e91073f12d918bba1ae3b3da100a0e1daa5208b7a8c9ddfcae",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_dma.sv": "2967c93d14435df4ec1cf865d5d62ef082fa83105bdae0ec6e5f5b95600c8fea",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv": "7fe3f675a811725566d9b1bbf5216ea4435fd10093662e82c9d836ac2ba57f36",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv": "121871b84c528364975c24124b10a0111dadf1cfb5aa74d690fe80c1c20c0368",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv": "10e5ad46947fe38fb1d444244101aadf7acf61022464737194b9ed815bdc983d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv": "d38dc22fca1b6d671cc58a2ab008d70fb9d410ff0dea8339b4a11ce71507379d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv": "73a5353528631701e875d409c793bb7f2a43867fac365a31b6757adf4f2113be",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/i8088.sv": "8c9ec45f850927f98a27a9ded326d85d774b4f1abc2d4f19197d9cbbc7df158f",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu_bus.sv": "4a6b351a0f829acc93f7918cc1725ba629267f4e0df14c5536513cf7285edff6",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu.sv": "23fd3a694d310722dea5a183d0dbb524aed6de92234c9d9c8d09d2e22758126c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "f8ede141bc455ec2cc6020c2157088da59a1f91f66f678a4c069d1b582b5cd9d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv": "944526d30fe0e1789f4403849e1f7570634c0d4de1c697324ba7abdd9bedb69b",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/coleco_video_dpram.v": "334f1fe4978586f9c106fceafc08efba1621574446736d7f3296a0a6808cea44",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v": "590f8bda2da327e4c533506acca5bcfce2374d27ce2d0a4aa1a8d67dd8bb978c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video.sv": "5a2b2f3448b6270835b01237ede4a3cb202a18f40bc82f3016069b0e6ab8b78c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video_output.sv": "c1f2a0b89edbafa334a509ce96c3da561f56a89e9f9daaf6f56e6c2ef444d9c6",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv": "9b420174dfd487ad592ca80f1809a79e2b3fb071aaba68723f8295750e5eff37",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_boot.sv": "06ab2f68f185ce387509189316c2e77d147bade394f4cb20f025ac7cc2a63475",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/memory_top.sv": "6f18dd523d41cc210fa011d24ee569c2bdc3b9f24ae74e886d79c6f5594700a8",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/system_top.sv": "dfff6a61529768345018485ce3554421df124bace48536f46b1ce4df4fae5846",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/system_tb.cpp": "027ce5d96d1ac8f1943923373caeacdf80404ca4817aab1fceb9a499724d611e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/sim-board50-v2-system.py": "b44cacc1a1a085f6895b48ead4b3c02e39f8b5ce612d75170b68a92e3a2046ee",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/memory_model.hpp": "7ac32e1d8d34abf646a1bd5ebd89d1222a4c21bf8dd02682c014b6029a7f8bcf",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank4.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_ucode_byte1.mem": "915ad321a1c9657afbc3455369642b35bae54abc697d3c8779039690c95e682d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank1.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank3.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank7.hex": "4162782e03bc613bbe323fbce0a8ec385ce87df370e02cff4b65c61e9e641568",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_facts.vh": "81b90d93e1860c5ba2cfe32cf526792e74bf17017402a11d547069c96b8754f4",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank5.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_ucode_byte2.mem": "1ae5014d21bca2970a7a153ce209babf576278956234c1f6e463357ee1601549",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_ucode_byte0.mem": "3d1820b7f3de4f2f9f1377c5c715f3eea75cc9664cb9d498e0c455d7936f73c2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank0.hex": "c915baacfc0b38d59f17dad88f0cfaafd6847202a0320060a414f168f373fd99",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_ucode.mem": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/mcl86_ucode_byte3.mem": "f67eaa6a751041796da221bf760c9bc3b80a2cf77a2941344c9ee5eee85fd50d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank6.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-cga/pcxt_diagnostic.bank2.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df"
+        },
+        "completed": true,
+        "hardware": false,
+        "build_returncode": 0,
+        "results": [
+          {
+            "mask": 0,
+            "returncode": 0
+          },
+          {
+            "mask": 1,
+            "returncode": 0
+          },
+          {
+            "mask": 2,
+            "returncode": 0
+          }
+        ],
+        "postflight_identity_pass": true
+      }
+    },
+    "system-board50-v2-mda/receipt.json": {
+      "sha256": "8fcf9397d68d792c1d15988f05cffa5508e1ea1c65feab54fcb9edb61ac0f93f",
+      "evidence": {
+        "scope": "Unadopted whole-system MDA functional simulation: CPU100, motherboard/storage50, pixel74.25; same CPU/ISA/HDMI checks, tightened physical refresh cycle bound. Digital chip model only, no board timing acceptance.",
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "command": [
+          "verilator",
+          "--cc",
+          "--exe",
+          "--build",
+          "-j",
+          "2",
+          "-Wall",
+          "-Wno-SYNCASYNCNET",
+          "--timescale-override",
+          "1ns/1ps",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/cpu.vlt",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/chipset.vlt",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255",
+          "--top-module",
+          "system_top",
+          "-GMDA=1'b1",
+          "-GSCANLINES=1'b1",
+          "--Mdir",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/build",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/generated",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda",
+          "-I/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim",
+          "-CFLAGS",
+          "-std=c++17 -O2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_bridge.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_boundary.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_isa_probe.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_6845.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xtio.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_dma.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/i8088.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu_bus.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/coleco_video_dpram.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video_output.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_boot.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/memory_top.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/system_top.sv",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/system_tb.cpp"
+        ],
+        "binding": {
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_bridge.sv": "bbbab8a1ad69f476836723a812f13736e51aaa8c2a1cbe0ce5ac6ba4027bb8ab",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_boundary.sv": "e364ca44804669671af9cdf50fe783836e1f2ddd6461ac16de7122d528753248",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv": "cf4e667e8a4d71db01fddcf1d440e31eaef7b1999bda8c0140b7e14c69da071f",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_isa_probe.sv": "6bd7aa4350aa8d8005fd688ea10396950b4357a374bdc190d5f7201069a7d6a4",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_6845.sv": "8e92fd18bca6b82b7a15785e8c775d693d0696ccb496003ff8633f1e729c0e56",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_display_card.sv": "63cb0b4e051dc3af20afc054803e01707bd5bc0c2ef03eeeeb7b80c11d5e6c31",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_cga_card.sv": "60c114dacf3273d65d164bbaae01ff459ee77d68ef9f36497ffd42fe792c87bb",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/expansions/pcxt_mda_card.sv": "493411c9ad1419036cd4e66bad720197d7f2b397d7e56c8e3f1c91b5d6e1c076",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_display_bus.sv": "2e8133ef9c32d42d76985cc1d42cb0032b2f966ca8b0e045241b720e31663bad",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259.sv": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv": "c6991c3fea4647db02ad07e78ca4c7a99f0126c050137e8b624b663820b4ec92",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv": "b4fb1634a6721b83a2dd926d102d943e0655cced14f960a73938f06ef3821cca",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv": "e55c15c6aa487c6b0c69af72c767b1fd2bd10f498b6567f88de3120feef3c5d7",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253.sv": "cc0d63e629e6869cbc0dda09497f7a27485ec5111af4ac0c891b2a6ba9242a31",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv": "08fdb53ae2db6d2de5a8b80ba84b2021de9ee6aa01a17890cdd9aa926e6e374b",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv": "1b9a556831217b8daa21e4cdf83486bc6a4bda73439397477ed9479a2596b4e8",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255.sv": "de4c680b800c878619c268afdcd378b0204ff12a3fb6e2ac01284628c5b81d65",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv": "ab6f130d75939ccfcad9b4552502b71ea8d526f5bc6cfc233c52b17252c4fb91",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv": "efdfcd7ad874d23bfa98291d8926aef041e072902776fdedddb5e2411456bfdf",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv": "b055610eb0b629be7b85ce5a42c7aa22c4494b9c8bbe42dee7547e23bd508deb",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv": "06e8fe6b914549b01257ea7ce2da9b6d79042eac09ea1528ada563432b4f5af2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xtio.sv": "a0033adf071326374168254b1f6a77b0442d62be9141306841acb67b9285beb7",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv": "2fd03c26aeb544e91073f12d918bba1ae3b3da100a0e1daa5208b7a8c9ddfcae",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_speaker.sv": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_dma.sv": "2967c93d14435df4ec1cf865d5d62ef082fa83105bdae0ec6e5f5b95600c8fea",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_motherboard.sv": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv": "7fe3f675a811725566d9b1bbf5216ea4435fd10093662e82c9d836ac2ba57f36",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv": "121871b84c528364975c24124b10a0111dadf1cfb5aa74d690fe80c1c20c0368",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv": "10e5ad46947fe38fb1d444244101aadf7acf61022464737194b9ed815bdc983d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv": "d38dc22fca1b6d671cc58a2ab008d70fb9d410ff0dea8339b4a11ce71507379d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv": "73a5353528631701e875d409c793bb7f2a43867fac365a31b6757adf4f2113be",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/vendor/mcl86/i8088.sv": "8c9ec45f850927f98a27a9ded326d85d774b4f1abc2d4f19197d9cbbc7df158f",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu_bus.sv": "4a6b351a0f829acc93f7918cc1725ba629267f4e0df14c5536513cf7285edff6",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_cpu.sv": "23fd3a694d310722dea5a183d0dbb524aed6de92234c9d9c8d09d2e22758126c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "f8ede141bc455ec2cc6020c2157088da59a1f91f66f678a4c069d1b582b5cd9d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv": "944526d30fe0e1789f4403849e1f7570634c0d4de1c697324ba7abdd9bedb69b",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/coleco_video_dpram.v": "334f1fe4978586f9c106fceafc08efba1621574446736d7f3296a0a6808cea44",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v": "bf60e215456c6baf1fb1bb1f00b1a252369e16ce25e98ce0c4e91b9680d3db2a",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-common/rtl/fes_video_part_scanlines.v": "590f8bda2da327e4c533506acca5bcfce2374d27ce2d0a4aa1a8d67dd8bb978c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video.sv": "5a2b2f3448b6270835b01237ede4a3cb202a18f40bc82f3016069b0e6ab8b78c",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_video_output.sv": "c1f2a0b89edbafa334a509ce96c3da561f56a89e9f9daaf6f56e6c2ef444d9c6",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv": "9b420174dfd487ad592ca80f1809a79e2b3fb071aaba68723f8295750e5eff37",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/rtl/pcxt_boot.sv": "06ab2f68f185ce387509189316c2e77d147bade394f4cb20f025ac7cc2a63475",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross/cores/fes-pcxt/sim/memory_top.sv": "6f18dd523d41cc210fa011d24ee569c2bdc3b9f24ae74e886d79c6f5594700a8",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/system_top.sv": "dfff6a61529768345018485ce3554421df124bace48536f46b1ce4df4fae5846",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/system_tb.cpp": "027ce5d96d1ac8f1943923373caeacdf80404ca4817aab1fceb9a499724d611e",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/sim-board50-v2-mda.py": "d49f82fb4ac4ee44c204d1b18fdeba0b545c2b59a4dc98612ddfe8bf31101e0b",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/memory_model.hpp": "7ac32e1d8d34abf646a1bd5ebd89d1222a4c21bf8dd02682c014b6029a7f8bcf",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank4.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_ucode_byte1.mem": "915ad321a1c9657afbc3455369642b35bae54abc697d3c8779039690c95e682d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank1.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank3.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank7.hex": "4162782e03bc613bbe323fbce0a8ec385ce87df370e02cff4b65c61e9e641568",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_facts.vh": "81b90d93e1860c5ba2cfe32cf526792e74bf17017402a11d547069c96b8754f4",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank5.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_ucode_byte2.mem": "1ae5014d21bca2970a7a153ce209babf576278956234c1f6e463357ee1601549",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_ucode_byte0.mem": "3d1820b7f3de4f2f9f1377c5c715f3eea75cc9664cb9d498e0c455d7936f73c2",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank0.hex": "c915baacfc0b38d59f17dad88f0cfaafd6847202a0320060a414f168f373fd99",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_ucode.mem": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/mcl86_ucode_byte3.mem": "f67eaa6a751041796da221bf760c9bc3b80a2cf77a2941344c9ee5eee85fd50d",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank6.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/system-board50-v2-mda/pcxt_diagnostic.bank2.hex": "05c6c9fbcd84d2088da6dda39a9c008b2b5db0d71fe0945fc10aee7a815b16df",
+          "/tmp/recover-pcxt-mda.py": "dbf35256a181408b7cd566066d43dbbeee8bbbdf2c77d3a2a0987047a78ac68e"
+        },
+        "completed": true,
+        "hardware": false,
+        "prior_build_failure": "Retained build.log: Verilator CLI untyped integer for bit parameter warns; use explicitly sized bits and matching MDA Scanlines model invocation.",
+        "build_returncode": 0,
+        "results": [
+          {
+            "mask": 0,
+            "returncode": 0
+          },
+          {
+            "mask": 1,
+            "returncode": 0
+          },
+          {
+            "mask": 2,
+            "returncode": 0
+          }
+        ],
+        "postflight_identity_pass": true
+      }
+    },
+    "speaker-board50-v2/receipt.json": {
+      "sha256": "bec6a3072ed939405942ce0dfff5d49e0e86d4dc8efb4b4b154ffcaac209404e",
+      "evidence": {
+        "results": [
+          {
+            "hz": 100000000,
+            "returncode": 0,
+            "stdout": "PASS rate=100000000 samples=9598 interval=2083..2084\n"
+          },
+          {
+            "hz": 50000000,
+            "returncode": 0,
+            "stdout": "PASS rate=50000000 samples=9598 interval=1041..1042\n"
+          }
+        ],
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "rtl_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60",
+        "test_sha256": "44d771c8a1c22f65b84460790bdb2d274e3f25e8e6f6051a3536b966b9d743f4",
+        "hardware": false
+      }
+    },
+    "board50-prototype/bridge-checked-results.json": {
+      "sha256": "2a0d40dcd0967440e0ee7972b98b0997a6f423ac4e2472f6afdad8192924bc0e",
+      "evidence": [
+        {
+          "case": "positive",
+          "returncode": 0,
+          "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+        },
+        {
+          "case": "live-payload",
+          "returncode": 1,
+          "result": "accepted payload changed at quarter 24"
+        },
+        {
+          "case": "repeated-completion",
+          "returncode": 1,
+          "result": "unsolicited or repeated CPU completion at quarter 40"
+        }
+      ]
+    },
+    "route-board50-v2-host-seed1-reference-screen.json": {
+      "sha256": "09d22f95af5fb7e9b0498b1e5db405a953ce1423911f84102dd995f500d08808",
+      "evidence": {
+        "scope": "Partial four-corner reference uncertainty screen of CPU100/board50 native route; exact per-endpoint launch identities required. Explicit pair/corner budgets, no source clock/SDC change. Remaining9 unrelated/async rows and external/reset requirements are not waived. Not whole-board or physical qualification.",
+        "case": "route-board50-v2-host-seed1",
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "receipt_sha256": "a75541bb116fc37f4dc5b19c7c62dc5d7b6edf89f7dbb6acf66cdb96f2e739d4",
+        "reference_input_sha256": "2076838b09d633f2f9bafe3c60f39543f77e2fca6e7e4b4e8e8b55ad1b75eeb2",
+        "reference_pair_reports": {
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-setup.rpt": "e7dfecc6216edba47693669c6af66ff66997da72a6802c5ae555729c83a3bbb1",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-hold.rpt": "4c3e3f13d70e6d60e45e7ce007cbd8cfeda37b20f9504bb9fd4b939f9a003989",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-setup.rpt": "0a2cd7b8ebd1fbac7ef362f7b6da3708973c39a8386dd84763fe2acb671b40ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-hold.rpt": "0b76ea1420a1fe43598690eb8080d72c9733827db3dcde13b4443d8046f65e5b",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-setup.rpt": "4a32cf90431740196f892cbd75d0d0e311e560a33535bc06a187354f6229899f",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-hold.rpt": "ec5bf89b808b0c2218d9dcd0f525695cdc0e15fff54d0b1c5a26583ea91a88d8",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-setup.rpt": "bd4efb6331407778aeb4d052dac32543e5847855000b02dcae9d7056cd01f8c5",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-hold.rpt": "a89cec9938ce65130cdbdb6b40ad123b36a9e905286f460bcc5d219ceff925eb",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-setup.rpt": "aeabb6671f29acc89f6c2ee0a257f4f5a8811fd796185396598e3193a707e3c8",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-hold.rpt": "0d0963a2f68215522569c6a8236809963183e7e810e79d34e8fc6e2e91be3361",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-setup.rpt": "3123a77a3d77741c123b57aac5cddad34beeb386b6ce02a63a9745588f6d1357",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-hold.rpt": "367cfbcf1240ffdf8598dd6b57c03320ab6183b8146b37226ae84b062abe1bbe",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-setup.rpt": "35681affaec0318ef0818345b114574b8d2ed738f7b639069db236333b13acfd",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-hold.rpt": "254d5bc60597aa3316766c94f48557b7e6eb4a9ad1ab2ebde8c2bae2169c3eda",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-setup.rpt": "deb5a6a5ecafe4ef30a1d9236958ebcba1b70212525e2e1d79eb7c1b46e66c9c",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-hold.rpt": "af913b92f135e194c6bdf46a7fd803d2514c3539438ad8f781e8e98e318160a9",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-setup.rpt": "81253251ca520149343a4907e1efc84f201819b6f2f78f16541572efdabb9fad",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-hold.rpt": "c15453a04774007ca6491b4147ac6c06549ab0d270254dea0f7f2aa785c156b4",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-setup.rpt": "208aeac2d6ec4ca25a09b3c2e16e3744002809d7bd22b4aaeb9344ddc9a1f3ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-hold.rpt": "26f80e7566807d9d308972bceb95ae4606c302771bd9a94322da643f92d3e446",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-setup.rpt": "8ea7f46bb9b21ddf18f1f9d9dd2f149c75c2e14f910dc8b324e746b949b149c0",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-hold.rpt": "9468d2c2609f5f4c5f35a5b1916a5eabb4783dcc3ffbccbf62b4a8b49678ded2",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-setup.rpt": "e3c202e3debbc66f606cf4d551e9e0628d5245cae0b8fb8a744c5cda8eef1891",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-hold.rpt": "b31aabe73e4f4032d3481ce3881923074c854daa5cc15ecaad17655b1801df78",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-setup.rpt": "a76215925acf9fa652061ee38e3f9d594b90bdadf12bea00713add82e434d4c6",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-hold.rpt": "fe78258cfdc484bf9dbba65579d98e6e692d2b3fe563395be57dd65b9ab79b62",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-setup.rpt": "24cd617ad1de72f1f0e4750008cc32ab3fcb2a32ffe94a5756102e374086c4a1",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-hold.rpt": "d20b58e1f4e0eb454486208b6c75d349746571e06daeae62a791b2e796731ce7",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-setup.rpt": "bcc96b5429a3ce287edbb61e8f19204c26aca6a8b24953e852eaddd22dbdc41b",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-hold.rpt": "0034566fb045d013cd510782790dfe15ba1c280fdcb7285575393d4f48c960b4",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-setup.rpt": "27ddd5cf6965501a06ff520befc6eddd2db312c66597da91c4c40fcf8750fe19",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-hold.rpt": "6879a56439cfe845f77390216b718a933f4367e22da77df778571af49c6d8ceb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-setup.rpt": "35a0c6d358f5a71764b684cb74ff2b1907c2e65ff42a1c173ac9949a1c3a839b",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-hold.rpt": "2f44d9951d4d39ee8cd4297f37a18c20977898861e4ccb90acb5b8d9a85bb73f",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-setup.rpt": "bda74d58fd05b28b1a1fde8495a2d90ad2e3739a16934e5cc1682a1b80c7e176",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-hold.rpt": "0bd855ebd9bbf79111367f8d62233139081c5c7319999c39bea50c0da4dd39dd",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-setup.rpt": "a9e6a08c48c37f1c3beaa6d59f9a33560d0563ccc78aa61ed2d55912f955477c",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-hold.rpt": "11a646af97d914dd08e5f910c24f0bfd8ed26bcf1d3140d0dfe8e11f198bbadb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-setup.rpt": "3c14fea5d48e31afe61a3767141c6dfdb9d929627faaf0ade3d8ca68bc489f5c",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-hold.rpt": "6f9464a72d8be232cd30dd8a6712104b355d9955535a32180ad080b403637430",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-setup.rpt": "8f4f64078d34edb9cc5b3068006ca6dbaedb0aa4818f44d9c903322df429a856",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-hold.rpt": "b1bb83626b944cef36918df36a6599673a7d3973ef3f29f331b3c2a1aaab0894",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-setup.rpt": "58fb4b12a34fd2f91f4fc64e262844ff76a8f482b4fe30a7026bab78554ca949",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-hold.rpt": "7ad644b70742ecb4dec9c18d85a17fe337ab6992fbdca7245dadd6fa3ab79b4b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-setup.rpt": "ae0539f644473bf2ed33cec667a429f20304bdcd273c9b250263adab428e12c1",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-hold.rpt": "44d086cd011ad7e8d5032ed34eaa1828eedca93b04568c7c1fd1de50d44108ac",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-setup.rpt": "808dbcc9dab9e00c8595b634c007a14fc258253a99da99218046125b574db775",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-hold.rpt": "efd9dc71d8db9b0ddae722509fef72cb27c3dd9a11d0bc508892fc77a9a938d8",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-setup.rpt": "ddbaa4e024caaead7bd0c6049520423cd36a6049dd04001281dfbf865ccedae7",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-hold.rpt": "357eea9771bb1459931049d2d1e3bc46b0e635b27bc3db4145ecbd93e4a3254b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-setup.rpt": "123ec980476c6001e8816ea2e3e2fc434d2824690458daeb6c8978027407c57e",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-hold.rpt": "e1ddf040c101f427ce0d4cfdc528c2bb0ed209f873711984bffaf449e6001aa5",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-setup.rpt": "70fc350228dd0137670cb7c6d7f27725f7f83b9762cdbd75185ab1e7154d74c4",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-hold.rpt": "8bd0aad72730f85bbbdb424cfa713240458edf57a54d3eedf87fd5695e886be6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-setup.rpt": "6e92c51b263f247b5abe38e61a29deef1ab96fefc85a785ae7a377382fa0a821",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-hold.rpt": "e8d8f424a7682bb60913526e862ce2cec771c82398c119a56e7b986b275e83b6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-setup.rpt": "ad71a1508b9589413f0dac768caa731c7fd09fb64c8af694e25ae2d8308a092b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-hold.rpt": "608f99735a33f7c7638c74c93517ca7605a7add9602c9d43edd4269c68eaaf25",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-setup.rpt": "84496fca04e6fb0935db17d21ba1b1b1c11d2565743fbc20e9fc1b55fc551072",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-hold.rpt": "c404e982445e6d0c2c115c69e4e686862c71932034e09b1349f5fedc2c352a6d",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-setup.rpt": "8e3a49beb41bcf791b3556ed79ea697817324f9a004ba81e3cd99fcdaa346686",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-hold.rpt": "7c61265b8b399902d505f89427183a224cee6ef71bd27a31905153480e46a104",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-setup.rpt": "33df0c7dd7763a7c48aa305743eb9e6c6e35e43ff8e8b3be2ae39fe69e4a7274",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-hold.rpt": "84772b240d6934d229a5e0b8158628329b61a40462bbaaf0a8075894711d58ef",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-setup.rpt": "b83a732483e545cfed90ff511cca092ecdd92e977ee54a9c08d780add0462f5b",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-hold.rpt": "654a60f27aacb92514fb02826d4ee7bbc0b4a1cc5e9009781a838a9f125a11a2",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-setup.rpt": "c13ec447e5aec48271fc1a5e64b16dfbe9ed97bc12fbcdf33b11829d02a4bd14",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-hold.rpt": "452dbe741f2ef43a82513dce9d338509f3c33f110ded955bd89e9a107e664424",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-setup.rpt": "eedb484ca44aa5b0480a5dbd19d7615e1f3cfbe77757143a01039ef6f62e652c",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-hold.rpt": "706ff6ee17874210527961d79de167b328ed79ebb31ea4c1d9019712b5f5ff2f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-setup.rpt": "e08a8c9e2cf5e555ee648f1d393847d8f75db3dff685c994816f5066ce5d1f42",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-hold.rpt": "73eecef0c6eaea98a9da7f7a88ec7cb99858dbfdcac074e8425770d4733412d7",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-setup.rpt": "9c7e4227f8160feaa1f81fb536a68a63ff39a1703ea87235848b97c5feabb637",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-hold.rpt": "1048e47c5570d84a510275ee415ebbfea6913ab085362158056587781b00d129",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-setup.rpt": "1ac4a90d1587ed0e7a9fa476d0567d62eba7c0aa5ca42d2264a317ac07571a8b",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-hold.rpt": "6f799082eb08eca1a2ab866cd63bc8c68e55260f945a921be564b3b4e8660157",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-setup.rpt": "c681815d331feca6a50138a0705e94226da501d2e8ac73fded4fcd0513b8e1c8",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-hold.rpt": "17ffdc7e2792b9ee4e53840603f79b6c3dbc8a7a9da5972f05ffca33e89ae36a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-setup.rpt": "5216644e9c8a5c2e7ef62e189d2d35c73298b2fc93a4440d1f16e234fc5190ed",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-hold.rpt": "29e014ba228560a2c77c2eba1dafc8fcbb6b6733699c7d12e7a7f49b310b4463",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-setup.rpt": "6435f59d2be961c4d7a6d7b2e47135280537b059fb797a37dc7e3354de1cd42a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-hold.rpt": "e6287f6009132e5bf95518a58b2d9c2f5930c2861579a822e59710b9d544bec5",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-setup.rpt": "88ba9a28458b9c035abaa4408ee0c8ccfd4a1f2b14ccd0230120b50e927d6d4f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-hold.rpt": "502c572e73d97ceb8af0546801ff292065e291571ea75baa9c2f332c9a55cb4d",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-setup.rpt": "740f131d7828fa4fb7db19d6de3df4d1e4aed4afc788843d471662b7bd28b723",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-hold.rpt": "58542d95dc48c8613d70bea86588922cf6b36073fe6ea82bd1260c9b1a48180f",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-setup.rpt": "40edbc40c2831829733d4b7db9b4a7f3696ff8ac43c7fd234fce48847e637a9b",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-hold.rpt": "0e644701a27261710730c042303d33eb87c110af0cde9ab33182c0dfa009f43d"
+        },
+        "clock_topology_audit_sha256": "432f77f17f32e3de99c38be652f3846450f7cbda23a077d6403002f502155356",
+        "reference_rbf_sha256": "f26ffc806b608b172cc5bbf1fb8cc6562f97584b59b6f46783270554a7402b06",
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          }
+        ],
+        "native_rows": 17718,
+        "paired_rows": 17709,
+        "unpaired": [
+          [
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clk_pixel",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.front_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU",
+            "Q",
+            "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q",
+            "system.video.adapter.front_MISTRAL_FF_Q_1",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q",
+            "system.machine.board.audio.reset",
+            "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ]
+        ],
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 7.989000244140625,
+            "adjusted_hold_min_ns": 1.8320000171661377
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 2.5120000076293945,
+            "adjusted_hold_min_ns": 6.097999992370606
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 1.6159999704360961,
+            "adjusted_hold_min_ns": 6.184000186920166
+          },
+          {
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 1.053000020980835,
+            "adjusted_hold_min_ns": 0.6690000295639038
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 1.757000012397766,
+            "adjusted_hold_min_ns": 6.162000122070313
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 1.5519999694824218,
+            "adjusted_hold_min_ns": 0.8610000014305115
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 4.312999877929688,
+            "adjusted_hold_min_ns": 2.693999938964844
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 7.821000003814698,
+            "adjusted_hold_min_ns": 10.279000205993652
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 2.4590000247955324,
+            "adjusted_hold_min_ns": 6.344000034332275
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.988000068664551,
+            "adjusted_hold_min_ns": 0.7469999718666076
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11318,
+            "adjusted_setup_wns_ns": 8.27399959564209,
+            "adjusted_hold_min_ns": 0.7749999761581421
+          }
+        ],
+        "setup_failures": [],
+        "hold_failures": [],
+        "whole_board_qualified": false,
+        "native_uncertainty_model_adopted": false,
+        "hardware": false
+      }
+    },
+    "route-board50-v2-host-seed2-reference-screen.json": {
+      "sha256": "a06b4c901815844c217465f22c09075bd0e6faa10c15983a98df0c3eafb0795e",
+      "evidence": {
+        "scope": "Partial four-corner reference uncertainty screen of CPU100/board50 native route; exact per-endpoint launch identities required. Explicit pair/corner budgets, no source clock/SDC change. Remaining9 unrelated/async rows and external/reset requirements are not waived. Not whole-board or physical qualification.",
+        "case": "route-board50-v2-host-seed2",
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "receipt_sha256": "8bbb35a64514c47425274a51f2865a944c97ad3c863034432b9df194b90553ab",
+        "reference_input_sha256": "2076838b09d633f2f9bafe3c60f39543f77e2fca6e7e4b4e8e8b55ad1b75eeb2",
+        "reference_pair_reports": {
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-setup.rpt": "e7dfecc6216edba47693669c6af66ff66997da72a6802c5ae555729c83a3bbb1",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-hold.rpt": "4c3e3f13d70e6d60e45e7ce007cbd8cfeda37b20f9504bb9fd4b939f9a003989",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-setup.rpt": "0a2cd7b8ebd1fbac7ef362f7b6da3708973c39a8386dd84763fe2acb671b40ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-hold.rpt": "0b76ea1420a1fe43598690eb8080d72c9733827db3dcde13b4443d8046f65e5b",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-setup.rpt": "4a32cf90431740196f892cbd75d0d0e311e560a33535bc06a187354f6229899f",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-hold.rpt": "ec5bf89b808b0c2218d9dcd0f525695cdc0e15fff54d0b1c5a26583ea91a88d8",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-setup.rpt": "bd4efb6331407778aeb4d052dac32543e5847855000b02dcae9d7056cd01f8c5",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-hold.rpt": "a89cec9938ce65130cdbdb6b40ad123b36a9e905286f460bcc5d219ceff925eb",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-setup.rpt": "aeabb6671f29acc89f6c2ee0a257f4f5a8811fd796185396598e3193a707e3c8",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-hold.rpt": "0d0963a2f68215522569c6a8236809963183e7e810e79d34e8fc6e2e91be3361",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-setup.rpt": "3123a77a3d77741c123b57aac5cddad34beeb386b6ce02a63a9745588f6d1357",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-hold.rpt": "367cfbcf1240ffdf8598dd6b57c03320ab6183b8146b37226ae84b062abe1bbe",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-setup.rpt": "35681affaec0318ef0818345b114574b8d2ed738f7b639069db236333b13acfd",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-hold.rpt": "254d5bc60597aa3316766c94f48557b7e6eb4a9ad1ab2ebde8c2bae2169c3eda",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-setup.rpt": "deb5a6a5ecafe4ef30a1d9236958ebcba1b70212525e2e1d79eb7c1b46e66c9c",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-hold.rpt": "af913b92f135e194c6bdf46a7fd803d2514c3539438ad8f781e8e98e318160a9",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-setup.rpt": "81253251ca520149343a4907e1efc84f201819b6f2f78f16541572efdabb9fad",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-hold.rpt": "c15453a04774007ca6491b4147ac6c06549ab0d270254dea0f7f2aa785c156b4",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-setup.rpt": "208aeac2d6ec4ca25a09b3c2e16e3744002809d7bd22b4aaeb9344ddc9a1f3ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-hold.rpt": "26f80e7566807d9d308972bceb95ae4606c302771bd9a94322da643f92d3e446",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-setup.rpt": "8ea7f46bb9b21ddf18f1f9d9dd2f149c75c2e14f910dc8b324e746b949b149c0",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-hold.rpt": "9468d2c2609f5f4c5f35a5b1916a5eabb4783dcc3ffbccbf62b4a8b49678ded2",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-setup.rpt": "e3c202e3debbc66f606cf4d551e9e0628d5245cae0b8fb8a744c5cda8eef1891",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-hold.rpt": "b31aabe73e4f4032d3481ce3881923074c854daa5cc15ecaad17655b1801df78",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-setup.rpt": "a76215925acf9fa652061ee38e3f9d594b90bdadf12bea00713add82e434d4c6",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-hold.rpt": "fe78258cfdc484bf9dbba65579d98e6e692d2b3fe563395be57dd65b9ab79b62",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-setup.rpt": "24cd617ad1de72f1f0e4750008cc32ab3fcb2a32ffe94a5756102e374086c4a1",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-hold.rpt": "d20b58e1f4e0eb454486208b6c75d349746571e06daeae62a791b2e796731ce7",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-setup.rpt": "bcc96b5429a3ce287edbb61e8f19204c26aca6a8b24953e852eaddd22dbdc41b",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-hold.rpt": "0034566fb045d013cd510782790dfe15ba1c280fdcb7285575393d4f48c960b4",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-setup.rpt": "27ddd5cf6965501a06ff520befc6eddd2db312c66597da91c4c40fcf8750fe19",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-hold.rpt": "6879a56439cfe845f77390216b718a933f4367e22da77df778571af49c6d8ceb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-setup.rpt": "35a0c6d358f5a71764b684cb74ff2b1907c2e65ff42a1c173ac9949a1c3a839b",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-hold.rpt": "2f44d9951d4d39ee8cd4297f37a18c20977898861e4ccb90acb5b8d9a85bb73f",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-setup.rpt": "bda74d58fd05b28b1a1fde8495a2d90ad2e3739a16934e5cc1682a1b80c7e176",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-hold.rpt": "0bd855ebd9bbf79111367f8d62233139081c5c7319999c39bea50c0da4dd39dd",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-setup.rpt": "a9e6a08c48c37f1c3beaa6d59f9a33560d0563ccc78aa61ed2d55912f955477c",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-hold.rpt": "11a646af97d914dd08e5f910c24f0bfd8ed26bcf1d3140d0dfe8e11f198bbadb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-setup.rpt": "3c14fea5d48e31afe61a3767141c6dfdb9d929627faaf0ade3d8ca68bc489f5c",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-hold.rpt": "6f9464a72d8be232cd30dd8a6712104b355d9955535a32180ad080b403637430",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-setup.rpt": "8f4f64078d34edb9cc5b3068006ca6dbaedb0aa4818f44d9c903322df429a856",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-hold.rpt": "b1bb83626b944cef36918df36a6599673a7d3973ef3f29f331b3c2a1aaab0894",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-setup.rpt": "58fb4b12a34fd2f91f4fc64e262844ff76a8f482b4fe30a7026bab78554ca949",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-hold.rpt": "7ad644b70742ecb4dec9c18d85a17fe337ab6992fbdca7245dadd6fa3ab79b4b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-setup.rpt": "ae0539f644473bf2ed33cec667a429f20304bdcd273c9b250263adab428e12c1",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-hold.rpt": "44d086cd011ad7e8d5032ed34eaa1828eedca93b04568c7c1fd1de50d44108ac",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-setup.rpt": "808dbcc9dab9e00c8595b634c007a14fc258253a99da99218046125b574db775",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-hold.rpt": "efd9dc71d8db9b0ddae722509fef72cb27c3dd9a11d0bc508892fc77a9a938d8",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-setup.rpt": "ddbaa4e024caaead7bd0c6049520423cd36a6049dd04001281dfbf865ccedae7",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-hold.rpt": "357eea9771bb1459931049d2d1e3bc46b0e635b27bc3db4145ecbd93e4a3254b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-setup.rpt": "123ec980476c6001e8816ea2e3e2fc434d2824690458daeb6c8978027407c57e",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-hold.rpt": "e1ddf040c101f427ce0d4cfdc528c2bb0ed209f873711984bffaf449e6001aa5",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-setup.rpt": "70fc350228dd0137670cb7c6d7f27725f7f83b9762cdbd75185ab1e7154d74c4",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-hold.rpt": "8bd0aad72730f85bbbdb424cfa713240458edf57a54d3eedf87fd5695e886be6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-setup.rpt": "6e92c51b263f247b5abe38e61a29deef1ab96fefc85a785ae7a377382fa0a821",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-hold.rpt": "e8d8f424a7682bb60913526e862ce2cec771c82398c119a56e7b986b275e83b6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-setup.rpt": "ad71a1508b9589413f0dac768caa731c7fd09fb64c8af694e25ae2d8308a092b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-hold.rpt": "608f99735a33f7c7638c74c93517ca7605a7add9602c9d43edd4269c68eaaf25",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-setup.rpt": "84496fca04e6fb0935db17d21ba1b1b1c11d2565743fbc20e9fc1b55fc551072",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-hold.rpt": "c404e982445e6d0c2c115c69e4e686862c71932034e09b1349f5fedc2c352a6d",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-setup.rpt": "8e3a49beb41bcf791b3556ed79ea697817324f9a004ba81e3cd99fcdaa346686",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-hold.rpt": "7c61265b8b399902d505f89427183a224cee6ef71bd27a31905153480e46a104",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-setup.rpt": "33df0c7dd7763a7c48aa305743eb9e6c6e35e43ff8e8b3be2ae39fe69e4a7274",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-hold.rpt": "84772b240d6934d229a5e0b8158628329b61a40462bbaaf0a8075894711d58ef",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-setup.rpt": "b83a732483e545cfed90ff511cca092ecdd92e977ee54a9c08d780add0462f5b",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-hold.rpt": "654a60f27aacb92514fb02826d4ee7bbc0b4a1cc5e9009781a838a9f125a11a2",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-setup.rpt": "c13ec447e5aec48271fc1a5e64b16dfbe9ed97bc12fbcdf33b11829d02a4bd14",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-hold.rpt": "452dbe741f2ef43a82513dce9d338509f3c33f110ded955bd89e9a107e664424",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-setup.rpt": "eedb484ca44aa5b0480a5dbd19d7615e1f3cfbe77757143a01039ef6f62e652c",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-hold.rpt": "706ff6ee17874210527961d79de167b328ed79ebb31ea4c1d9019712b5f5ff2f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-setup.rpt": "e08a8c9e2cf5e555ee648f1d393847d8f75db3dff685c994816f5066ce5d1f42",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-hold.rpt": "73eecef0c6eaea98a9da7f7a88ec7cb99858dbfdcac074e8425770d4733412d7",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-setup.rpt": "9c7e4227f8160feaa1f81fb536a68a63ff39a1703ea87235848b97c5feabb637",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-hold.rpt": "1048e47c5570d84a510275ee415ebbfea6913ab085362158056587781b00d129",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-setup.rpt": "1ac4a90d1587ed0e7a9fa476d0567d62eba7c0aa5ca42d2264a317ac07571a8b",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-hold.rpt": "6f799082eb08eca1a2ab866cd63bc8c68e55260f945a921be564b3b4e8660157",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-setup.rpt": "c681815d331feca6a50138a0705e94226da501d2e8ac73fded4fcd0513b8e1c8",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-hold.rpt": "17ffdc7e2792b9ee4e53840603f79b6c3dbc8a7a9da5972f05ffca33e89ae36a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-setup.rpt": "5216644e9c8a5c2e7ef62e189d2d35c73298b2fc93a4440d1f16e234fc5190ed",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-hold.rpt": "29e014ba228560a2c77c2eba1dafc8fcbb6b6733699c7d12e7a7f49b310b4463",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-setup.rpt": "6435f59d2be961c4d7a6d7b2e47135280537b059fb797a37dc7e3354de1cd42a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-hold.rpt": "e6287f6009132e5bf95518a58b2d9c2f5930c2861579a822e59710b9d544bec5",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-setup.rpt": "88ba9a28458b9c035abaa4408ee0c8ccfd4a1f2b14ccd0230120b50e927d6d4f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-hold.rpt": "502c572e73d97ceb8af0546801ff292065e291571ea75baa9c2f332c9a55cb4d",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-setup.rpt": "740f131d7828fa4fb7db19d6de3df4d1e4aed4afc788843d471662b7bd28b723",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-hold.rpt": "58542d95dc48c8613d70bea86588922cf6b36073fe6ea82bd1260c9b1a48180f",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-setup.rpt": "40edbc40c2831829733d4b7db9b4a7f3696ff8ac43c7fd234fce48847e637a9b",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-hold.rpt": "0e644701a27261710730c042303d33eb87c110af0cde9ab33182c0dfa009f43d"
+        },
+        "clock_topology_audit_sha256": "512831f0a625da11bf531276d26309e73cba827b0ab7c3ab7d750773cf5a4f43",
+        "reference_rbf_sha256": "f26ffc806b608b172cc5bbf1fb8cc6562f97584b59b6f46783270554a7402b06",
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          }
+        ],
+        "native_rows": 17718,
+        "paired_rows": 17709,
+        "unpaired": [
+          [
+            "system.video.adapter.received_MISTRAL_FF_Q",
+            "Q",
+            "system.video.adapter.received",
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clk_pixel",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "system.video.adapter.published_bank_MISTRAL_FF_Q",
+            "Q",
+            "system.video.adapter.published_bank[0]",
+            "system.video.adapter.front_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.published_bank_MISTRAL_FF_Q_1",
+            "Q",
+            "system.video.adapter.published_bank[1]",
+            "system.video.adapter.front_MISTRAL_FF_Q_1",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q",
+            "system.machine.board.audio.reset",
+            "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.sent_MISTRAL_FF_Q",
+            "Q",
+            "system.video.adapter.sent",
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ]
+        ],
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 7.847999973297119,
+            "adjusted_hold_min_ns": 1.972000002861023
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 2.110000057220459,
+            "adjusted_hold_min_ns": 5.9330000305175785
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 0.969999942779541,
+            "adjusted_hold_min_ns": 6.065000228881836
+          },
+          {
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 1.994000005722046,
+            "adjusted_hold_min_ns": 0.6809999942779541
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 1.219999952316284,
+            "adjusted_hold_min_ns": 5.946999969482422
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 2.5189999771118163,
+            "adjusted_hold_min_ns": 0.8240000009536743
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 3.5719999408721925,
+            "adjusted_hold_min_ns": 2.7229999828338625
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 8.009999656677246,
+            "adjusted_hold_min_ns": 10.30599967956543
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 2.6890000438690187,
+            "adjusted_hold_min_ns": 6.015000038146972
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.088999900817871,
+            "adjusted_hold_min_ns": 1.648000054359436
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11318,
+            "adjusted_setup_wns_ns": 6.16200008392334,
+            "adjusted_hold_min_ns": 0.7889999747276306
+          }
+        ],
+        "setup_failures": [],
+        "hold_failures": [],
+        "whole_board_qualified": false,
+        "native_uncertainty_model_adopted": false,
+        "hardware": false
+      }
+    },
+    "route-board50-v2-host-seed3-reference-screen.json": {
+      "sha256": "28ca3472ebb6b7fbd2e7d11819c96fc6c0f93259c3e78b56a3d75aab2d22555f",
+      "evidence": {
+        "scope": "Partial four-corner reference uncertainty screen of CPU100/board50 native route; exact per-endpoint launch identities required. Explicit pair/corner budgets, no source clock/SDC change. Remaining9 unrelated/async rows and external/reset requirements are not waived. Not whole-board or physical qualification.",
+        "case": "route-board50-v2-host-seed3",
+        "source": {
+          "revision": "b03528b33bc734b4015e89d6902293c15deeb727",
+          "parent": "e97ca4b3c60181730c71f5615c58af58098663b0",
+          "component_tree": "a83296e1e525d03a988a14ce8c27c801369fbf8f",
+          "archive_sha256": "dc95163120ad46f7c4d9b21f33eb48fdbad55fd8bd6ccfcc8efeba5e68222927",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-v2/sources/misteross",
+          "scope": "Unadopted CPU100 board50 prototype with board-clock-aware 48kHz speaker cadence and amplitude. Keyboard serializer is only instantiated in standalone motherboard simulation, not production machine; unchanged at its existing100MHz test clock.",
+          "changed_files": {
+            "cores/fes-pcxt/rtl/pcxt_speaker.sv": {
+              "baseline_sha256": "489cd8b0fd311dff41ba57489e99d24bca1f48f3825f3aa8a97fbdc878eeb4c5",
+              "candidate_sha256": "8c5aabb33bdf022b837c5676f3ac3357919345b0f4e2f29f50069547ecd16d60"
+            },
+            "cores/fes-pcxt/rtl/pcxt_motherboard.sv": {
+              "baseline_sha256": "5f60f65de8471a065930949658b3d367a2f4bc859b090eaeb9ec2ef27eb0f581",
+              "candidate_sha256": "57e1c1d3fb572b933dd4eec95cb7da6c5f0656bdc71b0f9d7bbc1181396cdf7e"
+            },
+            "cores/fes-pcxt/rtl/pcxt_machine.sv": {
+              "baseline_sha256": "23b37fcf4f00af6822ead753cbc06c8113b289ed8c7a6fd758053464c5ff60ec",
+              "candidate_sha256": "56d422b4acfd9170de837d0ad650326138d23492c694aab2525b69b8032bd49e"
+            }
+          },
+          "bridge_checks": [
+            {
+              "case": "positive",
+              "returncode": 0,
+              "result": "PASS bridge: 23184 accepted, 23168 delivered, 23108 completed, 76 cancelled, 4635 immediate replies, 99 reset offsets; guest pulses 299/299"
+            },
+            {
+              "case": "live-payload",
+              "returncode": 1,
+              "result": "accepted payload changed at quarter 24"
+            },
+            {
+              "case": "repeated-completion",
+              "returncode": 1,
+              "result": "unsolicited or repeated CPU completion at quarter 40"
+            }
+          ],
+          "hardware": false
+        },
+        "receipt_sha256": "1f85df4765f3c5c836ea3f5afab5ec6e23d41dd3781f69d1c29cb6c2d5b75490",
+        "reference_input_sha256": "2076838b09d633f2f9bafe3c60f39543f77e2fca6e7e4b4e8e8b55ad1b75eeb2",
+        "reference_pair_reports": {
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-setup.rpt": "e7dfecc6216edba47693669c6af66ff66997da72a6802c5ae555729c83a3bbb1",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-self-hold.rpt": "4c3e3f13d70e6d60e45e7ce007cbd8cfeda37b20f9504bb9fd4b939f9a003989",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-setup.rpt": "0a2cd7b8ebd1fbac7ef362f7b6da3708973c39a8386dd84763fe2acb671b40ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-self-hold.rpt": "0b76ea1420a1fe43598690eb8080d72c9733827db3dcde13b4443d8046f65e5b",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-setup.rpt": "4a32cf90431740196f892cbd75d0d0e311e560a33535bc06a187354f6229899f",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-neg-hold.rpt": "ec5bf89b808b0c2218d9dcd0f525695cdc0e15fff54d0b1c5a26583ea91a88d8",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-setup.rpt": "bd4efb6331407778aeb4d052dac32543e5847855000b02dcae9d7056cd01f8c5",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-pos-hold.rpt": "a89cec9938ce65130cdbdb6b40ad123b36a9e905286f460bcc5d219ceff925eb",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-setup.rpt": "aeabb6671f29acc89f6c2ee0a257f4f5a8811fd796185396598e3193a707e3c8",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-pos-hold.rpt": "0d0963a2f68215522569c6a8236809963183e7e810e79d34e8fc6e2e91be3361",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-setup.rpt": "3123a77a3d77741c123b57aac5cddad34beeb386b6ce02a63a9745588f6d1357",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-cpu-neg-hold.rpt": "367cfbcf1240ffdf8598dd6b57c03320ab6183b8146b37226ae84b062abe1bbe",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-setup.rpt": "35681affaec0318ef0818345b114574b8d2ed738f7b639069db236333b13acfd",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-pos-board-hold.rpt": "254d5bc60597aa3316766c94f48557b7e6eb4a9ad1ab2ebde8c2bae2169c3eda",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-setup.rpt": "deb5a6a5ecafe4ef30a1d9236958ebcba1b70212525e2e1d79eb7c1b46e66c9c",
+          "edge-pair-audit/7_slow_1100mv_-40c/cpu-neg-board-hold.rpt": "af913b92f135e194c6bdf46a7fd803d2514c3539438ad8f781e8e98e318160a9",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-setup.rpt": "81253251ca520149343a4907e1efc84f201819b6f2f78f16541572efdabb9fad",
+          "edge-pair-audit/7_slow_1100mv_-40c/board-self-hold.rpt": "c15453a04774007ca6491b4147ac6c06549ab0d270254dea0f7f2aa785c156b4",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-setup.rpt": "208aeac2d6ec4ca25a09b3c2e16e3744002809d7bd22b4aaeb9344ddc9a1f3ce",
+          "edge-pair-audit/7_slow_1100mv_-40c/pixel-self-hold.rpt": "26f80e7566807d9d308972bceb95ae4606c302771bd9a94322da643f92d3e446",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-setup.rpt": "8ea7f46bb9b21ddf18f1f9d9dd2f149c75c2e14f910dc8b324e746b949b149c0",
+          "timing-audit/7_slow_1100mv_-40c/capture-handoff-hold.rpt": "9468d2c2609f5f4c5f35a5b1916a5eabb4783dcc3ffbccbf62b4a8b49678ded2",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-setup.rpt": "e3c202e3debbc66f606cf4d551e9e0628d5245cae0b8fb8a744c5cda8eef1891",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-self-hold.rpt": "b31aabe73e4f4032d3481ce3881923074c854daa5cc15ecaad17655b1801df78",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-setup.rpt": "a76215925acf9fa652061ee38e3f9d594b90bdadf12bea00713add82e434d4c6",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-self-hold.rpt": "fe78258cfdc484bf9dbba65579d98e6e692d2b3fe563395be57dd65b9ab79b62",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-setup.rpt": "24cd617ad1de72f1f0e4750008cc32ab3fcb2a32ffe94a5756102e374086c4a1",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-neg-hold.rpt": "d20b58e1f4e0eb454486208b6c75d349746571e06daeae62a791b2e796731ce7",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-setup.rpt": "bcc96b5429a3ce287edbb61e8f19204c26aca6a8b24953e852eaddd22dbdc41b",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-pos-hold.rpt": "0034566fb045d013cd510782790dfe15ba1c280fdcb7285575393d4f48c960b4",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-setup.rpt": "27ddd5cf6965501a06ff520befc6eddd2db312c66597da91c4c40fcf8750fe19",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-pos-hold.rpt": "6879a56439cfe845f77390216b718a933f4367e22da77df778571af49c6d8ceb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-setup.rpt": "35a0c6d358f5a71764b684cb74ff2b1907c2e65ff42a1c173ac9949a1c3a839b",
+          "edge-pair-audit/7_slow_1100mv_100c/board-cpu-neg-hold.rpt": "2f44d9951d4d39ee8cd4297f37a18c20977898861e4ccb90acb5b8d9a85bb73f",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-setup.rpt": "bda74d58fd05b28b1a1fde8495a2d90ad2e3739a16934e5cc1682a1b80c7e176",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-pos-board-hold.rpt": "0bd855ebd9bbf79111367f8d62233139081c5c7319999c39bea50c0da4dd39dd",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-setup.rpt": "a9e6a08c48c37f1c3beaa6d59f9a33560d0563ccc78aa61ed2d55912f955477c",
+          "edge-pair-audit/7_slow_1100mv_100c/cpu-neg-board-hold.rpt": "11a646af97d914dd08e5f910c24f0bfd8ed26bcf1d3140d0dfe8e11f198bbadb",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-setup.rpt": "3c14fea5d48e31afe61a3767141c6dfdb9d929627faaf0ade3d8ca68bc489f5c",
+          "edge-pair-audit/7_slow_1100mv_100c/board-self-hold.rpt": "6f9464a72d8be232cd30dd8a6712104b355d9955535a32180ad080b403637430",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-setup.rpt": "8f4f64078d34edb9cc5b3068006ca6dbaedb0aa4818f44d9c903322df429a856",
+          "edge-pair-audit/7_slow_1100mv_100c/pixel-self-hold.rpt": "b1bb83626b944cef36918df36a6599673a7d3973ef3f29f331b3c2a1aaab0894",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-setup.rpt": "58fb4b12a34fd2f91f4fc64e262844ff76a8f482b4fe30a7026bab78554ca949",
+          "timing-audit/7_slow_1100mv_100c/capture-handoff-hold.rpt": "7ad644b70742ecb4dec9c18d85a17fe337ab6992fbdca7245dadd6fa3ab79b4b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-setup.rpt": "ae0539f644473bf2ed33cec667a429f20304bdcd273c9b250263adab428e12c1",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-self-hold.rpt": "44d086cd011ad7e8d5032ed34eaa1828eedca93b04568c7c1fd1de50d44108ac",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-setup.rpt": "808dbcc9dab9e00c8595b634c007a14fc258253a99da99218046125b574db775",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-self-hold.rpt": "efd9dc71d8db9b0ddae722509fef72cb27c3dd9a11d0bc508892fc77a9a938d8",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-setup.rpt": "ddbaa4e024caaead7bd0c6049520423cd36a6049dd04001281dfbf865ccedae7",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-neg-hold.rpt": "357eea9771bb1459931049d2d1e3bc46b0e635b27bc3db4145ecbd93e4a3254b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-setup.rpt": "123ec980476c6001e8816ea2e3e2fc434d2824690458daeb6c8978027407c57e",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-pos-hold.rpt": "e1ddf040c101f427ce0d4cfdc528c2bb0ed209f873711984bffaf449e6001aa5",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-setup.rpt": "70fc350228dd0137670cb7c6d7f27725f7f83b9762cdbd75185ab1e7154d74c4",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-pos-hold.rpt": "8bd0aad72730f85bbbdb424cfa713240458edf57a54d3eedf87fd5695e886be6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-setup.rpt": "6e92c51b263f247b5abe38e61a29deef1ab96fefc85a785ae7a377382fa0a821",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-cpu-neg-hold.rpt": "e8d8f424a7682bb60913526e862ce2cec771c82398c119a56e7b986b275e83b6",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-setup.rpt": "ad71a1508b9589413f0dac768caa731c7fd09fb64c8af694e25ae2d8308a092b",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-pos-board-hold.rpt": "608f99735a33f7c7638c74c93517ca7605a7add9602c9d43edd4269c68eaaf25",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-setup.rpt": "84496fca04e6fb0935db17d21ba1b1b1c11d2565743fbc20e9fc1b55fc551072",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/cpu-neg-board-hold.rpt": "c404e982445e6d0c2c115c69e4e686862c71932034e09b1349f5fedc2c352a6d",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-setup.rpt": "8e3a49beb41bcf791b3556ed79ea697817324f9a004ba81e3cd99fcdaa346686",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/board-self-hold.rpt": "7c61265b8b399902d505f89427183a224cee6ef71bd27a31905153480e46a104",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-setup.rpt": "33df0c7dd7763a7c48aa305743eb9e6c6e35e43ff8e8b3be2ae39fe69e4a7274",
+          "edge-pair-audit/MIN_fast_1100mv_-40c/pixel-self-hold.rpt": "84772b240d6934d229a5e0b8158628329b61a40462bbaaf0a8075894711d58ef",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-setup.rpt": "b83a732483e545cfed90ff511cca092ecdd92e977ee54a9c08d780add0462f5b",
+          "timing-audit/MIN_fast_1100mv_-40c/capture-handoff-hold.rpt": "654a60f27aacb92514fb02826d4ee7bbc0b4a1cc5e9009781a838a9f125a11a2",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-setup.rpt": "c13ec447e5aec48271fc1a5e64b16dfbe9ed97bc12fbcdf33b11829d02a4bd14",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-self-hold.rpt": "452dbe741f2ef43a82513dce9d338509f3c33f110ded955bd89e9a107e664424",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-setup.rpt": "eedb484ca44aa5b0480a5dbd19d7615e1f3cfbe77757143a01039ef6f62e652c",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-self-hold.rpt": "706ff6ee17874210527961d79de167b328ed79ebb31ea4c1d9019712b5f5ff2f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-setup.rpt": "e08a8c9e2cf5e555ee648f1d393847d8f75db3dff685c994816f5066ce5d1f42",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-neg-hold.rpt": "73eecef0c6eaea98a9da7f7a88ec7cb99858dbfdcac074e8425770d4733412d7",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-setup.rpt": "9c7e4227f8160feaa1f81fb536a68a63ff39a1703ea87235848b97c5feabb637",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-pos-hold.rpt": "1048e47c5570d84a510275ee415ebbfea6913ab085362158056587781b00d129",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-setup.rpt": "1ac4a90d1587ed0e7a9fa476d0567d62eba7c0aa5ca42d2264a317ac07571a8b",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-pos-hold.rpt": "6f799082eb08eca1a2ab866cd63bc8c68e55260f945a921be564b3b4e8660157",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-setup.rpt": "c681815d331feca6a50138a0705e94226da501d2e8ac73fded4fcd0513b8e1c8",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-cpu-neg-hold.rpt": "17ffdc7e2792b9ee4e53840603f79b6c3dbc8a7a9da5972f05ffca33e89ae36a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-setup.rpt": "5216644e9c8a5c2e7ef62e189d2d35c73298b2fc93a4440d1f16e234fc5190ed",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-pos-board-hold.rpt": "29e014ba228560a2c77c2eba1dafc8fcbb6b6733699c7d12e7a7f49b310b4463",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-setup.rpt": "6435f59d2be961c4d7a6d7b2e47135280537b059fb797a37dc7e3354de1cd42a",
+          "edge-pair-audit/MIN_fast_1100mv_100c/cpu-neg-board-hold.rpt": "e6287f6009132e5bf95518a58b2d9c2f5930c2861579a822e59710b9d544bec5",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-setup.rpt": "88ba9a28458b9c035abaa4408ee0c8ccfd4a1f2b14ccd0230120b50e927d6d4f",
+          "edge-pair-audit/MIN_fast_1100mv_100c/board-self-hold.rpt": "502c572e73d97ceb8af0546801ff292065e291571ea75baa9c2f332c9a55cb4d",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-setup.rpt": "740f131d7828fa4fb7db19d6de3df4d1e4aed4afc788843d471662b7bd28b723",
+          "edge-pair-audit/MIN_fast_1100mv_100c/pixel-self-hold.rpt": "58542d95dc48c8613d70bea86588922cf6b36073fe6ea82bd1260c9b1a48180f",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-setup.rpt": "40edbc40c2831829733d4b7db9b4a7f3696ff8ac43c7fd234fce48847e637a9b",
+          "timing-audit/MIN_fast_1100mv_100c/capture-handoff-hold.rpt": "0e644701a27261710730c042303d33eb87c110af0cde9ab33182c0dfa009f43d"
+        },
+        "clock_topology_audit_sha256": "b93cda0d8fe846e67f2ea2644a32549e882a8d710dec4db1c983f0c60d8480af",
+        "reference_rbf_sha256": "f26ffc806b608b172cc5bbf1fb8cc6562f97584b59b6f46783270554a7402b06",
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          }
+        ],
+        "native_rows": 17718,
+        "paired_rows": 17709,
+        "unpaired": [
+          [
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clk_pixel",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_1",
+            "ACLR",
+            "<async>",
+            "posedge clk_pixel"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "locked_MISTRAL_ALUT2_Q",
+            "Q",
+            "locked",
+            "locked_MISTRAL_FF_ACLR",
+            "ACLR",
+            "<async>",
+            "posedge clocks[2]"
+          ],
+          [
+            "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.front_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU",
+            "Q",
+            "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q",
+            "system.video.adapter.front_MISTRAL_FF_Q_1",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+            "Q",
+            "system.machine.board.audio.reset",
+            "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ],
+          [
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+            "Q",
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+            "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+            "DATAIN",
+            "posedge clocks[2]",
+            "posedge clk_pixel"
+          ]
+        ],
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.7300004196167,
+            "adjusted_hold_min_ns": 1.090999960899353
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 2.4279998970031738,
+            "adjusted_hold_min_ns": 6.205999794006348
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 2.4969998931884767,
+            "adjusted_hold_min_ns": 5.773999862670898
+          },
+          {
+            "launch": "posedge clk_pixel",
+            "capture": "posedge clk_pixel",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 1.7420000314712525,
+            "adjusted_hold_min_ns": 0.7919999957084656
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 2.538000030517578,
+            "adjusted_hold_min_ns": 5.999999942779541
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 1.5849999618530273,
+            "adjusted_hold_min_ns": 0.7319999933242798
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 5.054000053405762,
+            "adjusted_hold_min_ns": 2.496999912261963
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 8.009999656677246,
+            "adjusted_hold_min_ns": 10.305000228881836
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 2.917999897003174,
+            "adjusted_hold_min_ns": 5.778999977111816
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.656999740600586,
+            "adjusted_hold_min_ns": 1.1090000200271606
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11318,
+            "adjusted_setup_wns_ns": 9.769999885559082,
+            "adjusted_hold_min_ns": 0.8059999942779541
+          }
+        ],
+        "setup_failures": [],
+        "hold_failures": [],
+        "whole_board_qualified": false,
+        "native_uncertainty_model_adopted": false,
+        "hardware": false
+      }
+    },
+    "board50-v2-seed1-clock-topology-audit.json": {
+      "sha256": "432f77f17f32e3de99c38be652f3846450f7cbda23a077d6403002f502155356",
+      "evidence": {
+        "classification": "Exact OSS RBF selected-clock topology versus routed bindings; no timing recalibration",
+        "source_rbf_sha256": "076f0d3dd7d3b595c873e6aa6945bc3863cb5150d40c2347f3b18fb42e4c52b8",
+        "source_routed_sha256": "d2b44636b21aaa31ec483b27e3876c41c96435c8f3fbdc6b5b1cc1194003963e",
+        "decoder_sha256": "8dcedd9622675f3d439c7a039de5a5332b8f0961ca84606e0ffafce1cf3df9f2",
+        "decoder_source_sha256": "f309eb9cdc17be151401af3d17e0c669ebb6042704a84c9ec365a18a24a92bc7",
+        "raw_selected_mux_patch_sha256": "5368cf01348a0ae7870fb24d2ef0c748d586a2c9b1c6f66251cd7099de4bca7a",
+        "patch_scope": "Retain default DCMUX/TCLK and SCLK clock links omitted by active-route heuristic; selection alone does not prove use. Branch use checked against explicit source bindings. All timing columns are -1 placeholders.",
+        "clock_net_checks": {
+          "clocks[0]": {
+            "physical_bound_pips": 874,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[1]": {
+            "physical_bound_pips": 87,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[2]": {
+            "physical_bound_pips": 3511,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clk_pixel": {
+            "physical_bound_pips": 1369,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          }
+        },
+        "SDRAM_CLK": {
+          "architecture_owned_cell": "SDRAM_CLK_MISTRAL_OB_PAD",
+          "bel": "MISTRAL_IO.70.0.1",
+          "pad": "PIN_AD20",
+          "decoded_destination": "GPIO.070.000.1:CLKOUT.0",
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "branch_bound_edges": 9,
+          "edges_omitted_by_original_active_helper": [
+            [
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ],
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ],
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "GCLK",
+                0,
+                36,
+                1
+              ],
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ]
+            ],
+            [
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ],
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ]
+            ],
+            [
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ],
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ]
+            ],
+            [
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ],
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ],
+              [
+                "DCMUX",
+                70,
+                0,
+                15
+              ]
+            ],
+            [
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ],
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ],
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ]
+            ]
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_matches": true
+        },
+        "negative_controls_rejected": [
+          "missing recorded binding",
+          "wrong physical clock branch"
+        ],
+        "hardware": false
+      }
+    },
+    "board50-v2-seed2-clock-topology-audit.json": {
+      "sha256": "512831f0a625da11bf531276d26309e73cba827b0ab7c3ab7d750773cf5a4f43",
+      "evidence": {
+        "classification": "Exact OSS RBF selected-clock topology versus routed bindings; no timing recalibration",
+        "source_rbf_sha256": "cdb5b031b3a0f13d5dc4466b9a67c0a9af81b9f57f72ee629983e33bcada63cc",
+        "source_routed_sha256": "d7df245268e41f6b0e0336d42106e446572fb3fbe454a6d02cf03feb26fdcb67",
+        "decoder_sha256": "8dcedd9622675f3d439c7a039de5a5332b8f0961ca84606e0ffafce1cf3df9f2",
+        "decoder_source_sha256": "f309eb9cdc17be151401af3d17e0c669ebb6042704a84c9ec365a18a24a92bc7",
+        "raw_selected_mux_patch_sha256": "5368cf01348a0ae7870fb24d2ef0c748d586a2c9b1c6f66251cd7099de4bca7a",
+        "patch_scope": "Retain default DCMUX/TCLK and SCLK clock links omitted by active-route heuristic; selection alone does not prove use. Branch use checked against explicit source bindings. All timing columns are -1 placeholders.",
+        "clock_net_checks": {
+          "clocks[0]": {
+            "physical_bound_pips": 903,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[1]": {
+            "physical_bound_pips": 87,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[2]": {
+            "physical_bound_pips": 3661,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clk_pixel": {
+            "physical_bound_pips": 1353,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          }
+        },
+        "SDRAM_CLK": {
+          "architecture_owned_cell": "SDRAM_CLK_MISTRAL_OB_PAD",
+          "bel": "MISTRAL_IO.70.0.1",
+          "pad": "PIN_AD20",
+          "decoded_destination": "GPIO.070.000.1:CLKOUT.0",
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "branch_bound_edges": 9,
+          "edges_omitted_by_original_active_helper": [
+            [
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ],
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ],
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "GCLK",
+                0,
+                36,
+                1
+              ],
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ]
+            ],
+            [
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ],
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ]
+            ],
+            [
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ],
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ]
+            ],
+            [
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ],
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ],
+              [
+                "DCMUX",
+                70,
+                0,
+                15
+              ]
+            ],
+            [
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ],
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ],
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ]
+            ]
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_matches": true
+        },
+        "negative_controls_rejected": [
+          "missing recorded binding",
+          "wrong physical clock branch"
+        ],
+        "hardware": false
+      }
+    },
+    "board50-v2-seed3-clock-topology-audit.json": {
+      "sha256": "b93cda0d8fe846e67f2ea2644a32549e882a8d710dec4db1c983f0c60d8480af",
+      "evidence": {
+        "classification": "Exact OSS RBF selected-clock topology versus routed bindings; no timing recalibration",
+        "source_rbf_sha256": "799e8f5e2fb95711c820119abb2c50c08475d52b9a4aa6e05debe908e41aa158",
+        "source_routed_sha256": "2a3f6bae21d28c7490ef149a2c56a57407b2bdcfb6bef0879907fac0cd533631",
+        "decoder_sha256": "8dcedd9622675f3d439c7a039de5a5332b8f0961ca84606e0ffafce1cf3df9f2",
+        "decoder_source_sha256": "f309eb9cdc17be151401af3d17e0c669ebb6042704a84c9ec365a18a24a92bc7",
+        "raw_selected_mux_patch_sha256": "5368cf01348a0ae7870fb24d2ef0c748d586a2c9b1c6f66251cd7099de4bca7a",
+        "patch_scope": "Retain default DCMUX/TCLK and SCLK clock links omitted by active-route heuristic; selection alone does not prove use. Branch use checked against explicit source bindings. All timing columns are -1 placeholders.",
+        "clock_net_checks": {
+          "clocks[0]": {
+            "physical_bound_pips": 1063,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[1]": {
+            "physical_bound_pips": 87,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clocks[2]": {
+            "physical_bound_pips": 3539,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          },
+          "clk_pixel": {
+            "physical_bound_pips": 1427,
+            "missing_decoded_edges": [],
+            "all_bound_physical_pips_match": true
+          }
+        },
+        "SDRAM_CLK": {
+          "architecture_owned_cell": "SDRAM_CLK_MISTRAL_OB_PAD",
+          "bel": "MISTRAL_IO.70.0.1",
+          "pad": "PIN_AD20",
+          "decoded_destination": "GPIO.070.000.1:CLKOUT.0",
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "branch_bound_edges": 9,
+          "edges_omitted_by_original_active_helper": [
+            [
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ],
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "BCLKB",
+                67,
+                0,
+                5
+              ],
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "GCLK",
+                0,
+                36,
+                1
+              ],
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ]
+            ],
+            [
+              [
+                "SCLK",
+                77,
+                0,
+                18
+              ],
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ]
+            ],
+            [
+              [
+                "SCLKB1",
+                77,
+                0,
+                54
+              ],
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ]
+            ],
+            [
+              [
+                "SCLKB2",
+                77,
+                0,
+                56
+              ],
+              [
+                "BCLK",
+                67,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ],
+              [
+                "DCMUX",
+                70,
+                0,
+                15
+              ]
+            ],
+            [
+              [
+                "XCLKB1",
+                70,
+                0,
+                5
+              ],
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ]
+            ],
+            [
+              [
+                "XCLKB2A",
+                70,
+                0,
+                5
+              ],
+              [
+                "TCLK",
+                70,
+                0,
+                15
+              ]
+            ]
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_matches": true
+        },
+        "negative_controls_rejected": [
+          "missing recorded binding",
+          "wrong physical clock branch"
+        ],
+        "hardware": false
+      }
+    }
+  },
+  "host_logs": {
+    "board50-v2-default-suites.log": "98e8449e7c1bd0d9a77139be78e9b7e607eabf2a48fd73157ccd37057c8d23e4",
+    "board50-integration-unit.log": "b588fb92d31b8ee3984270db0ab5f873eb8a9ac62f7dd99a81b6881e43fd88d6",
+    "board50-counter-fixed-rerun.log": "9103caed3d113b776faae72c4c9809129cc7e7cfe2404f09cf606253cf4057f7",
+    "board50-toolchain-unit.log": "7508879d45a5044a12c6a1f4893369e84654d4586a3823c358a41978a48f9b07",
+    "board50-integration-bridge.log": "c4a582178aec3e9888f1b56c9b15746601a5d88525afbaf92ae641a1cacea9b6",
+    "board50-integration-speaker100.log": "650716316c2fa6cab4b01f46a821f8477eea29cef8400d25f93c2b7e6cf4ea48",
+    "board50-integration-speaker50.log": "1f53035e37fe081ca1d786a0294742dee6a42d48a5e46ea481586b3ca48da864",
+    "board50-integrated-system-fixed.log": "c9ba25e4973d8b4adae5ea7d242eb828bd6f1c3e28989672e8362cc6243a713f",
+    "board50-integrated-system-mda-fixed.log": "00df195ce59a91124d959b04cc747da95a43097154164d163cdf2f050ca6db46"
+  },
+  "focused_python_tests": "Initial58-test run has two proof-harness failures because CLOCK_HZ was absent from the extracted fixture. Corrected counter fixture passes all5tests; updated dot predictor proves50/100MHz forCGA/MDA and rejects off-by-one mutants. Stable full affected checks follow this source checkpoint.",
+  "physical_whole_board_qualified": false,
+  "hardware_evidence_class": "host-only checks and fitted references; no kit run",
+  "shared_or_runtime_contract_changes": false,
+  "remaining": [
+    "9unpaired unrelated/asynchronous native rows",
+    "complete IO/registered-pad/OE/feedback and reset recovery/removal coverage",
+    "physical board identity, load, flight/skew and CS2 steering bounds",
+    "qualified clock waveform and reset/relock requirements",
+    "merged reviewed toolchain with matching pin, fresh normal producer and exact-artifact acceptance"
+  ]
+}

@@ -59,6 +59,21 @@ class PcxtToolchainTest(unittest.TestCase):
                 self.assertEqual(stopped.exception.code, 2)
                 authenticate.assert_not_called()
 
+    def test_board50_cannot_route_with_the_unqualified_pinned_compiler(self):
+        with mock.patch.object(sys, 'argv', ['build_fes_pcxt.py', '--half-rate-board']), \
+                mock.patch.object(sys, 'stderr', io.StringIO()), \
+                mock.patch.object(builder, 'authenticate_tools') as authenticate:
+            with self.assertRaises(SystemExit) as stopped:
+                builder.main()
+            self.assertEqual(stopped.exception.code, 2)
+            authenticate.assert_not_called()
+
+    def test_board50_synthesis_is_explicit_and_default_stays_common_clock(self):
+        default = builder.yosys_program(Path('/tmp/pcxt-fixture'), False, False, 'synth')
+        self.assertNotIn('-set HALF_RATE_BOARD', default)
+        trial = builder.yosys_program(Path('/tmp/pcxt-fixture'), False, False, 'synth', True)
+        self.assertEqual(trial, default.replace(' top; synth;', ' -set HALF_RATE_BOARD 1 top; synth;'))
+
     def test_make_passes_cache_root_only_for_the_shared_lane(self):
         environment = {key: value for key, value in os.environ.items()
                        if key not in ('CACHE_ROOT', 'FES_TOOLCHAIN_CACHE_ROOT', 'MAKEFLAGS', 'MFLAGS', 'MAKELEVEL')}

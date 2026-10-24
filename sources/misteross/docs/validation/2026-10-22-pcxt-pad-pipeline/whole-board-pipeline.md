@@ -363,3 +363,74 @@ The three fresh native routes retain the original placement recipe and complete 
 This is not a qualified gate. Each report has 17165 paired and 274 unpaired rows, and the compiler only recognizes equal-period declared phase relations. The 100/50 MHz crossings need explicit compiler timing support. In addition, the legacy detailed report assigns its first launch event to an entire net, obscuring mixed launch identities; [nextpnr #294](https://github.com/DeanoC/nextpnr/pull/294) adds an actual launch event per endpoint, with all fourteen timing-report tests passing. An additional default-off harmonic-clock implementation is being checked against independent edge enumeration, without changing the selected toolchain. No missing crossing, uncertainty or physical IO requirement is waived.
 
 The unchanged selected source at `d09ae1105` passes `make check` and the complete `make test-changed --base 5f33d986c1d377946b447a92e1a704d988eda238` run: 842 parent tests, 1299 component tests (one optional oracle skipped), all sixteen XT suites, and every other RTL lane selected by that command. The first sandboxed attempt fails because socket fixtures cannot bind; the successful host rerun and both logs are retained. [Machine-readable follow-up evidence](closure-followup.json) records source identities, reference summaries and trial accounting. The 106-entry journal verifies every full receipt, hash and decimal charge, with cumulative charged wall time 98433.87671378627359 seconds. This includes failures and lease/placement/route wall time; it is not a GPU-seconds claim. No kit ran, no shared/runtime contract changed, and no package was promoted.
+
+## CPU100 / motherboard50 diagnostic candidate
+
+The default-off `HALF_RATE_BOARD` candidate keeps the CPU and byte adapter at
+100 MHz and moves the motherboard, ISA/storage, firmware loader and framebuffer
+capture to 50 MHz. Pixel output remains 74.25 MHz. A held request/response bridge
+uses CPU falling-edge transfer registers and preserves guest tick events.
+Display dot enables and speaker cadence/gain follow the board clock. The
+keyboard serializer remains in its existing 100 MHz fixture. Coordinated reset
+cancels both sides; the memory reset stretcher preserves short cold resets and
+the 50 MHz refresh threshold retains the physical refresh interval.
+
+Frozen source `b03528b33bc734b4015e89d6902293c15deeb727`, using nextpnr
+`62d792547097358e21b9d35ad7fcd52223c2a8f6` and Mistral
+`9ab6522077948fc3dd2e074338874f92e848fc44`, passes all three fresh native routes
+with the same HeAP weight2000/critexp5, GPU router and zero cohort budget.
+The harmonic-clock opt-in checks the new related-clock crossings. All three
+reports contain exactly the same 17709 paired sink-port/launch/capture
+identities; physical driver nets may differ because of native FF routing.
+
+| Seed | Raw setup minimum ns | Hold minimum ns | Setup after reference uncertainty ns |
+| --- | ---: | ---: | ---: |
+| 1 | 1.253 | 0.669 | 1.053 |
+| 2 | 1.060 | 0.681 | 0.970 |
+| 3 | 1.665 | 0.732 | 1.585 |
+
+No paired setup or hold failures remain in these reports. The uncertainty
+screen requires explicit four-corner budgets for all eleven event pairs,
+including CPU rising/falling transfers; it supplies no missing-pair default.
+All three native RBF clock trees match their recorded bindings, and their
+nine-edge forwarded SDRAM clock branches match the fresh Quartus reference.
+Missing-binding and wrong-branch negative controls are rejected. The screen
+still exits unsuccessfully because nine unrelated/asynchronous rows remain
+unpaired; those rows are retained and are not waived.
+
+The separate fitted board50 memory reference uses the published
+AS4C32M16SB-6TIN CL2 requirements, declared 30pF and zero board flight. All four
+corners pass the reported sixteen input checks, fifty-one output checks and
+sixteen capture handoffs. Worst setup/hold margins are respectively
+6.038/4.861 ns, 6.989/7.753 ns and 2.458/10.598 ns. The reference has matched PLL
+sites/counters and forwarded branch, with different remaining fabric and clock
+sidebranches. It is not exact-artifact whole-board STA or a fitted-kit model.
+
+All sixteen existing simulation suites pass on the frozen candidate's default
+profile. Permanent regressions additionally cover the randomized bridge
+(23184 accepts, 23108 completions, 99 reset offsets), both speaker clock rates,
+and the complete CGA Direct and MDA Scanlines board50 systems. Both system
+cases pass all three mask delays, both boots, 4.95 million checked active pixels
+per mask case, DMA and the tighter 390-controller-cycle refresh bound.
+The extracted dot/counter proof fixtures now declare the selected clock and
+cover both board rates; the initial missing-parameter fixture failures are
+retained. [Candidate evidence](board50-candidate.json) binds source bytes,
+raw reports, reference budgets, topology and host logs.
+
+The integrated RTL/QSF bytes match the routed candidate, with only the private
+QSF filename renamed to `constraints-board50.qsf`. The public
+`--half-rate-board` option requires `--synth-only`: routing remains closed while
+the selected compiler lock lacks the reviewed harmonic-clock support. No
+ordinary producer result, core lock, runtime/shared contract, package or
+hardware acceptance changes. A fresh normal producer and exact-artifact
+qualification are still required after toolchain integration.
+
+Receipts 107-111 retain the completed harmonic-memory and rejected bank-enable
+trials. Receipts 112-116 retain two sandbox lease-directory failures before
+routing and all three successful board50 native routes. The original
+106-entry prefix is exact. Cumulative charged wall time, including the
+pre-journal amount, is 99665.06616608286217741 seconds; this is not GPU time.
+Journal SHA256 is `02f1a133cd95f81ddd779632dd6948686760af750ad6b2d782f22ef8c8757ade`.
+The remaining closure work is complete external IO/OE/feedback and reset
+coverage, qualified clock waveforms, and evidenced physical board/load/flight
+and CS2 steering bounds. No kit was claimed or programmed.

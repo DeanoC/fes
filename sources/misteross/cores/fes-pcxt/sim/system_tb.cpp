@@ -1,3 +1,6 @@
+#ifndef HALF_RATE_BOARD
+#define HALF_RATE_BOARD 0
+#endif
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Vsystem_top.h"
 #include "verilated.h"
@@ -56,8 +59,14 @@ int main(int argc,char**argv) {
         if(++x==1650) {x=0;++y;}
     };
     auto step=[&] {
-        edge(0); d.dq_sample=ram.tick(d); d.eval(); edge(1); ++cycles;
-        require(d.sdram_clk==0,"inverted SDRAM clock rising phase",cycles);
+        if constexpr (HALF_RATE_BOARD) {
+            edge(0); d.clk_board=(cycles & 1)==0; edge(1);
+            if (!d.clk_board) { d.dq_sample=ram.tick(d); d.eval(); }
+            ++cycles;
+        } else {
+            edge(0); d.dq_sample=ram.tick(d); d.eval(); edge(1); ++cycles;
+        }
+        require(d.sdram_clk==(HALF_RATE_BOARD ? !d.clk_board : 0),"inverted SDRAM clock rising phase",cycles);
     };
     auto cold=[&] {
         check_video=false; pipe.clear();effect_known=false;
@@ -121,5 +130,5 @@ int main(int argc,char**argv) {
         for(unsigned i=0;i<32;++i)step();
         d.warm_reset=0;
     }
-    require(ram.writes>writes && ram.max_refresh_gap<=850,"storage and physical refresh",cycles);
+    require(ram.writes>writes && ram.max_refresh_gap<=(HALF_RATE_BOARD ? 390 : 850),"storage and physical refresh",cycles);
 }

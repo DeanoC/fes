@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Byte bus router and first XT motherboard devices. All pins are synchronous
-// data at 100 MHz. Storage and ISA each accept one request and return one done;
+// data in the selected board clock domain. Storage and ISA each accept one request and return one done;
 // reset must cancel outstanding work in both downstream participants as well.
-module pcxt_motherboard (
+module pcxt_motherboard #(parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, guest_ce,
     input wire cycle_valid,
     output wire cycle_ready,
@@ -215,7 +215,7 @@ module pcxt_motherboard (
         .keyboard_irq(keyboard_irq), .pit_out2(pit_out[2]),
         .pit_gate2(pit_gate2), .speaker(speaker)
     );
-    pcxt_speaker audio (
+    pcxt_speaker #(.CLOCK_HZ(CLOCK_HZ)) audio (
         .clk(clk), .reset(reset), .speaker(speaker),
         .sample_valid(audio_valid), .sample(audio_sample)
     );

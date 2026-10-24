@@ -31,6 +31,34 @@ A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
 
+### Experimental CPU100 / board50 diagnostic
+
+The default shell retains its existing common 100 MHz clock. A separate
+`HALF_RATE_BOARD=1` parameter keeps the MCL86 CPU and byte-bus adapter at
+100 MHz, and runs the motherboard, ISA cards, storage frontend/controller,
+firmware loader and framebuffer capture at 50 MHz. Pixel output remains
+74.25 MHz. The bridge holds each request and response until acknowledged,
+uses CPU falling-edge transfer registers, and transfers guest tick events
+without changing the nominal 4.772727 MHz guest clock. Coordinated reset
+cancels outstanding work in both domains. Display dot enables and 48 kHz
+speaker integration use the selected board frequency. The keyboard serializer
+is used only by the existing 100 MHz motherboard fixture.
+
+`python3 scripts/build_fes_pcxt.py --half-rate-board --synth-only` builds this
+experimental netlist with the pinned Yosys. The corresponding
+`constraints-board50.qsf` packs all sixteen SDRAM DQ input, data and output-enable
+registers. Routing this profile through the ordinary producer is deliberately
+rejected: its pinned nextpnr lacks the reviewed harmonic-clock timing support.
+The separate three-seed native trial and four-corner reference screen are
+[recorded here](../../docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md).
+They do not qualify the IO, reset chains, physical board or a runtime package.
+
+The regular simulation command includes `clock-bridge`, `speaker100`,
+`speaker50`, `system-board50` and `system-board50-mda` regressions. The two
+whole-system cases retain the real diagnostic ROM, both boots, three SDRAM
+mask-delay cases and pixel/DMA checks; they tighten the refresh bound to
+390 controller cycles at 50 MHz. Existing common-clock suites remain enabled.
+
 ### Physical timing inputs
 
 The diagnostic's synthetic IO constraints exercise compiler coverage. They

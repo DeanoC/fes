@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_pcxt_isa.vh"
 // Shared implementation behind separately instantiated CGA/MDA ISA cards.
-// 100 MHz fabric. The font is a separate combinational ROM supplied by the shell;
+// Parameterized board fabric. The font is a separate combinational ROM supplied by the shell;
 // address = character*16 + row, MSB is the leftmost dot. No IBM ROM is bundled.
 module pcxt_display_card #(
-    parameter bit MDA = 0
+    parameter bit MDA = 0,
+    parameter integer CLOCK_HZ = 100000000
 ) (
     input wire clk, reset,
     input wire [47:0] request,
@@ -90,7 +91,11 @@ module pcxt_display_card #(
     // Fractional master-dot enables: CGA 14.318180 MHz, MDA 16.257 MHz.
     reg [26:0] phase;
     localparam integer DOT_RATE = MDA ? 16257000 : 14318180;
-    localparam integer DOT_WRAP = 100000000 - DOT_RATE;
+    localparam integer DOT_WRAP = CLOCK_HZ - DOT_RATE;
+    initial begin
+        if (CLOCK_HZ < 2*DOT_RATE || CLOCK_HZ > 134217728)
+            $fatal(1, "Unsupported board clock for the dot-enable accumulator");
+    end
     reg dot_ce;
     // Predict the wrap flag for the next phase, keeping the comparison out
     // of downstream CRTC enables without shifting a single master-dot pulse.

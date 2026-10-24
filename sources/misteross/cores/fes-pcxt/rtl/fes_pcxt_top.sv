@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Autonomous diagnostic board shell. No production runtime/firmware ABI.
-module top #(parameter bit MDA = 0, SCANLINES = 0) (
+module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     input wire FPGA_CLK1_50,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
@@ -11,18 +11,20 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     output wire [12:0] SDRAM_A,
     inout wire [15:0] SDRAM_DQ
 );
-    wire clk, clk_capture, clk_pixel, memory_locked, video_locked;
+    wire clk, clk_memory, clk_capture, clk_pixel, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [1:0] clocks;
+    wire [(HALF_RATE_BOARD ? 3 : 2)-1:0] clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(2),
-        .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1("100.0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1("5000 ps"),
-        .duty_cycle0(50), .duty_cycle1(50), .operation_mode("direct"),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 3 : 2),
+        .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
+        .output_clock_frequency2("50.0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"), .phase_shift2("0 ps"),
+        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
     assign clk = clocks[0];
+    assign clk_memory = HALF_RATE_BOARD ? clocks[2] : clk;
     assign clk_capture = clocks[1];
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"), .number_of_clocks(1),
@@ -37,10 +39,20 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     always @(posedge clk_pixel or negedge locked)
         if (!locked) pixel_reset <= 2'b11;
         else pixel_reset <= {pixel_reset[0], 1'b0};
+    wire board_reset_live;
+    generate if (HALF_RATE_BOARD) begin: board_reset_domain
+        (* async_reg = "true" *) reg [1:0] board_reset = 2'b11;
+        always @(posedge clk_memory or negedge locked)
+            if (!locked) board_reset <= 2'b11;
+            else board_reset <= {board_reset[0], 1'b0};
+        assign board_reset_live = board_reset[1];
+    end else begin: common_reset_domain
+        assign board_reset_live = sys_reset[1];
+    end endgenerate
     wire firmware_valid, firmware_ready, firmware_done;
     wire [15:0] firmware_address;
     wire [7:0] firmware_data;
-    pcxt_boot boot (.clk(clk), .cold_reset(sys_reset[1]), .enable(1'b1),
+    pcxt_boot boot (.clk(clk_memory), .cold_reset(board_reset_live), .enable(1'b1),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
     wire [31:0] video_request;
@@ -48,8 +60,8 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     wire [15:0] dq_out, dq_sample;
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES)) system (
-        .clk(clk), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD)) system (
+        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),

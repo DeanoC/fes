@@ -13,7 +13,7 @@ YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 @unittest.skipUnless(YOSYS, 'requires Yosys')
 class DotEnableTest(unittest.TestCase):
-    def prove(self, mda, mutation=False):
+    def prove(self, mda, mutation=False, clock_hz=100000000):
         source = (ROOT / 'cores/fes-pcxt/expansions/pcxt_display_card.sv').read_text()
         # Reset establishes the invariant. The one-step proof preserves both
         # the phase range and equality with the original combinational flag.
@@ -28,13 +28,14 @@ class DotEnableTest(unittest.TestCase):
             enable = enable.replace('DOT_WRAP - DOT_RATE', 'DOT_WRAP - DOT_RATE + 1')
         fixture = f"""module proof(input [26:0] phase, input dot_ce, clear, output ok);
 localparam MDA = {mda};
+localparam integer CLOCK_HZ = {clock_hz};
 localparam integer DOT_RATE = {rate};
 localparam integer DOT_WRAP = {wrap};
-wire invariant = phase < 27'd100000000 && dot_ce == (phase >= 27'(DOT_WRAP));
+wire invariant = phase < 27'(CLOCK_HZ) && dot_ce == (phase >= 27'(DOT_WRAP));
 wire [26:0] next_phase = clear ? 27'd0 : {phase};
 wire next_ce = clear ? 1'b0 : {enable};
 assign ok = (!clear && !invariant) ||
-    (next_phase < 27'd100000000 && next_ce == (next_phase >= 27'(DOT_WRAP)));
+    (next_phase < 27'(CLOCK_HZ) && next_ce == (next_phase >= 27'(DOT_WRAP)));
 endmodule
 """
         with tempfile.TemporaryDirectory() as directory:
@@ -53,11 +54,13 @@ endmodule
                 self.assertIn('SUCCESS', output)
 
     def test_reset_and_inductive_pulse_identity_for_both_rates(self):
-        for mda in (0, 1):
-            with self.subTest(mda=mda):
-                self.prove(mda)
+        for clock_hz in (50000000, 100000000):
+            for mda in (0, 1):
+                with self.subTest(mda=mda, clock_hz=clock_hz):
+                    self.prove(mda, clock_hz=clock_hz)
 
     def test_wrong_threshold_rejected_for_both_rates(self):
-        for mda in (0, 1):
-            with self.subTest(mda=mda):
-                self.prove(mda, True)
+        for clock_hz in (50000000, 100000000):
+            for mda in (0, 1):
+                with self.subTest(mda=mda, clock_hz=clock_hz):
+                    self.prove(mda, True, clock_hz=clock_hz)

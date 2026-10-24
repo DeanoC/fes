@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-module pcxt_mda_card (
+module pcxt_mda_card #(parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset,
     input wire [47:0] request,
     output wire [31:0] response,
@@ -10,5 +10,5 @@ module pcxt_mda_card (
     output wire [3:0] rgbi,
     output wire unsupported_interlace
 );
-    pcxt_display_card #(.MDA(1)) card (.*);
+    pcxt_display_card #(.MDA(1), .CLOCK_HZ(CLOCK_HZ)) card (.*);
 endmodule
