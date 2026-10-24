@@ -48,7 +48,7 @@ selected_package_cores() {
 }
 
 usage() {
-  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-toolchain EPOCH|--ensure-toolchain VARIANT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-toolchain EPOCH|--ensure-toolchain VARIANT|--inside-fetch VARIANT OUTPUT EPOCH|--inside-fetch-toolchain EPOCH|--inside-kit-sdk EPOCH|--ensure-kit-sdk|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -221,6 +221,49 @@ inside_build() {
   /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export"
 }
 
+# One Buildroot invocation for the toolchain SDK. Image and kit-sdk builds both
+# call it, so the published host tree stays the one toolchain_cache.py packages.
+toolchain_make() {
+  toolchain_output=$1
+  shift
+  make -C /work/build/cache/target-image/buildroot \
+    O="$toolchain_output" \
+    BR2_EXTERNAL=/work/buildroot \
+    BR2_DL_DIR=/work/build/cache/target-image/dl \
+    "$@"
+}
+
+prepare_toolchain_output() {
+  toolchain_output=$1
+  cleanup_inside_output "$toolchain_output"
+  /bin/mkdir -p "$toolchain_output"
+  toolchain_config=$toolchain_output/fogcast.generated.defconfig
+  /work/scripts/toolchain_cache.py config toolchain "$toolchain_config"
+  export SOURCE_DATE_EPOCH=$epoch
+  export E2FSPROGS_FAKE_TIME=$epoch
+  toolchain_make "$toolchain_output" BR2_DEFCONFIG="$toolchain_config" defconfig
+  /work/scripts/toolchain_cache.py validate-config toolchain "$toolchain_output/.config"
+}
+
+publish_toolchain() {
+  prepare_toolchain_output /target-image-output/toolchain-build
+  toolchain_make /target-image-output/toolchain-build toolchain
+  toolchain_make /target-image-output/toolchain-build sdk
+  /work/scripts/toolchain_cache.py package /target-image-output/toolchain-build/host
+}
+
+fetch_toolchain_sources() {
+  # The toolchain defconfig selects these downloads. This is not the image fetch.
+  prepare_toolchain_output /target-image-output/toolchain-fetch
+  toolchain_make /target-image-output/toolchain-fetch source
+}
+
+verify_buildroot_checkout() {
+  /work/scripts/verify-target-image-source-cache.sh \
+    /work/build/target-image.sources.lock.toml \
+    /work/build/cache/target-image buildroot
+}
+
 inside_toolchain() {
   test "$1" = "$epoch"
   test "$(/usr/bin/id -u)" -ne 0
@@ -228,24 +271,58 @@ inside_toolchain() {
     /work/build/target-image.sources.lock.toml /work/build/cache/target-image
   /work/bin/target-image-lock-linux-amd64 verify-inputs \
     --lock /work/build/target-image.sources.lock.toml --cache /work/build/cache/target-image
-  output=/target-image-output/toolchain-build
-  cleanup_inside_output "$output"
-  /bin/mkdir -p "$output"
-  config=$output/fogcast.generated.defconfig
-  /work/scripts/toolchain_cache.py config toolchain "$config"
-  export SOURCE_DATE_EPOCH=$epoch E2FSPROGS_FAKE_TIME=$epoch
-  make -C /work/build/cache/target-image/buildroot O="$output" \
-    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl \
-    BR2_DEFCONFIG="$config" defconfig
-  /work/scripts/toolchain_cache.py validate-config toolchain "$output/.config"
-  make -C /work/build/cache/target-image/buildroot O="$output" \
-    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl toolchain
-  make -C /work/build/cache/target-image/buildroot O="$output" \
-    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl sdk
-  /work/scripts/toolchain_cache.py package "$output/host"
+  publish_toolchain
 }
 
-ensure_toolchain() {
+inside_fetch_toolchain() {
+  test "$1" = "$epoch"
+  test "$(/usr/bin/id -u)" -ne 0
+  verify_buildroot_checkout
+  fetch_toolchain_sources
+}
+
+inside_kit_sdk() {
+  test "$1" = "$epoch"
+  test "$(/usr/bin/id -u)" -ne 0
+  verify_buildroot_checkout
+  publish_toolchain
+}
+
+# Drop image-only inputs before the SDK container. The publisher does not read them.
+run_sdk_container() {
+  env \
+    -u LIBMISTER_RUNTIME_DIR \
+    -u FOGCAST_DIR \
+    -u NATIVE_RUNTIME_INPUT_LOCK \
+    -u NATIVE_RUNTIME_IDLE_FILE \
+    -u NATIVE_RUNTIME_SPLASH_FILE \
+    -u FES_PREBUILT_RUNTIME_SHA256 \
+    -u FES_PACKAGE_IDS \
+    -u FES_VIDEO_PARTS_DIR \
+    -u FES_UNAVAILABLE_CORES \
+    -u FES_MENU_PACKAGE_DIR -u FES_MENU_PACKAGE_SELECTION \
+    -u FES_PONG_PACKAGE_DIR -u FES_PONG_PACKAGE_SELECTION \
+    -u FES_ZX81_PACKAGE_DIR -u FES_ZX81_PACKAGE_SELECTION \
+    -u FES_COLECO_PACKAGE_DIR -u FES_COLECO_PACKAGE_SELECTION \
+    -u FES_SMS_PACKAGE_DIR -u FES_SMS_PACKAGE_SELECTION \
+    -u FES_SG1000_PACKAGE_DIR -u FES_SG1000_PACKAGE_SELECTION \
+    -u FES_C64_PACKAGE_DIR -u FES_C64_PACKAGE_SELECTION \
+    -u FES_RAMTEST_PACKAGE_DIR -u FES_RAMTEST_PACKAGE_SELECTION \
+    -u FES_ATARI_ST_PACKAGE_DIR -u FES_ATARI_ST_PACKAGE_SELECTION \
+    -u FES_SPECTRUM_PACKAGE_DIR -u FES_SPECTRUM_PACKAGE_SELECTION \
+    "$repo/scripts/target-image-container.sh" "$@"
+}
+
+build_kit_sdk() {
+  run_sdk_container fetch \
+    /work/scripts/fetch-target-image-sources.sh buildroot
+  run_sdk_container fetch \
+    /work/scripts/build-target-image.sh --inside-fetch-toolchain "$epoch"
+  run_sdk_container run \
+    /work/scripts/build-target-image.sh --inside-kit-sdk "$epoch"
+}
+
+rebuild_toolchain_unless_cached() {
   toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || toolchain_sha=
   if [ "${TOOLCHAIN_REBUILD:-0}" = 1 ] || [ -z "$toolchain_sha" ]; then
     if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
@@ -254,8 +331,7 @@ ensure_toolchain() {
       }
       "$TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE" "$repo"
     else
-      run_target_container "$variant" run \
-        /work/scripts/build-target-image.sh --inside-toolchain "$epoch"
+      "$@"
     fi
     toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || {
       printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
@@ -263,8 +339,18 @@ ensure_toolchain() {
   fi
 }
 
+ensure_toolchain() {
+  rebuild_toolchain_unless_cached run_target_container "$variant" run \
+    /work/scripts/build-target-image.sh --inside-toolchain "$epoch"
+}
+
+ensure_kit_sdk() {
+  rebuild_toolchain_unless_cached build_kit_sdk
+}
+
 promote_existing=0
 ensure_only=0
+kit_sdk=0
 case "${1:-}" in
   --cleanup-inside-output)
     [ "$#" -eq 2 ] || usage
@@ -303,6 +389,16 @@ case "${1:-}" in
     inside_toolchain "$2"
     exit
     ;;
+  --inside-fetch-toolchain)
+    [ "$#" -eq 2 ] || usage
+    inside_fetch_toolchain "$2"
+    exit
+    ;;
+  --inside-kit-sdk)
+    [ "$#" -eq 2 ] || usage
+    inside_kit_sdk "$2"
+    exit
+    ;;
   --fetch)
     [ "$#" -eq 2 ] || usage
     variant=$2
@@ -318,6 +414,12 @@ case "${1:-}" in
     variant=$2
     validate_variant "$variant"
     ensure_only=1
+    ;;
+  --ensure-kit-sdk)
+    # Same publisher and key as --ensure-toolchain, without image inputs.
+    [ "$#" -eq 1 ] || usage
+    ensure_only=1
+    kit_sdk=1
     ;;
   native-dev)
     [ "$#" -eq 1 ] || usage
@@ -357,7 +459,11 @@ if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ] && [ "${TARGET_IMAGE_TEST_MODE:-0}" != 
   exit 2
 fi
 if [ "$ensure_only" = 1 ]; then
-  ensure_toolchain
+  if [ "$kit_sdk" = 1 ]; then
+    ensure_kit_sdk
+  else
+    ensure_toolchain
+  fi
   printf '%s\n' "$toolchain_sha"
   exit
 fi

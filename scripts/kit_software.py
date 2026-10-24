@@ -145,7 +145,7 @@ def build_runtime(snapshot, cache, revision, env, driver):
     sdk_key = sdk.key(image)
     sdk_sha = sdk.validated_sha(cache, sdk_key)
     if sdk_sha is None:
-        raise ValueError('compatible cached SDK missing or corrupt; qualify/build its base image first')
+        raise ValueError('compatible cached SDK missing or corrupt; run make kit-sdk')
     local = image / 'build/cache/target-image/toolchains' / sdk_key
     local.mkdir(parents=True)
     shutil.copyfile(cache / 'host.tar', local / 'host.tar')
@@ -236,7 +236,7 @@ def publish(root, base, base_sha, version, output):
     sdk = load(root / 'image/scripts/toolchain_cache.py', 'kit_sdk_selection')
     cache = sdk.cache_dir(root / 'image')
     if sdk.validated_sha(cache, sdk.key(root / 'image')) is None:
-        raise ValueError('compatible cached SDK missing or corrupt; qualify/build its base image first')
+        raise ValueError('compatible cached SDK missing or corrupt; run make kit-sdk')
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as scratch, \
          tempfile.TemporaryDirectory(prefix='.kit-software-', dir=output.parent) as publication:

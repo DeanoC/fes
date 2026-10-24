@@ -377,7 +377,15 @@ acceptance for a new bundle.
 
 On Linux amd64, retain the verified `linux.img` and its reviewed SHA-256 from the
 appliance release manifest. Keep the matching verified SDK cache from that image
-build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its existing absolute cache path.
+build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its absolute cache path. An empty
+cache is filled with `make kit-sdk`, which publishes the current image key's SDK
+at `$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/` (or the checkout toolchain
+cache when the variable is unset). That command uses the pinned Buildroot
+sources, target-image builder, `fogcast_toolchain.fragment` and key that
+`build-target-image.sh --ensure-toolchain native-dev` uses. It fetches the
+Buildroot checkout and the sources that toolchain configuration selects. It does
+not fetch the image-creator tree or the kernel, and it does not need core
+packages, idle or splash RBFs, or the native runtime input lock.
 Commit the new software sources, then run:
 
 ```sh
@@ -399,8 +407,10 @@ A base image carries no kernel: every card boots the kernel in
 `boot-media.lock.toml`, and appliance releases must keep it. The build refuses a
 kernel source pin that the source lock does not pair with that boot kernel. It
 copies application assets from that same source snapshot. It never runs an OS
-image build or an FPGA package producer. A missing or mismatching SDK or kernel
-source fails explicitly; qualify its base image first.
+image build or an FPGA package producer. A missing or mismatching SDK fails
+explicitly and tells you to run `make kit-sdk`. A missing kernel source fails
+explicitly; `image/scripts/fetch-target-image-sources.sh` fills the bare
+repository the module build reads.
 
 The image hash is required: an extracted filesystem or a self-authored base
 receipt is not a substitute for the reviewed image identity. The command hashes
