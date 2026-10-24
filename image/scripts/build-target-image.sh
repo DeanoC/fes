@@ -353,10 +353,21 @@ PY
 }
 
 fetch_kit_sdk_sources() {
-  source_cache=${TARGET_IMAGE_CACHE:-$repo/build/cache/target-image}
-  source_cache_lock=$(dirname "$source_cache")/.kit-sdk-sources.lock
+  source_cache_lock=$(source_cache_lock_path)
   mkdir -p "$(dirname "$source_cache_lock")"
   flock "$source_cache_lock" "$0" --fetch-kit-sdk-sources-locked
+}
+
+source_cache_lock_path() {
+  source_cache=${TARGET_IMAGE_CACHE:-$repo/build/cache/target-image}
+  printf '%s/.kit-sdk-sources.lock\n' "$(dirname "$source_cache")"
+}
+
+fetch_image_sources() {
+  image_variant=$1
+  source_cache_lock=$(source_cache_lock_path)
+  mkdir -p "$(dirname "$source_cache_lock")"
+  flock "$source_cache_lock" "$0" --fetch-image-sources-locked "$image_variant"
 }
 
 fetch_kit_sdk_sources_locked() {
@@ -419,6 +430,15 @@ case "${1:-}" in
     fetch_kit_sdk_sources_locked
     exit
     ;;
+  --fetch-image-sources-locked)
+    [ "$#" -eq 2 ] || usage
+    variant=$2
+    validate_variant "$variant"
+    output=/target-image-output/fetch-$variant
+    run_target_container "$variant" fetch \
+      /work/scripts/build-target-image.sh --inside-fetch "$variant" "$output" "$epoch"
+    exit
+    ;;
   --cleanup-inside-output)
     [ "$#" -eq 2 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
@@ -470,9 +490,7 @@ case "${1:-}" in
     [ "$#" -eq 2 ] || usage
     variant=$2
     validate_variant "$variant"
-    output=/target-image-output/fetch-$variant
-    run_target_container "$variant" fetch \
-      /work/scripts/build-target-image.sh --inside-fetch "$variant" "$output" "$epoch"
+    fetch_image_sources "$variant"
     exit
     ;;
   --ensure-toolchain)

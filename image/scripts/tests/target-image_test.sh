@@ -73,6 +73,11 @@ cp "$repo/scripts/target-image-container.sh" \
   "$repo/scripts/fetch-target-image-sources.sh" \
   "$repo/scripts/verify-target-image-source-cache.sh" \
   "$fixture/recipe/scripts/"
+cat > "$fixture/recipe/scripts/verify-native-runtime-inputs.sh" <<'VERIFY_NATIVE_INPUTS'
+#!/bin/sh
+exit 0
+VERIFY_NATIVE_INPUTS
+chmod +x "$fixture/recipe/scripts/verify-native-runtime-inputs.sh"
 mkdir -p "$fixture/recipe/buildroot/configs" "$fixture/recipe/build"
 cp "$repo/buildroot/configs/fogcast_toolchain.fragment" "$fixture/recipe/buildroot/configs/"
 cp "$repo/buildroot/configs/fogcast_toolchain_only_defconfig" "$fixture/recipe/buildroot/configs/"
@@ -602,6 +607,12 @@ cat > "$fixture/sdk-source-concurrent-runtime" <<'SDK_SOURCE_CONCURRENT_RUNTIME'
 #!/bin/sh
 set -eu
 if [ "$1" = image ] && [ "$2" = inspect ]; then exit 0; fi
+assert_source_lock_held() {
+  if flock -n "$SDK_SOURCE_LOCK_FILE" true; then
+    printf 'source lock was not held for %s\n' "$1" >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+    exit 1
+  fi
+}
 if [ "$1" = run ]; then
   shift
   while [ "$#" -gt 0 ] && [ "$1" != test-image ]; do shift; done
@@ -611,6 +622,7 @@ if [ "$1" = run ]; then
   shift
   case "$command" in
     /work/scripts/fetch-target-image-sources.sh)
+      assert_source_lock_held "$command"
       mkdir "$SDK_SOURCE_ACTIVE" || {
         printf '%s\n' overlapping-fetch >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
         exit 1
@@ -630,6 +642,17 @@ if [ "$1" = run ]; then
         "$SDK_SOURCE_LOCK" "$SDK_SOURCE_CACHE" kit-sdk
       rmdir "$SDK_SOURCE_ACTIVE"
       ;;
+    /work/scripts/build-target-image.sh)
+      [ "$1" = --inside-fetch ] || exit 2
+      assert_source_lock_held "$command"
+      mkdir "$SDK_SOURCE_ACTIVE" || {
+        printf '%s\n' overlapping-fetch >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+        exit 1
+      }
+      printf 'image-fetch %s\n' "$*" >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+      sleep 0.1
+      rmdir "$SDK_SOURCE_ACTIVE"
+      ;;
     *) printf 'unexpected source command: %s\n' "$command" >&2; exit 2 ;;
   esac
   exit
@@ -645,6 +668,7 @@ env \
   TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-concurrent-runtime" \
   SDK_SOURCE_CONCURRENT_COMMANDS="$concurrent_commands" \
   SDK_SOURCE_ACTIVE="$fixture/sdk-source-active" \
+  SDK_SOURCE_LOCK_FILE="$(dirname "$concurrent_cache")/.kit-sdk-sources.lock" \
   SDK_SOURCE_LOCK="$sdk_source_lock" \
   SDK_SOURCE_CACHE="$concurrent_cache" \
   SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
@@ -661,6 +685,7 @@ env \
   TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-concurrent-runtime" \
   SDK_SOURCE_CONCURRENT_COMMANDS="$concurrent_commands" \
   SDK_SOURCE_ACTIVE="$fixture/sdk-source-active" \
+  SDK_SOURCE_LOCK_FILE="$(dirname "$concurrent_cache")/.kit-sdk-sources.lock" \
   SDK_SOURCE_LOCK="$sdk_source_lock" \
   SDK_SOURCE_CACHE="$concurrent_cache" \
   SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
@@ -673,17 +698,44 @@ env \
   > "$fixture/sdk-concurrent-2.log" 2>&1 &
 sdk_source_pid_2=$!
 if ! wait "$sdk_source_pid_1"; then
-  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" >&2
+  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" "$concurrent_commands" >&2
   exit 1
 fi
 if ! wait "$sdk_source_pid_2"; then
-  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" >&2
+  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" "$concurrent_commands" >&2
   exit 1
 fi
 test ! -e "$fixture/sdk-source-active"
 ! grep -Fq overlapping-fetch "$concurrent_commands"
+! grep -Fq 'source lock was not held' "$concurrent_commands"
 test "$(grep -c '^fetch kit-sdk$' "$concurrent_commands")" -eq 1
 test "$(grep -c '^verify /work/build/target-image.sources.lock.toml /work/build/cache/target-image kit-sdk$' \
+  "$concurrent_commands")" -eq 1
+
+# The regular image fetch holds that same sidecar lock while its container runs.
+env \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-concurrent-runtime" \
+  SDK_SOURCE_CONCURRENT_COMMANDS="$concurrent_commands" \
+  SDK_SOURCE_ACTIVE="$fixture/sdk-source-active" \
+  SDK_SOURCE_LOCK_FILE="$(dirname "$concurrent_cache")/.kit-sdk-sources.lock" \
+  SDK_SOURCE_LOCK="$sdk_source_lock" \
+  SDK_SOURCE_CACHE="$concurrent_cache" \
+  SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
+  SDK_BUILDROOT_REPO="$fixture/sdk-buildroot-source" \
+  SDK_KERNEL_REPO="$fixture/sdk-kernel-source" \
+  FES_PACKAGE_IDS= \
+  FES_TARGET_IMAGE_SHARED_CACHE="$shared" \
+  FES_PREBUILT_RUNTIME_SHA256=fixture \
+  NATIVE_RUNTIME_INPUT_LOCK="$fixture/native-runtime.inputs.lock.toml" \
+  TARGET_IMAGE_LOCK="$sdk_source_lock" \
+  TARGET_IMAGE_CACHE="$concurrent_cache" \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --fetch native-dev \
+  > "$fixture/sdk-image-fetch.log" 2>&1 || {
+    cat "$fixture/sdk-image-fetch.log" "$concurrent_commands" >&2
+    exit 1
+  }
+test "$(grep -c '^image-fetch --inside-fetch native-dev /target-image-output/fetch-native-dev ' \
   "$concurrent_commands")" -eq 1
 
 sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null

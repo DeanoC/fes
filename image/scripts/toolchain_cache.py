@@ -67,17 +67,24 @@ def shared_root(image=IMAGE):
     return path
 
 
-def validated_sha(directory, expected_key):
+def _validated_sha_unlocked(directory, expected_key):
     try:
-        with _cache_lock(directory, fcntl.LOCK_SH):
-            record = json.loads((directory / "receipt.json").read_text())
-            archive = directory / "host.tar"
-            if record["key"] == expected_key and len(record["sha256"]) == 64 and \
-                    file_sha(archive) == record["sha256"]:
-                return record["sha256"]
+        record = json.loads((directory / "receipt.json").read_text())
+        archive = directory / "host.tar"
+        if record["key"] == expected_key and len(record["sha256"]) == 64 and \
+                file_sha(archive) == record["sha256"]:
+            return record["sha256"]
     except (OSError, ValueError, KeyError, TypeError):
         pass
     return None
+
+
+def validated_sha(directory, expected_key):
+    try:
+        with _cache_lock(directory, fcntl.LOCK_SH):
+            return _validated_sha_unlocked(directory, expected_key)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 @contextmanager
@@ -145,23 +152,24 @@ def package(host, directory, expected_key, epoch=EPOCH):
 
 def extract(directory, expected_key, destination):
     directory, destination = Path(directory), Path(destination)
-    archive_sha = validated_sha(directory, expected_key)
-    if archive_sha is None:
-        raise ValueError("cached SDK key or sha256 mismatch")
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True)
-    with tarfile.open(directory / "host.tar") as archive:
-        for member in archive.getmembers():
-            if member.name != "host" and not member.name.startswith("host/"):
-                raise ValueError("unsafe SDK archive member")
-            if ".." in Path(member.name).parts or member.name.startswith("/"):
-                raise ValueError("unsafe SDK archive member")
-            if member.issym() or member.islnk():
-                target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
-                if member.linkname.startswith("/") or (target != "host" and not target.startswith("host/")):
-                    raise ValueError("unsafe SDK archive link")
-        archive.extractall(destination)
+    with _cache_lock(directory, fcntl.LOCK_SH):
+        archive_sha = _validated_sha_unlocked(directory, expected_key)
+        if archive_sha is None:
+            raise ValueError("cached SDK key or sha256 mismatch")
+        if destination.exists():
+            shutil.rmtree(destination)
+        destination.mkdir(parents=True)
+        with tarfile.open(directory / "host.tar") as archive:
+            for member in archive.getmembers():
+                if member.name != "host" and not member.name.startswith("host/"):
+                    raise ValueError("unsafe SDK archive member")
+                if ".." in Path(member.name).parts or member.name.startswith("/"):
+                    raise ValueError("unsafe SDK archive member")
+                if member.issym() or member.islnk():
+                    target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
+                    if member.linkname.startswith("/") or (target != "host" and not target.startswith("host/")):
+                        raise ValueError("unsafe SDK archive link")
+            archive.extractall(destination)
     return archive_sha
 
 
