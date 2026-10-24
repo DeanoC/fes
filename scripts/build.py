@@ -1877,6 +1877,8 @@ def main():
                     if staged != artifacts:
                         raise ValueError('bootstrap artifacts changed before staging')
                     env['FES_PREBUILT_RUNTIME_SHA256'] = artifacts['binaries']['mister-runtime']
+                    # The pairing agent is base-image software, not a staged bundle binary.
+                    platform.build_bluetooth(ROOT, fogcast, env)
                 else:
                     run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
                     platform.build_kit_software(ROOT, fogcast, env)
