@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -40,7 +41,12 @@ func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
 	apple := preparedComputer("fpga-apple", "Apple II", "fes.apple2")
 	coleco := preparedComputer("fpga-coleco", "Donkey Kong", "fes.coleco")
 
-	svc := &fakeServices{games: []hostclient.Game{zx, bare, c64, pong, apple, coleco}}
+	games := make([]hostclient.Game, 0, 2007)
+	for i := 0; i < 2001; i++ {
+		games = append(games, preparedComputer(fmt.Sprintf("fpga-other-%04d", i), fmt.Sprintf("0000 unrelated %04d", i), "fes.other"))
+	}
+	games = append(games, zx, bare, c64, pong, apple, coleco)
+	svc := &fakeServices{games: games}
 	r := newRoom(t, pack, Options{Services: svc, Width: 1280, Height: 720})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
@@ -65,7 +71,7 @@ func TestComputersRoomListsPreparedZX81AndC64(t *testing.T) {
 	}
 	assertRowContrast(t, frame)
 	queries := svc.recorded()
-	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" {
+	if len(queries) != 1 || queries[0].Platform != "fpga" || queries[0].Sort != "title" || len(queries[0].CoreIDs) != 2 || queries[0].CoreIDs[0] != "fes.zx81" || queries[0].CoreIDs[1] != "fes.c64" {
 		t.Fatalf("queries %+v", queries)
 	}
 	if got := r.Destination(); got.Kind != "" || got.GameID != "" {
