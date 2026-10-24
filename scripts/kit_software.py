@@ -79,10 +79,13 @@ def prepare_kernel_module(root, snapshot, env):
     image = snapshot / 'image'
     kernel = pinned_kernel(snapshot)
     commit = kernel['kernel_commit']
-    # Kit builds share the kernel source like the SDK; a checkout falls back to
-    # the target-image source cache that fetch-target-image-sources.sh fills.
+    # kit-sdk publishes the SDK to the shared cache, but fetches source into the
+    # worktree cache. Prefer a shared kernel repo when present; otherwise use
+    # the worktree repo. Both paths are checked against the source lock below.
     shared = env.get('FES_TARGET_IMAGE_SHARED_CACHE')
-    bare = (Path(shared) if shared else Path(root) / 'image/build/cache/target-image') / 'linux-kernel.git'
+    local_bare = Path(root) / 'image/build/cache/target-image/linux-kernel.git'
+    shared_bare = Path(shared) / 'linux-kernel.git' if shared else None
+    bare = shared_bare if shared_bare and shared_bare.exists() else local_bare
     # The provenance verify-target-image-source-cache.sh requires: the fetch pin
     # names the locked commit, and that commit object is present.
     pinned = subprocess.run(['git', '--git-dir', str(bare), 'rev-parse', '--verify', '--quiet',

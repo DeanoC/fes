@@ -383,8 +383,8 @@ at `$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/` (or the checkout toolchain
 cache when the variable is unset). That command uses the pinned Buildroot
 sources, target-image builder, `fogcast_toolchain.fragment` and key that
 `build-target-image.sh --ensure-toolchain native-dev` uses. It fetches the
-Buildroot checkout and the sources that toolchain configuration selects. It does
-not fetch the image-creator tree or the kernel, and it does not need core
+Buildroot checkout and the pinned Linux kernel into the checkout's target-image
+source cache. It does not fetch the image-creator tree, and it does not need core
 packages, idle or splash RBFs, or the native runtime input lock.
 Commit the new software sources, then run:
 
@@ -399,10 +399,11 @@ The command freezes the committed FES HEAD, builds the agent and both launchers
 with the selected Go version, and builds the runtime with the pinned container
 and verified cached ARM SDK. In the same container it builds the fes-window
 module against the pinned kernel commit. It reads that commit from the bare
-repository `linux-kernel.git` in `FES_TARGET_IMAGE_SHARED_CACHE` when that is
-set, like the SDK, and otherwise from the checkout's target-image source cache,
-which `image/scripts/fetch-target-image-sources.sh` fills. That repository's
-`refs/target-image/pinned` must name the commit, as the fetch script leaves it.
+repository `linux-kernel.git` in `FES_TARGET_IMAGE_SHARED_CACHE` when present,
+and otherwise from the checkout's target-image source cache, which
+`image/scripts/fetch-target-image-sources.sh` fills. This lets a cold shared
+cache use the worktree copy fetched by `make kit-sdk`. In either cache,
+`refs/target-image/pinned` must name the locked commit, as the fetch script leaves it.
 A base image carries no kernel: every card boots the kernel in
 `boot-media.lock.toml`, and appliance releases must keep it. The build refuses a
 kernel source pin that the source lock does not pair with that boot kernel. It
