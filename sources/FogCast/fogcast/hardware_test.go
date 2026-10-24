@@ -72,6 +72,98 @@ func hardwareExpansion(t *testing.T, inspection corepackage.Inspection, changes 
 	return asset, encoded.Bytes()
 }
 
+func TestShelfComputersListsZX81AndC64Only(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := hardwareZX81Fixture(t, true)
+	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
+	store := s.catalog.(*catalog.Store)
+	if _, err := store.CreateCoreEntry(ctx, "Commodore 64", "fes.c64", entry.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateCoreEntry(ctx, "Unrelated machine", "fes.pong", entry.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := s.ShelfComputers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || listed[0].CoreID != "fes.c64" || listed[1].CoreID != "fes.zx81" || listed[1].GameID != entry.GameID {
+		t.Fatalf("shelf %+v", listed)
+	}
+	if listed[0].Ready || listed[0].UnavailableReason == "" {
+		t.Fatalf("mismatched c64 package was launchable: %+v", listed[0])
+	}
+	for _, card := range listed {
+		if card.CoreID == "fes.pong" {
+			t.Fatalf("unrelated core listed: %+v", listed)
+		}
+	}
+}
+
+type shelfReadyMachineROM struct{}
+
+func (shelfReadyMachineROM) Link(context.Context, []byte) ([]byte, string, error) {
+	return nil, "", nil
+}
+
+type invalidShelfMediaCatalog struct {
+	*catalog.Store
+}
+
+func (c invalidShelfMediaCatalog) CoreMediaInfo(context.Context, string) (catalog.CoreMedia, error) {
+	return catalog.CoreMedia{}, catalog.ErrInvalidCoreMedia
+}
+
+func TestShelfComputerRequiresZX81LinkerAndValidSelectedMedia(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := hardwareZX81Fixture(t, false)
+	s, _, _, _ := newCoreEntryLaunchFixture(t, archive, "ZX81 with tape", time.Minute)
+	listed, err := s.ShelfComputers(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Ready {
+		t.Fatalf("ZX81 without machine linker looked ready: %+v err=%v", listed, err)
+	}
+
+	s.SetMachineROMLinker(shelfReadyMachineROM{})
+	listed, err = s.ShelfComputers(ctx)
+	if err != nil || len(listed) != 1 || !listed[0].Ready {
+		t.Fatalf("ZX81 with valid linker and tape not ready: %+v err=%v", listed, err)
+	}
+
+	store := s.catalog.(*catalog.Store)
+	s.catalog = invalidShelfMediaCatalog{Store: store}
+	listed, err = s.ShelfComputers(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Ready {
+		t.Fatalf("ZX81 with invalid saved tape looked ready: %+v err=%v", listed, err)
+	}
+	if listed[0].UnavailableReason == "" {
+		t.Fatalf("invalid tape did not explain the blocked card: %+v", listed[0])
+	}
+}
+
+func TestShelfComputerRequiresNativeVideoAdmission(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := apple2LibraryPackageFixture(t, false, func(text string) string {
+		text = strings.ReplaceAll(text, `id = "fes.apple2"`, `id = "fes.c64"`)
+		return text + fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = false\n", expansion.NativeVideoSlot)
+	})
+	s, _, entry, inspection := newCoreEntryLaunchFixture(t, archive, "C64 native video", time.Minute)
+	media := bytes.Repeat([]byte{0}, 143360)
+	asset, _, err := s.ImportCoreMedia(ctx, int64(len(media)), bytes.NewReader(media))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.DiskRole, asset.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	if !hasVideoSocket(inspection) || !requiresVideoPart(inspection) {
+		t.Fatalf("fixture did not declare required native video: %+v", inspection.Descriptor.Interfaces)
+	}
+	listed, err := s.ShelfComputers(ctx)
+	if err != nil || len(listed) != 1 || listed[0].Ready {
+		t.Fatalf("native-video computer without an admitted video part looked ready: %+v err=%v", listed, err)
+	}
+}
+
 func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 	bus := corepackage.Interface{ID: expansion.Slot, Major: 2}
 	for _, abi := range []string{"fes.computer", "fes.simple-computer"} {
