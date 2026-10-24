@@ -123,6 +123,7 @@ type sessionCoordinator struct {
 	mediaState        string
 	liveMediaName     string
 	liveMediaBinding  protocol.DevelopmentMediaBinding
+	liveMediaFlightID string
 	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	mu                sync.Mutex
@@ -1814,7 +1815,7 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	result.ID = s.id
 	result.FlightID = s.flightID
 	execution := s.execution
-	name, binding := s.liveMediaName, s.liveMediaBinding
+	name, binding, mediaFlightID := s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID
 	s.mu.Unlock()
 	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
 		result.Target, result.TargetID = "", ""
@@ -1826,20 +1827,21 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	} else if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
 		result.Target, result.TargetID = binder.SessionTarget()
 	}
-	mediaBindingMatches := result.Target == binding.Target && result.TargetID == binding.TargetID && st.State == protocol.StateActive && st.CorePackage != nil && st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation
+	mediaBindingMatches := result.FlightID == mediaFlightID &&
+		result.Target == binding.Target && result.TargetID == binding.TargetID &&
+		st.State == protocol.StateActive && st.CorePackage != nil &&
+		st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation
 	if mediaBindingMatches {
 		unit, observed := protocol.MediaUnit(st.CorePackage, 0)
 		if !observed || unit.State == protocol.MediaUnitReady {
 			result.MediaName = name
 		}
 	} else if st.State != "" {
-		// A confirmed filename belongs only to the observed session binding.
-		// Retire it once status proves that session stopped or changed, so a
-		// runtime restart that reuses a package generation cannot revive it.
+		// A confirmed filename belongs only to the observed session flight and
+		// package binding, so a relaunch that reuses a generation cannot revive it.
 		s.mu.Lock()
-		if s.liveMediaName == name && s.liveMediaBinding == binding {
-			s.liveMediaName = ""
-			s.liveMediaBinding = protocol.DevelopmentMediaBinding{}
+		if s.liveMediaName == name && s.liveMediaBinding == binding && s.liveMediaFlightID == mediaFlightID {
+			s.clearLiveMediaNameLocked()
 		}
 		s.mu.Unlock()
 	}
@@ -1848,6 +1850,14 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 		result.Input = &input
 	}
 	return result
+}
+
+// clearLiveMediaNameLocked retires the complete identity of a cached filename.
+// The caller must hold s.mu.
+func (s *sessionCoordinator) clearLiveMediaNameLocked() {
+	s.liveMediaName = ""
+	s.liveMediaBinding = protocol.DevelopmentMediaBinding{}
+	s.liveMediaFlightID = ""
 }
 
 func busyError() error {

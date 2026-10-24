@@ -761,7 +761,9 @@ fogcast --api http://127.0.0.1:8787 --json eject-tape
 media id uses the already stored object. Admission requires 1..16384 bytes and
 a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
 `{"media_id","name"}` and the same session/package/generation/target binding
-headers as development media. `eject-tape` posts
+headers as development media. The displayed filename is scoped to that launch
+flight as well as its target, package and generation, so a relaunch that reuses
+a package generation starts without the previous flight's name. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
 The CLI reads the session with a 30-second client. `change-tape` and
 `eject-tape` post through the mutation client, which does not impose that

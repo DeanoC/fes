@@ -37,7 +37,7 @@ func kitDisplaySession() hostclient.SessionResult {
 }
 
 func writeKitDisplaySession(w http.ResponseWriter, s hostclient.SessionResult) {
-	json.NewEncoder(w).Encode(map[string]any{"id": s.ID, "state": s.State, "game_id": s.GameID, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "core_package": s.CorePackage, "input": s.Input})
+	json.NewEncoder(w).Encode(map[string]any{"id": s.ID, "state": s.State, "game_id": s.GameID, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID, "media_name": s.MediaName, "core_package": s.CorePackage, "input": s.Input})
 }
 
 type transitionPadFeed struct {
@@ -1100,7 +1100,7 @@ func TestKitSurroundUnconfirmedCloseKeepsARetry(t *testing.T) {
 // A kit running a disk machine opens Change media over play, imports a D64
 // through the paired listener and inserts it. The fake host applies the real
 // display admission and the paired import bound.
-func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
+func TestKitC64DiskMediaSwapsAndEjectsOverPlay(t *testing.T) {
 	disk := protocol.C64DiskInterface()
 	prior := computerTapeDisplaySession()
 	prior.CorePackage.ActiveInterfaces[0] = hostclient.SessionCoreInterface{ID: disk.ID, Major: disk.Major, Minor: disk.Minor}
@@ -1112,9 +1112,21 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 		t.Fatal("observed package projection failed")
 	}
 	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &observed}
+	current := prior
+	currentJSON, err := json.Marshal(prior)
+	if err != nil {
+		t.Fatalf("marshal session projection: %v", err)
+	}
+	if err := json.Unmarshal(currentJSON, &current); err != nil {
+		t.Fatalf("clone session projection: %v", err)
+	}
 	dir := t.TempDir()
 	image := bytes.Repeat([]byte{0x64}, int(protocol.C64DiskBytes))
 	if err := os.WriteFile(filepath.Join(dir, "game.d64"), image, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secondImage := bytes.Repeat([]byte{0x65}, int(protocol.C64DiskBytes))
+	if err := os.WriteFile(filepath.Join(dir, "second.d64"), secondImage, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "other.dsk"), make([]byte, protocol.Apple2FloppyBytes), 0o600); err != nil {
@@ -1122,8 +1134,8 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 	}
 	var mu sync.Mutex
 	var visible []bool
-	var inserted protocol.LiveMediaRequest
-	var imports, inserts atomic.Int32
+	var inserted []protocol.LiveMediaRequest
+	var imports, inserts, ejects atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, bound := protocol.DevelopmentMediaHeaders(r.Header)
 		switch r.URL.Path {
@@ -1135,8 +1147,8 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 			show := decodeSessionDisplay(t, r)
 			mu.Lock()
 			visible = append(visible, show)
+			writeKitDisplaySession(w, current)
 			mu.Unlock()
-			writeKitDisplaySession(w, prior)
 		case "/api/v1/core-media":
 			if !protocol.AdmitRemovableMediaSize(r.ContentLength) {
 				http.Error(w, "paired import bound", http.StatusBadRequest)
@@ -1146,14 +1158,30 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 			imports.Add(1)
 			json.NewEncoder(w).Encode(map[string]any{"media_id": fmt.Sprintf("%x", sha256.Sum256(body)), "size": len(body)})
 		case "/api/v1/session/live-media":
-			mu.Lock()
-			err := json.NewDecoder(r.Body).Decode(&inserted)
-			mu.Unlock()
-			if err != nil || !bound || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
-				t.Error("disk insert lost the captured machine")
+			var request protocol.LiveMediaRequest
+			err := json.NewDecoder(r.Body).Decode(&request)
+			if err != nil || !bound || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || b.Target != prior.Target || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
+				http.Error(w, "disk insert lost the captured machine", http.StatusConflict)
+				return
 			}
+			mu.Lock()
+			inserted = append(inserted, request)
+			current.MediaName = request.Name
+			current.CorePackage.MediaUnits[0].State = protocol.MediaUnitReady
 			inserts.Add(1)
-			writeKitDisplaySession(w, prior)
+			writeKitDisplaySession(w, current)
+			mu.Unlock()
+		case "/api/v1/session/live-media/clear":
+			if !bound || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || b.Target != prior.Target || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
+				http.Error(w, "disk eject lost the captured machine", http.StatusConflict)
+				return
+			}
+			mu.Lock()
+			ejects.Add(1)
+			current.MediaName = ""
+			current.CorePackage.MediaUnits[0].State = protocol.MediaUnitEmpty
+			writeKitDisplaySession(w, current)
+			mu.Unlock()
 		default:
 			http.NotFound(w, r)
 		}
@@ -1169,23 +1197,61 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 	waitFor(t, app, "disk selector over play", func(s Snapshot) bool {
 		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open && s.TapePicker.Title == tapePickerTitle
 	})
-	selectTapeLibraryRoot(t, app, dir)
-	for _, row := range app.Snapshot().TapePicker.Rows {
-		if row.Kind == tapePickerKindFile && row.Selectable != (row.Name == "game.d64") {
-			t.Fatalf("wrong disk selection: %+v", row)
+	insertDisk := func(name, label string) {
+		t.Helper()
+		selectTapeLibraryRoot(t, app, dir)
+		for _, row := range app.Snapshot().TapePicker.Rows {
+			wantSelectable := row.Name == "game.d64" || row.Name == "second.d64"
+			if row.Kind == tapePickerKindFile && row.Selectable != wantSelectable {
+				t.Fatalf("wrong disk selection: %+v", row)
+			}
 		}
+		selectTapeNamedRow(t, app, name)
+		app.HandleCommand(CmdSelect, time.Now())
+		waitFor(t, app, label, func(s Snapshot) bool {
+			return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Media inserted."
+		})
 	}
-	selectTapeNamedRow(t, app, "game.d64")
+	insertDisk("game.d64", "first disk inserted and play restored")
+	app.HandleCommand(CmdHome, time.Now())
+	snap := waitFor(t, app, "disk selector reopened", func(s Snapshot) bool { return s.TapePicker.Open && s.Session.ControlsOpen })
+	if snap.TapePicker.Current != "Inserted: game.d64" {
+		t.Fatalf("reopened selector current disk = %q", snap.TapePicker.Current)
+	}
+	insertDisk("second.d64", "second disk swapped and play restored")
+	app.HandleCommand(CmdHome, time.Now())
+	snap = waitFor(t, app, "selector reopened after swap", func(s Snapshot) bool { return s.TapePicker.Open && s.Session.ControlsOpen })
+	if snap.TapePicker.Current != "Inserted: second.d64" {
+		t.Fatalf("selector current disk after swap = %q", snap.TapePicker.Current)
+	}
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
 	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "disk inserted and play restored", func(s Snapshot) bool {
-		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Media inserted."
+	waitFor(t, app, "disk ejected and play restored", func(s Snapshot) bool {
+		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Media ejected."
 	})
-	mu.Lock()
-	defer mu.Unlock()
-	if imports.Load() != 1 || inserts.Load() != 1 || inserted.Name != "game.d64" || inserted.MediaID != fmt.Sprintf("%x", sha256.Sum256(image)) {
-		t.Fatalf("imports=%d inserts=%d inserted=%+v", imports.Load(), inserts.Load(), inserted)
+	app.HandleCommand(CmdHome, time.Now())
+	snap = waitFor(t, app, "empty disk selector reopened", func(s Snapshot) bool { return s.TapePicker.Open && s.Session.ControlsOpen })
+	if snap.TapePicker.Current != "No media inserted" {
+		t.Fatalf("selector after eject current disk = %q", snap.TapePicker.Current)
 	}
-	if len(visible) != 2 || !visible[0] || visible[1] {
-		t.Fatalf("display handoff = %v", visible)
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "media selector closed", func(s Snapshot) bool { return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked })
+	mu.Lock()
+	visibleSnapshot := append([]bool(nil), visible...)
+	insertedSnapshot := append([]protocol.LiveMediaRequest(nil), inserted...)
+	mu.Unlock()
+	if imports.Load() != 2 || inserts.Load() != 2 || ejects.Load() != 1 || len(insertedSnapshot) != 2 ||
+		insertedSnapshot[0].Name != "game.d64" || insertedSnapshot[0].MediaID != fmt.Sprintf("%x", sha256.Sum256(image)) ||
+		insertedSnapshot[1].Name != "second.d64" || insertedSnapshot[1].MediaID != fmt.Sprintf("%x", sha256.Sum256(secondImage)) {
+		t.Fatalf("imports=%d inserts=%d ejects=%d inserted=%+v", imports.Load(), inserts.Load(), ejects.Load(), insertedSnapshot)
+	}
+	wantVisible := []bool{true, false, true, false, true, false, true, false}
+	if len(visibleSnapshot) != len(wantVisible) {
+		t.Fatalf("display handoff = %v", visibleSnapshot)
+	}
+	for i := range wantVisible {
+		if visibleSnapshot[i] != wantVisible[i] {
+			t.Fatalf("display handoff = %v", visibleSnapshot)
+		}
 	}
 }

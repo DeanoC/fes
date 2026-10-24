@@ -49,7 +49,7 @@ func (s *sessionCoordinator) loadDevelopmentMedia(ctx context.Context, id string
 	// Development media can replace unit 0 too; do not report the old
 	// live-media filename if the reply becomes uncertain.
 	s.mu.Lock()
-	s.liveMediaName = ""
+	s.clearLiveMediaNameLocked()
 	s.mu.Unlock()
 	status, err := loader.LoadDevelopmentMedia(ctx, size, body, b)
 	if err != nil {

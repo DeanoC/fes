@@ -98,6 +98,7 @@ func TestAppActiveZX81OpensTapePickerAndArms(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newTapeHost(t)
+	h.computerTape = true
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.Start(t.Context())
@@ -151,7 +152,22 @@ func TestAppActiveZX81OpensTapePickerAndArms(t *testing.T) {
 	if h.lastMediaID != wantID {
 		t.Fatalf("media id %s want %s", h.lastMediaID, wantID)
 	}
-	_ = snap
+
+	app.HandleCommand(CmdSearch, time.Now())
+	snap = waitFor(t, app, "reopened tape selector", func(s Snapshot) bool { return s.TapePicker.Open })
+	if snap.TapePicker.Current != "Inserted: maze.p" {
+		t.Fatalf("reopened selector current media = %q", snap.TapePicker.Current)
+	}
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "tape ejected after reopen", func(s Snapshot) bool {
+		return !s.TapePicker.Open && strings.Contains(s.Status, "Tape ejected")
+	})
+	app.HandleCommand(CmdSearch, time.Now())
+	snap = waitFor(t, app, "reopened empty tape selector", func(s Snapshot) bool { return s.TapePicker.Open })
+	if snap.TapePicker.Current != "No media inserted" {
+		t.Fatalf("selector after eject current media = %q", snap.TapePicker.Current)
+	}
 }
 
 func TestAppTapePickerSurfacesBusyReject(t *testing.T) {
@@ -401,6 +417,8 @@ type tapeHost struct {
 	clearUnavailable bool
 	lastMediaID      string
 	lastName         string
+	mediaName        string
+	computerTape     bool
 	pkg              string
 	sessionID        string
 	server           *httptest.Server
@@ -457,12 +475,14 @@ func newTapeHost(t *testing.T) *tapeHost {
 			}
 			var req protocol.LiveMediaRequest
 			_ = json.NewDecoder(r.Body).Decode(&req)
-			armed := h.sessionJSON()
 			h.mu.Lock()
 			h.replaces++
 			h.lastMediaID = req.MediaID
 			h.lastName = req.Name
 			busy := h.busy
+			if !busy {
+				h.mediaName = req.Name
+			}
 			h.mu.Unlock()
 			if h.armStarted != nil {
 				select {
@@ -480,7 +500,7 @@ func newTapeHost(t *testing.T) *tapeHost {
 				})
 				return
 			}
-			_, _ = io.WriteString(w, armed)
+			_, _ = io.WriteString(w, h.sessionJSON())
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media/clear":
 			h.mu.Lock()
 			h.clears++
@@ -504,6 +524,9 @@ func newTapeHost(t *testing.T) *tapeHost {
 				})
 				return
 			}
+			h.mu.Lock()
+			h.mediaName = ""
+			h.mu.Unlock()
 			_, _ = io.WriteString(w, h.sessionJSON())
 		default:
 			http.NotFound(w, r)
@@ -518,6 +541,13 @@ func (h *tapeHost) sessionJSON() string {
 	defer h.mu.Unlock()
 	if h.launches == 0 {
 		return `{"id":"` + h.sessionID + `","target":"dev","state":"idle"}`
+	}
+	if h.computerTape {
+		state := protocol.MediaUnitEmpty
+		if h.mediaName != "" {
+			state = protocol.MediaUnitReady
+		}
+		return fmt.Sprintf(`{"id":%q,"target":"dev","state":"active","game_id":"fpga-zx81","execution":"fpga_native","media_name":%q,"core_package":{"package_id":%q,"generation":9,"abi":{"id":"fes.computer","major":1,"minor":0},"active_interfaces":[{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0}],"media_units":[{"unit":0,"interface":{"id":"fes.media.zx81-tape","major":1,"minor":0},"min_bytes":1,"max_bytes":16384,"chunk_bytes":512,"state":%q}]}}`, h.sessionID, h.mediaName, h.pkg, state)
 	}
 	return fmt.Sprintf(`{"id":%q,"target":"dev","state":"active","game_id":"fpga-zx81","execution":"fpga_native","core_package":{"package_id":%q,"generation":9,"abi":{"id":"fes.simple-computer","major":1,"minor":0},"active_interfaces":[{"id":"fes.media.blob","major":1,"minor":0},{"id":"fes.keyboard","major":1,"minor":0}]}}`, h.sessionID, h.pkg)
 }

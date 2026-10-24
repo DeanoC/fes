@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -188,6 +189,64 @@ func TestLiveMediaNameClearsAfterSessionStopsOrChanges(t *testing.T) {
 				t.Fatalf("same-generation session revived stale filename: %s", restarted.Body.String())
 			}
 		})
+	}
+}
+
+func TestLiveMediaNameDoesNotSurviveSameGenerationRelaunch(t *testing.T) {
+	packageID := strings.Repeat("a", 64)
+	gameID := "fpga-zx81"
+	active := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: packageID, Generation: 9,
+		ABI:              protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.zx81-tape", Major: 1}},
+	}}
+	service := &liveMediaService{fakeService: fakeService{
+		game:          catalog.Game{ID: gameID, Kind: catalog.SourceKindCorePackage},
+		launch:        protocol.CachedLaunchResponse{Status: active},
+		status:        active,
+		sessionTarget: "dev",
+	}}
+	handler := hostapi.New(service)
+	firstLaunch := launchSession(t, handler, gameID)
+	if firstLaunch.Code != http.StatusOK {
+		t.Fatalf("first launch = %d %s", firstLaunch.Code, firstLaunch.Body.String())
+	}
+	var first struct {
+		ID       string `json:"id"`
+		FlightID string `json:"flight_id"`
+	}
+	if err := json.Unmarshal(firstLaunch.Body.Bytes(), &first); err != nil || first.ID == "" || first.FlightID == "" {
+		t.Fatalf("first launch identity = %s: %v", firstLaunch.Body.String(), err)
+	}
+
+	insert := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"maze.p"}`))
+	insert.Host = "127.0.0.1"
+	insert.Header.Set("Content-Type", "application/json")
+	insert.Header.Set(protocol.HostSessionIDHeader, first.ID)
+	protocol.DevelopmentMediaBinding{PackageID: packageID, Generation: 9, Target: "dev"}.SetHeaders(insert.Header)
+	inserted := httptest.NewRecorder()
+	handler.ServeHTTP(inserted, insert)
+	if inserted.Code != http.StatusOK || !strings.Contains(inserted.Body.String(), `"media_name":"maze.p"`) {
+		t.Fatalf("insert = %d %s", inserted.Code, inserted.Body.String())
+	}
+
+	// The second package launch reports the same target package generation. Its
+	// new flight must still retire the filename confirmed for the first one.
+	secondLaunch := launchSession(t, handler, gameID)
+	if secondLaunch.Code != http.StatusOK {
+		t.Fatalf("same-generation relaunch = %d %s", secondLaunch.Code, secondLaunch.Body.String())
+	}
+	var second struct {
+		FlightID string `json:"flight_id"`
+	}
+	if err := json.Unmarshal(secondLaunch.Body.Bytes(), &second); err != nil || second.FlightID == "" || second.FlightID == first.FlightID {
+		t.Fatalf("relaunch flight = %s, first=%q: %v", secondLaunch.Body.String(), first.FlightID, err)
+	}
+	if strings.Contains(secondLaunch.Body.String(), `"media_name"`) {
+		t.Fatalf("same-generation relaunch revived stale filename: %s", secondLaunch.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); strings.Contains(current.Body.String(), `"media_name"`) {
+		t.Fatalf("status retained previous-flight filename: %s", current.Body.String())
 	}
 }
 

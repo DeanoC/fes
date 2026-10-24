@@ -96,7 +96,7 @@ func (s *sessionCoordinator) mediaData(ctx context.Context, id string, b protoco
 		// Insertion can replace unit 0, so a live-media filename is no longer
 		// confirmed once the mutation is dispatched.
 		s.mu.Lock()
-		s.liveMediaName = ""
+		s.clearLiveMediaNameLocked()
 		s.mu.Unlock()
 		status, err = loader.InsertLibraryDisk(ctx, b)
 	}
