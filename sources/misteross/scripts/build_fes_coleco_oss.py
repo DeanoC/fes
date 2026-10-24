@@ -20,7 +20,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.source_repository import canonical_repository
-from scripts import build_fes_menu, fes_de10nano_evidence
+from scripts import fes_de10nano_evidence
 from scripts.fes_build_common import (
     BuildError,
     _authenticate_tools,
@@ -492,7 +492,7 @@ def timing_resource_names(*, session_display: bool = False) -> set[str]:
 
 def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
     """The plane reads launcher frames through one read-only fpga2sdram port."""
-    normalized = build_fes_menu.layout_graph_with_constants(design)
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized["modules"][TOP].get("cells", {})
     memory = next(cell for cell in cells.values()

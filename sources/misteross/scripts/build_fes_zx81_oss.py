@@ -48,7 +48,7 @@ PLACER_FIRST_PASS_WEIGHTS = tuple(PNR['timing_weights'])
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = pnr_recipe.required_clocks('fes.zx81')
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-common/rtl/fes_display_cdc.v', 'cores/fes-common/rtl/fes_display_plane.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
-PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
+PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 # The session-display plane blends with three unsigned 9x9 products. Unsigned
 # 9x9 sets no DSP sign bits, so it does not depend on DeanoC/nextpnr#219.
@@ -280,8 +280,8 @@ def _audio_evidence(design: dict) -> None:
             raise BuildError(f'audio output {port} has incorrect routing or electrical constraints')
 
 def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
-    from scripts import fes_de10nano_evidence, build_fes_menu
-    normalized = build_fes_menu.layout_graph_with_constants(design)
+    from scripts import fes_de10nano_evidence
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized['modules'][TOP].get('cells', {})
     memory = next(cell for cell in cells.values()

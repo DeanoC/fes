@@ -82,6 +82,37 @@ def hps_ddr_layout(source_root: Path) -> dict[str, int]:
     return layout
 
 
+def layout_graph_with_constants(graph):
+    """Resolve nextpnr-packed MISTRAL_CONST bits on fpga2sdram cfg pins.
+
+    Only explicit zero/one cells are constants. Any other driver stays a
+    signal and fails the layout check.
+    """
+    cells = graph["modules"]["top"]["cells"]
+    constants = {}
+    for cell in cells.values():
+        lut = cell.get("parameters", {}).get("LUT")
+        q = cell.get("connections", {}).get("Q")
+        if (cell.get("type") == "MISTRAL_CONST" and type(lut) is str
+                and len(lut) == 32 and set(lut) <= {"0", "1"}
+                and int(lut, 2) in (0, 1) and type(q) is list and len(q) == 1
+                and type(q[0]) is int):
+            if q[0] in constants:
+                raise BuildError("multiple constant drivers on DDR configuration net")
+            constants[q[0]] = str(int(lut, 2))
+    normalized = dict(cells)
+    for name, cell in cells.items():
+        if cell.get("type") != "cyclonev_hps_interface_fpga2sdram":
+            continue
+        connections = dict(cell.get("connections", {}))
+        for port in HPS_DDR_CFG_PORTS:
+            bits = connections.get(port)
+            if isinstance(bits, list):
+                connections[port] = [constants.get(bit, bit) if type(bit) is int else bit for bit in bits]
+        normalized[name] = {**cell, "connections": connections}
+    return {"modules": {"top": {**graph["modules"]["top"], "cells": normalized}}}
+
+
 def hps_ddr_layout_evidence(design: dict, label: str, source_root: Path, *, idle: bool) -> dict:
     """Require one fpga2sdram cell whose cfg_* pins are the layout constants.
 

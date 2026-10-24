@@ -80,7 +80,7 @@ NATIVE_VIDEO_SOURCES = (
 NATIVE_VIDEO_INPUTS = (*PINNED_INPUTS, *NATIVE_VIDEO_SOURCES,
     "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh",
     "cores/fes-common/generated/fes_display_plane.vh", DDR_ATOM,
-    "scripts/build_fes_menu.py", "scripts/fes_de10nano_evidence.py")
+    "scripts/fes_de10nano_evidence.py")
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log",
     "nextpnr.log", "build-inputs.json", "build-summary.json", "manifest.toml",
