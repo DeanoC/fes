@@ -1,24 +1,43 @@
 # Running-core media filename
 
-Scope: FogCast session presentation and tenfoot selector header. Base
+Scope: FogCast session presentation, hostclient decoding, tenfoot selector,
+FogCast's Go runtime adapter, and libmister-runtime's eject error reporting. Base
 `4bd64a993f125d9fa56730631ed5097077102df4`; final executable source
 `ac755a54e88fa3676d8a54c97b17467b6851c672`. Host USB/SMB media browsing
-is covered separately by PR #1041. This follow-up changes FogCast's Go runtime
-adapter and session presentation; it adds no browsing API or catalog schema
-change and does not change the C++ libmister-runtime or FPGA behavior.
+is covered separately by PR #1041. After a post-dispatch eject exchange becomes
+ambiguous, libmister-runtime preserves its input-phase `io_failed` result after
+best-effort realignment. FogCast maps that outcome as uncertain; pre-dispatch
+failures and acknowledged GP rejections remain no-change results. This changes
+runtime error behavior without changing the protocol schema, FPGA behavior,
+browsing API, or catalog schema.
 
 The header shows the last confirmed live-insert filename for the captured target
 and package generation. Empty/loading units take precedence. A confirmed eject
 clears the filename and records that legacy `fes.simple-computer` media is empty;
-an uncertain mutation reply clears the filename without claiming an empty unit.
+an uncertain mutation reply clears the filename and any prior confirmed-eject
+marker, leaving the media state unknown until the next session observation.
 Completed no-change rejections retain the confirmed filename. Launch selections
 and adopted sessions whose original filenames were never recorded show that the
 name is unavailable.
 
-## Software checks
+## Follow-up review fix
 
-- Focused hostclient, host API and complete tenfoot tests pass. Follow-up tests
-  cover immediate UI clearing after a lost reply and confirmed reinsertion/eject.
+After merging `origin/main`, commit `82816f10` clears the stale legacy
+`media_ejected` marker as well as the filename when an insert or eject outcome
+is uncertain. Its host-only checks pass:
+
+- `go test ./ui/tenfoot ./internal/misterruntime`
+- `make check`
+- `make test-changed TEST_CHANGED_ARGS='--base origin/main'`
+
+The affected run passed its parent, host Go, browser UI, and runtime software
+lanes. No kit or hardware was used for this follow-up.
+
+## Initial software checks
+
+- At the original validation head, focused hostclient, host API and complete
+  tenfoot tests pass. Tests cover immediate UI clearing after a lost reply and
+  confirmed reinsertion/eject.
 - `make test-changed TEST_CHANGED_ARGS='--base 4bd64a99'`: planner checks,
   844 selected parent regressions (one platform-specific skip), generated
   consistency, host Go tests, and the ordinary package race suite pass.
@@ -36,6 +55,11 @@ name is unavailable.
   complete artifact/toolchain receipt is [software-receipt.json](software-receipt.json).
 
 ## Kit B diagnostic
+
+This retained exact-bundle diagnostic used FogCast/runtime source
+`ac755a54`, before the later eject transport classification and local marker
+fixes. It remains evidence for that installed artifact and does not qualify
+those subsequent changes.
 
 The claimed kit installs and activates bundle
 `b2113aeeca0f65d0e6d585b268c9580fc875fa7c59998714f6d4cff02e598b77`
