@@ -69,6 +69,10 @@ done
 mkdir -p "$fixture/recipe/scripts"
 cp "$build_script" "$fixture/recipe/scripts/build-target-image.sh"
 cp "$repo/scripts/toolchain_cache.py" "$fixture/recipe/scripts/toolchain_cache.py"
+cp "$repo/scripts/target-image-container.sh" \
+  "$repo/scripts/fetch-target-image-sources.sh" \
+  "$repo/scripts/verify-target-image-source-cache.sh" \
+  "$fixture/recipe/scripts/"
 mkdir -p "$fixture/recipe/buildroot/configs" "$fixture/recipe/build"
 cp "$repo/buildroot/configs/fogcast_toolchain.fragment" "$fixture/recipe/buildroot/configs/"
 cp "$repo/buildroot/configs/fogcast_toolchain_only_defconfig" "$fixture/recipe/buildroot/configs/"
@@ -249,12 +253,13 @@ sdk_base_ref=$(printf '%s\n' "$sdk_base_spec" | sed -n '2p')
 grep -Fq "image inspect $sdk_base_ref" "$fixture/sdk-container.log"
 grep -Fq "pull --platform $sdk_base_platform $sdk_base_ref" "$fixture/sdk-container.log"
 grep -Fq '/work/scripts/fetch-target-image-sources.sh kit-sdk' "$fixture/sdk-container.log"
+grep -Fq '/work/scripts/verify-target-image-source-cache.sh /work/build/target-image.sources.lock.toml /work/build/cache/target-image kit-sdk' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-fetch-toolchain' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
 ! grep -Fq -- '--inside-toolchain ' "$fixture/sdk-container.log"
 ! grep -Fq idle.rbf "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
 ! grep -Fq 'verify-native-runtime-inputs' "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
-test "$(grep -c 'LIBMISTER_RUNTIME_DIR=<unset>' "$fixture/sdk-container.log")" -eq 3
+test "$(grep -c 'LIBMISTER_RUNTIME_DIR=<unset>' "$fixture/sdk-container.log")" -eq 4
 make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=podman > "$fixture/kit-sdk-podman.make"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-podman.make"
 TARGET_IMAGE_CONTAINER_RUNTIME=podman \
@@ -262,6 +267,60 @@ TARGET_IMAGE_CONTAINER_RUNTIME=podman \
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-explicit-runtime.make"
 make -s -C "$repo/.." -n kit-sdk > "$fixture/kit-sdk-default.make"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="docker"' "$fixture/kit-sdk-default.make"
+
+# Two concurrent make kit-sdk invocations must not share or clean each other's
+# Buildroot O directories. Hold both recipes until both volumes have been chosen.
+mkdir -p "$fixture/sdk-volume-bin" "$fixture/sdk-volume-started"
+cat > "$fixture/sdk-volume-bin/sh" <<'SDK_SH'
+#!/bin/sh
+set -eu
+printf '%s\n' "$TARGET_IMAGE_OUTPUT_VOLUME" >> "$SDK_VOLUME_CAPTURE"
+: > "$SDK_VOLUME_STARTED/$TARGET_IMAGE_OUTPUT_VOLUME"
+attempt=0
+while [ "$(find "$SDK_VOLUME_STARTED" -type f | wc -l | tr -d ' ')" -lt 2 ]; do
+  [ "$attempt" -lt 500 ] || exit 1
+  sleep 0.01
+  attempt=$((attempt + 1))
+done
+SDK_SH
+cat > "$fixture/sdk-volume-runtime" <<'SDK_RUNTIME'
+#!/bin/sh
+set -eu
+if [ "$1" = volume ] && [ "$2" = rm ]; then
+  printf '%s\n' "$3" >> "$SDK_VOLUME_CLEANUP"
+fi
+SDK_RUNTIME
+chmod +x "$fixture/sdk-volume-bin/sh" "$fixture/sdk-volume-runtime"
+: > "$fixture/sdk-volume-capture"
+: > "$fixture/sdk-volume-cleanup"
+SDK_VOLUME_CAPTURE="$fixture/sdk-volume-capture" \
+SDK_VOLUME_CLEANUP="$fixture/sdk-volume-cleanup" \
+SDK_VOLUME_STARTED="$fixture/sdk-volume-started" \
+TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-volume-runtime" \
+PATH="$fixture/sdk-volume-bin:$PATH" \
+  make -s -C "$repo/.." kit-sdk > "$fixture/sdk-volume-1.log" 2>&1 &
+sdk_volume_pid_1=$!
+SDK_VOLUME_CAPTURE="$fixture/sdk-volume-capture" \
+SDK_VOLUME_CLEANUP="$fixture/sdk-volume-cleanup" \
+SDK_VOLUME_STARTED="$fixture/sdk-volume-started" \
+TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-volume-runtime" \
+PATH="$fixture/sdk-volume-bin:$PATH" \
+  make -s -C "$repo/.." kit-sdk > "$fixture/sdk-volume-2.log" 2>&1 &
+sdk_volume_pid_2=$!
+if ! wait "$sdk_volume_pid_1"; then
+  cat "$fixture/sdk-volume-1.log" "$fixture/sdk-volume-2.log" >&2
+  exit 1
+fi
+if ! wait "$sdk_volume_pid_2"; then
+  cat "$fixture/sdk-volume-1.log" "$fixture/sdk-volume-2.log" >&2
+  exit 1
+fi
+sort -u "$fixture/sdk-volume-capture" > "$fixture/sdk-volume-unique"
+test "$(wc -l < "$fixture/sdk-volume-capture" | tr -d ' ')" -eq 2
+test "$(wc -l < "$fixture/sdk-volume-unique" | tr -d ' ')" -eq 2
+grep -Eq '^fogcast-kit-sdk-[0-9a-f]{32}$' "$fixture/sdk-volume-unique"
+sort -u "$fixture/sdk-volume-cleanup" > "$fixture/sdk-volume-cleanup-unique"
+cmp "$fixture/sdk-volume-unique" "$fixture/sdk-volume-cleanup-unique"
 grep -Fq 'FES_PACKAGE_IDS=<unset>' "$fixture/sdk-container.log"
 grep -Fq 'FOGCAST_DIR=<unset>' "$fixture/sdk-container.log"
 grep -Fq 'NATIVE_RUNTIME_INPUT_LOCK=<unset>' "$fixture/sdk-container.log"
@@ -340,6 +399,9 @@ builds_at_sdk=$(wc -l < "$fixture/recipe/toolchain-builds.log")
 kit_sdk_sha=$(LIBMISTER_RUNTIME_DIR=/no/such/runtime \
   NATIVE_RUNTIME_INPUT_LOCK=/no/such.lock \
   FOGCAST_DIR=/no/such/fogcast \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-sdk-runtime" \
+  SDK_CONTAINER_LOG="$fixture/sdk-cache-miss-container.log" \
   sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk)
 test "$kit_sdk_sha" = "$sdk_sha"
 test "$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)" = "$sdk_key"
@@ -352,7 +414,105 @@ if receipt["key"] != sys.argv[2] or receipt["sha256"] != sys.argv[3]:
     raise SystemExit("kit-sdk receipt does not match the ensure-toolchain archive")
 PY
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_at_sdk + 1))"
-sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk >/dev/null
+
+# A valid SDK cache must still fetch and verify the pinned kernel if a new
+# worktree has no linux-kernel.git source cache yet.
+sdk_make_source() {
+  sdk_source_path=$1
+  mkdir -p "$sdk_source_path"
+  git -C "$sdk_source_path" init -q
+  printf '%s\n' fixture > "$sdk_source_path/README"
+  git -C "$sdk_source_path" add README
+  git -C "$sdk_source_path" -c user.name=Test -c user.email=test@example.invalid commit -q -m fixture
+  git -C "$sdk_source_path" rev-parse HEAD
+}
+sdk_buildroot_commit=$(sdk_make_source "$fixture/sdk-buildroot-source")
+sdk_kernel_commit=$(sdk_make_source "$fixture/sdk-kernel-source")
+sdk_source_lock=$fixture/recipe/build/sdk-target-image.sources.lock.toml
+cat > "$sdk_source_lock" <<LOCK
+format = 1
+
+[container]
+image = 'docker.io/library/debian:12.11-slim'
+platform = 'linux/amd64'
+digest = 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+[buildroot]
+version = 'fixture'
+commit = '$sdk_buildroot_commit'
+
+[image_creator]
+commit = '$sdk_buildroot_commit'
+
+[kernel]
+commit = '$sdk_kernel_commit'
+defconfig = 'fixture'
+dtb = 'fixture.dtb'
+release = 'fixture'
+LOCK
+mkdir -p "$fixture/recipe/build/cache/target-image"
+test ! -e "$fixture/recipe/build/cache/target-image/linux-kernel.git"
+cat > "$fixture/sdk-source-runtime" <<'SDK_SOURCE_RUNTIME'
+#!/bin/sh
+set -eu
+if [ "$1" = image ] && [ "$2" = inspect ]; then
+  exit 0
+fi
+if [ "$1" = run ]; then
+  shift
+  while [ "$#" -gt 0 ] && [ "$1" != test-image ]; do shift; done
+  [ "$#" -gt 1 ] || exit 2
+  shift
+  command=$1
+  shift
+  case "$command" in
+    /work/scripts/fetch-target-image-sources.sh)
+      printf 'fetch %s\n' "$*" >> "$SDK_SOURCE_COMMANDS"
+      TARGET_IMAGE_TEST_MODE=1 \
+      TARGET_IMAGE_LOCK="$SDK_SOURCE_LOCK" \
+      TARGET_IMAGE_CACHE="$SDK_SOURCE_CACHE" \
+      TARGET_IMAGE_BUILDROOT_REPO="$SDK_BUILDROOT_REPO" \
+      TARGET_IMAGE_KERNEL_REPO="$SDK_KERNEL_REPO" \
+        sh "$SDK_SOURCE_SCRIPTS/fetch-target-image-sources.sh" "$@"
+      ;;
+    /work/scripts/verify-target-image-source-cache.sh)
+      printf 'verify %s\n' "$*" >> "$SDK_SOURCE_COMMANDS"
+      sh "$SDK_SOURCE_SCRIPTS/verify-target-image-source-cache.sh" \
+        "$SDK_SOURCE_LOCK" "$SDK_SOURCE_CACHE" kit-sdk
+      ;;
+    *)
+      printf 'unexpected SDK source container command: %s\n' "$command" >&2
+      exit 2
+      ;;
+  esac
+  exit
+fi
+printf 'unexpected SDK source runtime command: %s\n' "$*" >&2
+exit 2
+SDK_SOURCE_RUNTIME
+chmod +x "$fixture/sdk-source-runtime"
+: > "$fixture/sdk-source-commands.log"
+sdk_builds_before_cache_hit=$(wc -l < "$fixture/recipe/toolchain-builds.log")
+env \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-runtime" \
+  SDK_SOURCE_COMMANDS="$fixture/sdk-source-commands.log" \
+  SDK_SOURCE_LOCK="$sdk_source_lock" \
+  SDK_SOURCE_CACHE="$fixture/recipe/build/cache/target-image" \
+  SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
+  SDK_BUILDROOT_REPO="$fixture/sdk-buildroot-source" \
+  SDK_KERNEL_REPO="$fixture/sdk-kernel-source" \
+  FES_TARGET_IMAGE_SHARED_CACHE="$shared" \
+  TARGET_IMAGE_LOCK="$sdk_source_lock" \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk \
+  > "$fixture/sdk-cache-hit.log"
+sdk_hit_sha=$(tail -n 1 "$fixture/sdk-cache-hit.log")
+test "$sdk_hit_sha" = "$sdk_sha"
+grep -Fq 'fetch kit-sdk' "$fixture/sdk-source-commands.log"
+grep -Fq 'verify /work/build/target-image.sources.lock.toml /work/build/cache/target-image kit-sdk' "$fixture/sdk-source-commands.log"
+grep -Fq 'target image source cache provenance verified' "$fixture/sdk-cache-hit.log"
+test "$(git --git-dir="$fixture/recipe/build/cache/target-image/linux-kernel.git" rev-parse refs/target-image/pinned)" = "$sdk_kernel_commit"
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$sdk_builds_before_cache_hit"
 sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_at_sdk + 1))"
 cmp "$fixture/ensure-host.tar" "$shared/toolchains/$sdk_key/host.tar"

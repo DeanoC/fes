@@ -126,8 +126,14 @@ core-catalog:
 
 .PHONY: kit-sdk
 kit-sdk:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(TARGET_IMAGE_CONTAINER_RUNTIME),$(CONTAINER_RUNTIME),docker)" \
-	  sh image/scripts/build-target-image.sh --ensure-kit-sdk
+	@set -eu; \
+	  TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(TARGET_IMAGE_CONTAINER_RUNTIME),$(CONTAINER_RUNTIME),docker)"; \
+	  export TARGET_IMAGE_CONTAINER_RUNTIME; \
+	  output_volume="fogcast-kit-sdk-$$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"; \
+	  cleanup() { "$$TARGET_IMAGE_CONTAINER_RUNTIME" volume rm "$$output_volume" >/dev/null 2>&1 || :; }; \
+	  trap cleanup EXIT; \
+	  TARGET_IMAGE_OUTPUT_VOLUME="$$output_volume" \
+	    sh image/scripts/build-target-image.sh --ensure-kit-sdk
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)

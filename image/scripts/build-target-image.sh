@@ -352,10 +352,17 @@ PY
   fi
 }
 
-build_kit_sdk() {
+fetch_kit_sdk_sources() {
   ensure_container_base
   run_sdk_container fetch \
     /work/scripts/fetch-target-image-sources.sh kit-sdk
+  run_sdk_container run \
+    /work/scripts/verify-target-image-source-cache.sh \
+    /work/build/target-image.sources.lock.toml \
+    /work/build/cache/target-image kit-sdk
+}
+
+build_kit_sdk() {
   run_sdk_container fetch \
     /work/scripts/build-target-image.sh --inside-fetch-toolchain "$epoch"
   run_sdk_container run \
@@ -385,6 +392,7 @@ ensure_toolchain() {
 }
 
 ensure_kit_sdk() {
+  fetch_kit_sdk_sources
   rebuild_toolchain_unless_cached build_kit_sdk
 }
 
