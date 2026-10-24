@@ -268,6 +268,66 @@ grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-explicit-ru
 make -s -C "$repo/.." -n kit-sdk > "$fixture/kit-sdk-default.make"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="docker"' "$fixture/kit-sdk-default.make"
 
+# The Make target must remove its unique volume after either caught signal.
+for sdk_signal in INT TERM; do
+  signal_root=$fixture/sdk-signal-$sdk_signal
+  mkdir -p "$signal_root/bin"
+  cat > "$signal_root/bin/sh" <<'SDK_SIGNAL_SH'
+#!/usr/bin/env python3
+import os
+import signal
+import sys
+import time
+
+def stop(signum, _frame):
+    raise SystemExit(128 + signum)
+
+signal.signal(signal.SIGINT, stop)
+signal.signal(signal.SIGTERM, stop)
+with open(os.environ["SDK_SIGNAL_READY"], "w", encoding="utf-8") as ready:
+    ready.write(f"{os.getppid()} {os.getpid()} {os.environ['TARGET_IMAGE_OUTPUT_VOLUME']}\n")
+while True:
+    time.sleep(1)
+SDK_SIGNAL_SH
+  cat > "$signal_root/runtime" <<'SDK_SIGNAL_RUNTIME'
+#!/bin/sh
+set -eu
+if [ "$1" = volume ] && [ "$2" = rm ]; then
+  printf '%s\n' "$3" >> "$SDK_SIGNAL_CLEANUP"
+fi
+SDK_SIGNAL_RUNTIME
+  chmod +x "$signal_root/bin/sh" "$signal_root/runtime"
+  SDK_SIGNAL_READY="$signal_root/ready" \
+  SDK_SIGNAL_CLEANUP="$signal_root/cleanup" \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$signal_root/runtime" \
+  PATH="$signal_root/bin:$PATH" \
+    make -s -C "$repo/.." kit-sdk > "$signal_root/make.log" 2>&1 &
+  sdk_signal_make_pid=$!
+  attempt=0
+  while [ ! -s "$signal_root/ready" ]; do
+    if ! kill -0 "$sdk_signal_make_pid" 2>/dev/null; then
+      cat "$signal_root/make.log" >&2
+      echo "kit-sdk exited before the $sdk_signal interruption test was ready" >&2
+      exit 1
+    fi
+    [ "$attempt" -lt 500 ] || {
+      echo "kit-sdk did not become ready for the $sdk_signal interruption test" >&2
+      exit 1
+    }
+    sleep 0.01
+    attempt=$((attempt + 1))
+  done
+  read -r sdk_signal_recipe_pid sdk_signal_child_pid sdk_signal_volume \
+    < "$signal_root/ready"
+  kill -"$sdk_signal" "$sdk_signal_recipe_pid" "$sdk_signal_child_pid"
+  if wait "$sdk_signal_make_pid"; then
+    echo "kit-sdk succeeded after receiving $sdk_signal" >&2
+    exit 1
+  fi
+  test "$(wc -l < "$signal_root/cleanup" | tr -d ' ')" -eq 1
+  test "$(cat "$signal_root/cleanup")" = "$sdk_signal_volume"
+done
+
 # Two concurrent make kit-sdk invocations must not share or clean each other's
 # Buildroot O directories. Hold both recipes until both volumes have been chosen.
 mkdir -p "$fixture/sdk-volume-bin" "$fixture/sdk-volume-started"
@@ -513,6 +573,119 @@ grep -Fq 'verify /work/build/target-image.sources.lock.toml /work/build/cache/ta
 grep -Fq 'target image source cache provenance verified' "$fixture/sdk-cache-hit.log"
 test "$(git --git-dir="$fixture/recipe/build/cache/target-image/linux-kernel.git" rev-parse refs/target-image/pinned)" = "$sdk_kernel_commit"
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$sdk_builds_before_cache_hit"
+
+# A complete local SDK source cache makes a valid SDK cache usable offline.
+cat > "$fixture/sdk-offline-runtime" <<'SDK_OFFLINE_RUNTIME'
+#!/bin/sh
+printf '%s\n' "$*" >> "$SDK_OFFLINE_ATTEMPTS"
+exit 75
+SDK_OFFLINE_RUNTIME
+chmod +x "$fixture/sdk-offline-runtime"
+sdk_source_commands_before_offline=$(wc -l < "$fixture/sdk-source-commands.log")
+env \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-offline-runtime" \
+  SDK_OFFLINE_ATTEMPTS="$fixture/sdk-offline-attempts.log" \
+  FES_TARGET_IMAGE_SHARED_CACHE="$shared" \
+  TARGET_IMAGE_LOCK="$sdk_source_lock" \
+  TARGET_IMAGE_CACHE="$fixture/recipe/build/cache/target-image" \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk \
+  > "$fixture/sdk-offline-cache-hit.log"
+test "$(tail -n 1 "$fixture/sdk-offline-cache-hit.log")" = "$sdk_sha"
+test ! -e "$fixture/sdk-offline-attempts.log"
+test "$(wc -l < "$fixture/sdk-source-commands.log")" -eq "$sdk_source_commands_before_offline"
+
+# Concurrent SDK source checks serialize the shared Git cache fetch and verify.
+concurrent_cache=$fixture/sdk-concurrent-cache
+concurrent_commands=$fixture/sdk-concurrent-commands.log
+cat > "$fixture/sdk-source-concurrent-runtime" <<'SDK_SOURCE_CONCURRENT_RUNTIME'
+#!/bin/sh
+set -eu
+if [ "$1" = image ] && [ "$2" = inspect ]; then exit 0; fi
+if [ "$1" = run ]; then
+  shift
+  while [ "$#" -gt 0 ] && [ "$1" != test-image ]; do shift; done
+  [ "$#" -gt 1 ] || exit 2
+  shift
+  command=$1
+  shift
+  case "$command" in
+    /work/scripts/fetch-target-image-sources.sh)
+      mkdir "$SDK_SOURCE_ACTIVE" || {
+        printf '%s\n' overlapping-fetch >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+        exit 1
+      }
+      printf 'fetch %s\n' "$*" >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+      sleep 0.1
+      TARGET_IMAGE_TEST_MODE=1 \
+      TARGET_IMAGE_LOCK="$SDK_SOURCE_LOCK" \
+      TARGET_IMAGE_CACHE="$SDK_SOURCE_CACHE" \
+      TARGET_IMAGE_BUILDROOT_REPO="$SDK_BUILDROOT_REPO" \
+      TARGET_IMAGE_KERNEL_REPO="$SDK_KERNEL_REPO" \
+        sh "$SDK_SOURCE_SCRIPTS/fetch-target-image-sources.sh" "$@"
+      ;;
+    /work/scripts/verify-target-image-source-cache.sh)
+      printf 'verify %s\n' "$*" >> "$SDK_SOURCE_CONCURRENT_COMMANDS"
+      sh "$SDK_SOURCE_SCRIPTS/verify-target-image-source-cache.sh" \
+        "$SDK_SOURCE_LOCK" "$SDK_SOURCE_CACHE" kit-sdk
+      rmdir "$SDK_SOURCE_ACTIVE"
+      ;;
+    *) printf 'unexpected source command: %s\n' "$command" >&2; exit 2 ;;
+  esac
+  exit
+fi
+printf 'unexpected runtime command: %s\n' "$*" >&2
+exit 2
+SDK_SOURCE_CONCURRENT_RUNTIME
+chmod +x "$fixture/sdk-source-concurrent-runtime"
+mkdir -p "$(dirname "$concurrent_cache")"
+test ! -e "$concurrent_cache"
+env \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-concurrent-runtime" \
+  SDK_SOURCE_CONCURRENT_COMMANDS="$concurrent_commands" \
+  SDK_SOURCE_ACTIVE="$fixture/sdk-source-active" \
+  SDK_SOURCE_LOCK="$sdk_source_lock" \
+  SDK_SOURCE_CACHE="$concurrent_cache" \
+  SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
+  SDK_BUILDROOT_REPO="$fixture/sdk-buildroot-source" \
+  SDK_KERNEL_REPO="$fixture/sdk-kernel-source" \
+  FES_TARGET_IMAGE_SHARED_CACHE="$shared" \
+  TARGET_IMAGE_LOCK="$sdk_source_lock" \
+  TARGET_IMAGE_CACHE="$concurrent_cache" \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk \
+  > "$fixture/sdk-concurrent-1.log" 2>&1 &
+sdk_source_pid_1=$!
+env \
+  TARGET_IMAGE_TEST_CONTAINER=1 \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/sdk-source-concurrent-runtime" \
+  SDK_SOURCE_CONCURRENT_COMMANDS="$concurrent_commands" \
+  SDK_SOURCE_ACTIVE="$fixture/sdk-source-active" \
+  SDK_SOURCE_LOCK="$sdk_source_lock" \
+  SDK_SOURCE_CACHE="$concurrent_cache" \
+  SDK_SOURCE_SCRIPTS="$fixture/recipe/scripts" \
+  SDK_BUILDROOT_REPO="$fixture/sdk-buildroot-source" \
+  SDK_KERNEL_REPO="$fixture/sdk-kernel-source" \
+  FES_TARGET_IMAGE_SHARED_CACHE="$shared" \
+  TARGET_IMAGE_LOCK="$sdk_source_lock" \
+  TARGET_IMAGE_CACHE="$concurrent_cache" \
+  sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-kit-sdk \
+  > "$fixture/sdk-concurrent-2.log" 2>&1 &
+sdk_source_pid_2=$!
+if ! wait "$sdk_source_pid_1"; then
+  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" >&2
+  exit 1
+fi
+if ! wait "$sdk_source_pid_2"; then
+  cat "$fixture/sdk-concurrent-1.log" "$fixture/sdk-concurrent-2.log" >&2
+  exit 1
+fi
+test ! -e "$fixture/sdk-source-active"
+! grep -Fq overlapping-fetch "$concurrent_commands"
+test "$(grep -c '^fetch kit-sdk$' "$concurrent_commands")" -eq 1
+test "$(grep -c '^verify /work/build/target-image.sources.lock.toml /work/build/cache/target-image kit-sdk$' \
+  "$concurrent_commands")" -eq 1
+
 sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq "$((builds_at_sdk + 1))"
 cmp "$fixture/ensure-host.tar" "$shared/toolchains/$sdk_key/host.tar"

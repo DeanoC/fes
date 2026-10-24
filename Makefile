@@ -131,7 +131,10 @@ kit-sdk:
 	  export TARGET_IMAGE_CONTAINER_RUNTIME; \
 	  output_volume="fogcast-kit-sdk-$$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"; \
 	  cleanup() { "$$TARGET_IMAGE_CONTAINER_RUNTIME" volume rm "$$output_volume" >/dev/null 2>&1 || :; }; \
-	  trap cleanup EXIT; \
+	  cleanup_once() { trap - EXIT INT TERM; cleanup; }; \
+	  trap cleanup_once EXIT; \
+	  trap 'exit 130' INT; \
+	  trap 'exit 143' TERM; \
 	  TARGET_IMAGE_OUTPUT_VOLUME="$$output_volume" \
 	    sh image/scripts/build-target-image.sh --ensure-kit-sdk
 

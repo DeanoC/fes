@@ -353,6 +353,20 @@ PY
 }
 
 fetch_kit_sdk_sources() {
+  source_cache=${TARGET_IMAGE_CACHE:-$repo/build/cache/target-image}
+  source_cache_lock=$(dirname "$source_cache")/.kit-sdk-sources.lock
+  mkdir -p "$(dirname "$source_cache_lock")"
+  flock "$source_cache_lock" "$0" --fetch-kit-sdk-sources-locked
+}
+
+fetch_kit_sdk_sources_locked() {
+  source_lock=${TARGET_IMAGE_LOCK:-$repo/build/target-image.sources.lock.toml}
+  source_cache=${TARGET_IMAGE_CACHE:-$repo/build/cache/target-image}
+  if sh "$repo/scripts/verify-target-image-source-cache.sh" \
+      "$source_lock" "$source_cache" kit-sdk >/dev/null 2>&1; then
+    printf '%s\n' 'target image source cache provenance verified'
+    return 0
+  fi
   ensure_container_base
   run_sdk_container fetch \
     /work/scripts/fetch-target-image-sources.sh kit-sdk
@@ -400,6 +414,11 @@ promote_existing=0
 ensure_only=0
 kit_sdk=0
 case "${1:-}" in
+  --fetch-kit-sdk-sources-locked)
+    [ "$#" -eq 1 ] || usage
+    fetch_kit_sdk_sources_locked
+    exit
+    ;;
   --cleanup-inside-output)
     [ "$#" -eq 2 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
