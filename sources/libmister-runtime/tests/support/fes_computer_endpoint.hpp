@@ -106,7 +106,7 @@ public:
 				if (arg) return {argument_error, 0};
 				const std::vector<std::uint8_t>& snapshot = zx81 ? zx81_snapshot_ : u.data;
 				const std::uint16_t info[8] = {
-					static_cast<std::uint16_t>(((zx81 || u.state == 3) ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
+					static_cast<std::uint16_t>(((zx81 ? save_ready : u.state == 3) ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
 					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutTag : 1), 1,
 					static_cast<std::uint16_t>(zx81 ? FesComputerZx81TapeLayoutMinor : (u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1)),
 					static_cast<std::uint16_t>(snapshot.size()),
@@ -117,7 +117,7 @@ public:
 				if (index) return {index_error, 0};
 				if (arg > 2) return {argument_error, 0};
 				if (arg == 0) {
-					if (!zx81 && u.state != 3) return {state_error, 0};
+					if ((zx81 && (!save_ready || write_busy)) || (!zx81 && u.state != 3)) return {state_error, 0};
 					frozen = true; saved = false;
 					snapshot_words.clear(); snapshot_at = 0;
 					snapshot_remaining = 0; snapshot_ordinal = 0;
@@ -303,7 +303,7 @@ public:
 	void Reset()
 	{
         mouse_x = 0; mouse_y = 0; mouse_buttons = 0;
-        frozen = false; saved = false; dirty = false; write_busy = false; epoch = 0;
+		frozen = false; saved = false; dirty = false; write_busy = false; save_ready = false; epoch = 0;
         snapshot_at = 0; snapshot_remaining = 0; snapshot_ordinal = 0;
         snapshot_words.clear();
 		held = true;
@@ -323,6 +323,7 @@ public:
 	void SetZx81Snapshot(const std::vector<std::uint8_t>& bytes, bool is_dirty = true)
 	{
 		zx81_snapshot_ = bytes;
+		save_ready = true;
 		dirty = is_dirty;
 		frozen = false;
 		saved = false;
@@ -351,7 +352,7 @@ public:
 	std::vector<std::uint16_t> rows = std::vector<std::uint16_t>(9, 0);
 	std::vector<std::uint16_t> ports = {0, 0};
 	bool corrupt_next_data = false;
-    bool frozen=false,saved=false,dirty=false,write_busy=false;
+	bool frozen=false,saved=false,dirty=false,write_busy=false,save_ready=false;
     std::uint16_t epoch=0;
     unsigned snapshot_at=0,snapshot_remaining=0,snapshot_ordinal=0;
     std::vector<unsigned> snapshot_words;

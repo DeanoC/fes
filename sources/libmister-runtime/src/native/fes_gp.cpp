@@ -1381,6 +1381,16 @@ Error FesGpCoreDriver::CaptureZx81Tape(Clock& clock, std::uint64_t deadline,
 	if (!TapeWriteCapable()) return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "input"};
 	Error error = RecoverComputerMailbox(deadline);
 	if (!error.ok()) return error;
+	std::uint16_t initial_flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &initial_flags);
+	if (!error.ok()) return WithPhase(error, "input");
+	const std::uint16_t initial_known = FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask |
+		FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask;
+	if ((initial_flags & ~initial_known) != 0) return Io("invalid ZX81 tape snapshot state");
+	// A fresh machine has no completed SAVE, so save_ready is false and Freeze
+	// is rejected by the mailbox. The all-clear flags are already a complete
+	// answer: there are no bytes to capture.
+	if (initial_flags == 0) return {};
 	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0, FesComputerMediaSnapshotFreeze, deadline);
 	if (!error.ok()) return error;
 	auto resume = [&]() {
@@ -1497,6 +1507,15 @@ Error FesGpCoreDriver::EnsureZx81TapeSaved(std::uint64_t deadline)
 	if (!TapeWriteCapable()) return {};
 	Error error = RecoverComputerMailbox(deadline);
 	if (!error.ok()) return error;
+	std::uint16_t initial_flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, 0, 0, deadline, &initial_flags);
+	if (!error.ok()) return WithPhase(error, "save");
+	const std::uint16_t initial_known = FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask |
+		FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask;
+	if ((initial_flags & ~initial_known) != 0) return Io("invalid ZX81 tape snapshot state");
+	// Freeze is valid only after SAVE completed. With no snapshot, there is
+	// nothing to persist and Stop can proceed without touching the mailbox.
+	if (initial_flags == 0) return {};
 	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, 0,
 		FesComputerMediaSnapshotFreeze, deadline);
 	if (!error.ok()) return error;

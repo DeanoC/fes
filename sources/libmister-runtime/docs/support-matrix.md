@@ -25,7 +25,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` admission, identity and firmware ROM activation | covered | none |
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
-| ZX81 BASIC SAVE capture, frozen dirty snapshot, durable-host acknowledgement and Stop refusal while a SAVE is pending | covered by host tests | none; exact-artifact hardware acceptance pending |
+| ZX81 BASIC SAVE capture, frozen dirty snapshot, durable-host acknowledgement, Stop refusal while a SAVE is pending, and successful Stop when no SAVE completed | covered by host tests | none; exact-artifact hardware acceptance pending |
 | `fes.computer` session HDMI plane (premultiplied RGBA blend, picture rectangle, show/return, HID neutralize, submitted frames, no reprogram on close) | covered by host tests | none |
 | `fes.application` session HDMI plane (premultiplied RGBA blend, show/return, controller-port release, single-gamepad focus gate with held-input suppression through release, no reprogram on close) | covered by host tests | pending |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |

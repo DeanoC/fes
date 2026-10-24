@@ -2510,6 +2510,14 @@ void TestZx81SaveStaysDirtyUntilAcknowledged()
 	bytes = {0xff};
 	assert(empty.driver.CaptureZx81Tape(empty.clock, kComputerDeadline, &bytes).ok());
 	assert(bytes.empty() && !empty.endpoint.frozen);
+
+	ComputerFixture clean(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	assert(clean.driver.Identify(clean.context, kComputerDeadline).error.ok());
+	bytes = {0xff};
+	assert(clean.driver.CaptureZx81Tape(clean.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes.empty() && !clean.endpoint.frozen);
+	assert(clean.driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+	assert(!clean.endpoint.frozen);
 }
 
 void TestAtariStFloppyDiscoveryAndLiveInsert()
