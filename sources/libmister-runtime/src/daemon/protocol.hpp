@@ -40,6 +40,8 @@ enum class Operation {
 	insert_media,
 	insert_library_media,
 	save_media,
+	capture_zx81_tape,
+	acknowledge_zx81_tape,
 	eject_media,
 	load_development_rbf,
 	stop,

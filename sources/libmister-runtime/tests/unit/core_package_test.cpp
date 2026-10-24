@@ -890,6 +890,17 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	zx81.interfaces.push_back({"fes.fabric.video.display-plane", 1, 0, true});
 	zx81.interfaces.push_back({"fes.expansion.zx81-bus", 2, 0, false});
 	assert(check(zx81).ok());
+	auto zx81_write = zx81;
+	zx81_write.interfaces.push_back({"fes.media.zx81-tape-write", 1, 0, true});
+	assert(check(zx81_write).ok());
+	auto write_without_tape = zx81_write;
+	for (auto it = write_without_tape.interfaces.begin(); it != write_without_tape.interfaces.end(); ++it) {
+		if (it->id == "fes.media.zx81-tape") {
+			write_without_tape.interfaces.erase(it);
+			break;
+		}
+	}
+	assert(check(write_without_tape).code == mister::ErrorCode::unsupported_interface);
 	auto plane_only = zx81;
 	plane_only.interfaces.erase(plane_only.interfaces.end() - 4);
 	assert(check(plane_only).code == mister::ErrorCode::unsupported_interface);

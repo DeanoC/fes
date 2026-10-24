@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 17
+const schemaVersion = 18
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -269,6 +269,19 @@ CREATE TABLE core_video_parts (
 PRAGMA user_version = 17;
 `
 
+// A SAVE "NAME" image is ordinary core media plus the machine it belongs to.
+// The bytes stay content-addressed; this row is what the cassette picker lists.
+const schemaV18 = `
+CREATE TABLE zx81_saves (
+  game_id TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+  media_id TEXT NOT NULL REFERENCES core_media(media_id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (game_id, media_id)
+);
+PRAGMA user_version = 18;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -437,6 +450,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 16 {
 		if _, err := connection.ExecContext(ctx, schemaV17); err != nil {
 			return fmt.Errorf("apply catalog schema version 17: %w", err)
+		}
+		version = 17
+	}
+	if version == 17 {
+		if _, err := connection.ExecContext(ctx, schemaV18); err != nil {
+			return fmt.Errorf("apply catalog schema version 18: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
