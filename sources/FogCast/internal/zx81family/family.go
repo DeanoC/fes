@@ -35,3 +35,14 @@ func Known(coreID string) bool {
 	_, ok := ByID(coreID)
 	return ok
 }
+
+// Saves reports whether coreID runs the ZX81 ROM BASIC SAVE path.
+// The ZX80 compile uses $0207 as its cassette entry, so it has no tape write.
+func Saves(coreID string) bool {
+	switch coreID {
+	case "fes.zx81", "fes.ts1000", "fes.ts1500":
+		return true
+	default:
+		return false
+	}
+}

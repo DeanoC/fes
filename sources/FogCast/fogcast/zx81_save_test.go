@@ -181,6 +181,51 @@ func TestStopWithNoPendingZX81SaveAddsNoTapeAndSucceeds(t *testing.T) {
 	}
 }
 
+func TestStopPersistsPendingTimexProgram(t *testing.T) {
+	for _, coreID := range []string{"fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			service, client, store, entry := newZX81StopFixture(t)
+			play := service.plays["kit"]
+			play.coreID = coreID
+			service.plays["kit"] = play
+			want := []byte{0x00, 0x0a, 0x76}
+			client.data = want
+
+			status, err := service.Stop(context.Background())
+			if err != nil || status.State != protocol.StateIdle {
+				t.Fatalf("Stop = %+v, %v", status, err)
+			}
+			if !reflect.DeepEqual(client.events, []string{"capture", "acknowledge", "stop"}) {
+				t.Fatalf("SAVE/Stop order = %v", client.events)
+			}
+			saves, err := store.ListZX81Saves(context.Background(), entry.GameID)
+			if err != nil || len(saves) != 1 || saves[0].Size != int64(len(want)) {
+				t.Fatalf("persisted saves = %+v, %v", saves, err)
+			}
+		})
+	}
+}
+
+func TestStopSkipsZX80WithoutCapturing(t *testing.T) {
+	service, client, _, _ := newZX81StopFixture(t)
+	play := service.plays["kit"]
+	play.coreID = "fes.zx80"
+	service.plays["kit"] = play
+	logs := captureZX81SaveLogs(t)
+
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop = %+v, %v", status, err)
+	}
+	if client.captureCalls != 0 || client.stopCalls != 1 {
+		t.Fatalf("capture=%d stop=%d", client.captureCalls, client.stopCalls)
+	}
+	record := zx81LogRecord(t, logs)
+	if record["reason"] != "core_does_not_save" || record["core_id"] != "fes.zx80" {
+		t.Fatalf("ZX80 skip log = %+v", record)
+	}
+}
+
 func TestStopDoesNotReadCatalogForLaunchBoundNonZX81Core(t *testing.T) {
 	service, client, store, _ := newZX81StopFixture(t)
 	catalogFailure := &zx81FailingCoreEntryCatalog{Store: store}
@@ -201,7 +246,7 @@ func TestStopDoesNotReadCatalogForLaunchBoundNonZX81Core(t *testing.T) {
 		t.Fatalf("Stop calls=%d captures=%d, want Stop and no ZX81 capture", client.stopCalls, client.captureCalls)
 	}
 	record := zx81LogRecord(t, logs)
-	if record["reason"] != "play_is_not_zx81" || record["core_id"] != play.coreID {
+	if record["reason"] != "core_does_not_save" || record["core_id"] != play.coreID {
 		t.Fatalf("non-ZX81 skip log = %+v", record)
 	}
 }

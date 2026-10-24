@@ -20,4 +20,10 @@ func TestVariantsStayInSetupOrder(t *testing.T) {
 	if _, ok := ByID("fes.pong"); ok || Known("fes.pong") {
 		t.Fatal("pong is not a ZX81-family machine")
 	}
+	if !Saves("fes.zx81") || !Saves("fes.ts1000") || !Saves("fes.ts1500") {
+		t.Fatal("ZX81 ROM models save")
+	}
+	if Saves("fes.zx80") || Saves("fes.pong") {
+		t.Fatal("ZX80 and other cores have no ZX81 SAVE")
+	}
 }
