@@ -183,10 +183,10 @@ The `0a253257` schema review is recorded in the
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
 nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
 `8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr
-`27e1b497` (nextpnr #289, #290, #292); each selects its
+`266e18b5` (nextpnr #289, #290, #292); each selects its
 own slot. Apple II, Atari ST (fes#910), C64 and Spectrum pin
 nextpnr `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map; Coleco
-keeps that F0/F1 map on `27e1b497`. The
+keeps that F0/F1 map on `266e18b5`. The
 Apple II, C64 and Spectrum locks are byte copies of each other and share one
 slot, and the Atari ST lock has its own. The Atari ST video-part producer
 authenticates the ST lock and validates the same map. The Coleco development
@@ -592,7 +592,7 @@ Registered FES producers select compiler pins from their corresponding
 commits and share its compiler-cache slot. Apple II, C64 and Spectrum share
 a second slot on nextpnr `5fe55f3d` (nextpnr #276). Pong (nextpnr
 `552ba246`), ZX81 (`1eecf877`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`)
-and Coleco (Yosys `5391eeb1` with nextpnr `27e1b497`) each have their own. Producers select that
+and Coleco (Yosys `5391eeb1` with nextpnr `266e18b5`) each have their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -1079,7 +1079,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Apple II, C64 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 keeps that F0/F1 map, pins Yosys `5391eeb1`, and pins nextpnr `27e1b497` so its video parts place their carry chains (nextpnr #289) and reload the shell's fpga2sdram pin map (#292), with the #287 shell keep-out reverted (#290). The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
+| Toolchain selection | Apple II, C64 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 keeps that F0/F1 map, pins Yosys `5391eeb1`, and pins nextpnr `266e18b5` so its video parts place their carry chains (nextpnr #289) and reload the shell's fpga2sdram pin map (#292), with the #287 shell keep-out reverted (#290). The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
