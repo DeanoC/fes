@@ -179,10 +179,6 @@ decide them:
 Where they disagree, the choice is a recorded decision naming the case that
 decides it, never a silent pick.
 
-Open: what a 386 with no 387 does for ESC and WAIT when CR0.EM is clear. FPU
-detection code takes this path. Settle it from hardware results or a reference
-emulator before Phase 2 closes.
-
 ### Self-modifying code
 
 A 386 keeps up to 16 prefetched bytes, and its manual requires a jump before
@@ -200,8 +196,34 @@ so no profile is exact. It is a per-game core setting.
 
 ### FPU
 
-The first milestones have no FPU. CR0.ET and the ESC behaviour report no
-coprocessor. A 387-compatible unit is a later milestone ([x87](#x87)).
+Until the [x87](#x87) phase there is no FPU, and the CPU behaves as a 386 on
+an AT board with an empty 387 socket. Intel's 386 hardware reference requires
+pull-up resistors on the data bus when no coprocessor is fitted, and a
+386DX-33 with an empty socket writes FFFFh for FNSTSW
+([OS/2 Museum](https://www.os2museum.com/wp/learn-something-old-every-day-part-xviii-how-does-fpu-detection-work/)).
+So:
+
+- CR0.ET is 0 after reset, and MOV to CR0 can change it, as on the 386DX.
+- EM, MP and TS act as architected. ESC raises #NM when EM or TS is set, and
+  WAIT raises #NM when MP and TS are both set. Software FPU emulators rely on
+  this.
+- Otherwise every ESC instruction completes without an exception of its own and
+  never raises IRQ13. WAIT does nothing.
+- Store forms (FNSTSW to memory or AX, FNSTCW, FNSTENV, FNSAVE, and FST, FIST
+  and FBSTP to memory) write all-ones across the operand's architectural size.
+  FNSTSW AX sets AX to FFFFh.
+- Forms that read memory (FLD, FILD, FBLD, FLDCW, FLDENV, FRSTOR, and
+  arithmetic with a memory operand) do the read and discard the data.
+- Memory operands get the normal segment and page checks, so a bad operand
+  faults as it would on hardware.
+- Register forms, FNINIT and FNCLEX do nothing.
+
+FNSAVE, FNSTENV, FRSTOR and FLDENV are microcode loops over the 387's 16- or
+32-bit layouts; the other forms are one uop. With this behaviour, Intel's
+FNSTSW check, the FNSTCW high-byte check and BIOS POST detection all report no
+coprocessor. Boards that skipped the pull-ups returned other values, so
+all-ones is a recorded fidelity choice, like the PC/XT's FFh for unclaimed
+reads.
 
 ## Platform constraints
 
@@ -775,7 +797,8 @@ or exact-artifact hardware acceptance.
    changes a result.
 5. **Directed tests:** both self-modifying-code profiles, A20 toggling, DMA
    against CPU stores (randomised), unreal mode, 16-bit wrap cases, page faults
-   inside REP, segment-limit edges, LOCK against DMA, and governor pacing.
+   inside REP, segment-limit edges, LOCK against DMA, governor pacing, and every
+   no-387 ESC form with the common FPU-detection routines.
 6. **Random programs:** constrained-random instruction streams in each mode,
    against the oracle.
 7. **System:** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
@@ -816,9 +839,10 @@ Settled on 2026-10-24:
 - The [first acceptance games](#first-acceptance-games) set the machine's
   scope, its open firmware and the speed defaults: `max`, with per-game
   presets for Ultima VI and The Black Gate.
+- Without an FPU, the CPU behaves as a 386 with an empty 387 socket on an AT
+  board ([FPU](#fpu)).
 
-Open: the no-387 ESC and WAIT behaviour under
-[undocumented behaviour](#undocumented-behaviour).
+No decision is open.
 
 ## Location
 
