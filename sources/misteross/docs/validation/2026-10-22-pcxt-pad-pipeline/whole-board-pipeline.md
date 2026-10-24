@@ -233,3 +233,25 @@ All 105 prior unqualified physical-boundary roles remain accounted for in the ne
 The diagnostic producer now selects reviewed main and the merged Mistral timing-line correction through its private core lock; other core/global pins are unchanged. It defaults to seed 3, exposes unsigned-64-bit `--seed` for reproduction, and records every generated `.mem`, `.hex` and facts `.vh` file. A fresh ordinary producer run is the next check. No factory/package/runtime contract or hardware acceptance is added.
 
 Receipts 93-97 retain all five new routes, including the failed DMA-only and seed-1 runs. The original 92-receipt prefix is exact; all 97 receipt objects, hashes and Decimal charges verify. Exact cumulative charge: 96582.15624318644347 seconds.
+
+### Fresh ordinary producer and final producer checks
+
+The ordinary producer from clean committed `bc588c5ef93f64876c5cc9071426077907a1d611` completes with its actual private lock, authenticated published tools and default seed 3. It uses no temporary lock or command override. All fourteen generated ROM/facts files and all source/tool bindings verify before capture; the source working tree is clean. Its RBF is byte-identical to the frozen passing seed-3 artifact: SHA256 `dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd`.
+
+The complete 17187-row native inventory has zero setup and hold failures, +55 ps worst setup and +764 ps minimum hold. All twenty added configuration/snapshot FFs have paired DATAIN/ENA/SCLR coverage. The native report uses the producer's normal 64-path diagnostic limit; the complete detailed endpoint inventory remains present. The full synthesized JSON matches the frozen design under explicit source/toolchain/generated-root prefix renaming only; no graph fields or parameters are omitted. A first comparison that removed only source attributes still found path-bearing generated identifiers, so the exact prefix bijection is recorded separately.
+
+The producer/pin delta passes `make check`, its four focused producer tests, 842 parent tests, 1290 component tests (one optional oracle skipped), all sixteen XT simulation suites and generated-consumer consistency. These checks use the authenticated selected Yosys. This remains routed/host diagnostic evidence, not physical whole-board or hardware acceptance. No kit was claimed or touched and no shared/runtime/factory contract changed.
+
+### Rejected further IO staging experiment
+
+An isolated immutable proposal `ac8bdeeaf58585c6e86556c9e17a033be1abae5f` captures all four peripheral read bytes independently at phase 8 and fully predecodes display byte lanes and CRTC write kinds during endpoint preparation. It preserves phase-17 completion and the original ISA commit cycles. It passes eight focused proof tests (including negative mutations), native motherboard transactions and complete CGA/MDA frame checks. Mapped size is 4002 FFs and 268 M10Ks; all 52 pipeline/configuration FFs have source-owned clock and paired endpoint coverage.
+
+Despite those structural/proof results, its unchanged-clock ordinary recipe fails both tested seeds: seed 2 has nine setup failures / -778 ps worst setup, seed 3 thirteen / -582 ps; neither has hold failures (minimum +765/+701 ps). Both complete native inventories contain 17263 paired timed rows. With two failures the two-of-three gate cannot pass, so seed 1 is not run. The proposal is rejected and not adopted or pushed; the passing ordinary producer remains unchanged. Failed captures and the original source archive are retained.
+
+Receipts 98-100 cover the ordinary producer and both failed proposal routes. The original 97-receipt prefix is exact; every one of the 100 receipt objects, hashes and Decimal charges verifies. Exact cumulative charge is 97306.21721360552997 seconds.
+
+### Remaining physical board inputs
+
+The user's targets are Kit A (MiSTer Pi) and Kit B (SuperStation One), using standard MiSTer SDRAM interfaces. [Retro Remake's SuperStation specifications](https://retroremake.co/pages/superstation%E1%B5%92%E2%81%BF%E1%B5%89) advertise 128 MB SDRAM but do not supply the fitted chip timing grade or routed flight/load bounds. The [MiSTer SDRAM assembly reference](https://github.com/MiSTer-devel/Main_MiSTer/wiki/SDRAM-Board-Assembly-%28DIY%29) covers multiple board/chip variants and warns that its BOM may be stale. A common bus interface does not establish interchangeable physical budgets. No chip timing or trace delay is inferred from those descriptions.
+
+RAM Tester's existing budget helper is specifically the EM63B165 -6 model, and its example board intervals are explicitly unmeasured. It also requires an actual final analogue forwarded-clock report with both edges. The next bounded diagnostic is a clock-pad probe using the existing characterized 30 pF reference envelope only; zero output delays instrument arrival extraction and are not asserted board requirements. No board flights, chip timings or acceptance margins are invented. Full physical IO/reset/CDC, clock uncertainty, whole-design exact-artifact Quartus, retention and kit acceptance remain open.
