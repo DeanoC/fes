@@ -57,6 +57,30 @@ func tapePickerHint(kind InputKind) string {
 	return selectWord(kind) + " insert  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
 }
 
+func appendTapePickerFilesystemRoot(rows []TapePickerRow, name, path string) []TapePickerRow {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" || path == "." || blockprobe.Skips(path) {
+		return rows
+	}
+	for _, row := range rows {
+		if row.Kind == tapePickerKindRoot && row.Path == path {
+			return rows
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return rows
+	}
+	if strings.TrimSpace(name) == "" {
+		name = filepath.Base(path)
+	}
+	return append(rows, TapePickerRow{Name: name, Path: path, Kind: tapePickerKindRoot})
+}
+
+// tapePickerVolumeRoots supplements saved storage roots with local mounts.
+// Roots are included only when they exist on the device running tenfoot.
+var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media", "/mnt/emuhd"}
+
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" || path == "." {
@@ -93,17 +117,31 @@ func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePic
 		if !info.Mode().IsRegular() {
 			continue
 		}
+		if !hostclient.AdmitRemovableMedia(p, name, info.Size()) {
+			continue
+		}
 		files = append(files, TapePickerRow{
 			Name:       name,
 			Path:       full,
 			Kind:       tapePickerKindFile,
 			Size:       info.Size(),
-			Selectable: hostclient.AdmitRemovableMedia(p, name, info.Size()),
+			Selectable: true,
 		})
 	}
 	sort.Slice(dirs, func(i, j int) bool { return strings.ToLower(dirs[i].Name) < strings.ToLower(dirs[j].Name) })
 	sort.Slice(files, func(i, j int) bool { return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name) })
-	return append(append(rows, dirs...), files...), nil
+	return tapePickerFolderActions(append(append(rows, dirs...), files...)), nil
+}
+
+func tapePickerFolderActions(rows []TapePickerRow) []TapePickerRow {
+	actions := []TapePickerRow{
+		{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true},
+		{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK, Selectable: true},
+	}
+	if len(rows) != 0 && rows[0].Kind == tapePickerKindParent {
+		return append(append(append([]TapePickerRow(nil), rows[:1]...), actions...), rows[1:]...)
+	}
+	return append(actions, rows...)
 }
 
 func tapePickerRowLabel(row TapePickerRow) string {
@@ -250,6 +288,9 @@ func (a *App) showTapePickerRootsLocked(status string) {
 	a.tapePickerRows = []TapePickerRow{{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true}}
 	for _, r := range a.storagePickerRootsLocked("media") {
 		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: r.Name, Path: r.Path, Kind: r.Kind})
+	}
+	for _, path := range tapePickerVolumeRoots {
+		a.tapePickerRows = appendTapePickerFilesystemRoot(a.tapePickerRows, filepath.Base(path), path)
 	}
 	a.appendTapeStartersLocked()
 	a.tapePickerIndex = 0
@@ -420,7 +461,11 @@ func (a *App) openTapePathOSKLocked() {
 	a.settingsOSKKind = settingsOSKTapePath
 	a.settingsOSKIndex = 0
 	a.settingsOSKIsAdd = false
-	a.settingsOSKField = shared.TextField{Buffer: a.tapePickerPath}
+	path := a.tapePickerPath
+	if _, _, _, ok := splitDrivePath(path); ok {
+		path = ""
+	}
+	a.settingsOSKField = shared.TextField{Buffer: path}
 	a.settingsOSKField.OSK.Reset()
 	a.settingsOSKField.OSK.CyclePage(1)
 }

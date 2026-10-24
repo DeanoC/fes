@@ -153,14 +153,14 @@ func (s *Service) inspectInstalledCore(ctx context.Context, id string) (CoreComp
 	if err != nil {
 		return CoreCompatibility{}, err
 	}
-	if s.protocolAdmissionEnabled() {
+	if SessionTargetFromContext(ctx) != "" || s.protocolAdmissionEnabled() {
 		if _, err = s.refreshTargetAdmission(ctx); err != nil {
 			return CoreCompatibility{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	client, ok := s.clientForSessionContextLocked(ctx)
 	if !ok {
 		return CoreCompatibility{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -180,7 +180,11 @@ func (s *Service) inspectInstalledCore(ctx context.Context, id string) (CoreComp
 	if result.Compatible {
 		state = "compatible"
 	}
-	return CoreCompatibility{CoreInspection: result, Target: s.selectedTarget, TargetID: health.TargetID, State: state}, nil
+	target := SessionTargetFromContext(ctx)
+	if target == "" {
+		target = s.selectedTarget
+	}
+	return CoreCompatibility{CoreInspection: result, Target: target, TargetID: health.TargetID, State: state}, nil
 }
 
 func (s *Service) inspectInstalledPackageForClient(ctx context.Context, id string, client coreInspectionClient) (protocol.CoreInspection, error) {
