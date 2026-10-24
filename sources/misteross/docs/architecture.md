@@ -383,6 +383,14 @@ remain separate checks. Reuse this machinery with a core's actual primitive
 configuration and evidenced board inputs; neither internal Fmax nor a
 historical RAM Tester hardware pass supplies another core's external timing.
 
+The PC/XT retained-route uncertainty screen is
+`scripts/screen_fes_pcxt_uncertainty.py`. It reads explicit TimeQuest increments
+for each clock edge pair at all four corners and subtracts their conservative
+maxima from every paired native setup/hold row. Missing budgets and unpaired
+rows remain explicit failures. The diagnostic binds the original producer RBF
+and embedded report to the clock-branch reference; it neither changes the
+compiler model nor supplies external board requirements or hardware acceptance.
+
 ### HPS DDR ports
 
 `cores/fes-common/rtl/fes_hps_ddr.v` is the shared `fes.memory.hps-ddr` port

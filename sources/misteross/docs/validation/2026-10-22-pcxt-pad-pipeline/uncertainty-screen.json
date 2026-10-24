@@ -1,0 +1,173 @@
+{
+  "all_checked_rows_have_uncertainty": true,
+  "checked_hold_headroom_pass": true,
+  "checked_setup_headroom_pass": false,
+  "classification": "partial reference-based setup/hold uncertainty screen",
+  "clock_pairs": [
+    {
+      "adjusted_hold_wns_ns": 0.7639999985694885,
+      "adjusted_wns_ns": 1.4920000314712525,
+      "capture": "posedge clk_pixel",
+      "hold_uncertainty_ns": 0.0,
+      "launch": "posedge clk_pixel",
+      "rows": 2376,
+      "setup_uncertainty_ns": 0.2
+    },
+    {
+      "adjusted_hold_wns_ns": 0.7839999794960022,
+      "adjusted_wns_ns": -0.04500000029802323,
+      "capture": "posedge clocks[0]",
+      "hold_uncertainty_ns": 0.0,
+      "launch": "posedge clocks[0]",
+      "rows": 14795,
+      "setup_uncertainty_ns": 0.1
+    },
+    {
+      "adjusted_hold_wns_ns": 5.686999969482422,
+      "adjusted_wns_ns": 2.847000036239624,
+      "capture": "posedge clocks[0]",
+      "hold_uncertainty_ns": 0.07,
+      "launch": "posedge clocks[1]",
+      "rows": 16,
+      "setup_uncertainty_ns": 0.09
+    }
+  ],
+  "complete_native_uncertainty_coverage": false,
+  "hold_failures": [],
+  "limits": [
+    "Quartus reference assumptions and different clock side branches remain",
+    "No external IO, reset/CDC or hardware qualification",
+    "This screen does not modify native timing or adopt a new physical model"
+  ],
+  "native_endpoint_rows": 17196,
+  "native_report_sha256": "a6e7b2ef678a23b224599d735ce4e01c7b3185cb0bf59bdba3e2dd46fd6454e1",
+  "reference_rbf_sha256": "aaa0d1941c1b60751dc30e6208bbd2a245139ccffc4cc9a07b6747ac4e5df2fb",
+  "reference_report_hashes": {
+    "7_slow_1100mv_-40c/internal-hold.rpt": "f0621e31482c46faa51ee48fb327ab87587a81e5c12de2e956a3bc5826c3002b",
+    "7_slow_1100mv_-40c/internal-setup.rpt": "d02e06bdeed37fd37ae88a1c029875cd6bad972e4915fa6defe610440965410d",
+    "7_slow_1100mv_100c/internal-hold.rpt": "502112588e3c55c94c7170f059d33e2e4e0dc52f4c79ce60a2cdc8d8c4c2cecd",
+    "7_slow_1100mv_100c/internal-setup.rpt": "148ebc19ec16440ade94e0bc9e88f00aae204ed38d80cad79f6f02f63f8dfae2",
+    "MIN_fast_1100mv_-40c/internal-hold.rpt": "46653772e3006ada606fd269e1bbbd2f43e15512f7e7c8fee9321360bb9aace2",
+    "MIN_fast_1100mv_-40c/internal-setup.rpt": "320a2987efb51bf018d985fda4b3d23911f38755e95a376cede7b08d440bface",
+    "MIN_fast_1100mv_100c/internal-hold.rpt": "4e55bd905184a25a0291c7a3e2ef7fc42ac3a718f46f91c90d5fc57ebbb8c565",
+    "MIN_fast_1100mv_100c/internal-setup.rpt": "6616814fd4571652331378fada20b63ac6ef3de1ea0c879ada0459e58f152ed3"
+  },
+  "schema": 1,
+  "setup_failures": [
+    {
+      "adjusted_setup_ns": -0.04500000029802323,
+      "identity": [
+        "system.machine.isa.slots[1].cga.card.card.crtc.registers[4]_MISTRAL_FF_Q_ENA_MISTRAL_ALUT2_Q",
+        "Q",
+        "posedge clocks[0]",
+        "system.machine.isa.slots[1].cga.card.card.crtc.registers[4]_MISTRAL_FF_Q_ENA",
+        "system.machine.isa.slots[1].cga.card.card.crtc.registers[4]_MISTRAL_FF_Q_6",
+        "ENA",
+        "posedge clocks[0]"
+      ],
+      "native_setup_ns": 0.054999999701976776,
+      "uncertainty_ns": 0.1
+    },
+    {
+      "adjusted_setup_ns": -0.002000002562999731,
+      "identity": [
+        "system.machine.isa.slots[1].cga.card.card.mem_write_high_MISTRAL_ALUT3_A",
+        "Q",
+        "posedge clocks[0]",
+        "system.machine.isa.slots[1].cga.card.card.mem_write_high_MISTRAL_ALUT3_A_Q",
+        "system.machine.isa.slots[1].cga.card.card.vram.4.0.0",
+        "A1EN",
+        "posedge clocks[0]"
+      ],
+      "native_setup_ns": 0.09799999743700027,
+      "uncertainty_ns": 0.1
+    }
+  ],
+  "source_rbf_sha256": "dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd",
+  "source_revision": "bc588c5ef93f64876c5cc9071426077907a1d611",
+  "uncovered_clock_pairs": [],
+  "unpaired_native_rows": [
+    [
+      "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+      "Q",
+      "posedge clk_pixel",
+      "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+      "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clocks[0]"
+    ],
+    [
+      "locked_MISTRAL_ALUT2_Q",
+      "Q",
+      "<async>",
+      "locked",
+      "locked_MISTRAL_FF_ACLR_Q_MISTRAL_FF_DATAIN",
+      "ACLR",
+      "posedge clk_pixel"
+    ],
+    [
+      "locked_MISTRAL_ALUT2_Q",
+      "Q",
+      "<async>",
+      "locked",
+      "locked_MISTRAL_FF_ACLR",
+      "ACLR",
+      "posedge clk_pixel"
+    ],
+    [
+      "locked_MISTRAL_ALUT2_Q",
+      "Q",
+      "<async>",
+      "locked",
+      "locked_MISTRAL_FF_ACLR_1_Q_MISTRAL_FF_DATAIN",
+      "ACLR",
+      "posedge clocks[0]"
+    ],
+    [
+      "locked_MISTRAL_ALUT2_Q",
+      "Q",
+      "<async>",
+      "locked",
+      "locked_MISTRAL_FF_ACLR_1",
+      "ACLR",
+      "posedge clocks[0]"
+    ],
+    [
+      "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+      "Q",
+      "posedge clocks[0]",
+      "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+      "system.video.adapter.front_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU",
+      "Q",
+      "posedge clocks[0]",
+      "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q",
+      "system.video.adapter.front_MISTRAL_FF_Q_1",
+      "DATAIN",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+      "Q",
+      "posedge clocks[0]",
+      "system.machine.board.audio.reset",
+      "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clk_pixel"
+    ],
+    [
+      "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+      "Q",
+      "posedge clocks[0]",
+      "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+      "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+      "DATAIN",
+      "posedge clk_pixel"
+    ]
+  ],
+  "whole_board_qualified": false
+}

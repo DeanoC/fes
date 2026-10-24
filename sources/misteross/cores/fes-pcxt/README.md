@@ -429,6 +429,24 @@ clock-domain pair so remaining failures can be traced without rerouting.
 A route is diagnostic: SDRAM pad setup/hold, retention,
 physical containment, package sealing and hardware acceptance require separate
 qualification. There is no automatic Quartus fallback or kit programming.
+
+```sh
+python3 scripts/screen_fes_pcxt_uncertainty.py \
+  --diagnostic /absolute/diagnostic \
+  --quartus-comparison /absolute/clock-reference \
+  --output /absolute/screen.json
+```
+
+This command
+checks a retained producer report against explicit four-corner setup/hold
+uncertainty increments from its matched Quartus clock reference. It verifies
+the producer receipt, RBF identity and retained reference summaries, preserves
+all endpoint identities, and returns nonzero on negative headroom or incomplete
+coverage. The reference includes both PLLs; its small pixel counter is not the
+actual pixel fabric. This is a host-only reference screen, not a native timing
+model or whole-board acceptance. External IO, reset/CDC and physical board
+requirements remain separate. No producer constraints or artifacts are changed.
+
 No factory package selection or shared contract changes are made.
 
 The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`
