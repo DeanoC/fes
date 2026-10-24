@@ -146,6 +146,10 @@ func TestStopPersistsPendingZX81ProgramBeforeStoppingTarget(t *testing.T) {
 	if err != nil || len(saves) != 1 || saves[0].Size != int64(len(want)) {
 		t.Fatalf("persisted saves = %+v, %v", saves, err)
 	}
+	listed, err := service.ListZX81Saves(context.Background(), entry.GameID)
+	if err != nil || len(listed) != 1 || listed[0].MediaID != saves[0].MediaID || listed[0].Size != int64(len(want)) {
+		t.Fatalf("game tape shelf after Stop = %+v, %v; stored save = %+v", listed, err, saves[0])
+	}
 	_, reader, err := store.OpenCoreMedia(context.Background(), saves[0].MediaID)
 	if err != nil {
 		t.Fatalf("open saved media: %v", err)

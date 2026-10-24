@@ -41,11 +41,17 @@ type savedZX81Service struct {
 	err   error
 }
 
-func (s *savedZX81Service) ListZX81Saves(context.Context, string) ([]catalog.ZX81Save, error) {
-	return s.saves, s.err
+func (s *savedZX81Service) ListZX81Saves(_ context.Context, gameID string) ([]catalog.ZX81Save, error) {
+	var saves []catalog.ZX81Save
+	for _, save := range s.saves {
+		if save.GameID == gameID {
+			saves = append(saves, save)
+		}
+	}
+	return saves, s.err
 }
 
-func TestZX81TapeShelfListsSavedProgramsForAGame(t *testing.T) {
+func TestZX81TapeShelfScopesSavedProgramsToGame(t *testing.T) {
 	mediaID := strings.Repeat("ab", 32)
 	service := &savedZX81Service{saves: []catalog.ZX81Save{{
 		GameID: "test-zx81", MediaID: mediaID, Name: "Saved program", Size: 917,
@@ -60,6 +66,10 @@ func TestZX81TapeShelfListsSavedProgramsForAGame(t *testing.T) {
 	saved, err := client.ZX81TapesForGame(context.Background(), "test-zx81")
 	if err != nil || len(saved) != len(plain)+1 {
 		t.Fatalf("saved shelf: %d %v", len(saved), err)
+	}
+	otherGame, err := client.ZX81TapesForGame(context.Background(), "another-zx81")
+	if err != nil || len(otherGame) != len(plain) {
+		t.Fatalf("other game's shelf: %d %v", len(otherGame), err)
 	}
 	got := saved[len(saved)-1]
 	if got.MediaID != mediaID || got.SHA256 != mediaID || got.Name != "Saved program" || got.RAMKB != 1 {
