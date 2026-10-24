@@ -434,3 +434,31 @@ Journal SHA256 is `02f1a133cd95f81ddd779632dd6948686760af750ad6b2d782f22ef8c8757
 The remaining closure work is complete external IO/OE/feedback and reset
 coverage, qualified clock waveforms, and evidenced physical board/load/flight
 and CS2 steering bounds. No kit was claimed or programmed.
+
+### Stable source verification
+
+Committed source `959bc4f7b230e921258b55b8cb0db987117d4e5f` passes
+`make check` and `make test-changed --base a17b334f0109ad90a9d152b45ce8c358c735f90b`:
+842 parent tests, 1301 component cases and all 21 XT suites. The initial
+component environment skips 49 compiler/oracle checks; all 48 Yosys-dependent
+cases subsequently pass with the pinned compiler. Seven selected cases first
+fail imports from the wrong test cwd; only those seven are retried at the
+module root and pass. One optional host oracle remains skipped. Original
+logs and both targeted attempts are retained.
+
+The fresh authenticated `--half-rate-board --synth-only` producer at that
+commit reproduces the frozen candidate's entire JSON after only source/output
+path-prefix normalization, with identical generated ROMs. The first invocation
+uses the cache parent rather than the slot root and fails before synthesis;
+the corrected cache-root invocation and comparison pass. No fields are dropped.
+
+The new artifact's structural inventory identifies all 70 top-level pads and
+all 16 registered DQ input/data/OE modes. Of 629 nonconstant FF asynchronous-clear
+connections, 625 have native paired rows and 4 PLL-driven clears remain unpaired.
+Mistral currently treats those ACLR checks as synchronous setup/hold: they do
+not supply recovery/removal or MTBF qualification. The other 5 unpaired native
+rows are video-domain transfers. The four-corner fitted forwarded-clock
+reference has minimum high/low bound 8.187 ns under its declared conditions,
+versus the published chip's 2 ns requirement; native fanout, board loads/flight
+and jitter remain unqualified. [Verification evidence](board50-verification.json)
+retains the exact scope, test results and hashes. No hardware ran.
