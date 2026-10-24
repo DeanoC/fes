@@ -61,13 +61,14 @@ func optInt64(t *lua.LTable, key string) int64 {
 	return 0
 }
 
-// library.query({platform, collection, q, sort, genre, year, region,
+// library.query({platform, core_ids, collection, q, sort, genre, year, region,
 // hide_prerelease, hide_hacks, limit}, function(games, err) end)
 func (r *Instance) libraryQuery(L *lua.LState) int {
 	opts := L.OptTable(1, nil)
 	cb := L.CheckFunction(2)
 	q := hostclient.GameListQuery{
 		Platform:       optString(opts, "platform"),
+		CoreIDs:        optStrings(opts, "core_ids"),
 		Collection:     optString(opts, "collection"),
 		Q:              optString(opts, "q"),
 		Sort:           optString(opts, "sort"),
@@ -93,6 +94,25 @@ func (r *Instance) libraryQuery(L *lua.LState) int {
 		r.deliver(asyncResult{cb: cb, games: games, err: err})
 	}()
 	return 0
+}
+
+func optStrings(t *lua.LTable, key string) []string {
+	if t == nil {
+		return nil
+	}
+	values, ok := t.RawGetString(key).(*lua.LTable)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, values.Len())
+	for i := 1; i <= values.Len(); i++ {
+		if value, ok := values.RawGetInt(i).(lua.LString); ok {
+			if text := strings.TrimSpace(string(value)); text != "" {
+				out = append(out, text)
+			}
+		}
+	}
+	return out
 }
 
 func (r *Instance) libraryPlatforms(L *lua.LState) int {

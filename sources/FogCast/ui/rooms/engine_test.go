@@ -52,11 +52,27 @@ type fakeServices struct {
 	err       error
 }
 
-func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, _ int) ([]hostclient.Game, error) {
+func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queries = append(f.queries, q)
-	return f.games, f.err
+	games := f.games
+	if len(q.CoreIDs) > 0 {
+		wanted := make(map[string]struct{}, len(q.CoreIDs))
+		for _, coreID := range q.CoreIDs {
+			wanted[coreID] = struct{}{}
+		}
+		games = make([]hostclient.Game, 0)
+		for _, game := range f.games {
+			if _, ok := wanted[game.CoreID]; ok {
+				games = append(games, game)
+			}
+		}
+	}
+	if max > 0 && len(games) > max {
+		games = games[:max]
+	}
+	return games, f.err
 }
 
 func (f *fakeServices) recorded() []hostclient.GameListQuery {

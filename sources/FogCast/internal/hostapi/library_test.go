@@ -68,6 +68,19 @@ func TestGamesListAttachesCoreIDForCorePackages(t *testing.T) {
 		t.Fatalf("core identity %s", body)
 	}
 
+	service.fakeService.games = append(service.fakeService.games, catalog.Game{
+		ID: "fpga-c64-game", Title: "Impossible Mission", System: catalog.CorePlatform,
+		Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
+	})
+	service.entries = append(service.entries, catalog.CoreEntry{GameID: "fpga-c64-game", CoreID: "fes.c64"})
+	filtered := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?core_id=fes.zx81")
+	if filtered.Code != http.StatusOK {
+		t.Fatal(filtered.Body.String())
+	}
+	if strings.Count(filtered.Body.String(), `"core_id":"fes.zx81"`) != 1 || strings.Contains(filtered.Body.String(), "fpga-c64-game") {
+		t.Fatalf("core-filtered games = %s", filtered.Body.String())
+	}
+
 	service.game = catalog.Game{
 		ID: "fpga-zx81-maze", Title: "3D Monster Maze", System: catalog.CorePlatform,
 		Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
@@ -77,7 +90,6 @@ func TestGamesListAttachesCoreIDForCorePackages(t *testing.T) {
 		service.game,
 		{ID: "fpga-c64-game", Title: "Impossible Mission", System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true, GroupKey: "zx81-maze"},
 	}
-	service.entries = append(service.entries, catalog.CoreEntry{GameID: "fpga-c64-game", CoreID: "fes.c64"})
 	detail := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/fpga-zx81-maze")
 	if detail.Code != http.StatusOK {
 		t.Fatal(detail.Body.String())
@@ -440,11 +452,11 @@ func TestGamesListSendsDumpFieldsAndParsesQueryFacets(t *testing.T) {
 		Revision: "a", DumpFlags: "", GroupKey: "snes\x1fsonic", VariantCount: 2, Year: "1991",
 		System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
 	}}}}
-	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?region=usa&hide_prerelease=1&sort=year&grouped=1")
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?region=usa&hide_prerelease=1&sort=year&grouped=1&core_id=fes.zx81&core_id=fes.c64")
 	if response.Code != http.StatusOK {
 		t.Fatal(response.Body.String())
 	}
-	if service.last.Region != "usa" || !service.last.HidePrerelease || service.last.Sort != catalog.SortYear || !service.last.Grouped {
+	if service.last.Region != "usa" || !service.last.HidePrerelease || service.last.Sort != catalog.SortYear || !service.last.Grouped || strings.Join(service.last.CoreIDs, ",") != "fes.zx81,fes.c64" {
 		t.Fatalf("query = %#v", service.last)
 	}
 	if !strings.Contains(response.Body.String(), `"canonical_title":"Sonic"`) || !strings.Contains(response.Body.String(), `"variant_count":2`) {

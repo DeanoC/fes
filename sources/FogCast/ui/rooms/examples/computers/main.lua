@@ -139,7 +139,12 @@ local function launch_selected()
 end
 
 function load()
-  library.query({ platform = "fpga", sort = "title", limit = 500 }, function(games, err)
+  library.query({
+    platform = "fpga",
+    core_ids = { "fes.zx81", "fes.c64" },
+    sort = "title",
+    limit = 2000,
+  }, function(games, err)
     if err then
       load_err = err
       status = ""

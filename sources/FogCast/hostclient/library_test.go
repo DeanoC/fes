@@ -23,7 +23,7 @@ func TestClientLibraryOperationsPreservePublicHTTPContract(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/games":
 			query := r.URL.Query()
-			if query.Get("grouped") != "1" || query.Get("availability") != "ready" || query.Get("platform") != "megadrive" || query.Get("sort") != "platform" || query.Get("limit") != "2" {
+			if query.Get("grouped") != "1" || query.Get("availability") != "ready" || query.Get("platform") != "megadrive" || query.Get("sort") != "platform" || query.Get("limit") != "2" || strings.Join(query["core_id"], ",") != "fes.zx81,fes.c64" {
 				t.Errorf("query = %s", r.URL.RawQuery)
 			}
 			_, _ = io.WriteString(w, `{"games":[{"id":"pong","title":"Pong","system":"pong","launchable":true}],"next_cursor":"next"}`)
@@ -55,7 +55,7 @@ func TestClientLibraryOperationsPreservePublicHTTPContract(t *testing.T) {
 
 	transport := &identityTransport{base: server.Client().Transport}
 	client := NewClient(server.URL+"/", &http.Client{Transport: transport, Timeout: 5 * time.Second})
-	games, next, err := client.ListGames(context.Background(), GameListQuery{Limit: 2, Platform: " megadrive", Sort: "system"})
+	games, next, err := client.ListGames(context.Background(), GameListQuery{Limit: 2, Platform: " megadrive", CoreIDs: []string{"fes.zx81", " fes.c64 "}, Sort: "system"})
 	if err != nil || len(games) != 1 || games[0].ID != "pong" || next != "next" {
 		t.Fatalf("games = %#v next=%q err=%v", games, next, err)
 	}

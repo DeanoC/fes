@@ -231,6 +231,11 @@ func (c *Client) ListGamePage(ctx context.Context, query GameListQuery) (GamePag
 	if platform := strings.TrimSpace(query.Platform); platform != "" {
 		values.Set("platform", platform)
 	}
+	for _, coreID := range query.CoreIDs {
+		if coreID = strings.TrimSpace(coreID); coreID != "" {
+			values.Add("core_id", coreID)
+		}
+	}
 	if sort := catalogSortParam(query.Sort); sort != "" {
 		values.Set("sort", sort)
 	}

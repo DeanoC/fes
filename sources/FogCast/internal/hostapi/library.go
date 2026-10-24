@@ -336,7 +336,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 }
 
 func shelfNoticeApplies(query catalog.Query) bool {
-	return query.Text == "" && query.Platform == "" && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
+	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
 }
 
 func parseGameQuery(r *http.Request) (catalog.Query, error) {
@@ -353,6 +353,11 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		HideHacks:      queryFlag(values.Get("hide_hacks")),
 		Grouped:        true,
 		Cursor:         strings.TrimSpace(values.Get("cursor")),
+	}
+	for _, coreID := range values["core_id"] {
+		if coreID = strings.TrimSpace(coreID); coreID != "" {
+			query.CoreIDs = append(query.CoreIDs, coreID)
+		}
 	}
 	switch strings.TrimSpace(values.Get("grouped")) {
 	case "", "1", "true":
@@ -405,8 +410,32 @@ func fallbackGamePage(ctx context.Context, service Service, query catalog.Query)
 	if err != nil {
 		return catalog.Page{}, err
 	}
+	coreIDs := make(map[string]struct{}, len(query.CoreIDs))
+	for _, coreID := range query.CoreIDs {
+		coreIDs[coreID] = struct{}{}
+	}
+	coreByGame := map[string]string(nil)
+	if len(coreIDs) > 0 {
+		reader, ok := service.(coreIdentityService)
+		if !ok {
+			return catalog.Page{}, nil
+		}
+		entries, err := reader.CoreEntries(ctx)
+		if err != nil {
+			return catalog.Page{}, err
+		}
+		coreByGame = make(map[string]string, len(entries))
+		for _, entry := range entries {
+			coreByGame[entry.GameID] = entry.CoreID
+		}
+	}
 	filtered := make([]catalog.Game, 0, len(games))
 	for _, game := range games {
+		if len(coreIDs) > 0 {
+			if _, ok := coreIDs[coreByGame[game.ID]]; !ok {
+				continue
+			}
+		}
 		if !catalog.MatchesQueryFilters(game, query) {
 			continue
 		}

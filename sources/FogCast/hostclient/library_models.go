@@ -455,6 +455,7 @@ type GameListQuery struct {
 	Cursor         string
 	Limit          int
 	Platform       string
+	CoreIDs        []string
 	Sort           string
 	Q              string
 	Collection     string
