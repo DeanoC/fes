@@ -16,11 +16,19 @@ import (
 
 type mediaService struct {
 	fakeService
-	calls int
+	calls        int
+	replaceCalls int
 }
 
 func (s *mediaService) LoadDevelopmentMedia(_ context.Context, n int64, r io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.calls++
+	return s.status, nil
+}
+func (s *mediaService) ReplaceLiveMedia(_ context.Context, _, _ string, _ protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	s.replaceCalls++
+	return s.status, nil
+}
+func (s *mediaService) ClearLiveMedia(_ context.Context, _ protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	return s.status, nil
 }
 func TestDevelopmentMediaHostSessionBindingPreservesInput(t *testing.T) {
@@ -35,6 +43,16 @@ func TestDevelopmentMediaHostSessionBindingPreservesInput(t *testing.T) {
 	}
 	if err := json.Unmarshal(before.Body.Bytes(), &session); err != nil || session.ID == "" {
 		t.Fatalf("session: %s", before.Body)
+	}
+	liveInsert := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"prior.p"}`))
+	liveInsert.Host = "127.0.0.1"
+	liveInsert.Header.Set("Content-Type", "application/json")
+	liveInsert.Header.Set(protocol.HostSessionIDHeader, session.ID)
+	protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Target: "dev"}.SetHeaders(liveInsert.Header)
+	liveReply := httptest.NewRecorder()
+	handler.ServeHTTP(liveReply, liveInsert)
+	if liveReply.Code != http.StatusOK || !strings.Contains(liveReply.Body.String(), `"media_name":"prior.p"`) {
+		t.Fatalf("live insert status=%d body=%s", liveReply.Code, liveReply.Body)
 	}
 	for _, id := range []string{"stale-host", session.ID} {
 		r := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-media", strings.NewReader("raw"))
@@ -52,7 +70,10 @@ func TestDevelopmentMediaHostSessionBindingPreservesInput(t *testing.T) {
 			t.Fatalf("status=%d body=%s", w.Code, w.Body)
 		}
 	}
-	if service.calls != 1 || len(input.detach) != detachedBefore {
-		t.Fatalf("calls=%d detached=%v", service.calls, input.detach)
+	if service.calls != 1 || service.replaceCalls != 1 || len(input.detach) != detachedBefore {
+		t.Fatalf("calls=%d replacements=%d detached=%v", service.calls, service.replaceCalls, input.detach)
+	}
+	if after := serve(t, handler, http.MethodGet, "/api/v1/session"); strings.Contains(after.Body.String(), `"media_name"`) {
+		t.Fatalf("development-media replacement retained the live filename: %s", after.Body)
 	}
 }

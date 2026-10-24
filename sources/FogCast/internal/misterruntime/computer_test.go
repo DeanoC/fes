@@ -349,9 +349,17 @@ func TestRuntimeEjectMediaRequiresEmpty(t *testing.T) {
 		t.Fatal("eject accepted a unit that stayed ready")
 	}
 	control.eject = func(context.Context, string, uint64, uint8) (Protocol2Response, error) {
+		return Protocol2Response{OK: false, Error: &Protocol2Error{
+			Code: "io_failed", Message: "FES GP command rejected with response 4", Phase: "input",
+		}}, nil
+	}
+	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || !apiErr.NoChange {
+		t.Fatalf("completed eject rejection did not guarantee no change: %#v", apiErr)
+	}
+	control.eject = func(context.Context, string, uint64, uint8) (Protocol2Response, error) {
 		return Protocol2Response{}, errors.New("lost")
 	}
-	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || apiErr.Phase != "transfer" {
+	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || apiErr.Phase != "transfer" || apiErr.NoChange {
 		t.Fatalf("lost eject %v", apiErr)
 	}
 }

@@ -248,7 +248,7 @@ func tapePickerPanel(snap Snapshot) (listPanel, bool) {
 	if panelW < 280 {
 		panelW = g.contentWidth()
 	}
-	headerH, footerH, rowH := 48, 52, 44
+	headerH, footerH, rowH := 64, 52, 44
 	visible := rows
 	if visible > 8 {
 		visible = 8

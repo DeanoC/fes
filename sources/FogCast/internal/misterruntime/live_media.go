@@ -71,6 +71,12 @@ func liveMediaResponseMatches(response Protocol2Response, b protocol.Development
 // ReplaceLiveMedia stages caller bytes and fills the mailbox without hold-reset.
 // It does not restore the keyboard matrix; mid-session begin leaves it alone.
 func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
 		return protocol.LiveMediaRequestError()
 	}
@@ -131,6 +137,7 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 	if ctx.Err() != nil {
 		return &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "live media upload cancelled", Phase: "admission", Cause: ctx.Err()}
 	}
+	dispatched = true
 	response, dispatchErr := control.ReplaceLiveMedia(ctx, path, b.PackageID, b.Generation)
 	r.noteDispatch("replace_live_media", dispatchErr == nil)
 	if dispatchErr != nil {
@@ -145,7 +152,13 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 	return nil
 }
 
-func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMediaBinding) *protocol.APIError {
+func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMediaBinding) (apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
 		return protocol.LiveMediaRequestError()
 	}
@@ -162,6 +175,7 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 	if !liveMediaResponseMatches(before, b) {
 		return protocol.LiveMediaIdentityError()
 	}
+	dispatched = true
 	response, err := control.ClearLiveMedia(ctx, b.PackageID, b.Generation)
 	r.noteDispatch("clear_media", err == nil)
 	if err != nil {
@@ -185,8 +199,11 @@ func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
 	// a leaked "response 2" is a hard mismatch, not loader contention. A hard
 	// MMIO failure or any other invalid clear acknowledgement stays
 	// unavailable, even when its phase is input.
-	if remote != nil && (remote.Code == "busy" || inputTransportGlitch(remote) || loaderInvalidState(remote)) {
+	if remote != nil && (remote.Code == "busy" || loaderInvalidState(remote)) {
 		return protocol.LiveMediaBusyError()
+	}
+	if inputTransportGlitch(remote) {
+		return protocol.LiveMediaInputUncertainError()
 	}
 	return mapProtocol2Error(remote)
 }

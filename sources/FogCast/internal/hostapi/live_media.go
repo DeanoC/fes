@@ -85,8 +85,17 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 	}
 	status, err := loader.ReplaceLiveMedia(ctx, mediaID, name, b)
 	if err != nil {
+		if !protocol.LiveMediaNoChange(err) {
+			s.mu.Lock()
+			s.clearLiveMediaNameLocked()
+			s.mu.Unlock()
+		}
 		return sessionResult{}, err
 	}
+	s.ensureFlight()
+	s.mu.Lock()
+	s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID, s.liveMediaEjected = name, b, s.flightID, false
+	s.mu.Unlock()
 	result := s.publicSession(status, nil)
 	s.recordStamp("session.live_media", result, nil, clientStamp{})
 	return result, nil
@@ -112,8 +121,19 @@ func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b pr
 	}
 	status, err := loader.ClearLiveMedia(ctx, b)
 	if err != nil {
+		if !protocol.LiveMediaNoChange(err) {
+			s.mu.Lock()
+			s.clearLiveMediaNameLocked()
+			s.mu.Unlock()
+		}
 		return sessionResult{}, err
 	}
+	s.mu.Lock()
+	s.liveMediaName = ""
+	s.liveMediaBinding = b
+	s.liveMediaFlightID = s.flightID
+	s.liveMediaEjected = true
+	s.mu.Unlock()
 	result := s.publicSession(status, nil)
 	s.recordStamp("session.live_media_clear", result, nil, clientStamp{})
 	return result, nil

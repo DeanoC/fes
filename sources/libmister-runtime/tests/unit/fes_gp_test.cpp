@@ -1767,15 +1767,16 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 	}
 	{
 		ComputerClearFixture f;
-		// Launch release leaves the host toggle true, so eject waits for ack 0.
-		const std::uint32_t settled = FesGpSignature;
-		f.mmio.PushRead(kSpiGpiAddress, settled | FesGpAckMask);
-		f.mmio.PushRead(kSpiGpiAddress, settled);
-		f.mmio.PushRead(kSpiGpiAddress, settled + 1u);
+		const std::size_t start = f.mmio.writes.size();
+		// The direct eject index was sent, but its response becomes ambiguous.
+		// Preserve that outcome instead of reporting a definite no-op busy.
+		f.mmio.PushReadError(kSpiGpiAddress,
+			{mister::ErrorCode::io_failed, "FES GP exchange state is ambiguous"});
 		const auto error = f.driver.ClearMedia(100000);
-		assert(error.code == mister::ErrorCode::busy);
-		assert(error.message == "tape loader is busy");
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES GP exchange state is ambiguous");
 		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 2);
 	}
 	{
 		ComputerClearFixture f;
@@ -1815,6 +1816,22 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		PushCompleted(&f.mmio, true, 0);
 		const auto error = f.driver.ClearMedia(100000);
 		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 4);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// A legacy core rejects MediaEjectIndex with invalid-index, then its
+		// control-index eject is sent once. An unusable response on that
+		// fallback is uncertain too.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("invalid FES GP response signature") != std::string::npos);
+		assert(error.phase == "input");
 		assert(f.mmio.writes.size() == start + 4);
 		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
 		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
