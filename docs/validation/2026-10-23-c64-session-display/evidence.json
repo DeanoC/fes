@@ -1,0 +1,127 @@
+{
+  "base_revision": "c83cb211",
+  "captures_sha256": {
+    "gamepad-focus.png": "05e9e3862694cb39c9af4aeb926014d898f24e830eee7bc86eaa3a2957770867",
+    "media-path.png": "95ae66e1e80935c2d968160d1e32b302f419dc4043e0b93e16de387d2f382b9b",
+    "returned-to-play.png": "4577c1208293e41640b6035976890ab2e25babee1a9f3d4ec25e16c1f42f11ee",
+    "selector.png": "99fdcc4f3db613b158e75383ccc4e0fefb69acc35054dbcd0de43371470b72e6"
+  },
+  "core": {
+    "archive_sha256": "99d9df20547c1dfee02504ec393a32481067f9dcbe90f679c65ed6a13fa43e51",
+    "build_id": "b7bf0ddbbf358a3b3d48552c58da63d5",
+    "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+    "pinned_inputs_unchanged_after_integration": true,
+    "rbf": {
+      "sha256": "9d924f6fecaa15cb2ebd0e4ba27e2e810a83b6d16dfb945af44763fc0c16a33a",
+      "size": 3774913
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 2000,
+      "placer_qor_mode": "first-pass",
+      "placer_seed": 5,
+      "status": "pass",
+      "unrouted": false
+    },
+    "session_display": {
+      "cfg": {
+        "cfg_axi_mm_select": "0x0",
+        "cfg_cport_rfifo_map": "0xd0",
+        "cfg_cport_type": "0x3f",
+        "cfg_cport_wfifo_map": "0xd0",
+        "cfg_port_width": "0x16",
+        "cfg_rfifo_cport_map": "0x2100",
+        "cfg_wfifo_cport_map": "0x2100"
+      },
+      "idle": false,
+      "interface": "fes.memory.hps-ddr",
+      "major": 1,
+      "minor": 0,
+      "read_only": true,
+      "unused_ports_disabled": true
+    },
+    "timing": {
+      "audio": {
+        "achieved_mhz": 204.29010009765625,
+        "clock": "system_clock.clocks[1]",
+        "constraint_mhz": 12.288031578063965,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 76.48768615722656,
+        "clock": "display.control.clk",
+        "constraint_mhz": 74.25006866455078,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 52.89326095581055,
+        "clock": "system_clock.clocks[0]",
+        "constraint_mhz": 52.22477340698242,
+        "status": "pass"
+      }
+    }
+  },
+  "core_source_revision": "7ef9c90783434c6dbe28fb488a68dd7f9ee4c92f",
+  "format": 1,
+  "hardware": {
+    "checks": {
+      "after-eject": {
+        "generation": 1,
+        "media_state": "empty",
+        "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+        "session_id": "24273e23-b548-420c-bac2-cc57e6c812fd"
+      },
+      "after-gamepad-cancel": {
+        "generation": 1,
+        "media_state": "empty",
+        "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+        "session_id": "24273e23-b548-420c-bac2-cc57e6c812fd"
+      },
+      "after-insert": {
+        "generation": 1,
+        "media_state": "ready",
+        "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+        "session_id": "24273e23-b548-420c-bac2-cc57e6c812fd"
+      },
+      "after-keyboard-cancel": {
+        "generation": 1,
+        "media_state": "empty",
+        "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+        "session_id": "24273e23-b548-420c-bac2-cc57e6c812fd"
+      }
+    },
+    "class": "exact-artifact hardware diagnostic",
+    "host": "private paired host built from 7ef9c907",
+    "input": "synthetic evdev keyboard and gamepad",
+    "kit": "A",
+    "launcher": "isolated instance of exact installed ARM binary",
+    "observed_build_id": "b7bf0ddbbf358a3b3d48552c58da63d5"
+  },
+  "inputs": {
+    "archive_sha256": "99d9df20547c1dfee02504ec393a32481067f9dcbe90f679c65ed6a13fa43e51",
+    "disk": {
+      "sha256": "ee9570df68c3ddd1fda60ea3360dd5880c2ac95ed110bbe1bd60fdb91dec3f61",
+      "size": 174848
+    },
+    "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+    "programmed_rbf_sha256": "dbab49b2f054d5dd1457943b42cddbb6a3e2d7522c79a2ccb1b5c73f3ed9b78c",
+    "rom_sha256": "01173de974d093734d55f6a355382a094c2004bbf56441e8f68ee32c3beb5f94",
+    "rom_size": 36864
+  },
+  "integration_base_revision": "353983047a1d70f4aa6d017e1c092f8629b06ace",
+  "restoration": {
+    "active_bundle": "35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b",
+    "base_image": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+    "boot_config_idle_rbf_and_launcher_config": "unchanged",
+    "generation": 385,
+    "lease": "free",
+    "runtime": "idle",
+    "selected_bundle": "35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b"
+  },
+  "software": {
+    "bundle_id": "7dfb47dc85c20250984a5324824687a8b438e020aa87f18c6ad471f24093b117",
+    "launcher_sha256": "3ea62c5007e375ce4133a637b09c92f1bc1b02d81685bf88cea46e73800c1f94",
+    "source_revision": "187fdc7c52971deb10eb7c371dfb07e6ef3d3732"
+  }
+}

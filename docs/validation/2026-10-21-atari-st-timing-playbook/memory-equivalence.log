@@ -1,0 +1,25 @@
+=== production ===
+Executing EQUIV_STATUS pass.
+Found 592 $equiv cells in equiv:
+  Of those cells 592 are proven and 0 are unproven.
+  Equivalence successfully proven!
+=== default ===
+Executing EQUIV_STATUS pass.
+Found 583 $equiv cells in equiv:
+  Of those cells 583 are proven and 0 are unproven.
+  Equivalence successfully proven!
+=== late-completion ===
+Executing EQUIV_STATUS pass.
+Found 583 $equiv cells in equiv:
+  Of those cells 583 are proven and 0 are unproven.
+  Equivalence successfully proven!
+=== legacy-refresh ===
+Executing EQUIV_STATUS pass.
+Found 583 $equiv cells in equiv:
+  Of those cells 583 are proven and 0 are unproven.
+  Equivalence successfully proven!
+=== registered-input ===
+Executing EQUIV_STATUS pass.
+Found 599 $equiv cells in equiv:
+  Of those cells 599 are proven and 0 are unproven.
+  Equivalence successfully proven!

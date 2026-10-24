@@ -354,6 +354,30 @@ void TestDeveloperVideoSocketCompatibility() {
  }
 }
 
+// A running application machine, such as the Coleco native shell, may carry
+// the shared session plane. It needs HPS DDR and the display plane, and it is
+// never also the idle MENU's display.
+void TestApplicationSessionDisplayCompatibility()
+{
+ mister::CoreDescriptor d;
+ d.format=3;d.rom.role="cartridge";d.rom.source_size=16384;d.core.id="fes.coleco";
+ d.target={"de10_nano","5CSEBA6U23I7","fes-gp-v1"};d.abi={"fes.application",1,0};
+ d.interfaces={{"fes.video.fixed-720p60",1,0,true},{"fes.expansion.coleco-bus",2,0,false},
+  {"fes.fabric.video.native-pixels",1,0,false},{"fes.memory.hps-ddr",1,0,true},
+  {"fes.video.session-display",1,0,true},{"fes.fabric.video.display-plane",1,0,true}};
+ assert(mister::native::CheckCoreCompatibility(d).ok());
+ for(std::size_t i=3;i<6;++i) {
+  auto changed=d;changed.interfaces.erase(changed.interfaces.begin()+i);
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+  changed=d;changed.interfaces[i].required=false;
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+  changed=d;changed.interfaces[i].minor=1;
+  assert(mister::native::CheckCoreCompatibility(changed).code==mister::ErrorCode::unsupported_interface);
+ }
+ auto menu=d;menu.interfaces.push_back({"fes.video.menu-display",1,0,true});
+ assert(mister::native::CheckCoreCompatibility(menu).code==mister::ErrorCode::unsupported_interface);
+}
+
 void TestApplicationCompatibilityComposesInterfaces()
 {
 	mister::native::CoreDescriptor descriptor;
@@ -374,6 +398,12 @@ void TestApplicationCompatibilityComposesInterfaces()
 		auto blitter = menu;
 		blitter.interfaces.push_back({"fes.video.menu-blitter",1,0,true});
 		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		// Firmware may declare any blitter minor up to the runtime's.
+		blitter.interfaces.back().minor=1;
+		assert(mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=2;
+		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
+		blitter.interfaces.back().minor=0;
 		blitter.interfaces.back().required=false;
 		assert(!mister::native::CheckCoreCompatibility(blitter).ok());
 		blitter.interfaces.back().required=true;
@@ -996,6 +1026,7 @@ int main()
 	TestLinkedCartridgeRejectsResetHeldMediaContracts();
 	TestDeveloperVideoSocketCompatibility();
 	TestApplicationCompatibilityComposesInterfaces();
+	TestApplicationSessionDisplayCompatibility();
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();
 	TestDescriptorFieldsAndCompatibilityAreSeparate();

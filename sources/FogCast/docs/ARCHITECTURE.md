@@ -719,10 +719,31 @@ generation with `fes.media.blob` still uses `replace_live_media` /
 legacy blob interface. The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
 binding for either generation. On a menu-display kit, both that tape unit
-and a legacy blob session open the hardware room and the tape picker only
+and a legacy blob session open the media selector only
 when the running package reports `fes.video.session-display` 1.0 and
 `fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
 presentation available, and `BindSession` authorizes the launcher frames.
+On a kit, Home or Select/View opens **Change media** directly over the running
+machine, with transparent pixels outside the opaque picker. The launch room
+is not drawn behind it. The picker offers insert and eject for the observed
+unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
+or Atari ST `.st`. It applies the active interface and reported size limits
+before import; the host and runtime validate the object again. ZX81 also
+shows the existing starter-tape shelf. Files come from the launcher machine
+(home, mounted media and accessible library roots); the picker does not browse
+remote host paths. Import, insert and eject retain the session captured when
+the selector opened. Session-display admission checks the captured generation,
+observed DDR and display interfaces, and a supported observed unit 0 for disk
+or Spectrum media. The host, target agent and runtime adapter share that
+admission predicate; the native runtime already admits the observed display
+interface independently of media type. Insert and eject use a bounded
+450-second transport without the normal polling timeout and are never replayed
+after a lost response. Starter import uses the ordinary bounded HTTP client:
+it copies at most 16 KiB of embedded host bytes into the host media store,
+without fetching the attribution URL or contacting the FPGA. Only the later
+insert needs the physical-operation budget.
+Successful insert/eject and Back at the picker roots return directly to play.
+A failed display return retains the binding and Back retries that return.
 Back posts `visible: false`, which quiesces the plane and restores the
 machine's HDMI pixels. Library play is
 native, and `change-tape` accepts that execution. Both paths are distinct from
@@ -1074,8 +1095,11 @@ goroutine holds the stream.
 Source entry points are `ui/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `ui/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
-embedded Go Regular and Go Bold, and
-`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
+embedded Go Regular and Go Bold, `DrawMask` for text coverage, and
+`DebugText` for the 8×8 HUD / FC2D opcode). Text is laid out as coverage
+masks, one byte a pixel (`gfx.LayoutText`): each glyph is rasterized once per
+face and copied into a mask per string, and a mask draws in any colour with
+alpha `A·m/255`. Room text, labels and `DrawText` share that path. Window, events, gamepad, mouse, and text input remain
 SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
 path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
@@ -1114,9 +1138,9 @@ dispatches to `ui/tenfoot/menudisplay_linux.go` the same way: it reuses that
 app, evdev input, and smoke loop, forces 1280×720, and submits through the
 runtime menu socket with change-driven presents. The direct CPU loop records
 complete scenes through `gfx.FrameCache`: identical draw commands and unchanged
-textures skip rasterization. Label textures are keyed by slot, width and font
+textures skip rasterization. Labels are keyed by slot, width and font
 size; unchanged source strings bypass fitting, and source changes reuse the
-texture when the fitted visible text is identical. A clipped lease countdown
+mask when the fitted visible text is identical. A clipped lease countdown
 therefore cannot invalidate a scene whose visible header has not changed.
 Texture mutations preserve draw order and invalidate
 reuse. Settings marks a backdrop checkpoint after dimming and painting its
@@ -1201,7 +1225,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. Used by `fogcast-tenfoot -gfx linuxfb`. Look tokens live in `ui/theme` and are consumed by the sofa `Clear` sites. Chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The base-image supervisor starts `fogcast-tenfoot` on this socket. On this backend tenfoot submits one indeterminate loading frame with phase and elapsed time and waits until that frame has been presented. A failed or unpresented loading frame aborts dispatch. A presented frame pauses presents, then the launch is dispatched so the core owns HDMI. Late adoption of a core that already owns HDMI submits no loading frame: outstanding menu work is drained and presents pause, and an older menu failure does not block that pause. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start, F12 or Guide during local loading defers stop until the exact launch reply supplies its claim generation. A capable library computer opens a generation-bound media selector on the session plane while execution continues; pixels outside the selector remain transparent. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -1221,17 +1245,19 @@ wrote and waits for displayed-sequence completion through protocol 2. The UI
 receives no DDR address or FPGA register access; stale generations and
 unavailable menu firmware reject frames at the runtime, and a fault from a
 grant revoked mid-frame fails that frame. Submission runs off the pad loop.
-When the idle menu's grant includes the menu blitter, `MenuDisplay` records
-each frame as blitter commands instead of rastering it (`ui/gfx/menu_blit.go`):
-fills, copies and blends that draw the pixels `Software` would, with scaled
-draws, text and debug glyphs made into cached bitmaps. The client uploads each
-bitmap a frame reads into the grant's texture heap once, keeps it there while
-it is reachable and the heap has room, writes the list and commits it; the
-fabric draws the slot (`ui/menudisplay/blit.go`). The first frame after a
-grant is drawn on the CPU and goes as one copy, since a blitter grant refuses
-CPU frames after its first list. A session plane or a menu without the
-blitter gets CPU pixels, rasterizing a list that reaches it, and a list too
-large for the blitter is rasterized and copied whole.
+When the idle menu's grant includes a minor 1 or later menu blitter,
+`MenuDisplay` records each frame as blitter commands instead of rastering it
+(`ui/gfx/menu_blit.go`): fills, copies, blends and text-mask expands that draw
+the pixels `Software` would, with scaled draws and debug glyphs made into
+cached bitmaps. The runtime does not issue a blitter grant below minor 1; an
+unexpected unsupported grant is rejected before any frame is submitted.
+The client uploads each bitmap or mask a frame reads into the grant's texture
+heap once, keeps it there while it is reachable and the heap has room, writes
+the list and commits it; the fabric draws the slot (`ui/menudisplay/blit.go`).
+A first frame drawn before the grant is known goes as one copy. A blitter
+grant accepts CPU frames only before its first list. A session plane or a menu
+without the selected blitter gets CPU pixels, rasterizing a list that reaches
+it; a list too large for the blitter is rasterized and copied whole.
 `fogcast-tenfoot -gfx menu-display` is the client of that socket and
 opts into change-driven presents. An unchanged frame reads menu status once
 a second and is submitted again when the generation changes. Status errors,
@@ -3143,7 +3169,13 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
-requirement to insert media. When a disk is selected, the launch includes its
+requirement to insert media. The library can also format a blank FAT12 `.st`
+(`POST /api/v1/library/atari-st-disks`) and bind it as that title's drive A.
+Binding requires a format-3 `fes.atari-st` firmware package with `fes.computer`
+1.0 and required base and writable floppy interfaces. Store-only creation does
+not inspect or require a package.
+The host stores the formatted bytes in the content-addressed media store; later
+GEMDOS writes stay on the existing durable drive-A record. When a disk is selected, the launch includes its
 exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and
@@ -3289,14 +3321,25 @@ opening and closing the room. A null or empty focus is refused, not
 defaulted. A shown plane with `focus: "machine"` keeps machine input, as a
 surround around the picture needs, and a peer that predates focus refuses
 it. A closed plane requires machine focus. Moving focus on a shown plane
-keeps its display generation. The agent's input fence holds delivery during
-each transition, but only a launcher-focus request retires held keys and
-neutralizes the mouse. The fence ends focused when the runtime confirms
-launcher focus. After a refusal it follows the focus that the session's reply
-reports, and after an unconfirmed failure it stays focused. The paired listener admits only
+keeps its display generation. The same display route accepts a running
+`fes.application` machine, such as the Coleco native shell, when its active
+FPGA identity reports those two interfaces. Application machines have no
+removable-media unit, so this path needs no media-unit identity or selection;
+the computer path retains its existing media-unit checks. The agent's input
+fence holds delivery during each transition, but only a launcher-focus request
+retires held keys and neutralizes the mouse. Controller-port releases received
+while the launcher has focus clear their retained source snapshot without
+being sent to the core, so released buttons cannot replay when focus returns.
+The runtime also neutralizes the single `fes.gamepad` interface and gates its
+worker's nonzero snapshots during launcher focus. The fence ends focused when
+the runtime confirms launcher focus. After a refusal it follows the focus that
+the session's reply reports, and after an unconfirmed failure it stays focused.
+The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
-bounded 1..16384-byte tape imports and live replace/clear/display operations.
-These do not change the library's next-start media selection.
+media imports of at most the largest image the media selector inserts
+(839,680 bytes, a declared-geometry Atari ST floppy) and live
+replace/clear/display operations. The unit still checks its exact format and
+size on insert. These do not change the library's next-start media selection.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has
@@ -3313,7 +3356,27 @@ package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher
 pixels only after a full completed frame on its shared 720p raster. CPU, RAM,
 audio and the expansion socket continue. Back/Return closes and drains the plane
-before input resumes. UI navigation is suppressed at both launcher and target;
+before input resumes, unless the TV surround keeps it shown.
+
+With the **TV surround** setting on (`surround` in `tenfoot.json`, the
+default), tenfoot opens a capable session's plane with machine focus as soon as
+the session is active. The parked frame becomes `drawSurround`:
+
+- an opaque cabinet and bezel;
+- the title, system and room hint;
+- a clear window over the runtime's `menu_display.picture`, which
+  `gfx.MenuDisplay.SessionPicture` reports, with shaded edges.
+
+Until the picture is known, the frame is fully clear. While the hardware
+room holds launcher focus on that plane, tenfoot sets `room.overlay`. The room
+then clears to a premultiplied dark scrim and switches to light text on dark
+surfaces, so the machine stays visible behind it. `gfx.Color` is straight
+alpha, and `Software.Clear` and replacing fills store the premultiplied form
+that the plane blends. Home/Select and Back move
+focus on that shown plane without pausing or rebinding the presenter. Input
+handoff (releasing held keys and closing the local feed) happens only when
+focus moves. A refused surround closes the plane, and the setting stays off
+for that session. UI navigation is suppressed at both launcher and target;
 held keys and controller buttons require release and a fresh press, including B
 when Stop fails. Button releases still clear suppression while Stop is pending
 or retryable. Failed close retains
@@ -3374,19 +3437,27 @@ unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
 only when the required geometry extension is also active; admission checks
 the discrete supported lengths rather than accepting every value in that
 range. Disk replacement, save and restore use the existing library binding
-and package-generation checks.
+and package-generation checks. A blank disk from the library uses one of these
+twelve layouts, defaulting to 80 tracks, 2 heads and 9 sectors.
 
 
 ### Independently installed rooms
 
-`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY` snapshots a
-room's `room.toml`, Lua and artwork into the local launcher's room directory.
-The default resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then
-uses the persistent config location shared with the launcher. Use `--rooms`
-when the running launcher uses a custom room directory. A loose pack inside the
-rooms directory can be installed directly; a source that contains the
+`fogcast-tenfoot room-install [--rooms DIRECTORY] PACK_DIRECTORY_OR_ARCHIVE`
+snapshots a room's `room.toml`, Lua and artwork into the local launcher's room
+directory. It accepts either a source directory or a portable ZIP. The default
+resolves `tenfoot.json` `rooms_dir` before `FOGCAST_ROOMS`, then uses the
+persistent config location shared with the launcher. Use `--rooms` when the
+running launcher uses a custom room directory. A loose pack inside the rooms
+directory can be installed directly; a directory source that contains the
 installation directory is rejected. Installation uses POSIX file locking on
 Linux/macOS. This is local installation, not a host-to-kit transfer API.
+
+`fogcast-tenfoot room-export --output FILE PACK_DIRECTORY` validates a source
+directory and atomically publishes a portable ZIP. The ZIP stores the pack
+files at its root. Import extracts and validates the archive privately before
+the ordinary installer changes the selected snapshot; no source checkout is
+needed on the launcher's machine.
 
 Installation checks the manifest, main script, icon presence and syntax of all
 Lua files before atomically selecting the snapshot. Packs are limited to 64 MiB,
@@ -3427,4 +3498,12 @@ fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/my-room
 # To recover an update that fails only during a later interaction:
 fogcast-tenfoot room-rollback --rooms /path/to/rooms my.room
+```
+
+To transfer a pack as one file, export it on the source machine and install the
+archive on the launcher's machine:
+
+```sh
+fogcast-tenfoot room-export --output my-room.room.zip /path/to/my-room
+fogcast-tenfoot room-install --rooms /path/to/rooms my-room.room.zip
 ```

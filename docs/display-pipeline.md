@@ -60,13 +60,50 @@ out = saturate(P + (M × (256 − a − (a >> 7))) >> 8)
 
 Alpha 0 returns `M` exactly and alpha 255 returns `P` exactly. Three
 unsigned 9×9 DSP products compute it. Go's `image.RGBA` and the tenfoot
-software renderer already produce premultiplied RGBA when they draw onto a
-cleared transparent frame. Today's launcher draws opaque frames, which replace
-the machine picture as before.
+software renderer produce premultiplied RGBA. Colours are given with straight
+alpha, and clears and replacing fills store them premultiplied. Most launcher
+frames are opaque and replace the machine picture. The surround and the
+in-play hardware room are translucent, as described below.
 
 Each shell reports where its machine picture lands in the 1280×720 raster
 (x, y, width and height). FogCast uses that rectangle to cut the surround's
 window, so one piece of art can fit cores with different picture sizes.
+
+## TV surround
+
+On a kit, tenfoot draws a TV surround while a running machine has input:
+
+- an opaque cabinet with a rounded bezel;
+- the game title and system on the left, and the hardware-room hint on the right;
+- a clear window over the shell's picture rectangle, whose edges are shaded
+  like a tube.
+
+It opens the plane with machine focus when a plane-capable session becomes
+active. It draws a fully clear frame until the runtime reports the picture
+rectangle. The hardware room takes launcher focus on the same plane and draws
+over the surround. Returning gives input back with the surround still shown.
+Neither move rebinds the plane or grants a new display generation.
+
+While the hardware room is open, the plane keeps the machine visible behind
+it. Tenfoot sets `room.overlay` when the room is drawn over a running machine
+on the kit plane with launcher focus. In that mode the hardware room:
+
+- clears to a dark scrim (alpha 200), which leaves the machine at about 21%
+  brightness;
+- draws its controls as solid surfaces in the visual-language dark roles:
+  light text on dark panels, and dark text on the light-green primary actions;
+- drops its machine illustration, so the real machine shows through.
+
+Host windows never set the flag and keep the opaque room. The painter stores
+every colour premultiplied, so a translucent clear never adds light to the
+machine on the plane.
+
+A plane that refuses the surround is closed. The session then keeps machine
+pixels only, and the room opens and closes the plane as before. The **TV
+surround · kit HDMI** setting (`surround` in `tenfoot.json`, on by default)
+turns it off. Settings does not open while a machine runs, so the setting is
+changed on the launcher between sessions and applies from the next launch.
+Per-system and theme art are later work.
 
 A disabled, faulted or not-yet-visible plane returns machine pixels
 unchanged. A display failure never stops, resets or reprograms the machine.

@@ -8,11 +8,11 @@ import (
 	"testing"
 )
 
-// blitReference runs a list as the menu blitter does
+// blitReference runs a list as a menu blitter of minor does
 // (sources/misteross/cores/fes-menu/sim/blit_reference.hpp): window holds
 // the heap at its window offsets, slot is B, G, R, X with X written 0. It
 // refuses what the blitter faults on.
-func blitReference(list, window, slot []byte) error {
+func blitReference(list, window, slot []byte, minor int) error {
 	for i := 0; i+CommandBytes <= len(list); i += CommandBytes {
 		w0 := binary.LittleEndian.Uint64(list[i:])
 		w1 := binary.LittleEndian.Uint64(list[i+8:])
@@ -35,6 +35,7 @@ func blitReference(list, window, slot []byte) error {
 			return fmt.Errorf("command %d: rectangle outside the frame", i/CommandBytes)
 		}
 		texture := op == int(BlitCopy) || op == int(BlitBlend)
+		expand := op == int(BlitExpand) && minor >= MinBlitterMinor
 		switch {
 		case op == int(BlitFill) || op == int(BlitFillBlend):
 			if w2 != 0 {
@@ -48,6 +49,11 @@ func blitReference(list, window, slot []byte) error {
 			if source%4 != 0 || stride%4 != 0 || stride < 4*w || int(source) < HeapOffset || end > HeapOffset+HeapBytes {
 				return fmt.Errorf("command %d: source outside the heap", i/CommandBytes)
 			}
+		case expand:
+			end := int(source) + (h-1)*stride + w
+			if stride < w || int(source) < HeapOffset || end > HeapOffset+HeapBytes {
+				return fmt.Errorf("command %d: coverage outside the heap", i/CommandBytes)
+			}
 		default:
 			return fmt.Errorf("command %d: unknown op %d", i/CommandBytes, op)
 		}
@@ -59,6 +65,10 @@ func blitReference(list, window, slot []byte) error {
 				if texture {
 					at := int(source) + row*stride + col*4
 					s = window[at : at+4]
+				}
+				if expand {
+					m := uint32(window[int(source)+row*stride+col])
+					s = []byte{c[0], c[1], c[2], byte(uint32(c[3]) * m / 255)}
 				}
 				if op == int(BlitFill) || op == int(BlitCopy) {
 					d[0], d[1], d[2], d[3] = s[0], s[1], s[2], 0
@@ -95,6 +105,13 @@ func TestEncodeCommandFollowsTheWireContract(t *testing.T) {
 	for i, w := range want {
 		if v := binary.LittleEndian.Uint64(got[i*8:]); v != w {
 			t.Fatalf("blend word %d = %#x, want %#x (a texture op carries no colour)", i, v, w)
+		}
+	}
+	encodeCommand(got[:], BlitOp{Kind: BlitExpand, X: 5, Y: 6, W: 7, H: 8, Color: 0xc0102030}, HeapOffset+67, 9)
+	want = [4]uint64{5 | 0xc0102030<<32, 5 | 6<<16 | 7<<32 | 8<<48, HeapOffset + 67 | 9<<32, 0}
+	for i, w := range want {
+		if v := binary.LittleEndian.Uint64(got[i*8:]); v != w {
+			t.Fatalf("expand word %d = %#x, want %#x", i, v, w)
 		}
 	}
 }
@@ -239,6 +256,7 @@ func TestHeapStartsOverWhenTheFrameItselfFragmentsIt(t *testing.T) {
 
 func TestFrameCheckRefusesWhatTheBlitterWouldFaultOn(t *testing.T) {
 	s := source(8, 8)
+	coverage := &BlitSource{Pix: make([]byte, 8), Stride: 8, W: 8, H: 1, Coverage: true}
 	for _, op := range []BlitOp{
 		{Kind: BlitFill, X: 0, Y: 0, W: 0, H: 1},
 		{Kind: BlitFill, X: 1279, Y: 0, W: 2, H: 1},
@@ -246,16 +264,32 @@ func TestFrameCheckRefusesWhatTheBlitterWouldFaultOn(t *testing.T) {
 		{Kind: 9, W: 1, H: 1},
 		{Kind: BlitCopy, W: 1, H: 1},
 		{Kind: BlitBlend, W: 4, H: 4, Source: s, SourceX: 5},
+		// Coverage is only for expands, and expands read only coverage.
+		{Kind: BlitBlend, W: 1, H: 1, Source: coverage},
+		{Kind: BlitExpand, W: 1, H: 1, Source: s},
+		{Kind: BlitExpand, W: 4, H: 1, Source: coverage, SourceX: 5},
+		{Kind: BlitExpand, W: 1, H: 1, Source: &BlitSource{Pix: make([]byte, 8), Stride: 3, W: 4, H: 2, Coverage: true}},
 	} {
-		if err := (BlitFrame{Ops: []BlitOp{op}}).check(); err == nil || errors.Is(err, ErrBlitTooLarge) {
+		if err := (BlitFrame{Ops: []BlitOp{op}}).check(MinBlitterMinor); err == nil || errors.Is(err, ErrBlitTooLarge) {
 			t.Fatalf("%+v: %v", op, err)
 		}
 	}
+	expand := BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 8, H: 1, Source: coverage}}}
+	if err := expand.check(MinBlitterMinor); err != nil {
+		t.Fatal(err)
+	}
+	if err := expand.check(0); err == nil {
+		t.Fatal("an expand passed below the minimum blitter minor")
+	}
 	wide := source(16384, 1)
-	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitCopy, W: 1, H: 1, Source: wide}}}).check(); !errors.Is(err, ErrBlitTooLarge) {
+	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitCopy, W: 1, H: 1, Source: wide}}}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("a source too wide for the stride field: %v", err)
 	}
-	if err := (BlitFrame{Ops: make([]BlitOp, ListCommands+1)}).check(); !errors.Is(err, ErrBlitTooLarge) {
+	wideCoverage := &BlitSource{Pix: make([]byte, 65536), Stride: 65536, W: 65536, H: 1, Coverage: true}
+	if err := (BlitFrame{Ops: []BlitOp{{Kind: BlitExpand, W: 1, H: 1, Source: wideCoverage}}}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
+		t.Fatalf("coverage too wide for the stride field: %v", err)
+	}
+	if err := (BlitFrame{Ops: make([]BlitOp, ListCommands+1)}).check(MinBlitterMinor); !errors.Is(err, ErrBlitTooLarge) {
 		t.Fatalf("a list longer than the region: %v", err)
 	}
 }

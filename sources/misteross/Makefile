@@ -128,6 +128,7 @@ help:
 		"  build-fes-apple2  Seal FES Apple II (format 3 firmware map, four slot sockets) with HIP (CACHE_ROOT=)" \
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
+		"  sim-fes-c64-session  Check actual C64 VIC raster and the shared DDR session plane" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
@@ -373,7 +374,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 	@build/sim/fes-zx81-machine/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-video" \
 		cores/fes-zx81/rtl/zx81_video_720p.v \
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
@@ -1425,7 +1426,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-session sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2571,3 +2572,8 @@ toolchain-fes-pcxt:
 
 build-fes-pcxt:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
+
+.PHONY: sim-fes-c64-session
+sim-fes-c64-session:
+	$(require_local_sim)
+	$(PYTHON) -m scripts.sim_fes_c64_session --verilator "$(VERILATOR)"

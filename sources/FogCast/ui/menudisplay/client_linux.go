@@ -56,6 +56,8 @@ type window struct {
 	// a frame: prepared is this client's last preparation of the generation.
 	heap     *blitHeap
 	prepared uint64
+	// minor is a blitter grant's menu-blitter minor.
+	minor int
 }
 type Status struct {
 	Available         bool   `json:"available"`
@@ -72,6 +74,8 @@ type Status struct {
 	Format            string `json:"format"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
 	Underflows        uint64 `json:"underflows"`
+	// Picture is a session plane's machine picture as x, y, width and height.
+	Picture []int `json:"picture"`
 }
 type Result struct {
 	Generation        uint64 `json:"generation"`
@@ -93,6 +97,7 @@ type reply struct {
 		DisplayedSequence *uint64 `json:"displayed_sequence"`
 		Underflows        uint64  `json:"underflows"`
 		Blitter           *struct {
+			Minor        int `json:"minor"`
 			ListOffset   int `json:"list_offset"`
 			Commands     int `json:"commands"`
 			CommandBytes int `json:"command_bytes"`
@@ -318,6 +323,7 @@ func (c *Client) windowLocked(ctx context.Context, generation uint64) (*window, 
 	c.window = &window{generation: generation, mapping: mapping}
 	if g.Blitter != nil {
 		c.window.heap = newBlitHeap()
+		c.window.minor = g.Blitter.Minor
 	}
 	return c.window, nil
 }
@@ -361,7 +367,7 @@ func (c *Client) Grant(ctx context.Context, generation uint64) (Grant, error) {
 	if err != nil {
 		return Grant{}, err
 	}
-	return Grant{Blitter: w.heap != nil}, nil
+	return Grant{Blitter: w.heap != nil, BlitterMinor: w.minor}, nil
 }
 
 func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Result, error) {
@@ -445,9 +451,6 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 		// An END would submit a slot holding the frame before last.
 		return Result{}, errors.New("empty menu blit frame")
 	}
-	if err := frame.check(); err != nil {
-		return Result{}, err
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var timing Timing
@@ -458,6 +461,9 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 	}
 	if w.heap == nil {
 		return Result{}, errors.New("menu grant has no blitter")
+	}
+	if err := frame.check(w.minor); err != nil {
+		return Result{}, err
 	}
 	placed, err := w.heap.place(frame)
 	if err != nil {

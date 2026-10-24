@@ -94,6 +94,7 @@ def _nextpnr_option_count_for_lock(lock_path: Path) -> int:
         "cores/fes-pong/toolchain.lock",
         "cores/fes-riscv/toolchain.lock",
         "cores/fes-zx81/toolchain.lock",
+        "cores/fes-atari-st/toolchain.lock",
     )):
         return 105
     return 96

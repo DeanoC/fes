@@ -181,6 +181,21 @@ func (f *FPGA) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Col
 	f.sw.DrawTextWeight(x, y, text, sizePx, w, c)
 }
 
+// DrawMask carries the drawn part of the mask in the stream.
+func (f *FPGA) DrawMask(m *Mask, src image.Rectangle, x, y int, c Color) {
+	if m == nil {
+		return
+	}
+	part := src.Intersect(m.Bounds())
+	at := image.Pt(x, y).Add(part.Min.Sub(src.Min))
+	pix := make([]byte, 0, part.Dx()*part.Dy())
+	for row := part.Min.Y; row < part.Max.Y; row++ {
+		pix = append(pix, m.Pix[row*m.W+part.Min.X:row*m.W+part.Max.X]...)
+	}
+	f.record(Command{Op: OpDrawMask, X: at.X, Y: at.Y, Width: part.Dx(), Height: part.Dy(), Color: c, Pixels: pix})
+	f.sw.DrawMask(m, src, x, y, c)
+}
+
 func (f *FPGA) Close() {
 	f.record(Command{Op: OpClose})
 	f.sw.Close()

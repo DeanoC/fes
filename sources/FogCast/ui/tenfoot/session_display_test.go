@@ -1,12 +1,17 @@
 package tenfoot
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"image"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -93,19 +98,53 @@ func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
 	now := time.Now()
 	app.HandleCommand(CmdHome, now)
 	app.HandleCommand(CmdSearch, now)
-	if snap := app.Snapshot(); snap.Session.LoadTape || snap.Session.HardwareRoom || snap.Room.DuringPlay || snap.TapePicker.Open || displays.Load() != 0 {
+	if snap := app.Snapshot(); snap.Session.LoadTape || snap.Session.HardwareRoom || snap.Session.ControlsOpen || snap.TapePicker.Open || displays.Load() != 0 {
 		t.Fatalf("computer tape without a plane opened controls: %+v displays=%d", snap.Session, displays.Load())
 	}
 }
 
-func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
-	prior := computerTapeDisplaySession()
+func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		contract           protocol.RuntimeContract
+		minBytes, maxBytes uint32
+	}{
+		{"zx81", protocol.Zx81TapeInterface(), 1, 16384},
+		{"spectrum", protocol.SpectrumTapeInterface(), 1, 65536},
+		{"apple2", protocol.Apple2FloppyInterface(), 143360, 143360},
+		{"c64", protocol.C64DiskInterface(), 174848, 174848},
+		{"atari-st", protocol.AtariStFloppyInterface(), 737280, 737280},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prior := computerTapeDisplaySession()
+			prior.CorePackage.ActiveInterfaces[0] = hostclient.SessionCoreInterface{ID: tc.contract.ID, Major: tc.contract.Major, Minor: tc.contract.Minor}
+			prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}
+			testKitComputerMediaDisplay(t, prior)
+		})
+	}
+}
+
+func testKitComputerMediaDisplay(t *testing.T, prior hostclient.SessionResult) {
+	t.Helper()
 	var mu sync.Mutex
 	var visible []bool
 	presenter := &countingSessionMenu{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/session/display" {
 			http.NotFound(w, r)
+			return
+		}
+		// Use the same admission predicate as the host service, target agent and
+		// runtime adapter. A display-capable UI projection alone is insufficient.
+		b, valid := protocol.DevelopmentMediaHeaders(r.Header)
+		p := prior.CorePackage
+		observed := &protocol.CorePackageStatus{PackageID: p.PackageID, Generation: p.Generation,
+			ABI: protocol.RuntimeContract{ID: p.ABI.ID, Major: p.ABI.Major, Minor: p.ABI.Minor}, MediaUnits: p.MediaUnits}
+		for _, i := range p.ActiveInterfaces {
+			observed.ActiveInterfaces = append(observed.ActiveInterfaces, protocol.RuntimeInterface{ID: i.ID, Major: i.Major, Minor: i.Minor})
+		}
+		if !valid || !b.MatchesSessionDisplay(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observed}) {
+			http.Error(w, "session display identity rejected", http.StatusConflict)
 			return
 		}
 		req := struct{ Visible bool }{decodeSessionDisplay(t, r)}
@@ -134,7 +173,7 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 	now := time.Now()
 	app.HandleCommand(CmdHome, now)
 	waitFor(t, app, "computer HDMI room", func(s Snapshot) bool {
-		return s.Room.DuringPlay && !s.GPUParked && !s.TapePicker.Open
+		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open
 	})
 	display.Present()
 	waitSessionMenuFrame(t, display)
@@ -144,19 +183,15 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 	app.mu.Lock()
 	app.openTapePickerLocked()
 	app.mu.Unlock()
-	waitFor(t, app, "computer tape picker", func(s Snapshot) bool { return s.TapePicker.Open && s.Room.DuringPlay })
+	waitFor(t, app, "computer tape picker", func(s Snapshot) bool { return s.TapePicker.Open && s.Session.ControlsOpen })
 	display.Present()
 	waitSessionMenuFrame(t, display)
 	if calls, n := presenter.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
 		t.Fatalf("tape picker frame was not submitted: calls=%d bytes=%d", calls, n)
 	}
 	app.HandleCommand(CmdBack, now)
-	waitFor(t, app, "picker closed on the plane", func(s Snapshot) bool {
-		return !s.TapePicker.Open && s.Room.DuringPlay && !s.GPUParked
-	})
-	app.HandleCommand(CmdBack, now)
 	waitFor(t, app, "computer video restored", func(s Snapshot) bool {
-		return !s.TapePicker.Open && !s.Room.DuringPlay && s.GPUParked
+		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked
 	})
 	before, _ := presenter.snapshot()
 	display.Present()
@@ -166,7 +201,7 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 	}
 	app.HandleCommand(CmdSearch, now)
 	waitFor(t, app, "search reopens the plane", func(s Snapshot) bool {
-		return s.TapePicker.Open && s.Room.DuringPlay && !s.GPUParked
+		return s.TapePicker.Open && s.Session.ControlsOpen && !s.GPUParked
 	})
 	display.Present()
 	waitSessionMenuFrame(t, display)
@@ -176,7 +211,7 @@ func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
 	app.HandleCommand(CmdBack, now)
 	app.HandleCommand(CmdBack, now)
 	waitFor(t, app, "search return", func(s Snapshot) bool {
-		return !s.TapePicker.Open && !s.Room.DuringPlay && s.GPUParked
+		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked
 	})
 	mu.Lock()
 	defer mu.Unlock()
@@ -198,7 +233,7 @@ func TestKitLiveControlsNeedObservedCapability(t *testing.T) {
 	}
 	app.HandleCommand(CmdHome, time.Now())
 	app.HandleCommand(CmdSearch, time.Now())
-	if snap := app.Snapshot(); snap.Room.DuringPlay || snap.TapePicker.Open || snap.Session.State != "active" || calls.Load() != 0 {
+	if snap := app.Snapshot(); snap.Session.ControlsOpen || snap.TapePicker.Open || snap.Session.State != "active" || calls.Load() != 0 {
 		t.Fatal("unsupported kit display mutated the running session")
 	}
 }
@@ -249,11 +284,11 @@ func TestKitDisplayOpenCloseFailureAndFreshInput(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("display mutation never began")
 	}
-	if snap := app.Snapshot(); snap.Room.DuringPlay || app.ForwardsPlayHID() || !snap.GPUParked {
+	if snap := app.Snapshot(); snap.Session.ControlsOpen || app.ForwardsPlayHID() || !snap.GPUParked {
 		t.Fatal("navigation/input enabled before physical display open succeeded")
 	}
 	close(gate)
-	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Session.ControlsOpen && !s.GPUParked })
 	if !app.HandleLocalPad(dpad, now) {
 		t.Fatal("held gameplay button leaked into room navigation")
 	}
@@ -264,12 +299,12 @@ func TestKitDisplayOpenCloseFailureAndFreshInput(t *testing.T) {
 		t.Fatal("fresh room D-pad press was swallowed")
 	}
 	app.HandleCommand(CmdBack, now)
-	waitFor(t, app, "failed physical return", func(s Snapshot) bool { return s.Room.DuringPlay && strings.Contains(s.Status, "return failed") })
+	waitFor(t, app, "failed physical return", func(s Snapshot) bool { return s.Session.ControlsOpen && strings.Contains(s.Status, "return failed") })
 	if app.ForwardsPlayHID() {
 		t.Fatal("failed close restored core input while HDMI still belonged to room")
 	}
 	app.HandleCommand(CmdBack, now)
-	waitFor(t, app, "physical return", func(s Snapshot) bool { return !s.Room.DuringPlay && s.GPUParked && app.ForwardsPlayHID() })
+	waitFor(t, app, "physical return", func(s Snapshot) bool { return !s.Session.ControlsOpen && s.GPUParked && app.ForwardsPlayHID() })
 	before := len(feed.snapshot())
 	app.HandleLocalPad(dpad, now)
 	if len(feed.snapshot()) != before {
@@ -316,12 +351,12 @@ func TestKitDisplayStaleCompletionCannotRestoreOldRoom(t *testing.T) {
 	app.mu.Unlock()
 	close(gate)
 	<-done
-	if snap := app.Snapshot(); snap.Room.DuringPlay || snap.TapePicker.Open || !snap.GPUParked {
+	if snap := app.Snapshot(); snap.Session.ControlsOpen || snap.TapePicker.Open || !snap.GPUParked {
 		t.Fatal("stale opener revived room on replacement")
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if !samePlayHIDSession(app.session, next) || app.sessionDisplayVisible {
+	if !samePlayHIDSession(app.session, next) || app.sessionDisplay.Visible {
 		t.Fatal("stale display completion replaced the current machine")
 	}
 }
@@ -396,7 +431,7 @@ func TestKitStopDuringDisplayOpenDropsLateCompletion(t *testing.T) {
 	waitFor(t, app, "Stop during display", func(s Snapshot) bool { return s.Session.State == "idle" })
 	close(gate)
 	<-displayDone
-	if snap := app.Snapshot(); snap.Session.State != "idle" || snap.Room.DuringPlay || snap.TapePicker.Open || snap.GPUParked {
+	if snap := app.Snapshot(); snap.Session.State != "idle" || snap.Session.ControlsOpen || snap.TapePicker.Open || snap.GPUParked {
 		t.Fatal("late display open resurrected stopped machine or room")
 	}
 }
@@ -477,7 +512,7 @@ func TestKitFailedStopKeepsDisplayReturnReachable(t *testing.T) {
 				t.Fatal("display open never began")
 			}
 			if !tc.pending {
-				waitFor(t, app, "HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay })
+				waitFor(t, app, "HDMI room", func(s Snapshot) bool { return s.Session.ControlsOpen })
 			}
 			app.mu.Lock()
 			displayDone := app.sessionDisplayWait
@@ -629,7 +664,7 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	waitFor(t, app, "starter rows", func(s Snapshot) bool {
 		for _, row := range s.TapePicker.Rows {
 			if row.Kind == tapePickerKindStarter {
-				return s.Room.DuringPlay
+				return s.Session.ControlsOpen
 			}
 		}
 		return false
@@ -655,27 +690,25 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 		t.Fatal("simulated media/display overlap did not reject a frame")
 	}
 	app.Tick(time.Now())
-	if snap := app.Snapshot(); snap.Room.Notice != sessionDisplayUnavailableNotice || snap.Status != "Arming Maze…" {
-		t.Fatalf("presentation warning replaced live tape status: notice=%q status=%q", snap.Room.Notice, snap.Status)
+	if snap := app.Snapshot(); snap.Session.ControlsNotice != sessionDisplayUnavailableNotice || snap.Status != "Arming Maze…" {
+		t.Fatalf("presentation warning replaced live tape status: notice=%q status=%q", snap.Session.ControlsNotice, snap.Status)
 	}
 	close(gate)
 	waitFor(t, app, "starter armed live", func(s Snapshot) bool { return !s.TapePicker.Open && strings.Contains(s.Status, "Tape armed") })
 	presenter.fail.Store(false)
-	display.Present()
-	waitSessionMenuFrame(t, display)
-	app.Tick(time.Now())
-	if snap := app.Snapshot(); display.LastError() != nil || snap.Room.Notice != "" || snap.Status != "Tape armed." {
-		t.Fatalf("healthy frame retained HDMI warning: err=%v notice=%q status=%q", display.LastError(), snap.Room.Notice, snap.Status)
+	waitFor(t, app, "starter returned to play", func(s Snapshot) bool { return !s.Session.ControlsOpen && s.GPUParked })
+	if snap := app.Snapshot(); snap.Session.ControlsNotice != "" || snap.Status != "Tape armed." {
+		t.Fatalf("return retained HDMI warning: notice=%q status=%q", snap.Session.ControlsNotice, snap.Status)
 	}
 	app.mu.Lock()
 	app.roomSessionNotice = "The running machine changed. Review the refreshed setup."
 	app.mu.Unlock()
 	app.Tick(time.Now())
-	if snap := app.Snapshot(); snap.Room.Notice == "" {
+	if snap := app.Snapshot(); snap.Session.ControlsNotice == "" {
 		t.Fatal("healthy presenter cleared an unrelated session notice")
 	}
-	if imports.Load() != 1 || arms.Load() != 1 || selections.Load() != 0 || !app.Snapshot().Room.DuringPlay {
-		t.Fatal("live starter selection changed Next start or left HDMI controls")
+	if imports.Load() != 1 || arms.Load() != 1 || selections.Load() != 0 || app.Snapshot().Session.ControlsOpen {
+		t.Fatal("live starter selection changed Next start or failed to return to play")
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
@@ -764,7 +797,7 @@ func TestKitHostStopClearsReturningToPlay(t *testing.T) {
 	t.Cleanup(server.Close)
 	app, _ := kitDisplayApp(t, server)
 	app.HandleCommand(CmdHome, time.Now())
-	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Session.ControlsOpen && !s.GPUParked })
 	app.HandleCommand(CmdBack, time.Now())
 	<-returning
 	if s := app.Snapshot().Status; s != sessionDisplayReturningStatus {
@@ -777,8 +810,8 @@ func TestKitHostStopClearsReturningToPlay(t *testing.T) {
 	close(gate)
 	<-done
 	snap := app.Snapshot()
-	if snap.Status == sessionDisplayReturningStatus || snap.Session.State != "idle" || snap.Room.DuringPlay || snap.GPUParked {
-		t.Fatalf("host stop left stale return: status=%q state=%q room=%v parked=%v", snap.Status, snap.Session.State, snap.Room.DuringPlay, snap.GPUParked)
+	if snap.Status == sessionDisplayReturningStatus || snap.Session.State != "idle" || snap.Session.ControlsOpen || snap.GPUParked {
+		t.Fatalf("host stop left stale return: status=%q state=%q room=%v parked=%v", snap.Status, snap.Session.State, snap.Session.ControlsOpen, snap.GPUParked)
 	}
 }
 
@@ -795,9 +828,9 @@ func TestKitReturnToPlayClearsStatus(t *testing.T) {
 	t.Cleanup(server.Close)
 	app, _ := kitDisplayApp(t, server)
 	app.HandleCommand(CmdHome, time.Now())
-	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Session.ControlsOpen && !s.GPUParked })
 	app.HandleCommand(CmdBack, time.Now())
-	waitFor(t, app, "return to play", func(s Snapshot) bool { return !s.Room.DuringPlay && s.GPUParked && app.ForwardsPlayHID() })
+	waitFor(t, app, "return to play", func(s Snapshot) bool { return !s.Session.ControlsOpen && s.GPUParked && app.ForwardsPlayHID() })
 	if s := app.Snapshot().Status; s == sessionDisplayReturningStatus {
 		t.Fatal("completed return kept its transition copy")
 	}
@@ -809,17 +842,289 @@ func TestKitReturnToPlayClearsStatus(t *testing.T) {
 	}
 }
 
-// decodeSessionDisplay reads a strict display request. The launcher's controls
-// take launcher focus; a return closes the plane.
+// decodeSessionDisplay reads a strict display request without a surround. The
+// launcher's controls take launcher focus; a return closes the plane.
 func decodeSessionDisplay(t *testing.T, r *http.Request) bool {
+	t.Helper()
+	display := readSessionDisplay(t, r)
+	if display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+		t.Errorf("display request without a surround: %+v", display)
+	}
+	return display.Visible
+}
+
+func readSessionDisplay(t *testing.T, r *http.Request) protocol.SessionDisplay {
 	t.Helper()
 	var request protocol.SessionDisplayRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(&request)
 	display, ok := request.Display()
-	if err != nil || !ok || display != protocol.SessionDisplayFocused && display != protocol.SessionDisplayClosed {
+	if err != nil || !ok {
 		t.Errorf("display request %+v: %v", request, err)
 	}
-	return display.Visible
+	return display
+}
+
+// surroundKit serves the session display route for a ZX81-style session and
+// reports each confirmed plane state to the fake runtime presenter.
+type surroundKit struct {
+	mu        sync.Mutex
+	displays  []protocol.SessionDisplay
+	refuse    func(protocol.SessionDisplay) bool
+	presenter *countingSessionMenu
+}
+
+func (k *surroundKit) requests() []protocol.SessionDisplay {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return append([]protocol.SessionDisplay(nil), k.displays...)
+}
+
+func newSurroundKit(t *testing.T, prior hostclient.SessionResult) (*surroundKit, *App, *gfx.MenuDisplay) {
+	t.Helper()
+	kit := &surroundKit{presenter: &countingSessionMenu{}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		display := readSessionDisplay(t, r)
+		kit.mu.Lock()
+		kit.displays = append(kit.displays, display)
+		refuse := kit.refuse != nil && kit.refuse(display)
+		kit.mu.Unlock()
+		if refuse {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		status := menudisplay.Status{Available: display.Visible, Session: true, PackageID: prior.CorePackage.PackageID,
+			CoreGeneration: prior.CorePackage.Generation, Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes,
+			Picture: []int{312, 90, 656, 540}}
+		if display.Visible {
+			status.Generation = 4
+		}
+		kit.presenter.set(status)
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	display, err := gfx.NewMenuDisplayWithPresenter(kit.presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.SetSurround(true)
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	return kit, app, display
+}
+
+// A surround shows the plane while the machine keeps input. The media
+// selector moves focus on that plane and returning gives input back with the
+// surround still shown.
+func TestKitSurroundKeepsMachineInputWhileTheSelectorMovesFocus(t *testing.T) {
+	kit, app, display := newSurroundKit(t, computerTapeDisplaySession())
+	waitFor(t, app, "surround", func(s Snapshot) bool { return s.Surround.Active && s.GPUParked })
+	if got := kit.requests(); len(got) != 1 || got[0] != protocol.SessionDisplayShown {
+		t.Fatalf("surround requests = %+v", got)
+	}
+	if !app.coreOwnsPadInput() || !app.ForwardsPlayHID() {
+		t.Fatal("surround took input from the machine")
+	}
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, n := kit.presenter.snapshot(); calls != 1 || n != menudisplay.FrameBytes {
+		t.Fatalf("surround frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	if got := display.SessionPicture(); got != image.Rect(312, 90, 968, 630) {
+		t.Fatalf("picture = %v", got)
+	}
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "media selector over the surround", func(s Snapshot) bool {
+		return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked && !s.Surround.Active
+	})
+	if app.coreOwnsPadInput() {
+		t.Fatal("media selector left input with the machine")
+	}
+	// Focus moves keep the binding, so the selector frame needs no new picture.
+	if got := display.SessionPicture(); got != image.Rect(312, 90, 968, 630) {
+		t.Fatalf("focus move rebound the plane: %v", got)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "surround after the selector", func(s Snapshot) bool { return !s.Session.ControlsOpen && s.Surround.Active })
+	if !app.coreOwnsPadInput() {
+		t.Fatal("return kept input from the machine")
+	}
+	want := []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayFocused, protocol.SessionDisplayShown}
+	if got := kit.requests(); len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("display requests = %+v", got)
+	}
+}
+
+// A plane that refuses the surround is closed, which also releases any input
+// fence the kit kept, and the session does not ask again.
+func TestKitSurroundFailureClosesThePlaneOnce(t *testing.T) {
+	kit, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	kit.mu.Lock()
+	kit.refuse = func(d protocol.SessionDisplay) bool { return d == protocol.SessionDisplayShown }
+	kit.mu.Unlock()
+	waitFor(t, app, "closed after refusal", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.surroundFailed && !app.sessionDisplayBusy && !app.sessionDisplayUncertain
+	})
+	for i := 0; i < 5; i++ {
+		app.Tick(time.Now())
+	}
+	if got := kit.requests(); len(got) != 2 || got[0] != protocol.SessionDisplayShown || got[1] != protocol.SessionDisplayClosed {
+		t.Fatalf("display requests = %+v", got)
+	}
+	if snap := app.Snapshot(); snap.Surround.Active || !app.coreOwnsPadInput() {
+		t.Fatalf("refused surround kept the plane or input: %+v", snap.Surround)
+	}
+	// The media selector still opens the plane and returns it closed.
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "media selector", func(s Snapshot) bool { return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked })
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "machine", func(s Snapshot) bool { return !s.Session.ControlsOpen && s.GPUParked && !s.Surround.Active })
+	if got := kit.requests(); len(got) != 4 || got[2] != protocol.SessionDisplayFocused || got[3] != protocol.SessionDisplayClosed {
+		t.Fatalf("display requests after refusal = %+v", got)
+	}
+}
+
+// When the fallback close is unconfirmed too, the plane stays uncertain:
+// machine input is held back and Back retries the close until it is confirmed.
+func TestKitSurroundUnconfirmedCloseKeepsARetry(t *testing.T) {
+	kit, app, _ := newSurroundKit(t, computerTapeDisplaySession())
+	closes := 0
+	kit.mu.Lock()
+	kit.refuse = func(d protocol.SessionDisplay) bool {
+		if d == protocol.SessionDisplayClosed {
+			closes++
+			return closes == 1
+		}
+		return true
+	}
+	kit.mu.Unlock()
+	waitFor(t, app, "unconfirmed close", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.surroundFailed && !app.sessionDisplayBusy && len(kit.requests()) == 2
+	})
+	app.mu.Lock()
+	uncertain := app.sessionDisplayUncertain
+	app.mu.Unlock()
+	if !uncertain || app.ForwardsPlayHID() {
+		t.Fatal("unconfirmed close released machine input or lost its retry")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "confirmed close", func(s Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return !app.sessionDisplayBusy && !app.sessionDisplayUncertain
+	})
+	want := []protocol.SessionDisplay{protocol.SessionDisplayShown, protocol.SessionDisplayClosed, protocol.SessionDisplayClosed}
+	if got := kit.requests(); len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("display requests = %+v", got)
+	}
+	if !app.ForwardsPlayHID() {
+		t.Fatal("confirmed close kept machine input")
+	}
+}
+
+// A kit running a disk machine opens Change media over play, imports a D64
+// through the paired listener and inserts it. The fake host applies the real
+// display admission and the paired import bound.
+func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
+	disk := protocol.C64DiskInterface()
+	prior := computerTapeDisplaySession()
+	prior.CorePackage.ActiveInterfaces[0] = hostclient.SessionCoreInterface{ID: disk.ID, Major: disk.Major, Minor: disk.Minor}
+	prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: disk, MinBytes: uint32(protocol.C64DiskBytes),
+		MaxBytes: uint32(protocol.C64DiskBytes), ChunkBytes: 512, State: "empty"}
+	raw, err := json.Marshal(prior.CorePackage)
+	var observed protocol.CorePackageStatus
+	if err != nil || json.Unmarshal(raw, &observed) != nil {
+		t.Fatal("observed package projection failed")
+	}
+	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &observed}
+	dir := t.TempDir()
+	image := bytes.Repeat([]byte{0x64}, int(protocol.C64DiskBytes))
+	if err := os.WriteFile(filepath.Join(dir, "game.d64"), image, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "other.dsk"), make([]byte, protocol.Apple2FloppyBytes), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var visible []bool
+	var inserted protocol.LiveMediaRequest
+	var imports, inserts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, bound := protocol.DevelopmentMediaHeaders(r.Header)
+		switch r.URL.Path {
+		case "/api/v1/session/display":
+			if !bound || !b.MatchesSessionDisplay(running) {
+				http.Error(w, "session display identity rejected", http.StatusConflict)
+				return
+			}
+			show := decodeSessionDisplay(t, r)
+			mu.Lock()
+			visible = append(visible, show)
+			mu.Unlock()
+			writeKitDisplaySession(w, prior)
+		case "/api/v1/core-media":
+			if !protocol.AdmitRemovableMediaSize(r.ContentLength) {
+				http.Error(w, "paired import bound", http.StatusBadRequest)
+				return
+			}
+			body, _ := io.ReadAll(r.Body)
+			imports.Add(1)
+			json.NewEncoder(w).Encode(map[string]any{"media_id": fmt.Sprintf("%x", sha256.Sum256(body)), "size": len(body)})
+		case "/api/v1/session/live-media":
+			mu.Lock()
+			err := json.NewDecoder(r.Body).Decode(&inserted)
+			mu.Unlock()
+			if err != nil || !bound || b.PackageID != prior.CorePackage.PackageID || b.Generation != prior.CorePackage.Generation || r.Header.Get(protocol.HostSessionIDHeader) != prior.ID {
+				t.Error("disk insert lost the captured machine")
+			}
+			inserts.Add(1)
+			writeKitDisplaySession(w, prior)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session = prior
+	app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "usb", System: "c64", Root: dir}}
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "disk selector over play", func(s Snapshot) bool {
+		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open && s.TapePicker.Title == tapePickerTitle
+	})
+	selectTapeLibraryRoot(t, app, dir)
+	for _, row := range app.Snapshot().TapePicker.Rows {
+		if row.Kind == tapePickerKindFile && row.Selectable != (row.Name == "game.d64") {
+			t.Fatalf("wrong disk selection: %+v", row)
+		}
+	}
+	selectTapeNamedRow(t, app, "game.d64")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "disk inserted and play restored", func(s Snapshot) bool {
+		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Media inserted."
+	})
+	mu.Lock()
+	defer mu.Unlock()
+	if imports.Load() != 1 || inserts.Load() != 1 || inserted.Name != "game.d64" || inserted.MediaID != fmt.Sprintf("%x", sha256.Sum256(image)) {
+		t.Fatalf("imports=%d inserts=%d inserted=%+v", imports.Load(), inserts.Load(), inserted)
+	}
+	if len(visible) != 2 || !visible[0] || visible[1] {
+		t.Fatalf("display handoff = %v", visible)
+	}
 }

@@ -5,12 +5,32 @@
 -- Colour tables, not hex strings: the draw callback parses a string on every
 -- coloured primitive, and that cost is inside the kit's frame budget.
 local function rgb(r, g, b) return {r = r, g = g, b = b} end
-local C = {
+local LIGHT = {
   paper = rgb(244, 240, 232), panel = rgb(255, 252, 245), raised = rgb(233, 230, 220),
   ink = rgb(36, 54, 49), muted = rgb(83, 98, 90), line = rgb(206, 207, 192),
   accent = rgb(35, 90, 70), light = rgb(252, 252, 243), warm = rgb(246, 235, 203),
   warm_edge = rgb(217, 180, 90), card = rgb(92, 122, 107), brass = rgb(182, 146, 82),
 }
+-- Dark roles over a running machine (room.overlay, kit HDMI only). The clear
+-- is a translucent scrim, so the machine stays visible, dimmed, behind the
+-- room. Text sits on the scrim or on its own dark surface; the notice keeps
+-- its warm edge on a dark fill. Connector colours are unchanged.
+local DARK = {
+  paper = {r = 20, g = 25, b = 24, a = 200}, panel = rgb(32, 39, 37), raised = rgb(48, 57, 54),
+  ink = rgb(237, 243, 233), muted = rgb(181, 195, 185), line = rgb(74, 86, 80),
+  accent = rgb(200, 227, 172), light = rgb(32, 55, 39), warm = rgb(32, 39, 37),
+  warm_edge = rgb(230, 200, 130), card = rgb(92, 122, 107), brass = rgb(182, 146, 82),
+}
+local C, overlay = LIGHT, false
+-- Each picture is painted in one appearance.
+local function appearance()
+  overlay = room.overlay and true or false
+  C = overlay and DARK or LIGHT
+end
+-- A presented frame may be reused only in the appearance it was painted in.
+local function same_appearance()
+  return (room.overlay and true or false) == overlay
+end
 local data, machine, art
 local chosen, inspected = "", ""
 local focus = "socket"
@@ -26,7 +46,7 @@ local held_w, held_h = -1, -1
 local held_focus, held_page, held_inspected, held_chosen
 local held_loading, held_saving, held_stale
 local held_message, held_read_error
-local held_art, held_data, held_machine
+local held_art, held_data, held_machine, held_overlay
 
 -- Command rows are reused across pictures. A fresh open still fills them
 -- once; the refresh that follows a later visit writes into the same rows.
@@ -197,6 +217,7 @@ local function scene_same()
   if message ~= held_message or read_error ~= held_read_error or inspected ~= held_inspected or chosen ~= held_chosen then return false end
   local ready = art and art.ready and true or false
   if ready ~= held_art or data ~= held_data or machine ~= held_machine then return false end
+  if (room.overlay and true or false) ~= held_overlay then return false end
   return true
 end
 local function remember_scene()
@@ -207,6 +228,7 @@ local function remember_scene()
   held_message, held_read_error = message, read_error
   held_art = art and art.ready and true or false
   held_data, held_machine = data, machine
+  held_overlay = overlay
 end
 local function remember()
   store.set("navigation",{game_id=chosen,inspected=inspected,focus=focus,page=page})
@@ -384,6 +406,7 @@ end
 local function paint_opening()
   controls = {}
   recycle()
+  appearance()
   clear_row(C.paper)
   rect(24,18,18,5,C.accent)
   text("FES",50,14,24,C.ink,80,true)
@@ -396,6 +419,7 @@ local function picture(part)
     controls = {}
     recycle()
     sink = nil
+    appearance()
     clear_row(C.paper)
   else
     -- The upper half is already presented. Recycle its rows, then append.
@@ -424,11 +448,14 @@ local function picture(part)
   text(info,24,122,15,C.muted,1072)
 
   -- Machine card: the saved next start stays on the connector. A ready
-  -- preview is outlined beside it and never replaces the saved card.
-  rect(24,144,576,296,C.raised)
+  -- preview is outlined beside it and never replaces the saved card. Over a
+  -- running machine the real one shows through instead of card and artwork.
+  if not overlay then rect(24,144,576,296,C.raised) end
   text("Setup preview",40,154,15,C.muted,300)
   text("1 rear connector",440,154,15,C.muted,144)
-  if art and art.ready then
+  if overlay then
+    -- No artwork or silhouette: the running machine is behind the room.
+  elseif art and art.ready then
     blit(art,120,186,330,220)
   else
     -- A labelled machine silhouette keeps the room usable without artwork.
@@ -587,7 +614,7 @@ local function boot_step()
     else
       boot = 2
     end
-    if room.presented and gfx.reuse() then return end
+    if room.presented and same_appearance() and gfx.reuse() then return end
     paint_opening()
     return
   end
@@ -602,6 +629,11 @@ local function boot_step()
   end
   if not scene_same() then
     boot = 2
+    if not same_appearance() then
+      -- Never keep the upper half over a machine it was not painted for.
+      paint_opening()
+      return
+    end
     if room.presented and gfx.reuse() then return end
     return
   end

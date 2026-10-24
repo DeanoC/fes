@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"image"
 	"math"
 	"slices"
 	"sync"
@@ -182,6 +183,8 @@ type MenuDisplay struct {
 	presentedSeq uint64
 	binding      menuSessionBinding
 	bindingEpoch uint64
+	// picture is the bound session's machine picture from its latest status.
+	picture image.Rectangle
 	// Change-driven worker shortcuts. statusCache is the runtime status as of
 	// the last successful present, trusted until a probe interval after the
 	// runtime was last asked. base is the frame the runtime then showed, the
@@ -201,8 +204,7 @@ type MenuDisplay struct {
 	settled          bool
 	settledPresented bool
 	settledErr       error
-	// blitReady is whether the last idle-menu grant had the blitter; the
-	// worker sets it.
+	// blitReady is whether the last idle-menu grant selected the blitter.
 	blitReady bool
 	// Render thread: the frame's mode, its commands, and the last finished
 	// frame. cpuStale means the Software buffer lacks that frame because the
@@ -266,6 +268,7 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	reportSoftwareReady(false)
 	d.binding = binding
 	d.bindingEpoch++
+	d.picture = image.Rectangle{}
 	d.blitReady = false
 	d.known = false
 	d.generation = 0
@@ -714,6 +717,7 @@ func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudispl
 			(d.known && status.Generation != d.generation) {
 			return ErrSessionDisplayChanged
 		}
+		d.picture = sessionPicture(status)
 	} else if status.Session {
 		return ErrSessionDisplayChanged
 	}
@@ -721,6 +725,30 @@ func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudispl
 	d.known = true
 	d.noteGenerationLocked(frame.seq, status.Generation)
 	return nil
+}
+
+// SessionPicture is where the bound session's shell places the machine
+// picture in the plane, from the runtime's latest status. It is empty before
+// the first status of a binding and for an idle presenter.
+func (d *MenuDisplay) SessionPicture() image.Rectangle {
+	if d == nil {
+		return image.Rectangle{}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.picture
+}
+
+func sessionPicture(status menudisplay.Status) image.Rectangle {
+	if len(status.Picture) != 4 || status.Picture[2] <= 0 || status.Picture[3] <= 0 {
+		return image.Rectangle{}
+	}
+	p := status.Picture
+	picture := image.Rect(p[0], p[1], p[0]+p[2], p[1]+p[3])
+	if !picture.In(image.Rect(0, 0, menudisplay.Width, menudisplay.Height)) {
+		return image.Rectangle{}
+	}
+	return picture
 }
 
 func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
@@ -1032,6 +1060,10 @@ func (d *MenuDisplay) presentFrame(frame queuedMenuFrame, status menudisplay.Sta
 		grant, err := blitter.Grant(d.ctx, status.Generation)
 		if err != nil {
 			return menudisplay.Result{}, 0, false, err
+		}
+		if grant.Blitter && grant.BlitterMinor < menudisplay.MinBlitterMinor {
+			d.noteGrant(frame, menudisplay.Grant{})
+			return menudisplay.Result{}, 0, false, errors.New("menu blitter grant is below the minimum minor")
 		}
 		d.noteGrant(frame, grant)
 		if grant.Blitter {

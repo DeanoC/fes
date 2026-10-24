@@ -1066,3 +1066,147 @@ func BenchmarkHardwareRoomRedraw(b *testing.B) {
 		}
 	}
 }
+
+// Colours the light appearance owns and the overlay must not draw: dark ink
+// and green on a dimmed machine would be near 1:1 contrast.
+var lightOnlyColours = map[gfx.Color]string{
+	gfx.RGB(244, 240, 232): "paper", gfx.RGB(255, 252, 245): "panel", gfx.RGB(233, 230, 220): "raised",
+	gfx.RGB(36, 54, 49): "ink", gfx.RGB(83, 98, 90): "muted", gfx.RGB(206, 207, 192): "line",
+	gfx.RGB(35, 90, 70): "accent", gfx.RGB(246, 235, 203): "warm",
+}
+
+func overlayScrim(f Frame) bool {
+	return f.HasClear && f.Clear == gfx.RGBA(20, 25, 24, 200)
+}
+
+// Over a running machine on the kit plane the workshop clears to a
+// translucent scrim, draws the dark roles, and leaves the machine visible
+// where the illustration was. Turning the flag off restores the opaque room.
+func TestHardwareRoomOverlayDrawsOverTheRunningMachine(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := openWorkshop(t, w, h, true)
+	// The artwork decodes asynchronously; openWorkshop does not insist on it.
+	opaque := stepUntil(t, r, func(f Frame) bool {
+		for _, op := range f.Ops {
+			if op.Kind == OpImage {
+				return true
+			}
+		}
+		return false
+	})
+	now := time.Unix(5000, 0)
+	if !opaque.HasClear || opaque.Clear != gfx.RGB(244, 240, 232) {
+		t.Fatalf("host room clear = %+v", opaque.Clear)
+	}
+	r.SetOverlay(true)
+	now = now.Add(16 * time.Millisecond)
+	f := r.Step(now)
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if !overlayScrim(f) || !frameHas(f, "Import expansion") || !frameHas(f, "Running:") {
+		t.Fatalf("overlay did not repaint the workshop over a scrim: clear %+v", f.Clear)
+	}
+	for _, op := range f.Ops {
+		if op.Kind == OpImage {
+			t.Fatalf("overlay drew artwork %q over the machine", op.Image)
+		}
+		if name, light := lightOnlyColours[op.Color]; light && (op.Kind == OpRect || op.Kind == OpText) {
+			t.Fatalf("overlay drew the light %s colour: %+v", name, op)
+		}
+	}
+	if len(f.Ops) > len(opaque.Ops) {
+		t.Fatalf("overlay costs more ops than the opaque room: %d > %d", len(f.Ops), len(opaque.Ops))
+	}
+	running := workshopText(t, f, "Running: Empty socket")
+	if running.Color != gfx.RGB(237, 243, 233) {
+		t.Fatalf("overlay text colour %+v", running.Color)
+	}
+	// The settled overlay reuses its picture like the opaque room.
+	before := r.measures
+	allocs := testing.AllocsPerRun(30, func() {
+		now = now.Add(16 * time.Millisecond)
+		if g := r.Step(now); !overlayScrim(g) {
+			t.Fatal("settled overlay lost its scrim")
+		}
+	})
+	if allocs > 80 || r.measures != before {
+		t.Fatalf("settled overlay allocs/step %.1f measures %d", allocs, r.measures-before)
+	}
+	r.SetOverlay(false)
+	back := r.Step(now.Add(16 * time.Millisecond))
+	if !back.HasClear || back.Clear != gfx.RGB(244, 240, 232) {
+		t.Fatalf("leaving the overlay kept clear %+v", back.Clear)
+	}
+	var art bool
+	for _, op := range back.Ops {
+		art = art || op.Kind == OpImage
+	}
+	if !art {
+		t.Fatal("opaque room lost its illustration")
+	}
+}
+
+// A cold open over a running machine never flashes the opaque paper.
+func TestHardwareRoomColdOpenOverlayStartsOnTheScrim(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		StorePath: filepath.Join(t.TempDir(), "room.json"),
+		Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	r.SetOverlay(true)
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(5100, 0)
+	for steps := 0; steps < 24; steps++ {
+		now = now.Add(16 * time.Millisecond)
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if !overlayScrim(f) {
+			t.Fatalf("draw %d cleared to %+v over the running machine", steps, f.Clear)
+		}
+		if frameHas(f, "Import expansion") {
+			return
+		}
+	}
+	t.Fatal("overlay workshop did not finish staging")
+}
+
+// A flip of room.overlay during the staged cold open never keeps presenting
+// the opening painted in the other appearance.
+func TestHardwareRoomColdOpenFollowsAnOverlayFlip(t *testing.T) {
+	for _, start := range []bool{true, false} {
+		for flipAt := 1; flipAt <= 15; flipAt++ {
+			w, h := workshopKitSize(1280, 720)
+			r := newRoom(t, examplePack(t, "example.hardware"), Options{
+				Width: w, Height: h, Services: hardwareData(true),
+				StorePath: filepath.Join(t.TempDir(), "room.json"),
+				Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+			})
+			r.SetOverlay(start)
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Unix(5200, 0)
+			for step := 0; step < 30; step++ {
+				overlay := start
+				if step >= flipAt {
+					overlay = !start
+				}
+				r.SetOverlay(overlay)
+				now = now.Add(16 * time.Millisecond)
+				f := r.Step(now)
+				if r.Err() != nil {
+					t.Fatal(r.Err())
+				}
+				if overlayScrim(f) != overlay {
+					t.Fatalf("start %v flip at %d: draw %d presented clear %+v with overlay %v", start, flipAt, step, f.Clear, overlay)
+				}
+			}
+		}
+	}
+}

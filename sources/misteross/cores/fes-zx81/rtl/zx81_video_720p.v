@@ -84,10 +84,14 @@ module zx81_video_720p (
     reg fb_q;
     always @(posedge pixel_clk)
         fb_q <= fb[{src_y[8:0], src_x[8:0]}];
-    wire pixel = in_image && src_x < {1'b0, SRC_W} && src_y < {1'b0, SRC_H} && fb_q;
-    assign red = pixel ? 8'hff : 8'h00;
-    assign green = pixel ? 8'hff : 8'h00;
-    assign blue = pixel ? 8'hff : 8'h00;
+    // A stored 1 is the ULA ink pulse (black). A stored 0 is the white
+    // resting level, which is both the paper and the ZX81 border. The
+    // 720p margins outside the captured raster stay black.
+    wire in_raster = in_image && src_x < {1'b0, SRC_W} && src_y < {1'b0, SRC_H};
+    wire bright = in_raster && !fb_q;
+    assign red = bright ? 8'hff : 8'h00;
+    assign green = bright ? 8'hff : 8'h00;
+    assign blue = bright ? 8'hff : 8'h00;
 
     initial begin
         horizontal = 0;

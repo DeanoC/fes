@@ -25,7 +25,7 @@ module top #(
     output wire        HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
     wire clk_sys;
-    wire pixel_clk;
+    wire pixel_clk, pixel_locked;
     wire audio_clk, audio_locked;
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
@@ -34,7 +34,9 @@ module top #(
         .refclk(FPGA_CLK1_50), .rst(1'b0),
         .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
-    pixel_pll video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk_0(pixel_clk));
+    c64_pixel_pll video_clock (
+        .refclk(FPGA_CLK1_50), .rst(1'b0), .outclk_0(pixel_clk), .locked(pixel_locked)
+    );
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps), .gp_out(hps_to_fpga)
@@ -59,8 +61,13 @@ module top #(
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable;
     wire [1:0] unit0_state;
-    fes_computer_mailbox #(
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
+    fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1), .ENABLE_C64_DISK(1),
+        .ENABLE_SESSION_DISPLAY(1),
         .MEDIA_AW(18),
         .UNIT0_MIN(`FES_COMPUTER_C64_DISK_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_C64_DISK_BYTES)
@@ -73,7 +80,12 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1), .unit0_state(unit0_state),
-        .unit0_size()
+        .unit0_size(),
+        .display_request(display_request), .display_opcode(display_opcode),
+        .display_index(display_index), .display_argument(display_argument),
+        .display_response_valid(display_response_valid),
+        .display_response_error(display_response_error),
+        .display_response_data(display_response_data), .display_quiesced(display_quiesced)
     );
 
     wire [`C64_BUS_REQ-1:0] slot1_request, slot2_request;
@@ -108,10 +120,25 @@ module top #(
         .plug_request(slot2_plug_request), .plug_response(`C64_BUS_RSP'd0)
     );
 
-    assign HDMI_TX_D = {red, green, blue};
-    assign HDMI_TX_DE = de;
-    assign HDMI_TX_HS = hsync;
-    assign HDMI_TX_VS = vsync;
+    // The shared plane reads launcher frames from HPS DDR and blends them
+    // over the finished machine word. Opening/closing never resets the C64.
+    wire [27:0] hdmi_video;
+    fes_display_plane #(
+        .PICTURE_LEFT(16'd160), .PICTURE_TOP(16'd0),
+        .PICTURE_WIDTH(16'd960), .PICTURE_HEIGHT(16'd720)
+    ) display (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
+        .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),
+        .index(display_index), .argument(display_argument),
+        .response_valid(display_response_valid), .response_error(display_response_error),
+        .response_data(display_response_data), .quiesced_sys(display_quiesced),
+        .machine({1'b1, vsync, hsync, de, red, green, blue}),
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
+    );
+    assign HDMI_TX_D = hdmi_video[23:0];
+    assign HDMI_TX_DE = hdmi_video[24];
+    assign HDMI_TX_HS = hdmi_video[25];
+    assign HDMI_TX_VS = hdmi_video[26];
     assign HDMI_TX_CLK = pixel_clk;
 
     fes_audio_output audio (

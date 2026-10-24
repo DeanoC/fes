@@ -20,6 +20,7 @@ module st_video_adapter_sim_top (
     output wire [15:0] renderer_data,
     output wire [1:0] cache_valid, cache_busy,
     output wire [31:0] bank0_frame, bank1_frame,
+    output wire [1:0] bank_current,
     output reg [27:0] direct_response = 28'd0,
     output reg [27:0] scanlines_response = 28'd0
 );
@@ -53,6 +54,7 @@ module st_video_adapter_sim_top (
     assign bank1_row = adapter.job_row[1];
     assign bank0_frame = adapter.job_frame[0];
     assign bank1_frame = adapter.job_frame[1];
+    assign bank_current = adapter.job_current;
     reg [31:0] request_q = 32'd0;
     wire [27:0] direct_result, scanlines_result;
     fes_video_part_direct direct (.video_request(request_q), .video_response(direct_result));

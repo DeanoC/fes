@@ -181,13 +181,18 @@ The `0a253257` schema review is recorded in the
 [upstream source comparison](https://github.com/DeanoC/nextpnr/compare/552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b...0a253257eadd8a7877b881ab1f940cbd9739c1be).
 
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
-nextpnr `552ba246` (fes#887), and Coleco's pins Yosys `5391eeb1`; each selects
-its own slot. Apple II, C64 and Coleco also pin nextpnr `5fe55f3d` for nextpnr
-#276's F0/F1 boundary `$ROUTETHRU` map, and Spectrum pins nextpnr main
-`6abd522f`, which contains #276 as merged and keeps that map. The Coleco development
-shell and Atari ST video-part producer remain on `9128800f` and validate its
-C/D map. The remaining per-core locks that match `toolchain.lock` share its
-slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
+`8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1`; each selects its
+own slot. Apple II, Atari ST (fes#910), C64 and Coleco also pin nextpnr
+`5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map; the Apple II
+and C64 locks are byte copies of each other and share one slot, and the Atari
+ST lock has its own. Spectrum pins nextpnr main `6abd522f`, which contains
+#276 as merged and keeps that map, in its own slot. The Atari ST video-part producer
+authenticates the ST lock and validates the same map. The Coleco development
+shell remains on `9128800f` and validates its C/D map. The other five
+per-core locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`,
+so those cores share that slot.
+Placement seeds and weights, clock checks, routing mode, GPU binding,
 timeouts, thread count, timing-failure policy, option defaults and the
 controlled environment are recorded with that core's recipe. Registered
 producer constants are read from this table.
@@ -403,8 +408,9 @@ timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
 its own recipe, ABI definition and variant parameters in the build identity,
 pins the helper source, and includes the full input digests in build evidence.
 `CACHE_ROOT=/absolute/cache` selects the HIP slot of the repository-level
-`toolchain.lock` (nextpnr `9128800f`). Pong's own lock pins nextpnr
-`552ba246`, so Pong uses a separate slot.
+`toolchain.lock` (nextpnr `9128800f`). Pong's lock pins nextpnr `552ba246`,
+so Pong uses a separate slot; [shared compiler installation](#shared-compiler-installation)
+lists the other per-core slots.
 Failed checks invalidate candidate artifacts; clean committed tracked source
 is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
@@ -581,9 +587,11 @@ is not the product bitstream and is not a fallback when the HIP seal fails.
 ## Shared compiler installation
 
 Registered FES producers select compiler pins from their corresponding
-`cores/fes-<core>/toolchain.lock`. Every lock except Coleco currently
-contains identical commits and shares one compiler-cache slot. Coleco pins
-Yosys `5391eeb1` and has its own slot. Producers select that
+`cores/fes-<core>/toolchain.lock`. Five locks contain the repository-level
+commits and share its compiler-cache slot. Apple II, C64 and Spectrum share
+a second slot on nextpnr `5fe55f3d` (nextpnr #276). Pong (nextpnr
+`552ba246`), ZX81 (`1eecf877`), RISC-V (`8f453ebc`), Atari ST (`5fe55f3d`)
+and Coleco (Yosys `5391eeb1` with nextpnr `5fe55f3d`) each have their own. Producers select that
 cache only through an explicit `--cache-root` argument or the Make
 `CACHE_ROOT=` variable. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
 selector for registered producers. HIP (`gpu-router=HIP`,
@@ -1934,9 +1942,12 @@ accepts these models.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.4.0, a package-only Commodore 64 pathfinder on
-the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
-[its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
+`cores/fes-c64` now emits `fes.c64` 0.5.0, a package-only Commodore 64
+pathfinder on the same `fes.computer` 1.0 mailbox as Apple II. It adds the
+shared in-session display plane to its native-drive shell. The 0.5.0 Kit A
+diagnostic is recorded in [the validation note](../../../docs/validation/2026-10-23-c64-session-display/README.md);
+the 0.4.0 and earlier package seals described in [its README](../cores/fes-c64/README.md)
+are historical and do not qualify these bytes. `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a native drive sector read over IEC.
 The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
@@ -1964,7 +1975,7 @@ persistence.
 three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
 Per-second CPU/drive bus and load-pointer observations are flushed during execution.
-The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
+The observation makes no boot/demo acceptance assertion. The earlier 0.4.0 package links
 36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
 (16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
 column 14, rows 32–47. Character lanes 16–19 have registered CPU/VIC ports on
@@ -2332,6 +2343,23 @@ follow the pinned VICE implementation, including the hour-12 write quirk.
 Exact analogue TOD input phase, write/tick collisions and physical-chip
 qualification remain open. External CNT edges, serial shifting, FLAG input
 and timer port outputs remain outside this slice.
+
+The C64 VIC scanout uses active-first CTA 720p60 coordinates (DE at
+0..1279/0..719, HS at 1390..1429, VS at 725..729), preserving the
+centred picture and scaling. `make sim-fes-c64-session` checks that actual
+VIC raster through the plane: lock, geometry, displayed DDR frame, sync latency
+and exact closed return. The C64 shell routes its finished 720p word through the shared
+`fes_display_plane` and uses `fes_computer_mailbox_core` with session display
+and the existing C64 disk unit enabled. The pixel PLL exposes lock for plane
+reset; display open/close does not alter machine reset or disk state. The
+960×720 picture starts at (160, 0). The format-3 package requires
+`fes.memory.hps-ddr`, `fes.video.session-display` and
+`fes.fabric.video.display-plane`. The producer checks the boot DDR layout,
+disabled writes/unused ports and synchronous FIFO reads in synthesis and routed
+evidence. Exactly three unsigned 9×9 multipliers belong to `display.*`; other
+DSP types remain forbidden. The producer maps only the plane products before
+coarse synthesis and keeps `-nodsp` for existing machine arithmetic. Older C64 packages lacking these interfaces cannot
+show an in-session menu.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `cores/fes-c64/toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
@@ -2711,7 +2739,11 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates `cores/fes-atari-st/toolchain.lock`. When at least
+The board producer authenticates `cores/fes-atari-st/toolchain.lock`, which pins
+nextpnr `5fe55f3d`, the head of DeanoC/nextpnr#276. On the shared `9128800f`
+pin the ST routes did not finish within the producer timeout (fes#910). On `1eecf877` the
+reserved sockets refused every boundary `$ROUTETHRU`; #276 restores them.
+When at least
 one route finishes and every finished route misses timing, it writes
 `build/fes-core-unavailable.json` (version 1, the requested seeds, and the
 finished routes' per-clock achieved and constraint figures) and exits
@@ -3498,11 +3530,14 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR, `fes.video.menu-display` 1.0 and
-`fes.video.menu-blitter` 1.0, no playable system identity. FES now selects it
+`fes.video.menu-blitter` 1.1, no playable system identity. FES now selects it
 as the native image's idle display. It selects `cores/fes-menu/toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
-while diagnostics retain their no-GP gate. DDR layout and per-port write checks
+while diagnostics retain their no-GP gate. Its only DSP cells are exactly the
+blitter's eight unsigned `MISTRAL_MUL9X9` products, in both netlists and the
+timing report; wider multipliers are forbidden, and the diagnostics allow no
+DSP. DDR layout and per-port write checks
 remain mandatory in both netlists: only port 1, the blitter's destination
 port, may write. Port 0 and port 2 commands have their write bit tied low,
 and write FIFOs 0, 1 and 3 and ports 3 to 5 are tied low. The diagnostics

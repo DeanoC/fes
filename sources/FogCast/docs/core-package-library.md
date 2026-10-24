@@ -688,6 +688,28 @@ kit lease. The agent supplies `/media/fat/fogcast/core-data/media`; host callers
 cannot choose a storage path. Unit status reports the durable game/base binding
 and record revision; an absent revision means no checkpoint has been published.
 
+Create a blank formatted disk in the host library and bind it as the title's
+next drive A. The name is the volume label (1–11 letters, digits, spaces or
+hyphens). Omitted geometry is the 720 KiB disk. Tracks, heads and sectors, when
+set, must be one of the twelve admitted layouts. `expected-media` is `none`
+when the title has no disk yet. The same name and geometry store one
+content-addressed image; repeating the request binds that image again.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json create-blank-st-disk WORK
+fogcast --api http://127.0.0.1:8787 --json create-blank-st-disk WORK 80 2 9 bind GAME_ID PACKAGE_ID none
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"WORK","tracks":80,"heads":2,"sectors":9,"bind":true,"game_id":"GAME_ID","expected_package_id":"PACKAGE_ID","expected_media_id":""}' \
+  http://127.0.0.1:8787/api/v1/library/atari-st-disks
+```
+
+`GET /api/v1/library/atari-st-disks` lists those layouts and their byte sizes.
+The browser FPGA library and the tenfoot Systems setup expose the same action.
+Tenfoot setup creates the default 720 KiB disk named WORK and holds it until
+the game is added. The browser binds immediately when a title is selected.
+GEMDOS writes then follow the durable drive-A path below; the stored base image
+is not overwritten.
+
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID
 fogcast --api http://127.0.0.1:8787 --json save-disk

@@ -46,6 +46,9 @@ module st_ikbd #(
     reg [7:0] joystick_key [0:5];
     reg [15:0] maximum_x, maximum_y, position_x, position_y;
     reg signed [31:0] relative_x, relative_y;
+    // Absolute motion is scaled on the accept edge and clamped on the next.
+    reg position_pending;
+    reg signed [23:0] product_x, product_y;
     reg [1:0] current_buttons, emitted_buttons;
     reg [3:0] button_events;
     reg [7:0] emitted_joystick0, emitted_joystick1;
@@ -124,14 +127,14 @@ module st_ikbd #(
     // A signed 16-bit motion (including inverted -32768) times an unsigned
     // byte fits in signed 24 bits. Clamp through a 17-bit low-word addition;
     // the product's upper byte identifies sums outside the position range.
+    function automatic signed [23:0] scaled_motion(input signed [16:0] motion, input [7:0] scale);
+        scaled_motion = motion * $signed({1'b0,scale});
+    endfunction
     function automatic [15:0] scaled_position(
-        input [15:0] position, input signed [16:0] motion,
-        input [7:0] scale, input [15:0] maximum);
-        reg signed [23:0] product;
+        input [15:0] position, input signed [23:0] product, input [15:0] maximum);
         reg [16:0] low_sum;
         reg below_zero, above_word;
         begin
-            product = motion * $signed({1'b0,scale});
             low_sum = {1'b0,position} + {1'b0,product[15:0]};
             below_zero = product[23] &&
                 (product[23:16] != 8'hff || !low_sum[16]);
@@ -224,7 +227,10 @@ module st_ikbd #(
                          command_data == 8'h99 || command_data == 8'h9a;
     // Resume/reset/mode commands remain available even with a full queue.
     // Commands needing an atomic reply wait for eight free byte slots.
-    assign command_ready = !reset && (remaining != 0 || !command_reply || count <= 56);
+    // A command waits out a pending absolute move, so it sees the updated
+    // position and cannot change scale or limits under it.
+    assign command_ready = !reset && !position_pending &&
+                           (remaining != 0 || !command_reply || count <= 56);
     wire command_accept = command_valid && command_ready;
     wire execute = command_accept && (remaining == 1 ||
                    (remaining == 0 && parameter_count(command_data) == 0));
@@ -244,10 +250,16 @@ module st_ikbd #(
     wire signed [31:0] delta_y = y_bottom ? -32'(mouse_dy) : 32'(mouse_dy);
     wire signed [31:0] report_x = packet_motion(relative_x);
     wire signed [31:0] report_y = packet_motion(relative_y);
-    wire motion_due = relative_x >= $signed({24'd0,threshold_x}) ||
-                      relative_x <= -$signed({24'd0,threshold_x}) ||
-                      relative_y >= $signed({24'd0,threshold_y}) ||
-                      relative_y <= -$signed({24'd0,threshold_y});
+    // |value| >= threshold for a byte threshold, without 32-bit carry chains
+    // in packet selection. Equal to value >= threshold || value <= -threshold
+    // for every 32-bit value and threshold, including zero.
+    function automatic beyond_threshold(input signed [31:0] value, input [7:0] threshold);
+        if (!value[31]) beyond_threshold = value[30:8] != 0 || value[7:0] >= threshold;
+        else beyond_threshold = value[30:8] != {23{1'b1}} || value[7:0] == 0 ||
+                                9'd256 - {1'b0,value[7:0]} >= {1'b0,threshold};
+    endfunction
+    wire motion_due = beyond_threshold(relative_x, threshold_x) ||
+                      beyond_threshold(relative_y, threshold_y);
     always @* begin
         for (integer p=0;p<8;p=p+1) packet[p]=0;
         packet_length=0; key_packet=0; mouse_packet=0; joystick0_packet=0; joystick1_packet=0;
@@ -364,6 +376,7 @@ module st_ikbd #(
             button_action<=0; threshold_x<=1; threshold_y<=1; scale_x<=1; scale_y<=1;
             mouse_key_x<=1; mouse_key_y<=1; joystick_rate<=0;
             maximum_x<=16'hffff; maximum_y<=16'hffff; position_x<=0; position_y<=0;
+            position_pending<=0; product_x<=0; product_y<=0;
             relative_x<=0; relative_y<=0; current_buttons<=0; emitted_buttons<=0;
             button_events<=0; emitted_joystick0<=0; emitted_joystick1<=0; second_phase<=0;
             for (i=0;i<6;i=i+1) begin
@@ -401,6 +414,11 @@ module st_ikbd #(
                 relative_x<=relative_x-report_x; relative_y<=relative_y-report_y;
                 emitted_buttons<=current_buttons;
             end
+            position_pending <= mouse_accept && mouse_active;
+            if (position_pending) begin
+                position_x<=scaled_position(position_x,product_x,maximum_x);
+                position_y<=scaled_position(position_y,product_y,maximum_y);
+            end
             if (mouse_accept && !port0_joystick) begin
                 current_buttons<=mouse_buttons;
                 button_events <= button_events |
@@ -409,8 +427,8 @@ module st_ikbd #(
                 if (mouse_active) begin
                     relative_x<=clip_motion(relative_x+32'(mouse_dx));
                     relative_y<=clip_motion(relative_y+delta_y);
-                    position_x<=scaled_position(position_x,{mouse_dx[15],mouse_dx},scale_x,maximum_x);
-                    position_y<=scaled_position(position_y,delta_y[16:0],scale_y,maximum_y);
+                    product_x<=scaled_motion({mouse_dx[15],mouse_dx},scale_x);
+                    product_y<=scaled_motion(delta_y[16:0],scale_y);
                 end
             end
             // Arrival of any command resumes output even if an inquiry is

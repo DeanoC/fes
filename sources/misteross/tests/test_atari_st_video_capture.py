@@ -18,7 +18,7 @@ TOP = r"""
 module st_video_capture_test_top (
     input wire clk, reset,
     input wire [1:0] resolution,
-    output wire [1:0] capture_enable, capture_commit,
+    output wire [1:0] capture_enable, capture_load,
     output wire [3:0] capture_stage,
     output wire [35:0] mem_addr,
     output wire [1:0] fetch_valid,
@@ -43,7 +43,7 @@ module st_video_capture_test_top (
         .video_request(video_request[63:32])
     );
     assign capture_enable = {physical.capture_enable, cached.capture_enable};
-    assign capture_commit = {physical.capture_commit, cached.capture_commit};
+    assign capture_load = {physical.capture_load, cached.capture_load};
     assign capture_stage = {physical.capture_stage, cached.capture_stage};
 endmodule
 """
@@ -64,20 +64,34 @@ int main(int argc, char **argv) {
     dut.resolution = 0;
     dut.eval();
     std::uint64_t states = 0, active = 0;
+    auto tick = [&dut]() {
+        dut.clk = 1;
+        dut.eval();
+        dut.clk = 0;
+        dut.eval();
+    };
     for (unsigned mode = 0; mode < 4; ++mode) {
         dut.resolution = mode;
         const unsigned planes = mode == 0 ? 4 : mode == 2 ? 1 : 2;
         const unsigned top = mode == 2 ? 160 : 60;
         const unsigned height = mode == 2 ? 400 : 600;
+        // Reset each mode from the middle of a picture line, then clock one
+        // complete frame. Decisions registered from the next counters are
+        // observed at every legal raster state, without replacing the
+        // elaborated RTL.
+        for (unsigned lead = 0; lead < 1650u * 300u + 700u + 97u * mode; ++lead) tick();
+        dut.reset = 1;
+        tick();
+        dut.reset = 0;
         for (unsigned v = 0; v < 750; ++v) {
-            for (unsigned h = 0; h < 1650; ++h) {
-                // Enumerate the actual elaborated combinational RTL at every
-                // legal raster state, without clocking or replacing its logic.
-                dut.rootp->st_video_capture_test_top__DOT__cached__DOT__horizontal = h;
-                dut.rootp->st_video_capture_test_top__DOT__cached__DOT__vertical = v;
-                dut.rootp->st_video_capture_test_top__DOT__physical__DOT__horizontal = h;
-                dut.rootp->st_video_capture_test_top__DOT__physical__DOT__vertical = v;
-                dut.eval();
+            for (unsigned h = 0; h < 1650; ++h, tick()) {
+                if (dut.rootp->st_video_capture_test_top__DOT__cached__DOT__horizontal != h ||
+                    dut.rootp->st_video_capture_test_top__DOT__cached__DOT__vertical != v ||
+                    dut.rootp->st_video_capture_test_top__DOT__physical__DOT__horizontal != h ||
+                    dut.rootp->st_video_capture_test_top__DOT__physical__DOT__vertical != v) {
+                    std::cerr << "raster mismatch: mode=" << mode << " h=" << h << " v=" << v << '\n';
+                    return EXIT_FAILURE;
+                }
                 // Independent original word-address oracle, including next
                 // line/frame wrap. It contains no optimized phase windows.
                 const unsigned ahead = h + planes;
@@ -89,9 +103,9 @@ int main(int argc, char **argv) {
                     y >= top && y < top + height && phase < planes;
                 for (unsigned implementation = 0; implementation < 2; ++implementation) {
                     const bool observed = (dut.capture_enable >> implementation) & 1;
-                    if (observed != enable || (enable &&
-                        ((((dut.capture_stage >> (2 * implementation)) & 3) != (phase & 3)) ||
-                         (((dut.capture_commit >> implementation) & 1) != (phase == planes - 1))))) {
+                    const bool load = (dut.capture_load >> implementation) & 1;
+                    if (observed != enable || load != (enable && phase == planes - 1) || (enable &&
+                        (((dut.capture_stage >> (2 * implementation)) & 3) != (phase & 3)))) {
                         std::cerr << "capture mismatch: mode=" << mode << " h=" << h
                                   << " v=" << v << " implementation=" << implementation << '\n';
                         return EXIT_FAILURE;

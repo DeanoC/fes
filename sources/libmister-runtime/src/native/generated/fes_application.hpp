@@ -166,6 +166,7 @@ constexpr std::uint32_t FesApplicationMenuBlitOpFill = 0x1u;
 constexpr std::uint32_t FesApplicationMenuBlitOpFillBlend = 0x2u;
 constexpr std::uint32_t FesApplicationMenuBlitOpCopy = 0x3u;
 constexpr std::uint32_t FesApplicationMenuBlitOpBlend = 0x4u;
+constexpr std::uint32_t FesApplicationMenuBlitOpExpand = 0x5u;
 constexpr std::uint32_t FesApplicationMenuBlitStateBusy = 0x1u;
 constexpr std::uint32_t FesApplicationMenuBlitStateFaulted = 0x2u;
 constexpr std::uint32_t FesApplicationMenuBlitStateFaultShift = 0x8u;
@@ -216,8 +217,12 @@ constexpr std::uint16_t FesApplicationInterfaceVideoMenuDisplayMinor = 0u;
 constexpr std::uint32_t FesApplicationCapabilityVideoMenuDisplay = 0x200u;
 constexpr const char* FesApplicationInterfaceVideoMenuBlitterID = "fes.video.menu-blitter";
 constexpr std::uint16_t FesApplicationInterfaceVideoMenuBlitterMajor = 1u;
-constexpr std::uint16_t FesApplicationInterfaceVideoMenuBlitterMinor = 0u;
+constexpr std::uint16_t FesApplicationInterfaceVideoMenuBlitterMinor = 1u;
 constexpr std::uint32_t FesApplicationCapabilityVideoMenuBlitter = 0x400u;
+constexpr const char* FesApplicationInterfaceVideoSessionDisplayID = "fes.video.session-display";
+constexpr std::uint16_t FesApplicationInterfaceVideoSessionDisplayMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceVideoSessionDisplayMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityVideoSessionDisplay = 0x800u;
 
 } // namespace generated
 } // namespace native

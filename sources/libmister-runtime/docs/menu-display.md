@@ -9,9 +9,11 @@ a described menu package for daemon startup. The sealed splash remains the boot
 and failure fallback. A daemon started without a menu selection stays on splash.
 
 Only `fes.menu` format 2 with required fixed video, HPS DDR and menu-display
-1.0 interfaces, and optionally menu-blitter 1.0, can be configured. It is idle
-firmware, not a game. Normal package programming, build identity and
-boot-latched DDR admission still apply.
+1.0 interfaces, and optionally menu-blitter 1.0 or 1.1, can be configured. It is idle
+firmware, not a game. A minor 1 or later declaration receives the larger
+blitter grant; a minor 0 declaration receives only the ordinary two-slot CPU
+grant. Normal package programming, build identity and boot-latched DDR
+admission still apply.
 The blitter command-list path has host software coverage; exact-artifact kit
 acceptance, including the 80 MiB target mapping, remains pending.
 `src/native/menu_admission.hpp` lists the interfaces `CheckMenu` admits. The
@@ -58,11 +60,15 @@ grant.
 
 A menu package with `fes.video.menu-blitter` gets a larger grant, and its
 `menu_frame` adds the layout of the
-[blitter](../../mister-packages/docs/application-io.md#menu-blitter-10):
+[blitter](../../mister-packages/docs/application-io.md#menu-blitter-11):
 
 ```json
-"blitter":{"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
+"blitter":{"minor":1,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}
 ```
+
+`minor` is the menu-blitter minor the firmware declares, which names the ops
+it runs: minor 1 adds EXPAND. A client must not send an op its firmware's
+minor lacks; the blitter faults it.
 
 Map `heap_offset` + `heap_bytes` (80 MiB) from offset 0 to use the blitter.
 The client writes command lists and BGRA textures there, and the blitter
@@ -212,10 +218,12 @@ and requires a new generation and grant after the next open. Stop and replacemen
 frame generation never follows a replacement core automatically.
 
 Taking launcher focus neutralizes held ZX81 keys and suppresses navigation
-keys while the launcher holds it. The native adapter owns that gate and status
-reports it. The first complete submitted frame becomes visible at a
-frame boundary. Close and frame failure disable and drain the plane without
-holding execution or resetting the computer. A sticky reader fault does not
+keys while the launcher holds it. A single-gamepad session also mutes button
+snapshots; controls observed under launcher focus stay suppressed until they
+are released, so later snapshots cannot restore them. The native adapter owns
+that gate and status reports it. The first complete submitted frame becomes
+visible at a frame boundary. Close and frame failure disable and drain the
+plane without holding execution or resetting the computer. A sticky reader fault does not
 prevent proof that the disabled plane is drained. On an ambiguous GP exchange,
 the adapter realigns from the live ACK and verifies the same package identity
 before the distinct quiesce operation. It never repeats a submission, programs

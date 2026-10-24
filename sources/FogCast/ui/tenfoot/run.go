@@ -91,6 +91,9 @@ type Options struct {
 	// tenfoot.json reduced_motion.
 	ReducedMotion    bool
 	ReducedMotionSet bool
+	// Surround draws the TV surround around a running machine on kit HDMI,
+	// from tenfoot.json surround. It defaults on.
+	Surround bool
 }
 
 // RoomInstallDirectory resolves the same room directory as the running launcher.
@@ -216,6 +219,7 @@ func (o Options) normalized() Options {
 	if !o.ReducedMotionSet && prefsErr == nil {
 		o.ReducedMotion = prefs.ReducedMotion
 	}
+	o.Surround = prefsErr != nil || prefs.Surround == nil || *prefs.Surround
 	return o
 }
 
@@ -314,6 +318,7 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetReducedMotion(opts.ReducedMotion)
+	app.SetSurround(opts.Surround)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	// menu-display is the kit entry. Host SDL, software, and
 	// linuxfb leave the local-control client unset. A resolved catalog

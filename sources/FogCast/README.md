@@ -100,8 +100,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
   role that package declares: `cassette` on the tape unit, inserted into unit 0
   after Start, or `blob` on an installed `fes.simple-computer` package. On a
-  menu-display kit, ZX81 HDMI controls use `fes.video.session-display` and
-  restore machine video on return. A setup
+  menu-display kit, Home or Select/View opens **Change media** over the running
+  machine through `fes.video.session-display`. The selector inserts or ejects
+  the active core's supported tape or disk format and returns directly to play.
+  The emulator picture remains visible outside the picker. A setup
   saved earlier as `blob` still launches on the tape unit when the current
   package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
@@ -465,3 +467,22 @@ Writable disks use explicit library bindings and runtime-owned complete-image
 saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
 and the optional slot-1 CPU expansion together; every part binds the exact
 shell package. These extensions do not add Atari ST to the factory image.
+
+### Independent room updates
+
+First-party room directories use their public `example.*` identities directly.
+The existing `fogcast-tenfoot room-install PACK_DIRECTORY` command installs Lua,
+metadata and artwork under the same identity as the built-in room. Reopen Rooms
+and select it to trial the update in the running launcher, without rebuilding
+Go or restarting the agent. `room-rollback example.fes-cores` restores the
+previous selection; a first-install rollback reveals the built-in default.
+See [room delivery](docs/rooms.md#installing-and-opening-rooms). The binary's
+embedded snapshots remain offline recovery defaults, rather than a required
+route for delivering ordinary room updates.
+
+Portable room files use the same installer and rollback path:
+`fogcast-tenfoot room-export --output home.room.zip PACK_DIRECTORY`, then
+`fogcast-tenfoot room-install home.room.zip` on the launcher's machine. Export
+validates before publishing; import checks the bounded archive privately before
+changing the selected snapshot. No source checkout is needed to install it.
+See [room installation](docs/rooms.md#installing-and-opening-rooms).

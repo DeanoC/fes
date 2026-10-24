@@ -15,6 +15,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/inputmap"
@@ -162,6 +163,9 @@ type SessionSnapshot struct {
 	DevelopmentState  string
 	Diagnostic        bool
 	LoadTape          bool
+	ControlsNotice    string
+	ControlsOpen      bool
+	MediaSelector     bool
 	HardwareRoom      bool
 }
 
@@ -249,6 +253,7 @@ type Snapshot struct {
 	CollectionMenu  CollectionMenuSnapshot
 	Session         SessionSnapshot
 	GPUParked       bool
+	Surround        SurroundSnapshot
 	Attract         AttractSnapshot
 	SafeAreaPct     float64
 	Settings        SettingsSnapshot
@@ -458,24 +463,25 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex        *rooms.Index
-	roomsDir          string
-	homeRooms         bool
-	homeRoom          string
-	gfxBackend        string
-	pinnedRooms       []string
-	reducedMotion     bool
-	homeRecents       []hostclient.Game
-	homeRecentsErr    string
-	homeRecentsLoaded bool
-	homeRecentsGen    int
-	room              *rooms.Instance
-	roomStack         []*rooms.Instance
-	roomFrame         rooms.Frame
-	roomErr           string
-	roomWasParked     bool
-	roomDuringPlay    bool
-	roomSessionNotice string
+	roomsIndex          *rooms.Index
+	roomsDir            string
+	homeRooms           bool
+	homeRoom            string
+	gfxBackend          string
+	pinnedRooms         []string
+	reducedMotion       bool
+	homeRecents         []hostclient.Game
+	homeRecentsErr      string
+	homeRecentsLoaded   bool
+	homeRecentsGen      int
+	room                *rooms.Instance
+	roomStack           []*rooms.Instance
+	roomFrame           rooms.Frame
+	roomErr             string
+	roomWasParked       bool
+	roomDuringPlay      bool
+	mediaControlsDirect bool
+	roomSessionNotice   string
 	// roomWaitAck is a Confirm received while the selected destination was
 	// still Checking. It is shown, never queued, and clears once the
 	// destination is no longer Checking.
@@ -494,8 +500,9 @@ type App struct {
 	firmwarePickerFromDetail bool
 	menuDisplay              *gfx.MenuDisplay
 	sessionDisplayBusy       bool
-	sessionDisplayVisible    bool
+	sessionDisplay           protocol.SessionDisplay
 	sessionDisplayUncertain  bool
+	surround, surroundFailed bool
 	sessionDisplayEpoch      uint64
 	sessionDisplayBinding    hostclient.SessionResult
 	sessionDisplayWait       chan struct{}
@@ -941,8 +948,22 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		return
 	}
 	if cmd == CmdBack && a.sessionDisplayUncertain {
-		a.beginSessionDisplayLocked(false, false)
+		a.beginSessionDisplayLocked(a.sessionReturnDisplayLocked(), false)
 		return
+	}
+	if a.mediaControlsDirect && a.roomDuringPlay {
+		if cmd == CmdSettings {
+			return
+		}
+		if !a.tapePickerOpen {
+			switch cmd {
+			case CmdBack, CmdHome, CmdLayoutCycle:
+				a.resumeRoomSessionLocked()
+			case CmdStop:
+				a.startStopLocked()
+			}
+			return
+		}
 	}
 	a.localStatus = ""
 	if a.coreLibrary.Open {
@@ -995,7 +1016,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 		if a.tapePickerOpen {
-			a.closeTapePickerLocked()
+			a.dismissMediaControlsLocked()
 			return
 		}
 		if a.sessionStopOfferedLocked() {
@@ -1630,7 +1651,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.syncPreviewLocked()
 	a.tickLocalCoreLocked(now)
 	a.tickSessionPadLocked(now)
-	if a.sessionDisplayVisible && !a.sessionDisplayBusy && a.menuDisplay != nil {
+	a.syncSurroundLocked()
+	// Stop drains a shown plane, so its frames fail without a display fault.
+	if a.sessionDisplay.Visible && !a.sessionDisplayBusy && a.stopPhase != "stopping" && a.menuDisplay != nil {
 		if err := a.menuDisplay.LastError(); err != nil {
 			a.roomSessionNotice = sessionDisplayUnavailableNotice
 		} else if a.roomSessionNotice == sessionDisplayUnavailableNotice {
@@ -1749,6 +1772,7 @@ func (a *App) Snapshot() Snapshot {
 		CollectionMenu:          a.collectionMenuSnapshotLocked(),
 		Session:                 a.sessionSnapshotLocked(),
 		GPUParked:               a.gpuParked,
+		Surround:                SurroundSnapshot{Active: a.surroundShownLocked()},
 		Attract:                 a.attractSnapshotLocked(),
 		SafeAreaPct:             a.safeAreaPct,
 		Settings:                a.settingsSnapshotLocked(),
@@ -1899,7 +1923,7 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKFirmwarePath:
 			snap.Prompt = "Coleco BIOS path"
 		case settingsOSKTapePath:
-			snap.Prompt = "ZX81 .p tape path"
+			snap.Prompt = "Media path"
 		}
 		return a.withOSKHintLocked(snap)
 	}
@@ -2451,7 +2475,7 @@ func (a *App) startStopModeLocked(releaseLease bool) {
 	// Stop can fail while the core still owns this display generation. Keep
 	// its binding and any pending display reply until idle is confirmed;
 	// otherwise Back and shell exit could no longer return the HDMI plane.
-	a.sessionDisplayUncertain = a.sessionDisplayUncertain || a.sessionDisplayVisible || a.sessionDisplayBusy
+	a.sessionDisplayUncertain = a.sessionDisplayUncertain || a.launcherDisplayFocusedLocked() || a.sessionDisplayBusy
 	a.suppressHeldPlayKeysLocked()
 	a.suppressHeldSessionPadLocked()
 	a.cancelPlayHIDLocked()
@@ -3350,6 +3374,9 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
 		LoadTape:          a.sessionLiveMediaOfferedLocked(),
+		ControlsNotice:    a.roomSessionNotice,
+		ControlsOpen:      a.roomDuringPlay,
+		MediaSelector:     a.needsSessionDisplayLocked() && a.sessionLiveMediaOfferedLocked(),
 		HardwareRoom:      a.playingHardwareRoomAvailableLocked(),
 	}
 }

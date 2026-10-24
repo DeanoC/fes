@@ -639,6 +639,15 @@ func (r *Instance) SetLiveControls(on bool) {
 	}
 }
 
+// SetOverlay sets room.overlay: the room is drawn over a running machine on
+// the kit's session plane, so its clear may be translucent and the machine
+// shows through it. Host windows never set it.
+func (r *Instance) SetOverlay(on bool) {
+	if r != nil && r.roomTable != nil {
+		r.roomTable.RawSetString("overlay", lua.LBool(on))
+	}
+}
+
 // SetReducedMotion updates room.reduced_motion on a live instance (settings).
 func (r *Instance) SetReducedMotion(on bool) {
 	if r == nil || r.roomTable == nil {

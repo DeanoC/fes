@@ -39,6 +39,17 @@ PARENT_INPUT_GROUPS = {
                  'appliance_media_inside', 'appliance_expand_dry_run')
 }
 
+# Reviewed lane-planner, gate and diff-check inputs affect CI policy and its
+# build/status consumers, not package/media implementation. Parent selection
+# and shared mode policy deliberately remain unlisted and select every group.
+PARENT_INPUT_GROUPS.update({
+    path: frozenset({'policy'}) for path in (
+        'scripts/affected.py', 'scripts/ci_gate.py', 'scripts/check_diff.py',
+        'tests/test_affected.py', 'tests/test_ci_gate.py',
+        'tests/test_check_diff.py', 'tests/test_test_changed.py',
+    )
+})
+
 # Test modules may supply fixtures to another group. Keep their consumers too.
 # Other current cross-test imports stay within a group or in baseline policy.
 TEST_CONSUMER_GROUPS = {
@@ -60,7 +71,7 @@ def parent_groups(path):
     if path in PARENT_INPUT_GROUPS:
         return PARENT_INPUT_GROUPS[path]
     for group, modules in GROUPS.items():
-        # Selection-policy tests keep full coverage of the selector itself.
+        # Unreviewed policy tests keep full coverage of the selector itself.
         if group != 'policy':
             for module in modules:
                 if path == 'tests/' + module + '.py':

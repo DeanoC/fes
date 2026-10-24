@@ -34,6 +34,50 @@ The directory precedence is `-rooms DIR`, `tenfoot.json` `rooms_dir`,
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
+First-party source packs declare the same `example.*` ids as the built-in
+rooms, so installing one updates that room instead of creating a second entry.
+Use the already installed launcher binary, with the room source directory
+available on the same machine:
+
+```sh
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/fes-cores
+```
+
+To distribute one file instead of a source directory, export a validated pack:
+
+```sh
+fogcast-tenfoot room-export --output home.room.zip /path/to/fes-cores
+fogcast-tenfoot room-install --rooms /path/to/rooms home.room.zip
+```
+
+The ZIP contains `room.toml`, Lua and assets directly at its root, without a
+wrapper directory. Export validates through the ordinary installer and publishes
+atomically; a failed export preserves an existing output. Unchanged source
+bytes produce the same archive bytes. Install accepts either a directory or a
+portable archive and uses the same installed revision and rollback format.
+Archives are extracted privately before selection; links, duplicate/unsafe
+paths, corrupt/truncated files, more than 2,048 entries, files over 16 MiB and
+expanded contents over 64 MiB are rejected. Compressed input is capped at 72 MiB.
+No archive permissions or executable bits are carried into the installed room.
+Transfer the file to the launcher's machine before installing it; remote catalog
+transport is separate from this local operation.
+
+On a kit, omit `--rooms` to use its configured room directory. Reopen Rooms
+and select Home (or the updated room) to trial the new Lua and artwork in the
+running launcher. No Go compilation, agent restart, MENU build or OS rebuild
+is needed. The current room stays pinned to its old snapshot until reopened.
+To undo an update:
+
+```sh
+fogcast-tenfoot room-rollback --rooms /path/to/rooms example.fes-cores
+```
+
+Reopen the room again. The previous installed snapshot returns; rolling back
+a first install reveals the built-in room. Invalid Lua is rejected before
+selection, and a failed runtime trial restores the previous selection.
+Built-in rooms remain the offline recovery defaults; refreshing those binary
+snapshots is a software update, separate from normal room-pack delivery.
+
 Open **Home** with **h** / **Home** on a keyboard, or **hold B** on a
 gamepad (a shortcut, not the only Home route). When `home` is `rooms`
 and `home_room` names a pack that can be opened, start and Home open
@@ -160,7 +204,11 @@ when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bi
 `room.id`, `room.title`, `room.width`, `room.height` (logical pixels of the
 safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
-preference), `room.theme` (hex strings: `background`, `accent`, `highlight`,
+preference), `room.overlay` (boolean; true while the room is drawn over a
+running machine on the kit's HDMI session plane with launcher focus, false
+on host windows; a room that reads it can clear translucently so the machine
+stays visible, and must include it in any reused-picture key), `room.theme`
+(hex strings: `background`, `accent`, `highlight`,
 `flash`, `label`, `label_bar`, `status`, `header`, `header_bar`,
 `footer_bar`, `cover_frame`). A `hero` room also gets `room.hero`, with
 `header`, `card`, `text`, `art`, `shelf` and `footer` rectangles
@@ -169,7 +217,10 @@ recomputed before `on_resize`.
 
 ### `gfx` (inside `draw` only, except `measure`)
 
-Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255.
+Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255,
+with straight (not premultiplied) alpha. A translucent clear, or a fill under
+`gfx.blend("none")`, stores its premultiplied form. Over the kit's session
+plane that is what lets the running machine show through.
 
 | call | effect |
 | --- | --- |

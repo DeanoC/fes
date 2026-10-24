@@ -28,7 +28,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | --- | --- |
 | Host | Parent regressions/consumer consistency; host, appliance and shared expansion linker Go race tests; host UI tests |
 | `sources/misteross/expansion` Go module | Parent checks and host/target consumers, including the shared linker tests; no FPGA simulations |
-| Runtime | Parent checks, runtime software suite and host protocol consumers |
+| Runtime | Parent checks, runtime software suite and host protocol consumers (native test-only sources omit host) |
 | Shared contracts | All software lanes and their dependent consumers |
 | Parent-owned roots (`scripts/`, `tests/`, `image/`, `platform/`, `profiles/`, `containers/`) | Parent regressions and generated-consumer consistency; no component lanes or core simulations |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
@@ -91,6 +91,16 @@ packages and their transitive import consumers. Test and external-test imports
 also count as dependencies. The selector reads both native and race build
 variants with `go list`; selection happens before the existing three-way sharding.
 Each selected package retains its existing functional/race policy.
+
+CI also passes `--build-host-if-needed` to the host runner. When the validated
+change set contains only Go `_test.go` files and safe accompanying guides, the
+runner skips the additional standalone `make host` binary build. All selected Go
+tests still run. Production Go, build/dependency inputs, uncertain ownership or
+embedded guides, omitted paths, and full/scheduled runs keep the build on shard 1.
+The JSON report records whether the build is required and scheduled on that
+shard; a required build failure fails the runner before tests start. Plain
+`make host` remains unconditional, and local host test runs include no binary
+build unless the option is supplied.
 
 Accompanying Markdown guides in the root `docs/` tree, a selected Go module's
 `docs/` tree, or the root/module `README.md` and `AGENTS.md` do not restore the
@@ -306,3 +316,43 @@ The simulation-only `fes-menu` family is selected by its RTL or simulation
 script changes. Local affected checks and the required CI simulation matrix
 run `make sim-fes-menu`, covering reader and video regressions. This does not
 select a menu artifact for the appliance or qualify physical scanout.
+
+### Runtime build regressions
+
+CI and `test-changed` use the same runtime target selection. Reviewed C/C++
+source, header and test changes (optionally with guides) run `test-routine`:
+all runtime tests once, header-dependency queries, the version-rebuild regression,
+and the active-tree and hardware-support guards. The dependency check first
+requires each binary to be up to date, then uses Make's assumed-new header
+queries to prove it would rebuild. It changes no timestamps and compiles nothing.
+
+Runtime Makefiles, shell scripts, third-party inputs, CI/policy changes and
+unknown inputs retain `make test`, which actually touches the representative
+headers, rebuilds every test binary and reruns the suite. Scheduled/manual runs
+and `test-changed --full` retain this exhaustive mode. Direct `make test` remains
+exhaustive. Inspect selection with
+`python3 scripts/runtime_tests.py --plan-only --paths-json '["sources/libmister-runtime/src/native/input.cpp"]'`.
+
+Native C/C++ test sources under runtime `tests/unit`, `tests/integration` and
+`tests/support` select runtime and the relevant parent integration checks without
+the host Go/UI lane. Production source or protocol headers, fixtures, shell
+scripts, build inputs and unclassified paths retain host consumer checks.
+Mixed changes union their lanes, including both sides of renames and deletions;
+manual/scheduled all-input runs retain every lane. Local `--full` still expands
+checks only inside selected lanes.
+
+### Reviewed parent planner inputs
+
+Edits to `scripts/affected.py`, `scripts/ci_gate.py`, `scripts/check_diff.py`
+and their reviewed regression modules (`test_affected`, `test_ci_gate`,
+`test_check_diff`, `test_test_changed`) select parent policy and build groups.
+These retain workflow, integration, source/receipt and status consumers while
+omitting unrelated media, package and acceptance suites. Mixed changes add their
+consumer groups; accompanying guides retain their documentation readers.
+Unassigned test modules still run.
+
+Changes to `parent_affected.py`, `parent_tests.py`, `test_parent_affected.py`,
+shared test-mode policy, other unreviewed inputs, or an omitted/unknown path list
+retain the full parent suite. Manual/scheduled full plans and `--full` remain
+exhaustive. This selection changes parent checks only; component lane selection
+and the integration gate stay unchanged.

@@ -10,7 +10,9 @@ module st_rom (
     output reg [15:0] rdata,
     output reg ready
 );
-    localparam [2:0] IDLE=0, EVEN_WAIT=1, EVEN=2, ODD_WAIT=3, ODD=4, COMPLETE=5;
+    // The odd address follows the even one by a clock, so each byte spends a
+    // clock in its M10K and a clock in the group registers before sampling.
+    localparam [2:0] IDLE=0, EVEN_READ=1, ODD_READ=2, EVEN_GROUP=3, ODD_GROUP=4, COMPLETE=5;
     reg [2:0] state;
     reg [17:0] byte_address;
     reg [7:0] upper_byte;
@@ -18,9 +20,12 @@ module st_rom (
 `ifdef VERILATOR
     reg [7:0] memory [0:196607];
     initial $readmemh("st-firmware.hex",memory);
-    reg [7:0] sampled_byte;
-    always @(posedge clk) sampled_byte <= byte_address < 196608 ? memory[byte_address] : 8'hff;
-    assign byte_data=sampled_byte;
+    reg [7:0] sampled_byte, grouped_byte;
+    always @(posedge clk) begin
+        sampled_byte <= byte_address < 196608 ? memory[byte_address] : 8'hff;
+        grouped_byte <= sampled_byte;
+    end
+    assign byte_data=grouped_byte;
 `else
     wire [9:0] q0;
     (* keep, BEL = "MISTRAL_M10K.5.1.0" *)
@@ -1368,41 +1373,49 @@ module st_rom (
     wire [7:0] masked189 = q189[7:0] & {8{byte_address[17:10] == 8'd189}};
     wire [7:0] masked190 = q190[7:0] & {8{byte_address[17:10] == 8'd190}};
     wire [7:0] masked191 = q191[7:0] & {8{byte_address[17:10] == 8'd191}};
+    // Each region's masked lanes are reduced into a register beside its
+    // pinned M10K column, so no clock spans the chip and a 192-input tree.
+    reg [7:0] group0, group1, group2, group3, group4, group5, group6;
+    always @(posedge clk) begin
+        group0 <= masked0 | masked1 | masked2 | masked3 | masked4 | masked5 | masked6 | masked7 |
+            masked8 | masked9 | masked10 | masked11 | masked12 | masked13;
+        group1 <= masked14 | masked15 | masked16 | masked17 | masked18 | masked19 | masked20 | masked21 |
+            masked22 | masked23 | masked24 | masked25 | masked26 | masked27 | masked28 | masked29 |
+            masked30 | masked31 | masked32 | masked33 | masked34 | masked35 | masked36 | masked37;
+        group2 <= masked38 | masked39 | masked40 | masked41 | masked42 | masked43 | masked44 | masked45;
+        group3 <= masked46 | masked47 | masked48 | masked49 | masked50 | masked51 | masked52 | masked53 |
+            masked54 | masked55 | masked56 | masked57 | masked58 | masked59 | masked60 | masked61 |
+            masked62 | masked63 | masked64 | masked65 | masked66 | masked67 | masked68 | masked69 |
+            masked70 | masked71 | masked72 | masked73 | masked74 | masked75 | masked76 | masked77 |
+            masked78 | masked79 | masked80 | masked81 | masked82 | masked83 | masked84 | masked85;
+        group4 <= masked86 | masked87 | masked88 | masked89 | masked90 | masked91 | masked92 | masked93 |
+            masked94 | masked95 | masked96 | masked97 | masked98 | masked99 | masked100 | masked101 |
+            masked102 | masked103 | masked104 | masked105 | masked106 | masked107 | masked108 | masked109 |
+            masked110 | masked111 | masked112 | masked113 | masked114 | masked115 | masked116 | masked117 |
+            masked118 | masked119 | masked120 | masked121 | masked122 | masked123 | masked124 | masked125;
+        group5 <= masked126 | masked127 | masked128 | masked129 | masked130 | masked131 | masked132 | masked133 |
+            masked134 | masked135 | masked136 | masked137 | masked138 | masked139 | masked140 | masked141 |
+            masked142 | masked143 | masked144 | masked145 | masked146 | masked147 | masked148 | masked149 |
+            masked150 | masked151 | masked152 | masked153 | masked154 | masked155 | masked156 | masked157 |
+            masked158;
+        group6 <= masked159 | masked160 | masked161 | masked162 | masked163 | masked164 | masked165 | masked166 |
+            masked167 | masked168 | masked169 | masked170 | masked171 | masked172 | masked173 | masked174 |
+            masked175 | masked176 | masked177 | masked178 | masked179 | masked180 | masked181 | masked182 |
+            masked183 | masked184 | masked185 | masked186 | masked187 | masked188 | masked189 | masked190 |
+            masked191;
+    end
     assign byte_data = {8{byte_address[17:16] == 2'b11}} |
-        masked0 | masked1 | masked2 | masked3 | masked4 | masked5 | masked6 | masked7 |
-        masked8 | masked9 | masked10 | masked11 | masked12 | masked13 | masked14 | masked15 |
-        masked16 | masked17 | masked18 | masked19 | masked20 | masked21 | masked22 | masked23 |
-        masked24 | masked25 | masked26 | masked27 | masked28 | masked29 | masked30 | masked31 |
-        masked32 | masked33 | masked34 | masked35 | masked36 | masked37 | masked38 | masked39 |
-        masked40 | masked41 | masked42 | masked43 | masked44 | masked45 | masked46 | masked47 |
-        masked48 | masked49 | masked50 | masked51 | masked52 | masked53 | masked54 | masked55 |
-        masked56 | masked57 | masked58 | masked59 | masked60 | masked61 | masked62 | masked63 |
-        masked64 | masked65 | masked66 | masked67 | masked68 | masked69 | masked70 | masked71 |
-        masked72 | masked73 | masked74 | masked75 | masked76 | masked77 | masked78 | masked79 |
-        masked80 | masked81 | masked82 | masked83 | masked84 | masked85 | masked86 | masked87 |
-        masked88 | masked89 | masked90 | masked91 | masked92 | masked93 | masked94 | masked95 |
-        masked96 | masked97 | masked98 | masked99 | masked100 | masked101 | masked102 | masked103 |
-        masked104 | masked105 | masked106 | masked107 | masked108 | masked109 | masked110 | masked111 |
-        masked112 | masked113 | masked114 | masked115 | masked116 | masked117 | masked118 | masked119 |
-        masked120 | masked121 | masked122 | masked123 | masked124 | masked125 | masked126 | masked127 |
-        masked128 | masked129 | masked130 | masked131 | masked132 | masked133 | masked134 | masked135 |
-        masked136 | masked137 | masked138 | masked139 | masked140 | masked141 | masked142 | masked143 |
-        masked144 | masked145 | masked146 | masked147 | masked148 | masked149 | masked150 | masked151 |
-        masked152 | masked153 | masked154 | masked155 | masked156 | masked157 | masked158 | masked159 |
-        masked160 | masked161 | masked162 | masked163 | masked164 | masked165 | masked166 | masked167 |
-        masked168 | masked169 | masked170 | masked171 | masked172 | masked173 | masked174 | masked175 |
-        masked176 | masked177 | masked178 | masked179 | masked180 | masked181 | masked182 | masked183 |
-        masked184 | masked185 | masked186 | masked187 | masked188 | masked189 | masked190 | masked191;
+        group0 | group1 | group2 | group3 | group4 | group5 | group6;
 `endif
     always @(posedge clk) begin
         if (reset) begin
             state<=IDLE; byte_address<=0; upper_byte<=0; ready<=0; rdata<=0;
         end else case (state)
-            IDLE: if (req) begin byte_address<={address,1'b0}; state<=EVEN_WAIT; end
-            EVEN_WAIT: state<=EVEN;
-            EVEN: begin upper_byte<=byte_data; byte_address[0]<=1; state<=ODD_WAIT; end
-            ODD_WAIT: state<=ODD;
-            ODD: begin rdata<={upper_byte,byte_data}; ready<=1; state<=COMPLETE; end
+            IDLE: if (req) begin byte_address<={address,1'b0}; state<=EVEN_READ; end
+            EVEN_READ: begin byte_address[0]<=1; state<=ODD_READ; end
+            ODD_READ: state<=EVEN_GROUP;
+            EVEN_GROUP: begin upper_byte<=byte_data; state<=ODD_GROUP; end
+            ODD_GROUP: begin rdata<={upper_byte,byte_data}; ready<=1; state<=COMPLETE; end
             COMPLETE: if (!req) begin ready<=0; state<=IDLE; end
             default: state<=IDLE;
         endcase

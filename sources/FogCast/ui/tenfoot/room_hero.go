@@ -268,12 +268,12 @@ func heroLine(dev gfx.Device, labels map[string]gpuTexture, used map[string]stru
 		weight = gfx.WeightBold
 	}
 	text = gfx.FitTextWeight(text, size, maxW, weight)
-	tex, ok := roomTextTexture(dev, labels, used, rooms.Op{Kind: rooms.OpText, Text: text, Size: size, Bold: bold, Color: color})
+	line, ok := roomText(labels, used, rooms.Op{Kind: rooms.OpText, Text: text, Size: size, Bold: bold})
 	if !ok {
 		return gfx.TextHeightWeight(size, weight)
 	}
-	dev.Draw(tex.tex, nil, gfx.Rect{X: float32(x), Y: float32(y), W: float32(tex.w), H: float32(tex.h)})
-	return tex.h
+	drawMask(dev, line, x, y, color)
+	return line.h
 }
 
 func heroOutline(dev gfx.Device, x, y, w, h, t int, c gfx.Color) {

@@ -121,6 +121,8 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.Home = homePrefValue(a.homeRooms)
 	case "reduced-motion":
 		existing.ReducedMotion = a.reducedMotion
+	case "surround":
+		existing.Surround = boolPtr(a.surround)
 	default:
 		return
 	}

@@ -1758,9 +1758,9 @@ void TestMenuFramesAlternateSlots()
  Fixture f;const std::string id(64,'a');
  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
  const auto menu=f.runtime.status().menu_display;
- int window=-1;bool blitter=true;
- assert(f.runtime.ShareMenuWindow(menu.generation,&window,&blitter).ok()&&window>=0&&!blitter);close(window);
- assert(f.runtime.ShareMenuWindow(menu.generation+1,&window,&blitter).code==ErrorCode::invalid_request);
+ int window=-1;bool blitter=true;std::uint16_t minor=9;
+ assert(f.runtime.ShareMenuWindow(menu.generation,&window,&blitter,&minor).ok()&&window>=0&&!blitter&&minor==0);close(window);
+ assert(f.runtime.ShareMenuWindow(menu.generation+1,&window,&blitter,&minor).code==ErrorCode::invalid_request);
  mister::MenuDisplayInfo info;
  for(const std::uint8_t expected:{std::uint8_t(1),std::uint8_t(0),std::uint8_t(1)}) {
   std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
@@ -1778,10 +1778,12 @@ void TestMenuBlitterGrantTakesCpuFramesUntilAList()
 {
  for(const bool blitter:{false,true}) {
   Fixture f;const std::string id(64,'a');f.hardware.menu_status.blitter=blitter;
+  f.hardware.menu_status.blitter_minor=blitter?1:0;
   assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
   auto generation=f.runtime.status().menu_display.generation;
-  int window=-1;bool granted=!blitter;
-  assert(f.runtime.ShareMenuWindow(generation,&window,&granted).ok()&&granted==blitter);close(window);
+  // The grant names the firmware's menu-blitter minor.
+  int window=-1;bool granted=!blitter;std::uint16_t minor=7;
+  assert(f.runtime.ShareMenuWindow(generation,&window,&granted,&minor).ok()&&granted==blitter&&minor==(blitter?1:0));close(window);
   mister::MenuDisplayInfo info;
   const auto present=[&](const mister::MenuDraw& draw){
    std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(generation,&frame).ok());

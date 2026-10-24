@@ -116,9 +116,11 @@ verify construction and reject old mutation authority.
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
 is admitted only alongside fixed video and HPS DDR. The only other interface a
-menu package may declare is `fes.video.menu-blitter` 1.0 (bit 10), which
-requires the menu display. Live identity must match the declared capabilities
-exactly. `MenuDisplayDriver`
+menu package may declare is `fes.video.menu-blitter` 1.0 or 1.1 (bit 10), which
+requires the menu display. The runtime grants the blitter window only when the
+declared minor is 1 or later; a minor 0 declaration gets the ordinary slot-only
+grant, so no socket peer can opt a shared grant into list-only commits. Live
+identity must match the declared capabilities exactly. `MenuDisplayDriver`
 validates fixed geometry, reads coherent counters, stages ordered submissions,
 and waits for drained quiescence. `ConfigureMenuPackage` explicitly selects a described `fes.menu` package while
 idle. Image startup may pass a sealed menu package selection to the daemon;
@@ -245,9 +247,12 @@ FPGA scanout waits for a complete submitted frame before switching HDMI pixels.
 Taking launcher focus neutralizes the keyboard first. Moving focus on a shown
 plane keeps its generation, grant and preparation. Close drains the plane
 without execution hold and revokes the display generation and preparation.
-Navigation key snapshots are suppressed while the launcher holds focus. The
-native adapter owns that gate: a close or failure that cannot prove the plane
-drained keeps launcher focus, and status reports it as `menu_display.focus`.
+Navigation key snapshots are suppressed while the launcher holds focus. For a
+single gamepad, button snapshots are muted as well; controls observed while the
+launcher has focus stay suppressed until they are released, so a later full
+snapshot cannot restore them. The native adapter owns that gate: a close or
+failure that cannot prove the plane drained keeps launcher focus, and status
+reports it as `menu_display.focus`.
 Stop/replacement drain the display before their existing execution hold.
 
 A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.
