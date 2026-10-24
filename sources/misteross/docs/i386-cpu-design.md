@@ -138,11 +138,16 @@ Programmer's Reference Manual (1986):
   implemented. This is a recorded deviation; no target software is known to
   use it.
 
-Hidden descriptor caches behave as on a 386. A real-mode or V86 segment load
-changes the selector and base and leaves the limit and attributes alone, so
-unreal mode works (Ultima VII's memory manager is the best-known user). Every
-data access is checked against the cached limit in every mode, so a real-mode
-word access at offset FFFFh raises #GP (#SS for a stack access), as on the 386.
+Hidden descriptor caches behave as on a 386. A segment load in real or V86 mode
+sets the base to selector × 16, the limit to FFFFh, and the attributes to their
+real-mode values; it does not preserve an extended limit. Unreal mode instead
+loads a larger descriptor in protected mode and then clears PE without reloading
+that segment register. Its cached descriptor survives until that register is
+loaded again in real or V86 mode. Every data access is checked against the
+cached limit in every mode: with a normal real-mode segment, a word access at
+offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode segment
+uses its cached extended limit ([Intel 80386 Programmer's Reference Manual,
+§2.3.5](https://www.dosdays.co.uk/media/intel/231746-001_Introduction_to_the_80386_Apr86.pdf)).
 
 ### The 386, not the 486
 
@@ -207,23 +212,31 @@ So:
 - EM, MP and TS act as architected. ESC raises #NM when EM or TS is set, and
   WAIT raises #NM when MP and TS are both set. Software FPU emulators rely on
   this.
-- Otherwise every ESC instruction completes without an exception of its own and
-  never raises IRQ13. WAIT does nothing.
-- Store forms (FNSTSW to memory or AX, FNSTCW, FNSTENV, FNSAVE, and FST, FIST
-  and FBSTP to memory) write all-ones across the operand's architectural size.
-  FNSTSW AX sets AX to FFFFh.
+- Otherwise ESC instructions complete without an FPU exception of their own and
+  never raise IRQ13. WAIT does nothing.
+- On a tested 386DX-33 with an empty 387 socket, FNSTSW to memory and FNSTCW
+  write FFFFh; FNSTSW AX sets AX to FFFFh. FNSTENV and FNSAVE write their
+  16- or 32-bit layouts: the CPU-maintained instruction and data pointer fields
+  contain their tracked values, while fields supplied by the absent FPU are
+  all ones. The same test found that FST and FIST memory forms do not write
+  their destinations. Other absent-387 store forms, including FBSTP, remain
+  uncharacterized and have no result prescribed here.
 - Forms that read memory (FLD, FILD, FBLD, FLDCW, FLDENV, FRSTOR, and
   arithmetic with a memory operand) do the read and discard the data.
-- Memory operands get the normal segment and page checks, so a bad operand
-  faults as it would on hardware.
-- Register forms, FNINIT and FNCLEX do nothing.
+- Only forms that actually access memory get normal segment and page checks.
+  Thus an invalid address faults for the forms above that read memory and for
+  the FNSTSW, FNSTCW, FNSTENV and FNSAVE forms that write memory; the no-write
+  FST and FIST forms do not access or check their destination.
+- Other register forms, FNINIT and FNCLEX do nothing.
 
 FNSAVE, FNSTENV, FRSTOR and FLDENV are microcode loops over the 387's 16- or
 32-bit layouts; the other forms are one uop. With this behaviour, Intel's
-FNSTSW check, the FNSTCW high-byte check and BIOS POST detection all report no
-coprocessor. Boards that skipped the pull-ups returned other values, so
-all-ones is a recorded fidelity choice, like the PC/XT's FFh for unclaimed
-reads.
+FNSTSW check, the FNSTCW high-byte check and BIOS POST detection report no
+coprocessor. The all-ones values apply to fields the 386 writes on behalf of
+the absent FPU, not every byte of an environment or save image and not forms
+that perform no memory access. Boards that skipped the pull-ups returned other
+values, so all-ones for those fields is a recorded fidelity choice, like the
+PC/XT's FFh for unclaimed reads.
 
 ## Platform constraints
 
