@@ -781,6 +781,13 @@ needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
 eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
 and leaves the session active when eject reports unavailable.
 
+Every browsed folder keeps its parent action and offers Eject and Type a path,
+including folders without matching media. Directories remain visible; files
+are listed only when their extension and size match the active unit. Local
+mount roots are added only when they exist on the launcher device. FogCast host
+drives are browsed through the host storage API, so host-only paths are never
+treated as kit paths.
+
 ### Removable disks (fes.computer media units)
 
 A `fes.computer` package projects media role `disk`
@@ -975,6 +982,14 @@ its resume hook immediately, retaining navigation focus while refreshing the
 host snapshot. Failed saves and lost Stop responses retain their existing
 retry behavior.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
+
+When an entry has no selected expansion and its package lacks session display,
+the hardware projection may offer another installed ZX81 package only when it
+targets the same board, supports the rear socket and live media, and declares
+session display plus HPS DDR. Start compares the entry's old package before
+saving that package selection and then uses the ordinary launch path. Package,
+firmware, media and persistence checks remain on the host; an exact-package
+expansion keeps the existing package selected.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while

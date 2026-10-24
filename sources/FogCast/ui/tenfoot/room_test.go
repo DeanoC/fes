@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -64,6 +65,42 @@ func testRoomPack(t *testing.T, id, script string) rooms.Pack {
 		t.Fatal(p.Err)
 	}
 	return p
+}
+
+func TestRoomLaunchSelectsRequestedPackageBeforeOrdinaryLaunch(t *testing.T) {
+	gameID, oldPackage, nextPackage := "zx81-workshop", strings.Repeat("a", 64), strings.Repeat("b", 64)
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries/" + gameID:
+			if r.Method != http.MethodPut {
+				t.Errorf("package selection method %s", r.Method)
+			}
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["expected_package_id"] != oldPackage || body["package_id"] != nextPackage {
+				t.Errorf("package selection body %+v err=%v", body, err)
+				http.Error(w, "wrong package selection", http.StatusBadRequest)
+				return
+			}
+			calls = append(calls, "select")
+			_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: gameID, CoreID: "fes.zx81", PackageID: nextPackage})
+		case "/api/v1/session/launch":
+			calls = append(calls, "launch")
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "active", "game_id": gameID})
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	app := &App{client: NewClient(server.URL, server.Client()), launch: LaunchSnapshot{GameID: gameID, Phase: "launching"}}
+	app.doLaunch(context.Background(), hostclient.Game{ID: gameID, Title: "Workshop ZX81"}, ClientStamp{}, nextPackage, oldPackage)
+	if len(calls) != 2 || calls[0] != "select" || calls[1] != "launch" {
+		t.Fatalf("launch order %v", calls)
+	}
+	if app.launch.Phase != "ok" {
+		t.Fatalf("launch snapshot %+v", app.launch)
+	}
 }
 
 type roomHost struct {

@@ -20,7 +20,7 @@ import (
 
 // The retained synthetic M10K fixture exercises the real archive/linker path;
 // neither this package nor its no-op expansion is a working ZX81 bitstream.
-func hardwareZX81Fixture(t *testing.T, rom bool, majors ...int) (archive, firmware []byte) {
+func hardwareZX81Fixture(t *testing.T, rom, sessionDisplay bool, majors ...int) (archive, firmware []byte) {
 	t.Helper()
 	payload := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
@@ -32,6 +32,10 @@ func hardwareZX81Fixture(t *testing.T, rom bool, majors ...int) (archive, firmwa
 		"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", fmt.Sprintf("%x", sha256.Sum256(payload))).Replace(string(manifest))
 	text += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n"
 	text += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
+	if sessionDisplay {
+		text += "\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		text += "\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
+	}
 	if len(majors) != 0 && majors[0] == 2 {
 		text = strings.Replace(text, `id = "fes.expansion.zx81-bus"`+"\nmajor = 1", `id = "fes.expansion.zx81-bus"`+"\nmajor = 2", 1)
 	}
@@ -84,6 +88,42 @@ func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 	}
 }
 
+func TestHardwareOffersSelectorCapablePackageOnlyWithoutExpansion(t *testing.T) {
+	ctx := context.Background()
+	baseArchive, _ := hardwareZX81Fixture(t, false, false)
+	s, _, entry, base := newCoreEntryLaunchFixture(t, baseArchive, "Workshop ZX81")
+	s.SetMachineROMLinker(fakeROM{})
+	selectorArchive, _ := hardwareZX81Fixture(t, false, true)
+	selector, created, err := s.ImportCorePackage(ctx, int64(len(selectorArchive)), bytes.NewReader(selectorArchive))
+	if err != nil || !created {
+		t.Fatalf("import selector package: %v created=%v", err, created)
+	}
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready || view[0].LaunchPackageID != selector.PackageID {
+		t.Fatalf("selector package not offered: %+v err=%v", view, err)
+	}
+	selected, err := s.SelectCoreEntry(ctx, entry.GameID, entry.PackageID, selector.PackageID)
+	if err != nil || selected.PackageID != selector.PackageID {
+		t.Fatalf("selector package selection: %+v err=%v", selected, err)
+	}
+	selected, err = s.SelectCoreEntry(ctx, entry.GameID, selector.PackageID, entry.PackageID)
+	if err != nil || selected.PackageID != entry.PackageID {
+		t.Fatalf("restore current package: %+v err=%v", selected, err)
+	}
+
+	asset, data := hardwareExpansion(t, base)
+	if _, err = s.ImportCoreExpansion(ctx, int64(len(data)), bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryExpansion(ctx, entry.GameID, entry.PackageID, "", asset.ID); err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Hardware(ctx)
+	if err != nil || len(view) != 1 || view[0].LaunchPackageID != "" {
+		t.Fatalf("package switch offered with an exact-package expansion: %+v err=%v", view, err)
+	}
+}
+
 func TestHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T) {
 	for _, major := range []int{1, 2} {
 		t.Run(fmt.Sprintf("bus%d", major), func(t *testing.T) {
@@ -94,7 +134,7 @@ func TestHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T) {
 
 func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, major int) {
 	ctx := context.Background()
-	archive, firmware := hardwareZX81Fixture(t, true, major)
+	archive, firmware := hardwareZX81Fixture(t, true, false, major)
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
 	asset, data := hardwareExpansion(t, inspection)
 	if _, err := s.ImportCoreExpansion(ctx, int64(len(data)), bytes.NewReader(data)); err != nil {
@@ -181,7 +221,7 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 
 func TestHardwareDraftChangePreservesLoadedExpansion(t *testing.T) {
 	ctx := context.Background()
-	archive, firmware := hardwareZX81Fixture(t, true)
+	archive, firmware := hardwareZX81Fixture(t, true, false)
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "Running ZX81", time.Minute)
 	media, _, err := s.ImportCoreMedia(ctx, int64(len(firmware)), bytes.NewReader(firmware))
 	if err != nil {
@@ -248,7 +288,7 @@ func (c *blockedHardwareCatalog) CoreEntries(ctx context.Context) ([]catalog.Cor
 }
 
 func TestHardwareSnapshotSerializesSelection(t *testing.T) {
-	archive, _ := hardwareZX81Fixture(t, false)
+	archive, _ := hardwareZX81Fixture(t, false, false)
 	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Snapshot ZX81", time.Minute)
 	blocked := &blockedHardwareCatalog{Store: s.catalog.(*catalog.Store), entered: make(chan struct{}), resume: make(chan struct{})}
 	s.catalog = blocked

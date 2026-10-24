@@ -88,7 +88,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
 		row := L.NewTable()
-		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
+		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
 		}
 		for k, b := range map[string]bool{"package_ready": m.PackageReady, "firmware_ready": m.FirmwareReady, "ready": m.Ready} {

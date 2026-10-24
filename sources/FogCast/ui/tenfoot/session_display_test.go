@@ -156,16 +156,22 @@ func assertEmptyLibrarySelector(t *testing.T, app *App, dir string) {
 		t.Fatalf("empty library hid eject or a typed path: %+v", rows)
 	}
 	selectTapeLibraryRoot(t, app, dir)
-	var parent bool
+	var parent, eject, typedPath bool
 	for _, row := range app.Snapshot().TapePicker.Rows {
 		if row.Kind == tapePickerKindParent && row.Name == ".." {
 			parent = true
 		}
-		if row.Kind == tapePickerKindFile && row.Selectable {
-			t.Fatalf("folder with no .p file was offered for insert: %+v", row)
+		if row.Kind == tapePickerKindEject && row.Selectable {
+			eject = true
+		}
+		if row.Kind == tapePickerKindOSK && row.Selectable {
+			typedPath = true
+		}
+		if row.Kind == tapePickerKindFile {
+			t.Fatalf("folder with no media file listed a file: %+v", row)
 		}
 	}
-	if !parent {
+	if !parent || !eject || !typedPath {
 		t.Fatalf("empty folder was not entered: %+v", app.Snapshot().TapePicker.Rows)
 	}
 }
@@ -1259,10 +1265,17 @@ func TestKitDiskMachineImportsAndInsertsOverPlay(t *testing.T) {
 		return s.Session.ControlsOpen && !s.GPUParked && s.TapePicker.Open && s.TapePicker.Title == tapePickerTitle
 	})
 	selectTapeLibraryRoot(t, app, dir)
+	found := false
 	for _, row := range app.Snapshot().TapePicker.Rows {
-		if row.Kind == tapePickerKindFile && row.Selectable != (row.Name == "game.d64") {
-			t.Fatalf("wrong disk selection: %+v", row)
+		if row.Kind == tapePickerKindFile {
+			if row.Name != "game.d64" || !row.Selectable {
+				t.Fatalf("non-admitted disk was listed: %+v", row)
+			}
+			found = true
 		}
+	}
+	if !found {
+		t.Fatalf("D64 was not listed: %+v", app.Snapshot().TapePicker.Rows)
 	}
 	selectTapeNamedRow(t, app, "game.d64")
 	app.HandleCommand(CmdSelect, time.Now())

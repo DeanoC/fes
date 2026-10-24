@@ -78,8 +78,8 @@ func appendTapePickerFilesystemRoot(rows []TapePickerRow, name, path string) []T
 }
 
 // tapePickerVolumeRoots supplements saved storage roots with local mounts.
-// /mnt/emuhd sits next to /mnt/emuhd/BIOS, where the kit's ZX81 .p games live.
-var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media", "/mnt/emuhd"}
+// Roots are included only when they exist on the device running tenfoot.
+var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media"}
 
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
@@ -117,17 +117,31 @@ func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePic
 		if !info.Mode().IsRegular() {
 			continue
 		}
+		if !hostclient.AdmitRemovableMedia(p, name, info.Size()) {
+			continue
+		}
 		files = append(files, TapePickerRow{
 			Name:       name,
 			Path:       full,
 			Kind:       tapePickerKindFile,
 			Size:       info.Size(),
-			Selectable: hostclient.AdmitRemovableMedia(p, name, info.Size()),
+			Selectable: true,
 		})
 	}
 	sort.Slice(dirs, func(i, j int) bool { return strings.ToLower(dirs[i].Name) < strings.ToLower(dirs[j].Name) })
 	sort.Slice(files, func(i, j int) bool { return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name) })
-	return append(append(rows, dirs...), files...), nil
+	return tapePickerFolderActions(append(append(rows, dirs...), files...)), nil
+}
+
+func tapePickerFolderActions(rows []TapePickerRow) []TapePickerRow {
+	actions := []TapePickerRow{
+		{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true},
+		{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK, Selectable: true},
+	}
+	if len(rows) != 0 && rows[0].Kind == tapePickerKindParent {
+		return append(append(append([]TapePickerRow(nil), rows[:1]...), actions...), rows[1:]...)
+	}
+	return append(actions, rows...)
 }
 
 func tapePickerRowLabel(row TapePickerRow) string {
@@ -447,7 +461,11 @@ func (a *App) openTapePathOSKLocked() {
 	a.settingsOSKKind = settingsOSKTapePath
 	a.settingsOSKIndex = 0
 	a.settingsOSKIsAdd = false
-	a.settingsOSKField = shared.TextField{Buffer: a.tapePickerPath}
+	path := a.tapePickerPath
+	if _, _, _, ok := splitDrivePath(path); ok {
+		path = ""
+	}
+	a.settingsOSKField = shared.TextField{Buffer: path}
 	a.settingsOSKField.OSK.Reset()
 	a.settingsOSKField.OSK.CyclePage(1)
 }

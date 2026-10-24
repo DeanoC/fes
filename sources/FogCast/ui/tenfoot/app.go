@@ -2318,6 +2318,10 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	a.startLaunchGameWithPackageLocked(game, "", "")
+}
+
+func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, expectedPackageID string) {
 	// Release kit may already have read an idle session and still be about
 	// to post an empty-body Stop. That Stop would end this game.
 	if a.leaseReleaseBusy {
@@ -2394,7 +2398,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		"game_id": game.ID,
 		"title":   game.Title,
 	})
-	go a.doLaunch(ctx, game, stamp)
+	go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID)
 }
 
 // launchBlockReason maps hostclient catalog ineligibility to sofa copy.
@@ -2414,7 +2418,22 @@ func libraryPlayDestination(game hostclient.Game) rooms.Destination {
 	return d
 }
 
-func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp) {
+func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp, packageID, expectedPackageID string) {
+	if packageID != "" {
+		if _, err := a.client.SelectCoreEntryPackage(ctx, game.ID, expectedPackageID, packageID); err != nil {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.launch.GameID != game.ID {
+				return
+			}
+			a.bumpSessionGenLocked()
+			a.launch.Phase = "error"
+			a.launchLeaseRefusal = false
+			a.launch.Message = "package selection failed: " + err.Error()
+			a.launch.ErrorMessage = err.Error()
+			return
+		}
+	}
 	result, err := a.client.LaunchStamped(ctx, game.ID, stamp)
 	a.mu.Lock()
 	defer a.mu.Unlock()

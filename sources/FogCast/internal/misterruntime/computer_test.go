@@ -154,6 +154,36 @@ func TestComputerStatusReportsMediaUnits(t *testing.T) {
 	}
 }
 
+func TestC64StatusReportsInsertedMediaUnit(t *testing.T) {
+	r := computerResponse(t)
+	disk := protocol.C64DiskInterface()
+	r.ActivePackage.Descriptor.Core.ID = "fes.c64"
+	for i := range r.ActivePackage.Descriptor.Interfaces {
+		if r.ActivePackage.Descriptor.Interfaces[i].ID == protocol.Apple2FloppyInterface().ID {
+			r.ActivePackage.Descriptor.Interfaces[i].ID = disk.ID
+		}
+	}
+	for _, interfaces := range [][]Protocol2Interface{r.Capabilities.ActiveInterfaces, r.Capabilities.ABIs[0].Interfaces} {
+		for i := range interfaces {
+			if interfaces[i].ID == protocol.Apple2FloppyInterface().ID {
+				interfaces[i].ID = disk.ID
+			}
+		}
+	}
+	r.Capabilities.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: disk,
+		MinBytes: uint32(protocol.C64DiskBytes), MaxBytes: uint32(protocol.C64DiskBytes), ChunkBytes: 512, State: "ready"}
+	*r.Core = "fes.c64"
+	decoded, err := decodeProtocol2Response([]byte(responseLine(t, r)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := corePackageStatus(activationFromProtocol2(decoded.ActivePackage.PackageID, decoded.ActivePackage.Descriptor, decoded))
+	unit, ok := protocol.MediaUnit(status, protocol.C64DiskUnit)
+	if !ok || unit.Interface != disk || unit.State != "ready" {
+		t.Fatalf("C64 inserted-media status %+v", status)
+	}
+}
+
 func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
 	r := computerResponse(t)
 	id := r.ActivePackage.PackageID

@@ -19,6 +19,7 @@ type HardwareMachine struct {
 	Title             string              `json:"title"`
 	CoreID            string              `json:"core_id"`
 	PackageID         string              `json:"package_id"`
+	LaunchPackageID   string              `json:"launch_package_id,omitempty"`
 	PackageReady      bool                `json:"package_ready"`
 	FirmwareReady     bool                `json:"firmware_ready"`
 	Ready             bool                `json:"ready"`
@@ -58,6 +59,13 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	if err != nil {
 		return nil, err
 	}
+	var packages []corepackage.Inspection
+	if s.corePackages != nil {
+		packages, err = s.corePackages.List(ctx)
+		if err != nil {
+			return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+		}
+	}
 	store, ok := s.catalog.(coreExpansionCatalog)
 	if !ok {
 		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -90,8 +98,20 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 			result = append(result, machine)
 			continue
 		}
+		selectorFirmwareReady := false
+		if selection.ExpansionID == "" {
+			if candidateID := zx81SessionDisplayPackage(packages, entry.PackageID, inspection.Descriptor); candidateID != "" {
+				for _, candidate := range packages {
+					if candidate.PackageID == candidateID && s.zx81FirmwareReady(ctx, entry, candidate.Descriptor) &&
+						s.validateCoreEntryMedia(ctx, candidate.Descriptor, entry.MediaRole, entry.MediaID) == nil {
+						machine.LaunchPackageID = candidateID
+						selectorFirmwareReady = true
+					}
+				}
+			}
+		}
 		machine.Socket.Supported = zx81RearSocket(inspection.Descriptor)
-		machine.FirmwareReady = s.zx81FirmwareReady(ctx, entry, inspection.Descriptor)
+		machine.FirmwareReady = s.zx81FirmwareReady(ctx, entry, inspection.Descriptor) || selectorFirmwareReady
 		if !machine.FirmwareReady {
 			machine.UnavailableReason = "The BASIC firmware for this setup is unavailable."
 		}
@@ -135,6 +155,48 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 		result = append(result, machine)
 	}
 	return result, nil
+}
+
+// zx81SessionDisplayPackage finds an installed package for the same ZX81
+// target that can open the running media selector. The caller only offers a
+// package change when no expansion is selected; the ordinary package
+// selection API still validates persisted media and package data at launch.
+func zx81SessionDisplayPackage(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) string {
+	if zx81SessionDisplayDescriptor(current) {
+		return ""
+	}
+	for _, candidate := range packages { // CorePackageStore.List is sorted by package ID.
+		if candidate.PackageID == selected || candidate.Descriptor.Core.ID != "fes.zx81" || candidate.Descriptor.Target != current.Target ||
+			!zx81SessionDisplayDescriptor(candidate.Descriptor) || (current.ROM == nil) != (candidate.Descriptor.ROM == nil) {
+			continue
+		}
+		if current.ROM != nil && *current.ROM != *candidate.Descriptor.ROM {
+			continue
+		}
+		return candidate.PackageID
+	}
+	return ""
+}
+
+func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor) bool {
+	if descriptor.Core.ID != "fes.zx81" || !zx81RearSocket(descriptor) {
+		return false
+	}
+	display, ddr, media := false, false, false
+	for _, iface := range descriptor.Interfaces {
+		if iface.Major != 1 || iface.Minor != 0 {
+			continue
+		}
+		switch iface.ID {
+		case "fes.video.session-display":
+			display = true
+		case "fes.memory.hps-ddr":
+			ddr = true
+		case "fes.media.zx81-tape", "fes.media.blob":
+			media = true
+		}
+	}
+	return display && ddr && media
 }
 
 func zx81RearSocket(descriptor corepackage.Descriptor) bool {

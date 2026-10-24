@@ -241,7 +241,7 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 		t.Error("back should not be handled")
 	}
 	acts := r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "snes-mario-abc123" {
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "snes-mario-abc123" || acts[0].PackageID != "" || acts[0].ExpectedPackageID != "" {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Activate("node:1")
@@ -271,6 +271,26 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	if !strings.Contains(string(data), "\"visits\": 2") {
 		t.Errorf("store contents %s", data)
 	}
+}
+
+func TestRoomLaunchCanSelectPackageWithCompareAndSwap(t *testing.T) {
+	current, next := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	script := fmt.Sprintf(`function on_input(cmd)
+  if cmd == "select" then session.launch("zx81-workshop", %q, %q) return true end
+  return false
+end`, next, current)
+	r := newRoom(t, memPack(t, "package-launch", script, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("select") {
+		t.Fatal("select was not handled")
+	}
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-workshop" || acts[0].PackageID != next || acts[0].ExpectedPackageID != current {
+		t.Fatalf("package launch action %+v", acts)
+	}
+	r.Close()
 }
 
 func TestStoreWriteFailureLogsOnceAndKeepsRoom(t *testing.T) {
