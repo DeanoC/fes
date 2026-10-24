@@ -57,6 +57,14 @@
     const selectedEntry = () => state.entries.find(e => e.game_id === state.entryId);
     function fail(error) { state.message = String(error.message || error); return emit(); }
     const MEDIA_ROLES = ['blob', 'disk', 'cassette'];
+    const ST_LAYOUTS = [];
+    for (let tracks = 80; tracks <= 82; tracks++) {
+      for (let heads = 1; heads <= 2; heads++) {
+        for (let sectors = 9; sectors <= 10; sectors++) {
+          ST_LAYOUTS.push({tracks, heads, sectors, bytes: tracks * heads * sectors * 512});
+        }
+      }
+    }
     // The declared role (startup blob, removable disk, or cassette) whose
     // limits admit the imported media, or '' when none does.
     function mediaRole() {
@@ -66,6 +74,16 @@
       return match ? match.role : '';
     }
     function mediaAllowed() { return mediaRole() !== ''; }
+    function stFloppy() {
+      const caps = state.capabilities;
+      if (!caps || caps.package_id !== state.packageId) return null;
+      return caps.media.find(item => item.role === 'disk' && item.format === 'atari-st-floppy') || null;
+    }
+    function admittedLayouts() {
+      const cap = stFloppy();
+      if (!cap) return [];
+      return ST_LAYOUTS.filter(layout => layout.bytes >= cap.min_bytes && layout.bytes <= cap.max_bytes);
+    }
     async function inventories(requestEpoch) {
       const [packages, entries] = await Promise.all([
         request('/api/v1/core-packages'), request('/api/v1/library/core-entries')]);
@@ -420,6 +438,41 @@
         return entryMutation(entry => ({expected_package_id:entry.package_id,
           expected_media_id:entry.media_id || '', media_role:'', media_id:''}), '/media', 'Media selection cleared for the next launch.');
       },
+      createBlankDisk(name, geometry) {
+        const entry = selectedEntry();
+        const success = entry
+          ? 'Blank disk bound to this title for the next launch. GEMDOS writes stay on drive A.'
+          : 'Blank disk stored. Create the title, or select the disk for an entry.';
+        return mutate(async () => {
+          const pkg = requirePackage();
+          if (!stFloppy()) throw new Error('This package has no Atari ST floppy.');
+          const label = String(name || '').trim();
+          if (!/^[A-Za-z0-9 -]{1,11}$/.test(label)) throw new Error('Disk name must be 1–11 letters, digits, spaces or hyphens.');
+          const layout = admittedLayouts().find(item => geometry && item.tracks === geometry.tracks && item.heads === geometry.heads && item.sectors === geometry.sectors);
+          if (!layout) throw new Error('Choose a disk size this package admits.');
+          const body = {name: label, tracks: layout.tracks, heads: layout.heads, sectors: layout.sectors};
+          if (entry) {
+            if (entry.package_id !== pkg.package_id) throw new Error('Select this title’s package before creating its disk.');
+            Object.assign(body, {bind: true, game_id: entry.game_id, expected_package_id: entry.package_id, expected_media_id: entry.media_id || ''});
+          }
+          const value = await request('/api/v1/library/atari-st-disks', {method:'POST', ...json(body)});
+          if (!value || !digest(value.media_id) || value.size !== layout.bytes || value.name !== label.toUpperCase() ||
+              value.tracks !== layout.tracks || value.heads !== layout.heads || value.sectors !== layout.sectors) {
+            throw new Error('Invalid blank disk response. Refresh before another attempt.');
+          }
+          if (entry) {
+            if (!value.entry || value.entry.game_id !== entry.game_id || value.entry.package_id !== entry.package_id ||
+                value.entry.media_role !== 'disk' || value.entry.media_id !== value.media_id) {
+              throw new Error('Disk was stored but the title binding is unconfirmed. Refresh before retrying.');
+            }
+            state.media = {media_id: value.media_id, size: value.size};
+            await refreshAfterMutation();
+          } else {
+            state.media = {media_id: value.media_id, size: value.size};
+          }
+        }, success, Boolean(entry));
+      },
+      blankLayouts() { return admittedLayouts().map(layout => ({...layout})); },
       discardMedia() { if (!state.busy) { state.media = null; emit(); } }
     };
   }
@@ -503,6 +556,27 @@
         byId('core-video-import').disabled = state.busy || state.loading;
       }
       byId('core-library-message').textContent = state.loading ? 'Loading library…' : state.message;
+      const layouts = controller.blankLayouts();
+      const geometry = byId('core-blank-disk-geometry');
+      if (geometry) {
+        const previous = geometry.value;
+        geometry.replaceChildren(...layouts.map(layout => {
+          const option = el('option', layout.bytes + ' bytes · ' + layout.tracks + ' tracks, ' + layout.heads + ' heads, ' + layout.sectors + ' sectors');
+          option.value = layout.tracks + ',' + layout.heads + ',' + layout.sectors;
+          return option;
+        }));
+        const preferred = '80,2,9';
+        geometry.value = layouts.some(layout => layout.tracks + ',' + layout.heads + ',' + layout.sectors === previous) ? previous : (layouts.some(layout => layout.tracks === 80 && layout.heads === 2 && layout.sectors === 9) ? preferred : (geometry.options && geometry.options[0] ? geometry.options[0].value : ''));
+      }
+      if (byId('core-blank-disk-status')) {
+        byId('core-blank-disk-status').textContent = layouts.length
+          ? 'Formatted FAT12 disk. A selected title is bound as drive A; otherwise the disk waits for the new title. ' + layouts.length + ' size' + (layouts.length === 1 ? '' : 's') + ' fit this package.'
+          : 'Blank formatted disks are available for an Atari ST package.';
+      }
+      const blankReady = layouts.length > 0;
+      for (const id of ['core-blank-disk-name', 'core-blank-disk-geometry', 'core-blank-disk']) {
+        if (byId(id)) byId(id).disabled = state.busy || state.loading || !blankReady;
+      }
       for (const id of ['core-package-check','core-media-import','core-entry-create','core-entry-package-save','core-entry-media-save','core-entry-media-clear']) {
         byId(id).disabled = state.busy || state.loading || !state.packageId ||
           (id.startsWith('core-entry-') && id !== 'core-entry-create' && !entry);
@@ -526,6 +600,10 @@
     click('core-package-import', () => controller.importPackage(byId('core-package-file').files[0]));
     click('core-package-check', () => controller.checkCompatibility());
     click('core-media-import', () => controller.importMedia(byId('core-media-file').files[0]));
+    if (byId('core-blank-disk')) click('core-blank-disk', () => {
+      const parts = String(byId('core-blank-disk-geometry').value || '').split(',').map(Number);
+      controller.createBlankDisk(byId('core-blank-disk-name').value, {tracks: parts[0], heads: parts[1], sectors: parts[2]});
+    });
     click('core-media-discard', () => controller.discardMedia());
     click('core-entry-create', () => controller.createEntry(byId('core-entry-title').value));
     click('core-entry-package-save', () => controller.selectEntryPackage());

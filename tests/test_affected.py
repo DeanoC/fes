@@ -99,6 +99,33 @@ class AffectedTests(unittest.TestCase):
                          {'parent', 'fpga'})
         self.assertEqual(result['cores'], ['atari-st'])
 
+    def test_runtime_test_sources_do_not_select_host_consumers(self):
+        root = MODULE_ROOTS['runtime']
+        for path in ('tests/unit/native_hardware_test.cpp',
+                     'tests/integration/daemon_server_test.cpp',
+                     'tests/support/fake_input.cpp', 'tests/support/fake_input.hpp',
+                     'tests/support/new_helper.h'):
+            with self.subTest(path=path):
+                result = plan([root + '/' + path, 'docs/development.md'])
+                self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                 {'parent', 'runtime'})
+                self.assertEqual(result['cores'], [])
+                self.assertFalse(any(result['test_modes'].values()))
+
+    def test_runtime_test_exception_preserves_other_consumer_inputs(self):
+        test = MODULE_ROOTS['runtime'] + '/tests/unit/input_test.cpp'
+        for path in ('src/native/input.cpp', 'src/daemon/protocol.hpp',
+                     'include/libmister-runtime/runtime.h', 'Makefile',
+                     'tests/incremental_build_test.sh', 'tests/fixtures/input.bin',
+                     'tests/unit-other/helper.cpp', 'tests/unreviewed/helper.cpp',
+                     'tests/unit/../../src/native/input.cpp', 'tests/unit/new.py'):
+            with self.subTest(path=path):
+                self.assertTrue(plan([test, MODULE_ROOTS['runtime'] + '/' + path])['lanes']['host'])
+        for other in ('sources/FogCast/internal/misterruntime/client.go',
+                      '.github/workflows/check.yml', 'unknown/new.bin', '<new-branch>'):
+            with self.subTest(other=other):
+                self.assertTrue(plan([test, other])['lanes']['host'])
+
     def test_module_roots_and_gitlinks(self):
         for module in ('host', 'runtime'):
             for path in (MODULE_ROOTS[module], MODULE_ROOTS[module] + '/src/main.cpp'):
@@ -139,18 +166,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'coleco'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'coleco'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
-            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'coleco'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
             'scripts/sim_fes_display_plane.py': {'zx81'},
-            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'coleco'},
-            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'coleco'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
-            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'coleco'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},

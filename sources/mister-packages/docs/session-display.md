@@ -17,9 +17,12 @@ state bits, fixed 1280×720 layout and two 4 MiB slots. The application
 interface belongs to the active machine, and no package declares both.
 
 When the launcher takes focus on a shown plane, the runtime neutralizes the
-machine's keyboard and releases every controller port, so a running machine
-never sees held input. While focus stays with the launcher, the runtime drops
-any keyboard or controller press for the machine.
+machine's keyboard and releases every controller port. For a declared single
+`fes.gamepad`, it sends a zero button snapshot and gates the input worker's
+nonzero snapshots until focus returns. While the launcher has focus, FogCast
+drops controller presses and consumes controller releases into the retained
+source snapshot without publishing them. A release therefore cannot replay as
+a held button after focus returns.
 
 ## Blending and picture rectangle
 

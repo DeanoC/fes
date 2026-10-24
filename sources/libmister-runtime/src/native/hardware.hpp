@@ -132,6 +132,7 @@ private:
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
  void RevokeMenuWindow();
+ void SetSessionDisplayInputFocus(bool launcher_focus);
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
  Error ReleaseControllers();
@@ -173,6 +174,7 @@ private:
 	std::mutex fault_sink_mutex_;
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;
+	std::shared_ptr<std::atomic<bool>> input_identity_verified_;
 	std::shared_ptr<std::atomic<bool>> input_delivery_enabled_;
 	InputRecipe active_input_recipe_;
 	bool has_active_input_recipe_ = false;

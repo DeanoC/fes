@@ -351,6 +351,7 @@ module c64_vic (
         end
     end
 
+    // Active-first CTA 720p60 coordinates, shared with the session plane.
     reg [10:0] hpos=0,hpos_q=0;
     reg [9:0] vpos=0,vpos_q=0;
     reg [2:0] xphase=0;
@@ -370,23 +371,23 @@ module c64_vic (
         else hpos<=hpos+1'b1;
         // 384x272 PAL picture in a 960x720 viewport (4:3).
         // Rational accumulators select floor(x*2/5), floor(y*17/45).
-        if(hpos==419)begin xphase<=0;display_x<=0;end
-        else if(hpos>=420&&hpos<1379)begin
+        if(hpos==159)begin xphase<=0;display_x<=0;end
+        else if(hpos>=160&&hpos<1119)begin
             if(xphase>=3)begin xphase<=xphase-3'd3;display_x<=display_x+1'b1;end
             else xphase<=xphase+3'd2;
         end
         if(hpos==0)begin
-            if(vpos==25)begin yphase<=0;display_y<=0;end
-            else if(vpos>25&&vpos<745)begin
+            if(vpos==0)begin yphase<=0;display_y<=0;end
+            else if(vpos>0&&vpos<720)begin
                 if(yphase>=28)begin yphase<=yphase-6'd28;display_y<=display_y+1'b1;end
                 else yphase<=yphase+6'd17;
             end
         end
     end
-    assign de=hpos_q>=260&&hpos_q<1540&&vpos_q>=25&&vpos_q<745;
-    assign hsync=hpos_q<40;
-    assign vsync=vpos_q<5;
-    wire text_window=hpos_q>=420&&hpos_q<1380;
+    assign de=hpos_q<1280&&vpos_q<720;
+    assign hsync=hpos_q>=1390&&hpos_q<1430;
+    assign vsync=vpos_q>=725&&vpos_q<730;
+    wire text_window=hpos_q>=160&&hpos_q<1120;
     wire [23:0] rgb=!de?24'd0:(text_window?palette(frame_color):24'd0);
     assign red=rgb[23:16];assign green=rgb[15:8];assign blue=rgb[7:0];
 endmodule

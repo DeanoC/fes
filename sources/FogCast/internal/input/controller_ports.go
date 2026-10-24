@@ -297,6 +297,16 @@ func (s *controllerPortsSink) applyContext(ctx context.Context, source inputSour
 	}
 	shaped, ok := s.shapeLocked(source, f)
 	if s.displayFocused && ok && !keyboardFrame(shaped) {
+		// The runtime has already released machine controllers. Keep the
+		// retained source snapshot in sync with releases received while the
+		// launcher owns focus, without publishing navigation input to the core.
+		if s.binding != nil && shaped.Device == uint8(remoteinput.DeviceGamepad) {
+			event := frameEvent(shaped)
+			if validControllerEvent(event, s.binding.Keypad) &&
+				(event.Action == remoteinput.ActionRelease || (event.Kind == remoteinput.KindAxis && event.Value == 0)) {
+				_ = s.sources[source].Apply(event)
+			}
+		}
 		s.mu.Unlock()
 		return nil
 	}

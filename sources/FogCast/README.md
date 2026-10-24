@@ -466,3 +466,27 @@ Writable disks use explicit library bindings and runtime-owned complete-image
 saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
 and the optional slot-1 CPU expansion together; every part binds the exact
 shell package. These extensions do not add Atari ST to the factory image.
+
+### Independent room updates
+
+First-party room directories use their public `example.*` identities directly.
+The existing `fogcast-tenfoot room-install PACK_DIRECTORY` command installs Lua,
+metadata and artwork under the same identity as the built-in room. Reopen Rooms
+and select it to trial the update in the running launcher, without rebuilding
+Go or restarting the agent. `room-rollback example.fes-cores` restores the
+previous selection; a first-install rollback reveals the built-in default.
+See [room delivery](docs/rooms.md#installing-and-opening-rooms). The binary's
+embedded snapshots remain offline recovery defaults, rather than a required
+route for delivering ordinary room updates.
+
+Portable room files use the same installer and rollback path:
+`fogcast-tenfoot room-export --output home.room.zip PACK_DIRECTORY`, then
+`fogcast-tenfoot room-install home.room.zip` on the launcher's machine. Export
+validates before publishing; import checks the bounded archive privately before
+changing the selected snapshot. No source checkout is needed to install it.
+See [room installation](docs/rooms.md#installing-and-opening-rooms).
+
+Tenfoot synchronizes held-direction repeat state between frame-loop input and
+asynchronous session-display handoffs. A failed surround transition can clear
+pending repeats without racing the frame tick; repeat delay and cadence are
+unchanged. The input helper releases its lock before command dispatch.

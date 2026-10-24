@@ -89,8 +89,8 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81', 'spectrum', 'coleco'),
-    'fes_display_cdc.v': ('zx81', 'spectrum', 'coleco'),
+    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco'),
+    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -126,7 +126,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81', 'spectrum', 'coleco'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -145,7 +145,7 @@ def fpga_cores(path):
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81', 'spectrum', 'coleco'), 'idle and running-session display consumers'
+            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -196,6 +196,14 @@ def changed_paths(root, base, head='HEAD'):
     # No rename detection: both old and new ownership must be considered.
     paths = git('diff', '--name-only', '--no-renames', '-z', ancestor, head)
     return sorted(set(p.decode('utf-8', 'surrogateescape') for p in paths.split(b'\0') if p))
+
+
+def runtime_test_source(path):
+    """Reviewed native-test sources have no deployed host/protocol consumers."""
+    return (Path(path).as_posix() == path and '..' not in Path(path).parts and
+            path.endswith(('.cpp', '.hpp', '.h')) and
+            any(path.startswith(MODULE_ROOTS['runtime'] + '/tests/' + area + '/')
+                for area in ('unit', 'integration', 'support')))
 
 
 def documentation(path):
@@ -258,6 +266,9 @@ def plan(paths):
             consumers, reason = fpga_cores(path)
             cores.update(consumers)
             reasons.append(f'{path}: {reason}')
+        elif owner == 'runtime' and runtime_test_source(path):
+            selected.update(('parent', 'runtime'))
+            reasons.append(f'{path}: native runtime tests and parent integration; host inputs unchanged')
         else:
             selected.update(('parent', owner))
             if owner == 'runtime':

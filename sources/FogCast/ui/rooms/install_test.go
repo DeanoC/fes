@@ -223,3 +223,49 @@ func TestInstalledArtworkUsesNewSnapshotWithoutChangingLiveOldRoom(t *testing.T)
 		}
 	}
 }
+
+func TestFirstPartyPacksInstallUnderTheirExistingLauncherIdentity(t *testing.T) {
+	entries, err := os.ReadDir("examples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		t.Run(entry.Name(), func(t *testing.T) {
+			root := t.TempDir()
+			pack, err := Install(root, filepath.Join("examples", entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := ExamplePrefix + entry.Name()
+			if pack.ID != id {
+				t.Fatalf("installed %q instead of updating launcher room %q", pack.ID, id)
+			}
+			packs, err := LoadDir(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			index := NewIndex(Examples(), packs)
+			if len(index.Packs) != len(Examples()) {
+				t.Fatal("installation created a duplicate room")
+			}
+			selected, ok := index.Find(id)
+			if !ok || selected.Revision != pack.Revision {
+				t.Fatal("installed snapshot did not override built-in room")
+			}
+			if err := Rollback(root, id, ""); err != nil {
+				t.Fatal(err)
+			}
+			packs, err = LoadDir(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fallback, ok := NewIndex(Examples(), packs).Find(id)
+			if !ok || !fallback.Valid() || fallback.Revision != "" {
+				t.Fatal("rollback did not recover the built-in room with the same identity")
+			}
+		})
+	}
+}

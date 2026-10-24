@@ -127,8 +127,8 @@ func TestUSBKeyboardRepeatDoesNotSurviveZX81Forward(t *testing.T) {
 	if app.Press(CmdRight, now) != CmdRight {
 		t.Fatal("press right")
 	}
-	if app.repeat.held != CmdRight {
-		t.Fatalf("held = %s", app.repeat.held)
+	if app.repeat.Held() != CmdRight {
+		t.Fatalf("held = %s", app.repeat.Held())
 	}
 	app.session = hostclient.SessionResult{
 		State:        "active",
@@ -141,8 +141,8 @@ func TestUSBKeyboardRepeatDoesNotSurviveZX81Forward(t *testing.T) {
 	if got := app.Tick(now.Add(repeatDelay + repeatEvery)); got != CmdNone {
 		t.Fatalf("zx81 forward leaked sofa repeat %s", got)
 	}
-	if app.repeat.held != CmdNone {
-		t.Fatalf("held after forward = %s", app.repeat.held)
+	if app.repeat.Held() != CmdNone {
+		t.Fatalf("held after forward = %s", app.repeat.Held())
 	}
 	app.session = hostclient.SessionResult{State: "idle"}
 	if got := app.Tick(now.Add(2 * (repeatDelay + repeatEvery))); isHoldable(got) {

@@ -76,9 +76,18 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			add("Use selected BIOS for household", "firmware:"+r.ID)
 		}
 	}
+	blankDisk := false
 	for _, m := range s.Setup.Capabilities.Media {
 		if s.InstalledSetup {
 			continue
+		}
+		if m.Role == protocol.DiskRole && m.Format == "atari-st-floppy" && !blankDisk {
+			blankDisk = true
+			status := "720 KiB"
+			if s.MediaRole == protocol.DiskRole && s.MediaID != "" {
+				status = "selected"
+			}
+			add("Blank disk · "+status, "blank-disk")
 		}
 		if m.Role == "blob" || m.Role == "disk" {
 			status := "choose file"
@@ -350,6 +359,10 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		a.coreLibraryAsyncLocked(func(ctx context.Context) error { _, err := a.client.SelectHouseholdFirmware(ctx, media); return err }, func() { s.Setup.FirmwareMediaID = media; s.Status = "Household BIOS selected explicitly." })
 		return
 	}
+	if row.Kind == "blank-disk" {
+		a.createBlankAtariStDiskLocked()
+		return
+	}
 	if row.Kind == "title" {
 		a.settingsOSKKind = settingsOSKCoreTitle
 		a.settingsOSKField = shared.TextField{Buffer: s.Title}
@@ -465,6 +478,23 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		s.Index = 0
 		s.Files = nil
 		s.Status = "File imported. Review selections before adding the game."
+	})
+}
+func (a *App) createBlankAtariStDiskLocked() {
+	s := &a.coreLibrary
+	if !s.Online || s.Setup == nil {
+		s.Status = "Refresh and choose an installed system."
+		return
+	}
+	var media hostclient.BlankAtariStDisk
+	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
+		var err error
+		media, err = a.client.CreateBlankAtariStDisk(ctx, hostclient.BlankAtariStRequest{Name: "WORK"})
+		return err
+	}, func() {
+		s.MediaRole = protocol.DiskRole
+		s.MediaID = media.MediaID
+		s.Status = "Blank 720 KiB disk stored. Review selections before adding the game."
 	})
 }
 func (a *App) createCoreLibraryGameLocked() {
