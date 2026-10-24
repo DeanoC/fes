@@ -173,15 +173,20 @@ func zx81SessionDisplayCandidates(packages []corepackage.Inspection, selected st
 	var candidates []corepackage.Inspection
 	for _, candidate := range packages { // CorePackageStore.List is sorted by package ID.
 		if candidate.PackageID == selected || candidate.Descriptor.Core.ID != "fes.zx81" || candidate.Descriptor.Target != current.Target ||
-			!zx81SessionDisplayDescriptor(candidate.Descriptor) || (current.ROM == nil) != (candidate.Descriptor.ROM == nil) {
-			continue
-		}
-		if current.ROM != nil && *current.ROM != *candidate.Descriptor.ROM {
+			!zx81SessionDisplayDescriptor(candidate.Descriptor) || !sameZX81MachineROM(current.ROM, candidate.Descriptor.ROM) {
 			continue
 		}
 		candidates = append(candidates, candidate)
 	}
 	return candidates
+}
+
+func sameZX81MachineROM(current, candidate *corepackage.ROM) bool {
+	if current == nil || candidate == nil {
+		return current == nil && candidate == nil
+	}
+	return current.ID == "machine-rom" && current.Role == "firmware" &&
+		candidate.ID == current.ID && candidate.Role == current.Role && candidate.SourceSize == current.SourceSize
 }
 
 func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor) bool {

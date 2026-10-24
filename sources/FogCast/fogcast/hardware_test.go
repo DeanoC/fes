@@ -26,6 +26,10 @@ func hardwareZX81Fixture(t *testing.T, rom, sessionDisplay bool, majors ...int) 
 }
 
 func hardwareZX81ContractFixture(t *testing.T, rom, sessionDisplay bool, abi, media, revision string, majors ...int) (archive, firmware []byte) {
+	return hardwareZX81ContractFixtureWithROMMap(t, rom, sessionDisplay, abi, media, revision, nil, majors...)
+}
+
+func hardwareZX81ContractFixtureWithROMMap(t *testing.T, rom, sessionDisplay bool, abi, media, revision string, romMap []byte, majors ...int) (archive, firmware []byte) {
 	t.Helper()
 	payload := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
@@ -47,7 +51,10 @@ func hardwareZX81ContractFixture(t *testing.T, rom, sessionDisplay bool, abi, me
 	}
 	members := [][2][]byte{{[]byte("manifest.toml"), nil}, {[]byte("core.rbf"), payload}}
 	if rom {
-		mapping := misterossROMFixture(t, "map.json")
+		mapping := romMap
+		if mapping == nil {
+			mapping = misterossROMFixture(t, "map.json")
+		}
 		firmware = misterossROMFixture(t, "ramp.rom")
 		text = strings.Replace(text, "format = 2", "format = 3", 1)
 		text += fmt.Sprintf("\n[rom]\nid = \"machine-rom\"\nrole = \"firmware\"\nsource_size = %d\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(firmware), len(mapping), sha256.Sum256(mapping))
@@ -130,6 +137,36 @@ func TestHardwareOffersSelectorCapablePackageOnlyWithoutExpansion(t *testing.T) 
 	}
 }
 
+func TestHardwareOffersSelectorPackageWithDifferentROMMapDigest(t *testing.T) {
+	ctx := context.Background()
+	currentArchive, firmware := hardwareZX81ContractFixture(t, true, false, "fes.simple-computer", "fes.media.blob", strings.Repeat("4", 40))
+	s, _, entry, current := newCoreEntryLaunchFixture(t, currentArchive, "Workshop ZX81")
+	s.SetMachineROMLinker(fakeROM{})
+	firmwareMedia, _, err := s.ImportCoreMedia(ctx, int64(len(firmware)), bytes.NewReader(firmware))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", "", firmwareMedia.MediaID); err != nil {
+		t.Fatal(err)
+	}
+
+	romMap := append([]byte(nil), misterossROMFixture(t, "map.json")...)
+	romMap = append(romMap, '\n')
+	selectorArchive, _ := hardwareZX81ContractFixtureWithROMMap(t, true, true, "fes.simple-computer", "fes.media.blob", strings.Repeat("5", 40), romMap)
+	selector, created, err := s.ImportCorePackage(ctx, int64(len(selectorArchive)), bytes.NewReader(selectorArchive))
+	if err != nil || !created {
+		t.Fatalf("import selector package: %v created=%v", err, created)
+	}
+	if current.Descriptor.ROM.SHA256 == selector.Descriptor.ROM.SHA256 {
+		t.Fatal("fixture packages should have different sealed ROM-map digests")
+	}
+
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready || view[0].LaunchPackageID != selector.PackageID {
+		t.Fatalf("selector package with the same machine firmware was not offered: %+v err=%v", view, err)
+	}
+}
+
 func TestHardwareSkipsSelectorCandidatesThatRejectSavedMedia(t *testing.T) {
 	ctx := context.Background()
 	currentArchive, _ := hardwareZX81ContractFixture(t, false, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40))
@@ -201,6 +238,44 @@ func TestZX81SessionDisplayDescriptorRequiresABICompatibleMedia(t *testing.T) {
 	simpleTape.ABI.ID = "fes.simple-computer"
 	if zx81SessionDisplayDescriptor(simpleTape) {
 		t.Fatal("fes.simple-computer cannot use the fes.computer tape interface")
+	}
+}
+
+func TestZX81SessionDisplayCandidatesMatchStableMachineROMIdentity(t *testing.T) {
+	target := corepackage.Target{Platform: "de10_nano", Device: "5CSEBA6U23I7", ProgrammingProfile: "fes-gp-v1"}
+	current := corepackage.Descriptor{
+		Core:   corepackage.Core{ID: "fes.zx81"},
+		Target: target,
+		ROM:    &corepackage.ROM{ID: "machine-rom", Role: "firmware", SourceSize: 8192, File: "rom-map.json", Size: 742014, SHA256: strings.Repeat("a", 64)},
+	}
+	selector := corepackage.Descriptor{
+		Core:   corepackage.Core{ID: "fes.zx81"},
+		Target: target,
+		ABI:    corepackage.Contract{ID: "fes.computer", Major: 1},
+		ROM:    &corepackage.ROM{ID: "machine-rom", Role: "firmware", SourceSize: 8192, File: "rom-map.json", Size: 742014, SHA256: strings.Repeat("b", 64)},
+		Interfaces: []corepackage.Interface{
+			{ID: expansion.Slot, Major: 2, Minor: 0},
+			{ID: "fes.video.session-display", Major: 1, Minor: 0},
+			{ID: "fes.memory.hps-ddr", Major: 1, Minor: 0},
+			{ID: "fes.media.zx81-tape", Major: 1, Minor: 0},
+		},
+	}
+	wrongID := selector
+	wrongID.ROM = &corepackage.ROM{ID: "other-rom", Role: "firmware", SourceSize: 8192}
+	wrongRole := selector
+	wrongRole.ROM = &corepackage.ROM{ID: "machine-rom", Role: "cartridge", SourceSize: 8192}
+	wrongSize := selector
+	wrongSize.ROM = &corepackage.ROM{ID: "machine-rom", Role: "firmware", SourceSize: 4096}
+
+	packages := []corepackage.Inspection{
+		{PackageID: "wrong-id", Descriptor: wrongID},
+		{PackageID: "wrong-role", Descriptor: wrongRole},
+		{PackageID: "wrong-size", Descriptor: wrongSize},
+		{PackageID: "selector", Descriptor: selector},
+	}
+	candidates := zx81SessionDisplayCandidates(packages, "selected", current)
+	if len(candidates) != 1 || candidates[0].PackageID != "selector" {
+		t.Fatalf("candidate with a package-specific ROM-map digest should match the same machine firmware: %+v", candidates)
 	}
 }
 

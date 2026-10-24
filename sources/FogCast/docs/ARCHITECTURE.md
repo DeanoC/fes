@@ -3329,7 +3329,9 @@ presentation, without changing immutable admission or shared wire definitions.
 The workbench may suggest a same-target ZX81 package with the session-display
 interfaces when the selected package lacks them. It checks each candidate's ABI,
 firmware and saved-media admission in package-ID order, continuing after an
-incompatible candidate. A package-inventory error omits that optional suggestion;
+incompatible candidate. For format-3 packages, candidates must share the
+`machine-rom` firmware ID, role and source size; their sealed ROM-map digests may
+differ. A package-inventory error omits that optional suggestion;
 the selected package is inspected separately so an unrelated bad archive does not
 hide the saved setup.
 The attributed `internal/zx81tapes` assets enter the existing media store only
