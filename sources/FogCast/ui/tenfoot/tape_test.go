@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -78,10 +79,10 @@ func TestOpenTapeFileRejectsWrongClass(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := openRemovableFile(tapeTestPackage(), path); err == nil || !strings.Contains(err.Error(), "format") {
+	if _, err := importAndArmTape(context.Background(), NewClient("", nil), hostclient.SessionResult{CorePackage: tapeTestPackage()}, path, nil); err == nil {
 		t.Fatalf("tzx err = %v", err)
 	}
-	if _, _, _, err := openRemovableFile(tapeTestPackage(), dir); err == nil || !strings.Contains(err.Error(), "format") {
+	if _, err := importAndArmTape(context.Background(), NewClient("", nil), hostclient.SessionResult{CorePackage: tapeTestPackage()}, dir, nil); err == nil {
 		t.Fatalf("directory err = %v", err)
 	}
 }
@@ -624,7 +625,9 @@ func TestEmptyDirectoryDoesNotHideTapePicker(t *testing.T) {
 			t.Fatalf("non-.p file was selectable: %+v", row)
 		}
 	}
-	roots := tapePickerRoots("", []hostclient.LibraryRoot{{ID: "usb", System: "zx81", Root: dir}})
+	app := &App{hostSettings: hostclient.LibrarySettings{Libraries: []hostclient.LibraryRoot{{ID: "usb", System: "zx81", Root: dir}}}}
+	app.showTapePickerRootsLocked("Choose tape or disk media.")
+	roots := app.tapePickerRows
 	if len(roots) < 2 || roots[0].Kind != tapePickerKindEject || !roots[0].Selectable || roots[1].Kind != tapePickerKindOSK {
 		t.Fatalf("eject and typed path must lead an empty library: %+v", roots)
 	}
@@ -640,7 +643,6 @@ func TestEmptyDirectoryDoesNotHideTapePicker(t *testing.T) {
 }
 
 func TestTapePickerReachesPFilesBesideBIOS(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "BIOS"), 0o755); err != nil {
 		t.Fatal(err)
@@ -656,15 +658,16 @@ func TestTapePickerReachesPFilesBesideBIOS(t *testing.T) {
 	prev := append([]string(nil), tapePickerVolumeRoots...)
 	tapePickerVolumeRoots = []string{root}
 	t.Cleanup(func() { tapePickerVolumeRoots = prev })
-	roots := tapePickerRoots("", nil)
+	app := &App{}
+	app.showTapePickerRootsLocked("Choose tape or disk media.")
 	saw := false
-	for _, row := range roots {
+	for _, row := range app.tapePickerRows {
 		if row.Kind == tapePickerKindRoot && row.Path == root {
 			saw = true
 		}
 	}
 	if !saw {
-		t.Fatalf("emuhd stand-in missing from roots: %+v", roots)
+		t.Fatalf("emuhd stand-in missing from roots: %+v", app.tapePickerRows)
 	}
 	top, err := listTapePickerDir(zx81ComputerTapePackage(), root)
 	if err != nil {

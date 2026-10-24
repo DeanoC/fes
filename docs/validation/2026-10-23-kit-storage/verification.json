@@ -1,0 +1,14 @@
+{
+  "ccache_pass_1": 1,
+  "ccache_pass_2": 0,
+  "historical_baseline_match": null,
+  "image_passes": 1,
+  "image_sha256": "eca3f1b03ef5e412e8ff43beee14674ffaca4872b272e2c33c03c3bff4887277",
+  "qemu_log_sha256": "86f526f3ab446b9ec1da45abd6b2e0791db3a9015cfa814a4ebffdd8d7dd1a87",
+  "qemu_packaging": "pass",
+  "shared_cache": 1,
+  "structural": "pass",
+  "toolchain_key": "22d5e8277dfc785abc941fd0a3e678a1618a74ac892b43aca3aac53309b175fd",
+  "toolchain_sha256": "612870146bf0ae4ea6e28bab8bfe2009b91c1341360a6fb249c67672341e3a1e",
+  "two_pass_reproducibility": "not-run-single-pass"
+}
