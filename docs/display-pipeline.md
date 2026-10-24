@@ -124,7 +124,7 @@ display fault.
 | --- | --- | --- | --- |
 | ZX81 | Shell 720p raster | No | Yes (`fes_display_plane`) |
 | Spectrum models (48K, 128K, +2A/+3, Pentagon) | ULA frame banks, 3x3 in a shell 720p raster | No | Yes (`fes_display_plane`) |
-| Coleco | Native pixels | Yes | Planned |
+| Coleco | Native pixels | Yes | Yes (`fes_display_plane` after the native part) |
 | Atari ST | Shell raster | Yes | Planned |
 | SMS, SG-1000, C64, Apple II | Shell 720p raster | No | Planned |
 | Pong, Catch, RISC-V, RAM test, demos | `fes_video_720p` | No | Planned |

@@ -9,8 +9,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import coleco_expansion
+from scripts import build_fes_coleco_oss as factory
 from scripts import build_fes_coleco_socket_v2 as shell
 from scripts import build_coleco_sgm as sgm
+from scripts.fes_build_common import BuildError
 
 
 def clock_coverage_route_fixture():
@@ -69,6 +71,10 @@ class BoundaryRouteThroughTest(unittest.TestCase):
             (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
              "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
             (coleco_expansion.NEXTPNR_ROUTETHRU_REMAP,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_RESERVED_REGION,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_RESERVED_REGION,
              "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
         )
         for commit, ff_bel, input_pin, wrong_commit in cases:
@@ -205,6 +211,9 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertEqual(pnr_recipe.lock_path(shell.ROOT, "fes.coleco"), shell.ROOT / shell.TOOLCHAIN_LOCK)
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         self.assertEqual(lock["tool"]["nextpnr"]["commit"], pnr_recipe.nextpnr_pin("fes.coleco"))
+        self.assertEqual(pnr_recipe.nextpnr_pin("fes.coleco"), coleco_expansion.NEXTPNR_RESERVED_REGION)
+        self.assertEqual(coleco_expansion.ROUTETHROUGH_INPUT_PINS[coleco_expansion.NEXTPNR_RESERVED_REGION],
+                         ("F0", "F1"))
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \
              patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):
@@ -420,6 +429,96 @@ class ColecoSgmBuildTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "bus 2.0"):
                     sgm.build(root, producer, root / "package", 0)
                 compiler.assert_not_called()
+
+
+class NativeSessionDisplayTest(unittest.TestCase):
+    def test_native_shell_maps_only_plane_products(self):
+        tools = {"yosys": Path("/bin/true"), "nextpnr-mistral": Path("/bin/true")}
+        native, _route = shell.build_commands(
+            shell.ROOT, shell.ROOT / shell.NATIVE_VIDEO_OUTPUT_RELATIVE, "a" * 32,
+            tools, native_video=True)
+        program = native[-1]
+        self.assertIn("read_verilog -lib cores/fes-common/rtl/fes_hps_ddr_atom.v", program)
+        self.assertIn("cores/fes-common/rtl/fes_display_plane.v", program)
+        self.assertIn("+/mul2dsp.v", program)
+        self.assertIn("-DFES_COLECO_NATIVE_VIDEO_PART_DEV=1", program)
+        self.assertNotIn(shell.DDR_ATOM, program.split("read_verilog -sv", 1)[1])
+        plain = shell.build_commands(
+            shell.ROOT, shell.ROOT / shell.OUTPUT_RELATIVE, "a" * 32, tools)[0][-1]
+        self.assertNotIn("mul2dsp", plain)
+        self.assertNotIn("fes_display_plane.v", plain)
+
+    def test_picture_rectangle_is_the_native_window(self):
+        top = (shell.ROOT / "cores/fes-coleco/rtl/top.v").read_text()
+        self.assertIn(".PICTURE_LEFT(16'd384)", top)
+        self.assertIn(".PICTURE_TOP(16'd168)", top)
+        self.assertIn(".PICTURE_WIDTH(16'd512)", top)
+        self.assertIn(".PICTURE_HEIGHT(16'd384)", top)
+        with patch.object(shell, "functional_record_fields",
+                          side_effect=lambda root, fields, *args, **kwargs: fields), \
+             patch.object(shell, "encode_build_record", side_effect=lambda fields: fields):
+            record = shell.create_build_record(
+                shell.ROOT, "repository", "a" * 40, {}, {}, native_video=True)
+        self.assertEqual(record["parameters"]["video"], "session-display-plane-512x384")
+        self.assertEqual(record["parameters"]["picture_left"], 384)
+        self.assertEqual(record["parameters"]["picture_top"], 168)
+        self.assertEqual(record["parameters"]["picture_width"], 512)
+        self.assertEqual(record["parameters"]["picture_height"], 384)
+
+    def test_native_manifest_requires_the_plane_and_keeps_the_part_optional(self):
+        record = b'{"format":1,"parameters":{},"recipe_sha256":"' + b"a" * 64 + b'"}'
+        evidence = {
+            "rbf": {"size": 100, "sha256": "b" * 64},
+            "build_id": "c" * 32,
+            "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                    "file": "rom-map.json", "size": 10, "sha256": "d" * 64},
+        }
+        tools = {"yosys": "fixture", "nextpnr-mistral": "fixture", "mistral": "fixture"}
+        native = tomllib.loads(shell.manifest(
+            record, evidence, "https://example.invalid/fes.git", "e" * 40, tools,
+            native_video=True).decode())
+        plain = tomllib.loads(shell.manifest(
+            record, evidence, "https://example.invalid/fes.git", "e" * 40, tools).decode())
+        self.assertEqual(native["core"]["version"], "1.4.0")
+        self.assertEqual(plain["core"]["version"], "1.2.0")
+        required = {row["id"]: row["required"] for row in native["interfaces"]}
+        self.assertTrue(required["fes.memory.hps-ddr"])
+        self.assertTrue(required["fes.video.session-display"])
+        self.assertTrue(required["fes.fabric.video.display-plane"])
+        self.assertFalse(required["fes.fabric.video.native-pixels"])
+        self.assertNotIn("fes.media.blob", required)
+        self.assertNotIn("fes.firmware.blob", required)
+        plain_ids = {row["id"] for row in plain["interfaces"]}
+        self.assertNotIn("fes.video.session-display", plain_ids)
+
+    def test_plane_products_accept_missing_sign_and_reject_a_signed_one(self):
+        unsigned = {"type": "MISTRAL_MUL9X9", "parameters": {}}
+        signed = {"type": "MISTRAL_MUL9X9", "parameters": {"A_SIGNED": "0", "B_SIGNED": "0"}}
+        def graph(cells):
+            return {"modules": {"top": {"cells": cells}}}
+        factory._plane_dsp_evidence(graph({f"display.product{i}": unsigned for i in range(3)}))
+        factory._plane_dsp_evidence(graph({f"display.product{i}": signed for i in range(3)}))
+        bad = (
+            {f"display.product{i}": unsigned for i in range(2)},
+            {**{f"display.product{i}": unsigned for i in range(3)},
+             "machine.extra": unsigned},
+            {"machine.product0": unsigned, **{f"display.product{i}": unsigned for i in range(1, 3)}},
+            {**{f"display.product{i}": unsigned for i in range(3)},
+             "display.product0": {"type": "MISTRAL_MUL9X9",
+                                  "parameters": {"A_SIGNED": "1", "B_SIGNED": "0"}}},
+        )
+        for cells in bad:
+            with self.assertRaises(BuildError):
+                factory._plane_dsp_evidence(graph(cells))
+        required, forbidden = factory.session_display_resources(True)
+        self.assertEqual(required["MISTRAL_MUL9X9"], 3)
+        self.assertEqual(required[factory.SESSION_DDR], 1)
+        self.assertNotIn("MISTRAL_MUL9X9", forbidden)
+        plain_required, plain_forbidden = factory.session_display_resources(False)
+        self.assertNotIn("MISTRAL_MUL9X9", plain_required)
+        self.assertIn("MISTRAL_MUL9X9", plain_forbidden)
+        self.assertIn(factory.SESSION_DDR, factory.timing_resource_names(session_display=True))
+        self.assertNotIn(factory.SESSION_DDR, factory.timing_resource_names(session_display=False))
 
 
 if __name__ == "__main__":

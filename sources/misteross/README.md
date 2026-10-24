@@ -236,7 +236,7 @@ This path does not seal `fes.zx81`.
 | `scripts/build_fes_*.py` | Core producers |
 | `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
 | `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
-| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `5fe55f3d` pins; this lock has its own HIP cache slot |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `6ae2e6aa` pins; this lock has its own HIP cache slot |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

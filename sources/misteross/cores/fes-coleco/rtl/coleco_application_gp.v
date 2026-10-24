@@ -17,6 +17,17 @@ module coleco_application_gp #(
     output wire [12:0] firmware_write_addr,
     output wire [15:0] firmware_write_data,
     output wire [1:0] firmware_write_enable
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+    ,
+    output wire display_request,
+    output wire [6:0] display_opcode,
+    output wire [7:0] display_index,
+    output wire [15:0] display_argument,
+    input wire display_response_valid,
+    input wire display_response_error,
+    input wire display_quiesced,
+    input wire [15:0] display_response_data
+`endif
 );
     wire [14:0] write_addr;
     wire [15:0] write_data;
@@ -28,12 +39,25 @@ module coleco_application_gp #(
 `else
     localparam bit ENABLE_MEDIA_ENDPOINT = 1;
 `endif
-    fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
-                          .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
-                          .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
-        .clk(clk), .gpo(gpo), .build_id(build_id), .menu_request(), .menu_opcode(), .menu_index(), .menu_argument(),
+    fes_application_gp #(
+        .ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
+        .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
+        .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+        , .ENABLE_HPS_DDR(1), .ENABLE_SESSION_DISPLAY(1)
+`endif
+    ) endpoint (
+        .clk(clk), .gpo(gpo), .build_id(build_id),
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+        .menu_request(display_request), .menu_opcode(display_opcode),
+        .menu_index(display_index), .menu_argument(display_argument),
+        .menu_response_valid(display_response_valid), .menu_response_error(display_response_error),
+        .menu_response_data(display_response_data), .menu_quiesced(display_quiesced),
+`else
+        .menu_request(), .menu_opcode(), .menu_index(), .menu_argument(),
         .menu_response_valid(1'b0), .menu_response_error(1'b0),
         .menu_response_data(16'd0), .menu_quiesced(1'b1),
+`endif
         .gpi(gpi),
         .exec_reset(exec_reset), .buttons(),
         .controller_buttons(controller_buttons), .controller_keypad(controller_keypad),

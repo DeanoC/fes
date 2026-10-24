@@ -11,7 +11,8 @@
 // machine remain in the 52.224 MHz system domain; the logical frame buffer crosses
 // to the independent 74.25 MHz HDMI pixel domain in coleco_video_720p.
 // FES_COLECO_NATIVE_VIDEO_DEV is an inline source/consumer prototype. It does
-// not expose the sealed RGB888 socket or change the factory producer.
+// not expose the sealed RGB888 socket. FES_COLECO_NATIVE_VIDEO_PART_DEV is the
+// sealed factory shell: the session-display plane sits on the part response.
 module top #(
     parameter [127:0] BUILD_ID = `FES_COLECO_BUILD_ID
 ) (
@@ -120,11 +121,25 @@ module top #(
         .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+    wire pixel_locked;
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
+    pixel_pll video_clock (
+        .refclk(FPGA_CLK1_50),
+        .rst(1'b0),
+        .outclk_0(pixel_clk),
+        .locked(pixel_locked)
+    );
+`else
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
         .outclk_0(pixel_clk)
     );
+`endif
 
     coleco_application_gp gp_mailbox (
         .clk(clk_sys),
@@ -141,6 +156,17 @@ module top #(
         .firmware_write_addr(firmware_write_addr),
         .firmware_write_data(firmware_write_data),
         .firmware_write_enable(firmware_write_enable)
+`ifdef FES_COLECO_NATIVE_VIDEO_PART_DEV
+        ,
+        .display_request(display_request),
+        .display_opcode(display_opcode),
+        .display_index(display_index),
+        .display_argument(display_argument),
+        .display_response_valid(display_response_valid),
+        .display_response_error(display_response_error),
+        .display_response_data(display_response_data),
+        .display_quiesced(display_quiesced)
+`endif
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -175,7 +201,6 @@ module top #(
 
 `ifdef FES_COLECO_NATIVE_VIDEO_DEV
     wire [31:0] native_source_request, native_request;
-    wire [27:0] native_response;
     coleco_native_video native_source (
         .clk_sys(clk_sys), .hold(exec_reset),
         .logical_x(logical_x), .logical_y(logical_y),
@@ -198,8 +223,24 @@ module top #(
         .clock(pixel_clk), .request(video_request), .response(video_response),
         .plug_request(video_plug_request), .plug_response(video_plug_response)
     );
-    assign native_response = video_response;
+    // Three pixel clocks of plane delay move RGB and sync together, so the
+    // 512x384 picture stays at the native 2x window (384, 168).
+    wire [27:0] hdmi_video;
+    fes_display_plane #(
+        .PICTURE_LEFT(16'd384), .PICTURE_TOP(16'd168),
+        .PICTURE_WIDTH(16'd512), .PICTURE_HEIGHT(16'd384)
+    ) display (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
+        .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),
+        .index(display_index), .argument(display_argument),
+        .response_valid(display_response_valid), .response_error(display_response_error),
+        .response_data(display_response_data), .quiesced_sys(display_quiesced),
+        .machine(video_response),
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
+    );
+    assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = hdmi_video[26:0];
 `else
+    wire [27:0] native_response;
     fes_native_video #(
 `ifdef FES_NATIVE_SCANLINES
         .SCANLINES(1),
@@ -210,8 +251,8 @@ module top #(
     ) native_output (
         .clock(pixel_clk), .request(native_request), .response(native_response)
     );
-`endif
     assign {HDMI_TX_VS, HDMI_TX_HS, HDMI_TX_DE, HDMI_TX_D} = native_response[26:0];
+`endif
 `else
     wire [23:0] machine_rgb;
     wire machine_de, machine_hs, machine_vs, raster_sof, raster_eol;

@@ -31,9 +31,14 @@ SOCKET_CLOCK_COVERAGE_ARCS = (
 )
 NEXTPNR_PRE_ROUTETHRU_REMAP = '9128800fa6e77c4138088a7107a95376ba47ff15'
 NEXTPNR_ROUTETHRU_REMAP = '5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe'
+# nextpnr #287 keeps the #276 F0/F1 map and refuses shell routes through a
+# reserved part region. The default argument stays the #276 pin so existing
+# callers keep that exact map; Coleco's lock selects this commit.
+NEXTPNR_RESERVED_REGION = '6ae2e6aaa5c04a937e4fcb7edbff1ab2ffc44b82'
 ROUTETHROUGH_INPUT_PINS = {
     NEXTPNR_PRE_ROUTETHRU_REMAP: ('C', 'D'),
     NEXTPNR_ROUTETHRU_REMAP: ('F0', 'F1'),
+    NEXTPNR_RESERVED_REGION: ('F0', 'F1'),
 }
 
 

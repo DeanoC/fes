@@ -1,5 +1,17 @@
 # FES ColecoVision first slice
 
+## Session display
+
+The sealed native shell (`fes.coleco` 1.4.0) places `fes_display_plane` on the
+video-part response before the HDMI pins. The plane reports the 512×384
+picture at (384, 168). It reuses application opcodes 18–21 with capability
+bit 11, and the package requires `fes.memory.hps-ddr`,
+`fes.video.session-display` and `fes.fabric.video.display-plane`. Menu blit
+stays rejected. Direct and Scanlines stay inside the video fence and do not
+see launcher pixels. The shell routes on nextpnr `6ae2e6aa` (nextpnr #287),
+which keeps shell routes out of `FES_RESERVED_RECT` part regions. The F0/F1
+boundary map is unchanged. Kit acceptance of this package is open.
+
 The development MegaCart lane is `scripts/build_fes_coleco_megacart.py`. Its
 `FES_COLECO_MEGACART_LINK` build removes the media and firmware mailboxes and
 seals 8 KiB BIOS plus eight 16 KiB cartridge banks as one format-4 ROM map.
@@ -685,7 +697,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | Coleco v2 selects `cores/fes-coleco/toolchain.lock` with Yosys `5391eeb1`, nextpnr `5fe55f3d` (#276) and Mistral `8fcc4cb4`. Its boundary `$ROUTETHRU` map is F0/F1. The development-only Coleco shell still selects the repository lock at nextpnr `9128800f` and validates its C/D map. SMS and SG-1000 still match the repository-level commits. A Coleco toolchain install under `build/toolchain/fes-coleco-socket-v2` is optional when a verified toolchain root is passed. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | Coleco v2 selects `cores/fes-coleco/toolchain.lock` with Yosys `5391eeb1`, nextpnr `6ae2e6aa` (#287) and Mistral `8fcc4cb4`. Its boundary `$ROUTETHRU` map stays F0/F1. The development-only Coleco shell still selects the repository lock at nextpnr `9128800f` and validates its C/D map. SMS and SG-1000 still match the repository-level commits. A Coleco toolchain install under `build/toolchain/fes-coleco-socket-v2` is optional when a verified toolchain root is passed. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

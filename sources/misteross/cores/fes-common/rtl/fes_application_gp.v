@@ -13,6 +13,9 @@ module fes_application_gp #(
     // The core drives the fes.memory.hps-ddr port layout (fes_hps_ddr).
     parameter bit ENABLE_HPS_DDR = 0,
     parameter bit ENABLE_MENU = 0,
+    // Session display reuses menu opcodes 18-21. It needs HPS DDR and cannot
+    // sit beside menu display. Blit stays a menu-only opcode.
+    parameter bit ENABLE_SESSION_DISPLAY = 0,
     // The menu also runs the blitter's MenuBlit requests (requires ENABLE_MENU).
     parameter bit ENABLE_MENU_BLITTER = 0
 ) (
@@ -55,6 +58,7 @@ module fes_application_gp #(
         (ENABLE_FIRMWARE ? `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK : 32'd0) |
         (ENABLE_HPS_DDR ? `FES_APPLICATION_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK : 32'd0) |
         (ENABLE_MENU ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_DISPLAY_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_SESSION_DISPLAY ? `FES_APPLICATION_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK : 32'd0) |
         (ENABLE_MENU && ENABLE_MENU_BLITTER ? `FES_APPLICATION_INTERFACE_VIDEO_MENU_BLITTER_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
@@ -269,6 +273,8 @@ module fes_application_gp #(
         if (ENABLE_MEDIA_STREAM && !ENABLE_MEDIA) $error("stream requires blob media");
         if (ENABLE_GAMEPAD && ENABLE_CONTROLLER_PORTS) $error("gamepad interfaces are mutually exclusive");
         if (ENABLE_KEYPAD_PORTS && !ENABLE_CONTROLLER_PORTS) $error("keypad requires controller ports");
+        if (ENABLE_SESSION_DISPLAY && ENABLE_MENU) $error("session display and menu display are mutually exclusive");
+        if (ENABLE_SESSION_DISPLAY && !ENABLE_HPS_DDR) $error("session display requires HPS DDR");
         request_meta = 1'b0;
         request_sync = 1'b0;
         acknowledged_toggle = 1'b0;
@@ -310,7 +316,7 @@ module fes_application_gp #(
         request_meta <= request_toggle;
         request_sync <= request_meta;
 
-        if (ENABLE_MENU && menu_request) begin
+        if ((ENABLE_MENU || ENABLE_SESSION_DISPLAY) && menu_request) begin
             if (menu_response_valid) begin
                 acknowledged_toggle <= request_sync;
                 response_error <= menu_response_error;
@@ -328,7 +334,8 @@ module fes_application_gp #(
                 `FES_APPLICATION_OPCODE_MENU_CONTROL,
                 `FES_APPLICATION_OPCODE_MENU_SUBMIT,
                 `FES_APPLICATION_OPCODE_MENU_BLIT: begin
-                    if (!ENABLE_MENU || (command_opcode == `FES_APPLICATION_OPCODE_MENU_BLIT && !ENABLE_MENU_BLITTER))
+                    if (!(ENABLE_MENU || ENABLE_SESSION_DISPLAY) ||
+                        (command_opcode == `FES_APPLICATION_OPCODE_MENU_BLIT && !(ENABLE_MENU && ENABLE_MENU_BLITTER)))
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
                     else begin
                         // Keep the old ACK until the menu finishes this request.
@@ -351,7 +358,7 @@ module fes_application_gp #(
                     if (command_index != `FES_APPLICATION_CONTROL_INDEX)
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
                     else if (command_argument == `FES_APPLICATION_EXECUTION_HOLD_RESET) begin
-                        if (ENABLE_MENU && !menu_quiesced)
+                        if ((ENABLE_MENU || ENABLE_SESSION_DISPLAY) && !menu_quiesced)
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                         else exec_reset <= 1'b1;
                         // HOLD preserves staged media; BEGIN replaces it.

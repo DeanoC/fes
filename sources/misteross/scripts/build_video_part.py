@@ -199,13 +199,13 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         timing = json.loads((output / "timing.json").read_bytes())
         sgm.validate_cart_timing(timing)
         factory = shell_recipe.factory
-        resources = validate_timing_resources(timing.get("utilization"),
-            factory.ORDINARY_RESOURCES | set(factory.REQUIRED_RESOURCES) |
-            factory.FORBIDDEN_RESOURCES | factory.REQUIRED_ZERO_RESOURCES)
+        resources = validate_timing_resources(
+            timing.get("utilization"), factory.timing_resource_names(session_display=native))
         measured = {name: factory._frequency_row(timing["fmax"], frequency, name, name)
                     for name, frequency in sgm.REQUIRED_CLOCKS_MHZ.items()}
         synthesis_counts = _cell_counts(json.loads((output / "cart.json").read_bytes()))
-        if any(synthesis_counts.get(name, 0) for name in factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES)):
+        if any(synthesis_counts.get(name, 0) for name in
+               factory.FORBIDDEN_RESOURCES | set(factory.REQUIRED_RESOURCES) | {factory.SESSION_DDR}):
             raise ValueError("video part must not own DSP, PLL or HPS resources")
         checked_clocks = validate_clocks(json.loads((output / "cart-routed.json").read_bytes()), layout=layout)
         if (native or variant == "scanlines") and not checked_clocks:

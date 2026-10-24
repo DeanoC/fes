@@ -62,12 +62,25 @@ PINNED_INPUTS = tuple(dict.fromkeys((
 )))
 VIDEO_INPUTS = (*PINNED_INPUTS, "scripts/video_parts.py", video_parts.RTL,
                 "cores/fes-common/generated/fes_video_part.vh")
+PLANE_SOURCES = (
+    "cores/fes-common/rtl/fes_display_cdc.v",
+    "cores/fes-common/rtl/fes_display_plane.v",
+    "cores/fes-menu/rtl/fes_menu_control.v",
+    "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v",
+    "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
+)
+DDR_ATOM = "cores/fes-common/rtl/fes_hps_ddr_atom.v"
 NATIVE_VIDEO_SOURCES = (
     "cores/fes-common/rtl/coleco_native_video.v",
     "cores/fes-common/rtl/fes_native_cdc.v", native_video_parts.RTL,
+    *PLANE_SOURCES,
 )
 NATIVE_VIDEO_INPUTS = (*PINNED_INPUTS, *NATIVE_VIDEO_SOURCES,
-    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh")
+    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh",
+    "cores/fes-common/generated/fes_display_plane.vh", DDR_ATOM,
+    "scripts/build_fes_menu.py", "scripts/fes_de10nano_evidence.py")
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log",
     "nextpnr.log", "build-inputs.json", "build-summary.json", "manifest.toml",
@@ -181,7 +194,10 @@ def create_build_record(root: Path, repository: str, revision: str,
             video_clock_hz=74_250_000)
     if native_video:
         fields["parameters"].update(native_width=256, native_height=192,
-                                     native_encoding="Index4Tms9918", native_frame_banks=2)
+                                     native_encoding="Index4Tms9918", native_frame_banks=2,
+                                     video="session-display-plane-512x384",
+                                     picture_left=384, picture_top=168,
+                                     picture_width=512, picture_height=384)
     fields = functional_record_fields(
         root, fields, source_roots_for_producer(__name__, inputs, root), execution,
         pinned_inputs=inputs,
@@ -203,15 +219,36 @@ def build_commands(root: Path, output: Path, build_id: str,
         raise BuildError("Coleco socket BUILD_ID is malformed")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("Coleco socket commands require authenticated compiler paths")
-    program = (
+    read_sources = (
         "read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 "
         "-DFES_COLECO_ROM_LINK=1 "
         "-DFES_COLECO_EXPANSION_V2_DEV=1 "
         f"{video_define}-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(sources)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} top; "
-        "synth_intel_alm -nolutram -nodsp -top top; stat; "
-        f"write_json {relative.as_posix()}/synth.json"
     )
+    if native_video:
+        # Map only the plane products before coarse flattening. The machine
+        # stays on the existing -nodsp implementation. Yosys 5391eeb1 keeps
+        # the fpga2sdram blackbox when the atom is read as a library.
+        program = (
+            f"read_verilog -lib {DDR_ATOM}; "
+            f"{read_sources}"
+            f"chparam -set BUILD_ID 128'h{build_id} top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run begin:begin; "
+            "wreduce t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+            "techmap -map +/mul2dsp.v -D DSP_A_MAXWIDTH=9 -D DSP_B_MAXWIDTH=9 "
+            "-D DSP_A_MINWIDTH=4 -D DSP_B_MINWIDTH=4 -D DSP_NAME=__MUL9X9 "
+            "t:$mul a:src=cores/fes-common/rtl/fes_display_plane.v:* %i; "
+            "chtype -set $mul t:$__soft_mul; "
+            "synth_intel_alm -nolutram -nodsp -top top -run coarse:; stat; "
+            f"write_json {relative.as_posix()}/synth.json"
+        )
+    else:
+        program = (
+            f"{read_sources}"
+            f"chparam -set BUILD_ID 128'h{build_id} top; "
+            "synth_intel_alm -nolutram -nodsp -top top; stat; "
+            f"write_json {relative.as_posix()}/synth.json"
+        )
     yosys = (str(tools["yosys"]), "-p", program)
     route = (
         str(tools["nextpnr-mistral"]), "--json", f"{relative}/synth.json",
@@ -251,7 +288,12 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
         fields["interfaces"].append({"id": profile.INTERFACE, "major": 1,
                                      "minor": 0, "required": False})
     if native_video:
-        fields["core"]["description"] = "ColecoVision native-pixel shell requiring a linked video part"
+        fields["core"]["version"] = "1.4.0"
+        fields["core"]["description"] = (
+            "ColecoVision native-pixel shell with the session-display plane; requires a linked video part")
+        for interface in ("fes.memory.hps-ddr", "fes.video.session-display",
+                          "fes.fabric.video.display-plane"):
+            fields["interfaces"].append({"id": interface, "major": 1, "minor": 0, "required": True})
     return encode_manifest(fields)
 
 
@@ -305,7 +347,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             profile.validate_boundary(
                 json.loads((output / "routed.json").read_bytes())["modules"]["top"],
                 routed=True, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
-        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
+        evidence = factory.validate_build_evidence(
+            output, root, gpu_backend=backend, session_display=native_video)
         database_root = tools["mistral"].path.parents[2] / "src/mistral"
         database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
         mapping, map_evidence = rom_map.build_rom_map(

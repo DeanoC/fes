@@ -20,6 +20,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.source_repository import canonical_repository
+from scripts import build_fes_menu, fes_de10nano_evidence
 from scripts.fes_build_common import (
     BuildError,
     _authenticate_tools,
@@ -159,6 +160,8 @@ FORBIDDEN_RESOURCES = frozenset(
     }
 )
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
+PLANE_PRODUCTS = 3
+SESSION_DDR = "cyclonev_hps_interface_fpga2sdram"
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
@@ -471,8 +474,69 @@ def _audio_evidence(design: dict) -> None:
             raise BuildError(f"audio output {port} has incorrect routing or electrical constraints")
 
 
+def session_display_resources(session_display: bool) -> tuple[dict[str, int], frozenset[str]]:
+    """Native session display owns three plane products and one read-only DDR port."""
+    required = dict(REQUIRED_RESOURCES)
+    forbidden = FORBIDDEN_RESOURCES
+    if session_display:
+        forbidden = FORBIDDEN_RESOURCES - {"MISTRAL_MUL9X9"}
+        required["MISTRAL_MUL9X9"] = PLANE_PRODUCTS
+        required[SESSION_DDR] = 1
+    return required, forbidden
+
+
+def timing_resource_names(*, session_display: bool = False) -> set[str]:
+    required, forbidden = session_display_resources(session_display)
+    return set(ORDINARY_RESOURCES) | set(required) | set(forbidden) | set(REQUIRED_ZERO_RESOURCES)
+
+
+def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
+    """The plane reads launcher frames through one read-only fpga2sdram port."""
+    normalized = build_fes_menu.layout_graph_with_constants(design)
+    evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
+    cells = normalized["modules"][TOP].get("cells", {})
+    memory = next(cell for cell in cells.values()
+                  if cell.get("type") == SESSION_DDR)
+    ports = memory.get("connections", {})
+    unused = tuple(f"cmd_valid_{port}" for port in range(1, 6)) + tuple(
+        f"wr_valid_{port}" for port in range(4))
+    grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
+        if cell.get("type") == "MISTRAL_CONST"
+        and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
+        and isinstance(cell.get("connections", {}).get("Q"), list)
+        and len(cell["connections"]["Q"]) == 1]
+    if any(ports.get(port) not in grounds for port in unused) or ports.get("cmd_data_0", [])[1:2] not in grounds:
+        raise BuildError("session display DDR writes and unused ports must be tied low")
+    for name, cell in cells.items():
+        if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
+                and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
+            raise BuildError("session display FIFO requires synchronous M10K reads")
+    return {**evidence, "read_only": True, "unused_ports_disabled": True}
+
+
+def _plane_dsp_evidence(design: dict) -> None:
+    """Exactly three unsigned display-plane products.
+
+    Yosys 5391eeb1 predates the A_SIGNED/B_SIGNED parameters (#25). A missing
+    sign is unsigned on that pin. A sign that is present must be zero.
+    """
+    products = [(name, cell) for name, cell in design["modules"][TOP].get("cells", {}).items()
+                if cell.get("type") == "MISTRAL_MUL9X9"]
+    if len(products) != PLANE_PRODUCTS or not all(name.startswith("display.") for name, _ in products):
+        raise BuildError(f"synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products")
+    for name, cell in products:
+        parameters = cell.get("parameters", {})
+        for sign in ("A_SIGNED", "B_SIGNED"):
+            if sign not in parameters:
+                continue
+            text = str(parameters.get(sign, "")).strip()
+            if not text or set(text) - {"0", "1"} or int(text, 2) != 0:
+                raise BuildError(f"display-plane product {name} must be unsigned ({sign}={text!r})")
+
+
 def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
-                            gpu_backend: str = COLECO_GPU_BACKEND) -> dict:
+                            gpu_backend: str = COLECO_GPU_BACKEND,
+                            session_display: bool = False) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -481,12 +545,18 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
     _i2c_evidence(routed, "routed")
     _audio_evidence(routed)
     counts = _cell_counts(synthesis)
-    for name, expected in REQUIRED_RESOURCES.items():
+    required, forbidden = session_display_resources(session_display)
+    display = None
+    if session_display:
+        _plane_dsp_evidence(synthesis)
+        _session_display_evidence(synthesis, "synthesized", source_root)
+        display = _session_display_evidence(routed, "routed", source_root)
+    for name, expected in required.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
     if counts.get("MISTRAL_M10K", 0) + counts.get("MISTRAL_M10K_TDP", 0) < 1:
         raise BuildError("synthesis must map COLECO RAM onto MISTRAL_M10K")
-    for name in FORBIDDEN_RESOURCES:
+    for name in forbidden:
         if counts.get(name, 0) != 0:
             raise BuildError(f"forbidden synthesis cell {name} is in use")
     route_log = output / "nextpnr.log"
@@ -508,12 +578,11 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
     if not audio_pll:
         raise BuildError("route log must prove the 12.288 MHz audio PLL")
     utilization = timing.get("utilization")
-    known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
-    resources = validate_timing_resources(utilization, known)
+    resources = validate_timing_resources(utilization, timing_resource_names(session_display=session_display))
     rbf = output / "core.rbf"
     if rbf.is_symlink() or not rbf.is_file() or not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
-    return {
+    result = {
         "status": "pass",
         "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
@@ -539,6 +608,9 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
         "synthesis_cells": {name: counts[name] for name in sorted(counts)},
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
     }
+    if session_display:
+        result["session_display"] = display
+    return result
 
 
 def _manifest(

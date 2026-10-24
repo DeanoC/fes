@@ -43,6 +43,12 @@ def main():
             selected += ["-DFES_COLECO_NATIVE_VIDEO_PART_DEV=1", "-DFES_COLECO_EXPANSION_V2_DEV=1"]
             socket = [COLECO / "rtl" / name for name in ["coleco_native_video_socket.v",
                       "coleco_expansion_socket_v2.v", "coleco_expansion_ram.v", "coleco_audio_mix.v"]]
+            socket += [COMMON / "rtl" / name for name in [
+                "fes_display_cdc.v", "fes_display_plane.v", "fes_hps_ddr.v", "fes_hps_ddr_guard.v"]]
+            menu = COMMON.parent / "fes-menu"
+            socket += [menu / "rtl" / name for name in [
+                "fes_menu_control.v", "fes_menu_video.v", "fes_menu_reader.v"]]
+            socket.append(menu / "sim" / "ddr_model.v")
         if profile == "scanlines":
             selected += ["-DFES_NATIVE_SCANLINES=1"]
         subprocess.run([args.verilator, "--lint-only", "--top-module", "top", *flags, *board_flags,

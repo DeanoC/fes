@@ -258,7 +258,7 @@ import hashlib, io, json, re, sys, tarfile, tempfile
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from scripts import build_video_part as producer, build_fes_coleco_socket_v2 as shell_producer
-from scripts import native_video_parts, native_video_clock, coleco_expansion
+from scripts import native_video_parts, native_video_clock, coleco_expansion, pnr_recipe
 from scripts import build_atari_st_video_part, build_fes_atari_st_oss, rom_map
 from scripts.core_package import read_package
 from scripts.export_core_package import source_input_closure, POLICY, verify_record_source_at_revision, build_identity
@@ -337,12 +337,15 @@ else:
             require(summary['rom']==package.fields['rom'], 'frozen shell firmware receipt differs')
             manifest = shell_producer._manifest(record,summary,fields['repository'],fields['revision'],fields['tools'])
         else:
-            coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
-            layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
+            pin = pnr_recipe.nextpnr_pin('fes.coleco')
+            coleco_expansion.validate_routed_shell(shell/'routed.json',version=2,nextpnr_commit=pin)
+            layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True,nextpnr_commit=pin)
             require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
-            evidence = shell_producer.factory.validate_build_evidence(shell,root,gpu_backend=expected_backend)
+            evidence = shell_producer.factory.validate_build_evidence(shell,root,gpu_backend=expected_backend,session_display=bool(options.get('native_video')))
             for key in ('status','timing','resources','synthesis_cells','rbf'):
                 require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
+            if options.get('native_video'):
+                require(summary.get('session_display')==evidence.get('session_display'), 'frozen shell session display evidence differs')
             require(all(summary.get('route',{}).get(key)==value for key,value in evidence['route'].items()), 'frozen shell route evidence differs')
             manifest = shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],**options)
         require(summary['build_id']==build_identity(record) and summary['tools']==current['tools'] and summary['execution']==current['execution'], 'frozen shell summary differs from authenticated inputs')
@@ -382,7 +385,8 @@ else:
         require('Info: Program finished normally.' in log and 'unrouted' not in log.lower() and not re.search(r'^\s*(?:ERROR|FATAL)\b',log,re.M|re.I), 'video route did not complete')
         backend=factory._require_gpu_backend(log, expected_backend)
         timing=json.loads(bounded(directory/'timing.json')); measured=clock_producer.validate_cart_timing(timing)
-        resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
+        known=(factory.timing_resource_names(session_display=True) if native else factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
+        resources=validate_timing_resources(timing.get('utilization'),known)
         if not st: measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()}
         prepared=bounded(directory/'cart.json',32<<20)
         if native:
@@ -393,7 +397,8 @@ else:
             proof.update(synth_sha256=sha(synthesized),prepared_sha256=sha(prepared))
             require(summary.get('native_clock_boundary')==proof, 'native clock normalization evidence differs')
         counts=_cell_counts(json.loads(prepared))
-        require(not any(counts.get(name,0) for name in part_forbidden|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
+        owned=part_forbidden|set(factory.REQUIRED_RESOURCES)|(set() if st else {factory.SESSION_DDR})
+        require(not any(counts.get(name,0) for name in owned), 'video part owns a forbidden resource')
         require(not native or sum(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP'))==48, 'native part must own exactly 48 M10K frame-buffer blocks')
         require(not st or not any(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP')), 'ST raster part must not allocate RAM')
         pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')),layout=layout)

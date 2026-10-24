@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // 50 MHz DE10-Nano reference to the fixed 74.25 MHz HDMI pixel clock.
+// locked is the PLL lock. A shell with a display plane holds DDR until it is high.
 
 module pixel_pll (
     input  wire refclk,
     input  wire rst,
-    output wire outclk_0
+    output wire outclk_0,
+    output wire locked
 );
-    wire locked;
 
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"),
