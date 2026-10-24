@@ -210,6 +210,11 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 			return row.Name
 		})
 	}
+	if snap.Storage.Open {
+		overlay := snap
+		overlay.FirmwarePicker = snap.Storage
+		drawFilePicker(dev, overlay, labels, used, func(row FirmwarePickerRow) string { return row.Name })
+	}
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)
 	drawDebugHUD(dev, snap)

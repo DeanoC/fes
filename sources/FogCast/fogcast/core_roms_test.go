@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -253,8 +254,15 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			readiness, err := s.CoreCompositions(ctx, []string{entry.GameID})
-			if err != nil || !readiness[entry.GameID].ROMRequired || readiness[entry.GameID].ROMReady {
+			initial := readiness[entry.GameID]
+			if err != nil || role == "cartridge" && (!initial.ROMRequired || initial.ROMReady) || role == "firmware" && (!initial.FirmwareRequired || initial.FirmwareReady || initial.ROMRequired || initial.ROMRole != protocol.FirmwareRole || initial.ROMSourceSize != 1024) {
 				t.Fatalf("missing readiness %+v %v", readiness, err)
+			}
+			if role == "firmware" {
+				game := hostclient.Game{State: "available", RootOnline: true, Launchable: true, FirmwareRequired: initial.FirmwareRequired, FirmwareReady: initial.FirmwareReady, ROMRole: initial.ROMRole}
+				if game.LaunchBlock() != hostclient.LaunchMissingFirmware {
+					t.Fatalf("unbound firmware should open firmware picker, got %s", game.LaunchBlock())
+				}
 			}
 			if _, err = s.Launch(ctx, entry.GameID, nil); err == nil {
 				t.Fatal("missing ROM launched")
@@ -281,8 +289,17 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 				t.Fatal(err)
 			}
 			readiness, err = s.CoreCompositions(ctx, []string{entry.GameID})
-			if err != nil || !readiness[entry.GameID].ROMReady || readiness[entry.GameID].ROMMediaID != media.MediaID {
+			selected := readiness[entry.GameID]
+			if err != nil {
 				t.Fatalf("selected readiness %+v %v", readiness, err)
+			}
+			if role == "firmware" {
+				game := hostclient.Game{State: "available", RootOnline: true, Launchable: true, FirmwareRequired: selected.FirmwareRequired, FirmwareReady: selected.FirmwareReady, ROMRole: selected.ROMRole, ROMID: selected.ROMID, ROMSourceSize: selected.ROMSourceSize, ROMMediaID: selected.ROMMediaID}
+				if !selected.FirmwareReady || selected.ROMRequired || selected.ROMMediaID != media.MediaID || game.LaunchBlock() != "" {
+					t.Fatalf("selected firmware readiness %+v game=%+v", selected, game)
+				}
+			} else if !selected.ROMRequired || !selected.ROMReady || selected.ROMMediaID != media.MediaID {
+				t.Fatalf("selected cartridge readiness %+v", selected)
 			}
 			if role == "cartridge" {
 				if _, err = store.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", "blob", media.MediaID); err != nil {

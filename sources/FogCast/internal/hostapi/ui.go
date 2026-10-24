@@ -21,12 +21,16 @@ var uiApp string
 //go:embed ui_core_library.js
 var uiCoreLibrary string
 
+//go:embed ui_storage.js
+var uiStorage string
+
 var uiHTML = assembleUI()
 
 func assembleUI() string {
 	assets := map[string]string{
 		"{{FOGCAST_STYLES}}":       "<style>" + uiStyles + "</style>",
 		"{{FOGCAST_METADATA}}":     "<script>" + uiMetadata + "</script>",
+		"{{FOGCAST_STORAGE}}":      "<script>" + uiStorage + "</script>",
 		"{{FOGCAST_CORE_LIBRARY}}": "<script>" + uiCoreLibrary + "</script>",
 		"{{FOGCAST_APP}}":          "<script>globalThis.FogCastPresentationEnabled = true;globalThis.FogCastPrefetchVisibleCovers = true;globalThis.FogCastConnectionPollingEnabled = true;</script><script>" + uiApp + "</script>",
 	}

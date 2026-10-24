@@ -1020,6 +1020,42 @@ public:
 		return RestoreAfterSaveFailure("save_media", system, core, generation, hardware_.FlushSave());
 	}
 
+	Error CaptureZx81Tape(const std::string& path, const std::string& package_id, std::uint64_t generation)
+	{
+		if (!ValidPackageId(package_id) || generation == 0 || path.empty())
+			return Invalid("invalid ZX81 tape capture");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			if (!rejected.ok()) return rejected;
+			busy_ = true; system = status_.system; core = status_.core;
+		}
+		const Error error = hardware_.CaptureZx81Tape(path);
+		FinishMediaUnit();
+		Log("capture_zx81_tape", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
+	Error AcknowledgeZx81Tape(const std::string& package_id, std::uint64_t generation)
+	{
+		if (!ValidPackageId(package_id) || generation == 0)
+			return Invalid("invalid ZX81 tape acknowledgement");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, 0);
+			if (!rejected.ok()) return rejected;
+			busy_ = true; system = status_.system; core = status_.core;
+		}
+		const Error error = hardware_.AcknowledgeZx81Tape();
+		if (error.code == ErrorCode::save_failed)
+			return RestoreAfterSaveFailure("acknowledge_zx81_tape", system, core, generation, error);
+		FinishMediaUnit();
+		Log("acknowledge_zx81_tape", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
 	Error EjectMedia(const std::string& package_id, std::uint64_t generation,
 		std::uint8_t unit)
 	{
@@ -1658,6 +1694,15 @@ Error Runtime::InsertLibraryMedia(const std::string& path, const std::string& pa
 Error Runtime::SaveMedia(const std::string& package_id, std::uint64_t generation, std::uint8_t unit)
 {
 	return impl_->SaveMedia(package_id, generation, unit);
+}
+Error Runtime::CaptureZx81Tape(const std::string& path, const std::string& package_id,
+	std::uint64_t generation)
+{
+	return impl_->CaptureZx81Tape(path, package_id, generation);
+}
+Error Runtime::AcknowledgeZx81Tape(const std::string& package_id, std::uint64_t generation)
+{
+	return impl_->AcknowledgeZx81Tape(package_id, generation);
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {

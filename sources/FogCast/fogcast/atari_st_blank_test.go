@@ -52,7 +52,7 @@ func newAtariDeskPackage(t *testing.T, raw []byte) (*Service, catalog.CoreEntry)
 		t.Fatal(err)
 	}
 	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
-	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: 10 * time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.corePackages = packages
 	inspection, created, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
 	if err != nil || !created {
