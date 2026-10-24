@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -320,7 +319,7 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 	}
 	if !response.OK || response.Error != nil {
 		apiErr := mapProtocol2Error(response.Error)
-		if (response.Error != nil && response.Error.Code == "busy") || completedComputerMediaEjectRejection(response.Error) {
+		if response.Error != nil && response.Error.Code == "busy" {
 			apiErr.NoChange = true
 		}
 		return nil, apiErr
@@ -330,26 +329,6 @@ func (r *Runtime) EjectMedia(ctx context.Context, b protocol.MediaUnitBinding) (
 		return nil, unavailableError()
 	}
 	return cloneMediaUnits(response.Capabilities.MediaUnits), nil
-}
-
-// A GP command rejection is an acknowledged response, so the computer
-// endpoint did not apply the eject. Transport errors and invalid acknowledgements
-// remain uncertain because they do not identify a completed rejection.
-func completedComputerMediaEjectRejection(remote *Protocol2Error) bool {
-	const prefix = "FES GP command rejected with response "
-	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" || !strings.HasPrefix(remote.Message, prefix) {
-		return false
-	}
-	code := strings.TrimPrefix(remote.Message, prefix)
-	if code == "" {
-		return false
-	}
-	for _, digit := range code {
-		if digit < '0' || digit > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // MediaUnits reads the live unit states of one exact fes.computer generation,

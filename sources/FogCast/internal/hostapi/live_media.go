@@ -25,14 +25,14 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			len(r.Header.Values(protocol.HostTargetIDHeader)) > 1 ||
 			len(types) != 1 || types[0] != "application/json" || len(r.TransferEncoding) != 0 ||
 			r.ContentLength < 1 || r.ContentLength > 1<<20 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+			writeSessionError(w, protocol.LiveMediaRequestError())
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var req protocol.LiveMediaRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
 			protocol.ValidateDigest(req.MediaID) != nil || !protocol.AdmitLiveMediaName(req.Name) {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+			writeSessionError(w, protocol.LiveMediaRequestError())
 			return
 		}
 		coordinator := s.forSessionID(ids[0])
@@ -52,7 +52,7 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 			len(r.Header.Values(protocol.HostTargetHeader)) != 1 ||
 			len(r.Header.Values(protocol.HostTargetIDHeader)) > 1 ||
 			err != nil || len(body) != 0 || len(r.TransferEncoding) != 0 {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", protocol.LiveMediaRequestError().Message)
+			writeSessionError(w, protocol.LiveMediaRequestError())
 			return
 		}
 		coordinator := s.forSessionID(ids[0])

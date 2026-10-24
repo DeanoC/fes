@@ -361,8 +361,8 @@ func TestRuntimeEjectMediaRequiresEmpty(t *testing.T) {
 			Code: "io_failed", Message: "FES GP command rejected with response 4", Phase: "input",
 		}}, nil
 	}
-	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || !apiErr.NoChange {
-		t.Fatalf("completed eject rejection did not guarantee no change: %#v", apiErr)
+	if _, apiErr := runtime.EjectMedia(context.Background(), binding); apiErr == nil || apiErr.NoChange {
+		t.Fatalf("numeric eject failure must remain uncertain: %#v", apiErr)
 	}
 	control.eject = func(context.Context, string, uint64, uint8) (Protocol2Response, error) {
 		return Protocol2Response{OK: false, Error: &Protocol2Error{

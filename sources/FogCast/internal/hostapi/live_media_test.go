@@ -23,6 +23,53 @@ type liveMediaService struct {
 	err          error
 }
 
+func TestLiveMediaEarlyValidationReportsNoChange(t *testing.T) {
+	handler := hostapi.New(&liveMediaService{})
+	for _, tc := range []struct {
+		name  string
+		path  string
+		body  string
+		setup func(*http.Request)
+	}{
+		{
+			name:  "replace missing binding",
+			path:  "/api/v1/session/live-media",
+			body:  `{"media_id":"` + strings.Repeat("a", 64) + `","name":"game.p"}`,
+			setup: func(r *http.Request) { r.Header.Set("Content-Type", "application/json") },
+		},
+		{
+			name: "replace invalid body",
+			path: "/api/v1/session/live-media",
+			body: "{}",
+			setup: func(r *http.Request) {
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set(protocol.HostSessionIDHeader, "session")
+				protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("b", 64), Generation: 1, Target: "target"}.SetHeaders(r.Header)
+			},
+		},
+		{
+			name: "clear nonempty body",
+			path: "/api/v1/session/live-media/clear",
+			body: "unexpected",
+			setup: func(r *http.Request) {
+				r.Header.Set(protocol.HostSessionIDHeader, "session")
+				protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("b", 64), Generation: 1, Target: "target"}.SetHeaders(r.Header)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+			r.Host = "127.0.0.1"
+			tc.setup(r)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"no_change":true`) {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body)
+			}
+		})
+	}
+}
+
 func (s *liveMediaService) ReplaceLiveMedia(_ context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.replaceCalls++
 	s.mediaID, s.name = mediaID, name
@@ -232,6 +279,13 @@ func TestLiveMediaNoChangeRejectionsPreserveName(t *testing.T) {
 	}
 	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"third.p"`) {
 		t.Fatalf("busy eject lost prior filename: %s", current.Body.String())
+	}
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "FES GP command rejected with response 4", Phase: "input"}
+	if rejected := request("/api/v1/session/live-media/clear", ""); rejected.Code == http.StatusOK || strings.Contains(rejected.Body.String(), `"no_change":true`) {
+		t.Fatalf("post-eject state failure was treated as no change: %d %s", rejected.Code, rejected.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); strings.Contains(current.Body.String(), `"media_name"`) {
+		t.Fatalf("post-eject state failure retained stale filename: %s", current.Body.String())
 	}
 }
 

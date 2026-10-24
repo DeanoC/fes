@@ -2847,6 +2847,35 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 	}
 }
 
+void TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure()
+{
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaApple2FloppyID});
+	ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	assert(f.Insert(ComputerPayload(1030)).ok());
+
+	// Invalid state on MediaEject is the known completed no-change result.
+	f.endpoint.write_busy = true;
+	const auto busy = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(busy.code == mister::ErrorCode::busy && busy.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateReady);
+	f.endpoint.write_busy = false;
+
+	// The same numeric code from the state read happens after the eject took
+	// effect, so it must stay an uncertain io_failed result.
+	f.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
+		return request.opcode == FesComputerOpcodeMediaInfo && request.index ==
+			FesComputerMediaInfoStateField ? FesSimpleComputerErrorInvalidState : 0;
+	};
+	const auto rejected_state = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(rejected_state.code == mister::ErrorCode::io_failed &&
+		rejected_state.message == "FES GP command rejected with response 4" &&
+		rejected_state.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateEmpty);
+}
+
 void TestMediaSnapshotFrozenCaptureAndRecovery()
 {
  const auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaAtariStFloppyID,FesComputerInterfaceMediaAtariStFloppyWriteID});
@@ -2957,6 +2986,7 @@ int main()
 	TestZx81SaveStaysDirtyUntilAcknowledged();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
+	TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure();
 	puts("fes_gp_test: all groups passed");
 	return 0;
 }
