@@ -13,7 +13,7 @@ from scripts.affected import plan
 
 
 class ParentWorkflowTests(unittest.TestCase):
-    def test_host_workflow_delegates_build_selection_and_keeps_test_shards(self):
+    def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         host = workflow.split('  host:\n', 1)[1].split('  runtime:\n', 1)[0]
         script = textwrap.dedent(re.search(r'        run: \|\n(.*)', host, re.S).group(1))
@@ -34,12 +34,12 @@ class ParentWorkflowTests(unittest.TestCase):
                     commands = (root / 'commands').read_text().splitlines()
                     runner = next(c for c in commands if c.startswith('python3 scripts/host_tests.py '))
                     self.assertIn('--build-host-if-needed', runner)
+                    self.assertIn('--ui-if-needed', runner)
                     self.assertIn(f'--shard {shard}/3', runner)
                     self.assertIn('--paths-json ' + paths, runner)
                     self.assertEqual('--full' in runner, full)
                     self.assertNotIn('make host', commands)
-                    self.assertEqual(any(c.startswith('make -C sources/FogCast test-ui')
-                                         for c in commands), shard == 3)
+                    self.assertFalse(any(c.startswith('make ') for c in commands))
 
     def test_deadcode_step_forwards_paths_to_real_selector(self):
         repository = Path(__file__).resolve().parents[1]
