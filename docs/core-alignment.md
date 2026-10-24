@@ -43,7 +43,7 @@ These are the choices already in the tree at `6d9939c2`.
    registered locks each have their own slot: Pong pins nextpnr `552ba246`
    (fes#887), ZX81 pins nextpnr `1eecf877` (#936), RISC-V pins nextpnr
    `8f453ebc` (#945), Atari ST pins nextpnr `5fe55f3d` (#910), and Coleco pins
-   Yosys `5391eeb1` with nextpnr `5fe55f3d` and the shared Mistral. The
+   Yosys `5391eeb1` with nextpnr `27e1b497` and the shared Mistral. The
    unregistered PC/XT diagnostic also sits on `552ba246` (#840). HIP
    architectures are `gfx1100;gfx1201`. Pin changes stay scoped to the
    affected core; a lock is that core's last known good, not a required pin.
@@ -145,8 +145,8 @@ older kit note does not accept the new bytes.
 Issue #843 adds one lock file for each registered core. Since #882 each lock
 can pin its own nextpnr, provided `scripts/pnr_recipe.py` classifies that
 nextpnr's options and the core's recipe lists them. Coleco's Yosys pin is
-`5391eeb1`; Pong, ZX81 and RISC-V pin their own nextpnr; Apple II, Atari ST,
-C64, Coleco and Spectrum pin nextpnr `5fe55f3d`; the other five registered locks
+`5391eeb1`; Pong, ZX81, RISC-V and Coleco pin their own nextpnr; Apple II,
+Atari ST, C64 and Spectrum pin nextpnr `5fe55f3d`; the other five registered locks
 are byte-identical to the repository-level lock. Keep the files at the registered
 `cores/fes-<core>/toolchain.lock` paths and route future pin changes through
 that core's lock and recipe. A new Z80 machine instantiates `fes_z80_nmos`. A
@@ -159,7 +159,7 @@ Eight registered locks differ from the repository-level pin (Yosys
 `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Pong on nextpnr
 `552ba246`, ZX81 on `1eecf877`, RISC-V on `8f453ebc`, Apple II, C64 and
 Spectrum on `5fe55f3d` (#1007), Atari ST on `5fe55f3d` (#910), and Coleco on
-Yosys `5391eeb1` with nextpnr `5fe55f3d`; the unregistered PC/XT diagnostic is
+Yosys `5391eeb1` with nextpnr `27e1b497`; the unregistered PC/XT diagnostic is
 also on `552ba246`. The other five match it. The following historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
 `config/core-recipes.toml`.
@@ -168,7 +168,7 @@ the artifacts they name; current recipe lock paths are shown in
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `cores/fes-c64/toolchain.lock` (nextpnr `5fe55f3d` since #1007; recorded pin `9128800f`) | The recorded CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`) predates the per-core lock layout. Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the same commits (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `cores/fes-atari-st/toolchain.lock` (nextpnr `5fe55f3d` since #910, own cache slot) | Factory. The October kit notes do not accept a shared-pin seal. |
-| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `5fe55f3d` since #1007, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
+| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `27e1b497`: main with nextpnr #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (nextpnr `5fe55f3d` since #1007) | Same multi-region cart support. Both files started at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `1eecf877` since #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
