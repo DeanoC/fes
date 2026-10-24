@@ -191,6 +191,9 @@ The `LAT` rows sit under the `MB/S` row:
 the bins. Beside the core, the bench recounts every latency read from the
 memory handshakes and compares that count with what the core reports.
 
+The [2026-10-25 Kit B record](../../../../docs/validation/2026-10-25-hps-ddr-latency.md)
+has the measured latencies at 100 MHz, with Linux idle and under load.
+
 ## Builds
 
 The [2026-09-27 timing investigation](../../docs/validation/2026-09-27-ramtest-timing.md)
