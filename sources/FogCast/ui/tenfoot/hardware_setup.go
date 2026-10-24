@@ -55,11 +55,11 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return
 	}
 	s.HardwareMode = "tapes"
-	if action.CoreID != "fes.zx81" {
-		s.Status = "Choose a cassette for the next start. Bundled starter cassettes are available only for ZX81 setups."
-		return
+	s.Status = "Loading cassettes…"
+	done := "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN."
+	if action.CoreID == "fes.zx81" {
+		done += " Each starter tape shows its recommended RAM."
 	}
-	s.Status = "Loading starter cassettes…"
 	var tapes []hostclient.HardwareTape
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
@@ -67,7 +67,7 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return err
 	}, func() {
 		s.Tapes = tapes
-		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN. Each starter tape shows its recommended RAM."
+		s.Status = done
 	})
 }
 

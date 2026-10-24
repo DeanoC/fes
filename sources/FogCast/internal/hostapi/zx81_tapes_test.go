@@ -99,3 +99,25 @@ func TestZX81TapeShelfOmitsStartersForZX80(t *testing.T) {
 		t.Fatalf("ZX80 starter shelf: %+v %v", tapes, err)
 	}
 }
+
+func TestZX81TapeShelfKeepsTimexSavesWithoutStarters(t *testing.T) {
+	mediaID := strings.Repeat("cd", 32)
+	for _, coreID := range []string{"fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			gameID := "my-" + strings.TrimPrefix(coreID, "fes.")
+			service := &savedZX81Service{
+				coreIDs: map[string]string{gameID: coreID},
+				saves: []catalog.ZX81Save{{
+					GameID: gameID, MediaID: mediaID, Name: "Saved program", Size: 917,
+				}},
+			}
+			server := httptest.NewServer(hostapi.New(service))
+			defer server.Close()
+			client := hostclient.NewClient(server.URL, server.Client())
+			tapes, err := client.ZX81TapesForGame(context.Background(), gameID)
+			if err != nil || len(tapes) != 1 || tapes[0].MediaID != mediaID || tapes[0].Name != "Saved program" {
+				t.Fatalf("%s shelf: %+v %v", coreID, tapes, err)
+			}
+		})
+	}
+}
