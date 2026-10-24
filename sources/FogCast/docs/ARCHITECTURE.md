@@ -3378,7 +3378,9 @@ When a title switches between format-3 ZX81 packages that declare the same
 media ID to the selected package with the media-ID compare-and-swap API. This
 preserves both the provisioned image and a user-selected image; a selection
 whose ROM ID or size differs remains stale and blocks launch until explicitly
-replaced.
+replaced. If stored bytes fail integrity checks during rebind, readiness stays
+false while the old media ID remains available as the firmware picker's
+compare-and-swap value, so the selection can be replaced.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises

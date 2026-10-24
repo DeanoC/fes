@@ -152,7 +152,7 @@ func (s *Service) rebindZX81MachineROM(ctx context.Context, entry catalog.CoreEn
 	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
 		return current, nil
 	}
-	return catalog.CoreEntryROM{}, romSelectionError(err)
+	return selected, romSelectionError(err)
 }
 
 // provisionZX81MachineROM binds the bundled standard BASIC image only when a
