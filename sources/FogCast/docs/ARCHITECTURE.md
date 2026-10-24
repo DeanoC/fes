@@ -3365,6 +3365,14 @@ incompatible candidate. For format-3 packages, candidates must share the
 differ. A package-inventory error omits that optional suggestion;
 the selected package is inspected separately so an unrelated bad archive does not
 hide the saved setup.
+For the supported format-3 ZX81 package's 8 KiB `machine-rom` requirement, the
+host bundles the standard image from `misteross/cores/fes-zx81/rtl/zx8x.hex`
+with SHA-256 `14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa`.
+When a matching library entry has no firmware selection, the first firmware
+read imports this verified image into the existing core-media store and binds
+it with the existing compare-and-swap selection API. An explicit selection is
+preserved. This lets the normal Workshop start path satisfy firmware admission
+without opening the import prompt.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
@@ -3398,6 +3406,9 @@ media imports of at most the largest image the media selector inserts
 (839,680 bytes, a declared-geometry Atari ST floppy) and live
 replace/clear/display operations. The unit still checks its exact format and
 size on insert. These do not change the library's next-start media selection.
+It also admits the core-entry list, installed core-package list and exact
+installed package descriptor/media-capability reads used by Workshop setup;
+package import and compatibility mutation remain outside the paired listener.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has

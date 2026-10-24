@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -30,6 +31,10 @@ func hardwareZX81ContractFixture(t *testing.T, rom, sessionDisplay bool, abi, me
 }
 
 func hardwareZX81ContractFixtureWithROMMap(t *testing.T, rom, sessionDisplay bool, abi, media, revision string, romMap []byte, majors ...int) (archive, firmware []byte) {
+	return hardwareZX81ContractFixtureWithROMMapAndImage(t, rom, sessionDisplay, abi, media, revision, romMap, nil, majors...)
+}
+
+func hardwareZX81ContractFixtureWithROMMapAndImage(t *testing.T, rom, sessionDisplay bool, abi, media, revision string, romMap, machineROM []byte, majors ...int) (archive, firmware []byte) {
 	t.Helper()
 	payload := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
@@ -55,7 +60,10 @@ func hardwareZX81ContractFixtureWithROMMap(t *testing.T, rom, sessionDisplay boo
 		if mapping == nil {
 			mapping = misterossROMFixture(t, "map.json")
 		}
-		firmware = misterossROMFixture(t, "ramp.rom")
+		firmware = machineROM
+		if firmware == nil {
+			firmware = misterossROMFixture(t, "ramp.rom")
+		}
 		text = strings.Replace(text, "format = 2", "format = 3", 1)
 		text += fmt.Sprintf("\n[rom]\nid = \"machine-rom\"\nrole = \"firmware\"\nsource_size = %d\nfile = \"rom-map.json\"\nsize = %d\nsha256 = \"%x\"\n", len(firmware), len(mapping), sha256.Sum256(mapping))
 		members = append(members, [2][]byte{[]byte("rom-map.json"), mapping})
@@ -420,6 +428,57 @@ func TestHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T) {
 	}
 }
 
+func TestZX81MissingMachineROMIsProvisionedWithoutReplacingUserSelection(t *testing.T) {
+	ctx := context.Background()
+	firmware := bytes.Repeat([]byte{0x00}, 8192)
+	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, firmware)
+	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
+	before, err := s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || before.MediaID != "" {
+		t.Fatalf("fixture should start without a ROM selection: %+v err=%v", before, err)
+	}
+
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready || !view[0].FirmwareReady {
+		t.Fatalf("missing-ROM setup was not auto-provisioned: %+v err=%v", view, err)
+	}
+	selected, err := s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != 8192 || selected.MediaID == "" {
+		t.Fatalf("provisioned ROM selection = %+v err=%v", selected, err)
+	}
+	compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != selected.MediaID {
+		t.Fatalf("missing-ROM launch projection = %+v err=%v", compositions[entry.GameID], err)
+	}
+	object, reader, err := s.catalog.(coreMediaCatalog).OpenCoreMedia(ctx, selected.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	provisioned, err := io.ReadAll(reader)
+	expected, expectedErr := zx81machine.MachineROM()
+	if err != nil || expectedErr != nil || object.Size != 8192 || !bytes.Equal(provisioned, expected) {
+		t.Fatalf("provisioned media size=%d bytes=%d err=%v", object.Size, len(provisioned), err)
+	}
+
+	custom := bytes.Repeat([]byte{0x5a}, 8192)
+	customMedia, _, err := s.ImportCoreMedia(ctx, int64(len(custom)), bytes.NewReader(custom))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", selected.MediaID, customMedia.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready {
+		t.Fatalf("user-selected firmware was changed or rejected: %+v err=%v", view, err)
+	}
+	selected, err = s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selected.MediaID != customMedia.MediaID {
+		t.Fatalf("user-selected ROM was replaced: %+v err=%v", selected, err)
+	}
+}
+
 func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, major int) {
 	ctx := context.Background()
 	archive, firmware := hardwareZX81Fixture(t, true, false, major)
@@ -444,8 +503,8 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 		t.Fatalf("snapshot %+v %v", view, err)
 	}
 	machine := view[0]
-	if machine.GameID != entry.GameID || !machine.PackageReady || machine.FirmwareReady || machine.Ready || !machine.Socket.Supported || machine.Socket.ID != "rear" || len(machine.Choices) != 2 {
-		t.Fatalf("unbound firmware readiness %+v", machine)
+	if machine.GameID != entry.GameID || !machine.PackageReady || !machine.FirmwareReady || !machine.Ready || !machine.Socket.Supported || machine.Socket.ID != "rear" || len(machine.Choices) != 2 {
+		t.Fatalf("default firmware readiness %+v", machine)
 	}
 	for _, choice := range machine.Choices {
 		if choice.ExpansionID == otherPackage.ID || choice.Ready != (choice.ExpansionID == asset.ID) || choice.Label == "" || choice.Description == "" {
@@ -456,7 +515,11 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", "", media.MediaID); err != nil {
+	selectedROM, err := s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selectedROM.MediaID == "" {
+		t.Fatalf("missing provisioned default firmware binding: %+v %v", selectedROM, err)
+	}
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", selectedROM.MediaID, media.MediaID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SetCoreExpansionPresentation(ctx, asset.ID, "Workshop test card", "No-op linker fixture; adds no emulated hardware."); err != nil {
