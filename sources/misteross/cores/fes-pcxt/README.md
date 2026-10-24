@@ -357,7 +357,7 @@ preserved through synthesis, to separate their physical fanout from the full
 logic-operation muxes. The copies capture the same ROM stage on the same edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
-checks its state and interface against the original indexed priority loop.
+checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits.
 
 Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups

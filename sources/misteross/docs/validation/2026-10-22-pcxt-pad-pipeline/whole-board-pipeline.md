@@ -195,3 +195,9 @@ verify, preserving the original 88-row journal prefix. Cumulative charge
 including the pre-journal amount is 95040.37256684945837 seconds.
 User authorization remains unlimited route budget. Journal SHA-256:
 `d8c48302660404b4ba490b2353805b1318aa97e36e90858a9cec31f8fbdff478`.
+
+### Reviewed cohort placement trial
+
+Reviewed nextpnr main with its existing cohort budget 32 also failed on the frozen region-decode source, seed 2: nine setup violations, -458 ps worst setup, no hold failures and +784 ps minimum hold. Full 17127 timed identities and unchanged clock contracts were audited. This profile is rejected; it is not combined with other profiles to claim a seed gate. Receipt 92 retains the failed run and its 185.2980316360481-second charge, bringing the exact cumulative charge to 95225.67059848550647 seconds.
+
+The reviewed-main monolithic host test was stopped after growing to approximately 45 GiB resident plus 37 GiB swapped; that full-suite run is not passing evidence. Separate investigation is tracked by DeanoC/nextpnr#288.
