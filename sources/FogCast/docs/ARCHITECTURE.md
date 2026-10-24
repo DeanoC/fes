@@ -3357,8 +3357,11 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
-The workbench may suggest a same-target ZX81 package with the session-display
-interfaces when the selected package lacks them. It checks each candidate's ABI,
+The workbench may suggest a same-target ZX81 package with required
+session-display, HPS DDR and ABI-specific media interfaces when the selected
+package lacks them. Optional declarations count only when the exact package is
+confirmed active on the target; prelaunch candidates are not active, so their
+optional interfaces do not enable the selector. It checks each candidate's ABI,
 firmware and saved-media admission in package-ID order, continuing after an
 incompatible candidate. For format-3 packages, candidates must share the
 `machine-rom` firmware ID, role and source size; their sealed ROM-map digests may

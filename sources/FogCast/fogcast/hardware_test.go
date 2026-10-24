@@ -316,27 +316,57 @@ func TestZX81SessionDisplayDescriptorRequiresABICompatibleMedia(t *testing.T) {
 			{ID: "fes.media.blob", Major: 1, Minor: 0},
 		},
 	}
-	if !zx81SessionDisplayDescriptor(base) {
-		t.Fatal("simple-computer blob package should support the selector")
+	required := base
+	required.Interfaces = append([]corepackage.Interface(nil), base.Interfaces...)
+	for i := range required.Interfaces {
+		if required.Interfaces[i].ID != expansion.Slot {
+			required.Interfaces[i].Required = true
+		}
+	}
+	if !zx81SessionDisplayDescriptor(required, nil) {
+		t.Fatal("required simple-computer selector interfaces should enable the selector")
 	}
 
-	computerBlob := base
+	activeOptional := base
+	activeOptional.Interfaces = append([]corepackage.Interface(nil), base.Interfaces...)
+	for i := range activeOptional.Interfaces {
+		if activeOptional.Interfaces[i].ID != expansion.Slot {
+			activeOptional.Interfaces[i].Required = false
+		}
+	}
+	active := []protocol.RuntimeInterface{
+		{ID: "fes.video.session-display", Major: 1, Minor: 0},
+		{ID: "fes.memory.hps-ddr", Major: 1, Minor: 0},
+		{ID: "fes.media.blob", Major: 1, Minor: 0},
+	}
+	if !zx81SessionDisplayDescriptor(activeOptional, active) {
+		t.Fatal("optional selector interfaces confirmed active on the target should enable the selector")
+	}
+	if zx81SessionDisplayDescriptor(activeOptional, nil) {
+		t.Fatal("optional selector interfaces without target confirmation must not enable the selector")
+	}
+	activeWithoutMedia := active[:2]
+	if zx81SessionDisplayDescriptor(activeOptional, activeWithoutMedia) {
+		t.Fatal("optional media interface absent from target status must not enable the selector")
+	}
+
+	computerBlob := required
 	computerBlob.ABI.ID = "fes.computer"
-	if zx81SessionDisplayDescriptor(computerBlob) {
+	if zx81SessionDisplayDescriptor(computerBlob, nil) {
 		t.Fatal("fes.computer with blob alone cannot open the ZX81 tape selector")
 	}
 
 	computerTape := computerBlob
-	computerTape.Interfaces = append([]corepackage.Interface(nil), base.Interfaces...)
+	computerTape.Interfaces = append([]corepackage.Interface(nil), required.Interfaces...)
 	computerTape.Interfaces[len(computerTape.Interfaces)-1].ID = "fes.media.zx81-tape"
-	if !zx81SessionDisplayDescriptor(computerTape) {
+	if !zx81SessionDisplayDescriptor(computerTape, nil) {
 		t.Fatal("fes.computer with zx81-tape should support the selector")
 	}
 
-	simpleTape := base
+	simpleTape := required
 	simpleTape.Interfaces = append([]corepackage.Interface(nil), computerTape.Interfaces...)
 	simpleTape.ABI.ID = "fes.simple-computer"
-	if zx81SessionDisplayDescriptor(simpleTape) {
+	if zx81SessionDisplayDescriptor(simpleTape, nil) {
 		t.Fatal("fes.simple-computer cannot use the fes.computer tape interface")
 	}
 }
@@ -355,9 +385,9 @@ func TestZX81SessionDisplayCandidatesMatchStableMachineROMIdentity(t *testing.T)
 		ROM:    &corepackage.ROM{ID: "machine-rom", Role: "firmware", SourceSize: 8192, File: "rom-map.json", Size: 742014, SHA256: strings.Repeat("b", 64)},
 		Interfaces: []corepackage.Interface{
 			{ID: expansion.Slot, Major: 2, Minor: 0},
-			{ID: "fes.video.session-display", Major: 1, Minor: 0},
-			{ID: "fes.memory.hps-ddr", Major: 1, Minor: 0},
-			{ID: "fes.media.zx81-tape", Major: 1, Minor: 0},
+			{ID: "fes.video.session-display", Major: 1, Minor: 0, Required: true},
+			{ID: "fes.memory.hps-ddr", Major: 1, Minor: 0, Required: true},
+			{ID: "fes.media.zx81-tape", Major: 1, Minor: 0, Required: true},
 		},
 	}
 	wrongID := selector

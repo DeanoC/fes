@@ -167,13 +167,13 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 // target that can open the running media selector. The caller checks firmware
 // and selected media for each candidate in order, continuing after rejection.
 func zx81SessionDisplayCandidates(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) []corepackage.Inspection {
-	if zx81SessionDisplayDescriptor(current) {
+	if zx81SessionDisplayDescriptor(current, nil) {
 		return nil
 	}
 	var candidates []corepackage.Inspection
 	for _, candidate := range packages { // CorePackageStore.List is sorted by package ID.
 		if candidate.PackageID == selected || candidate.Descriptor.Core.ID != "fes.zx81" || candidate.Descriptor.Target != current.Target ||
-			!zx81SessionDisplayDescriptor(candidate.Descriptor) || !sameZX81MachineROM(current.ROM, candidate.Descriptor.ROM) {
+			!zx81SessionDisplayDescriptor(candidate.Descriptor, nil) || !sameZX81MachineROM(current.ROM, candidate.Descriptor.ROM) {
 			continue
 		}
 		candidates = append(candidates, candidate)
@@ -189,26 +189,30 @@ func sameZX81MachineROM(current, candidate *corepackage.ROM) bool {
 		candidate.ID == current.ID && candidate.Role == current.Role && candidate.SourceSize == current.SourceSize
 }
 
-func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor) bool {
+func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInterfaces []protocol.RuntimeInterface) bool {
 	if descriptor.Core.ID != "fes.zx81" || !zx81RearSocket(descriptor) {
 		return false
 	}
-	display, ddr, blob, tape := false, false, false, false
-	for _, iface := range descriptor.Interfaces {
-		if iface.Major != 1 || iface.Minor != 0 {
-			continue
+	interfaceAvailable := func(id string) bool {
+		for _, iface := range descriptor.Interfaces {
+			if iface.ID != id || iface.Major != 1 || iface.Minor != 0 {
+				continue
+			}
+			if iface.Required {
+				return true
+			}
+			for _, active := range activeInterfaces {
+				if active.ID == id && active.Major == 1 && active.Minor == 0 {
+					return true
+				}
+			}
 		}
-		switch iface.ID {
-		case "fes.video.session-display":
-			display = true
-		case "fes.memory.hps-ddr":
-			ddr = true
-		case "fes.media.zx81-tape":
-			tape = true
-		case "fes.media.blob":
-			blob = true
-		}
+		return false
 	}
+	display := interfaceAvailable("fes.video.session-display")
+	ddr := interfaceAvailable("fes.memory.hps-ddr")
+	blob := interfaceAvailable("fes.media.blob")
+	tape := interfaceAvailable("fes.media.zx81-tape")
 	media := descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 0 &&
 		((descriptor.ABI.ID == "fes.simple-computer" && blob) || (descriptor.ABI.ID == "fes.computer" && tape))
 	return display && ddr && media
