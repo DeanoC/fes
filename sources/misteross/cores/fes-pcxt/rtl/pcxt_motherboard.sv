@@ -48,6 +48,7 @@ module pcxt_motherboard (
                ISA_SEND=3'd3, ISA_WAIT=3'd4, LOCAL=3'd5, DONE=3'd6;
     reg [2:0] state;
     reg [4:0] phase;
+    reg [7:0] local_read_snapshot;
     reg select_pit, select_ppi, select_dma, select_page, select_inta;
     reg source_dma, inta_pending;
     reg [1:0] pit_divider;
@@ -180,17 +181,26 @@ module pcxt_motherboard (
             end
             LOCAL: begin
                 phase <= phase + 1'b1;
-                if (phase == 8 && !write_cycle) begin
-                    if (select_dma) cycle_rdata <= dma_reg_data;
-                    else if (select_page) cycle_rdata <= 8'hff;
-                    else if (select_ppi) cycle_rdata <= ppi_data;
-                    else if (select_pit) cycle_rdata <= pit_data;
-                    else cycle_rdata <= pic_bus_input ? 8'hff : pic_data;
+                if (phase == 17) begin
+                    if (!write_cycle) cycle_rdata <= local_read_snapshot;
+                    state <= DONE;
                 end
-                if (phase == 17) state <= DONE;
             end
             default: state <= IDLE;
         endcase
+    end
+
+    // Sample at the original read edge. The existing release interval lets
+    // this local mux settle before the shared memory/ISA return register.
+    always @(posedge clk) begin
+        if (reset) local_read_snapshot <= 8'hff;
+        else if (state == LOCAL && phase == 8 && !write_cycle) begin
+            if (select_dma) local_read_snapshot <= dma_reg_data;
+            else if (select_page) local_read_snapshot <= 8'hff;
+            else if (select_ppi) local_read_snapshot <= ppi_data;
+            else if (select_pit) local_read_snapshot <= pit_data;
+            else local_read_snapshot <= pic_bus_input ? 8'hff : pic_data;
+        end
     end
 
     pcxt_xtio xtio (

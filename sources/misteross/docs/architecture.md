@@ -2776,7 +2776,7 @@ preserved through synthesis, to separate their physical fanout from the full
 logic-operation muxes. The copies capture the same ROM stage on the same enabled edge;
 symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
-checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits.
+checks its state and interface against the original indexed priority loop. Mode validity and operation flags are decoded when the guest programs each channel. Twelve configuration bits remove mode-byte decoding from grant dispatch without changing arbitration, completion latency or reset behavior; sequential equivalence checks all DMA state and interface bits. Motherboard local reads retain their phase-8 sample in an independent byte register and copy it to the shared memory/ISA return register at phase-17 completion. The existing nine release clocks absorb this staging; CPU and DMA completion cycles are unchanged. An inductive check proves the original sampled byte and completed return value with the actual peripherals.
 
 Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
 post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
