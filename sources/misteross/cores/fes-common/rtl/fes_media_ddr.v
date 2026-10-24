@@ -126,9 +126,11 @@ module fes_media_ddr #(
 
     assign stream_valid = stream_enable && !flushing && ring_ok && ring_word == take_word && more;
     // The end-of-stream compare runs on the position take_byte holds after
-    // this clock, so the reader's take path does not carry the size compare.
-    wire [AW:0] take_byte_next = !stream_enable ? (AW+1)'(0) :
-                                 take_byte + (AW+1)'(stream_take && stream_valid);
+    // this clock. Both outcomes come from take_byte alone and the take only
+    // selects between them, so the consumer's take decision does not lead a
+    // carry chain.
+    wire more_kept = take_byte < stream_bytes;
+    wire more_taken = take_byte + (AW+1)'(1) < stream_bytes;
     assign stream_data = ring_q[{take_byte[2:0], 3'd0} +: 8];
 
     always @(posedge clk) begin
@@ -146,7 +148,8 @@ module fes_media_ddr #(
             outstanding <= 9'd0;
             flushing <= 1'b0;
         end else begin
-            more <= take_byte_next < stream_bytes;
+            more <= !stream_enable ? stream_bytes != 0 :
+                    stream_take && stream_valid ? more_taken : more_kept;
             outstanding <= outstanding_next;
             // ring_q is read from the take position with stores made before
             // this clock, so a word is presented only once it is stored.
