@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -72,11 +73,98 @@ func TestOpenColecoBIOSFileRejectsWrongSize(t *testing.T) {
 	if err := os.WriteFile(path, []byte("nope"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := openColecoBIOSFile(path); err == nil || !strings.Contains(err.Error(), "8192") {
+	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), path, nil); err == nil || !strings.Contains(err.Error(), "8192") {
 		t.Fatalf("wrong size err = %v", err)
 	}
-	if _, _, err := openColecoBIOSFile(dir); err == nil || !strings.Contains(err.Error(), "regular file") {
+	if err := importAndSelectColecoBIOS(context.Background(), NewClient("", nil), dir, nil); err == nil || !strings.Contains(err.Error(), "regular file") {
 		t.Fatalf("directory err = %v", err)
+	}
+}
+
+func TestZX81FirmwarePickerUsesDeclaredROMSizeAndClearsAfterBinding(t *testing.T) {
+	game := hostclient.Game{
+		ID: "fpga-zx81-test", Title: "ZX81 BASIC", System: "fpga", State: "available", RootOnline: true,
+		Launchable: true, FirmwareRequired: true, FirmwareReady: false, ROMID: "zx81-machine-rom",
+		ROMRole: protocol.FirmwareRole, ROMSourceSize: 1024,
+	}
+	if game.LaunchBlock() != hostclient.LaunchMissingFirmware {
+		t.Fatalf("unbound ZX81 firmware block %s", game.LaunchBlock())
+	}
+	app := &App{prefsPath: filepath.Join(t.TempDir(), "tenfoot.json")}
+	app.mu.Lock()
+	app.openFirmwarePickerLocked(game)
+	if got := app.firmwarePickerSnapshotLocked().Title; got != "Import package firmware" {
+		app.mu.Unlock()
+		t.Fatalf("picker title %q", got)
+	}
+	dir := t.TempDir()
+	for name, size := range map[string]int{"zx81.rom": 1024, "wrong.rom": int(protocol.FirmwareBytes)} {
+		if err := os.WriteFile(filepath.Join(dir, name), bytes.Repeat([]byte{0x5a}, size), 0o600); err != nil {
+			app.mu.Unlock()
+			t.Fatal(err)
+		}
+	}
+	app.showFirmwarePickerDirLocked(dir, "")
+	selectable := map[string]bool{}
+	for _, row := range app.firmwarePickerRows {
+		if row.Kind == firmwarePickerKindFile {
+			selectable[row.Name] = row.Selectable
+		}
+	}
+	app.mu.Unlock()
+	if !selectable["zx81.rom"] || selectable["wrong.rom"] {
+		t.Fatalf("firmware picker size filter: %+v", selectable)
+	}
+
+	const packageID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	attached := false
+	var bound struct {
+		PackageID string `json:"package_id"`
+		ROMID     string `json:"rom_id"`
+		Expected  string `json:"expected_media_id"`
+		MediaID   string `json:"media_id"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/core-media":
+			data, _ := io.ReadAll(r.Body)
+			if len(data) != 1024 {
+				http.Error(w, "wrong size", http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: fmt.Sprintf("%x", sha256.Sum256(data)), Size: int64(len(data))})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/core-entries/"+game.ID:
+			_ = json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: game.ID, CoreID: "fes.zx81", PackageID: packageID})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/core-entries/"+game.ID+"/rom":
+			_ = json.NewDecoder(r.Body).Decode(&bound)
+			if bound.PackageID != packageID || bound.ROMID != game.ROMID || bound.Expected != game.ROMMediaID || bound.MediaID == "" {
+				http.Error(w, "wrong binding", http.StatusBadRequest)
+				return
+			}
+			attached = true
+			_ = json.NewEncoder(w).Encode(hostclient.CoreEntryROMSelection{GameID: game.ID, PackageID: packageID, ROMID: game.ROMID, MediaID: bound.MediaID})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games/"+game.ID:
+			updated := game
+			updated.FirmwareReady = attached
+			updated.ROMMediaID = bound.MediaID
+			_ = json.NewEncoder(w).Encode(updated)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	romPath := filepath.Join(t.TempDir(), "zx81.rom")
+	if err := os.WriteFile(romPath, bytes.Repeat([]byte{0x5a}, 1024), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(server.URL, server.Client())
+	if err := importAndSelectCoreFirmwareROM(context.Background(), client, game, romPath, nil); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := client.Game(context.Background(), game.ID)
+	if err != nil || !attached || !updated.FirmwareReady || updated.LaunchBlock() != "" || updated.ROMMediaID == "" {
+		t.Fatalf("bound firmware did not clear launch state: game=%+v attached=%v err=%v", updated, attached, err)
 	}
 }
 

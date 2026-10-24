@@ -98,10 +98,14 @@ public:
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,
 		std::uint64_t deadline);
 	Error CaptureMedia(std::uint8_t unit, Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
+	Error CaptureZx81Tape(Clock&, std::uint64_t deadline, std::vector<unsigned char>*);
+	Error AcknowledgeZx81Tape(std::uint64_t deadline);
+	Error EnsureZx81TapeSaved(std::uint64_t deadline);
 	Error ResumeMedia(std::uint8_t unit, std::uint64_t deadline);
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
 	bool MediaWriteCapable(std::uint8_t unit) const;
+	bool TapeWriteCapable() const;
     bool MediaGeometryCapable(std::uint8_t unit) const;
 	bool home_computer() const { return home_computer_; }
 	// Units of declared media interfaces with their last live MediaInfo state.
@@ -161,6 +165,7 @@ private:
 	bool keyboard_hid_ = false;
 	bool mouse_relative_ = false;
 	bool floppy_write_ = false;
+	bool tape_write_ = false;
 	KeyboardHidRows hid_rows_{};
 	bool hid_rows_known_ = false;
 	std::vector<MediaUnitCapability> media_units_;

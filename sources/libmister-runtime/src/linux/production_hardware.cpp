@@ -223,6 +223,14 @@ public:
 	{
 		return hardware_.EjectComputerMedia(unit);
 	}
+	Error CaptureZx81Tape(const std::string& path) override
+	{
+		return hardware_.CaptureZx81Tape(path);
+	}
+	Error AcknowledgeZx81Tape() override
+	{
+		return hardware_.AcknowledgeZx81Tape();
+	}
 
 private:
 	native::PosixArtifactOpener opener_;

@@ -106,6 +106,7 @@ function assembleProductionHTML(metadataMode = 'normal', options = {}) {
     ? 'globalThis.FogCastPrefetchVisibleCovers = true;'
     : '';
   const replacements = {
+    '{{FOGCAST_STORAGE}}': `<script>${readAsset('ui_storage.js')}</script>`,
     '{{FOGCAST_CORE_LIBRARY}}': `<script>${readAsset('ui_core_library.js')}</script>`,
     '{{FOGCAST_STYLES}}': `<style>${styles}</style>`,
     '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;${prefetch}globalThis.FogCastAttractDisabled = ${attractDisabled};${attractIdle}</script><script>${app}</script>`,
@@ -198,6 +199,10 @@ function normalizePlan(plan = {}) {
       : { preferences: [] },
     editionPreferencePut: plan.editionPreferencePut
       ? normalizeQueue(plan.editionPreferencePut, 'editionPreferencePut') : null,
+    storageRoutes: new Map(Object.entries(plan.storageRoutes || {}).map(([route,responses]) => {
+      if(!/^(GET \/api\/v1\/storage\/drives\?discover=true|PUT \/api\/v1\/storage\/drives|GET \/api\/v1\/storage\/drives\/[a-f0-9]{24}\/entries\?path=[^\s]+)$/.test(route)) throw new TypeError('invalid storage fixture route: '+route);
+      return [route,normalizeQueue(responses,route)];
+    })),
     coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
       if (!/^(GET|POST|PUT) \/api\/v1\/(core-catalog|core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)
           && !/^(GET \/api\/v1\/library\/video-parts|POST \/api\/v1\/library\/video-parts\/(direct|scanlines)|POST \/api\/v1\/library\/atari-st-disks)$/.test(route)) {
@@ -386,6 +391,13 @@ class FixtureServer extends EventEmitter {
       return;
     }
 
+    const storageQueue=this.plan.storageRoutes.get(`${request.method} ${url.pathname}${url.search}`);
+    if(storageQueue){
+      record.requestBody=await this.readRequestBody(request,'utf8');
+      const selected=request.method==='GET'&&storageQueue.length===1?storageQueue[0]:storageQueue.shift();
+      await this.deliver(record,response,selected||this.unexpectedResponse(record,500,'storage mutation queue exhausted'));
+      return;
+    }
     const coreQueue = !url.search && this.plan.coreRoutes.get(`${request.method} ${url.pathname}`);
     if (coreQueue) {
       record.requestBody = await this.readRequestBody(request,
@@ -1442,6 +1454,8 @@ class BrowserPage {
       const text = selector => document.querySelector(selector)?.textContent || '';
       const button = selector => document.querySelector(selector);
       return {
+        storageOpen: button('#storage-dialog')?.open === true,
+        storageText: text('#storage-dialog'),
         catalogStatus: text('#catalog-status'),
         catalogText: text('#catalog'),
         catalogActions: text('#catalog-actions'),
