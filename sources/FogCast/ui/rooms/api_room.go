@@ -143,7 +143,11 @@ func (r *Instance) installSession() *lua.LTable {
 			if id == "" {
 				L.ArgError(1, "game id required")
 			}
-			r.actions = append(r.actions, Action{Kind: ActionLaunch, GameID: id})
+			packageID, expectedPackageID := strings.TrimSpace(L.OptString(2, "")), strings.TrimSpace(L.OptString(3, ""))
+			if (packageID == "") != (expectedPackageID == "") || (packageID != "" && (protocol.ValidateDigest(packageID) != nil || protocol.ValidateDigest(expectedPackageID) != nil)) {
+				L.ArgError(2, "package and expected package IDs must both be valid digests")
+			}
+			r.actions = append(r.actions, Action{Kind: ActionLaunch, GameID: id, PackageID: packageID, ExpectedPackageID: expectedPackageID})
 			return 0
 		},
 		"state": func(L *lua.LState) int {

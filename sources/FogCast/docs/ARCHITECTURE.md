@@ -781,6 +781,13 @@ needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
 eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
 and leaves the session active when eject reports unavailable.
 
+Every browsed folder keeps its parent action and offers Eject and Type a path,
+including folders without matching media. Directories remain visible; files
+are listed only when their extension and size match the active unit. Local
+mount roots are added only when they exist on the launcher device. FogCast host
+drives are browsed through the host storage API, so host-only paths are never
+treated as kit paths.
+
 ### Removable disks (fes.computer media units)
 
 A `fes.computer` package projects media role `disk`
@@ -980,6 +987,20 @@ its resume hook immediately, retaining navigation focus while refreshing the
 host snapshot. Failed saves and lost Stop responses retain their existing
 retry behavior.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
+
+When an entry has no selected expansion and its package lacks session display,
+the hardware projection may offer another installed ZX81 package only when it
+targets the same board, supports the rear socket and live media, and declares
+session display plus HPS DDR. Start compares the entry's old package before
+saving that package selection and then uses the ordinary launch path. Package,
+firmware, media and persistence checks remain on the host; an exact-package
+expansion keeps the existing package selected.
+
+Paired package selection scopes compatibility and persistence checks to the kit
+making the request, even while another kit remains foreground. If the selection
+reply is ambiguous, Tenfoot reads the saved entry: the requested package
+confirms the selection, the old package keeps retry available, and a different
+package reports a conflict without overwriting it.
 
 The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the setup room.
 
@@ -3332,6 +3353,14 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
+The workbench may suggest a same-target ZX81 package with the session-display
+interfaces when the selected package lacks them. It checks each candidate's ABI,
+firmware and saved-media admission in package-ID order, continuing after an
+incompatible candidate. For format-3 packages, candidates must share the
+`machine-rom` firmware ID, role and source size; their sealed ROM-map digests may
+differ. A package-inventory error omits that optional suggestion;
+the selected package is inspected separately so an unrelated bad archive does not
+hide the saved setup.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
@@ -3410,6 +3439,17 @@ reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not
 reopen the room or implicitly close the plane. Display faults cannot invoke MENU
 reload or Stop.
+
+F12 opens **Change media** during an active session when the package offers
+removable media and the hardware controls are available. If the kit's
+session-display plane is required and launcher focus is not active, tenfoot
+focuses the plane first, then opens the selector after that transition succeeds.
+The core keeps running, and the evdev F12 route consumes the key instead of
+forwarding it as HID. On a host display, tenfoot opens the existing hardware
+room on the host window and uses the host live-media route without a kit
+session-display transition. When a kit-local core owns input, F12 requests
+local Stop instead. F12 on the idle menu does nothing.
+
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.

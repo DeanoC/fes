@@ -331,6 +331,14 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodPut && launcherCoreEntryPath(r.URL.Path) {
+			// The body stays the caller's exact package selection. Compatibility
+			// and persistence checks must use this kit, even when another target
+			// remains foreground.
+			r = r.WithContext(fogcast.WithSessionTarget(r.Context(), name))
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		switch r.Method + " " + r.URL.Path {
 		case "GET /api/v1/session":
 			if name == "" && headerID == a.sessionOwnerID() {
@@ -550,6 +558,9 @@ func launcherOperation(method, path string) bool {
 		return true
 	}
 	if method == http.MethodPut && launcherROMSelectionPath(path) {
+		return true
+	}
+	if method == http.MethodPut && launcherCoreEntryPath(path) {
 		return true
 	}
 	switch method + " " + path {
