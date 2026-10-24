@@ -113,6 +113,16 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		machines.Append(row)
 	}
 	out.RawSetString("machines", machines)
+	computers := L.NewTable()
+	for _, c := range v.Computers {
+		row := L.NewTable()
+		for k, s := range map[string]string{"game_id": c.GameID, "title": c.Title, "core_id": c.CoreID, "package_id": c.PackageID, "unavailable_reason": c.UnavailableReason} {
+			row.RawSetString(k, lua.LString(s))
+		}
+		row.RawSetString("ready", lua.LBool(c.Ready))
+		computers.Append(row)
+	}
+	out.RawSetString("computers", computers)
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	// Save support is separate from a machine's content readiness. An omitted
 	// field stays absent so an older unpaired host keeps its existing save.
