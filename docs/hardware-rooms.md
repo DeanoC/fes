@@ -3,8 +3,10 @@
 The tenfoot Home screen includes **The Sinclair ZX81 workbench** (`example.hardware`).
 It shows the household's existing ZX81 core entries, the rear expansion
 connector, installed expansions admitted for the exact selected package, and
-prelaunch cassette selection. **Set up ZX81** creates a library entry from an
-installed sealed package and an explicitly selected household BASIC ROM. This
+prelaunch cassette selection. **Set up ZX81** first asks which machine — ZX81,
+ZX80, TS1000 or TS1500 — then lists installed packages of that core and creates
+a library entry from an installed sealed package and an explicitly selected
+household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
 library is empty. The Amiga-themed `example.workbench` remains a separate room.

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// ZX81 machine extracted from MiSTer-devel/ZX81_MiSTer ZX81.sv (Release 20260603).
-// Fixed first slice: ZX81, 16 KB RAM, PAL, no CHROMA/QS/YM2149/joystick.
-// Keyboard rows and .p tape come from the FES GP mailbox.
+// ZX81-family machine extracted from MiSTer-devel/ZX81_MiSTer ZX81.sv
+// (Release 20260603). No model define is the Sinclair ZX81: PAL, 8 KiB ROM,
+// 1 KiB internal RAM when the expansion socket is on, and NMI. ZX81_MODEL_ZX80,
+// ZX81_MODEL_TS1000 and ZX81_MODEL_TS1500 select the other shells. The socket
+// stays on for every model. Keyboard rows and tape come from the FES GP mailbox.
+`include "zx81_model.vh"
 
 module zx81_machine #(
     parameter EXTERNAL_RAM = 0,
@@ -14,7 +17,7 @@ module zx81_machine #(
     input  wire [14:0] tape_size,
     input  wire [7:0]  tape_data,
     output wire [13:0] tape_addr_out,
-    // High while the $0347 loader is copying mailbox bytes into RAM.
+    // High while the cassette loader is copying mailbox bytes into RAM.
     output wire        tape_busy,
     output wire        ce_6m5,
     output wire        video_pixel,
@@ -48,8 +51,18 @@ module zx81_machine #(
     input  wire        bus_ram_present
 );
     localparam [1:0] MEM_SIZE_16K = 2'd1;
+`ifdef ZX81_MODEL_ZX80
+    localparam ZX81 = 1'b0;
+`else
     localparam ZX81 = 1'b1;
+`endif
+`ifdef ZX81_MODEL_TS1000
+    localparam HZ50 = 1'b0;
+`elsif ZX81_MODEL_TS1500
+    localparam HZ50 = 1'b0;
+`else
     localparam HZ50 = 1'b1;
+`endif
 
     wire [15:0] addr;
     logic [7:0] cpu_din;
@@ -135,7 +148,11 @@ module zx81_machine #(
         if (bus_dsel)
             mem_out = bus_rdata;
         else casex ({tapeloader, rom_e, ram_e})
+`ifdef ZX81_MODEL_ZX80
+            3'b1xx: mem_out = tape_loader_patch[addr - 13'h0207];
+`else
             3'b1xx: mem_out = tape_loader_patch[addr - 13'h0347];
+`endif
             3'b01x: mem_out = rom_out;
             3'b001: mem_out = ram_out;
             default: mem_out = 8'hFF;
@@ -144,25 +161,40 @@ module zx81_machine #(
 
     wire low16k_e = ~addr[15] | ~MEM_SIZE_16K[1];
     wire ram_e = addr[14];
+`ifdef ZX81_MODEL_ZX80
+    // Raw image at $4000. The ZX81 .p loader adds eight bytes; ZX80 does not.
+    wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr} : {2'b01, addr[13:0]};
+`else
     wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr + 4'd8} : {2'b01, addr[13:0]};
+`endif
 
     wire [7:0] ram_out;
     assign ram_address = ram_a[13:0];
     assign ram_write_data = tapeloader ? tape_in_byte_r : cpu_dout;
     assign ram_write_enable = (~nWR & ~nMREQ & ram_e) | tapewrite_we;
+`ifdef ZX81_MODEL_TS1500
+    localparam integer INTERNAL_RAM_WORDS = 16384;
+    localparam integer INTERNAL_RAM_WIDTH = 14;
+`elsif ZX81_MODEL_TS1000
+    localparam integer INTERNAL_RAM_WORDS = 2048;
+    localparam integer INTERNAL_RAM_WIDTH = 11;
+`else
+    localparam integer INTERNAL_RAM_WORDS = 1024;
+    localparam integer INTERNAL_RAM_WIDTH = 10;
+`endif
     generate if (EXTERNAL_RAM) begin : expansion_ram
         wire [7:0] internal_data;
         wire [7:0] internal_peek;
         /* verilator lint_off UNUSEDSIGNAL */
         wire unused_external = ^{external_ram_data, external_peek_data};
         /* verilator lint_on UNUSEDSIGNAL */
-        zx81_dpram #(.ADDRWIDTH(10), .NUMWORDS(1024)) internal_ram (
+        zx81_dpram #(.ADDRWIDTH(INTERNAL_RAM_WIDTH), .NUMWORDS(INTERNAL_RAM_WORDS)) internal_ram (
             .clock(clk_sys),
-            .address_a(ram_address[9:0]),
+            .address_a(ram_address[INTERNAL_RAM_WIDTH-1:0]),
             .data_a(ram_write_data),
             .wren_a(ram_write_enable && !bus_ram_present),
             .q_a(internal_data),
-            .address_b(peek_addr[9:0]),
+            .address_b(peek_addr[INTERNAL_RAM_WIDTH-1:0]),
             .data_b(8'h00),
             .wren_b(1'b0),
             .q_b(internal_peek)
@@ -190,7 +222,11 @@ module zx81_machine #(
 `ifdef FES_ZX81_ROM_LINK
     zx81_rom_link rom (
         .clk(clk_sys),
+`ifdef ZX81_MODEL_ZX80
+        .address({1'b0, rom_a[11:0]}),
+`else
         .address(rom_a),
+`endif
         .data(rom_out)
     );
 `else
@@ -201,7 +237,11 @@ module zx81_machine #(
 `endif
     zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE(ROM_INIT)) rom (
         .clock(clk_sys),
+`ifdef ZX81_MODEL_ZX80
+        .address_a({2'b00, rom_a[11:0]}),
+`else
         .address_a({1'b0, rom_a[12], rom_a[11:0]}),
+`endif
         .data_a(8'h00),
         .wren_a(1'b0),
         .q_a(rom_out),
@@ -238,9 +278,25 @@ module zx81_machine #(
             tape_loader_patch[2] <= 8'h30;
             tape_loader_patch[3] <= 8'hfd;
             tape_loader_patch[4] <= 8'hc3;
+`ifdef ZX81_MODEL_ZX80
+            tape_loader_patch[5] <= 8'h03;
+`else
             tape_loader_patch[5] <= 8'h07;
+`endif
             tape_loader_patch[6] <= 8'h02;
         end else begin
+`ifdef ZX81_MODEL_ZX80
+            // ZX80 cassette entry is $0207 and returns with JP $0203.
+            // The image is stored at tape_addr with no +8 .p header.
+            if (~nM1 && addr == 16'h0207 && !tapeloader) begin
+                tape_loader_patch[1] <= (tape_ready && tape_size != 0) ? 8'h00 : 8'h37;
+                tape_loader_patch[5] <= 8'h03;
+                tape_addr <= 14'h0;
+                tapeloader <= 1;
+            end
+            if (tapeloader && ~nM1 && (addr >= 16'h024d || addr < 16'h0207))
+                tapeloader <= 0;
+`else
             // Always intercept LOAD at $0347. A committed mailbox blob is
             // copied into RAM; with no blob, SCF immediately so BASIC
             // returns 0/0 instead of the original cassette waiter (black
@@ -253,6 +309,7 @@ module zx81_machine #(
             end
             if (tapeloader && ~nM1 && (addr >= 16'h03c3 || addr < 16'h0347))
                 tapeloader <= 0;
+`endif
             if (tapeloader & ce_cpu_p) begin
                 if (tape_ready && {1'b0, tape_addr} < tape_size) begin
                     tape_addr <= tape_addr + 1'h1;
@@ -388,8 +445,12 @@ module zx81_machine #(
             end
             if (~nM1 & ~nIORQ)
                 {hsync, sync_counter} <= 0;
+`ifdef ZX81_MODEL_ZX80
+            NMIlatch <= 0;
+`else
             if (~nIORQ & ~nWR & (addr[0] ^ addr[1]))
                 NMIlatch <= addr[1];
+`endif
         end
     end
 

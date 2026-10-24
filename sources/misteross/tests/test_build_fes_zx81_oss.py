@@ -454,6 +454,40 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('.output_clock_frequency0("52.224 MHz")', sys_pll)
         self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
 
+    def test_model_selects_family_core_rom_and_yosys(self) -> None:
+        tools = {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")}
+        default_yosys = build_commands(ROOT, ROOT / OUTPUT_RELATIVE, "0" * 32, tools)[0][2]
+        self.assertIn("-DFES_ZX81_ROM_LINK=1 -I", default_yosys)
+        self.assertNotIn("ZX81_MODEL", default_yosys)
+        zx80 = build_fes_zx81_oss.model_for("zx80")
+        self.assertEqual(zx80.core_id, "fes.zx80")
+        self.assertEqual(zx80.rom_bytes, 4096)
+        self.assertEqual(zx80.lane_rows, tuple(range(73, 77)))
+        yosys = build_commands(
+            ROOT, ROOT / zx80.output, "0" * 32, tools, model="zx80"
+        )[0][2]
+        self.assertIn("-DZX81_MODEL_ZX80", yosys)
+        self.assertIn("-DFES_ZX81_ROM_LINK=1", yosys)
+        self.assertIn("build/fes-zx80-oss/synth.json", yosys)
+        with self.assertRaises(BuildError):
+            build_fes_zx81_oss.model_for("ts2068")
+        record = json.loads(build_fes_zx81_oss.create_build_record(
+            ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "test"},
+            execution=EXECUTION, model="zx80"))
+        parameters = record["parameters"]
+        self.assertEqual(parameters["core_id"], "fes.zx80")
+        self.assertEqual(parameters["model"], "zx80")
+        self.assertEqual(parameters["model_define"], "ZX81_MODEL_ZX80")
+        self.assertEqual(parameters["rom_id"], "zx80-rom")
+        self.assertEqual(parameters["rom_source_size"], 4096)
+        default = json.loads(build_fes_zx81_oss.create_build_record(
+            ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "test"},
+            execution=EXECUTION))
+        self.assertEqual(default["parameters"]["core_id"], "fes.zx81")
+        self.assertEqual(default["parameters"]["model"], "zx81")
+        self.assertEqual(default["parameters"]["model_define"], "none")
+        self.assertEqual(default["parameters"]["rom_source_size"], 8192)
+
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):
             build_commands(

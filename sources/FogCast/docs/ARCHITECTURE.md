@@ -954,7 +954,9 @@ computer.
 ## Native 10-foot launcher
 
 The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
+setups through `GET /api/v1/library/hardware`. Set up ZX81 first asks which
+machine — ZX81, ZX80, TS1000 or TS1500 — then lists installed packages of that
+core. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
