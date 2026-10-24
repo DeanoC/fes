@@ -26,6 +26,8 @@ Fast means x86 instructions retired per second on that code. It does not mean
 clock rate, and it does not mean cycle fidelity. Games that depend on period
 speed get a governor that slows the CPU to a chosen reference machine
 ([speed control](#speed-control)). Architectural results never depend on speed.
+Wolfenstein 3D, Ultima VI and Ultima VII are the first titles it must play
+([first acceptance games](#first-acceptance-games)).
 
 ### Yardstick
 
@@ -54,6 +56,64 @@ published period-hardware results:
   VME, PSE.
 - SMP, PCI, SMM and 386SL power management.
 - Interpreting or translating x86 on the HPS.
+
+## First acceptance games
+
+Wolfenstein 3D, Ultima VI and Ultima VII (The Black Gate and Serpent Isle) are
+the first titles the CPU and its machine must play. They set the machine's
+scope, its firmware and the speed defaults. Games are user-supplied; none
+ships.
+
+| Title | CPU and memory | Video | Sound | Speed |
+| --- | --- | --- | --- | --- |
+| Wolfenstein 3D | 286 or better, real mode; 575 KiB free conventional memory; EMS or XMS optional, recommended for speed | VGA, unchained 256-colour | AdLib music; Sound Blaster or Sound Source effects | Paced by the timer: a faster CPU gives a smoother frame rate. Runs at `max`. |
+| Ultima VI | Real mode, 640 KiB | MCGA/VGA 256-colour; EGA, CGA, Hercules and Tandy also supported | AdLib or Roland music; PC speaker effects | Tuned for a roughly 10 MHz machine. Much faster breaks walking speed and the speaker effects. Needs a 286-class preset. |
+| Ultima VII | 386SX or better; unreal mode (the Voodoo memory manager); 548 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | The Black Gate has no frame limiter and runs as fast as the CPU, so it needs a 386-class preset. Serpent Isle caps its own speed and runs at `max`. |
+
+Sources: the Wolfenstein 3D v1.4 help file (`W3DHELP.TXT`);
+[Ultima Codex on Ultima VI](https://wiki.ultimacodex.com/wiki/Computer_ports_of_Ultima_VI);
+the [Ultima VII install guide](https://www.mocagh.org/origin/u7-install.pdf)
+and [Ultima Collection reference card](https://www.mocagh.org/origin/u9dragon-ucollrefcard.pdf);
+the [DOSBox wiki on The Black Gate](https://dosbox.com/wiki/GAMES:Ultima_VII:_The_Black_Gate).
+
+What the set decides:
+
+- **CPU modes.** Real mode, plus the protected-mode entry and segment loads that
+  unreal mode uses. None of the three needs V86 or paging; Wolfenstein 3D uses
+  them only when EMM386 supplies its EMS. The [milestones](#milestones) put V86
+  and paging after the first playable machine.
+- **Machine scope (`fes.pc386`):**
+  - AT core: two 8259 PICs, an 8254 PIT, two 8237 DMA controllers, an 8042
+    keyboard controller with A20 gate, CPU reset and a PS/2 mouse port, port
+    92h fast A20, and an MC146818 RTC with CMOS.
+  - VGA at register level, behind the MMIO FIFO: text modes, mode 13h and
+    unchained 256-colour.
+  - Audio: the PC speaker from PIT channel 2 and from direct port 61h toggling
+    (Ultima VI's effects toggle it in CPU-timed loops), an OPL2 for AdLib music,
+    and a Sound Blaster 2.0-class DSP with 8-bit DMA.
+  - Mouse: PS/2 through the 8042, fed from `fes.mouse.relative`.
+  - Storage: one ATA hard-disk image in HPS DDR, where other cores already keep
+    their media. All three titles install to a hard disk.
+  - Deferred until a title needs them: floppy controller, game port, serial
+    and parallel ports, OPL3 and Sound Blaster Pro stereo, MT-32, CMS, Sound
+    Source and CD-ROM.
+- **Firmware.** The three use only standard BIOS services: INT 10h modes, INT
+  13h disk, INT 15h extended memory and A20 for HIMEM, INT 16h, INT 1Ah and
+  PS/2 mouse services. The package ships an open system BIOS and VGA BIOS,
+  vendored with a source and licence record as the PC/XT's imports are. Start
+  from the Bochs ROM BIOS and the LGPL VGABIOS, both LGPL and both written for
+  an emulated AT-class PC; SeaBIOS is the alternative if they prove harder to
+  fit. User-linked firmware through a ROM map stays possible. FreeDOS is the
+  open test OS. The disk image is user content, so a player may install
+  another DOS.
+- **Speed.** No single setting suits all three. Wolfenstein 3D and Serpent Isle
+  want `max`, The Black Gate a 386-class preset and Ultima VI a 286-class one.
+  The default stays `max`, and Ultima VI and The Black Gate carry per-game
+  presets in their library entries. The preset list gains a 286-class entry.
+  Phase 3 tunes both presets on a kit by play (walking speed, speaker effects, NPC
+  animation pace) and records the values. DOSBox guidance, about 3,000 cycles
+  for Ultima VI and 9,000–11,000 for The Black Gate, is a starting point, not
+  the answer.
 
 ## Compatibility contract
 
@@ -96,9 +156,9 @@ relies on:
 - BSWAP, XADD, CMPXCHG, INVD, WBINVD and INVLPG raise #UD.
 - At reset, DX holds the profile's component and revision ID.
 
-An optional `i486-isa` profile adds those instructions, AC and the CR0 bits,
-with CD and NW accepted but without effect. A profile is chosen before reset,
-never while running.
+An optional `i486-isa` profile, a later extension (Phase 7), adds those
+instructions, AC and the CR0 bits, with CD and NW accepted but without effect.
+A profile is chosen before reset, never while running.
 
 ### Undocumented behaviour
 
@@ -121,7 +181,7 @@ decides it, never a silent pick.
 
 Open: what a 386 with no 387 does for ESC and WAIT when CR0.EM is clear. FPU
 detection code takes this path. Settle it from hardware results or a reference
-emulator before M2 closes.
+emulator before Phase 2 closes.
 
 ### Self-modifying code
 
@@ -246,7 +306,7 @@ flowchart LR
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
-| L2 miss | DDR latency plus two beats (measured in M1) |
+| L2 miss | DDR latency plus two beats (measured in Phase 1) |
 
 ### Performance estimate
 
@@ -540,7 +600,7 @@ updates hold the L2's DMA port between their read and their write.
   100 MHz peaks at 200 MB/s. DDR returns a 32-byte line in two beats once data
   starts, where the SDRAM needs 16 beats plus row opening, about 22 cycles. No
   addon is needed.
-- The check: M1 measures line-fill latency on both memories. If DDR's first
+- The check: Phase 1 measures line-fill latency on both memories. If DDR's first
   data takes much more than about 40 cycles at 100 MHz, or Linux activity makes
   it erratic, revisit the choice. The SDRAM would then become a faster tier in
   front of DDR, not a replacement. DDR jitter costs speed only; nothing in the
@@ -631,12 +691,14 @@ Some games of the era run their logic in delay loops, or calibrate once and
 then overflow on a fast CPU; Turbo Pascal's CRT unit is the known case. The
 governor slows the CPU without changing any result.
 
-- **Modes:** `max`, and reference presets 386SX-16, 386DX-25, 386DX-33,
-  386DX-40, 486DX-33 and 486DX2-66. A turbo control switches between the chosen
-  preset and `max` while running.
+- **Modes:** `max`, and reference presets 286-12, 386SX-16, 386DX-25,
+  386DX-33, 386DX-40, 486DX-33 and 486DX2-66. A preset is a timing table and a
+  frequency, and a per-game setting may move the frequency. A turbo control
+  switches between the chosen preset and `max` while running.
 - **Mechanism:** each retired instruction adds its reference cycle cost to a
-  debt counter. Costs come from the Intel386 DX and i486 data-sheet timing
-  tables, with their next-instruction term taken as one, a per-preset
+  debt counter. Costs come from the 80286, Intel386 SX and DX, and i486
+  data-sheet timing tables, with their next-instruction term taken as one, a
+  per-preset
   wait-state charge per memory operand, and for SX presets two bus cycles per
   32-bit access. A fractional enable at the preset frequency pays the debt
   down. D stops issuing new x86 instructions while the debt exceeds a window of
@@ -645,7 +707,8 @@ governor slows the CPU without changing any result.
   timing.
 - **Setting:** a core setting persisted per library game through the
   [core persistence](../../../docs/core-persistence.md) path. The default is
-  `max`.
+  `max`; Ultima VI and The Black Gate carry presets
+  ([first acceptance games](#first-acceptance-games)).
 - **Check:** microbenchmark loops retire within 5% of the preset's table time
   (budget), and the Turbo Pascal CRT delay calibration lands in the reference
   machine's range.
@@ -671,7 +734,7 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
 
 ## Budgets
 
-Budgets, not measurements. M1 replaces the CPU rows with synthesis numbers.
+Budgets, not measurements. Phase 1 replaces the CPU rows with synthesis numbers.
 
 | Block | ALMs | M10K | DSP blocks |
 | --- | ---: | ---: | ---: |
@@ -715,17 +778,17 @@ or exact-artifact hardware acceptance.
    inside REP, segment-limit edges, LOCK against DMA, and governor pacing.
 6. **Random programs:** constrained-random instruction streams in each mode,
    against the oracle.
-7. **System:** in the `fes.pc386` simulation and then on a kit, FreeDOS,
-   JEMM386 (V86 with paging) and DOS32A- or CWSDPMI-based test programs (flat
-   protected mode). Commercial games are user-supplied like any ROM. The
-   acceptance list covers each mode: a real-mode VGA game, an unreal-mode game
-   (Ultima VII), a game under EMM386, a DOS/4GW game (Doom), and a
-   speed-sensitive game (Wing Commander) under a preset.
+7. **System:** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
+   [first acceptance games](#first-acceptance-games), each in the setup its
+   install guide names and at its recorded speed. Later breadth: JEMM386 (V86
+   with paging) with Wolfenstein 3D using its EMS, and DOS32A- or
+   CWSDPMI-based test programs and a DOS/4GW game (Doom) for flat protected
+   mode. Commercial games are user-supplied like any ROM.
 8. **Performance:** one microbenchmark per row of the latency table, plus Doom
    `-timedemo demo3`, 3DBench, PCPBench and a cache and memory benchmark
    (Speedsys or CACHECHK) against published period results. Every performance
    feature lands with its before and after.
-9. **Timing:** a CPU-only routed harness like the RISC-V QoR one from M1, then
+9. **Timing:** a CPU-only routed harness like the RISC-V QoR one from Phase 1, then
    the machine producer. Seal evidence follows AGENTS.md, from an authenticated
    HIP or CUDA backend.
 
@@ -733,29 +796,29 @@ or exact-artifact hardware acceptance.
 
 | Milestone | Content | Exit |
 | --- | --- | --- |
-| M0 | Oracle adapter and corpus runners | Both corpora run against the oracle; every failure is in the divergence list with its deciding case |
-| M1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured against the [DDR check](#l2-and-coherence) |
-| M2 | Protected mode, V86, paging, exceptions, task switches, debug registers | test386.asm passes in RTL; random protected-mode and V86 lockstep clean |
-| M3 | CPU in the `fes.pc386` simulation, L2 on DDR, governor | FreeDOS and JEMM386 boot in simulation; first sealed package; kit diagnostic |
-| M4 | BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change |
-| M5 | x87 | An x87 corpus (to choose) and FPU-using games |
-| M6 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
+| Phase 0 | Oracle adapter and corpus runners | Both corpora run against the oracle; every failure is in the divergence list with its deciding case |
+| Phase 1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured against the [DDR check](#l2-and-coherence) |
+| Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
+| Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
+| Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
+| Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |
+| Phase 6 | x87 | An x87 corpus (to choose) and FPU-using games |
+| Phase 7 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
 
 ## Decisions
 
 Settled on 2026-10-24:
 
 - DSP blocks are used wherever they help ([rule 6](#platform-constraints)).
-- Guest RAM is in HPS DDR port 0, subject to M1's
+- Guest RAM is in HPS DDR port 0, subject to Phase 1's
   [latency check](#l2-and-coherence).
+- `i486-isa` is a later extension (Phase 7), not part of the first acceptance.
+- The [first acceptance games](#first-acceptance-games) set the machine's
+  scope, its open firmware and the speed defaults: `max`, with per-game
+  presets for Ultima VI and The Black Gate.
 
-Open:
-
-1. **The machine:** AT chipset, VGA, Sound Blaster with OPL, IDE and floppy as
-   `fes.pc386`, and which BIOS: an open BIOS or user-linked firmware through a
-   ROM map.
-2. **Default speed mode:** `max` (proposed) or a 386DX-33 preset.
-3. **Whether `i486-isa` is wanted at all.**
+Open: the no-387 ESC and WAIT behaviour under
+[undocumented behaviour](#undocumented-behaviour).
 
 ## Location
 
