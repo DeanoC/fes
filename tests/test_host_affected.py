@@ -75,9 +75,25 @@ class SelectionTests(unittest.TestCase):
             for shard in range(1, 4):
                 _, report, _ = self.host_report(['sources/FogCast/lib/' + filename],
                     ['--ui-if-needed', '--shard', f'{shard}/3'])
-                self.assertEqual(report['host_ui']['scheduled'], shard == 3)
+                self.assertEqual(report['host_ui']['scheduled'], filename == 'lib.go' and shard == 3)
+                self.assertEqual(report['host_ui']['boundary_scheduled'], shard == 3)
                 commands += [c for c in report['commands'] if c['argv'][0] == 'make']
             self.assertEqual(len(commands), 1)
+
+    def test_node_required_only_when_browser_tests_are_scheduled(self):
+        for filename, needs_node in (('lib_test.go', False), ('lib.go', True)):
+            with self.subTest(filename=filename), patch.object(
+                    host_tests.shutil, 'which', side_effect=lambda tool: None if tool == 'node' else '/bin/' + tool):
+                code, report, calls = self.host_report(['sources/FogCast/lib/' + filename],
+                    ['--ui-if-needed'], execute=True)
+                self.assertEqual(code, 2 if needs_node else 0)
+                if needs_node:
+                    self.assertFalse(calls)
+                    self.assertIn('node', report['error'])
+                else:
+                    self.assertFalse(report['host_ui']['scheduled'])
+                    self.assertTrue(report['host_ui']['boundary_scheduled'])
+                    self.assertEqual(calls[-1].args[0], ['make', 'test-ui-boundary'])
 
     def test_embedded_guide_retains_browser_tests(self):
         module = self.root / host_affected.MODULES[0]

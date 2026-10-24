@@ -91,6 +91,7 @@ class TestChangedTest(unittest.TestCase):
                          [[sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--paths-json",
                            json.dumps(result["impact"]["paths"])]])
         self.assertEqual([c["cwd"] for c in host], ["."])
+        self.assertNotIn("node", host[0]["tools"])
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):

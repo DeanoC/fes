@@ -10,6 +10,7 @@ Uses the inherited Go environment; requested host builds use the parent Make tar
 import argparse
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -90,8 +91,9 @@ def main(argv=None):
                            path.startswith(('sources/FogCast/internal/hostapi/',
                                             'sources/FogCast/ui/'))
                            for path in go_changes))
-        ui_scheduled = shard is None or shard[0] == shard[1] - 1
-        if ui_scheduled:
+        ui_placed = shard is None or shard[0] == shard[1] - 1
+        ui_scheduled = ui_required and ui_placed
+        if ui_placed:
             # The boundary guard scans ALL Go files, including test files.
             commands.append({'cwd': test_policy.FOGCAST_MODULE,
                              'label': 'host UI tests' if ui_required else 'host UI boundary',
@@ -104,6 +106,7 @@ def main(argv=None):
                        'only Go tests and verified guides changed')}
     if args.ui_if_needed:
         report['host_ui'] = {'required': ui_required, 'scheduled': ui_scheduled,
+                             'boundary_scheduled': ui_placed,
                              'reason': ('UI/API, production/full or uncertain inputs' if ui_required else
                                         'only verified unrelated Go tests and guides changed; boundary retained')}
     if shard is not None:
@@ -112,6 +115,13 @@ def main(argv=None):
         report['status'] = 'planned'
         print(json.dumps(report, indent=2))
         return 0
+    if args.ui_if_needed and ui_placed:
+        tools = ['make', 'sh', 'rg', *(['node'] if ui_required else [])]
+        missing = [tool for tool in tools if shutil.which(tool) is None]
+        if missing:
+            report.update(status='error', error='missing UI prerequisites: ' + ', '.join(missing))
+            print(json.dumps(report, indent=2))
+            return 2
     report['results'] = []
     for command in commands:
         # Test output goes to stderr so stdout stays a standalone JSON report.

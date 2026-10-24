@@ -72,7 +72,7 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             host_run.append("--full")
         else:
             host_run.extend(["--paths-json", json.dumps(impact["paths"])])
-        add("host", "host Go and UI tests", ".", host_run, tools=["go", "cc", "make", "node", "sh", "rg"],
+        add("host", "host Go and UI tests", ".", host_run, tools=["go", "cc", "make", "sh", "rg"],
             files=["scripts/host_tests.py", "sources/FogCast/Makefile", "sources/FogCast/go.mod",
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
     if impact["lanes"]["runtime"]:

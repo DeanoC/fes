@@ -366,4 +366,8 @@ Go dependencies, build/policy inputs, unknown or removed packages, embedded
 guides, and full runs. The Go package graph and reverse test consumers are
 still validated and tested. The UI boundary guard still scans all Go files,
 including changed tests. CI runs the UI check once, on its last host shard.
-The JSON report records whether browser tests were required and scheduled.
+The host JSON report records whether browser tests were required and scheduled,
+with boundary scheduling reported separately. Node.js is required only when
+browser tests are scheduled; the shared runner checks this before executing
+tests. To inspect the exact UI target without executing checks, use
+`python3 scripts/host_tests.py --ui-if-needed --plan-only --paths-json '["sources/FogCast/internal/rebootguard/fallback_test.go"]'`.
