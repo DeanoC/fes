@@ -16,6 +16,7 @@ class ParentWorkflowTests(unittest.TestCase):
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         host = workflow.split('  host:\n', 1)[1].split('  runtime:\n', 1)[0]
+        self.assertIn('if: matrix.shard == 3\n        run: sudo apt-get update && sudo apt-get install -y ripgrep', host)
         script = textwrap.dedent(re.search(r'        run: \|\n(.*)', host, re.S).group(1))
         for full in (False, True):
             for shard in range(1, 4):

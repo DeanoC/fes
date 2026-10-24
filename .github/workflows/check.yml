@@ -152,6 +152,9 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
+      - name: UI boundary dependency
+        if: matrix.shard == 3
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
           SHARD: ${{ matrix.shard }}
