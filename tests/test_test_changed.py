@@ -85,17 +85,64 @@ class TestChangedTest(unittest.TestCase):
 
     def test_host_edits_run_shared_go_runner_and_ui_tests(self):
         self.change("sources/FogCast/fogcast/service.go", commit=True)
-        result = self.plan()
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "UI/API changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["argv"] for c in host],
                          [[sys.executable, "scripts/host_tests.py", "--ui-if-needed", "--paths-json",
                            json.dumps(result["impact"]["paths"])]])
         self.assertEqual([c["cwd"] for c in host], ["."])
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
+        self.assertEqual(host[0]["host_ui"]["target"], "test-ui")
+        self.assertIn("node", host[0]["tools"])
+
+    def test_verified_unrelated_go_tests_skip_node_and_show_boundary_target(self):
+        self.change("sources/FogCast/fogcast/service_test.go", commit=True)
+        boundary_plan = {
+            "required": False, "scheduled": False, "boundary_scheduled": True,
+            "command_scheduled": True, "target": "test-ui-boundary",
+            "reason": "only verified unrelated Go tests and guides changed; boundary retained",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=boundary_plan):
+            result = self.plan()
+        host = next(command for command in result["commands"] if command["lane"] == "host")
+        self.assertEqual(host["host_ui"]["target"], "test-ui-boundary")
+        self.assertNotIn("node", host["tools"])
+
+        for path in host["files"]:
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.touch()
+        with patch.object(test_changed.shutil, "which",
+                          side_effect=lambda name: None if name == "node" else "/usr/bin/" + name):
+            test_changed.preflight({"root": str(self.root), "commands": [host]})
+
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "UI/API changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
+        host = next(command for command in result["commands"] if command["lane"] == "host")
+        self.assertEqual(host["host_ui"]["target"], "test-ui")
+        self.assertIn("node", host["tools"])
+        with patch.object(test_changed.shutil, "which",
+                          side_effect=lambda name: None if name == "node" else "/usr/bin/" + name):
+            with self.assertRaisesRegex(ValueError, "command node"):
+                test_changed.preflight({"root": str(self.root), "commands": [host]})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
         self.change("sources/misteross/expansion/rbf.go", commit=True)
-        result = self.plan()
+        browser_plan = {
+            "required": True, "scheduled": True, "boundary_scheduled": False,
+            "command_scheduled": True, "target": "test-ui", "reason": "production Go changes",
+        }
+        with patch.object(test_changed.host_tests, "plan_ui", return_value=browser_plan):
+            result = self.plan()
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(result["impact"]["lanes"]["fpga"])
         self.assertTrue(result["impact"]["lanes"]["host"])

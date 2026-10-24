@@ -70,14 +70,27 @@ class SelectionTests(unittest.TestCase):
                 self.assertEqual(report['commands'][:-1], ordinary['commands'])
 
     def test_ui_runs_once_on_last_shard(self):
-        for filename in ('lib_test.go', 'lib.go'):
+        for filename, required in (('lib_test.go', False), ('lib.go', True)):
             commands = []
             for shard in range(1, 4):
                 _, report, _ = self.host_report(['sources/FogCast/lib/' + filename],
                     ['--ui-if-needed', '--shard', f'{shard}/3'])
-                self.assertEqual(report['host_ui']['scheduled'], shard == 3)
+                self.assertEqual(report['host_ui']['required'], required)
+                self.assertEqual(report['host_ui']['scheduled'], required and shard == 3)
+                self.assertEqual(report['host_ui']['boundary_scheduled'], not required and shard == 3)
+                self.assertEqual(report['host_ui']['target'],
+                                 'test-ui' if required else 'test-ui-boundary')
                 commands += [c for c in report['commands'] if c['argv'][0] == 'make']
             self.assertEqual(len(commands), 1)
+
+    def test_parent_ui_plan_exposes_the_same_verified_target(self):
+        paths = ['sources/FogCast/lib/lib_test.go']
+        with patch.object(host_affected, 'listing', return_value=self.records):
+            plan = host_tests.plan_ui(self.root, paths)
+        self.assertFalse(plan['required'])
+        self.assertFalse(plan['scheduled'])
+        self.assertTrue(plan['boundary_scheduled'])
+        self.assertEqual(plan['target'], 'test-ui-boundary')
 
     def test_embedded_guide_retains_browser_tests(self):
         module = self.root / host_affected.MODULES[0]

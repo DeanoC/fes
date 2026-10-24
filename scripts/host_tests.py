@@ -21,6 +21,54 @@ except ImportError:
     import host_affected
 
 
+def ui_requirement(selection_scope, go_changes):
+    """Return whether verified host inputs require the browser UI suite."""
+    required = (selection_scope != 'affected' or
+                any(not path.endswith('_test.go') or
+                    path.startswith(('sources/FogCast/internal/hostapi/',
+                                     'sources/FogCast/ui/'))
+                    for path in go_changes))
+    reason = ('UI/API, production/full or uncertain inputs' if required else
+              'only verified unrelated Go tests and guides changed; boundary retained')
+    return required, reason
+
+
+def ui_schedule(required, shard=None):
+    """Describe the UI or boundary target placed on this host-test shard."""
+    command_scheduled = shard is None or shard[0] == shard[1] - 1
+    return {
+        'required': required,
+        'scheduled': required and command_scheduled,
+        'boundary_scheduled': not required and command_scheduled,
+        'command_scheduled': command_scheduled,
+        'target': 'test-ui' if required else 'test-ui-boundary',
+    }
+
+
+def plan_ui(root, paths, full=False, shard=None, environment=None):
+    """Resolve the host UI target for a parent-level plan.
+
+    Go package ownership must be verified before browser tests can be skipped.
+    Any failure to resolve that graph keeps the browser suite selected.
+    """
+    root = Path(root).resolve()
+    environment = dict(os.environ) if environment is None else dict(environment)
+    for name in ('GOOS', 'GOARCH', 'GOARM'):
+        environment.pop(name, None)
+    go_changes = host_affected.go_inputs(paths)
+    selection_scope = 'all'
+    if not full and go_changes is not None:
+        try:
+            records = host_affected.listing(root, environment)
+            if host_affected.select(paths, records, root) is not None:
+                selection_scope = 'affected'
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            # The package graph could not prove the changes are unrelated.
+            pass
+    required, reason = ui_requirement(selection_scope, go_changes)
+    return {**ui_schedule(required, shard), 'reason': reason}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--full', action='store_true',
@@ -85,17 +133,13 @@ def main(argv=None):
     if args.ui_if_needed:
         # Reuse the graph/embedded-guide validation above. API and UI test
         # changes retain the browser suite even though they are test-only.
-        ui_required = (selection['scope'] != 'affected' or
-                       any(not path.endswith('_test.go') or
-                           path.startswith(('sources/FogCast/internal/hostapi/',
-                                            'sources/FogCast/ui/'))
-                           for path in go_changes))
-        ui_scheduled = shard is None or shard[0] == shard[1] - 1
-        if ui_scheduled:
+        ui_required, ui_reason = ui_requirement(selection['scope'], go_changes)
+        ui = ui_schedule(ui_required, shard)
+        if ui['command_scheduled']:
             # The boundary guard scans ALL Go files, including test files.
             commands.append({'cwd': test_policy.FOGCAST_MODULE,
                              'label': 'host UI tests' if ui_required else 'host UI boundary',
-                             'argv': ['make', 'test-ui' if ui_required else 'test-ui-boundary']})
+                             'argv': ['make', ui['target']]})
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',
               'commands': commands, 'selection': selection}
     if args.build_host_if_needed:
@@ -103,9 +147,7 @@ def main(argv=None):
             'reason': ('production/build/full or uncertain inputs' if build_required else
                        'only Go tests and verified guides changed')}
     if args.ui_if_needed:
-        report['host_ui'] = {'required': ui_required, 'scheduled': ui_scheduled,
-                             'reason': ('UI/API, production/full or uncertain inputs' if ui_required else
-                                        'only verified unrelated Go tests and guides changed; boundary retained')}
+        report['host_ui'] = {**ui, 'reason': ui_reason}
     if shard is not None:
         report['shard'] = args.shard
     if args.plan_only:

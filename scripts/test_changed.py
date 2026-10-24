@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 import affected
+import host_tests
 import runtime_tests
 
 
@@ -72,9 +73,15 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
             host_run.append("--full")
         else:
             host_run.extend(["--paths-json", json.dumps(impact["paths"])])
-        add("host", "host Go and UI tests", ".", host_run, tools=["go", "cc", "make", "node", "sh", "rg"],
+        ui = host_tests.plan_ui(root, impact["paths"],
+                                full=impact["test_modes"]["full_race"])
+        host_tools = ["go", "cc", "make", "sh", "rg"]
+        if ui["required"]:
+            host_tools.append("node")
+        add("host", "host Go and UI tests", ".", host_run, tools=host_tools,
             files=["scripts/host_tests.py", "sources/FogCast/Makefile", "sources/FogCast/go.mod",
                    "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
+        commands[-1]["host_ui"] = ui
     if impact["lanes"]["runtime"]:
         runtime = runtime_tests.command(impact["paths"], jobs, full)
         add("runtime", "runtime software tests", runtime["cwd"],

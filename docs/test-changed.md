@@ -16,6 +16,11 @@ or contact the kit. Review the exact commands without executing tests:
 python3 scripts/test_changed.py --base origin/main --plan-only
 ```
 
+When the host lane is selected, its top-level plan includes `host_ui.target`
+(`test-ui` or `test-ui-boundary`). Node.js is a prerequisite only when
+`test-ui` is selected. In the host runner report, `host_ui.scheduled` describes
+the browser suite; `host_ui.boundary_scheduled` describes the boundary guard.
+
 An explicit `--head` may be used for planning another commit. Execution requires
 that commit to be checked out; otherwise the command refuses to test different
 bytes from the requested revision. All-zero forty-character `--base` means all
