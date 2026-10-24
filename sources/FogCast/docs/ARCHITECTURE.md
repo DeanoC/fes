@@ -3336,6 +3336,14 @@ media imports of at most the largest image the media selector inserts
 (839,680 bytes, a declared-geometry Atari ST floppy) and live
 replace/clear/display operations. The unit still checks its exact format and
 size on insert. These do not change the library's next-start media selection.
+The Change media selector header shows `media_name` from the last confirmed
+insert, retained by the target's session coordinator for that package generation.
+Eject clears it; an uncertain mutation reply clears the name rather than reporting
+old media as current. Existing launch selections and adopted sessions have no
+recorded original filename and display that the name is unavailable. Empty and
+loading units show their observed state. The name is presentation only; admission
+continues to use the captured session, target, package and generation.
+
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has

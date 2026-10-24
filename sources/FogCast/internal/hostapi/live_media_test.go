@@ -68,6 +68,39 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 		t.Fatalf("change-tape status=%d body=%s calls=%d id=%s name=%s", w.Code, w.Body, service.replaceCalls, service.mediaID, service.name)
 	}
 
+	if !strings.Contains(w.Body.String(), `"media_name":"maze.p"`) {
+		t.Fatalf("missing inserted name: %s", w.Body)
+	}
+	read := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if !strings.Contains(read.Body.String(), `"media_name":"maze.p"`) {
+		t.Fatalf("name lost on refresh: %s", read.Body)
+	}
+
+	service.status.CorePackage.Generation++
+	replaced := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if strings.Contains(replaced.Body.String(), `"media_name"`) {
+		t.Fatalf("name leaked to replacement generation: %s", replaced.Body)
+	}
+	service.status.CorePackage.Generation--
+
+	// A reply lost after dispatch cannot leave a previous filename presented as
+	// confirmed. The next observed state has no trustworthy name.
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "reply lost"}
+	retry := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"other.p"}`))
+	retry.Host = "127.0.0.1"
+	retry.Header = r.Header.Clone()
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, retry)
+	if rw.Code == 200 {
+		t.Fatal("expected uncertain insert failure")
+	}
+	uncertain := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if strings.Contains(uncertain.Body.String(), `"media_name"`) {
+		t.Fatalf("uncertain insert retained name: %s", uncertain.Body)
+	}
+
+	service.err = nil
+
 	clear := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media/clear", nil)
 	clear.Host = "127.0.0.1"
 	clear.Header.Set("X-FogCast-Session-ID", session.ID)
@@ -77,6 +110,10 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 	if cw.Code != 200 || service.clearCalls != 1 {
 		t.Fatalf("eject status=%d body=%s calls=%d", cw.Code, cw.Body, service.clearCalls)
 	}
+	if strings.Contains(cw.Body.String(), `"media_name"`) {
+		t.Fatalf("ejected media still named: %s", cw.Body)
+	}
+
 	if len(input.detach) != detachedBefore {
 		t.Fatalf("input detached unexpectedly: %v", input.detach)
 	}

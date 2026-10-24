@@ -83,6 +83,7 @@ type sessionResult struct {
 	System      *protocol.System            `json:"system,omitempty"`
 	Execution   string                      `json:"execution,omitempty"`
 	Media       string                      `json:"media,omitempty"`
+	MediaName   string                      `json:"media_name,omitempty"`
 	Progress    *sessionProgress            `json:"progress,omitempty"`
 	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
 	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
@@ -120,6 +121,8 @@ type sessionCoordinator struct {
 	packageOwned      bool
 	nativeStoppedIdle bool // Soft-stopped non-package fpga_native label left set after idle cleanup
 	mediaState        string
+	liveMediaName     string
+	liveMediaBinding  protocol.DevelopmentMediaBinding
 	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	mu                sync.Mutex
@@ -1811,6 +1814,7 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	result.ID = s.id
 	result.FlightID = s.flightID
 	execution := s.execution
+	name, binding := s.liveMediaName, s.liveMediaBinding
 	s.mu.Unlock()
 	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
 		result.Target, result.TargetID = "", ""
@@ -1821,6 +1825,12 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 		}
 	} else if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
 		result.Target, result.TargetID = binder.SessionTarget()
+	}
+	if result.Target == binding.Target && result.TargetID == binding.TargetID && st.State == protocol.StateActive && st.CorePackage != nil && st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation {
+		unit, observed := protocol.MediaUnit(st.CorePackage, 0)
+		if !observed || unit.State == protocol.MediaUnitReady {
+			result.MediaName = name
+		}
 	}
 	if s.remoteInput != nil {
 		input := s.remoteInput.Status()

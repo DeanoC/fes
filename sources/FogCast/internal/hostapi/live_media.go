@@ -83,10 +83,16 @@ func (s *sessionCoordinator) replaceLiveMedia(ctx context.Context, id, mediaID, 
 	if !ok {
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
+	s.mu.Lock()
+	s.liveMediaName = ""
+	s.mu.Unlock()
 	status, err := loader.ReplaceLiveMedia(ctx, mediaID, name, b)
 	if err != nil {
 		return sessionResult{}, err
 	}
+	s.mu.Lock()
+	s.liveMediaName, s.liveMediaBinding = name, b
+	s.mu.Unlock()
 	result := s.publicSession(status, nil)
 	s.recordStamp("session.live_media", result, nil, clientStamp{})
 	return result, nil
@@ -110,6 +116,9 @@ func (s *sessionCoordinator) clearLiveMedia(ctx context.Context, id string, b pr
 	if !ok {
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
+	s.mu.Lock()
+	s.liveMediaName = ""
+	s.mu.Unlock()
 	status, err := loader.ClearLiveMedia(ctx, b)
 	if err != nil {
 		return sessionResult{}, err

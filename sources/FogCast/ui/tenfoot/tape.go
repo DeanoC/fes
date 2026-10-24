@@ -42,14 +42,15 @@ type TapePickerRow struct {
 
 // TapePickerSnapshot is renderer-facing state for the running media selector.
 type TapePickerSnapshot struct {
-	Open   bool
-	Title  string
-	Path   string
-	Index  int
-	Rows   []TapePickerRow
-	Status string
-	Busy   bool
-	Hint   string
+	Open    bool
+	Title   string
+	Current string
+	Path    string
+	Index   int
+	Rows    []TapePickerRow
+	Status  string
+	Busy    bool
+	Hint    string
 }
 
 func tapePickerHint(kind InputKind) string {
@@ -190,14 +191,15 @@ func (a *App) tapePickerSnapshotLocked() TapePickerSnapshot {
 		status += " · " + a.roomSessionNotice
 	}
 	return TapePickerSnapshot{
-		Open:   true,
-		Title:  tapePickerTitle,
-		Path:   a.tapePickerPath,
-		Index:  a.tapePickerIndex,
-		Rows:   append([]TapePickerRow(nil), a.tapePickerRows...),
-		Status: status,
-		Busy:   a.tapePickerBusy,
-		Hint:   tapePickerHint(a.affinity.current.Kind),
+		Open:    true,
+		Title:   tapePickerTitle,
+		Current: currentMediaLabel(a.session),
+		Path:    a.tapePickerPath,
+		Index:   a.tapePickerIndex,
+		Rows:    append([]TapePickerRow(nil), a.tapePickerRows...),
+		Status:  status,
+		Busy:    a.tapePickerBusy,
+		Hint:    tapePickerHint(a.affinity.current.Kind),
 	}
 }
 
@@ -696,4 +698,21 @@ func (a *App) dismissMediaControlsLocked() {
 	if direct {
 		a.resumeRoomSessionLocked()
 	}
+}
+
+// currentMediaLabel prefers observed unit state to the host's last confirmed
+// filename. Original filenames cannot be recovered from a content digest.
+func currentMediaLabel(s hostclient.SessionResult) string {
+	if u, ok := hostclient.RemovableMediaUnit(s.CorePackage); ok {
+		if u.State == protocol.MediaUnitEmpty {
+			return "No media inserted"
+		}
+		if u.State == protocol.MediaUnitLoading {
+			return "Media loading…"
+		}
+	}
+	if s.MediaName != "" {
+		return "Inserted: " + s.MediaName
+	}
+	return "Inserted media name unavailable"
 }

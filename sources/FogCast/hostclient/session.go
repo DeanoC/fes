@@ -99,6 +99,7 @@ type SessionResult struct {
 	System                  string
 	Execution               string
 	Media                   string
+	MediaName               string
 	Progress                *SessionProgress
 	Input                   *SessionInput
 	Development             bool
@@ -201,6 +202,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		System                  *string             `json:"system"`
 		Execution               string              `json:"execution"`
 		Media                   string              `json:"media"`
+		MediaName               string              `json:"media_name"`
 		Progress                *SessionProgress    `json:"progress"`
 		Input                   *SessionInput       `json:"input"`
 		FlightID                string              `json:"flight_id"`
@@ -230,6 +232,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	}
 	result.Execution = strings.TrimSpace(wire.Execution)
 	result.Media = strings.TrimSpace(wire.Media)
+	result.MediaName = strings.TrimSpace(wire.MediaName)
 	result.FlightID = strings.TrimSpace(wire.FlightID)
 	result.Progress = wire.Progress
 	result.Input = wire.Input
