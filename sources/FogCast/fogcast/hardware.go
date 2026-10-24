@@ -63,7 +63,13 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	if s.corePackages != nil {
 		packages, err = s.corePackages.List(ctx)
 		if err != nil {
-			return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+			if ctx.Err() != nil {
+				return nil, canonicalError(protocol.CodeInternal, safeContextError(ctx.Err()))
+			}
+			// The inventory is used only to suggest an optional selector package.
+			// A damaged unrelated archive must not hide an otherwise usable setup;
+			// the selected package is inspected independently below.
+			packages = nil
 		}
 	}
 	store, ok := s.catalog.(coreExpansionCatalog)
@@ -100,14 +106,14 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 		}
 		selectorFirmwareReady := false
 		if selection.ExpansionID == "" {
-			if candidateID := zx81SessionDisplayPackage(packages, entry.PackageID, inspection.Descriptor); candidateID != "" {
-				for _, candidate := range packages {
-					if candidate.PackageID == candidateID && s.zx81FirmwareReady(ctx, entry, candidate.Descriptor) &&
-						s.validateCoreEntryMedia(ctx, candidate.Descriptor, entry.MediaRole, entry.MediaID) == nil {
-						machine.LaunchPackageID = candidateID
-						selectorFirmwareReady = true
-					}
+			for _, candidate := range zx81SessionDisplayCandidates(packages, entry.PackageID, inspection.Descriptor) {
+				if !s.zx81FirmwareReady(ctx, entry, candidate.Descriptor) ||
+					s.validateCoreEntryMedia(ctx, candidate.Descriptor, entry.MediaRole, entry.MediaID) != nil {
+					continue
 				}
+				machine.LaunchPackageID = candidate.PackageID
+				selectorFirmwareReady = true
+				break
 			}
 		}
 		machine.Socket.Supported = zx81RearSocket(inspection.Descriptor)
@@ -157,14 +163,14 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	return result, nil
 }
 
-// zx81SessionDisplayPackage finds an installed package for the same ZX81
-// target that can open the running media selector. The caller only offers a
-// package change when no expansion is selected; the ordinary package
-// selection API still validates persisted media and package data at launch.
-func zx81SessionDisplayPackage(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) string {
+// zx81SessionDisplayCandidates returns installed packages for the same ZX81
+// target that can open the running media selector. The caller checks firmware
+// and selected media for each candidate in order, continuing after rejection.
+func zx81SessionDisplayCandidates(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) []corepackage.Inspection {
 	if zx81SessionDisplayDescriptor(current) {
-		return ""
+		return nil
 	}
+	var candidates []corepackage.Inspection
 	for _, candidate := range packages { // CorePackageStore.List is sorted by package ID.
 		if candidate.PackageID == selected || candidate.Descriptor.Core.ID != "fes.zx81" || candidate.Descriptor.Target != current.Target ||
 			!zx81SessionDisplayDescriptor(candidate.Descriptor) || (current.ROM == nil) != (candidate.Descriptor.ROM == nil) {
@@ -173,16 +179,16 @@ func zx81SessionDisplayPackage(packages []corepackage.Inspection, selected strin
 		if current.ROM != nil && *current.ROM != *candidate.Descriptor.ROM {
 			continue
 		}
-		return candidate.PackageID
+		candidates = append(candidates, candidate)
 	}
-	return ""
+	return candidates
 }
 
 func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor) bool {
 	if descriptor.Core.ID != "fes.zx81" || !zx81RearSocket(descriptor) {
 		return false
 	}
-	display, ddr, media := false, false, false
+	display, ddr, blob, tape := false, false, false, false
 	for _, iface := range descriptor.Interfaces {
 		if iface.Major != 1 || iface.Minor != 0 {
 			continue
@@ -192,10 +198,14 @@ func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor) bool {
 			display = true
 		case "fes.memory.hps-ddr":
 			ddr = true
-		case "fes.media.zx81-tape", "fes.media.blob":
-			media = true
+		case "fes.media.zx81-tape":
+			tape = true
+		case "fes.media.blob":
+			blob = true
 		}
 	}
+	media := descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 0 &&
+		((descriptor.ABI.ID == "fes.simple-computer" && blob) || (descriptor.ABI.ID == "fes.computer" && tape))
 	return display && ddr && media
 }
 

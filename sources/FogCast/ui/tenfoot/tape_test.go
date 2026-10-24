@@ -627,12 +627,17 @@ func zx81ComputerTapePackage() *hostclient.SessionCorePackage {
 	}
 }
 
-func TestTapePickerDoesNotOfferHostOnlyMount(t *testing.T) {
+func TestTapePickerIncludesEmuhdVolumeRoot(t *testing.T) {
 	t.Parallel()
+	found := false
 	for _, path := range tapePickerVolumeRoots {
 		if path == "/mnt/emuhd" {
-			t.Fatal("host-only /mnt/emuhd path must not be offered on the kit")
+			found = true
+			break
 		}
+	}
+	if !found {
+		t.Fatal("local /mnt/emuhd games must remain browsable when that directory exists")
 	}
 }
 

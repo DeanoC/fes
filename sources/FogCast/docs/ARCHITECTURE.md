@@ -3326,6 +3326,12 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
+The workbench may suggest a same-target ZX81 package with the session-display
+interfaces when the selected package lacks them. It checks each candidate's ABI,
+firmware and saved-media admission in package-ID order, continuing after an
+incompatible candidate. A package-inventory error omits that optional suggestion;
+the selected package is inspected separately so an unrelated bad archive does not
+hide the saved setup.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises

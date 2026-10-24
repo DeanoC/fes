@@ -79,7 +79,7 @@ func appendTapePickerFilesystemRoot(rows []TapePickerRow, name, path string) []T
 
 // tapePickerVolumeRoots supplements saved storage roots with local mounts.
 // Roots are included only when they exist on the device running tenfoot.
-var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media"}
+var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media", "/mnt/emuhd"}
 
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))

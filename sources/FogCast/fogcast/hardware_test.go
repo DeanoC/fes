@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,16 +22,21 @@ import (
 // The retained synthetic M10K fixture exercises the real archive/linker path;
 // neither this package nor its no-op expansion is a working ZX81 bitstream.
 func hardwareZX81Fixture(t *testing.T, rom, sessionDisplay bool, majors ...int) (archive, firmware []byte) {
+	return hardwareZX81ContractFixture(t, rom, sessionDisplay, "fes.simple-computer", "fes.media.blob", strings.Repeat("1", 40), majors...)
+}
+
+func hardwareZX81ContractFixture(t *testing.T, rom, sessionDisplay bool, abi, media, revision string, majors ...int) (archive, firmware []byte) {
 	t.Helper()
 	payload := misterossROMFixture(t, "blank.rbf")
 	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := strings.NewReplacer(`id = "fes.pong"`, `id = "fes.zx81"`, `id = "fes.simple-game"`, `id = "fes.simple-computer"`,
+	text := strings.NewReplacer(`id = "fes.pong"`, `id = "fes.zx81"`, `id = "fes.simple-game"`, `id = "`+abi+`"`,
 		`id = "fes.gamepad"`, `id = "fes.keyboard"`, "size = 12", fmt.Sprintf("size = %d", len(payload)),
-		"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", fmt.Sprintf("%x", sha256.Sum256(payload))).Replace(string(manifest))
-	text += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", fmt.Sprintf("%x", sha256.Sum256(payload)),
+		`revision = "1111111111111111111111111111111111111111"`, `revision = "`+revision+`"`).Replace(string(manifest))
+	text += "\n[[interfaces]]\nid = \"" + media + "\"\nmajor = 1\nminor = 0\nrequired = true\n"
 	text += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
 	if sessionDisplay {
 		text += "\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
@@ -121,6 +127,121 @@ func TestHardwareOffersSelectorCapablePackageOnlyWithoutExpansion(t *testing.T) 
 	view, err = s.Hardware(ctx)
 	if err != nil || len(view) != 1 || view[0].LaunchPackageID != "" {
 		t.Fatalf("package switch offered with an exact-package expansion: %+v err=%v", view, err)
+	}
+}
+
+func TestHardwareSkipsSelectorCandidatesThatRejectSavedMedia(t *testing.T) {
+	ctx := context.Background()
+	currentArchive, _ := hardwareZX81ContractFixture(t, false, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40))
+	s, _, entry, _ := newCoreEntryLaunchFixture(t, currentArchive, "Tape ZX81")
+	s.SetMachineROMLinker(fakeROM{})
+	media, _, err := s.ImportCoreMedia(ctx, int64(len("saved tape")), strings.NewReader("saved tape"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.CassetteRole, media.MediaID); err != nil {
+		t.Fatal(err)
+	}
+
+	selectorArchive, _ := hardwareZX81ContractFixture(t, false, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("3", 40))
+	selector, created, err := s.ImportCorePackage(ctx, int64(len(selectorArchive)), bytes.NewReader(selectorArchive))
+	if err != nil || !created {
+		t.Fatalf("import tape selector package: %v created=%v", err, created)
+	}
+	invalidBeforeSelector := false
+	for i := 0; i < 256 && !invalidBeforeSelector; i++ {
+		revision := fmt.Sprintf("%040x", i+4)
+		invalidArchive, _ := hardwareZX81ContractFixture(t, false, true, "fes.simple-computer", "fes.media.blob", revision)
+		candidate, created, err := s.ImportCorePackage(ctx, int64(len(invalidArchive)), bytes.NewReader(invalidArchive))
+		if err != nil || !created {
+			t.Fatalf("import blob selector package %s: %v created=%v", revision, err, created)
+		}
+		invalidBeforeSelector = candidate.PackageID < selector.PackageID
+	}
+	if !invalidBeforeSelector {
+		t.Fatal("could not create a media-incompatible selector candidate ordered before the usable package")
+	}
+
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready || view[0].LaunchPackageID != selector.PackageID {
+		t.Fatalf("later media-compatible selector package was not offered: %+v err=%v", view, err)
+	}
+}
+
+func TestZX81SessionDisplayDescriptorRequiresABICompatibleMedia(t *testing.T) {
+	base := corepackage.Descriptor{
+		Core: corepackage.Core{ID: "fes.zx81"},
+		ABI:  corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0},
+		Interfaces: []corepackage.Interface{
+			{ID: expansion.Slot, Major: 1, Minor: 0},
+			{ID: "fes.video.session-display", Major: 1, Minor: 0},
+			{ID: "fes.memory.hps-ddr", Major: 1, Minor: 0},
+			{ID: "fes.media.blob", Major: 1, Minor: 0},
+		},
+	}
+	if !zx81SessionDisplayDescriptor(base) {
+		t.Fatal("simple-computer blob package should support the selector")
+	}
+
+	computerBlob := base
+	computerBlob.ABI.ID = "fes.computer"
+	if zx81SessionDisplayDescriptor(computerBlob) {
+		t.Fatal("fes.computer with blob alone cannot open the ZX81 tape selector")
+	}
+
+	computerTape := computerBlob
+	computerTape.Interfaces = append([]corepackage.Interface(nil), base.Interfaces...)
+	computerTape.Interfaces[len(computerTape.Interfaces)-1].ID = "fes.media.zx81-tape"
+	if !zx81SessionDisplayDescriptor(computerTape) {
+		t.Fatal("fes.computer with zx81-tape should support the selector")
+	}
+
+	simpleTape := base
+	simpleTape.Interfaces = append([]corepackage.Interface(nil), computerTape.Interfaces...)
+	simpleTape.ABI.ID = "fes.simple-computer"
+	if zx81SessionDisplayDescriptor(simpleTape) {
+		t.Fatal("fes.simple-computer cannot use the fes.computer tape interface")
+	}
+}
+
+func TestHardwareSnapshotSurvivesInvalidUnrelatedPackage(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	packageRoot := filepath.Join(root, "packages")
+	catalogStore, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = catalogStore.Close() })
+	packages, err := corepackage.NewStore(packageRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, catalogStore,
+		&fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	s.corePackages = packages
+	archive, _ := hardwareZX81Fixture(t, false, false)
+	inspection, created, err := s.ImportCorePackage(ctx, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil || !created {
+		t.Fatalf("import ZX81 package: %v created=%v", err, created)
+	}
+	if _, err := catalogStore.CreateCoreEntry(ctx, "Saved ZX81", "fes.zx81", inspection.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	s.SetMachineROMLinker(fakeROM{})
+
+	otherArchive := libraryPackageFixture(t, "0.2.0")
+	other, created, err := s.ImportCorePackage(ctx, int64(len(otherArchive)), bytes.NewReader(otherArchive))
+	if err != nil || !created {
+		t.Fatalf("install unrelated package: %v created=%v", err, created)
+	}
+	if err := os.Chmod(filepath.Join(packageRoot, other.PackageID+".fcore"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || !view[0].Ready || view[0].LaunchPackageID != "" {
+		t.Fatalf("unrelated corrupt archive hid the selected ZX81 setup: %+v err=%v", view, err)
 	}
 }
 
