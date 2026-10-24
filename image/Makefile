@@ -44,6 +44,7 @@ test:
 	sh scripts/tests/scan-target-image-secrets_test.sh
 	sh scripts/tests/check-native-payloads_test.sh
 	sh scripts/tests/bluetooth-modules_test.sh
+	sh scripts/tests/bluetooth-init_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-kernel_test.sh
 	sh scripts/tests/build-fes-window_test.sh

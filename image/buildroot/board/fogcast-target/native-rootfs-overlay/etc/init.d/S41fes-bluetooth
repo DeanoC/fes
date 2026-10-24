@@ -17,6 +17,26 @@ stop_agent() {
   /bin/rm -f "$pid_file"
 }
 
+restart_agent() {
+  if [ -f "$pid_file" ]; then
+    IFS= read -r pid < "$pid_file" || true
+    if [ -n "${pid:-}" ] && /bin/kill -0 "$pid" 2>/dev/null; then
+      /bin/kill "$pid" 2>/dev/null || true
+      restart_wait=5
+      while /bin/kill -0 "$pid" 2>/dev/null && [ "$restart_wait" -gt 0 ]; do
+        /bin/sleep 1
+        restart_wait=$((restart_wait - 1))
+      done
+      if /bin/kill -0 "$pid" 2>/dev/null; then
+        printf '%s\n' "fes-bluetooth: PID $pid did not exit; restart cancelled" >&2
+        return 1
+      fi
+    fi
+    /bin/rm -f "$pid_file"
+  fi
+  "$0" start
+}
+
 case "${1:-start}" in
   start)
     if [ -f "$pid_file" ]; then
@@ -32,8 +52,7 @@ case "${1:-start}" in
     stop_agent
     ;;
   restart)
-    stop_agent
-    "$0" start
+    restart_agent
     ;;
   *)
     printf '%s\n' "usage: $0 start|stop|restart" >&2
