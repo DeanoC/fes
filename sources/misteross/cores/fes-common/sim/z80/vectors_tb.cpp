@@ -207,12 +207,16 @@ class Checker {
         unsigned ticks = 0;
         for (; ticks != 1024; ) {
             // One negative and one positive enable form an unstalled T state.
+            // The NMOS core needs an idle clock after each enabled one.
             dut.ce_n = 1; dut.ce_p = 0; settle(fixture); edge();
+            dut.ce_n = 0; settle(fixture); edge();
             settle(fixture); observe(fixture);
             dut.ce_n = 0; dut.ce_p = 1; settle(fixture); edge();
+            const bool retired = dut.retired;
+            dut.ce_p = 0; settle(fixture); edge();
             settle(fixture); ++ticks;
             if (dut.illegal) { errors.push_back("NMOS instruction was rejected"); break; }
-            if (dut.retired) { complete = true; break; }
+            if (retired) { complete = true; break; }
             // Retirement may immediately present the next instruction's T1.
             // Stop before counting that following M1 or any following strobe.
             observe(fixture);
@@ -280,7 +284,10 @@ public:
                 errors.push_back("unexpected interrupt acknowledge without an asserted interrupt");
                 break;
             }
-            dut.bus_rdata = input; dut.eval(); edge();
+            // The NMOS engine commits at least two clocks after its inputs
+            // settle; an idle clock precedes each completion.
+            dut.bus_rdata = input; dut.enable = 0; dut.bus_ready = 0; dut.eval(); edge();
+            dut.enable = 1; dut.bus_ready = 1; dut.eval(); edge();
             if (dut.illegal) {
                 errors.push_back("NMOS instruction was rejected");
                 break;

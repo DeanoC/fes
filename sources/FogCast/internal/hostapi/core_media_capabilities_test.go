@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -25,6 +26,13 @@ func (s *mediaCapabilitiesAPIService) CoreMediaCapabilities(_ context.Context, i
 	s.queries++
 	s.id = id
 	return s.result, s.err
+}
+
+func (*mediaCapabilitiesAPIService) LibrarySettings() fogcast.LibraryConfig {
+	return fogcast.LibraryConfig{
+		SelectedTarget: "kit-a",
+		Targets:        []fogcast.TargetConfig{{Name: "kit-a", TargetID: launcherID, Enabled: true}},
+	}
 }
 func TestCoreMediaCapabilitiesAPIShapeAndAdmission(t *testing.T) {
 	id := strings.Repeat("a", 64)
@@ -79,8 +87,9 @@ func TestCoreMediaCapabilitiesAPIShapeAndAdmission(t *testing.T) {
 		}
 	}
 }
-func TestCoreMediaCapabilitiesPairedListenerExcluded(t *testing.T) {
-	s := &mediaCapabilitiesAPIService{}
+func TestCoreMediaCapabilitiesPairedListenerAdmitsSetupRead(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	s := &mediaCapabilitiesAPIService{result: protocol.CoreMediaCapabilities{PackageID: id}}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
@@ -89,15 +98,23 @@ func TestCoreMediaCapabilitiesPairedListenerExcluded(t *testing.T) {
 		token, target string
 		want          int
 	}{
-		{launcherToken, launcherID, 404}, {"", launcherID, 401}, {launcherToken, "wrong", 403},
+		{launcherToken, launcherID, 200}, {"", launcherID, 401}, {launcherToken, "wrong", 403},
 	} {
-		req := launcherRequest(http.MethodGet, "http://192.0.2.1:8789/api/v1/core-packages/"+strings.Repeat("a", 64)+"/media-capabilities", nil)
+		s.queries, s.id = 0, ""
+		req := launcherRequest(http.MethodGet, "http://192.0.2.1:8789/api/v1/core-packages/"+id+"/media-capabilities", nil)
+		req.Body = http.NoBody
 		req.Header.Set("Authorization", "Bearer "+tc.token)
 		req.Header.Set("X-FogCast-Target-ID", tc.target)
 		out := httptest.NewRecorder()
 		handler.ServeHTTP(out, req)
-		if out.Code != tc.want || s.queries != 0 || s.calls != 0 {
+		if out.Code != tc.want || s.calls != 0 {
 			t.Fatalf("status=%d queries=%d calls=%d", out.Code, s.queries, s.calls)
+		}
+		if tc.want == http.StatusOK && (s.queries != 1 || s.id != id) {
+			t.Fatalf("setup read queries=%d id=%q", s.queries, s.id)
+		}
+		if tc.want != http.StatusOK && s.queries != 0 {
+			t.Fatalf("rejected setup read queried service %d times", s.queries)
 		}
 	}
 }

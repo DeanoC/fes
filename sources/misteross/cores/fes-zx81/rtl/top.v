@@ -258,6 +258,10 @@ module top #(
     );
 
     wire [27:0] hdmi_video;
+    wire ddr_hold, ddr0_reset, ddr0_drained, ddr0_read, ddr0_waitrequest, ddr0_readdatavalid;
+    wire [27:0] ddr0_address;
+    wire [7:0] ddr0_burstcount;
+    wire [127:0] ddr0_readdata;
     // Shipped HDMI contract: the shared fes.video.session-display plane,
     // backed by fes.memory.hps-ddr. It blends launcher frames over the machine
     // word and delays RGB and sync together. A closed plane returns machine
@@ -272,7 +276,26 @@ module top #(
         .response_valid(display_response_valid), .response_error(display_response_error),
         .response_data(display_response_data), .quiesced_sys(display_quiesced),
         .machine({1'b1, machine_vs, machine_hs, machine_de, red, green, blue}),
-        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted(),
+        .ddr_hold(ddr_hold), .ddr_reset(ddr0_reset), .ddr_drained(ddr0_drained),
+        .ddr_address(ddr0_address), .ddr_burstcount(ddr0_burstcount), .ddr_read(ddr0_read),
+        .ddr_waitrequest(ddr0_waitrequest), .ddr_readdata(ddr0_readdata),
+        .ddr_readdatavalid(ddr0_readdatavalid)
+    );
+    // The plane is the only DDR client: port 0 reads, ports 1 and 2 are off.
+    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b0), .P2_ENABLE(1'b0)) memory (
+        .hold(ddr_hold),
+        .p0_clk(pixel_clk), .p0_reset(ddr0_reset), .p0_drained(ddr0_drained),
+        .p0_address(ddr0_address), .p0_burstcount(ddr0_burstcount),
+        .p0_waitrequest(ddr0_waitrequest), .p0_readdata(ddr0_readdata),
+        .p0_readdatavalid(ddr0_readdatavalid), .p0_read(ddr0_read),
+        .p0_writedata(128'd0), .p0_byteenable(16'd0), .p0_write(1'b0),
+        .p1_clk(pixel_clk), .p1_reset(), .p1_drained(), .p1_address(29'd0), .p1_burstcount(8'd0),
+        .p1_waitrequest(), .p1_readdata(), .p1_readdatavalid(), .p1_read(1'b0),
+        .p1_writedata(64'd0), .p1_byteenable(8'd0), .p1_write(1'b0),
+        .p2_clk(pixel_clk), .p2_reset(), .p2_drained(), .p2_address(29'd0), .p2_burstcount(8'd0),
+        .p2_waitrequest(), .p2_readdata(), .p2_readdatavalid(), .p2_read(1'b0),
+        .p2_writedata(64'd0), .p2_byteenable(8'd0), .p2_write(1'b0)
     );
     assign HDMI_TX_D = hdmi_video[23:0];
     assign HDMI_TX_DE = hdmi_video[24];

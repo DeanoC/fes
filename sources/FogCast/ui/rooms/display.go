@@ -70,18 +70,19 @@ func (f Frame) HitAt(x, y float32) (Hit, bool) {
 
 // Action is a request a script made of the launcher during the last call.
 type Action struct {
-	Kind            ActionKind
-	PackageID       string
-	ExpectedMediaID string
-	GameID          string
-	CoreID          string
-	RoomID          string
-	Platform        string
-	Collection      string
-	Layout          string
-	SessionID       string
-	FlightID        string
-	MediaBinding    protocol.DevelopmentMediaBinding
+	Kind              ActionKind
+	PackageID         string
+	ExpectedPackageID string
+	ExpectedMediaID   string
+	GameID            string
+	CoreID            string
+	RoomID            string
+	Platform          string
+	Collection        string
+	Layout            string
+	SessionID         string
+	FlightID          string
+	MediaBinding      protocol.DevelopmentMediaBinding
 }
 
 // ActionKind names a launcher request.

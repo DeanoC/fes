@@ -673,16 +673,27 @@ func nativeDirectionButton(cmd Command) Button {
 	}
 }
 
-// nativeKeyF12 is the keyboard Stop for a kit-local core (MiSTer's menu key).
+// nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.
+// A host session that can change removable media opens that selector instead,
+// including when the library has no .p files yet. The key is never forwarded.
 const nativeKeyF12 = 88
 
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {
-	if code == nativeKeyF12 && app.localCoreOwnsInput() {
-		// F12 is never forwarded to a running core; a press stops it.
+	if code == nativeKeyF12 {
+		if app.localCoreOwnsInput() {
+			if value == 1 {
+				app.NoteInput(InputKeyboard, in.fd)
+				app.RequestLocalStop()
+			}
+			return false
+		}
+		if value == 2 {
+			return false
+		}
 		if value == 1 {
 			app.NoteInput(InputKeyboard, in.fd)
-			app.RequestLocalStop()
 		}
+		app.HandlePlayHIDScancode("f12", hidKeyboardF12, value != 0, now)
 		return false
 	}
 	name := nativeKeyName(code)

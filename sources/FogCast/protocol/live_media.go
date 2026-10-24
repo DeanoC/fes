@@ -59,8 +59,9 @@ func AdmitTapeMediaSize(size int64) bool {
 }
 
 // MaxRemovableMediaBytes bounds one image for every unit the running media
-// selector changes, including the legacy blob mailbox.
-const MaxRemovableMediaBytes = max(MaxDevelopmentMediaBytes, Zx81TapeMaxBytes, SpectrumTapeMaxBytes,
+// selector changes, including the legacy blob mailbox. A Spectrum tape image
+// is bounded before the host converts it to the unit's PZX stream.
+const MaxRemovableMediaBytes = max(MaxDevelopmentMediaBytes, Zx81TapeMaxBytes, SpectrumTapeImageMaxBytes,
 	Apple2FloppyBytes, C64DiskBytes, AtariStFloppyBytes, AtariStFloppyGeometryMaxBytes)
 
 // AdmitRemovableMediaSize bounds a kit launcher import. The running unit
