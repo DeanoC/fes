@@ -38,6 +38,7 @@ type HardwareMachine struct {
 	Title             string              `json:"title"`
 	CoreID            string              `json:"core_id"`
 	PackageID         string              `json:"package_id"`
+	LaunchPackageID   string              `json:"launch_package_id,omitempty"`
 	PackageReady      bool                `json:"package_ready"`
 	FirmwareReady     bool                `json:"firmware_ready"`
 	Ready             bool                `json:"ready"`

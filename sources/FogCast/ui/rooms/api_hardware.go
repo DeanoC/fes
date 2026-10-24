@@ -88,7 +88,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
 		row := L.NewTable()
-		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
+		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
 		}
 		for k, b := range map[string]bool{"package_ready": m.PackageReady, "firmware_ready": m.FirmwareReady, "ready": m.Ready} {
@@ -132,9 +132,11 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	if s := v.Session; s != nil {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		// Menu-display kits show the room only when the running package reports
-		// the session-display plane. That includes fes.computer ZX81.
-		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		// An empty tape unit is still removable media. The workshop button
+		// follows that offer, so a library with no .p files does not hide it.
+		// Menu-display kits also require the session-display plane.
+		tapeAvailable := (tapeErr == nil || hostclient.RemovableMediaCapable(s.CorePackage)) &&
+			(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID

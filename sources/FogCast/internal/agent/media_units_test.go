@@ -69,7 +69,7 @@ func TestCoordinatorMediaUnitsPublishLiveState(t *testing.T) {
 	for _, media := range []struct {
 		iface protocol.RuntimeContract
 		bytes int64
-	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes}, {protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes}} {
+	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes}, {protocol.C64DiskInterface(), protocol.C64DiskBytes}, {protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes}} {
 		t.Run(media.iface.ID, func(t *testing.T) { testCoordinatorMediaUnitsPublishLiveState(t, media.iface, media.bytes) })
 	}
 }

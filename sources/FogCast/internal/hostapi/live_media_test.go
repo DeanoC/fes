@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -21,6 +22,8 @@ type liveMediaService struct {
 	mediaID      string
 	name         string
 	err          error
+	afterInsert  protocol.Status
+	afterEject   protocol.Status
 }
 
 func TestLiveMediaEarlyValidationReportsNoChange(t *testing.T) {
@@ -76,6 +79,9 @@ func (s *liveMediaService) ReplaceLiveMedia(_ context.Context, mediaID, name str
 	if s.err != nil {
 		return protocol.Status{}, s.err
 	}
+	if s.afterInsert.CorePackage != nil {
+		s.status = s.afterInsert
+	}
 	return s.status, nil
 }
 
@@ -84,7 +90,71 @@ func (s *liveMediaService) ClearLiveMedia(_ context.Context, b protocol.Developm
 	if s.err != nil {
 		return protocol.Status{}, s.err
 	}
+	if s.afterEject.CorePackage != nil {
+		s.status = s.afterEject
+	}
 	return s.status, nil
+}
+
+func TestC64DiskInsertAndEjectStateReachesSessionAPI(t *testing.T) {
+	packageID := strings.Repeat("a", 64)
+	disk := protocol.C64DiskInterface()
+	status := func(state string) protocol.Status {
+		return protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+			PackageID: packageID, Generation: 9, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: disk.ID, Major: disk.Major, Minor: disk.Minor}},
+			MediaUnits:       []protocol.MediaUnitStatus{{Unit: 0, Interface: disk, MinBytes: uint32(protocol.C64DiskBytes), MaxBytes: uint32(protocol.C64DiskBytes), ChunkBytes: 512, State: state}},
+		}}
+	}
+	service := &liveMediaService{fakeService: fakeService{status: status("empty"), sessionTarget: "dev"}, afterInsert: status("ready"), afterEject: status("empty")}
+	handler := hostapi.New(service)
+	decode := func(response *httptest.ResponseRecorder, want string) {
+		t.Helper()
+		if response.Code != http.StatusOK {
+			t.Fatalf("session status=%d body=%s", response.Code, response.Body)
+		}
+		observed, err := hostclient.DecodeSession(response.Code, response.Body.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var unit protocol.MediaUnitStatus
+		found := false
+		if observed.CorePackage != nil {
+			for _, candidate := range observed.CorePackage.MediaUnits {
+				if candidate.Unit == 0 {
+					unit, found = candidate, true
+					break
+				}
+			}
+		}
+		if !found || unit.State != want {
+			t.Fatalf("session media unit=%+v state=%q, want %q", unit, unit.State, want)
+		}
+	}
+	initial := serve(t, handler, http.MethodGet, "/api/v1/session")
+	var session struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(initial.Body.Bytes(), &session); err != nil || session.ID == "" {
+		t.Fatalf("session: %s err=%v", initial.Body, err)
+	}
+	insert := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"game.d64"}`))
+	insert.Host = "127.0.0.1"
+	insert.Header.Set("Content-Type", "application/json")
+	insert.Header.Set("X-FogCast-Session-ID", session.ID)
+	protocol.DevelopmentMediaBinding{PackageID: packageID, Generation: 9, Target: "dev"}.SetHeaders(insert.Header)
+	insertResponse := httptest.NewRecorder()
+	handler.ServeHTTP(insertResponse, insert)
+	decode(insertResponse, "ready")
+	decode(serve(t, handler, http.MethodGet, "/api/v1/session"), "ready")
+
+	eject := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media/clear", nil)
+	eject.Host = "127.0.0.1"
+	eject.Header.Set("X-FogCast-Session-ID", session.ID)
+	protocol.DevelopmentMediaBinding{PackageID: packageID, Generation: 9, Target: "dev"}.SetHeaders(eject.Header)
+	ejectResponse := httptest.NewRecorder()
+	handler.ServeHTTP(ejectResponse, eject)
+	decode(ejectResponse, "empty")
 }
 
 func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {

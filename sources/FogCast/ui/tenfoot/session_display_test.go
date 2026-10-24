@@ -98,9 +98,104 @@ func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
 	now := time.Now()
 	app.HandleCommand(CmdHome, now)
 	app.HandleCommand(CmdSearch, now)
+	app.HandlePlayHIDScancode("f12", hidKeyboardF12, true, now)
 	if snap := app.Snapshot(); snap.Session.LoadTape || snap.Session.HardwareRoom || snap.Session.ControlsOpen || snap.TapePicker.Open || displays.Load() != 0 {
 		t.Fatalf("computer tape without a plane opened controls: %+v displays=%d", snap.Session, displays.Load())
 	}
+}
+
+func observedKitPackage(prior hostclient.SessionResult) *protocol.CorePackageStatus {
+	p := prior.CorePackage
+	observed := &protocol.CorePackageStatus{PackageID: p.PackageID, Generation: p.Generation,
+		ABI: protocol.RuntimeContract{ID: p.ABI.ID, Major: p.ABI.Major, Minor: p.ABI.Minor}, MediaUnits: p.MediaUnits}
+	for _, i := range p.ActiveInterfaces {
+		observed.ActiveInterfaces = append(observed.ActiveInterfaces, protocol.RuntimeInterface{ID: i.ID, Major: i.Major, Minor: i.Minor})
+	}
+	return observed
+}
+
+func startEmptyZX81Kit(t *testing.T, library string) *App {
+	t.Helper()
+	prior := computerTapeDisplaySession()
+	running := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: observedKitPackage(prior)}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session/display":
+			b, valid := protocol.DevelopmentMediaHeaders(r.Header)
+			if !valid || !b.MatchesSessionDisplay(running) {
+				http.Error(w, "session display identity rejected", http.StatusConflict)
+				return
+			}
+			_ = decodeSessionDisplay(t, r)
+			writeKitDisplaySession(w, prior)
+		case "/api/v1/library/zx81-tapes":
+			_, _ = io.WriteString(w, `{"tapes":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session = prior
+	if library != "" {
+		app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "usb", System: "zx81", Root: library}}
+	}
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	return app
+}
+
+func assertEmptyLibrarySelector(t *testing.T, app *App, dir string) {
+	t.Helper()
+	waitFor(t, app, "empty library selector", func(s Snapshot) bool {
+		return s.TapePicker.Open && s.TapePicker.Title == tapePickerTitle && s.Session.State == "active" && len(s.TapePicker.Rows) >= 2
+	})
+	rows := app.Snapshot().TapePicker.Rows
+	if rows[0].Kind != tapePickerKindEject || !rows[0].Selectable || rows[1].Kind != tapePickerKindOSK {
+		t.Fatalf("empty library hid eject or a typed path: %+v", rows)
+	}
+	selectTapeLibraryRoot(t, app, dir)
+	var parent, eject, typedPath bool
+	for _, row := range app.Snapshot().TapePicker.Rows {
+		if row.Kind == tapePickerKindParent && row.Name == ".." {
+			parent = true
+		}
+		if row.Kind == tapePickerKindEject && row.Selectable {
+			eject = true
+		}
+		if row.Kind == tapePickerKindOSK && row.Selectable {
+			typedPath = true
+		}
+		if row.Kind == tapePickerKindFile {
+			t.Fatalf("folder with no media file listed a file: %+v", row)
+		}
+	}
+	if !parent || !eject || !typedPath {
+		t.Fatalf("empty folder was not entered: %+v", app.Snapshot().TapePicker.Rows)
+	}
+}
+
+func TestF12OpensZX81SelectorWhenLibraryHasNoPFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not a tape"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := startEmptyZX81Kit(t, dir)
+	now := time.Now()
+	if !app.HandlePlayHIDScancode("f12", 0, true, now) {
+		t.Fatal("named F12 was forwarded instead of opening the selector")
+	}
+	assertEmptyLibrarySelector(t, app, dir)
+	if !app.HandlePlayHIDScancode("f12", hidKeyboardF12, false, time.Now()) || !app.Snapshot().TapePicker.Open {
+		t.Fatal("F12 release closed or forwarded the selector")
+	}
+	if !app.HandlePlayHIDScancode("F12", hidKeyboardF12, true, time.Now()) {
+		t.Fatal("second F12 was forwarded")
+	}
+	waitFor(t, app, "selector dismissed", func(s Snapshot) bool {
+		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Session.State == "active"
+	})
 }
 
 func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
@@ -1200,11 +1295,18 @@ func TestKitC64DiskMediaSwapsAndEjectsOverPlay(t *testing.T) {
 	insertDisk := func(name, label string) {
 		t.Helper()
 		selectTapeLibraryRoot(t, app, dir)
+		found := map[string]bool{}
 		for _, row := range app.Snapshot().TapePicker.Rows {
 			wantSelectable := row.Name == "game.d64" || row.Name == "second.d64"
 			if row.Kind == tapePickerKindFile && row.Selectable != wantSelectable {
 				t.Fatalf("wrong disk selection: %+v", row)
 			}
+			if row.Kind == tapePickerKindFile && wantSelectable && row.Selectable {
+				found[row.Name] = true
+			}
+		}
+		if !found["game.d64"] || !found["second.d64"] {
+			t.Fatalf("admitted D64s were not listed: %+v", app.Snapshot().TapePicker.Rows)
 		}
 		selectTapeNamedRow(t, app, name)
 		app.HandleCommand(CmdSelect, time.Now())

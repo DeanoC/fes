@@ -77,3 +77,30 @@ func TestInstalledZX81CreationFinishesEmptyROMWithoutPublicationCatalog(t *testi
 		t.Fatal("replaced existing ROM")
 	}
 }
+
+func TestSelectCoreEntryPackageUsesExpectedPackageCAS(t *testing.T) {
+	game, oldPackage, nextPackage := "zx81-workshop", strings.Repeat("a", 64), strings.Repeat("b", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/library/core-entries/"+game {
+			t.Errorf("request %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusNotFound)
+			return
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["expected_package_id"] != oldPackage || body["package_id"] != nextPackage {
+			t.Errorf("package selection body %+v err=%v", body, err)
+			http.Error(w, "wrong package selection", http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(CoreEntry{GameID: game, CoreID: "fes.zx81", PackageID: nextPackage})
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, server.Client())
+	got, err := client.SelectCoreEntryPackage(context.Background(), game, oldPackage, nextPackage)
+	if err != nil || got.GameID != game || got.PackageID != nextPackage {
+		t.Fatalf("selected entry %+v err=%v", got, err)
+	}
+	if _, err = client.SelectCoreEntryPackage(context.Background(), game, "bad", nextPackage); err == nil {
+		t.Fatal("invalid expected package accepted")
+	}
+}

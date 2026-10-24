@@ -176,7 +176,6 @@ func TestLauncherExpansionSelectionRejectsBeforeService(t *testing.T) {
 		{"slot write", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/expansions/1", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"presentation", http.MethodPut, "/api/v1/core-expansions/" + strings.Repeat("a", 64) + "/presentation", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"edition", http.MethodPut, "/api/v1/library/edition-preferences", launcherTokenB, launcherIDB, http.StatusNotFound},
-		{"package selection", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"read selection", http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/expansion", launcherTokenB, launcherIDB, http.StatusNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

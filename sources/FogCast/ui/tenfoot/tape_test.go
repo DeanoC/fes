@@ -27,6 +27,8 @@ func TestListTapePickerDirMarksPFiles(t *testing.T) {
 	dir := t.TempDir()
 	tape := filepath.Join(dir, "maze.p")
 	other := filepath.Join(dir, "maze.tzx")
+	board := filepath.Join(dir, "core.rbf")
+	image := filepath.Join(dir, "linux.img")
 	hidden := filepath.Join(dir, ".secret.p")
 	sub := filepath.Join(dir, "usb")
 	if err := os.Mkdir(sub, 0o755); err != nil {
@@ -37,6 +39,11 @@ func TestListTapePickerDirMarksPFiles(t *testing.T) {
 	}
 	if err := os.WriteFile(other, []byte("not-p"), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	for _, path := range []string{board, image} {
+		if err := os.WriteFile(path, []byte("not media"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := os.WriteFile(hidden, []byte("hidden"), 0o644); err != nil {
 		t.Fatal(err)
@@ -50,18 +57,19 @@ func TestListTapePickerDirMarksPFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tapeRow TapePickerRow
+	files := map[string]bool{}
+	var eject, typedPath bool
 	for _, row := range rows {
+		if row.Kind == tapePickerKindFile {
+			files[row.Name] = true
+		}
 		switch row.Name {
 		case "maze.p":
 			tapeRow = row
-		case "maze.tzx":
-			if row.Selectable {
-				t.Fatal("tzx must not be selectable")
-			}
-		case "huge.p":
-			if row.Selectable {
-				t.Fatal("oversized .p must not be selectable")
-			}
+		case tapePickerEjectLabel:
+			eject = row.Kind == tapePickerKindEject && row.Selectable
+		case tapePickerOSKLabel:
+			typedPath = row.Kind == tapePickerKindOSK && row.Selectable
 		}
 		if strings.HasPrefix(row.Name, ".") && row.Kind != tapePickerKindParent {
 			t.Fatalf("hidden file listed: %+v", row)
@@ -69,6 +77,35 @@ func TestListTapePickerDirMarksPFiles(t *testing.T) {
 	}
 	if !tapeRow.Selectable || tapeRow.Size != 10 {
 		t.Fatalf("tape row %+v", tapeRow)
+	}
+	for _, name := range []string{"maze.tzx", "core.rbf", "linux.img", "huge.p"} {
+		if files[name] {
+			t.Fatalf("non-admitted file %q was listed: %+v", name, rows)
+		}
+	}
+	if !eject || !typedPath {
+		t.Fatalf("nested directory actions missing: %+v", rows)
+	}
+}
+
+func TestTapePickerDriveRowsKeepActionsAndFilterFiles(t *testing.T) {
+	rows := tapePickerDriveRows(tapeTestPackage(), []FirmwarePickerRow{
+		{Name: "..", Kind: tapePickerKindParent},
+		{Name: "ZX81/", Kind: tapePickerKindDir},
+		{Name: "maze.p", Kind: tapePickerKindFile, Size: 10},
+		{Name: "core.rbf", Kind: tapePickerKindFile, Size: 10},
+		{Name: "linux.img", Kind: tapePickerKindFile, Size: 10},
+	})
+	if len(rows) != 5 || rows[0].Kind != tapePickerKindParent || rows[1].Kind != tapePickerKindEject || rows[2].Kind != tapePickerKindOSK || rows[3].Kind != tapePickerKindDir || rows[4].Name != "maze.p" || !rows[4].Selectable {
+		t.Fatalf("drive folder rows %+v", rows)
+	}
+}
+
+func TestTapePathOSKDoesNotSeedHostDriveURI(t *testing.T) {
+	app := &App{tapePickerPath: drivePath(true, strings.Repeat("a", 24), "media")}
+	app.openTapePathOSKLocked()
+	if app.settingsOSKKind != settingsOSKTapePath || app.settingsOSKField.Buffer != "" {
+		t.Fatalf("path OSK seeded inaccessible host URI: kind=%v buffer=%q", app.settingsOSKKind, app.settingsOSKField.Buffer)
 	}
 }
 
@@ -127,14 +164,10 @@ func TestAppActiveZX81OpensTapePickerAndArms(t *testing.T) {
 	}
 
 	selectTapeLibraryRoot(t, app, dir)
-	selectTapeNamedRow(t, app, "readme.txt")
-	app.HandleCommand(CmdSelect, now)
-	snap = app.Snapshot()
-	if !snap.TapePicker.Open || h.importCount() != 0 {
-		t.Fatalf("wrong file imported picker=%v imports=%d status=%q", snap.TapePicker.Open, h.importCount(), snap.TapePicker.Status)
-	}
-	if !strings.Contains(snap.TapePicker.Status, "format") {
-		t.Fatalf("wrong-class status %q", snap.TapePicker.Status)
+	for _, row := range app.Snapshot().TapePicker.Rows {
+		if row.Name == "readme.txt" {
+			t.Fatalf("non-media file remained in selector: %+v", app.Snapshot().TapePicker.Rows)
+		}
 	}
 
 	selectTapeNamedRow(t, app, "maze.p")
@@ -683,6 +716,131 @@ func tapeTestPackage() *hostclient.SessionCorePackage {
 	return &hostclient.SessionCorePackage{ABI: hostclient.SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}
 }
 
+func zx81ComputerTapePackage() *hostclient.SessionCorePackage {
+	tape := protocol.Zx81TapeInterface()
+	return &hostclient.SessionCorePackage{
+		ABI:              hostclient.SessionCoreABI{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}},
+		MediaUnits: []protocol.MediaUnitStatus{{
+			Unit: protocol.Zx81TapeUnit, Interface: tape, MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: "empty",
+		}},
+	}
+}
+
+func TestTapePickerIncludesEmuhdVolumeRoot(t *testing.T) {
+	t.Parallel()
+	found := false
+	for _, path := range tapePickerVolumeRoots {
+		if path == "/mnt/emuhd" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("local /mnt/emuhd games must remain browsable when that directory exists")
+	}
+}
+
+func TestEmptyDirectoryDoesNotHideTapePicker(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not a tape"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := listTapePickerDir(zx81ComputerTapePackage(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) < 3 || rows[0].Kind != tapePickerKindParent || rows[1].Kind != tapePickerKindEject || rows[2].Kind != tapePickerKindOSK {
+		t.Fatalf("empty library must stay browsable: %+v", rows)
+	}
+	for _, row := range rows {
+		if row.Kind == tapePickerKindFile {
+			t.Fatalf("non-.p file was listed: %+v", row)
+		}
+	}
+	app := &App{hostSettings: hostclient.LibrarySettings{Libraries: []hostclient.LibraryRoot{{ID: "usb", System: "zx81", Root: dir}}}}
+	app.showTapePickerRootsLocked("Choose tape or disk media.")
+	roots := app.tapePickerRows
+	if len(roots) < 2 || roots[0].Kind != tapePickerKindEject || !roots[0].Selectable || roots[1].Kind != tapePickerKindOSK {
+		t.Fatalf("eject and typed path must lead an empty library: %+v", roots)
+	}
+	saw := false
+	for _, row := range roots {
+		if row.Kind == tapePickerKindRoot && row.Path == dir {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("empty library root omitted: %+v", roots)
+	}
+}
+
+func TestTapePickerBrowsesAccessibleDirectoriesAndFiltersSystemFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "BIOS"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	games := filepath.Join(root, "ZX81")
+	if err := os.Mkdir(games, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const game = "3D Monster Maze.p"
+	if err := os.WriteFile(filepath.Join(games, game), []byte("zx81-game"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"linux.img", "core.rbf"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("system file"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	app := &App{}
+	app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "zx81", System: "zx81", Root: root}}
+	app.showTapePickerRootsLocked("Choose tape or disk media.")
+	saw := false
+	for _, row := range app.tapePickerRows {
+		if row.Kind == tapePickerKindRoot && row.Path == root {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("configured accessible library missing from roots: %+v", app.tapePickerRows)
+	}
+	top, err := listTapePickerDir(zx81ComputerTapePackage(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bios, shelf bool
+	files := map[string]bool{}
+	for _, row := range top {
+		if row.Name == "BIOS/" && row.Kind == tapePickerKindDir {
+			bios = true
+		}
+		if row.Name == "ZX81/" && row.Kind == tapePickerKindDir {
+			shelf = true
+		}
+		if row.Kind == tapePickerKindFile {
+			files[row.Name] = true
+		}
+	}
+	if !bios || !shelf || files["linux.img"] || files["core.rbf"] {
+		t.Fatalf("directories must stay navigable while system files are filtered: %+v", top)
+	}
+	rows, err := listTapePickerDir(zx81ComputerTapePackage(), games)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tape TapePickerRow
+	for _, row := range rows {
+		if row.Name == game {
+			tape = row
+		}
+	}
+	if !tape.Selectable || tape.Kind != tapePickerKindFile || tape.Size != 9 {
+		t.Fatalf("real .p beside BIOS was not selectable: %+v", tape)
+	}
+}
+
 func TestMediaPickerUsesRunningDiskFormat(t *testing.T) {
 	dir := t.TempDir()
 	for name, size := range map[string]int{"disk.d64": 174848, "wrong.dsk": 174848, "short.d64": 10} {
@@ -698,9 +856,16 @@ func TestMediaPickerUsesRunningDiskFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, row := range rows {
-		if row.Kind == tapePickerKindFile && row.Selectable != (row.Name == "disk.d64") {
-			t.Fatalf("wrong disk selection: %+v", row)
+		if row.Kind == tapePickerKindFile {
+			if row.Name != "disk.d64" || !row.Selectable {
+				t.Fatalf("non-admitted disk was listed: %+v", row)
+			}
+			found = true
 		}
+	}
+	if !found {
+		t.Fatalf("admitted D64 was filtered: %+v", rows)
 	}
 }
