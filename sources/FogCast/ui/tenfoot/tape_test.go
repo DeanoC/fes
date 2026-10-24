@@ -643,6 +643,8 @@ func TestEmptyDirectoryDoesNotHideTapePicker(t *testing.T) {
 }
 
 func TestTapePickerReachesPFilesBesideBIOS(t *testing.T) {
+	// The stand-in replaces the process-wide volume list. Parallel tests
+	// also read that list, so this one stays sequential.
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "BIOS"), 0o755); err != nil {
 		t.Fatal(err)
