@@ -3410,8 +3410,12 @@ snapshot. Capture keeps the FPGA snapshot frozen and dirty until that
 generation-bound acknowledgement succeeds. Capture, import, catalog, or
 acknowledgement failure returns `save_failed` and leaves the play active so Stop
 can be retried; the runtime independently refuses Stop while an unacknowledged
-SAVE remains. An empty capture means no SAVE is pending. The running cassette
-picker adds that game's saved programs alongside the attributed starters. A
+SAVE remains. Status, package, generation, or required tape-write capability
+mismatches return `save_failed` with structured expected and observed values in
+the host log. An empty capture means no SAVE is pending. An unbound writable
+package can stop after an empty capture; captured bytes without a catalog game
+binding keep Stop blocked. The running cassette picker adds that game's saved
+programs alongside the attributed starters. A
 saved row already names durable core media, so selecting it arms the existing
 media ID without importing the bytes again. This is software coverage; exact
 artifact hardware acceptance remains separate.
