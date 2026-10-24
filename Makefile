@@ -126,7 +126,7 @@ core-catalog:
 
 .PHONY: kit-sdk
 kit-sdk:
-	sh image/scripts/build-target-image.sh --ensure-kit-sdk
+	TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(CONTAINER_RUNTIME),docker)" sh image/scripts/build-target-image.sh --ensure-kit-sdk
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)

@@ -209,6 +209,9 @@ fi
 cat > "$fixture/fake-sdk-runtime" <<'RUNTIME'
 #!/bin/sh
 printf '%s\n' "$*" >> "$SDK_CONTAINER_LOG"
+if [ "$1" = image ] && [ "$2" = inspect ]; then
+  if [ "${SDK_BASE_PRESENT:-0}" = 1 ]; then exit 0; else exit 1; fi
+fi
 printf 'LIBMISTER_RUNTIME_DIR=%s\n' "${LIBMISTER_RUNTIME_DIR-<unset>}" >> "$SDK_CONTAINER_LOG"
 printf 'FES_PACKAGE_IDS=%s\n' "${FES_PACKAGE_IDS-<unset>}" >> "$SDK_CONTAINER_LOG"
 printf 'FOGCAST_DIR=%s\n' "${FOGCAST_DIR-<unset>}" >> "$SDK_CONTAINER_LOG"
@@ -231,6 +234,20 @@ if env -u TARGET_IMAGE_BUILD_ONCE -u TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE \
   exit 1
 fi
 grep -Fq 'toolchain cache failed validation' "$fixture/kit-sdk-container.err"
+sdk_base_spec=$(python3 - "$repo/build/target-image.sources.lock.toml" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as lock_file:
+    container = tomllib.load(lock_file)["container"]
+print(container["platform"])
+print(container["image"] + "@" + container["digest"])
+PY
+)
+sdk_base_platform=$(printf '%s\n' "$sdk_base_spec" | sed -n '1p')
+sdk_base_ref=$(printf '%s\n' "$sdk_base_spec" | sed -n '2p')
+grep -Fq "image inspect $sdk_base_ref" "$fixture/sdk-container.log"
+grep -Fq "pull --platform $sdk_base_platform $sdk_base_ref" "$fixture/sdk-container.log"
 grep -Fq '/work/scripts/fetch-target-image-sources.sh buildroot' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-fetch-toolchain' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
@@ -238,6 +255,10 @@ grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
 ! grep -Fq idle.rbf "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
 ! grep -Fq 'verify-native-runtime-inputs' "$fixture/sdk-container.log" "$fixture/kit-sdk-container.err"
 test "$(grep -c 'LIBMISTER_RUNTIME_DIR=<unset>' "$fixture/sdk-container.log")" -eq 3
+make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=podman > "$fixture/kit-sdk-podman.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-podman.make"
+make -s -C "$repo/.." -n kit-sdk > "$fixture/kit-sdk-default.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="docker"' "$fixture/kit-sdk-default.make"
 grep -Fq 'FES_PACKAGE_IDS=<unset>' "$fixture/sdk-container.log"
 grep -Fq 'FOGCAST_DIR=<unset>' "$fixture/sdk-container.log"
 grep -Fq 'NATIVE_RUNTIME_INPUT_LOCK=<unset>' "$fixture/sdk-container.log"

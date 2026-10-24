@@ -313,7 +313,41 @@ run_sdk_container() {
     "$repo/scripts/target-image-container.sh" "$@"
 }
 
+ensure_container_base() {
+  container_runtime=${TARGET_IMAGE_CONTAINER_RUNTIME:-docker}
+  container_lock=${TARGET_IMAGE_LOCK:-$repo/build/target-image.sources.lock.toml}
+  container_values=$(python3 - "$container_lock" <<'PY'
+import re
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as lock_file:
+    container = tomllib.load(lock_file)["container"]
+image = container["image"]
+platform = container["platform"]
+digest = container["digest"]
+if image != "docker.io/library/debian:12.11-slim" or platform != "linux/amd64" or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+    raise SystemExit("build-target-image: invalid pinned container inputs")
+print(image, platform, digest)
+PY
+  )
+  set -- $container_values
+  [ "$#" -eq 3 ] || {
+    printf '%s\n' 'build-target-image: invalid pinned container inputs' >&2
+    exit 2
+  }
+  container_ref=$1@$3
+  if ! command -v "$container_runtime" >/dev/null 2>&1; then
+    printf 'build-target-image: container runtime is not executable: %s\n' "$container_runtime" >&2
+    exit 2
+  fi
+  if ! "$container_runtime" image inspect "$container_ref" >/dev/null 2>&1; then
+    "$container_runtime" pull --platform "$2" "$container_ref"
+  fi
+}
+
 build_kit_sdk() {
+  ensure_container_base
   run_sdk_container fetch \
     /work/scripts/fetch-target-image-sources.sh buildroot
   run_sdk_container fetch \
