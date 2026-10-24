@@ -31,10 +31,21 @@ The design allowed MAME's i386 core or Bochs at CPU level 3, whichever passes
 more of the corpora. Both were built behind the same adapter interface and run
 against both corpora:
 
-| Corpus | Bochs 3.1 (level 3) | MAME 0.289 i386 |
+| Corpus | Bochs 3.1 (level 3) | MAME 0.289 `i386_device` |
 | --- | --- | --- |
-| SingleStepTests/80386 states passing (of 1,758,699) | 1,433,608 | _pending_ |
-| test386.asm | reaches POST FFh with 9 divergence groups; POST EEh text identical to the reference | _pending_ |
+| SingleStepTests/80386 states passing (of 1,758,699) | 1,433,608 | 1,213,134 |
+| test386.asm | reaches POST FFh; 9 divergence groups; POST EEh text identical to the reference | stops after POST 20h (hangs in the ring-3 tests); 12 failed checks before that; no POST E0h, EEh or FFh |
+
+Bochs passes 220,474 more SingleStepTests states and is the only one that
+finishes test386. MAME matches the 386EX where Bochs does not on 68,555 states,
+almost all AF after shifts (63,622). Bochs matches where MAME does not on
+289,029, including no #GP for real-mode limit violations such as a word access
+at offset FFFFh (89,415, which the design requires), no #SS on stack wrap
+(15,017), AND/OR/XOR/TEST leaving AF unchanged (100,073), a missing #UD for an
+invalid LOCK (16,278), wrong RCL/RCR results (13,663) and MOV CS without #UD.
+The MAME build used for this comparison (MAME's own sources against a stub
+device framework, with data breakpoints stubbed) is not kept; nothing in the
+corpora enables DR7.
 
 ### Adapter
 
@@ -107,7 +118,9 @@ The runner compares the text with `test386-EE-reference.txt`.
 
 test386 halts at its first failed check, which would hide every later test, so
 the testbench steps over exactly the checks the divergence list names, by the
-linear address of the failing branch or faulting instruction.
+linear address of the failing branch or faulting instruction. Checks are mapped
+through the NASM listing; a check in code test386 copies to RAM is named by its
+address and instruction bytes instead.
 
 ```sh
 python3 scripts/test_fes_i386_test386.py --download

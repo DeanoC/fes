@@ -181,7 +181,7 @@ follow = "corpus"
 
 
 LISTING = '''\
-    61                                  section .system_bios_extensions_area start=0x00000
+    30                              <1> section .system_bios_extensions_area start=0x00000
     62 00000000 90                      nop
    105                                  section .system_bios_area start=0x10000 vstart=0
    200                                  %macro check 1

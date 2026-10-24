@@ -164,6 +164,8 @@ def assemble(source: Path, assembler: Path) -> Path:
 
 LISTING_LINE = re.compile(r'^\s*\d+\s+([0-9A-F]{8})\s+([0-9A-F\[\]\(\)]+)(-?)\s*(?:<\d+>)?\s?(.*)$')
 LABEL_LINE = re.compile(r'^\s*\d+\s+(?:<\d+>)?\s*([A-Za-z_.][\w.]*):\s*(?:;.*)?$')
+# <n> marks a line from an included file or a macro expansion.
+SECTION_LINE = re.compile(r'^\s*\d+\s+(?:<\d+>\s*)?section\s+(\S+)')
 MACRO_LINE = re.compile(r'^\s*\d+\s+(?:[0-9A-F]{8}\s+[0-9A-F\[\]\(\)]+-?\s+)?<\d+>')
 SOURCE_LINE = re.compile(r'^\s*\d+\s+(?:[0-9A-F]{8}\s+[0-9A-F\[\]\(\)]+-?\s+)?(.*)$')
 
@@ -182,10 +184,9 @@ def parse_listing(text: str) -> tuple[dict[int, dict], dict[str, int]]:
     previous = None
     origin = ''
     for line in text.splitlines():
-        if 'section ' in line and not line.lstrip(' 0123456789').startswith(('<', ';')):
-            for name, base in SECTION_BASES.items():
-                if re.search(rf'section\s+{re.escape(name)}\b', line):
-                    section = base
+        directive = SECTION_LINE.match(line)
+        if directive:
+            section = SECTION_BASES.get(directive.group(1))  # code elsewhere is not in the ROM
         top = None if MACRO_LINE.match(line) else SOURCE_LINE.match(line)
         if top and top.group(1).split(';', 1)[0].strip():
             origin = top.group(1).split(';', 1)[0].strip()
