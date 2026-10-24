@@ -3412,6 +3412,28 @@ Scoped Stop and status use the corresponding kit record. Library firmware and
 media bindings, including post-Start delivery, use the selected kit's play
 context so an independent local host game cannot redirect them to another target.
 
+On Stop of a running library ZX81 package that requires
+`fes.media.zx81-tape-write` 1.0, FogCast captures a completed BASIC SAVE for the
+captured game and package generation, imports its `.p` bytes into core media,
+and inserts the idempotent game/media catalog row before acknowledging the
+snapshot. Capture keeps the FPGA snapshot frozen and dirty until that
+generation-bound acknowledgement succeeds. Capture, import, catalog, or
+acknowledgement failure returns `save_failed` and leaves the play active so Stop
+can be retried; the runtime independently refuses Stop while an unacknowledged
+SAVE remains. The selected core ID is retained with the launched play, so a
+known non-ZX81 library core skips this bookkeeping without another catalog read.
+For a bound ZX81 play, status, package, generation, or required tape-write
+capability mismatches return `save_failed` with structured expected and observed
+values in the host log. An empty capture means no SAVE is pending. When the
+active package or game binding is unidentified, catalog and status lookup
+failures are logged; Stop proceeds unless an active writable package yields
+captured bytes that cannot be attached to a game. The runtime still refuses to
+retire an unacknowledged SAVE. The running cassette picker adds that game's
+saved programs alongside the attributed starters. A
+saved row already names durable core media, so selecting it arms the existing
+media ID without importing the bytes again. This is software coverage; exact
+artifact hardware acceptance remains separate.
+
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Only its managed sender plus target cast path
 places host-only playback on a kit display; MJPEG preview and ffplay playback

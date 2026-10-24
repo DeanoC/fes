@@ -141,6 +141,9 @@ func tapePickerRowLabel(row TapePickerRow) string {
 	case tapePickerKindEject:
 		return row.Name
 	case tapePickerKindStarter:
+		if row.Starter != nil && row.Starter.MediaID != "" {
+			return row.Name + "  ·  Saved program"
+		}
 		return row.Name + "  ·  Starter tape"
 	case tapePickerKindDir, tapePickerKindRoot, tapePickerKindParent:
 		return row.Name
@@ -235,14 +238,14 @@ func (a *App) openTapePickerLocked() {
 		if parent == nil {
 			parent = context.Background()
 		}
-		go a.fetchLiveTapeStarters(parent, a.tapePickerGen)
+		go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
 	}
 }
 
-func (a *App) fetchLiveTapeStarters(parent context.Context, gen int) {
+func (a *App) fetchLiveTapeStarters(parent context.Context, gen int, gameID string) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	tapes, err := a.client.ZX81Tapes(ctx)
+	tapes, err := a.client.ZX81TapesForGame(ctx, gameID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err != nil || !a.tapePickerOpen || a.tapePickerGen != gen {
@@ -545,11 +548,21 @@ func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
 		ctx = context.Background()
 	}
 	go func() {
-		media, err := a.client.ImportZX81Tape(ctx, tape)
-		var result hostclient.SessionResult
-		if err == nil {
-			result, err = a.client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, tape.Filename)
+		mediaID := tape.MediaID
+		if mediaID != "" && (protocol.ValidateDigest(mediaID) != nil || mediaID != tape.SHA256) {
+			a.finishTapeArm(gen, prior, hostclient.SessionResult{}, fmt.Errorf("invalid saved cassette identity"))
+			return
 		}
+		if mediaID == "" {
+			media, err := a.client.ImportZX81Tape(ctx, tape)
+			if err != nil {
+				a.finishTapeArm(gen, prior, hostclient.SessionResult{}, err)
+				return
+			}
+			mediaID = media.MediaID
+		}
+		var result hostclient.SessionResult
+		result, err := a.client.ReplaceRemovableMediaForSession(ctx, prior, mediaID, tape.Filename)
 		a.finishTapeArm(gen, prior, result, err)
 	}()
 }

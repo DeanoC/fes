@@ -508,7 +508,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
-        self.assertEqual(fields["core"]["version"], "1.6.0")
+        self.assertEqual(fields["core"]["version"], "1.7.0")
         self.assertEqual(fields["format"], 3)
         self.assertEqual(fields["rom"]["id"], "machine-rom")
         self.assertEqual(fields["rom"]["source_size"], 8192)
@@ -521,6 +521,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertEqual(fields["abi"]["id"], "fes.computer")
         self.assertIn("fes.keyboard.hid", interfaces)
         self.assertIn("fes.media.zx81-tape", interfaces)
+        self.assertIn("fes.media.zx81-tape-write", interfaces)
         self.assertNotIn("fes.media.blob", interfaces)
         self.assertIn("fes.memory.hps-ddr", interfaces)
         self.assertIn("fes.video.session-display", interfaces)
