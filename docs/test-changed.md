@@ -366,9 +366,11 @@ Go dependencies, build/policy inputs, unknown or removed packages, embedded
 guides, and full runs. The Go package graph and reverse test consumers are
 still validated and tested. The UI boundary guard still scans all Go files,
 including changed tests. CI runs the UI check once, on its last host shard.
-The top-level plan includes `host_ui.target` (`test-ui` or
-`test-ui-boundary`). In the host JSON report, `host_ui.scheduled` describes the
-browser suite and `host_ui.boundary_scheduled` describes the boundary guard.
+In the `scripts/test_changed.py` plan, the host command under `commands` includes
+`host_ui.target` (`test-ui` or `test-ui-boundary`). The standalone host runner's
+JSON report puts the same selection at the top level: `host_ui.scheduled`
+describes the browser suite and `host_ui.boundary_scheduled` describes the
+boundary guard.
 Node.js is required only when browser tests are scheduled; both runners check
 this before executing tests. Inspect the exact target without executing checks with:
 `python3 scripts/host_tests.py --ui-if-needed --plan-only --paths-json '["sources/FogCast/internal/rebootguard/fallback_test.go"]'`.

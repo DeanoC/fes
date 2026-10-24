@@ -54,6 +54,7 @@ class SelectionTests(unittest.TestCase):
                'Module': {'Dir': str(self.root / 'sources/FogCast')}}
         cases = (([test], (), False), ([test, 'docs/development.md'], (), False),
                  (['sources/FogCast/internal/hostapi/api_test.go'], (), True),
+                 (['sources/FogCast/cmd/fogcast-api/main_test.go'], (), True),
                  (['sources/FogCast/lib/lib.go'], (), True),
                  ([test, 'sources/FogCast/go.mod'], (), True),
                  ([test, 'Makefile'], (), True), ([test, 'unknown/file'], (), True),

@@ -27,6 +27,7 @@ def ui_requirement(selection_scope, go_changes):
     required = (selection_scope != 'affected' or
                 any(not path.endswith('_test.go') or
                     path.startswith(('sources/FogCast/internal/hostapi/',
+                                     'sources/FogCast/cmd/fogcast-api/',
                                      'sources/FogCast/ui/'))
                     for path in go_changes))
     reason = ('UI/API, production/full or uncertain inputs' if required else
