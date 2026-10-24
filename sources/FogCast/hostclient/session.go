@@ -232,7 +232,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	}
 	result.Execution = strings.TrimSpace(wire.Execution)
 	result.Media = strings.TrimSpace(wire.Media)
-	result.MediaName = strings.TrimSpace(wire.MediaName)
+	result.MediaName = wire.MediaName
 	result.FlightID = strings.TrimSpace(wire.FlightID)
 	result.Progress = wire.Progress
 	result.Input = wire.Input

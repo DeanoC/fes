@@ -3337,8 +3337,11 @@ media imports of at most the largest image the media selector inserts
 replace/clear/display operations. The unit still checks its exact format and
 size on insert. These do not change the library's next-start media selection.
 The Change media selector header shows `media_name` from the last confirmed
-insert, retained by the target's session coordinator for that package generation.
-Eject clears it; an uncertain mutation reply clears the name rather than reporting
+live-media insert, retained by the target's session coordinator for that package
+generation. Eject, library disk insertion, and development-media loading clear
+it because they can replace unit 0 without providing a live-media filename; disk
+save preserves it. Failures before a live replacement is dispatched retain the
+confirmed name; an uncertain reply after dispatch clears it rather than reporting
 old media as current. Existing launch selections and adopted sessions have no
 recorded original filename and display that the name is unavailable. Empty and
 loading units show their observed state. The name is presentation only; admission

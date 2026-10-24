@@ -534,8 +534,8 @@ func (a *App) startTapeEjectLocked() {
 }
 
 func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string) {
-	result, err := importAndArmTape(ctx, a.client, prior, path)
-	a.finishTapeArm(gen, prior, result, err)
+	result, replacementDispatched, err := importAndArmTape(ctx, a.client, prior, path)
+	a.finishTapeArm(gen, prior, result, replacementDispatched, err)
 }
 
 func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
@@ -554,14 +554,16 @@ func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
 	go func() {
 		media, err := a.client.ImportZX81Tape(ctx, tape)
 		var result hostclient.SessionResult
+		replacementDispatched := false
 		if err == nil {
+			replacementDispatched = true
 			result, err = a.client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, tape.Filename)
 		}
-		a.finishTapeArm(gen, prior, result, err)
+		a.finishTapeArm(gen, prior, result, replacementDispatched, err)
 	}()
 }
 
-func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result hostclient.SessionResult, err error) {
+func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result hostclient.SessionResult, replacementDispatched bool, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {
@@ -574,7 +576,9 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 		return
 	}
 	if err != nil {
-		a.session.MediaName = ""
+		if replacementDispatched {
+			a.session.MediaName = ""
+		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -656,23 +660,24 @@ func ejectRetryable(err error) bool {
 	return api.Code == protocol.CodeMiSTerUnavailable
 }
 
-func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string) (hostclient.SessionResult, error) {
+func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string) (hostclient.SessionResult, bool, error) {
 	if client == nil {
-		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
+		return hostclient.SessionResult{}, false, fmt.Errorf("host API is unavailable")
 	}
 	file, size, name, err := openRemovableFile(prior.CorePackage, path)
 	if err != nil {
-		return hostclient.SessionResult{}, err
+		return hostclient.SessionResult{}, false, err
 	}
 	defer file.Close()
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
-		return hostclient.SessionResult{}, err
+		return hostclient.SessionResult{}, false, err
 	}
 	if media.Size != size || !hostclient.AdmitRemovableMedia(prior.CorePackage, name, media.Size) {
-		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
 	}
-	return client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
+	result, err := client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
+	return result, true, err
 }
 
 func openRemovableFile(p *hostclient.SessionCorePackage, path string) (*os.File, int64, string, error) {

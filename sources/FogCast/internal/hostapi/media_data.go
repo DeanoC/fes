@@ -93,6 +93,11 @@ func (s *sessionCoordinator) mediaData(ctx context.Context, id string, b protoco
 	if save {
 		status, err = loader.SaveMedia(ctx, b.MediaUnitBinding)
 	} else {
+		// Insertion can replace unit 0, so a live-media filename is no longer
+		// confirmed once the mutation is dispatched.
+		s.mu.Lock()
+		s.liveMediaName = ""
+		s.mu.Unlock()
 		status, err = loader.InsertLibraryDisk(ctx, b)
 	}
 	if err != nil {

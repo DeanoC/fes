@@ -126,6 +126,16 @@ func TestDecodeSessionPreservesKitFieldsAndUint64Precision(t *testing.T) {
 	}
 }
 
+func TestDecodeSessionPreservesMediaNameWhitespace(t *testing.T) {
+	result, err := DecodeSession(http.StatusOK, []byte(`{"state":"active","media_name":" disk.d64"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.MediaName != " disk.d64" {
+		t.Fatalf("media name = %q, want leading space preserved", result.MediaName)
+	}
+}
+
 func TestDecodeSessionRecognizesExactComputerKeyboardHID(t *testing.T) {
 	body := func(abi, keyboard string) []byte {
 		return []byte(`{"state":"active","execution":"fpga_native","core_package":{"package_id":"` + strings.Repeat("a", 64) +

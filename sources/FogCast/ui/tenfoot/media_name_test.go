@@ -1,7 +1,9 @@
 package tenfoot
 
 import (
+	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -33,8 +35,21 @@ func TestCurrentMediaLabel(t *testing.T) {
 func TestUncertainMediaInsertClearsDisplayedName(t *testing.T) {
 	prior := hostclient.SessionResult{ID: "session", Target: "dev", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: "package", Generation: 9}, MediaName: "old.d64"}
 	app := &App{session: prior, tapePickerGen: 1, tapePickerOpen: true}
-	app.finishTapeArm(1, prior, hostclient.SessionResult{}, errors.New("reply lost"))
+	app.finishTapeArm(1, prior, hostclient.SessionResult{}, true, errors.New("reply lost"))
 	if app.session.MediaName != "" || app.tapePickerStatus != "reply lost" || !app.tapePickerOpen {
+		t.Fatalf("name=%q status=%q open=%v", app.session.MediaName, app.tapePickerStatus, app.tapePickerOpen)
+	}
+}
+
+func TestPreflightMediaInsertErrorKeepsDisplayedName(t *testing.T) {
+	prior := hostclient.SessionResult{ID: "session", Target: "dev", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: "package", Generation: 9}, MediaName: "old.d64"}
+	app := &App{session: prior, tapePickerGen: 1, tapePickerOpen: true}
+	_, dispatched, err := importAndArmTape(context.Background(), &Client{}, prior, filepath.Join(t.TempDir(), "missing.d64"))
+	if err == nil || dispatched {
+		t.Fatalf("preflight result dispatched=%v error=%v", dispatched, err)
+	}
+	app.finishTapeArm(1, prior, hostclient.SessionResult{}, dispatched, err)
+	if app.session.MediaName != "old.d64" || app.tapePickerStatus == "" || !app.tapePickerOpen {
 		t.Fatalf("name=%q status=%q open=%v", app.session.MediaName, app.tapePickerStatus, app.tapePickerOpen)
 	}
 }

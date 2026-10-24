@@ -46,6 +46,11 @@ func (s *sessionCoordinator) loadDevelopmentMedia(ctx context.Context, id string
 	if !ok {
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
+	// Development media can replace unit 0 too; do not report the old
+	// live-media filename if the reply becomes uncertain.
+	s.mu.Lock()
+	s.liveMediaName = ""
+	s.mu.Unlock()
 	status, err := loader.LoadDevelopmentMedia(ctx, size, body, b)
 	if err != nil {
 		return sessionResult{}, err
