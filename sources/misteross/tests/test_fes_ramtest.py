@@ -90,11 +90,14 @@ class RamTestAbiTest(unittest.TestCase):
             self.assertIn(name, channel)
         for recipe in ("build_fes_ramtest.py", "build_fes_ramtest_quartus.py"):
             text = (ROOT / "scripts" / recipe).read_text()
-            for source in ("fes_hps_ddr.v", "fes_hps_ddr_guard.v", "ddr_channel.v", "ddr_rates.v"):
+            for source in ("fes_hps_ddr.v", "fes_hps_ddr_guard.v", "ddr_channel.v", "ddr_rates.v",
+                           "lat_stats.v", "lat_monitor.v"):
                 self.assertIn(source, text)
             self.assertNotIn("hps_ddr_port.v", text)
         sim = (ROOT / "scripts" / "sim_fes_ramtest.py").read_text()
         self.assertIn("fes_hps_ddr_guard.v", sim)
+        for source in ("lat_stats.v", "lat_monitor.v", "lat_stats_tb.cpp"):
+            self.assertIn(source, sim)
 
 
 if __name__ == "__main__":
