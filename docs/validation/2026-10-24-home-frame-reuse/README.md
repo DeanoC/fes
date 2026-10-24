@@ -1,4 +1,4 @@
-# Home frame reuse — ARM comparison and pending kit checks
+# Home frame reuse — ARM comparison and kit checks
 
 This change reuses the presented Home drawing while its list, focus, status,
 title and dimensions are unchanged. Completed redraws use the existing paint
@@ -7,7 +7,7 @@ semantics. No production watchdog deadline or overrun count changed.
 ## Source and artifacts
 
 - Base/control: FES `99f3859f09f4659f0f1345b945a5d49c8f2bde74`.
-- Candidate implementation: `e7c60deee` (full revision in Git history).
+- Candidate implementation: `e7c60deee6af2d42d73ad3692911b898a9ece058`.
 - Control ARM executable SHA256: `e1a4ca959e851b350543b1bee2de7f3bd16a1204fa3b7453a0664bd1954afafb`.
 - Candidate ARM executable SHA256: `acf39a890efdea1dde4e965ef195d00c25279fa8db191bcd09e7963ecc3674d1`.
 - Candidate software bundle: `dbf1a2ae8127e454cc04af4402d61ed5ef03c8b37d8819b98bbea4d43d8585dc`.
@@ -61,45 +61,60 @@ These are Lua/display-list diagnostics on the physical ARM CPU alongside the
 real empty Home launcher, not eight-entry full-launcher or gameplay acceptance.
 The real kit's local core list was empty.
 
-## Pending navigation, recovery and restore
+## Exact-artifact empty-Home navigation and recovery
 
-The candidate was installed and activated through the software API. A finite
-keyboard sequence ran through Home route focus, Settings open/return and Rooms
-open/return. Its capture script completed, but the HDMI images have NOT been
-retrieved/visually checked; no navigation pass is claimed yet.
+The candidate bundle above was installed and activated through the software API.
+Keyboard route focus, Settings open/return and Rooms open/return completed;
+HDMI captures were retrieved and visually checked. Focus highlights, hero title
+and artwork changed correctly; both return paths restored Home. No settings
+were changed. Pointer/compact behavior was covered by focused host tests, not
+physical pointer acceptance.
 
-SSH access then failed. Tailscale reported Powerboat, chip-30x0-ai-dev and
-chip-30x0-pve offline at about 10:21 UTC; the local client reported Running and
-no health error. Both Powerboat's mesh address and its known LAN address timed
-out. No VPN settings or shared services were changed.
+After the same running bundle, image and boot were reverified, one SIGKILL was
+issued to each exact managed child PID. No fault was repeated. Full observations
+are in `recovery-results.jsonl`.
 
-The candidate remains active, Kit B remains claimed by Codex royal-spruce in
-its Powerboat status file, and the baseline is NOT yet restored. No candidate
-SIGKILL recovery fault has been issued. Keep PR #1061 draft and #761 open until
-these remaining observations/restoration are completed. An earlier claim
-attempt also returned HTTP 409 from an outside `fogcast@powerboat` lease;
-that lease was left alone and testing started only after it was free.
+| Fault | Recovery observed | Result |
+| --- | --- | --- |
+| Launcher | Healthy at 5.20 s observation | Only launcher PID changed; agent/runtime stayed up |
+| Agent | Still recovering at 31.07 s, healthy at 36.57 s | All three child PIDs changed |
+| Runtime | Still recovering at 30.90 s, healthy at 36.73 s | All three child PIDs changed |
 
-Resume on Powerboat after revalidating host, worktree, claim and API lease:
+After each fault, the same candidate bundle and boot were retained, local control
+was idle, the API lease was free, and no new room error appeared. All three
+post-recovery HDMI captures showed healthy empty Home. These are observation
+times including probe overhead, not precise restart latencies or a comparison
+against the earlier campaign's differently spaced probes.
 
-- Worktree: `/home/deano/fes/out/dev/perf-home-frame-reuse`, branch
-  `perf-home-frame-reuse`, implementation `e7c60dee`.
-- Evidence/scripts: `/home/deano/tmp/codex-home-reuse-20261024/`.
-- Inspect `fr/` and `logs/navigation.log`. Do not rerun the ARM comparison.
-- `recovery.py` is prepared for the explicitly authorized single SIGKILL per
-  candidate child. It validates exact executable paths, stops on failed
-  recovery, records PIDs/status/boot/lease and captures HDMI after each recovery.
-  Revalidate that it has not already run before issuing any fault.
-- Owned keyboard helper PID is recorded in `logs/keyboard.pid`; verify its
-  executable is `/tmp/codex-home-reuse-hilkb` before terminating only that PID.
-- Baseline software is
-  `35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b`.
-  Use `~/tmp/k1044/bin/fs-B --action activate --candidate <baseline>` and inspect
-  selection/status until selected=active baseline, no pending operation/fault.
-- Confirm the same booted image, USB quirk `usb-storage.quirks=152d:0583:i`,
-  idle local control, free API lease and healthy HDMI before releasing the
-  status-file claim. A bundle activation is not an image restore.
+The network outage after navigation capture delayed evidence retrieval and
+recovery; it did not restart the kit or repeat a fault. An earlier claim attempt
+also returned HTTP 409 from an outside `fogcast@powerboat` lease; it was left
+alone, and testing started only after it became free. The kit's status-file
+claim remained held until final restore was verified.
 
-No shared-host or boot edits were made. Inert copied diagnostics and input
-helper files are retained under `/tmp`; the keyboard helper process remains
-ours and must be stopped during cleanup. No module/shared contracts change.
+## Restore and evidence boundary
+
+The owned keyboard helper PID 30952 was verified against its exact executable
+path and terminated. Baseline software
+`35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b`
+was explicitly activated and verified selected=active at generation 60, no
+pending operation or service fault. Image and boot above were unchanged;
+launcher configuration SHA256 remained
+`5d4ee551f9aa36be1e1970bd6f6f6a90932d5f9013e82e2dc20c0299f5814168`,
+and idle RBF remained
+`64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182`.
+Kit B's `usb-storage.quirks=152d:0583:i` was preserved. Idle local control,
+free API lease and baseline Home HDMI were verified before the status-file
+claim was released.
+
+This is exact-candidate-bundle hardware smoke for empty Home navigation and
+idle managed-child recovery, plus a separate eight-row physical-ARM room-engine
+diagnostic. Eight-entry full-launcher acceptance, physical controller/pointer
+input and gameplay were not exercised; #761 remains open. No module/shared
+contracts, shared-host services, OS/boot configuration or core packages changed.
+
+Raw scripts, software/lease identities, supervisor logs and HDMI frames remain
+on Powerboat at `/home/deano/tmp/codex-home-reuse-20261024/`. The tested source
+remains implementation `e7c60dee`; subsequent commits only retain this evidence.
+Copied diagnostics/input files are inert under kit `/tmp`; no owned diagnostic
+or input-helper process remains running.
