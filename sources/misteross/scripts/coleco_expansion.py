@@ -31,8 +31,9 @@ SOCKET_CLOCK_COVERAGE_ARCS = (
 )
 NEXTPNR_PRE_ROUTETHRU_REMAP = '9128800fa6e77c4138088a7107a95376ba47ff15'
 NEXTPNR_ROUTETHRU_REMAP = '5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe'
-# Slot carry chains place past the narrow-pin check; #276's pin map.
-NEXTPNR_CARRY_PINS = '372b73f6e28af617e42b82b3fcd18dd8c133cd02'
+# Slot carry chains place past the narrow-pin check, and fpga2sdram's
+# unconnected buses reload; #276's pin map.
+NEXTPNR_CARRY_PINS = '27e1b497dd2c313209c366bae25e1dbfb977e4c4'
 ROUTETHROUGH_INPUT_PINS = {
     NEXTPNR_PRE_ROUTETHRU_REMAP: ('C', 'D'),
     NEXTPNR_ROUTETHRU_REMAP: ('F0', 'F1'),
