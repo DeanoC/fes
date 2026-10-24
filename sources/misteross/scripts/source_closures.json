@@ -383,6 +383,7 @@
     "cores/fes-common/rtl/fes_hps_ddr.v",
     "cores/fes-common/rtl/fes_hps_ddr_atom.v",
     "cores/fes-common/rtl/fes_hps_ddr_guard.v",
+    "cores/fes-common/rtl/fes_media_ddr.v",
     "cores/fes-common/rtl/z80/fes_z80_alu.sv",
     "cores/fes-common/rtl/z80/fes_z80_bus.sv",
     "cores/fes-common/rtl/z80/fes_z80_engine.sv",

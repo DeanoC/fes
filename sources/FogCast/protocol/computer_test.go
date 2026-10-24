@@ -58,7 +58,12 @@ func TestDiskMediaNames(t *testing.T) {
 	if !AdmitLiveMediaName("tape.P") || AdmitTapeMediaName("disk.dsk") {
 		t.Fatal("tape and disk names confused")
 	}
-	if !AdmitSpectrumTapeName("game.tap") || !AdmitLiveMediaName("game.TAP") || AdmitSpectrumTapeName("game.tzx") {
+	for _, name := range []string{"game.tap", "game.TZX", "game.pzx", "game.csw"} {
+		if !AdmitSpectrumTapeName(name) || !AdmitLiveMediaName(name) {
+			t.Fatalf("spectrum tape %s refused", name)
+		}
+	}
+	if AdmitSpectrumTapeName("game.p") || AdmitSpectrumTapeName("game.dsk") || AdmitSpectrumTapeName("dir/game.tzx") {
 		t.Fatal("spectrum tape names")
 	}
 }
@@ -135,23 +140,27 @@ func TestZx81TapeProjection(t *testing.T) {
 	if role, ok = ZX81TapeSelectionRole(both); !ok || role != CassetteRole {
 		t.Fatalf("declared tape unit should win, role=%q ok=%v", role, ok)
 	}
-	if _, ok = ZX81TapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))); ok {
+	if _, ok = ZX81TapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))); ok {
 		t.Fatal("spectrum cassette is not a ZX81 .p role")
 	}
 }
 
 func TestSpectrumTapeProjection(t *testing.T) {
-	got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))
+	got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))
 	encoded, err := json.Marshal(got)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `[{"role":"cassette","format":"spectrum-tap","min_bytes":1,"max_bytes":65536,"interface":{"id":"fes.media.spectrum-tape","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".tap"]}]`
+	want := `[{"role":"cassette","format":"spectrum-tape","min_bytes":1,"max_bytes":33554432,"interface":{"id":"fes.media.spectrum-tape","major":2,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".tzx",".tap",".pzx",".csw"]}]`
 	if string(encoded) != want {
 		t.Fatalf("projection %s", encoded)
 	}
-	if DeclaresDiskMedia(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true})) ||
-		!DeclaresSpectrumTape(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true})) {
+	// The 64 KiB .tap contract (1.0) is no longer a cassette.
+	if got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true})); len(got) != 0 {
+		t.Fatalf("1.0 projected %v", got)
+	}
+	if DeclaresDiskMedia(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) ||
+		!DeclaresSpectrumTape(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) {
 		t.Fatal("tape projected as a disk")
 	}
 }

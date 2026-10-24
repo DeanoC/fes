@@ -2430,6 +2430,36 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
 		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
 	}
+	// The Spectrum tape is fes.media.spectrum-tape 2.0: its bit and unit 0 come
+	// from the 2.0 declaration, and a 1.0 declaration grants neither.
+	auto spectrum = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
+		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaSpectrumTapeID});
+	spectrum.interfaces[4].major = FesComputerInterfaceMediaSpectrumTapeMajor;
+	const auto spectrum_live = static_cast<std::uint16_t>(
+		FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
+		FesComputerCapabilityMediaSpectrumTape);
+	const std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> spectrum_units = {
+		{0, {FesComputerSpectrumTapeMinBytes, FesComputerSpectrumTapeMaxBytes}}};
+	{
+		ComputerFixture f(spectrum_live, spectrum_units, spectrum);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 1);
+		const auto& unit = f.driver.media_units()[0];
+		assert(unit.interface.id == FesComputerInterfaceMediaSpectrumTapeID &&
+			unit.interface.major == 2 && unit.interface.minor == 0);
+		assert(unit.min_bytes == FesComputerSpectrumTapeMinBytes &&
+			unit.max_bytes == FesComputerSpectrumTapeMaxBytes);
+	}
+	{
+		auto tape_v1 = spectrum;
+		tape_v1.interfaces[4].major = 1;
+		ComputerFixture f(spectrum_live, spectrum_units, tape_v1);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
+		assert(f.driver.media_units().empty());
+	}
 	// Another ABI tag is a different contract.
 	{
 		mister_test::FakeMmio mmio;

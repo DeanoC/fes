@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -184,8 +185,32 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		}
 		reader = io.NopCloser(bytes.NewReader(data))
 	}
+	size := media.Size
+	if capability.Interface == protocol.SpectrumTapeInterface() {
+		pzx, err := spectrumTapeStream(reader, media.Size)
+		if err != nil {
+			return nil, err
+		}
+		reader, size = io.NopCloser(bytes.NewReader(pzx)), int64(len(pzx))
+	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
-	return &coreEntryMedia{ReadCloser: reader, size: media.Size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
+	return &coreEntryMedia{ReadCloser: reader, size: size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
+}
+
+// spectrumTapeStream reads a stored .tzx, .tap, .pzx or .csw image and
+// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays. It closes
+// reader.
+func spectrumTapeStream(reader io.ReadCloser, size int64) ([]byte, error) {
+	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil || int64(len(data)) != size {
+		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
+	}
+	pzx, err := spectrumtapes.Convert(data)
+	if err != nil {
+		return nil, protocol.CassetteConversionError(err)
+	}
+	return pzx, nil
 }
 
 func mapCoreMediaError(err error) error {

@@ -183,12 +183,13 @@ The `0a253257` schema review is recorded in the
 Each distinct lock selects its own cached toolchain slot. Pong's lock pins
 nextpnr `552ba246` (fes#887), ZX81's `1eecf877` (fes#936), RISC-V's
 `8f453ebc` (fes#945), and Coleco's pins Yosys `5391eeb1` with nextpnr
-`266e18b5` (nextpnr #289, #290, #292); each selects its
-own slot. Apple II, Atari ST (fes#910), C64 and Spectrum pin
-nextpnr `5fe55f3d` for nextpnr #276's F0/F1 boundary `$ROUTETHRU` map; Coleco
-keeps that F0/F1 map on `266e18b5`. The
-Apple II, C64 and Spectrum locks are byte copies of each other and share one
-slot, and the Atari ST lock has its own. The Atari ST video-part producer
+`266e18b5` (nextpnr #289, #290, #292); each selects its own slot. Apple II,
+Atari ST (fes#910) and C64 pin nextpnr `5fe55f3d` for nextpnr #276's F0/F1
+boundary `$ROUTETHRU` map. Spectrum pins nextpnr main `bd7a1c0d`, which
+contains #276 as merged and keeps that map, in its own slot. Coleco keeps the
+F0/F1 map on `266e18b5`. The Apple II and C64 locks are byte copies of each
+other and share one slot; the Atari ST, Spectrum and Coleco locks each have
+their own. The Atari ST video-part producer
 authenticates the ST lock and validates the same map. The Coleco development
 shell remains on `9128800f` and validates its C/D map. The other five
 per-core locks remain byte copies of `toolchain.lock` on nextpnr `9128800f`,
@@ -1079,7 +1080,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | Apple II, C64 and Spectrum use nextpnr `5fe55f3d` (#276) and validate its F0/F1 boundary `$ROUTETHRU` map. Coleco v2 keeps that F0/F1 map, pins Yosys `5391eeb1`, and pins nextpnr `266e18b5` so its video parts place their carry chains (nextpnr #289) and reload the shell's fpga2sdram pin map (#292), with the #287 shell keep-out reverted (#290). The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
+| Toolchain selection | Apple II and C64 use nextpnr `5fe55f3d` (#276), Spectrum uses nextpnr main `bd7a1c0d` (#276 merged), and Coleco v2 pins Yosys `5391eeb1` with nextpnr `266e18b5` (#289, #290 and #292); each validates its matching F0/F1 boundary `$ROUTETHRU` map. The Coleco development shell uses the repository-level nextpnr `9128800f` and its C/D map. SMS and SG-1000 remain byte-identical to the repository-level pins (Yosys `3a5accbd`, nextpnr `9128800f`, Mistral `8fcc4cb4`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1925,9 +1926,9 @@ are the format-3 seals. Each model has its own FES recipe row; the shared
 producer names the core it builds in its record, so each P&R recipe digest
 enters that core's identity. Synthesis must keep exact block counts, three
 unsigned display-plane DSP products and the read-only plane DDR port, and the
-52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the four
-`FES_RESERVED_RECT` regions from `scripts/spectrum_slots.py`
-(`fes.spectrum-bus.sockets/1`, sockets 1–4). Socket validation admits a
+52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the one
+`FES_RESERVED_RECT` region from `scripts/spectrum_slots.py`
+(`fes.spectrum-bus.sockets/2`, its one socket). Socket validation admits a
 compiler-inserted `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of
 an already pinned boundary flip-flop. The shared `coleco_expansion` check
 requires the paired COMB/MCOMB half, exact physical pin map and ports, and a

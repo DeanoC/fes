@@ -59,7 +59,7 @@ func TestDisplayServiceAdmitsObservedDiskAndSpectrumOnCapturedKit(t *testing.T) 
 		contract           protocol.RuntimeContract
 		minBytes, maxBytes uint32
 	}{
-		{protocol.C64DiskInterface(), 174848, 174848}, {protocol.SpectrumTapeInterface(), 1, 65536},
+		{protocol.C64DiskInterface(), 174848, 174848}, {protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)},
 	} {
 		t.Run(tc.contract.ID, func(t *testing.T) {
 			id := strings.Repeat("a", 64)

@@ -106,7 +106,7 @@ nine-package image set; its evidence limits are unchanged.
 | `fes.coleco` 1.4.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. Launcher overlay and surround through the session display. | `fes.application` 1.0, native video parts, shared display plane after the part, sync M10K, format 3. Current lock: `cores/fes-coleco/toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. The 1.4.0 display plane is not accepted on a kit. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Current lock: `cores/fes-sms/toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Current lock: `cores/fes-sg1000/toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
-| `fes.spectrum` 0.3.0, `fes.spectrum128` 0.1.0, `fes.spectrum-plus3` 0.1.0, `fes.pentagon` 0.1.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation. The [22 Oct Kit A diagnostic](validation/2026-10-22-spectrum-models-seal.md) booted each named ROM and ran a typed BASIC line; it captured beeper edges on all four models, and the 128K, +3 and Pentagon models flashed every 16 frames. Tape, joysticks, AY music and expansion remain untested on kit. |
+| `fes.spectrum` 0.4.0, `fes.spectrum128` 0.2.0, `fes.spectrum-plus3` 0.2.0, `fes.pentagon` 0.2.0 | Experimental library packages; no longer in the image. Open diagnostic firmware only; no Sinclair or Amstrad ROM is shipped. | One shell, `fes_z80_nmos` with ULA clock stretching, session display plane, tape 2.0 played from HPS DDR port 1 (`fes_media_ddr`), sync M10K, format 3. Current lock: `cores/fes-spectrum/toolchain.lock`. | Timing matches Fuse in simulation, and the host's tape conversion matches Fuse on its fixtures. The [22 Oct Kit A diagnostic](validation/2026-10-22-spectrum-models-seal.md) booted each named ROM and ran a typed BASIC line. On kit A the superseded `7589e281` archives of these versions loaded a turbo-loader tape from DDR on the 48K, 128K and Pentagon; that +2A/+3 archive loaded it too and held HDMI once the runtime moved the ADV7513 input clock delay to −0.8 ns (#1011). Joysticks, AY music and expansion remain untested on kit. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Supported library utility using the OSS 100 MHz variant; not in the bootstrap image. | Current lock: `cores/fes-ramtest/toolchain.lock`. | 130 MHz remains open. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | Library standing experimental; no longer in the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3. Current lock: `cores/fes-atari-st/toolchain.lock`. | The October kit notes do not accept a shared-pin seal. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
@@ -157,10 +157,11 @@ contracts.
 
 Eight registered locks differ from the repository-level pin (Yosys
 `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Pong on nextpnr
-`552ba246`, ZX81 on `1eecf877`, RISC-V on `8f453ebc`, Apple II, C64 and
-Spectrum on `5fe55f3d` (#1007), Atari ST on `5fe55f3d` (#910), and Coleco on
-Yosys `5391eeb1` with nextpnr `266e18b5`; the unregistered PC/XT diagnostic is
-also on `552ba246`. The other five match it. The following historical seal records remain tied to
+`552ba246`, ZX81 on `1eecf877`, RISC-V on `8f453ebc`, Apple II and C64 on
+`5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
+`5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `266e18b5`;
+the unregistered PC/XT diagnostic is also on `552ba246`. The other five match
+it. The following historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
 `config/core-recipes.toml`.
 
@@ -169,16 +170,17 @@ the artifacts they name; current recipe lock paths are shown in
 | 1 | `fes.c64` | `cores/fes-c64/toolchain.lock` (nextpnr `5fe55f3d` since #1007; recorded pin `9128800f`) | The recorded CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`) predates the per-core lock layout. Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the same commits (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `cores/fes-atari-st/toolchain.lock` (nextpnr `5fe55f3d` since #910, own cache slot) | Factory. The October kit notes do not accept a shared-pin seal. |
 | 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `266e18b5`: main with nextpnr #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
-| 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (nextpnr `5fe55f3d` since #1007) | Same multi-region cart support. Both files started at the shared commits. |
+| 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (Apple II on nextpnr `5fe55f3d` since #1007; Spectrum on nextpnr main `bd7a1c0d`) | Same multi-region cart support. Both files started at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `1eecf877` since #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 The recipe `lock_path` selects each per-core file, and its producer
 authenticates that file. Pong, ZX81 and RISC-V have moved their nextpnr pins
-forward under the per-pin timer tracker (#876). Apple II, C64, Coleco and
-Spectrum moved to nextpnr `5fe55f3d` for its F0/F1 boundary route-through map
-(#1007), and Atari ST followed (#910); Coleco keeps its own Yosys. The other
-five registered locks still share the repository-level slot.
+forward under the per-pin timer tracker (#876). Apple II and C64 use nextpnr
+`5fe55f3d` for its F0/F1 boundary route-through map (#1007), and Atari ST
+followed (#910). Spectrum uses nextpnr main `bd7a1c0d`, which contains #276 as
+merged; Coleco uses `266e18b5` and keeps its own Yosys. The other five
+registered locks still share the repository-level slot.
 
 The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.
 The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That

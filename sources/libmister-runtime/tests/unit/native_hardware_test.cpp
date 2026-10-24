@@ -1330,7 +1330,8 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
 	for (const auto& interface : computer.interfaces) {
-		assert(interface.major == 1 && interface.minor == 0);
+		// The Spectrum tape is 2.0, a PZX stream; every other interface is 1.0.
+		assert(interface.major == (interface.id == "fes.media.spectrum-tape" ? 2 : 1) && interface.minor == 0);
 		computer_interfaces.push_back(interface.id);
 	}
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
