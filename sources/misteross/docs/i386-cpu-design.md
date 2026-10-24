@@ -529,9 +529,22 @@ updates hold the L2's DMA port between their read and their write.
   for its line, so it is ordered after every committed store. A DMA write then
   back-invalidates any L1 copy; a DMA read sees dirty L2 data. L1D is
   write-through, so nothing newer hides there.
-- L2 misses and write-backs use `fes.memory.hps-ddr` port 0. Guest RAM
-  defaults to 16 MiB with a 64 MiB maximum, leaving the rest of the window to
-  the machine for disk images and, if it chooses, video memory.
+- Guest RAM is in HPS DDR, not the SDRAM addon. L2 misses and write-backs use
+  `fes.memory.hps-ddr` port 0. Guest RAM defaults to 16 MiB with a 64 MiB
+  maximum, leaving the rest of the window to the machine for disk images and,
+  if it chooses, video memory.
+- Why DDR: the RAM tester scanned the whole window on all three ports on Kit
+  A, and the Spectrum cores load tapes from DDR on both kits. FES has no
+  qualified SDRAM pad timing; the [PC/XT notes](../cores/fes-pcxt/README.md)
+  list it as open. Port 0 measured about 1,570 MB/s; the addon's 16-bit bus at
+  100 MHz peaks at 200 MB/s. DDR returns a 32-byte line in two beats once data
+  starts, where the SDRAM needs 16 beats plus row opening, about 22 cycles. No
+  addon is needed.
+- The check: M1 measures line-fill latency on both memories. If DDR's first
+  data takes much more than about 40 cycles at 100 MHz, or Linux activity makes
+  it erratic, revisit the choice. The SDRAM would then become a faster tier in
+  front of DDR, not a replacement. DDR jitter costs speed only; nothing in the
+  machine times itself by memory latency.
 - **Self-modifying code:** every committed store looks up the L1I tags through
   port B and invalidates a hit. In the same cycle it compares its physical line
   with the lines of the instructions in flight from F2 to WB. A hit flushes the
@@ -606,6 +619,8 @@ Requirements on the machine that matter for speed:
 - VGA memory sits behind the MMIO FIFO with local-bus behaviour, not ISA
   timing. Real ISA VGA cards were a bottleneck. Reproducing their wait states
   belongs to the governor, not the bus.
+- Suggested for the machine: VGA memory on DDR port 1 until the SDRAM addon is
+  qualified. Real ISA VGA reads were slow, so DDR latency costs little there.
 - I/O devices keep their ISA-era access timing ([I/O](#io)).
 - PIT, RTC, VGA dot clocks and audio derive from the sealed clock by
   fractional enables and never stop while the CPU stalls.
@@ -719,24 +734,28 @@ or exact-artifact hardware acceptance.
 | Milestone | Content | Exit |
 | --- | --- | --- |
 | M0 | Oracle adapter and corpus runners | Both corpora run against the oracle; every failure is in the divergence list with its deciding case |
-| M1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured |
+| M1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured against the [DDR check](#l2-and-coherence) |
 | M2 | Protected mode, V86, paging, exceptions, task switches, debug registers | test386.asm passes in RTL; random protected-mode and V86 lockstep clean |
 | M3 | CPU in the `fes.pc386` simulation, L2 on DDR, governor | FreeDOS and JEMM386 boot in simulation; first sealed package; kit diagnostic |
 | M4 | BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change |
 | M5 | x87 | An x87 corpus (to choose) and FPU-using games |
 | M6 | Options: `i486-isa`, second-level TLB, line-wide strings, gshare, descriptor lookaside, LOADALL (0F07) | Only with a measured need |
 
-## Open decisions
+## Decisions
 
-1. **Guest RAM in HPS DDR port 0 or in the SDRAM addon.** Proposed: DDR. It needs
-   no addon, is 128 bits wide and measured about 1.5 GB/s. Its latency is
-   unmeasured; M1 measures line-fill latency on both before the choice is
-   frozen.
-2. **The machine:** AT chipset, VGA, Sound Blaster with OPL, IDE and floppy as
+Settled on 2026-10-24:
+
+- DSP blocks are used wherever they help ([rule 6](#platform-constraints)).
+- Guest RAM is in HPS DDR port 0, subject to M1's
+  [latency check](#l2-and-coherence).
+
+Open:
+
+1. **The machine:** AT chipset, VGA, Sound Blaster with OPL, IDE and floppy as
    `fes.pc386`, and which BIOS: an open BIOS or user-linked firmware through a
    ROM map.
-3. **Default speed mode:** `max` (proposed) or a 386DX-33 preset.
-4. **Whether `i486-isa` is wanted at all.**
+2. **Default speed mode:** `max` (proposed) or a 386DX-33 preset.
+3. **Whether `i486-isa` is wanted at all.**
 
 ## Location
 
