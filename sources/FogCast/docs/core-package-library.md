@@ -448,18 +448,23 @@ explicit new ROM selection. Import alone does not select content. These
 endpoints use the existing host API and catalog; the browser management panel
 continues to manage ordinary media separately.
 
-Library responses expose `rom_required`, `rom_ready`, `rom_id`, and
-`rom_media_id`. Missing, damaged, or stale selections block launch before core
-activation. A ROM selection is independent of ordinary tape/media selection
-and the legacy household Coleco firmware slot. Cartridge ROM bytes are consumed
-by linking and are never streamed a second time as media. Linked cartridge
+Library responses expose `rom_required`, `rom_ready`, `rom_id`, `rom_role`,
+`rom_source_size`, and `rom_media_id`. Missing, damaged, or stale selections
+block launch before core activation. Cartridge selections report
+`rom_required` / `rom_ready`; firmware-role selections report
+`firmware_required` / `firmware_ready` and open the package-firmware picker.
+That picker binds the selected binary to the title's ROM requirement. This
+per-title firmware is independent of ordinary tape/media selection and the
+legacy household Coleco firmware slot. Cartridge ROM bytes are consumed by
+linking and are never streamed a second time as media. Linked cartridge
 exports must omit `fes.media.blob-stream` 1.0, `fes.firmware.blob` 1.0, and,
 under `fes.application` 1.x, `fes.media.blob` 1.0, including optional declarations.
 These startup endpoints wait for a separate media upload and
 would leave the linked cartridge in reset. The host reports such combinations
-as not ready and rejects launch before contacting the target. Firmware-role
-ROMs retain their ordinary tape/media behavior. The browser launch control
-also requires `rom_ready` whenever `rom_required` is true.
+as not ready and rejects launch before contacting the target. Selecting a
+firmware-role ROM through the API or tenfoot picker refreshes the same
+`firmware_ready` field. The browser launch control requires `rom_ready`
+whenever `rom_required` is true.
 
 The host sends a canonical `rom-link.json` source envelope containing the exact
 sealed package, selected ROM binary and optional selected expansion. It does

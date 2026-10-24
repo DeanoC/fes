@@ -23,7 +23,7 @@ func TestClientLibraryOperationsPreservePublicHTTPContract(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/games":
 			query := r.URL.Query()
-			if query.Get("grouped") != "1" || query.Get("availability") != "ready" || query.Get("platform") != "megadrive" || query.Get("sort") != "platform" || query.Get("limit") != "2" {
+			if query.Get("grouped") != "1" || query.Get("availability") != "ready" || query.Get("platform") != "megadrive" || query.Get("sort") != "platform" || query.Get("limit") != "2" || strings.Join(query["core_id"], ",") != "fes.zx81,fes.c64" {
 				t.Errorf("query = %s", r.URL.RawQuery)
 			}
 			_, _ = io.WriteString(w, `{"games":[{"id":"pong","title":"Pong","system":"pong","launchable":true}],"next_cursor":"next"}`)
@@ -55,7 +55,7 @@ func TestClientLibraryOperationsPreservePublicHTTPContract(t *testing.T) {
 
 	transport := &identityTransport{base: server.Client().Transport}
 	client := NewClient(server.URL+"/", &http.Client{Transport: transport, Timeout: 5 * time.Second})
-	games, next, err := client.ListGames(context.Background(), GameListQuery{Limit: 2, Platform: " megadrive", Sort: "system"})
+	games, next, err := client.ListGames(context.Background(), GameListQuery{Limit: 2, Platform: " megadrive", CoreIDs: []string{"fes.zx81", " fes.c64 "}, Sort: "system"})
 	if err != nil || len(games) != 1 || games[0].ID != "pong" || next != "next" {
 		t.Fatalf("games = %#v next=%q err=%v", games, next, err)
 	}
@@ -153,6 +153,24 @@ func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	}
 	if game.Variants != nil {
 		t.Fatalf("variants leaked into catalog row: %#v", game.Variants)
+	}
+}
+
+func TestPreferLaunchableKeepsEditions(t *testing.T) {
+	t.Parallel()
+	sibling := Game{ID: "fpga-zx81-jp", Title: "3D Monster Maze", System: "fpga", State: "available", RootOnline: true, Launchable: true, Region: "Japan", VariantCount: 1}
+	parent := Game{
+		ID: "fpga-zx81-maze", Title: "3D Monster Maze", System: "fpga", State: "available", RootOnline: true, Launchable: true,
+		VariantCount: 2, Variants: []Game{sibling},
+	}
+	got := preferLaunchable(parent)
+	if got.ID != parent.ID || got.Variants != nil || len(got.Editions) != 1 || got.Editions[0].ID != sibling.ID || got.VariantCount != 2 {
+		t.Fatalf("kept parent %+v editions %+v", got, got.Editions)
+	}
+	parent.RootOnline = false
+	got = preferLaunchable(parent)
+	if got.ID != sibling.ID || got.Variants != nil || !got.LaunchEligible() || got.VariantCount != 2 || len(got.Editions) != 1 || got.Editions[0].ID != sibling.ID {
+		t.Fatalf("substituted %+v editions %+v", got, got.Editions)
 	}
 }
 

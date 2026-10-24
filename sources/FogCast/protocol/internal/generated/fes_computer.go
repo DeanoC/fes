@@ -122,6 +122,9 @@ const (
 	FesComputerZx81TapeUnit                             uint32 = 0x0
 	FesComputerZx81TapeMinBytes                         uint32 = 0x1
 	FesComputerZx81TapeMaxBytes                         uint32 = 0x4000
+	FesComputerZx81TapeLayoutTag                        uint32 = 0x2
+	FesComputerZx81TapeLayoutMajor                      uint32 = 0x1
+	FesComputerZx81TapeLayoutMinor                      uint32 = 0x0
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
 	FesComputerAtariStFloppyUnit                        uint32 = 0x0
@@ -192,4 +195,8 @@ const (
 	FesComputerInterfaceVideoSessionDisplayMajor        uint16 = 1
 	FesComputerInterfaceVideoSessionDisplayMinor        uint16 = 0
 	FesComputerCapabilityVideoSessionDisplay            uint32 = 0x2000
+	FesComputerInterfaceMediaZx81TapeWriteID                   = "fes.media.zx81-tape-write"
+	FesComputerInterfaceMediaZx81TapeWriteMajor         uint16 = 1
+	FesComputerInterfaceMediaZx81TapeWriteMinor         uint16 = 0
+	FesComputerCapabilityMediaZx81TapeWrite             uint32 = 0x4000
 )

@@ -2512,6 +2512,44 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 	}
 }
 
+void TestZx81SaveStaysDirtyUntilAcknowledged()
+{
+	const auto capabilities = static_cast<std::uint16_t>(
+		FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityMediaZx81Tape |
+		FesComputerCapabilityMediaZx81TapeWrite);
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaZx81TapeID, FesComputerInterfaceMediaZx81TapeWriteID});
+	ComputerFixture f(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	f.endpoint.SetZx81Snapshot({0x00, 0x0a, 0x76});
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.TapeWriteCapable());
+	std::vector<unsigned char> bytes;
+	assert(f.driver.CaptureZx81Tape(f.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes == std::vector<unsigned char>({0x00, 0x0a, 0x76}));
+	assert(f.endpoint.dirty && f.endpoint.frozen);
+	assert(f.driver.EnsureZx81TapeSaved(kComputerDeadline).code == mister::ErrorCode::save_failed);
+	assert(f.endpoint.dirty && f.endpoint.frozen);
+	assert(f.driver.AcknowledgeZx81Tape(kComputerDeadline).ok());
+	assert(!f.endpoint.dirty && f.endpoint.frozen && f.endpoint.saved);
+	assert(f.driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+
+	ComputerFixture empty(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	empty.endpoint.SetZx81Snapshot({}, false);
+	assert(empty.driver.Identify(empty.context, kComputerDeadline).error.ok());
+	bytes = {0xff};
+	assert(empty.driver.CaptureZx81Tape(empty.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes.empty() && !empty.endpoint.frozen);
+
+	ComputerFixture clean(capabilities, {{0, {1, FesComputerZx81TapeMaxBytes}}}, descriptor);
+	assert(clean.driver.Identify(clean.context, kComputerDeadline).error.ok());
+	bytes = {0xff};
+	assert(clean.driver.CaptureZx81Tape(clean.clock, kComputerDeadline, &bytes).ok());
+	assert(bytes.empty() && !clean.endpoint.frozen);
+	assert(clean.driver.EnsureZx81TapeSaved(kComputerDeadline).ok());
+	assert(!clean.endpoint.frozen);
+}
+
 void TestAtariStFloppyDiscoveryAndLiveInsert()
 {
 	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
@@ -2899,6 +2937,7 @@ int main()
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
 	TestComputerReplaysSharedWireFixturesThroughDriver();
 	TestComputerIdentityCapabilitiesAndDiscovery();
+	TestZx81SaveStaysDirtyUntilAcknowledged();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
 	puts("fes_gp_test: all groups passed");

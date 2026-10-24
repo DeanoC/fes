@@ -880,6 +880,13 @@ func gameFilterSQL(query Query, gameAlias, libraryAlias string) (string, []any) 
 		builder.WriteString(" AND " + gameAlias + ".system = ?")
 		args = append(args, query.Platform)
 	}
+	if len(query.CoreIDs) > 0 {
+		clause, coreArgs := idListSQL("core_id", query.CoreIDs, false)
+		builder.WriteString(" AND " + gameAlias + ".game_id IN (SELECT game_id FROM core_entries WHERE 1 = 1")
+		builder.WriteString(clause)
+		builder.WriteString(")")
+		args = append(args, coreArgs...)
+	}
 	if query.Region == "other" {
 		builder.WriteString(" AND (" + gameAlias + ".region = '' OR " + gameAlias + ".region = 'other')")
 	} else if query.Region != "" {

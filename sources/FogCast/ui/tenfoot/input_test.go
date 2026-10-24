@@ -202,8 +202,8 @@ func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
 	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
 		t.Fatal("quit")
 	}
-	if app.repeat.held != CmdRight {
-		t.Fatalf("after release down: held = %s want right", app.repeat.held)
+	if app.repeat.Held() != CmdRight {
+		t.Fatalf("after release down: held = %s want right", app.repeat.Held())
 	}
 	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
 		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
@@ -228,8 +228,8 @@ func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
 	if applyPressed(app, map[Command]bool{CmdDown: true}, held, now) {
 		t.Fatal("quit")
 	}
-	if app.repeat.held != CmdDown {
-		t.Fatalf("after release right: held = %s want down", app.repeat.held)
+	if app.repeat.Held() != CmdDown {
+		t.Fatalf("after release right: held = %s want down", app.repeat.Held())
 	}
 	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
 		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
@@ -258,8 +258,8 @@ func TestApplyPressedSelectWhileHeldDoesNotWalkFocus(t *testing.T) {
 	if got := app.Snapshot().Grid.Focus; got != focus {
 		t.Fatalf("select while held moved focus %d -> %d", focus, got)
 	}
-	if app.repeat.held != CmdRight {
-		t.Fatalf("held after select = %s want right", app.repeat.held)
+	if app.repeat.Held() != CmdRight {
+		t.Fatalf("held after select = %s want right", app.repeat.Held())
 	}
 	if got := app.Tick(now.Add(50 * time.Millisecond)); got != CmdNone {
 		t.Fatalf("select must not restart repeat immediately: %s", got)
@@ -415,4 +415,31 @@ func catalogApp(n int) *App {
 	}
 	app.grid.SetCount(n)
 	return app
+}
+
+func TestRepeaterClearConcurrentWithInputAndTick(t *testing.T) {
+	var r Repeater
+	now := time.Unix(0, 0)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, work := range []func(){
+		func() { r.Down(CmdRight, now); r.Arm(CmdDown, now); r.Up(CmdRight) },
+		func() { r.Clear() },
+		func() { r.Held(); r.Tick(now.Add(time.Second)) },
+	} {
+		wg.Add(1)
+		go func(work func()) {
+			defer wg.Done()
+			<-start
+			for i := 0; i < 8000; i++ {
+				work()
+			}
+		}(work)
+	}
+	close(start)
+	wg.Wait()
+	r.Clear()
+	if got := r.Tick(now.Add(time.Second)); got != CmdNone {
+		t.Fatalf("repeat after clear: %v", got)
+	}
 }

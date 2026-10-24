@@ -90,6 +90,17 @@ func Zx81TapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeID, Major: generated.FesComputerInterfaceMediaZx81TapeMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeMinor}
 }
 
+// Zx81TapeWriteInterface is the snapshot contract for a ROM SAVE .p.
+func Zx81TapeWriteInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeWriteID, Major: generated.FesComputerInterfaceMediaZx81TapeWriteMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeWriteMinor}
+}
+
+// Zx81TapeWriteCapable reports an active computer that can publish a SAVE image
+// even when the cassette unit itself is empty.
+func Zx81TapeWriteCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, Zx81TapeInterface()) && activeInterface(p, Zx81TapeWriteInterface())
+}
+
 // C64DiskInterface is the unit-0 Commodore D64 contract.
 func C64DiskInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaC64DiskID, Major: generated.FesComputerInterfaceMediaC64DiskMajor, Minor: generated.FesComputerInterfaceMediaC64DiskMinor}

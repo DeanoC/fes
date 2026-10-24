@@ -10,6 +10,15 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
+  either the kit/launcher device or the FogCast host, with separate BIOS and
+  media folders. Saved drives appear in BIOS, core setup and live-media
+  pickers and reconnect when opened. Browser Settings manages host drives;
+  **From host drive** imports their files in FPGA library setup. See
+  [BIOS and media drives](docs/ARCHITECTURE.md#bios-and-media-drives). USB
+  discovery and mounting require Linux; non-Linux Tenfoot builds can still use
+  SMB shares.
+
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
@@ -486,3 +495,8 @@ Portable room files use the same installer and rollback path:
 validates before publishing; import checks the bounded archive privately before
 changing the selected snapshot. No source checkout is needed to install it.
 See [room installation](docs/rooms.md#installing-and-opening-rooms).
+
+Tenfoot synchronizes held-direction repeat state between frame-loop input and
+asynchronous session-display handoffs. A failed surround transition can clear
+pending repeats without racing the frame tick; repeat delay and cadence are
+unchanged. The input helper releases its lock before command dispatch.
