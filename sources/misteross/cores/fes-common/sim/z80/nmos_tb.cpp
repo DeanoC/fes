@@ -94,10 +94,14 @@ public:
         dut.clk = 1;
         dut.eval();
         settle();
-        observe();
         if (positive && dut.retired) retirements.push_back({uint16_t(dut.retire_pc),time});
         dut.clk = 0; dut.ce_p = 0; dut.ce_n = 0;
         settle();
+        // The NMOS core needs an idle clock after each enabled one; its pins
+        // follow the bus unit by that clock.
+        dut.clk = 1; dut.eval(); dut.clk = 0;
+        settle();
+        observe();
     }
     void tick() {
         half(false,true);

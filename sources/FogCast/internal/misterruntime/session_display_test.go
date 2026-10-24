@@ -44,7 +44,7 @@ func TestRuntimeDisplayUsesCapturedGenerationAndRetainsFocusOnUnconfirmedClose(t
 			if name != "blob" {
 				contract, minBytes, maxBytes := protocol.C64DiskInterface(), uint32(174848), uint32(174848)
 				if name == "spectrum" {
-					contract, minBytes, maxBytes = protocol.SpectrumTapeInterface(), 1, 65536
+					contract, minBytes, maxBytes = protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)
 				}
 				response.ActivePackage.Descriptor.ABI = corepackage.Contract{ID: "fes.computer", Major: 1}
 				response.Capabilities.ActiveInterfaces = []misterruntime.Protocol2Interface{{ID: contract.ID, Major: contract.Major, Minor: contract.Minor}}

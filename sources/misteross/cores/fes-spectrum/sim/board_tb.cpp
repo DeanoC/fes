@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Board simulation through the fes.computer mailbox: identity advertises the
-// Spectrum tape unit and the session display, a .tap image can be committed
-// while the machine runs, a USB HID 'A' becomes the Spectrum matrix after the
-// settle window, and controller port 1 is Sinclair joystick 1.
+// Spectrum tape unit and the session display, a PZX image committed in two
+// chunks while the machine runs lands in HPS DDR (a byte pair straddling a
+// DDR word), the firmware's turbo loader plays it back from DDR (its 1200 T
+// pilot edges and the four bytes it decodes), a USB HID 'A' becomes the Spectrum matrix after the settle window,
+// and controller port 1 is Sinclair joystick 1.
 #include "Vtop.h"
 #include "Vtop___024root.h"
 #include "verilated.h"
 
 #include <cstdint>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -100,26 +105,75 @@ int main(int argc, char** argv) {
     // video, keyboard, gamepad, audio, spectrum tape (bits 0-3 and 5), HPS DDR
     // and the session display (bits 12 and 13).
     require(board.ok(1, 7, 0, "capabilities") == 0x302f, "capability word");
-    require(board.ok(5, 0, 0, "min lo") == 1, "tape minimum");
+    // fes.media.spectrum-tape 2.0: a PZX image of 10 bytes to 16 MiB.
+    require(board.ok(5, 0, 0, "min lo") == 10, "tape minimum");
     require(board.ok(5, 1, 0, "min hi") == 0, "tape minimum high");
     require(board.ok(5, 2, 0, "max lo") == 0, "tape maximum low");
-    require(board.ok(5, 3, 0, "max hi") == 1, "tape maximum high");
+    require(board.ok(5, 3, 0, "max hi") == 0x100, "tape maximum high");
     require(board.ok(5, 5, 0, "state") == 1, "tape starts empty");
     board.ok(2, 0, 1, "release");
 
-    const uint8_t tap[3] = {0x01, 0x00, 0xff};
-    const uint32_t crc = crc32(tap, 3);
-    board.ok(6, 0, 3, "begin total");
+    std::ifstream file("build/diagnostics/fes-spectrum/tape.pzx", std::ios::binary);
+    const std::vector<uint8_t> tape((std::istreambuf_iterator<char>(file)), {});
+    require(tape.size() > 16 && tape.size() <= 512, "no diagnostic tape");
+    const uint32_t crc = crc32(tape.data(), static_cast<int>(tape.size()));
+    board.ok(6, 0, tape.size(), "begin total");
     board.ok(6, 1, 0, "begin total high");
     board.ok(6, 2, crc & 0xffff, "crc lo");
     board.ok(6, 3, crc >> 16, "crc hi");
-    board.ok(7, 0, 0, "chunk offset");
-    board.ok(7, 1, 0, "chunk offset high");
-    board.ok(7, 2, 3, "chunk length");
-    board.ok(8, 0, tap[0] | (tap[1] << 8), "data 0");
-    board.ok(8, 1, tap[2], "data 1");
+    // A 7-byte chunk leaves the next one at an odd offset, so its pair at
+    // bytes 7 and 8 straddles two DDR words.
+    for (const auto [offset, length] : {std::pair<size_t, size_t>{0, 7}, {7, tape.size() - 7}}) {
+        board.ok(7, 0, offset, "chunk offset");
+        board.ok(7, 1, 0, "chunk offset high");
+        board.ok(7, 2, length, "chunk length");
+        for (size_t i = 0; i < length; i += 2) {
+            const unsigned low = tape[offset + i];
+            const unsigned high = i + 1 < length ? tape[offset + i + 1] : 0;
+            board.ok(8, i / 2, low | (high << 8), "data");
+        }
+    }
     board.ok(9, 0, 0, "commit");
     require(board.ok(5, 5, 0, "ready") == 3, "tape did not become ready");
+    // The image is at window offset 16 MiB, the model's media base.
+    for (size_t i = 0; i < tape.size(); ++i) {
+        const uint64_t word = board.root.top__DOT__memory__DOT__f2sdram__DOT__media[i / 8];
+        require(((word >> (8 * (i % 8))) & 0xff) == tape[i], "DDR byte " + std::to_string(i) + " differs");
+    }
+
+    // The diagnostic's loader starts the deck, which streams the image back
+    // from DDR: three successive pilot edges 1200 T apart, then the four bytes
+    // the loader decodes into $8100.
+    int matched = 0;
+    bool seen_edge = false, last_ear = false, last_tick = false;
+    uint32_t since = 0;
+    for (uint64_t clocks = 0; matched < 3; ++clocks) {
+        board.run_clocks(1);
+        const bool tick = board.root.top__DOT__tick;
+        if (tick && !last_tick && seen_edge) ++since;
+        last_tick = tick;
+        const bool ear = board.root.top__DOT__ear;
+        if (ear != last_ear) {
+            matched = seen_edge && since == 1200 ? matched + 1 : seen_edge ? 0 : matched;
+            seen_edge = true;
+            since = 0;
+            last_ear = ear;
+        }
+        require(clocks < 8000000, "no tape pilot from DDR (" + std::to_string(matched) + " edges)");
+    }
+    // The 48K top keeps Spectrum bank 2 ($8000) as its second stored bank.
+    const uint8_t loaded[4] = {0xa5, 0x3c, 0x81, 0x7e};
+    auto ram = [&](unsigned offset) { return board.root.top__DOT__machine__DOT__ram__DOT__bank__BRA__1__KET____DOT__mem[offset]; };
+    for (uint64_t clocks = 0;; ++clocks) {
+        bool done = true;
+        for (unsigned i = 0; i < 4; ++i) done &= ram(0x100 + i) == loaded[i];
+        if (done) break;
+        require(clocks < 20000000, "the loader did not decode the tape from DDR");
+        board.run_clocks(1);
+    }
+    require(!board.root.top__DOT__memory__DOT__f2sdram__DOT__violation_media &&
+            !board.root.top__DOT__memory__DOT__f2sdram__DOT__violation_plane,
+            "DDR model saw a protocol or window violation");
 
     // HID usage 0x04 ('A') is bit 4 of keyboard row 0.
     board.ok(3, 0, 1u << 4, "key A");

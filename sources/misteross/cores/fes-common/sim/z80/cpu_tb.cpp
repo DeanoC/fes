@@ -132,6 +132,15 @@ class Cpu {
         const uint8_t data = dut.bus_wdata;
         dut.bus_rdata = kind == 3 ? ports[address] : kind == 5 ? acknowledge : memory[address];
         dut.eval();
+        // The NMOS engine commits at least two clocks after its inputs settle,
+        // so an idle clock precedes each completing one.
+        dut.bus_ready = 0;
+        dut.eval();
+        dut.clk = 1;
+        dut.eval();
+        dut.clk = 0;
+        dut.bus_ready = ready;
+        dut.eval();
         dut.clk = 1;
         dut.eval();
         if (transfer) {

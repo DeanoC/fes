@@ -26,7 +26,7 @@ func TestSessionDisplayCoordinatorAdmitsObservedComputerMedia(t *testing.T) {
 		minBytes, maxBytes uint32
 	}{
 		{protocol.C64DiskInterface(), 174848, 174848},
-		{protocol.SpectrumTapeInterface(), 1, 65536},
+		{protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)},
 	} {
 		t.Run(tc.contract.ID, func(t *testing.T) {
 			b := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}

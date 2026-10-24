@@ -13,7 +13,8 @@
 //   Pentagon  $7FFD as the 128K, no contention and no floating bus.
 // Port $FE (A0 low) is the ULA. Port $1F (A7:A5 low) is a built-in Kempston
 // joystick. On 128K-class models $FFFD/$BFFD (A15, A14, A1) is the AY-3-8912.
-// Other reads return the ULA's floating bus where the model has one.
+// Other reads return the ULA's floating bus where the model has one. The tape
+// deck plays a PZX image that the shell streams from its media store.
 `include "spectrum_bus.vh"
 `include "spectrum_model.vh"
 
@@ -24,16 +25,15 @@ module spectrum_machine #(
     input  wire        reset,
     input  wire [39:0] matrix,
     input  wire [4:0]  kempston,
-    input  wire [1:0]  unit_state,
-    input  wire [31:0] unit_size,
-    input  wire [15:0] media_write_addr,
-    input  wire [15:0] media_write_data,
-    input  wire [1:0]  media_write_enable,
+    input  wire        tape_ready,
+    input  wire [24:0] tape_size,
+    output wire        tape_stream_enable,
+    input  wire        tape_stream_valid,
+    input  wire [7:0]  tape_stream_data,
+    output wire        tape_stream_take,
+    output wire        tape_playing,
     output wire [`SP_BUS_REQ-1:0] bus_request,
     input  wire [`SP_BUS_RSP-1:0] response1,
-    input  wire [`SP_BUS_RSP-1:0] response2,
-    input  wire [`SP_BUS_RSP-1:0] response3,
-    input  wire [`SP_BUS_RSP-1:0] response4,
     output wire        pixel_we,
     output wire [7:0]  pixel_row,
     output wire [5:0]  pixel_chunk,
@@ -59,14 +59,13 @@ module spectrum_machine #(
     wire [15:0] cpu_a;
     wire [7:0] cpu_do;
     wire [7:0] cpu_di;
+    wire [15:0] cpu_bc;
     wire cycle_present;
     wire [2:0] cycle_kind;
     wire [5:0] cycle_t;
     wire cpu_ce_p, cpu_ce_n, tick_p, tick_n, int_n, contend_request;
-    wire nmi = response1[`SP_BUS_NMI] | response2[`SP_BUS_NMI] |
-               response3[`SP_BUS_NMI] | response4[`SP_BUS_NMI];
-    wire card_wait = response1[`SP_BUS_WAIT] | response2[`SP_BUS_WAIT] |
-                     response3[`SP_BUS_WAIT] | response4[`SP_BUS_WAIT];
+    wire nmi = response1[`SP_BUS_NMI];
+    wire card_wait = response1[`SP_BUS_WAIT];
 
     fes_z80_nmos cpu (
         .clk(clk_sys), .reset(reset), .ce_p(cpu_ce_p), .ce_n(cpu_ce_n),
@@ -74,7 +73,7 @@ module spectrum_machine #(
         .m1_n(cpu_m1_n), .mreq_n(cpu_mreq_n), .iorq_n(cpu_iorq_n), .rd_n(cpu_rd_n),
         .wr_n(cpu_wr_n), .rfsh_n(cpu_rfsh_n), .halt_n(cpu_halt_n), .busak_n(),
         .a(cpu_a), .dout(cpu_do), .illegal(cpu_illegal), .retired(cpu_retired),
-        .retire_pc(), .debug_pc(cpu_pc), .debug_sp(), .debug_af(), .debug_bc(), .debug_de(),
+        .retire_pc(), .debug_pc(cpu_pc), .debug_sp(), .debug_af(), .debug_bc(cpu_bc), .debug_de(),
         .debug_hl(), .debug_ix(), .debug_iy(), .debug_ir(), .debug_iff(),
         .cycle_present(cycle_present), .cycle_kind(cycle_kind), .cycle_t(cycle_t)
     );
@@ -156,31 +155,11 @@ module spectrum_machine #(
     assign bus_request[`SP_BUS_RESET] = reset;
     assign bus_request[`SP_BUS_RESERVED] = 1'b0;
 
-    wire [27:0] chosen =
-        response1[`SP_BUS_DRIVE] ? response1 :
-        response2[`SP_BUS_DRIVE] ? response2 :
-        response3[`SP_BUS_DRIVE] ? response3 :
-        response4[`SP_BUS_DRIVE] ? response4 : 28'd0;
-    wire romcs = response1[`SP_BUS_ROMCS] | response2[`SP_BUS_ROMCS] |
-                 response3[`SP_BUS_ROMCS] | response4[`SP_BUS_ROMCS];
+    wire [27:0] chosen = response1[`SP_BUS_DRIVE] ? response1 : 28'd0;
+    wire romcs = response1[`SP_BUS_ROMCS];
 
-    // Card PCM is summed from every socket, including a card that is not
-    // driving the CPU bus, then saturated to 16 bits. Two registered stages
-    // cover four sockets; the extra latency does not matter.
-    function signed [18:0] socket_pcm;
-        input [`SP_BUS_RSP-1:0] response;
-        socket_pcm = {{3{response[27]}}, response[`SP_BUS_AUDIO]};
-    endfunction
-    reg signed [18:0] audio_pair0 = 19'sd0;
-    reg signed [18:0] audio_pair1 = 19'sd0;
-    reg signed [18:0] audio_sum = 19'sd0;
-    always @(posedge clk_sys) begin
-        audio_pair0 <= socket_pcm(response1) + socket_pcm(response2);
-        audio_pair1 <= socket_pcm(response3) + socket_pcm(response4);
-        audio_sum <= audio_pair0 + audio_pair1;
-    end
-    assign slot_audio = audio_sum > 19'sd32767 ? 16'sh7fff :
-                        audio_sum < -19'sd32768 ? -16'sh8000 : audio_sum[15:0];
+    // The card's PCM plays whether or not it drives the CPU bus.
+    assign slot_audio = response1[`SP_BUS_AUDIO];
 
     // --------------------------------------------------------------- memory
     wire [7:0] rom_data;
@@ -245,12 +224,18 @@ module spectrum_machine #(
     assign speaker = speaker_q;
     assign mic = mic_q;
 
+    // One clock per CPU read of a ULA port, for the deck's loader detection.
+    wire ula_reading = io & ~cpu_rd_n & ula_port;
+    reg ula_reading_q = 1'b0;
+    always @(posedge clk_sys) ula_reading_q <= ula_reading;
+
     wire tape_ear;
-    spectrum_tape tape (
-        .clk(clk_sys), .cen(tick_p), .reset(reset), .unit_state(unit_state),
-        .unit_size(unit_size), .write_addr(media_write_addr),
-        .write_data(media_write_data), .write_enable(media_write_enable),
-        .ear(tape_ear)
+    spectrum_tape #(.IS_48K(MODEL == 0)) tape (
+        .clk(clk_sys), .reset(reset), .tick(tick_p), .ready(tape_ready), .size(tape_size),
+        .stream_enable(tape_stream_enable), .stream_valid(tape_stream_valid),
+        .stream_data(tape_stream_data), .stream_take(tape_stream_take),
+        .ula_read(ula_reading & ~ula_reading_q), .cpu_b(cpu_bc[15:8]),
+        .ear(tape_ear), .playing(tape_playing), .underruns()
     );
     assign ear = tape_ear;
 
