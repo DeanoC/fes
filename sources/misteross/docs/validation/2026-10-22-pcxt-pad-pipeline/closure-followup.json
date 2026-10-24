@@ -1,0 +1,1702 @@
+{
+  "scope": "Host-only follow-up evidence. Selected functional RTL and producer remain unchanged. Unadopted50MHz controller profile and Quartus references inherit no whole-board or hardware acceptance.",
+  "selected_tested_head": "d09ae110505e3660bb5189b3e9f250d5e4f4f46a",
+  "files": {
+    "crtc-select-rejected-summary.json": {
+      "sha256": "a6a95081d6ca351aa77ea5c9b1d4aede9574ca8641946b453b1df83e4653bb34",
+      "evidence": {
+        "status": "rejected after2fixed-recipe seed failures; seed1notrun; actual branch unchanged",
+        "source_revision": "19d16a767380f0d86ddd2e49116d9cf55eaeefbc",
+        "cases": [
+          {
+            "case": "route-crtc-select-seed2",
+            "receipt_sha256": "cb9bc5eb9e80ecab3d68f8863ab5316049e6ec4da8a3b6257e02ce00d4ba32f5",
+            "charged_seconds": 243.55062501411885,
+            "paired_rows": 17268,
+            "setup_failures": 317,
+            "setup_wns_ns": -2.812999963760376,
+            "hold_failures": 0,
+            "hold_min_ns": 0.7900000214576721
+          },
+          {
+            "case": "route-crtc-select-seed3",
+            "receipt_sha256": "3e6e4ff7e639f9f29eba1e02cde54afc8d2c0c42d6ae67318704b2abf596284c",
+            "charged_seconds": 174.77910290006548,
+            "paired_rows": 17268,
+            "setup_failures": 18,
+            "setup_wns_ns": -1.2330000400543213,
+            "hold_failures": 0,
+            "hold_min_ns": 0.777999997138977
+          }
+        ],
+        "old_tool_baseline_reproduced": true,
+        "pending_journal_append_after_stable_test_run": false,
+        "accounting_file": "memory50-accounting.json"
+      }
+    },
+    "recovered-synthesis-comparison.json": {
+      "sha256": "2167b96721c87fff5dcb3a70b9c7b9aafea0fc26c5e6b1dcb2cf0a81db5b6e47",
+      "evidence": {
+        "scope": "Complete restored-tool baseline synthesis comparison; only generated-root and toolchain-root prefixes renamed; no fields omitted",
+        "source_unchanged": true,
+        "full_JSON_equal": true,
+        "old_sha256": "9b635d491e95c3174dc262ef715404c77d5a26f4fb3af94b2c87d3fbfbacf7a7",
+        "new_sha256": "4af14f3d27e1d14024f642ae23b151ff0ecd0f98370ae97a5a4279ef4ddff439"
+      }
+    },
+    "crtc-rejected-accounting.json": {
+      "sha256": "06cd9e84111dff02db560e5dcb1ac929fe25bde2c5f79f18b918da6dec7f6c6d",
+      "evidence": {
+        "completed_route_search_receipts": 103,
+        "prior_101_prefix_exact": true,
+        "all_103_receipt_objects_hashes_and_Decimal_charges_verified": true,
+        "journal_sha256": "8e57f994bc79305b24a14b3bb42e6103b6cee5aa807014dc8a577a8c89e87320",
+        "new_charge_seconds": "418.32972791418433",
+        "cumulative_charge_seconds": "97910.28941570874244"
+      }
+    },
+    "fast-dq-chip-pin-summary.json": {
+      "sha256": "0d160136115d939f4d2d6c41699733a4acb7c87df6550e29e0129417aa015fe6",
+      "evidence": {
+        "scope": "Optimistic zero-flight published -6TIN CL2 chip-pin reference with fast DQ registers. Not kit acceptance or read-consumption-cycle proof.",
+        "corners": {
+          "7_slow_1100mv_-40c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.183
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 3,
+              "wns_ns": -1.412
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.713
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 16,
+              "wns_ns": -3.313
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 2.861
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 1.978
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.075
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 3,
+              "wns_ns": -1.434
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 7.173
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 16,
+              "wns_ns": -3.949
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 2.766
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 2.013
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 5.442
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 2.053
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 4.856
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 16,
+              "wns_ns": -0.662
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 3.378
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 2.691
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 5.46
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 1.903
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 5.468
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 16,
+              "wns_ns": -1.251
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 3.255
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 2.685
+            }
+          }
+        }
+      }
+    },
+    "capture-phase-feasibility.json": {
+      "sha256": "169e6e391910ae88a1cf15f9b113b2be6fdf056ce6952f16a0f007db6d256356",
+      "evidence": {
+        "scope": "Algebraic diagnostic only: hypothetical common translation of capture clock relative to fixed reference. No PLL refit, board bounds, waveform/consumption proof or acceptance.",
+        "input_setup_required_positive_capture_translation_ns": 3.949,
+        "input_hold_maximum_positive_capture_translation_ns": 4.856,
+        "reference_only_open_window_ns": 0.907,
+        "actual_capture_phase_ps": 5000,
+        "reference_handoff_setup_wns_ns": -1.434,
+        "conclusion": "Packing alone is insufficient. A later capture edge would improve input setup but reduce input hold and same-next-system-edge handoff setup. The read boundary needs an explicit phase/transfer design and valid-word proof; no multicycle/phase waiver is authorized by this arithmetic.",
+        "source_summary_sha256": "0d160136115d939f4d2d6c41699733a4acb7c87df6550e29e0129417aa015fe6"
+      }
+    },
+    "memory50-native-summary.json": {
+      "sha256": "add41c01225d4a56a5bcdd8b14d067ce258cd039bf7784b1cf10eaf19355a2c4",
+      "evidence": {
+        "scope": "Unadopted CPU100MHz/memory50MHz prototype. Legacy detailed report exports only first launch event per net, so complete per-clock identity/coverage audit is pending. Native gate counts remain diagnostic; physical/whole-board acceptance false.",
+        "source": {
+          "revision": "7950b95c4c29c2a400f72c5757d4ca48b5212cd3",
+          "parent": "d09ae110505e3660bb5189b3e9f250d5e4f4f46a",
+          "component_tree": "5433d1f3d23296cd9ea93cbd6931963ab97f45c7",
+          "archive_sha256": "6c525fb82fa23824d5f24bd61a7f23c600241ba2f7c091617fa6ac62c26c4397",
+          "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-memory50/sources/misteross",
+          "scope": "Unadopted default-off related-clock50MHz SDRAM prototype, CPU100MHz/pixel74.25MHz unchanged. Explicit private synthesis parameter and QSF selection required. No async clock cuts, no selected profile acceptance inherited. Controller request held until completion; cross-clock paths require full timing.",
+          "changed_files": {
+            "sources/misteross/cores/fes-pcxt/rtl/pcxt_memory.sv": "dd786527c59a6854216853d220a65f3abd94040a80357d1aed495fede015df36",
+            "sources/misteross/cores/fes-pcxt/rtl/pcxt_system.sv": "88b58b00e3ab72eeb13dc2ae7bdc0f4d37834da4cf9304b2978c1d90380f3203",
+            "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv": "58486dc6929983948e26917b726877469fcf49bbc1ce5683710fc165c4b25d65",
+            "sources/misteross/cores/fes-pcxt/constraints-memory50.qsf": "f9fc17549425994750ed7355ed81396b4fc920cf79bb9d408a591fd38a39bd04"
+          },
+          "hardware": false
+        },
+        "cases": [
+          {
+            "seed": 1,
+            "returncode": 1,
+            "charged_seconds": 230.84678955096751,
+            "receipt_sha256": "de36a859627502030e9896c7acfd630ff84073b71c218cab6182f86e9b7c030e",
+            "paired_rows": 17165,
+            "unpaired_rows": 274,
+            "setup_failures": 8,
+            "setup_wns_ns": -0.43299999833106995,
+            "hold_failures": 0,
+            "hold_min_ns": 0.7870000004768372,
+            "fmax": {
+              "clk_pixel": {
+                "achieved": 76.52865600585938,
+                "constraint": 74.25006866455078
+              },
+              "clocks[0]": {
+                "achieved": 95.8497085571289,
+                "constraint": 100
+              },
+              "clocks[1]": {
+                "achieved": 222.5189208984375,
+                "constraint": 50
+              },
+              "clocks[2]": {
+                "achieved": 96.75859069824219,
+                "constraint": 50
+              }
+            }
+          },
+          {
+            "seed": 2,
+            "returncode": 0,
+            "charged_seconds": 113.51929305074736,
+            "receipt_sha256": "72189d3d426be62625346ce3c7d97c52e511d534150e67a3f9744bf0529692e3",
+            "paired_rows": 17165,
+            "unpaired_rows": 274,
+            "setup_failures": 0,
+            "setup_wns_ns": 0.3070000112056732,
+            "hold_failures": 0,
+            "hold_min_ns": 0.796999990940094,
+            "fmax": {
+              "clk_pixel": {
+                "achieved": 78.93905639648438,
+                "constraint": 74.25006866455078
+              },
+              "clocks[0]": {
+                "achieved": 103.167236328125,
+                "constraint": 100
+              },
+              "clocks[1]": {
+                "achieved": 224.8201446533203,
+                "constraint": 50
+              },
+              "clocks[2]": {
+                "achieved": 128.057373046875,
+                "constraint": 50
+              }
+            }
+          },
+          {
+            "seed": 3,
+            "returncode": 1,
+            "charged_seconds": 179.22121547581628,
+            "receipt_sha256": "7064082c2a4670f6de6a27a16f9ecf3f2822bba55da55f4dbdfc136cfc54ec1d",
+            "paired_rows": 17165,
+            "unpaired_rows": 274,
+            "setup_failures": 22,
+            "setup_wns_ns": -0.3619999885559082,
+            "hold_failures": 0,
+            "hold_min_ns": 0.7839999794960022,
+            "fmax": {
+              "clk_pixel": {
+                "achieved": 75.8725357055664,
+                "constraint": 74.25006866455078
+              },
+              "clocks[0]": {
+                "achieved": 96.50646209716797,
+                "constraint": 100
+              },
+              "clocks[1]": {
+                "achieved": 173.0702667236328,
+                "constraint": 50
+              },
+              "clocks[2]": {
+                "achieved": 161.21231079101562,
+                "constraint": 50
+              }
+            }
+          }
+        ]
+      }
+    },
+    "mixed-clock-memory50-summary.json": {
+      "sha256": "8ad61e83fcca2395aae32fc9e8bd3f05daa71627dc90ae838104eaa78947b03f",
+      "evidence": {
+        "scope": "Actual prototype frontend100/controller50/capture50 matched-clock-branch reference. Different remaining fabric and clock side branches, declared30pF, optimistic zero-flight published chip conditions. Not exact-artifact or kit acceptance.",
+        "corners": {
+          "7_slow_1100mv_-40c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 11.473,
+              "sha256": "f0cf5bc9f9df964b0b9e6e2ac97aa5f7c7fd6e5c0f04f7bb9045b88a161019bc"
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 2.82,
+              "sha256": "9e5bf8f240628787ee8f47330c09e6d7c15a141b578f737351c526f3fbb52abf"
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.722,
+              "sha256": "cbb09651252875c5a62bec979491b81cbe7e4b5c6571d670cb07a3aa1305a05d"
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.678,
+              "sha256": "9edda358be6c240eaa1c4b4e59991dee5f748b334f66cd724390de0eb6300e44"
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 7.849,
+              "sha256": "cc9abf7c6cf3b70681ab4f97ab579713da831021668a678288159d7c71e5611b"
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 6.989,
+              "sha256": "aad022305304d75c7ae5da8c167da799f213714943f10ed05b60578c073fe03b"
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 11.386,
+              "sha256": "b45a33e606bb4b20ea63a8582d877afea1321cab026bf92306fa8cab2ebff8db"
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 2.751,
+              "sha256": "65f95b894c046ae4cc91b048b1e13a0b88065fbdb583d597bd92087fc8e6005e"
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 7.182,
+              "sha256": "5c49b22b12b2b0d75a4fc8f2ad389fe7c641c606d3986c10b18bdd3f376f02f2"
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.038,
+              "sha256": "27878f12b281b3972950cdbe6c3af4beec65b2d2b828bcbe163006667cea25fd"
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 7.753,
+              "sha256": "ffb64ed93ee97d34c31080509a22c320cd3a87fd1d77241b9cc9fd33037bb0f4"
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 7.033,
+              "sha256": "147678313d113394472704d7d7755c46ed6beb1f1f8ebbb70e0faba49d6e1393"
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 10.605,
+              "sha256": "0b765dd3d1eb739841a4c5fcc2dd2cb701230ebbff703566c8276730833a08ac"
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.613,
+              "sha256": "4d8cf0519b3dbd0e1865673dd9c9c70399703c3cbff60d2d072949254fd90546"
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 4.861,
+              "sha256": "e1062b1791378c088d2dea4831d05678745f668560087f7caa827ba6122f5c0d"
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 9.333,
+              "sha256": "b3850bc22ec42dfe9eeff051b4cc13bb594976e26ae27b9638252720a991bec2"
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 8.37,
+              "sha256": "72f2857e6637f0d9ea390feff994aad57610e54d806ec4f68a60eb1dbb9faf39"
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 7.701,
+              "sha256": "7380d1b832bb9fed2e0186a5eeb94c81c5bb2a9ea1390b1b3e3ac905b90e11da"
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "handoff-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 10.648,
+              "sha256": "42c54a8d924f348eb788805d4766f65812db0f768d082e66d0ab2366c102e8c1"
+            },
+            "handoff-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 6.188,
+              "sha256": "2630723c88be1443cda640d7ffc101296130da0ce9064bb00792afcdc0a6e412"
+            },
+            "input-hold": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 5.476,
+              "sha256": "fb456c82498b75371a56c56a8def7d010a56072d7a35700a79a564f3d8969b86"
+            },
+            "input-setup": {
+              "paths": 16,
+              "violations": 0,
+              "wns_ns": 8.734,
+              "sha256": "5664f689da6a138d8ff02acd3f132cc97c21770ace801ae1a30a31ab8ce24349"
+            },
+            "output-hold": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 8.243,
+              "sha256": "dd818099a27252b5bd73431d9ade3521bebfb6ba492f1946ddc432d85fedbc53"
+            },
+            "output-setup": {
+              "paths": 51,
+              "violations": 0,
+              "wns_ns": 7.698,
+              "sha256": "daf1d083da995704666ee08bee7520910a908715b7ee6e58f666e840ff1b1048"
+            }
+          }
+        },
+        "matched_forwarded_clock_edges": 9,
+        "native_chain": [
+          "GCLK.000.036.0001",
+          "SCLK.077.000.0018",
+          "SCLKB1.077.000.0054",
+          "SCLKB2.077.000.0056",
+          "BCLK.067.000.0005",
+          "BCLKB.067.000.0005",
+          "XCLKB1.070.000.0005",
+          "XCLKB2A.070.000.0005",
+          "TCLK.070.000.0015",
+          "DCMUX.070.000.0015"
+        ],
+        "native_rbf_sha256": "2fddab429ddbb3adb4b784e512549953a91816310f26782d22f42f7211d1f8d4",
+        "quartus_rbf_sha256": "4bdcd21b76c27bf34d01bdb0882d976ec5cd5d24928af6bcc135e51f0dc122b4",
+        "files": {
+          "mixed-clock-input.json": "0de754cf5d43ad7ba1b072c5e76ac338759419a9b861dfac51945e4310fbf3ed",
+          "top.qsf": "89fe3eabc9c44cc2587a7f83cf1c5d611db7dd395b04a8c8cd417522be14a0fc",
+          "top.sv": "0a6f59ffe8a70a7fea7f8a812a694620b811982c8315e3f50988b691f463c99c",
+          "top.rcf": "53c90b116fd8f53aada58800009190d69210d6de8e5370510705b54d31cb7682",
+          "pcxt_memory.sv": "dd786527c59a6854216853d220a65f3abd94040a80357d1aed495fede015df36",
+          "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+          "selected-muxes.tsv": "0dac56014ccb55e1c3200fba0c9be9db0e2b129399e7ec4864951afff9e08c9e",
+          "selected-query.log": "ae776a40855a0ec2a07fd6aa094af3c5e256704dd828eb4bb2d936da89e841e5",
+          "mixed-clock-compile.log": "1078dd813c1d6ef01f7358fb924762591426df68fd5f3c779f0013cf3d060ff2",
+          "mixed-clock-chip-pin.log": "85ab4d7b1909647a76b214bcd448bc1341ca68351740adc18e2386d98295093f"
+        },
+        "hardware": false,
+        "internal": {
+          "7_slow_1100mv_-40c": {
+            "setup": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 1.154,
+              "sha256": "88fe2ecfc9863f7fe27c38ab2b099e61c25eae3363b585d3353acd2eed5a05f3",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 68,
+                  "wns_ns": 4.05
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 2.82
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 46,
+                  "wns_ns": 4.183
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 131,
+                  "wns_ns": 11.35
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 10.828
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 2.82,
+              "synthetic_clock_observation_paths": 1
+            },
+            "hold": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 0.36,
+              "sha256": "4557391dd17abb11d0ef05402b882bf55d11a615fb9d0d5f4852a98af96765bf",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 5,
+                  "wns_ns": 0.499
+                },
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 38,
+                  "wns_ns": 0.524
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 11.473
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 41,
+                  "wns_ns": 0.528
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 161,
+                  "wns_ns": 0.36
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 0.44
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 0.36,
+              "synthetic_clock_observation_paths": 1
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "setup": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 0.738,
+              "sha256": "b09c9de784755519cfe489fe178914378c23dd7ff14018b94a149f4bc6be8d52",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 68,
+                  "wns_ns": 3.655
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 2.751
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 46,
+                  "wns_ns": 3.94
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 131,
+                  "wns_ns": 10.738
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 11.098
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 2.751,
+              "synthetic_clock_observation_paths": 1
+            },
+            "hold": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 0.433,
+              "sha256": "6075ad1ae810f504bbfa3cb484994f1da1adbbe97aa52b0b5e0f5fbabfed0ec6",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 5,
+                  "wns_ns": 0.451
+                },
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 43,
+                  "wns_ns": 0.515
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 11.386
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 41,
+                  "wns_ns": 0.549
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 156,
+                  "wns_ns": 0.446
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 0.433
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 0.433,
+              "synthetic_clock_observation_paths": 1
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "setup": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 5.101,
+              "sha256": "1aa243a59f14d7a1e6f9dd610e2929ebced8efc6b3d4f212332a1892665448c0",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 68,
+                  "wns_ns": 7.203
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 6.613
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 46,
+                  "wns_ns": 7.154
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 131,
+                  "wns_ns": 15.066
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 12.42
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 6.613,
+              "synthetic_clock_observation_paths": 1
+            },
+            "hold": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 0.144,
+              "sha256": "d047d8ef4bf4f5b67a8664552d1d1198e820dd1e5325b7b58174e78657ed814b",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 5,
+                  "wns_ns": 0.169
+                },
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 46,
+                  "wns_ns": 0.176
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 10.605
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 41,
+                  "wns_ns": 0.165
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 153,
+                  "wns_ns": 0.144
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 0.182
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 0.144,
+              "synthetic_clock_observation_paths": 1
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "setup": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 4.466,
+              "sha256": "21c526d05aa3dd7676650f055e1c2306374bf919bd408c564357687f94fab8e4",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 68,
+                  "wns_ns": 6.694
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 6.188
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 46,
+                  "wns_ns": 6.634
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 131,
+                  "wns_ns": 13.757
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 12.387
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 6.188,
+              "synthetic_clock_observation_paths": 1
+            },
+            "hold": {
+              "paths": 271,
+              "violations": 0,
+              "wns_ns": 0.183,
+              "sha256": "cfe3e4c06cd48b6b9702b5c1145e1cd4e8e4bbbf2248452e001e114d5f2ed571",
+              "clock_pairs": [
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 5,
+                  "wns_ns": 0.183
+                },
+                {
+                  "launch": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 42,
+                  "wns_ns": 0.234
+                },
+                {
+                  "launch": "memory_clock|general[1].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 16,
+                  "wns_ns": 10.648
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 41,
+                  "wns_ns": 0.231
+                },
+                {
+                  "launch": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "memory_clock|general[2].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 157,
+                  "wns_ns": 0.183
+                },
+                {
+                  "launch": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "capture": "video_clock|general[0].gpll~PLL_OUTPUT_COUNTER|divclk",
+                  "paths": 9,
+                  "wns_ns": 0.193
+                }
+              ],
+              "register_only_paths": 270,
+              "register_only_wns_ns": 0.183,
+              "synthetic_clock_observation_paths": 1
+            }
+          }
+        }
+      }
+    },
+    "memory50-accounting.json": {
+      "sha256": "bf24b5f5221d8521ba8ee3a9eaddcb90b657ec92a8a3582154738a8d035b965e",
+      "evidence": {
+        "completed_route_search_receipts": 106,
+        "prior_103_prefix_exact": true,
+        "all_106_receipt_objects_hashes_and_Decimal_charges_verified": true,
+        "journal_sha256": "815ee7cb834d1bc57bf4811e3accd8ab5074488815628d715c916e1a8733e32c",
+        "new_charge_seconds": "523.58729807753115",
+        "cumulative_charge_seconds": "98433.87671378627359"
+      }
+    },
+    "uncertainty-test-changed-result.json": {
+      "sha256": "1294f7738b36642d4134d0c5df093b441780cbe1733f62cdaa677351beaaa11f",
+      "evidence": {
+        "format": 1,
+        "root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board",
+        "base": "5f33d986c1d377946b447a92e1a704d988eda238",
+        "head": "d09ae110505e3660bb5189b3e9f250d5e4f4f46a",
+        "checkout_head": "d09ae110505e3660bb5189b3e9f250d5e4f4f46a",
+        "merge_base": "5f33d986c1d377946b447a92e1a704d988eda238",
+        "local_paths": [],
+        "impact": {
+          "lanes": {
+            "parent": true,
+            "host": false,
+            "runtime": false,
+            "contracts": false,
+            "fpga": true
+          },
+          "skipped": [
+            "host",
+            "runtime",
+            "contracts"
+          ],
+          "cores": [
+            "apple2",
+            "atari-st",
+            "c64",
+            "coleco",
+            "demo",
+            "menu",
+            "pcxt",
+            "pong",
+            "ramtest",
+            "riscv",
+            "sg1000",
+            "sms",
+            "spectrum",
+            "z80",
+            "zx81"
+          ],
+          "test_modes": {
+            "video": true,
+            "media": false,
+            "full_race": false
+          },
+          "paths": [
+            "sources/misteross/cores/fes-pcxt/README.md",
+            "sources/misteross/docs/architecture.md",
+            "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/uncertainty-screen.json",
+            "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md",
+            "sources/misteross/scripts/screen_fes_pcxt_uncertainty.py",
+            "sources/misteross/tests/test_pcxt_uncertainty_screen.py"
+          ],
+          "reasons": [
+            "sources/misteross/scripts/screen_fes_pcxt_uncertainty.py: unclassified FPGA/shared graph input; all core families",
+            "sources/misteross/tests/test_pcxt_uncertainty_screen.py: FPGA producer/package software tests; RTL unchanged"
+          ],
+          "always": [
+            "planner tests",
+            "diff whitespace checks"
+          ],
+          "not_run": [
+            "FPGA synthesis/place-and-route",
+            "cold image builds",
+            "hardware acceptance"
+          ]
+        },
+        "commands": [
+          {
+            "lane": "always",
+            "label": "test_affected.py",
+            "cwd": ".",
+            "argv": [
+              "/usr/bin/python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "tests",
+              "-p",
+              "test_affected.py",
+              "-v"
+            ],
+            "tools": [
+              "/usr/bin/python3"
+            ],
+            "files": [
+              "tests/test_affected.py"
+            ]
+          },
+          {
+            "lane": "always",
+            "label": "test_test_changed.py",
+            "cwd": ".",
+            "argv": [
+              "/usr/bin/python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "tests",
+              "-p",
+              "test_test_changed.py",
+              "-v"
+            ],
+            "tools": [
+              "/usr/bin/python3"
+            ],
+            "files": [
+              "tests/test_test_changed.py"
+            ]
+          },
+          {
+            "lane": "always",
+            "label": "committed whitespace",
+            "cwd": ".",
+            "argv": [
+              "/usr/bin/python3",
+              "scripts/check_diff.py",
+              "--base",
+              "5f33d986c1d377946b447a92e1a704d988eda238",
+              "--head",
+              "d09ae110505e3660bb5189b3e9f250d5e4f4f46a"
+            ],
+            "tools": [
+              "/usr/bin/python3"
+            ],
+            "files": []
+          },
+          {
+            "lane": "always",
+            "label": "working whitespace",
+            "cwd": ".",
+            "argv": [
+              "git",
+              "diff",
+              "--check",
+              "HEAD",
+              "--"
+            ],
+            "tools": [
+              "git"
+            ],
+            "files": []
+          },
+          {
+            "lane": "parent",
+            "label": "parent Python regressions",
+            "cwd": ".",
+            "argv": [
+              "/usr/bin/python3",
+              "scripts/parent_tests.py",
+              "--video",
+              "true",
+              "--media",
+              "false",
+              "--paths-json",
+              "[\"sources/misteross/cores/fes-pcxt/README.md\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/uncertainty-screen.json\", \"sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md\", \"sources/misteross/scripts/screen_fes_pcxt_uncertainty.py\", \"sources/misteross/tests/test_pcxt_uncertainty_screen.py\"]"
+            ],
+            "tools": [
+              "/usr/bin/python3",
+              "sh"
+            ],
+            "files": [
+              "scripts/parent_tests.py",
+              "tests"
+            ]
+          },
+          {
+            "lane": "parent",
+            "label": "working-tree generated consumer consistency",
+            "cwd": ".",
+            "argv": [
+              "/usr/bin/python3",
+              "-c",
+              "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+            ],
+            "tools": [
+              "/usr/bin/python3",
+              "go"
+            ],
+            "files": [
+              "scripts/consistency.py"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sim-fes-native-video RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-native-video",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sim-fes-coleco-native RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-coleco-native",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sim-fes-native-socket RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-native-socket",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "test_*.py",
+            "cwd": "sources/misteross",
+            "argv": [
+              "/usr/bin/python3",
+              "-m",
+              "unittest",
+              "discover",
+              "-s",
+              "tests",
+              "-p",
+              "test_*.py",
+              "-v"
+            ],
+            "tools": [
+              "/usr/bin/python3",
+              "strace"
+            ],
+            "files": [
+              "tests/test_*.py"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "apple2 RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-apple2",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "atari-st RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-atari-st",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "c64 RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-c64",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "coleco RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-coleco",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "demo RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-demo",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "menu RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-menu",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "pcxt RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-pcxt",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "pong RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-pong",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "ramtest RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-ramtest",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "riscv RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-riscv",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sg1000 RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sg1000",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sg1000 OSS RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sg1000-oss",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sg1000 linked ROM RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sg1000-rom-link",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sg1000 audio identity simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sg1000-gp-audio",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sms RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sms",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "sms OSS RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-sms-oss",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "spectrum RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-spectrum",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "z80 RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-z80",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          },
+          {
+            "lane": "fpga",
+            "label": "zx81 RTL simulation",
+            "cwd": "sources/misteross",
+            "argv": [
+              "make",
+              "sim-fes-zx81",
+              "PYTHON=/usr/bin/python3"
+            ],
+            "tools": [
+              "c++",
+              "make",
+              "verilator"
+            ],
+            "files": [
+              "Makefile"
+            ]
+          }
+        ],
+        "limits": [
+          "FPGA synthesis/place-and-route",
+          "cold image builds",
+          "hardware acceptance",
+          "platform/image packaging suite",
+          "required browser integration suite",
+          "committed-source/release validation (make check remains separate)"
+        ],
+        "status": "passed",
+        "results": [
+          {
+            "label": "test_affected.py",
+            "lane": "always",
+            "returncode": 0
+          },
+          {
+            "label": "test_test_changed.py",
+            "lane": "always",
+            "returncode": 0
+          },
+          {
+            "label": "committed whitespace",
+            "lane": "always",
+            "returncode": 0
+          },
+          {
+            "label": "working whitespace",
+            "lane": "always",
+            "returncode": 0
+          },
+          {
+            "label": "parent Python regressions",
+            "lane": "parent",
+            "returncode": 0
+          },
+          {
+            "label": "working-tree generated consumer consistency",
+            "lane": "parent",
+            "returncode": 0
+          },
+          {
+            "label": "sim-fes-native-video RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sim-fes-coleco-native RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sim-fes-native-socket RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "test_*.py",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "apple2 RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "atari-st RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "c64 RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "coleco RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "demo RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "menu RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "pcxt RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "pong RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "ramtest RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "riscv RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sg1000 RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sg1000 OSS RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sg1000 linked ROM RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sg1000 audio identity simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sms RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "sms OSS RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "spectrum RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "z80 RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          },
+          {
+            "label": "zx81 RTL simulation",
+            "lane": "fpga",
+            "returncode": 0
+          }
+        ]
+      }
+    }
+  },
+  "memory50_storage_positive_and_negative_checks": [
+    {
+      "case": "positive",
+      "mask_delay": 0,
+      "returncode": 0,
+      "last_line": "PASS memory mask-delay=0: 10507 reads, 8491 writes, 945 refreshes, 160 warm/80 cold-reset phases, 2672897 clocks"
+    },
+    {
+      "case": "positive",
+      "mask_delay": 1,
+      "returncode": 0,
+      "last_line": "PASS memory mask-delay=1: 10507 reads, 8491 writes, 945 refreshes, 160 warm/80 cold-reset phases, 2672897 clocks"
+    },
+    {
+      "case": "positive",
+      "mask_delay": 2,
+      "returncode": 0,
+      "last_line": "PASS memory mask-delay=2: 10507 reads, 8491 writes, 945 refreshes, 160 warm/80 cold-reset phases, 2672897 clocks"
+    },
+    {
+      "case": "missing-reset-stretch",
+      "mask_delay": 0,
+      "returncode": 1,
+      "last_line": "short reset did not stretch at cycle 2646324"
+    },
+    {
+      "case": "late-refresh",
+      "mask_delay": 0,
+      "returncode": 1,
+      "last_line": "refresh interval at cycle 511085"
+    }
+  ],
+  "memory50_whole_cga": {
+    "results": [
+      {
+        "mask": 0,
+        "returncode": 0
+      },
+      {
+        "mask": 1,
+        "returncode": 0
+      },
+      {
+        "mask": 2,
+        "returncode": 0
+      }
+    ],
+    "receipt_sha256": "d19c206abe383a0259a0584713886e256f7fd4a1d3bc319a777e0c3997601e39"
+  },
+  "default_profile_equivalence_points": 464,
+  "default_profile_proof_sha256": "153aa0902ce8790eaf8c6dedc0a5a6545492ed22b888e9642fe46ad3f1309f20",
+  "report_fix": {
+    "PR": "https://github.com/DeanoC/nextpnr/pull/294",
+    "commit": "18cb4d4fab1ed6c8004f7e9c1e9b80bb6cf7082b",
+    "timing_report_tests": 14
+  },
+  "hardware": false
+}
