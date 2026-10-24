@@ -255,7 +255,7 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   }
   const ids=['open-core-library','core-library','core-library-close','core-library-refresh',
     'core-package-file','core-package-import','core-package-select','core-package-check','core-package-status',
-    'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
+    'core-media-file','core-media-drive','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
     'core-entry-media-save','core-entry-media-clear','core-blank-disk-name','core-blank-disk-geometry',
     'core-blank-disk','core-blank-disk-status','core-library-message'];
@@ -419,7 +419,7 @@ test('video inventory failure disables install and names the outage', async () =
   }
   const ids = ['open-core-library','core-library','core-library-close','core-library-refresh',
     'core-package-file','core-package-import','core-package-select','core-package-check','core-package-status',
-    'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
+    'core-media-file','core-media-drive','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
     'core-entry-media-save','core-entry-media-clear','core-blank-disk-name','core-blank-disk-geometry',
     'core-blank-disk','core-blank-disk-status','core-library-message',

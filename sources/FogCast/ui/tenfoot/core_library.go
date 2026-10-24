@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -122,7 +122,7 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	if s.PickID != "" {
 		title = "Choose " + strings.TrimPrefix(strings.TrimPrefix(s.PickID, "rom:"), "media:")
 	}
-	return FirmwarePickerSnapshot{Open: true, Title: title, Path: s.Path, Rows: a.coreLibraryRowsLocked(), Index: s.Index, Busy: s.Busy, Status: s.Status, Hint: selectWord(a.affinity.current.Kind) + " choose  " + backWord(a.affinity.current.Kind) + " back"}
+	return FirmwarePickerSnapshot{Open: true, Title: title, Path: a.pickerDisplayPathLocked(s.Path), Rows: a.coreLibraryRowsLocked(), Index: s.Index, Busy: s.Busy, Status: s.Status, Hint: selectWord(a.affinity.current.Kind) + " choose  " + backWord(a.affinity.current.Kind) + " back"}
 }
 func (a *App) openCoreLibraryLocked() {
 	a.resetCoreLibraryLocked()
@@ -348,8 +348,8 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 	if strings.HasPrefix(row.Kind, "rom:") || strings.HasPrefix(row.Kind, "media:") {
 		s.PickID = row.Kind
 		s.Path = ""
-		home, _ := os.UserHomeDir()
-		s.Files = firmwarePickerRoots(home, a.hostSettings.Libraries)
+		s.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
+		a.refreshStorageRootsLocked()
 		s.Index = 0
 		return
 	}
@@ -391,6 +391,16 @@ func (a *App) coreLibraryFileLocked(row FirmwarePickerRow) {
 	}
 }
 func (a *App) coreLibraryDirLocked(path string) {
+	if path == "" {
+		a.coreLibrary.Path = ""
+		a.coreLibrary.Files = a.storagePickerRootsLocked(a.corePickerPurposeLocked())
+		a.coreLibrary.Index = 0
+		return
+	}
+	if _, _, _, ok := splitDrivePath(path); ok {
+		a.loadDrivePickerDirLocked(path, "core")
+		return
+	}
 	rows, err := listFirmwarePickerDir(path)
 	if err != nil {
 		a.coreLibrary.Status = err.Error()
@@ -450,21 +460,18 @@ func (a *App) importCoreLibraryFileLocked(path string) {
 		s.Status = "Unsupported media requirement"
 		return
 	}
+	manager := a.driveManagerLocked()
 	var media hostclient.CoreMedia
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
-		f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		f, size, _, err := openPickerFile(ctx, manager, a.client, path, storage.MaxFileBytes)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if !info.Mode().IsRegular() || info.Size() < min || info.Size() > max {
+		if size < min || size > max {
 			return fmt.Errorf("Choose a regular file of %d–%d bytes", min, max)
 		}
-		media, err = a.client.ImportCoreMedia(ctx, info.Size(), f)
+		media, err = a.client.ImportCoreMedia(ctx, size, f)
 		return err
 	}, func() {
 		if strings.HasPrefix(pick, "rom:") {

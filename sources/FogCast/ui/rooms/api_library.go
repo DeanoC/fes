@@ -175,6 +175,12 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 	t.RawSetString("launchable", lua.LBool(g.LaunchEligible()))
 	t.RawSetString("firmware_required", lua.LBool(g.FirmwareRequired))
 	t.RawSetString("firmware_ready", lua.LBool(g.FirmwareReady))
+	t.RawSetString("rom_required", lua.LBool(g.ROMRequired))
+	t.RawSetString("rom_ready", lua.LBool(g.ROMReady))
+	t.RawSetString("rom_id", lua.LString(g.ROMID))
+	t.RawSetString("rom_media_id", lua.LString(g.ROMMediaID))
+	t.RawSetString("rom_role", lua.LString(g.ROMRole))
+	t.RawSetString("rom_source_size", lua.LNumber(g.ROMSourceSize))
 	if exec := strings.TrimSpace(g.Execution); exec != "" {
 		t.RawSetString("execution", lua.LString(exec))
 	}

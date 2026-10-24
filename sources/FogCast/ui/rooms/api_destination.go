@@ -310,6 +310,12 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			Execution:        optString(row, "execution"),
 			FirmwareRequired: optBool(row, "firmware_required"),
 			FirmwareReady:    optBool(row, "firmware_ready"),
+			ROMRequired:      optBool(row, "rom_required"),
+			ROMReady:         optBool(row, "rom_ready"),
+			ROMID:            optString(row, "rom_id"),
+			ROMMediaID:       optString(row, "rom_media_id"),
+			ROMRole:          optString(row, "rom_role"),
+			ROMSourceSize:    optInt64(row, "rom_source_size"),
 		}
 		g = applyPlayFacts(g, row)
 		if _, ok := row.RawGetString("ready_here").(lua.LBool); ok {
