@@ -485,3 +485,8 @@ Portable room files use the same installer and rollback path:
 validates before publishing; import checks the bounded archive privately before
 changing the selected snapshot. No source checkout is needed to install it.
 See [room installation](docs/rooms.md#installing-and-opening-rooms).
+
+Tenfoot synchronizes held-direction repeat state between frame-loop input and
+asynchronous session-display handoffs. A failed surround transition can clear
+pending repeats without racing the frame tick; repeat delay and cadence are
+unchanged. The input helper releases its lock before command dispatch.
