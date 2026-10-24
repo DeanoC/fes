@@ -757,8 +757,19 @@ local function draw_compact()
   end
 end
 
+-- The list is a snapshot. Repaint only when its identity, focus or geometry
+-- changes; store debounce still runs in update() while the picture is reused.
+local painted = nil
+
 function draw()
-  gfx.clear(C.background)
+  if room.presented and painted
+    and painted.cores == cores and painted.status == status
+    and painted.row == row and painted.shelf_i == shelf_i
+    and painted.menu_i == menu_i and painted.first == first
+    and painted.width == room.width and painted.height == room.height
+    and painted.title == room.title and gfx.reuse() then
+    return
+  end
   local h = layout()
   if h then
     draw_header(h)
@@ -768,4 +779,13 @@ function draw()
     draw_compact()
   end
   publish()
+  painted = {
+    cores = cores, status = status, row = row, shelf_i = shelf_i,
+    menu_i = menu_i, first = first, width = room.width,
+    height = room.height, title = room.title,
+  }
+  -- Paint the background after assembling the full display list. The existing
+  -- engine presents a completed paint on a soft overrun, allowing the next
+  -- unchanged draw to reuse it. Hard deadlines and overrun limits still apply.
+  gfx.paint({ { "c", C.background } })
 end
