@@ -153,7 +153,7 @@ coprocessor. A 387-compatible unit is a later milestone ([x87](#x87)).
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
 | HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md) |
 | RAM rules | M10K reads are synchronous (producers reject asynchronous M10K); current producers forbid MLAB | [Architecture](architecture.md) |
-| DSP | A recipe may permit DSP cells, as the [Atari ST shell](../scripts/build_fes_atari_st_oss.py) does; the RISC-V recipe forbids them | Producer scripts |
+| DSP | A recipe may permit DSP cells, as the [Atari ST shell](../scripts/build_fes_atari_st_oss.py) does; the RISC-V recipe forbids them. This CPU's recipe permits them | Producer scripts |
 
 Rules that follow, checked in review and against every routed critical path:
 
@@ -170,6 +170,8 @@ Rules that follow, checked in review and against every routed critical path:
    result, never a compatibility input.
 5. Do not change the architecture to chase a few MHz before a routed
    measurement says where the path is.
+6. Use DSP blocks wherever they save logic or cycles: the integer multiplier,
+   AAM and AAD, and the x87 multiplier and wide shifts.
 
 The area budget is in [budgets](#budgets).
 
@@ -544,12 +546,14 @@ updates hold the L2's DMA port between their read and their write.
 - **Shifter:** a 64-bit funnel shifter for SHLD, SHRD and the 33-bit RCL/RCR,
   with counts masked to five bits as on the 386, in one cycle.
 - **Multiplier:** MUL and IMUL at 8, 16 and 32 bits on DSP blocks, pipelined over
-  three cycles; only dependent uops wait. This needs the recipe to permit
-  `MISTRAL_MUL*` cells. If a recipe must forbid DSP, an iterative radix-4
-  multiplier takes about 16 cycles.
+  three cycles; only dependent uops wait. The two- and three-operand IMUL
+  forms use the same unit.
 - **Divider:** radix-2 non-restoring with leading-zero skip, at most 34 cycles for
   32 bits (estimate; a 386 takes 38 for DIV r32). Divide by zero and quotient
-  overflow raise #DE on the DIV itself.
+  overflow raise #DE on the DIV itself. Later, if profiles show divide time
+  (perspective-correct renderers divide often): a DSP-assisted divider that
+  refines a reciprocal estimate by multiplication and then corrects the
+  quotient and remainder exactly.
 - **Bit scan:** BSF and BSR use a one-cycle priority encoder. The destination for
   a zero source follows the corpora.
 - **BCD:** AAA, AAS, DAA and DAS are one uop each with the i386's undefined-flag
@@ -640,7 +644,8 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
   AT.
 - A 68-bit adder and normaliser, a 64-bit mantissa multiplier tiled on DSP
   blocks, radix-4 SRT divide and square root, and transcendental functions in
-  microcode.
+  microcode. Alignment and normalisation shifts run as DSP multiplies by a
+  power of two wherever that beats a LUT shifter on area or timing.
 - Add, subtract, multiply, divide, square root and conversions are bit-exact
   IEEE under x87 precision and rounding control. The 387's transcendental
   results are not correctly rounded and its algorithms are not public, so
@@ -727,13 +732,11 @@ or exact-artifact hardware acceptance.
    no addon, is 128 bits wide and measured about 1.5 GB/s. Its latency is
    unmeasured; M1 measures line-fill latency on both before the choice is
    frozen.
-2. **DSP cells** in the CPU's producer recipe, for the multiplier now and the
-   x87 later.
-3. **The machine:** AT chipset, VGA, Sound Blaster with OPL, IDE and floppy as
+2. **The machine:** AT chipset, VGA, Sound Blaster with OPL, IDE and floppy as
    `fes.pc386`, and which BIOS: an open BIOS or user-linked firmware through a
    ROM map.
-4. **Default speed mode:** `max` (proposed) or a 386DX-33 preset.
-5. **Whether `i486-isa` is wanted at all.**
+3. **Default speed mode:** `max` (proposed) or a 386DX-33 preset.
+4. **Whether `i486-isa` is wanted at all.**
 
 ## Location
 
