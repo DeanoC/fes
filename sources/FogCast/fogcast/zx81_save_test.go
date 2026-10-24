@@ -226,6 +226,61 @@ func TestStopSkipsZX80WithoutCapturing(t *testing.T) {
 	}
 }
 
+func TestStopPersistsCatalogIdentifiedTimexProgram(t *testing.T) {
+	for _, coreID := range []string{"fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			service, client, store, _ := newZX81StopFixture(t)
+			entry, err := store.CreateCoreEntry(context.Background(), coreID, coreID, strings.Repeat("a", 64))
+			if err != nil {
+				t.Fatal(err)
+			}
+			play := service.plays["kit"]
+			play.coreID = ""
+			play.gameID = entry.GameID
+			service.plays["kit"] = play
+			want := []byte{0x00, 0x0a, 0x76}
+			client.data = want
+
+			status, err := service.Stop(context.Background())
+			if err != nil || status.State != protocol.StateIdle {
+				t.Fatalf("Stop = %+v, %v", status, err)
+			}
+			if !reflect.DeepEqual(client.events, []string{"capture", "acknowledge", "stop"}) {
+				t.Fatalf("SAVE/Stop order = %v", client.events)
+			}
+			saves, err := store.ListZX81Saves(context.Background(), entry.GameID)
+			if err != nil || len(saves) != 1 || saves[0].Size != int64(len(want)) {
+				t.Fatalf("persisted saves = %+v, %v", saves, err)
+			}
+		})
+	}
+}
+
+func TestStopSkipsCatalogIdentifiedZX80(t *testing.T) {
+	service, client, store, _ := newZX81StopFixture(t)
+	entry, err := store.CreateCoreEntry(context.Background(), "ZX80", "fes.zx80", strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+	play := service.plays["kit"]
+	play.coreID = ""
+	play.gameID = entry.GameID
+	service.plays["kit"] = play
+	logs := captureZX81SaveLogs(t)
+
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop = %+v, %v", status, err)
+	}
+	if client.captureCalls != 0 || client.stopCalls != 1 {
+		t.Fatalf("capture=%d stop=%d", client.captureCalls, client.stopCalls)
+	}
+	record := zx81LogRecord(t, logs)
+	if record["reason"] != "core_does_not_save" || record["core_id"] != "fes.zx80" {
+		t.Fatalf("catalog ZX80 skip log = %+v", record)
+	}
+}
+
 func TestStopDoesNotReadCatalogForLaunchBoundNonZX81Core(t *testing.T) {
 	service, client, store, _ := newZX81StopFixture(t)
 	catalogFailure := &zx81FailingCoreEntryCatalog{Store: store}
