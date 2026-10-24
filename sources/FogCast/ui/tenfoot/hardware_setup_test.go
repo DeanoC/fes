@@ -155,10 +155,10 @@ func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
 }
 
 func TestHardwarePickerOmitsZX81StartersForZX80(t *testing.T) {
-	var requests int
+	requests := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/library/zx81-tapes" {
-			requests++
+			requests <- struct{}{}
 		}
 		json.NewEncoder(w).Encode(map[string]any{"tapes": zx81tapes.Entries()})
 	}))
@@ -167,14 +167,47 @@ func TestHardwarePickerOmitsZX81StartersForZX80(t *testing.T) {
 	app.ctx = context.Background()
 	app.mu.Lock()
 	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx80", CoreID: "fes.zx80", PackageID: strings.Repeat("a", 64), ExpectedMediaID: ""})
-	rows := app.hardwarePickerRowsLocked()
 	app.mu.Unlock()
 	waitCoreLibrary(t, app)
-	if requests != 0 {
-		t.Fatal("ZX80 setup requested the bundled ZX81 starter shelf")
+	app.mu.Lock()
+	rows := app.hardwarePickerRowsLocked()
+	app.mu.Unlock()
+	select {
+	case <-requests:
+	default:
+		t.Fatal("ZX80 setup skipped its machine-bound tape shelf")
 	}
 	if len(rows) != 2 || rows[0].Kind != "empty-tape" || rows[1].Kind != "import-tape" {
 		t.Fatalf("ZX80 cassette picker rows = %+v", rows)
+	}
+}
+
+func TestHardwarePickerKeepsSavedTimexProgramsWithoutStarters(t *testing.T) {
+	mediaID := strings.Repeat("d", 64)
+	starter := zx81tapes.Entries()[0]
+	tapes := []hostclient.HardwareTape{
+		{ID: starter.ID, Name: starter.Name, Filename: starter.Filename, License: starter.License, SourceURL: starter.SourceURL, Controls: starter.Controls, SHA256: starter.SHA256, RAMKB: starter.RAMKB},
+		{ID: "saved-" + mediaID, Name: "Timex save", Filename: "saved.p", License: "Saved", SHA256: mediaID, MediaID: mediaID, RAMKB: 1},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/library/zx81-tapes" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{"tapes": tapes})
+	}))
+	defer server.Close()
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.ctx = context.Background()
+	app.mu.Lock()
+	app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-ts1000", CoreID: "fes.ts1000", PackageID: strings.Repeat("a", 64), ExpectedMediaID: ""})
+	app.mu.Unlock()
+	waitCoreLibrary(t, app)
+	app.mu.Lock()
+	loaded := append([]hostclient.HardwareTape(nil), app.coreLibrary.Tapes...)
+	rows := app.hardwarePickerRowsLocked()
+	app.mu.Unlock()
+	if len(loaded) != 1 || loaded[0].MediaID != mediaID || len(rows) != 3 || rows[2].Kind != "tape:saved-"+mediaID {
+		t.Fatalf("Timex cassette picker tapes=%+v rows=%+v", loaded, rows)
 	}
 }
 

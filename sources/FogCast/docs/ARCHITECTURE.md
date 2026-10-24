@@ -3315,10 +3315,9 @@ retains the captured package and previous media ID for compare-and-swap; expansi
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The hardware projection carries each setup's core ID through the tenfoot action;
-bundled starter cassettes appear only for `fes.zx81`, while ZX80 and Timex setups
-can still import a selected `.p`. Machine-bound tape-shelf reads apply the same
-core-ID filter, including the live picker, and saved programs remain scoped to
-their game.
+bundled starter cassettes appear only for `fes.zx81`. ZX80 and Timex setups still
+load their game-scoped saved programs and can import a selected `.p`. Machine-bound
+tape-shelf reads apply the same starter filter, including the live picker.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises

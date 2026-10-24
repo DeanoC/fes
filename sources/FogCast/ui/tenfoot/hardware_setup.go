@@ -55,20 +55,36 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return
 	}
 	s.HardwareMode = "tapes"
-	if action.CoreID != "fes.zx81" {
-		s.Status = "Choose a cassette for the next start. Bundled starter cassettes are available only for ZX81 setups."
+	if !zx81family.Known(action.CoreID) {
+		s.Status = "Choose a cassette for the next start."
 		return
 	}
-	s.Status = "Loading starter cassettes…"
+	s.Status = "Loading cassettes…"
 	var tapes []hostclient.HardwareTape
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
 		tapes, err = a.client.ZX81TapesForGame(ctx, action.GameID)
 		return err
 	}, func() {
-		s.Tapes = tapes
-		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN. Each starter tape shows its recommended RAM."
+		s.Tapes = hardwareTapesForCore(action.CoreID, tapes)
+		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN."
+		if action.CoreID == "fes.zx81" {
+			s.Status += " Each starter tape shows its recommended RAM."
+		}
 	})
+}
+
+func hardwareTapesForCore(coreID string, tapes []hostclient.HardwareTape) []hostclient.HardwareTape {
+	if coreID == "fes.zx81" {
+		return tapes
+	}
+	filtered := make([]hostclient.HardwareTape, 0, len(tapes))
+	for _, tape := range tapes {
+		if tape.MediaID != "" {
+			filtered = append(filtered, tape)
+		}
+	}
+	return filtered
 }
 
 func (a *App) hardwarePickerRowsLocked() []FirmwarePickerRow {
