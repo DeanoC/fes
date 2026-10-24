@@ -574,6 +574,7 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 		return
 	}
 	if err != nil {
+		a.session.MediaName = ""
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -601,6 +602,7 @@ func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.Session
 	}
 	if err != nil {
 		// Eject failure leaves the active session alone. Unavailable is not Stop.
+		a.session.MediaName = ""
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return

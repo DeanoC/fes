@@ -101,6 +101,15 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 
 	service.err = nil
 
+	confirmed := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"other.p"}`))
+	confirmed.Host = "127.0.0.1"
+	confirmed.Header = r.Header.Clone()
+	confirmedReply := httptest.NewRecorder()
+	handler.ServeHTTP(confirmedReply, confirmed)
+	if confirmedReply.Code != 200 || !strings.Contains(confirmedReply.Body.String(), `"media_name":"other.p"`) {
+		t.Fatalf("insert not confirmed: %s", confirmedReply.Body)
+	}
+
 	clear := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media/clear", nil)
 	clear.Host = "127.0.0.1"
 	clear.Header.Set("X-FogCast-Session-ID", session.ID)

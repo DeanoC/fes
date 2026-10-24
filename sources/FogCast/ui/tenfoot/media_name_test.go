@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -26,5 +27,14 @@ func TestCurrentMediaLabel(t *testing.T) {
 	pkg.MediaUnits[0].State = protocol.MediaUnitReady
 	if got := currentMediaLabel(session); got != "Inserted media name unavailable" {
 		t.Fatal(got)
+	}
+}
+
+func TestUncertainMediaInsertClearsDisplayedName(t *testing.T) {
+	prior := hostclient.SessionResult{ID: "session", Target: "dev", State: "active", CorePackage: &hostclient.SessionCorePackage{PackageID: "package", Generation: 9}, MediaName: "old.d64"}
+	app := &App{session: prior, tapePickerGen: 1, tapePickerOpen: true}
+	app.finishTapeArm(1, prior, hostclient.SessionResult{}, errors.New("reply lost"))
+	if app.session.MediaName != "" || app.tapePickerStatus != "reply lost" || !app.tapePickerOpen {
+		t.Fatalf("name=%q status=%q open=%v", app.session.MediaName, app.tapePickerStatus, app.tapePickerOpen)
 	}
 }
