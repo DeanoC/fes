@@ -3096,8 +3096,10 @@ removing that decode from the peripheral's same-cycle control path. Warm reset/H
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
-Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
-unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+Its default seed-3 route uses fixed timing weight 2000 and criticality exponent 5,
+with unchanged 100/74.25 MHz constraints. An explicit unsigned 64-bit `--seed`
+selects a reproducible diagnostic run; it does not start a seed search. The
+receipt binds that seed and all generated ROM/facts bytes. The producer preserves `gpu-run`'s ROCr
 lease mask while removing only an identical redundant HIP mask; route settings
 and visibility are recorded in the diagnostic receipt.
 The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)

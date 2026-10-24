@@ -209,3 +209,27 @@ Commit 46cd75db adds twelve per-channel DMA mode-decode configuration bits. All 
 The motherboard read pipeline samples local peripherals at the original phase-8 edge into an independent byte register and transfers that byte into the shared return register at phase 17. It preserves the existing eight active and nine release clocks. An original-behavior ghost return register and the local-phase bound are proved together by temporal induction over the actual motherboard/peripheral RTL. The phase bound is proved, not assumed. The native motherboard suite passes the same 378 transactions in 17245445 clocks. CPU and DMA consume the payload on completion; its inactive intermediate value is not a public read sample.
 
 Initial whole-module equivalence attempts retained 2900 proved points but could not prove the return-data invariant after cutting state/phase relationships; they are retained as failed proof attempts. The single-design temporal proof retains those relationships and passes. Negative tests change the peripheral sample edge or the completed byte and require an actual failed proof, not a parser error. Initial negative-test assertions used a different Yosys diagnostic spelling; the proof rejection was present, and the assertion was corrected. No FPGA or kit ran.
+
+### Reviewed-main fabric gate and authenticated replay
+
+Frozen RTL checkpoint `e799cd7a97f6a536160ea3ba275df68628565a75` passes the fixed three-seed **reported fabric** gate with reviewed nextpnr `b9ffde2d360ef3fc56c67074bfed2ddfe7933535` and Mistral `9ab6522077948fc3dd2e074338874f92e848fc44`. Only the seed changes; source, compiler, environment, input bindings and native recipe are identical. System/capture targets remain 100 MHz and pixel 74.25 MHz. All three runs have the exact same complete 17187 timed identities, every reported row has paired setup/hold checks, and all 20 new FFs have DATAIN/ENA/SCLR coverage.
+
+| Seed | Setup failures | Worst setup | Hold failures | Minimum hold |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 2 | -297 ps | 0 | +771 ps |
+| 2 | 0 | +22 ps | 0 | +767 ps |
+| 3 | 0 | +55 ps | 0 | +764 ps |
+
+The DMA-only seed-3 comparison has four display setup failures, worst -465 ps, and no hold failures (+714 ps minimum). It is retained as a failed intermediate route, not mixed into the accepted recipe. Cross-source private endpoint renames are retained in full unions; the three-seed gate compares the entire identical new identity set, not an intersection.
+
+The official published cache, selected using an explicit temporary candidate lock, reproduces seed 2's RBF, timing and model reports byte for byte. Its routed JSON differs only in `/creator`: the two builds encode the same reviewed source with different version labels. The RBF SHA256 is `d004b81c8cfbe5714ae76843885acddc7ab50b04bbab1404b5849f513126206b`. This is an authenticated replay of the frozen synthesized input, **not** a fresh producer build.
+
+Mapped structure has 3974 FFs and 268 M10Ks. Immutable source-span witnesses identify the twelve DMA predecode FFs and eight read-snapshot FFs even when Yosys removes or inverts their aliases; all are system-clocked. The shared return DATAIN cones exclude direct local-peripheral launches. All 104 independent boot-address FFs, fourteen boot M10Ks, registered dot enables, aligned region decode and shallow DMA snapshot enables retain their checked structure.
+
+The stable checkpoint passes `make check`, all 842 parent tests, 1289 component tests (one optional oracle skipped), all 16 PC/XT simulation suites and generated-consumer consistency. The new native motherboard check retains 378 transactions in 17245445 clocks. These are host checks and routed fabric evidence; no kit ran.
+
+All 105 prior unqualified physical-boundary roles remain accounted for in the new route: 28 HDMI, 21 registered SDRAM/clock, two byte-mask, 32 bidirectional data/OE, sixteen SDRAM capture, four reset-clear and two HPS I2C endpoints. The four reset roles are rebound by immutable RTL source spans, not guessed private aliases. The five reference untimed rows are also retained. Physical whole-board timing, external board/chip budgets, reset/CDC qualification, exact-artifact Quartus checks and hardware acceptance are still open. The full compiler host suite is not claimed as passing evidence.
+
+The diagnostic producer now selects reviewed main and the merged Mistral timing-line correction through its private core lock; other core/global pins are unchanged. It defaults to seed 3, exposes unsigned-64-bit `--seed` for reproduction, and records every generated `.mem`, `.hex` and facts `.vh` file. A fresh ordinary producer run is the next check. No factory/package/runtime contract or hardware acceptance is added.
+
+Receipts 93-97 retain all five new routes, including the failed DMA-only and seed-1 runs. The original 92-receipt prefix is exact; all 97 receipt objects, hashes and Decimal charges verify. Exact cumulative charge: 96582.15624318644347 seconds.

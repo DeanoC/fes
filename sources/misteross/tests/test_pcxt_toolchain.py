@@ -1,5 +1,6 @@
 """The PC/XT producer selects its own lock, toolchain lane and GPU backend."""
 import importlib.util
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -35,7 +36,8 @@ class PcxtToolchainTest(unittest.TestCase):
         class Stop(Exception):
             pass
         for argv, cache in ((['build_fes_pcxt.py'], None),
-                            (['build_fes_pcxt.py', '--cache-root', '/cache'], Path('/cache'))):
+                            (['build_fes_pcxt.py', '--cache-root', '/cache'], Path('/cache')),
+                            (['build_fes_pcxt.py', '--seed', '2'], None)):
             with self.subTest(argv=argv), mock.patch.object(sys, 'argv', argv), \
                     mock.patch.object(builder, 'authenticate_tools', side_effect=Stop) as authenticate:
                 with self.assertRaises(Stop):
@@ -45,6 +47,17 @@ class PcxtToolchainTest(unittest.TestCase):
         with mock.patch.object(builder, '_authenticate_tools') as authenticate:
             builder.authenticate_tools(builder.ROOT, None)
             self.assertIsNone(authenticate.call_args.kwargs['cache_root'])
+
+    def test_invalid_seed_rejected_before_tools(self):
+        for seed in ('-1', str(1 << 64), 'invalid'):
+            with self.subTest(seed=seed), \
+                    mock.patch.object(sys, 'argv', ['build_fes_pcxt.py', '--seed', seed]), \
+                    mock.patch.object(sys, 'stderr', io.StringIO()), \
+                    mock.patch.object(builder, 'authenticate_tools') as authenticate:
+                with self.assertRaises(SystemExit) as stopped:
+                    builder.main()
+                self.assertEqual(stopped.exception.code, 2)
+                authenticate.assert_not_called()
 
     def test_make_passes_cache_root_only_for_the_shared_lane(self):
         environment = {key: value for key, value in os.environ.items()

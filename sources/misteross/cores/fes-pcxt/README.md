@@ -402,8 +402,8 @@ FES_GPU_LEASE_OWNER=pcxt-agent GPU_LEASE_MAX_PER_OWNER=2 make build-fes-pcxt CAC
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 ```
 
-The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with per-pin
-nextpnr `552ba246`, Yosys `3a5accbd` and Mistral `8fcc4cb4`. Without
+The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed
+nextpnr main `b9ffde2d`, Yosys `3a5accbd` and the Mistral timing-line fix `9ab65220`. Without
 `CACHE_ROOT`, the toolchain and build commands both use the repository-local
 `build/toolchain/fes-pcxt` install. Select
 `PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and
@@ -413,13 +413,15 @@ the separate Quartus cross-check.
 Each invocation retains a separate directory beneath
 `build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
 assembled firmware, microcode, synthesis/netlist/resource counts and a
-`diagnostic.json` source/tool receipt. The normal command attempts one seed-1
+`diagnostic.json` source/tool receipt. The normal command attempts one seed-3
 GPU route with a bounded 1800-second timeout and retains failures. Placement
 uses fixed timing weight 2000 and criticality exponent 5, as in the existing
-Coleco socket lane; there is no placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
+Coleco socket lane. Override the unsigned 64-bit seed with `PCXT_BUILD_ARGS='--seed 2'`
+or direct `--seed 2`; there is no automatic placement-parameter or seed search. The common runner acquires `gpu-run` leases around routing phases, leaving
 synthesis outside the lease. Invoke the producer directly; an outer `gpu-run`
 is rejected. GPU queue waits do not consume the 1800-second route work budget.
-The receipt records the route command, timeout, wall duration, initial visibility
+The receipt hashes all generated microcode, bank ROMs and facts headers, and
+records the selected seed, route command, timeout, wall duration, initial visibility
 restrictions and the backend/device identities reported by nextpnr. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
 `diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
@@ -453,9 +455,13 @@ the sampled pixel and ROM-phase paths reach 73.30 and 83.26 MHz respectively.
 These are sampled-path upper bounds, not whole-design Quartus signoff; clock
 uncertainty is also excluded. The old timer undercharges physical LUT pins
 and M10K clock-to-output. Timing closure remains open in [#840](https://github.com/DeanoC/fes/issues/840).
-The next check reroutes with per-pin nextpnr `552ba246` and requires a Quartus
-pass at unchanged clocks. Other display profiles, SDRAM pad timing/retention,
-package sealing and hardware acceptance remain open.
+The later RTL checkpoint `e799cd7a` passes all reported fabric setup/hold checks
+on seeds 2 and 3 with reviewed nextpnr main `b9ffde2d` and Mistral `9ab65220`,
+at unchanged clocks; seed 1 fails. The complete 17187-row timing inventory,
+authenticated compiler replay and remaining physical boundaries are retained in
+[the whole-board evidence](../../docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md).
+External IO/reset timing, whole-design Quartus qualification, other display
+profiles, SDRAM retention, package sealing and hardware acceptance remain open.
 
 Both system suites run in the default simulation family. They check interrupted
 cold loading, a pause near the end of loading, reset during an issued CPU
