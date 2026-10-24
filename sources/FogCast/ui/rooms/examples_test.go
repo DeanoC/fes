@@ -1148,3 +1148,45 @@ func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
 		}
 	}
 }
+
+// Filesystem-location tests save on shutdown. Keep the live Home debounce
+// covered here with the room fixture's scheduling-tolerant callback budgets.
+func TestHomeSavesSelectionWhileOpen(t *testing.T) {
+	path := writeRoomPackage(t, corePongID)
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
+		Local: &fakeLocalCores{cores: []localcores.Core{
+			{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+			{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+		}},
+		StorePath: path,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.Destination().Label == "FES Pong" })
+	if !r.Input("right") || r.Destination().PackageID != coreZXID {
+		t.Fatalf("selection did not move: %+v", r.Destination())
+	}
+	read := func() string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	if got := read(); !strings.Contains(got, corePongID) || strings.Contains(got, coreZXID) {
+		t.Fatalf("selection was saved before browsing settled: %s", got)
+	}
+	now := time.Now()
+	for i := 0; i < 25; i++ {
+		now = now.Add(100 * time.Millisecond)
+		r.Step(now)
+		if err := r.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := read(); !strings.Contains(got, coreZXID) {
+		t.Fatalf("selection was not saved while Home remained open: %s", got)
+	}
+}

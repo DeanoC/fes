@@ -80,10 +80,12 @@ one second** remains Stop, including while the workbench is open. Opening and
 returning release held input; gameplay resumes only after release and a fresh
 press. The existing kit-local input source carries the kit keyboard and pad.
 
-The live cassette picker offers the host's attributed starter tapes and local
-`.p` imports. It imports bytes and replaces/ejects media through the captured
-session, package, core generation and target; it preserves the library's **Next
-start** cassette. Menu frames also pin that captured package and core generation
+The live cassette picker offers the host's attributed starter tapes, programs
+saved by this library machine, and local `.p` imports. Saved programs already
+have a durable media ID; selecting one arms it without another import. It imports
+starter/local bytes and replaces/ejects media through the captured session,
+package, core generation and target; it preserves the library's **Next start**
+cassette. Menu frames also pin that captured package and core generation
 and reject changed display generations. A lost open response keeps Back/Esc/B
 available for a guarded return and Home/Select for retry. A failed return retains
 room input until another return succeeds. Shell exit attempts that return without

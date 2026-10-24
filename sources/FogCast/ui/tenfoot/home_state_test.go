@@ -44,15 +44,6 @@ func startHomeState(t *testing.T, cores []localcores.Core) *App {
 	return app
 }
 
-func settleHomeSelection(t *testing.T, app *App) {
-	t.Helper()
-	now := time.Now()
-	for i := 1; i <= 15; i++ {
-		now = now.Add(100 * time.Millisecond)
-		app.Tick(now)
-	}
-}
-
 func useKitStateDir(t *testing.T, dir string) {
 	t.Helper()
 	orig := kitPersistentStateDir
@@ -92,7 +83,9 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	waitFor(t, app, "moved core", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "Zx81"
 	})
-	settleHomeSelection(t, app)
+	// Closing Home runs its unload save and flushes the store. These tests
+	// cover filesystem selection, not the render loop or save debounce.
+	app.Stop()
 
 	stateFile := filepath.Join(stateDir, "FogCast", "rooms", "example.fes-cores.state.json")
 	data, err := os.ReadFile(stateFile)
@@ -105,7 +98,6 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	if _, err := os.Lstat(filepath.Join(homeFile, ".config")); err == nil {
 		t.Fatal("state was written under HOME")
 	}
-	app.Stop()
 
 	again := startHomeState(t, cores)
 	waitFor(t, again, "restored core", func(s Snapshot) bool {
@@ -253,7 +245,9 @@ func TestHomeKeepsWorkingWhenStateDirIsUnwritable(t *testing.T) {
 	if snap.Room.Err != "" {
 		t.Fatalf("room failed: %s", snap.Room.Err)
 	}
-	settleHomeSelection(t, app)
+	// Closing Home runs its unload save and flushes the store. These tests
+	// cover filesystem selection, not the render loop or save debounce.
+	app.Stop()
 	if _, err := os.Lstat(filepath.Join(homeFile, ".config")); err == nil {
 		t.Fatal("state was written under HOME")
 	}

@@ -252,6 +252,13 @@ constants:
     value: 1
   - name: FesComputerZx81TapeMaxBytes
     value: 16384
+  # fes.media.zx81-tape-write 1.0 snapshot identity. Tag 2 is not the ST disk.
+  - name: FesComputerZx81TapeLayoutTag
+    value: 2
+  - name: FesComputerZx81TapeLayoutMajor
+    value: 1
+  - name: FesComputerZx81TapeLayoutMinor
+    value: 0
   # fes.media.c64-disk 1.0: unit 0, exactly one 35-track D64 image.
   # Capability bit 6. Bit 5 is the Spectrum tape.
   - name: FesComputerC64DiskUnit
@@ -344,3 +351,9 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 13
+  # Whole-image capture of a BASIC SAVE. Requires fes.media.zx81-tape.
+  # The saved bytes are independent of the loaded cassette.
+  - id: fes.media.zx81-tape-write
+    major: 1
+    minor: 0
+    capability_bit: 14
