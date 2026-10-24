@@ -451,6 +451,7 @@
     "cores/fes-zx81/rtl/zx81_keyboard.v",
     "cores/fes-zx81/rtl/zx81_machine.sv",
     "cores/fes-zx81/rtl/zx81_machine_clock.v",
+    "cores/fes-zx81/rtl/zx81_model.vh",
     "cores/fes-zx81/rtl/zx81_ram_pack.v",
     "cores/fes-zx81/rtl/zx81_rom_link.v",
     "cores/fes-zx81/rtl/zx81_tape_store.v",

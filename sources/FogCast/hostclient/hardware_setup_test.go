@@ -77,3 +77,51 @@ func TestInstalledZX81CreationFinishesEmptyROMWithoutPublicationCatalog(t *testi
 		t.Fatal("replaced existing ROM")
 	}
 }
+
+func TestInstalledZX80SetupAcceptsFamilyROMAndRejectsOtherCores(t *testing.T) {
+	zx80 := strings.Repeat("a", 64)
+	pong := strings.Repeat("b", 64)
+	rom := strings.Repeat("c", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/core-packages/" + zx80:
+			json.NewEncoder(w).Encode(map[string]any{"package_id": zx80, "descriptor": map[string]any{
+				"core": map[string]string{"id": "fes.zx80", "name": "ZX80", "version": "0.1.0"},
+				"rom":  map[string]any{"id": "zx80-rom", "role": "firmware", "source_size": 4096},
+			}})
+		case "/api/v1/core-packages/" + pong:
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pong, "descriptor": map[string]any{
+				"core": map[string]string{"id": "fes.pong"},
+				"rom":  map[string]any{"id": "machine-rom", "role": "firmware", "source_size": 8192},
+			}})
+		case "/api/v1/core-packages/" + zx80 + "/media-capabilities":
+			json.NewEncoder(w).Encode(map[string]any{"media": []any{}})
+		case "/api/v1/library/core-entries":
+			if r.Method == http.MethodGet {
+				json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
+				return
+			}
+			json.NewEncoder(w).Encode(CoreEntry{GameID: "my-zx80", Title: "My ZX80", CoreID: "fes.zx80", PackageID: zx80})
+		case "/api/v1/library/core-entries/my-zx80/rom":
+			json.NewEncoder(w).Encode(map[string]string{"game_id": "my-zx80", "package_id": zx80, "rom_id": "zx80-rom", "media_id": rom})
+		case "/api/v1/core-packages":
+			json.NewEncoder(w).Encode(map[string]any{"packages": []any{}})
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+			http.Error(w, "unexpected", 500)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, server.Client())
+	setup, err := client.InstalledZX81Setup(context.Background(), zx80)
+	if err != nil || setup.CoreID != "fes.zx80" || len(setup.ROMs) != 1 || setup.ROMs[0].ID != "zx80-rom" || setup.ROMs[0].SourceSize != 4096 {
+		t.Fatalf("zx80 setup %+v %v", setup, err)
+	}
+	got, err := client.CreateInstalledZX81Entry(context.Background(), setup, "My ZX80", map[string]string{"zx80-rom": rom})
+	if err != nil || got.CoreID != "fes.zx80" || got.GameID != "my-zx80" {
+		t.Fatalf("create %+v %v", got, err)
+	}
+	if _, err := client.InstalledZX81Setup(context.Background(), pong); err == nil {
+		t.Fatal("accepted fes.pong")
+	}
+}

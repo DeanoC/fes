@@ -323,7 +323,7 @@ func TestHardwareRoomSelectsCassetteBeforeLaunchAndGatesLiveHDMIControls(t *test
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	r.Activate("tape")
 	acts := r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionHardwareTapes || acts[0].GameID != "zx81-workbench" || acts[0].PackageID != strings.Repeat("a", 64) {
+	if len(acts) != 1 || acts[0].Kind != ActionHardwareTapes || acts[0].GameID != "zx81-workbench" || acts[0].CoreID != "fes.zx81" || acts[0].PackageID != strings.Repeat("a", 64) {
 		t.Fatalf("pre-launch tape binding: %+v", acts)
 	}
 	r.Activate("setup_library")
