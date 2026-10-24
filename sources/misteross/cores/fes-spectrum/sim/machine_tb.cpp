@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Host simulation of one Spectrum model with the open diagnostic firmware:
-// paging, AY read-back, keyboard matrix, Kempston, probe card, tape pilot,
-// the captured frame and the T state of a contended timing marker.
+// paging, AY read-back, keyboard matrix, Kempston, probe card, the turbo tape
+// that the firmware's own loader starts (through the deck's loader detection)
+// and decodes, its 1200 T pilot, the captured frame and the T state of a
+// contended timing marker.
 #include "Vspectrum_sim_top.h"
 #include "Vspectrum_sim_top___024root.h"
 #include "spectrum_ram_banks.h"
@@ -9,7 +11,9 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -53,13 +57,27 @@ int main(int argc, char** argv) {
     dut.reset = 1;
     dut.matrix = 0xffffffffffULL & ~(1ULL << 5);  // A held
     dut.kempston = 0x11;                          // right + fire
-    dut.unit_state = 3;
-    dut.unit_size = 3;
+    // The diagnostic tape, streamed as the DDR store presents it: one byte
+    // after each take, restarting at byte 0 whenever the deck drops enable.
+    std::ifstream tape_file("build/diagnostics/fes-spectrum/tape.pzx", std::ios::binary);
+    const std::vector<uint8_t> tape((std::istreambuf_iterator<char>(tape_file)), {});
+    require(tape.size() > 10, "no diagnostic tape");
+    size_t tape_pos = 0;
+    dut.tape_ready = 1;
+    dut.tape_size = tape.size();
     dut.eval();
     std::vector<uint32_t> frame(240 * 40);
+    bool tape_played = false;
     auto clock = [&]() {
+        if (!dut.tape_stream_enable) tape_pos = 0;
+        dut.tape_stream_valid = dut.tape_stream_enable && tape_pos < tape.size();
+        dut.tape_stream_data = tape_pos < tape.size() ? tape[tape_pos] : 0;
+        dut.eval();
+        const bool took = dut.tape_stream_valid && dut.tape_stream_take;
         dut.clk_sys = 1; dut.eval();
         dut.clk_sys = 0; dut.eval();
+        if (took) ++tape_pos;
+        tape_played |= dut.tape_playing;
         if (dut.pixel_we) frame[dut.pixel_row * 40 + dut.pixel_chunk] = dut.pixel_data;
     };
     for (int i = 0; i < 32; ++i) clock();
@@ -70,11 +88,19 @@ int main(int argc, char** argv) {
     bool seen_edge = false;
     long marker_t = -1;
     unsigned marker_frame = 0;
-    while (frames < 4 || matched < 3) {
+    const uint8_t loaded[4] = {0xa5, 0x3c, 0x81, 0x7e};
+    auto tape_loaded = [&]() {
+        for (unsigned i = 0; i < 4; ++i)
+            if (bank(2, 0x100 + i) != loaded[i]) return false;
+        return true;
+    };
+    bool pilot_seen = false;
+    while (frames < 4 || !pilot_seen || !tape_loaded()) {
         clock();
         if (dut.tick && seen_edge) ++since;
         if (dut.ear != last_ear) {
-            matched = seen_edge && since == 2168 ? matched + 1 : seen_edge ? 0 : matched;
+            matched = seen_edge && since == 1200 ? matched + 1 : seen_edge ? 0 : matched;
+            pilot_seen |= matched >= 3;
             seen_edge = true;
             since = 0;
             last_ear = dut.ear;
@@ -85,7 +111,15 @@ int main(int argc, char** argv) {
         }
         if (dut.frame_done) ++frames;
         if (dut.cpu_illegal) fail("CPU entered an illegal state");
-        if (frames > 400) fail("diagnostic did not finish (pilot edges " + std::to_string(matched) + ")");
+        if (frames > 400)
+            fail("diagnostic did not finish (pilot edges " + std::to_string(matched) + ", bytes " +
+                 hex(bank(2, 0x100)) + " " + hex(bank(2, 0x101)) + " " + hex(bank(2, 0x102)) + " " +
+                 hex(bank(2, 0x103)) + ")");
+    }
+    // After the tape the firmware runs its main loop; give it a whole frame.
+    for (const int until = frames + 1; frames < until;) {
+        clock();
+        if (dut.frame_done) ++frames;
     }
     require(bank(2, 0) == 0xa5, "diagnostic marker missing at $8000");
     if (spectrum_ram_bank(root, 7) != nullptr) {
@@ -99,7 +133,8 @@ int main(int argc, char** argv) {
     require(bank(2, 2) == 0x11, "Kempston read " + hex(bank(2, 2)));
     require(bank(2, 3) == 0xf5, "probe socket 1 id " + hex(bank(2, 3)));
     require(bank(2, 4) == 0x5a, "probe scratch " + hex(bank(2, 4)));
-    require(matched >= 3, "tape pilot edges were not 2168 T-states apart");
+    require(tape_played, "the firmware's loader did not start the tape");
+    require(pilot_seen, "tape pilot edges were not 1200 T-states apart");
     // The contended marker is a regression check on ULA timing, recorded from
     // the Fuse-matched simulation of this firmware.
     require(marker_t == SPECTRUM_MARKER_T,

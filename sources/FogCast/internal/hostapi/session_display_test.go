@@ -244,7 +244,7 @@ func TestPairedMediaImportBoundLeavesNextStartManagementProtected(t *testing.T) 
 		t.Fatal(err)
 	}
 	largest := int(protocol.MaxRemovableMediaBytes)
-	if largest != int(protocol.AtariStFloppyGeometryMaxBytes) {
+	if largest != int(protocol.SpectrumTapeImageMaxBytes) {
 		t.Fatalf("largest selector image = %d", largest)
 	}
 	for _, tc := range []struct {
