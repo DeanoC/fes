@@ -26,8 +26,9 @@ Fast means x86 instructions retired per second on that code. It does not mean
 clock rate, and it does not mean cycle fidelity. Games that depend on period
 speed get a governor that slows the CPU to a chosen reference machine
 ([speed control](#speed-control)). Architectural results never depend on speed.
-Wolfenstein 3D, Ultima VI and Ultima VII are the first titles it must play
-([first acceptance games](#first-acceptance-games)).
+Wolfenstein 3D, Ultima VI and the DOS editions of Ultima VII: The Black Gate
+and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the first
+titles it must play ([first acceptance games](#first-acceptance-games)).
 
 ### Yardstick
 
@@ -59,22 +60,27 @@ published period-hardware results:
 
 ## First acceptance games
 
-Wolfenstein 3D, Ultima VI and Ultima VII (The Black Gate and Serpent Isle) are
-the first titles the CPU and its machine must play. They set the machine's
-scope, its firmware and the speed defaults. Games are user-supplied; none
-ships.
+Wolfenstein 3D, Ultima VI and the DOS editions of Ultima VII: The Black Gate
+and Ultima VII Part Two: Serpent Isle from The Ultima Collection are the first
+titles the CPU and its machine must play. They set the machine's scope, its
+firmware and the speed defaults. Games are user-supplied; none ships.
 
 | Title | CPU and memory | Video | Sound | Speed |
 | --- | --- | --- | --- | --- |
 | Wolfenstein 3D | 286 or better, real mode; 575 KiB free conventional memory; EMS or XMS optional, recommended for speed | VGA, unchained 256-colour | AdLib music; Sound Blaster or Sound Source effects | Paced by the timer: a faster CPU gives a smoother frame rate. Runs at `max`. |
 | Ultima VI | Real mode, 640 KiB | MCGA/VGA 256-colour; EGA, CGA, Hercules and Tandy also supported | AdLib or Roland music; PC speaker effects | Tuned for a roughly 10 MHz machine. Much faster breaks walking speed and the speaker effects. Needs a 286-class preset. |
-| Ultima VII | 386SX or better; unreal mode (the Voodoo memory manager); 548 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | The Black Gate has no frame limiter and runs as fast as the CPU, so it needs a 386-class preset. Serpent Isle caps its own speed and runs at `max`. |
+| Ultima VII: The Black Gate (DOS edition from The Ultima Collection) | 386SX or better; unreal mode (the Voodoo memory manager); 548 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | Has no frame limiter and runs as fast as the CPU, so it needs a 386-class preset. |
+| Ultima VII Part Two: Serpent Isle (DOS edition from The Ultima Collection) | 386SX or better; unreal mode (the Voodoo memory manager); 573 KiB conventional and 2 MiB XMS free; HIMEM is fine, an EMS manager such as EMM386 must not be loaded | VGA 256-colour | AdLib, Sound Blaster, Sound Blaster Pro or MT-32 | Caps its own speed and runs at `max`. |
 
 Sources: the Wolfenstein 3D v1.4 help file (`W3DHELP.TXT`);
 [Ultima Codex on Ultima VI](https://wiki.ultimacodex.com/wiki/Computer_ports_of_Ultima_VI);
-the [Ultima VII install guide](https://www.mocagh.org/origin/u7-install.pdf)
+the [original Ultima VII: The Black Gate install guide](https://www.mocagh.org/origin/u7-install.pdf)
 and [Ultima Collection reference card](https://www.mocagh.org/origin/u9dragon-ucollrefcard.pdf);
 the [DOSBox wiki on The Black Gate](https://dosbox.com/wiki/GAMES:Ultima_VII:_The_Black_Gate).
+The original Black Gate guide varies its free conventional-memory requirement
+by configuration (524,000 bytes without sound, or 561,144 bytes with sound and
+speech); acceptance uses the named DOS editions from The Ultima Collection
+and that edition's separate memory figures above.
 
 What the set decides:
 
@@ -147,7 +153,7 @@ loaded again in real or V86 mode. Every data access is checked against the
 cached limit in every mode: with a normal real-mode segment, a word access at
 offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode segment
 uses its cached extended limit ([Intel 80386 Programmer's Reference Manual,
-§2.3.5](https://www.dosdays.co.uk/media/intel/231746-001_Introduction_to_the_80386_Apr86.pdf)).
+§2.3.5](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
 
 ### The 386, not the 486
 
@@ -209,9 +215,10 @@ pull-up resistors on the data bus when no coprocessor is fitted, and a
 So:
 
 - CR0.ET is 0 after reset, and MOV to CR0 can change it, as on the 386DX.
-- EM, MP and TS act as architected. ESC raises #NM when EM or TS is set, and
-  WAIT raises #NM when MP and TS are both set. Software FPU emulators rely on
-  this.
+- EM, MP and TS act as architected. ESC raises #NM when EM is set or when MP
+  and TS are both set; TS alone is insufficient. WAIT raises #NM when MP and
+  TS are both set ([Intel 80386 Programmer's Reference Manual, §11.1.5.1](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
+  Software FPU emulators rely on this.
 - Otherwise ESC instructions complete without an FPU exception of their own and
   never raise IRQ13. WAIT does nothing.
 - On a tested 386DX-33 with an empty 387 socket, FNSTSW to memory and FNSTCW
