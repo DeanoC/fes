@@ -3378,8 +3378,9 @@ live-media insert, retained by the target's session coordinator for that package
 generation. Eject, library disk insertion, and development-media loading clear
 it because they can replace unit 0 without providing a live-media filename; disk
 save preserves it. Preflight failures and explicit no-change rejections retain
-the confirmed name; an uncertain reply after dispatch clears it rather than
-reporting old media as current. Status clears the cached name and binding after
+the confirmed name; an uncertain reply after dispatch clears the cached name
+and prior confirmed-eject marker rather than reporting old media state as
+current. Status clears the cached name and binding after
 it observes an inactive or changed session, preventing a restarted runtime from
 reviving a filename when it reuses a package generation. Existing launch
 selections and adopted sessions have no recorded original filename and display

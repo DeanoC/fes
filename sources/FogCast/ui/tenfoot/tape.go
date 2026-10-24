@@ -558,6 +558,7 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 	if err != nil {
 		if replacementDispatched && !protocol.LiveMediaNoChange(err) {
 			a.session.MediaName = ""
+			a.session.MediaEjected = false
 		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
@@ -585,9 +586,11 @@ func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.Session
 		return
 	}
 	if err != nil {
-		// Eject failure leaves the active session alone. Unavailable is not Stop.
+		// Eject failure never stops the active session. Clear cached media state
+		// only when the mutation outcome is uncertain.
 		if !protocol.LiveMediaNoChange(err) {
 			a.session.MediaName = ""
+			a.session.MediaEjected = false
 		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
