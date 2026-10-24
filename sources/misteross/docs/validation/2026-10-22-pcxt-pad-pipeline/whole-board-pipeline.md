@@ -286,3 +286,24 @@ The 30 pF fit has all sixteen capture sources checked for both setup and hold at
 These values describe different Quartus-fitted wiring. They do not grant correlation credit to the OSS route, establish a chip pulse-width requirement, or qualify a native model. The complete unconstrained-path reports are retained: neither the virtual host interface nor external SDRAM setup/hold has an asserted physical budget. The initial unspecified-load fit also passes all sixteen handoffs, but it is not a matched 30 pF comparison. No capture phase, latency, clock rate, producer constraint or timing bound changes follow from either fit.
 
 Evidence is retained under `out/pcxt-whole-board-closure-20261023/quartus-whole-rtl-oracle`, `quartus-sdram-oracle` and `quartus-sdram-reference30`, with per-corner reports, input receipts and machine-readable summaries. These are CPU-only comparison fits, with no new GPU route receipt; the 101-entry route journal is unchanged. No hardware ran. The next physical step remains a qualified correlated model for the actual OSS clock/pad paths and verified chip/board requirements, followed by external-channel and exact-artifact checks.
+
+### Actual OSS clock-route comparison
+
+The reference fit above is not an exact clock-resource match. Its generic Quartus wrapper chooses the top PLL with counters C6/C5 and G4/G7, and needs an explicit `PLL_COMPENSATION_MODE DIRECT` assignment to match the requested direct mode. The actual OSS source uses FPLL `(0,14)`, C6/C7 and G2/G3. Those reference differences are retained and no timing credit is transferred from the earlier fit.
+
+A topology audit now decodes the actual ordinary producer RBF and checks its physical clock bindings against its own routed JSON. All 4107 system-clock and 48 capture-clock physical pip bindings match. Mistral's existing active-route export omits default-selected DCMUX/TCLK and SCLK links, hiding two used edges in the SDRAM clock branch. An isolated diagnostic decoder retains raw selected links; each branch must also be present in the actual source bindings, because a default selection alone does not prove use. Missing-binding and wrong-branch mutations reject. All decoder timing fields are -1 placeholders; this audit measures topology only. No compiler, library pin, producer or timing bound is changed.
+
+Two forced-location attempts use the wrong top-PLL counter coordinates and fail placement; they are retained without inferring illegal native clock connectivity. The checked-in PLL quad Quartus oracle establishes native `(0,14)` C6/C7 at physical counter Y20/Y21. Correcting those locations and the explicit DIRECT assignment produces a successful fit on G2/G3. Its local pad branch still differs, so a further isolated RCF changes only that branch's row-clock selection. The resulting Quartus RBF decodes to the exact same nine-edge GCLK-to-SDRAM_CLK branch as the OSS RBF. Input mux selections for G2/G3 also agree. Other clock branches and fabric placement remain the reference fit.
+
+All sixteen capture-to-controller sources retain paired setup/hold checks at every corner. The final exact-branch comparison reports:
+
+| Corner | Handoff setup | Handoff hold | Fitted high lower bound | Fitted low lower bound |
+| --- | ---: | ---: | ---: | ---: |
+| Slow 100 C | +1.595 ns | +4.402 ns | 3.191 ns | 3.774 ns |
+| Slow -40 C | +1.757 ns | +4.478 ns | 3.513 ns | 3.849 ns |
+| Fast 100 C | +2.997 ns | +4.677 ns | 4.035 ns | 4.633 ns |
+| Fast -40 C | +3.321 ns | +4.683 ns | 4.196 ns | 4.572 ns |
+
+The machine-readable [clock-route comparison](clock-route-comparison.json) binds the source and comparison RBF hashes, all ten nodes and nine edges, decoder identity, input bindings and qualification limits. Raw captures are under `out/pcxt-whole-board-closure-20261023/quartus-sdram-clock-match` and `quartus-sdram-exact-clock-branch`; failed attempts and prior reference fits remain separate. The ordinary source RBF stays `dee3a8db392c9a3a22502f6e975134c61a256a95d7bd99e923d3ef8ccaf03ddd`.
+
+This is a matched forwarded-clock-branch reference, not a whole-artifact Quartus reconstruction. The 30 pF condition is declared, not measured. Common clock side branches, complete electrical/corner correlation, chip/board setup/hold and pulse-width requirements, DQM, bus turnaround, consumption-cycle identity, reset/CDC and whole-design uncertainty still require qualification. No positive pulse or handoff number overrides those missing checks. GPU route receipts remain at 101; these are CPU-only oracle/decoding runs. No hardware ran.
