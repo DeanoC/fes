@@ -19,6 +19,14 @@ module zx81_machine #(
     output wire [13:0] tape_addr_out,
     // High while the cassette loader is copying mailbox bytes into RAM.
     output wire        tape_busy,
+    // ROM SAVE at $02F7 captures the program image the $031E emitter reads.
+    // save_q is the byte at save_addr in that .p, one clock after save_addr.
+    output wire        save_ready,
+    output wire        save_busy,
+    output wire        save_changed,
+    output wire [14:0] save_size,
+    input  wire [13:0] save_addr,
+    output wire [7:0]  save_q,
     output wire        ce_6m5,
     output wire        video_pixel,
     output wire        hblank,
@@ -68,6 +76,8 @@ module zx81_machine #(
     logic [7:0] cpu_din;
     wire [7:0] cpu_dout;
     wire nM1, nMREQ, nIORQ, nRD, nWR, nRFSH, nHALT;
+    wire [15:0] debug_de;
+    reg save_fast;
     wire nINT = addr[6];
     assign cpu_addr = addr;
     assign halt_n = nHALT;
@@ -107,7 +117,7 @@ module zx81_machine #(
         .debug_sp(),
         .debug_af(),
         .debug_bc(),
-        .debug_de(),
+        .debug_de(debug_de),
         .debug_hl(),
         .debug_ix(),
         .debug_iy(),
@@ -142,19 +152,35 @@ module zx81_machine #(
     wire [7:0] io_dout = ~kbd_n ? {1'b0, HZ50, 1'b0, key_data} : 8'hFF;
 
     logic [7:0] mem_out;
+    // SAVE skips the leader. The runtime body is:
+    //   $02F4 RST 08 / $02F5 class / $02F6 CALL NAME / $02F9 JR C
+    //   $02FB EX DE,HL / $02FC LD DE,$12CB / delay loop through $0309
+    //   $030B name bytes / $0313 LD HL,$4009 / $0316 CALL $031E
+    //   $031E LD E,(HL) / $031F SCF bit-bang.
+    // $02FC-$02FE become JP $0313 once NAME has returned, and $031F becomes
+    // RET so each program byte is the RAM value LD E,(HL) already read.
+    // The filename burst is not part of a .p.
+    wire save_patch_ret = save_fast && addr == 16'h031f;
+    wire save_patch_delay = save_fast && addr >= 16'h02fc && addr <= 16'h02fe;
+    wire [7:0] save_delay_byte = addr == 16'h02fc ? 8'hc3 : addr == 16'h02fd ? 8'h13 : 8'h03;
     always_comb begin
         // CPU window reads use DSEL. Do not fold /RFSH into this mux:
         // nRFSH -> mem_out -> cpu_din is a combinational loop.
         if (bus_dsel)
             mem_out = bus_rdata;
-        else casex ({tapeloader, rom_e, ram_e})
+        else if (tapeloader)
 `ifdef ZX81_MODEL_ZX80
-            3'b1xx: mem_out = tape_loader_patch[addr - 13'h0207];
+            mem_out = tape_loader_patch[addr - 13'h0207];
 `else
-            3'b1xx: mem_out = tape_loader_patch[addr - 13'h0347];
+            mem_out = tape_loader_patch[addr - 13'h0347];
 `endif
-            3'b01x: mem_out = rom_out;
-            3'b001: mem_out = ram_out;
+        else if (save_patch_ret)
+            mem_out = 8'hc9;
+        else if (save_patch_delay)
+            mem_out = save_delay_byte;
+        else case ({rom_e, ram_e})
+            2'b10, 2'b11: mem_out = rom_out;
+            2'b01: mem_out = ram_out;
             default: mem_out = 8'hFF;
         endcase
     end
@@ -256,8 +282,32 @@ module zx81_machine #(
     reg [13:0] tape_addr;
     reg [7:0] tape_in_byte, tape_in_byte_r;
     reg [7:0] tape_loader_patch[0:6];
+    // nM1 stays low for many host clocks. The byte and completion events
+    // latch once per opcode fetch; the address match itself stays level
+    // sensitive so a fetch is not consumed before A is the opcode address.
+    reg save_program, save_ready_r, save_changed_r, save_overflow;
+    reg save_seen_byte, save_seen_done;
+    reg save_we;
+    reg [14:0] save_len;
+    reg [13:0] save_waddr;
+    reg [7:0] save_wdata;
+    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384)) save_ram (
+        .clock(clk_sys),
+        .address_a(save_waddr),
+        .data_a(save_wdata),
+        .wren_a(save_we),
+        .q_a(),
+        .address_b(save_addr),
+        .data_b(8'h00),
+        .wren_b(1'b0),
+        .q_b(save_q)
+    );
     assign tape_addr_out = tape_addr;
     assign tape_busy = tapeloader;
+    assign save_ready = save_ready_r;
+    assign save_busy = save_program;
+    assign save_changed = save_changed_r;
+    assign save_size = save_len;
     assign bus_wdata = tapeloader ? tape_in_byte_r : cpu_dout;
     assign bus_mreq_n = tapewrite_we ? 1'b0 : nMREQ;
     assign bus_iorq_n = tapewrite_we ? 1'b1 : nIORQ;
@@ -270,9 +320,20 @@ module zx81_machine #(
 
     always @(posedge clk_sys) begin
         tapewrite_we <= 0;
+        save_changed_r <= 0;
+        save_we <= 0;
         if (reset) begin
             tapeloader <= 0;
             tape_addr <= 0;
+            save_fast <= 0;
+            save_program <= 0;
+            save_ready_r <= 0;
+            save_overflow <= 0;
+            save_seen_byte <= 0;
+            save_seen_done <= 0;
+            save_len <= 0;
+            save_waddr <= 0;
+            save_wdata <= 0;
             tape_loader_patch[0] <= 8'haf;
             tape_loader_patch[1] <= 8'h00;
             tape_loader_patch[2] <= 8'h30;
@@ -288,6 +349,7 @@ module zx81_machine #(
 `ifdef ZX81_MODEL_ZX80
             // ZX80 cassette entry is $0207 and returns with JP $0203.
             // The image is stored at tape_addr with no +8 .p header.
+            // save_fast stays clear: $0207 is the ZX81 SAVE completion fetch.
             if (~nM1 && addr == 16'h0207 && !tapeloader) begin
                 tape_loader_patch[1] <= (tape_ready && tape_size != 0) ? 8'h00 : 8'h37;
                 tape_loader_patch[5] <= 8'h03;
@@ -297,6 +359,42 @@ module zx81_machine #(
             if (tapeloader && ~nM1 && (addr >= 16'h024d || addr < 16'h0207))
                 tapeloader <= 0;
 `else
+            if (nM1) begin
+                save_seen_byte <= 0;
+                save_seen_done <= 0;
+            end
+            // Arm on M1 of EX DE,HL, after NAME accepts the string and before
+            // the leader's LD DE is fetched. $02F7 is an operand of CALL NAME,
+            // so it is not an M1 address.
+            if (~nM1 && addr == 16'h02fb && !tapeloader)
+                save_fast <= 1;
+            // M1 of LD HL,$4009. $0314 is the immediate 09, not the opcode.
+            if (~nM1 && save_fast && addr == 16'h0313) begin
+                save_program <= 1;
+                save_ready_r <= 0;
+                save_overflow <= 0;
+                save_len <= 0;
+            end
+            // M1 of the patched RET: LD E,(HL) has committed the emitted byte.
+            if (~nM1 && save_program && addr == 16'h031f && !save_seen_byte) begin
+                save_seen_byte <= 1;
+                if (save_len < 15'd16384) begin
+                    save_we <= 1;
+                    save_waddr <= save_len[13:0];
+                    save_wdata <= debug_de[7:0];
+                    save_len <= save_len + 15'd1;
+                end else
+                    save_overflow <= 1;
+            end
+            if (~nM1 && save_program && addr == 16'h0207 && !save_seen_done) begin
+                save_seen_done <= 1;
+                save_program <= 0;
+                save_fast <= 0;
+                if (save_len != 0 && !save_overflow) begin
+                    save_ready_r <= 1;
+                    save_changed_r <= 1;
+                end
+            end
             // Always intercept LOAD at $0347. A committed mailbox blob is
             // copied into RAM; with no blob, SCF immediately so BASIC
             // returns 0/0 instead of the original cassette waiter (black

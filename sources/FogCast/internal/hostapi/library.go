@@ -788,6 +788,8 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		game.ROMReady = comp.ROMReady
 		game.ROMID = comp.ROMID
 		game.ROMMediaID = comp.ROMMediaID
+		game.ROMRole = comp.ROMRole
+		game.ROMSourceSize = comp.ROMSourceSize
 		game.ExpansionID = comp.ExpansionID
 		game.ExpansionReady = comp.ExpansionReady
 		game.SlotExpansions = append([]protocol.SlotExpansionStatus(nil), comp.SlotExpansions...)

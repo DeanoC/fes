@@ -46,7 +46,7 @@ class Model:
         return tuple(range(73, 73 + self.rom_lanes))
 
 MODELS = {model.key: model for model in (
-    Model('zx81', 'fes.zx81', 'Zx81', 'ZX81 on the FES computer ABI', '1.6.0', None,
+    Model('zx81', 'fes.zx81', 'Zx81', 'ZX81 on the FES computer ABI', '1.7.0', None,
           'machine-rom', 8, OUTPUT_RELATIVE),
     Model('zx80', 'fes.zx80', 'ZX80',
           'Sinclair ZX80: PAL, 4 KiB ROM, 1 KiB internal RAM, no NMI',
@@ -423,7 +423,13 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     record_fields = json.loads(record)
     machine = model_for(record_fields['parameters'].get('model', 'zx81'))
     toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
-    fields = {'format': 2, 'core': {'id': machine.core_id, 'name': machine.name, 'description': machine.description, 'version': machine.version}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.fabric.video.display-plane', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
+    interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}]
+    # ZX80's cassette entry is $0207, the address where ZX81 SAVE completes.
+    # Tape write belongs to the models that run the ZX81 ROM SAVE path.
+    if machine.key != 'zx80':
+        interfaces.append({'id': 'fes.media.zx81-tape-write', 'major': 1, 'minor': 0, 'required': True})
+    interfaces.extend(({'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.fabric.video.display-plane', 'major': 1, 'minor': 0, 'required': True}))
+    fields = {'format': 2, 'core': {'id': machine.core_id, 'name': machine.name, 'description': machine.description, 'version': machine.version}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': interfaces, 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
     if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v2':
         fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 2, 'minor': 0, 'required': False})
     fields['format'] = 3

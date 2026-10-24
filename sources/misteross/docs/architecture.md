@@ -1448,7 +1448,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.6.0 package. `make build-fes-zx80`, `make build-fes-ts1000` and
+`fes.zx81` 1.7.0 package. `make build-fes-zx80`, `make build-fes-ts1000` and
 `make build-fes-ts1500` pass `--model` to that producer for the experimental
 package-only shells. They share `cores/fes-zx81/toolchain.lock`. The producer authenticates that lock, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that

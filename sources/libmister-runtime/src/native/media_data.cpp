@@ -13,6 +13,7 @@
 #include <unistd.h>
 namespace mister { namespace native { namespace {
 const std::string kLayout = "fes.atari-st-floppy.image";
+const std::string kTapeLayout = "fes.zx81-tape.image";
 Error Bad(const char* text) { return {ErrorCode::corrupt_data, text, "media_data"}; }
 Error Incompatible(const char* text) { return {ErrorCode::incompatible_data, text, "media_data"}; }
 Error Io(const char* text) { return {ErrorCode::save_failed, text, "media_data"}; }
@@ -149,8 +150,49 @@ std::string MediaDataNamespace(const MediaDataIdentity& id) {
         std::to_string(id.unit)+'\0'+id.base_media_id;
     return Sha256Hex(Hash(name));
 }
+Error EncodeTape(const MediaDiskRecord& record, std::vector<unsigned char>* output) {
+    if (record.bytes.empty() || record.bytes.size() > 16384) return Bad("invalid ZX81 tape payload");
+    std::vector<unsigned char> bytes = {'F','E','S','T','A','P','E','1'};
+    for (const auto& digest : {Hash(record.identity.core_id), Hash(record.identity.game_id)})
+        bytes.insert(bytes.end(), digest.begin(), digest.end());
+    const auto base = DigestBytes(record.identity.base_media_id);
+    bytes.insert(bytes.end(), base.begin(), base.end());
+    Word(&bytes, record.identity.unit); Word(&bytes, 1); Word(&bytes, 0); Word(&bytes, kTapeLayout.size());
+    Word(&bytes, record.bytes.size()); Word(&bytes, record.bytes.size() >> 16);
+    bytes.insert(bytes.end(), kTapeLayout.begin(), kTapeLayout.end());
+    bytes.insert(bytes.end(), record.bytes.begin(), record.bytes.end());
+    const auto sum = Hash(bytes.data(), bytes.size());
+    bytes.insert(bytes.end(), sum.begin(), sum.end());
+    *output = std::move(bytes);
+    return {};
+}
+Error DecodeTape(const std::vector<unsigned char>& bytes, const MediaDataIdentity& id, MediaDiskRecord* output) {
+    if (bytes.size() < 167 || bytes.size() > 167 + 16384 || std::memcmp(bytes.data(), "FESTAPE1", 8))
+        return Bad("invalid ZX81 tape envelope or size");
+    const auto sum = Hash(bytes.data(), bytes.size() - 32);
+    if (!std::equal(sum.begin(), sum.end(), bytes.end() - 32)) return Bad("ZX81 tape checksum mismatch");
+    const auto core = Hash(id.core_id), game = Hash(id.game_id);
+    const auto base = DigestBytes(id.base_media_id);
+    const auto size = Word(bytes, 112) | (Word(bytes, 114) << 16);
+    if (!std::equal(core.begin(), core.end(), bytes.begin() + 8) ||
+        !std::equal(game.begin(), game.end(), bytes.begin() + 40) ||
+        !std::equal(base.begin(), base.end(), bytes.begin() + 72) || Word(bytes, 104) != id.unit)
+        return Incompatible("ZX81 tape identity mismatch");
+    if (Word(bytes, 106) != 1 || Word(bytes, 108) != 0 || Word(bytes, 110) != kTapeLayout.size() ||
+        size < 1 || size > 16384 || bytes.size() != 167 + size ||
+        !std::equal(kTapeLayout.begin(), kTapeLayout.end(), bytes.begin() + 116))
+        return Incompatible("ZX81 tape layout mismatch");
+    MediaDiskRecord record;
+    record.identity = id;
+    record.layout = MediaDataLayout::zx81_tape;
+    record.bytes.assign(bytes.begin() + 116 + kTapeLayout.size(), bytes.end() - 32);
+    record.revision = Sha256Hex(Hash(bytes.data(), bytes.size()));
+    *output = std::move(record);
+    return {};
+}
 Error EncodeMediaData(const MediaDiskRecord& record,std::vector<unsigned char>* output) {
     if(!output||!ValidMediaDataIdentity(record.identity)) return Bad("invalid media-data identity");
+    if (record.layout == MediaDataLayout::zx81_tape) return EncodeTape(record, output);
     if(record.bytes.size()>generated::FesComputerAtariStFloppyGeometryMaxBytes || !InferAtariStGeometry(record.bytes.size())) return Bad("invalid media-data payload size");
     std::vector<unsigned char> bytes={'F','E','S','D','I','S','K','1'};
     for(const auto& digest:{Hash(record.identity.core_id),Hash(record.identity.game_id)})
@@ -166,6 +208,7 @@ Error EncodeMediaData(const MediaDiskRecord& record,std::vector<unsigned char>* 
 }
 Error DecodeMediaData(const std::vector<unsigned char>& bytes,const MediaDataIdentity& id,MediaDiskRecord* output) {
     if(!output||!ValidMediaDataIdentity(id)) return Bad("invalid media-data identity");
+    if (bytes.size() >= 8 && std::memcmp(bytes.data(), "FESTAPE1", 8) == 0) return DecodeTape(bytes, id, output);
     if(bytes.size()<148+kLayout.size() || bytes.size()>kMaximumMediaDataBytes || std::memcmp(bytes.data(),"FESDISK1",8))
         return Bad("invalid media-data envelope or size");
     const auto sum=Hash(bytes.data(),bytes.size()-32);

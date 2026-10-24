@@ -1336,7 +1336,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape",
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
 		"fes.memory.hps-ddr", "fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
@@ -4076,6 +4076,44 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 	assert(production->EjectComputerMedia(0).message == "FES computer media unit is not active");
 }
 
+void TestZx81CleanMachineStopsWithoutFreeze()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint16_t capabilities = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaZx81Tape |
+		FesComputerCapabilityMediaZx81TapeWrite;
+	mister_test::ComputerEndpoint endpoint(capabilities,
+		{{0, {1, FesComputerZx81TapeMaxBytes}}}, "0123456789abcdef0123456789abcdef");
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+
+	TempDirectory package;
+	std::string manifest = ComputerManifest();
+	ReplaceAll(&manifest, "fes.pong", "fes.zx81");
+	ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.zx81-tape");
+	ReplaceAll(&manifest, "fes.expansion.apple2-bus", "fes.expansion.zx81-bus");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+	assert(!endpoint.save_ready && !endpoint.dirty);
+
+	const std::size_t before_stop = endpoint.requests.size();
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.status().state == mister::State::idle);
+	for (std::size_t i = before_stop; i < endpoint.requests.size(); ++i)
+		assert(!(endpoint.requests[i].opcode == FesComputerOpcodeMediaSnapshotControl &&
+			endpoint.requests[i].argument == FesComputerMediaSnapshotFreeze));
+}
+
 void TestComputerSlotCompositionActivatesLinkedPayload()
 {
 	auto hash = [](const std::string& value) {
@@ -4164,6 +4202,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 				"\n[[interfaces]]\nid = \"fes.gamepad.ports\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n"
+				"\n[[interfaces]]\nid = \"fes.media.zx81-tape-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.fabric.video.display-plane\"\nmajor = 1\nminor = 0\nrequired = true\n"
@@ -4262,6 +4301,7 @@ int main()
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestZx81CleanMachineStopsWithoutFreeze();
 	TestInitialSTDiskBeforeExecution();
     TestInitialSTDiskBeforeExecution(409600);
     TestInitialSTDiskBeforeExecution(839680);
@@ -4302,6 +4342,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 33 passed");
+	puts("native_hardware_test: 34 passed");
 	return 0;
 }

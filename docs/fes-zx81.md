@@ -1,8 +1,8 @@
 # FES ZX81
 
 The standard core is a `fes.computer` 1.0 package (`fes.zx81`
-1.6.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
-40-key matrix, one `.p` tape unit, fixed 720p60 HDMI, the session-display
+1.7.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
+40-key matrix, one `.p` tape unit with BASIC SAVE, fixed 720p60 HDMI, the session-display
 plane for kit launcher frames, and a registered Z80-like expansion bus. The
 same shell also builds experimental package-only models `fes.zx80` (PAL, 4 KiB
 ROM, 1 KiB internal RAM, no NMI), `fes.ts1000` (NTSC, 8 KiB ROM, 2 KiB internal
@@ -30,12 +30,12 @@ the target links it through the package's sealed ROM map at download time. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.media.zx81-tape-write`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | HID keyboard rows mapped to the 40-key matrix |
 | Stop | ordinary session Stop; Select+Start held for one second on the kit |
 | Live controls | Home or Select opens the launcher plane; Escape/B or Return to play closes it and restores ZX81 video |
-| Tape | launch insert into unit 0, or mid-session tape insert/eject; empty `LOAD ""` reports `0/0` |
+| Tape | launch insert into unit 0, or mid-session tape insert/eject; empty `LOAD ""` reports `0/0`. BASIC SAVE on the ZX81 ROM stores a `.p` through `fes.media.zx81-tape-write` |
 
 Live tape arm/eject uses `fes.media.zx81-tape` unit 0 without a
 hold-reset reboot. The captured host/agent session operations are
