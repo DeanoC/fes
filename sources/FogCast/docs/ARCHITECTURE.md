@@ -770,8 +770,10 @@ The CLI reads the session with a 30-second client. `change-tape` and
 timeout, so an insert can finish inside the host's 150-second budget. A lost
 response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
-`POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
-A poisoned or unstable GP handshake is the same retryable `BUSY`. A hard MMIO
+`POST /v1/development/clear-media`. A confirmed loader rejection maps to
+retryable `BUSY` with `no_change:true`. An ambiguous or unstable GP handshake
+after eject dispatch maps to retryable `BUSY` without `no_change`, because the
+core may already have ejected the medium. A hard MMIO
 failure or an invalid clear acknowledgement stays `MISTER_UNAVAILABLE`, even
 when the runtime phase is `input`. The host retries phase-`input` busy and
 does not relabel that hard failure as loader contention. Unavailable eject

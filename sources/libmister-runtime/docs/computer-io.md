@@ -162,6 +162,10 @@ the unit.
 
 It realigns and re-identifies an ambiguous mailbox first, sends MediaEject for
 the unit, then confirms MediaInfo state empty. Eject is idempotent.
+If the eject exchange becomes ambiguous after the command is sent, the runtime
+returns its input-phase `io_failed` result after best-effort realignment; the
+core may already have accepted the eject. A completed loader rejection remains
+retryable `busy` and confirms that the media was not changed by that attempt.
 
 ### Status
 

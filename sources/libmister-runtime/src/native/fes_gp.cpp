@@ -1093,7 +1093,10 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 			// tell a dead link from a busy loader.
 			if (ExchangeTransportGlitch(exchange)) {
 				(void)gp_.Realign(deadline);
-				return {ErrorCode::busy, "tape loader is busy", "input"};
+				// The eject command may have reached the core before its ACK was
+				// lost. Keep the transport error so callers do not claim that the
+				// current media is unchanged.
+				return exchange;
 			}
 			return MediaBusyOrIo(exchange);
 		}
