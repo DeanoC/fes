@@ -92,6 +92,21 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(plan['boundary_scheduled'])
         self.assertEqual(plan['target'], 'test-ui-boundary')
 
+    def test_node_required_only_when_browser_tests_are_scheduled(self):
+        for filename, needs_node in (('lib_test.go', False), ('lib.go', True)):
+            with self.subTest(filename=filename), patch.object(
+                    host_tests.shutil, 'which', side_effect=lambda tool: None if tool == 'node' else '/bin/' + tool):
+                code, report, calls = self.host_report(['sources/FogCast/lib/' + filename],
+                    ['--ui-if-needed'], execute=True)
+                self.assertEqual(code, 2 if needs_node else 0)
+                if needs_node:
+                    self.assertFalse(calls)
+                    self.assertIn('node', report['error'])
+                else:
+                    self.assertFalse(report['host_ui']['scheduled'])
+                    self.assertTrue(report['host_ui']['boundary_scheduled'])
+                    self.assertEqual(calls[-1].args[0], ['make', 'test-ui-boundary'])
+
     def test_embedded_guide_retains_browser_tests(self):
         module = self.root / host_affected.MODULES[0]
         record = {'ImportPath': 'github.com/example/root', 'Dir': str(module),

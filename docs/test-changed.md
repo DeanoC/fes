@@ -16,11 +16,6 @@ or contact the kit. Review the exact commands without executing tests:
 python3 scripts/test_changed.py --base origin/main --plan-only
 ```
 
-When the host lane is selected, its top-level plan includes `host_ui.target`
-(`test-ui` or `test-ui-boundary`). Node.js is a prerequisite only when
-`test-ui` is selected. In the host runner report, `host_ui.scheduled` describes
-the browser suite; `host_ui.boundary_scheduled` describes the boundary guard.
-
 An explicit `--head` may be used for planning another commit. Execution requires
 that commit to be checked out; otherwise the command refuses to test different
 bytes from the requested revision. All-zero forty-character `--base` means all
@@ -371,4 +366,9 @@ Go dependencies, build/policy inputs, unknown or removed packages, embedded
 guides, and full runs. The Go package graph and reverse test consumers are
 still validated and tested. The UI boundary guard still scans all Go files,
 including changed tests. CI runs the UI check once, on its last host shard.
-The JSON report records whether browser tests were required and scheduled.
+The top-level plan includes `host_ui.target` (`test-ui` or
+`test-ui-boundary`). In the host JSON report, `host_ui.scheduled` describes the
+browser suite and `host_ui.boundary_scheduled` describes the boundary guard.
+Node.js is required only when browser tests are scheduled; both runners check
+this before executing tests. Inspect the exact target without executing checks with:
+`python3 scripts/host_tests.py --ui-if-needed --plan-only --paths-json '["sources/FogCast/internal/rebootguard/fallback_test.go"]'`.

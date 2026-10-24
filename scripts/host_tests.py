@@ -10,6 +10,7 @@ Uses the inherited Go environment; requested host builds use the parent Make tar
 import argparse
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -154,6 +155,13 @@ def main(argv=None):
         report['status'] = 'planned'
         print(json.dumps(report, indent=2))
         return 0
+    if args.ui_if_needed and ui['command_scheduled']:
+        tools = ['make', 'sh', 'rg', *(['node'] if ui_required else [])]
+        missing = [tool for tool in tools if shutil.which(tool) is None]
+        if missing:
+            report.update(status='error', error='missing UI prerequisites: ' + ', '.join(missing))
+            print(json.dumps(report, indent=2))
+            return 2
     report['results'] = []
     for command in commands:
         # Test output goes to stderr so stdout stays a standalone JSON report.
