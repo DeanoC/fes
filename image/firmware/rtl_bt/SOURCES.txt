@@ -10,5 +10,7 @@ The kernel requests these names for the Superstation One RTL8821CU
   rtl_bt/rtl8761bu_config.bin
 
 Redistribution in binary form follows LICENCE.rtlwifi_firmware.txt.
-SHA256SUMS is the pin checked when the image is assembled.
+Trailing spaces on that licence's lines are removed; the notice text is unchanged.
+SHA256SUMS is the pin checked when the image is assembled. The firmware
+blob lines match linux-firmware 20240909. The licence line matches this copy.
 This note stays in the repository and is not copied into the rootfs.
