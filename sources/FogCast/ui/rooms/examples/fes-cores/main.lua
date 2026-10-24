@@ -2,7 +2,8 @@
 --
 -- The shelf lists what kit.cores reports, names verbatim, then adds the
 -- host catalog's ZX81 and C64 computers when hardware.read provides them.
--- Those cards launch with the library, and they do not draw a keyboard.
+-- Those cards launch with the library, and they do not draw a keyboard. The
+-- host list is still read when the kit-local listing fails.
 -- FES draws the selected item's title, input needs, readiness, destination and actions
 -- in the hero text column (room.toml destination_panel = "hero"); this
 -- script draws the card, artwork motif, shelf and header routes.
@@ -271,10 +272,28 @@ function load()
   kit.cores(function(rows, err)
     if err then
       unavailable = true
-      cores = {}
       status = "This kit's machines can't be listed right now."
-      if row == "shelf" then row = "menu" end
-      publish()
+      local function settle_unavailable(listed)
+        cores = listed or {}
+        if #cores == 0 then
+          if row == "shelf" then row = "menu" end
+        else
+          choose_opening()
+          keep_visible()
+        end
+        publish()
+      end
+      if hardware == nil or hardware.read == nil then
+        settle_unavailable({})
+        return
+      end
+      hardware.read(function(data, herr)
+        local host = {}
+        if not herr and data and data.computers then
+          host = merge_host_computers(host, data.computers)
+        end
+        settle_unavailable(host)
+      end)
       return
     end
     local listed = rows or {}

@@ -2386,6 +2386,19 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
+### FES Home computer shelf
+
+The embedded `example.fes-cores` Home room combines the kit-local package
+list from `kit.cores` with the host library's ZX81 and C64 entries from
+`hardware.read`. Each host card publishes its library `game_id` and launches
+through the library path; a ready host card replaces a blocked local row for
+the same core, while a launchable local row stays selected. Host readiness
+follows library launch admission, including selected video parts, required and
+selected removable media, package composition, and the format-2 ZX81 machine
+ROM linker. If kit-local listing fails, Home still reads the host shelf and
+shows any available host cards; with no host cards, it shows the kit-listing
+error.
+
 ### Home-computer packages and slot cards
 
 `fes.computer` 1.0 (the Apple II pathfinder, `fes.apple2`) is a recognized

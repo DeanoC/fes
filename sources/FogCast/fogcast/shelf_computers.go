@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -49,6 +50,9 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 		inspection, inspectErr := s.installedCoreInspection(ctx, entry.PackageID)
 		packageReady := inspectErr == nil && inspection.Descriptor.Core.ID == entry.CoreID
 		ready := packageReady && shelfCompositionReady(comps[entry.GameID])
+		if ready {
+			ready = s.shelfComputerLaunchReady(ctx, entry, inspection)
+		}
 		reason := ""
 		if !ready {
 			if !packageReady {
@@ -72,6 +76,37 @@ func (s *Service) ShelfComputers(ctx context.Context) ([]ShelfComputer, error) {
 		}
 	}
 	return out, nil
+}
+
+// shelfComputerLaunchReady checks launch admissions that are not represented
+// by CoreComposition. Keep this projection aligned with the library launch
+// path so Home does not offer Play for a title that launch will reject.
+func (s *Service) shelfComputerLaunchReady(ctx context.Context, entry catalog.CoreEntry, inspection corepackage.Inspection) bool {
+	descriptor := inspection.Descriptor
+	if err := libraryVideoAdmission(inspection); err != nil {
+		return false
+	}
+	if protocol.RequiresCoreMedia(descriptor) && !(descriptor.ROM != nil && descriptor.ROM.Role == "cartridge") && entry.MediaID == "" {
+		return false
+	}
+	if entry.MediaID != "" || entry.MediaRole != "" {
+		if err := s.validateCoreEntryMedia(ctx, descriptor, entry.MediaRole, entry.MediaID); err != nil {
+			return false
+		}
+	}
+	if entry.CoreID == "fes.zx81" && descriptor.Format == 2 && !s.zx81FirmwareReady(ctx, entry, descriptor) {
+		return false
+	}
+	if hasVideoSocket(inspection) {
+		_, base, err := s.readInstalledCore(ctx, entry.PackageID)
+		if err != nil {
+			return false
+		}
+		if _, err := s.composeVideoEntry(ctx, entry, inspection, base); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 type shelfCandidate struct {

@@ -172,10 +172,12 @@ const coreC64ShelfID = "22222222222222222222222222222222222222222222222222222222
 
 type homeComputerServices struct {
 	fakeServices
-	computers []hostclient.ShelfComputer
+	computers     []hostclient.ShelfComputer
+	hardwareReads int
 }
 
 func (s *homeComputerServices) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
+	s.hardwareReads++
 	return hostclient.HardwareSnapshot{Computers: append([]hostclient.ShelfComputer(nil), s.computers...)}, nil
 }
 
@@ -250,6 +252,36 @@ func TestHomeListsHostComputersBesideUnavailableColeco(t *testing.T) {
 	}
 	if keptRoom.Err() != nil {
 		t.Fatal(keptRoom.Err())
+	}
+}
+
+func TestHomeListsHostComputersWhenKitListingFails(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	local := &fakeLocalCores{listErr: errors.New("invalid catalog response")}
+	services := &homeComputerServices{computers: []hostclient.ShelfComputer{
+		{GameID: "fpga-c64", Title: "Commodore 64", CoreID: "fes.c64", PackageID: coreC64ShelfID, Ready: true},
+	}}
+	r := newRoom(t, pack, Options{Local: local, Services: services, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Commodore 64\n")
+	})
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if services.hardwareReads != 1 {
+		t.Fatalf("host shelf read %d times after kit listing failure", services.hardwareReads)
+	}
+	if got := r.Destination(); got.Kind != KindGame || got.GameID != "fpga-c64" || got.Confirm() != ConfirmLaunch {
+		t.Fatalf("host card unavailable after kit listing failure: %+v confirm=%v", got, got.Confirm())
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := local.launchedIDs(); len(got) != 0 {
+		t.Fatalf("host card used kit-local launch: %v", got)
 	}
 }
 
