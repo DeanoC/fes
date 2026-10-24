@@ -416,3 +416,30 @@ func catalogApp(n int) *App {
 	app.grid.SetCount(n)
 	return app
 }
+
+func TestRepeaterClearConcurrentWithInputAndTick(t *testing.T) {
+	var r Repeater
+	now := time.Unix(0, 0)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, work := range []func(){
+		func() { r.Down(CmdRight, now); r.Arm(CmdDown, now); r.Up(CmdRight) },
+		func() { r.Clear() },
+		func() { r.Tick(now.Add(time.Second)) },
+	} {
+		wg.Add(1)
+		go func(work func()) {
+			defer wg.Done()
+			<-start
+			for i := 0; i < 8000; i++ {
+				work()
+			}
+		}(work)
+	}
+	close(start)
+	wg.Wait()
+	r.Clear()
+	if got := r.Tick(now.Add(time.Second)); got != CmdNone {
+		t.Fatalf("repeat after clear: %v", got)
+	}
+}
