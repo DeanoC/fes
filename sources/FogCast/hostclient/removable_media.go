@@ -107,7 +107,7 @@ func (c *Client) postRemovableMedia(ctx context.Context, prior SessionResult, pa
 	client.httpClient = &transport
 	result, err := client.postLiveMedia(ctx, path, body, length, sessionID, b)
 	if err == nil && (result.ID != prior.ID || result.Target != prior.Target || result.TargetID != prior.TargetID || result.CorePackage == nil || result.CorePackage.PackageID != b.PackageID || result.CorePackage.Generation != b.Generation) {
-		return result, protocol.LiveMediaIdentityError()
+		return result, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "live media response did not confirm the captured session", Phase: "recovery"}
 	}
 	return result, err
 }

@@ -178,6 +178,8 @@ func TestAppTapePickerSurfacesBusyReject(t *testing.T) {
 	}
 	h := newTapeHost(t)
 	h.busy = true
+	h.computerTape = true
+	h.mediaName = "first.p"
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.Start(t.Context())
@@ -202,6 +204,9 @@ func TestAppTapePickerSurfacesBusyReject(t *testing.T) {
 	}
 	if snap.Session.State != "active" {
 		t.Fatalf("busy must not stop session: %+v", snap.Session)
+	}
+	if snap.TapePicker.Current != "Inserted: first.p" {
+		t.Fatalf("busy rejection lost mounted filename: %q", snap.TapePicker.Current)
 	}
 }
 
@@ -251,6 +256,8 @@ func TestAppTapePickerEjectRetriesBusyAndKeepsSession(t *testing.T) {
 func TestAppTapePickerEjectUnavailableKeepsSession(t *testing.T) {
 	h := newTapeHost(t)
 	h.clearUnavailable = true
+	h.computerTape = true
+	h.mediaName = "old.p"
 	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.Start(t.Context())
@@ -266,6 +273,55 @@ func TestAppTapePickerEjectUnavailableKeepsSession(t *testing.T) {
 	})
 	if snap.Session.State != "active" || h.clearCount() != 3 {
 		t.Fatalf("state=%s clears=%d status=%q", snap.Session.State, h.clearCount(), snap.Status)
+	}
+	if snap.TapePicker.Current != "Inserted media name unavailable" {
+		t.Fatalf("uncertain eject retained stale filename: %q", snap.TapePicker.Current)
+	}
+}
+
+func TestAppTapePickerEjectBusyRejectionKeepsMediaName(t *testing.T) {
+	h := newTapeHost(t)
+	h.clearBusyLeft = 3
+	h.computerTape = true
+	h.mediaName = "old.p"
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "active", func(s Snapshot) bool { return s.Session.State == "active" && s.Session.LoadTape })
+	app.HandleCommand(CmdSearch, time.Now())
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "busy eject rejection", func(s Snapshot) bool {
+		return s.TapePicker.Open && !s.TapePicker.Busy && strings.Contains(s.Status, "tape loader is busy")
+	})
+	if h.clearCount() != 3 || snap.Session.State != "active" || snap.TapePicker.Current != "Inserted: old.p" {
+		t.Fatalf("clears=%d state=%s media=%q status=%q", h.clearCount(), snap.Session.State, snap.TapePicker.Current, snap.Status)
+	}
+}
+
+func TestAppTapePickerEjectRetryAfterUncertainAttemptClearsName(t *testing.T) {
+	h := newTapeHost(t)
+	h.computerTape = true
+	h.mediaName = "old.p"
+	h.clearErrorSequence = []bool{false, true, true}
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "active", func(s Snapshot) bool { return s.Session.State == "active" && s.Session.LoadTape })
+	app.HandleCommand(CmdSearch, time.Now())
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "uncertain retry sequence", func(s Snapshot) bool {
+		return s.TapePicker.Open && !s.TapePicker.Busy && strings.Contains(s.Status, "tape loader is busy")
+	})
+	if h.clearCount() != 3 || snap.TapePicker.Current != "Inserted media name unavailable" {
+		t.Fatalf("clears=%d media=%q status=%q", h.clearCount(), snap.TapePicker.Current, snap.Status)
 	}
 }
 
@@ -407,23 +463,24 @@ func zx81LiveSession() hostclient.SessionResult {
 }
 
 type tapeHost struct {
-	mu               sync.Mutex
-	launches         int
-	imports          int
-	replaces         int
-	clears           int
-	busy             bool
-	clearBusyLeft    int
-	clearUnavailable bool
-	lastMediaID      string
-	lastName         string
-	mediaName        string
-	computerTape     bool
-	pkg              string
-	sessionID        string
-	server           *httptest.Server
-	armStarted       chan struct{}
-	armRelease       chan struct{}
+	mu                 sync.Mutex
+	launches           int
+	imports            int
+	replaces           int
+	clears             int
+	busy               bool
+	clearBusyLeft      int
+	clearErrorSequence []bool
+	clearUnavailable   bool
+	lastMediaID        string
+	lastName           string
+	mediaName          string
+	computerTape       bool
+	pkg                string
+	sessionID          string
+	server             *httptest.Server
+	armStarted         chan struct{}
+	armRelease         chan struct{}
 }
 
 func newTapeHost(t *testing.T) *tapeHost {
@@ -496,7 +553,7 @@ func newTapeHost(t *testing.T) *tapeHost {
 			if busy {
 				w.WriteHeader(http.StatusConflict)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error": map[string]string{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes"},
+					"error": map[string]any{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes", "phase": "input", "no_change": true},
 				})
 				return
 			}
@@ -504,16 +561,29 @@ func newTapeHost(t *testing.T) *tapeHost {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media/clear":
 			h.mu.Lock()
 			h.clears++
+			sequenced := len(h.clearErrorSequence) > 0
+			noChange := false
+			if sequenced {
+				noChange = h.clearErrorSequence[0]
+				h.clearErrorSequence = h.clearErrorSequence[1:]
+			}
 			busyLeft := h.clearBusyLeft
 			if busyLeft > 0 {
 				h.clearBusyLeft--
 			}
 			unavailable := h.clearUnavailable
 			h.mu.Unlock()
+			if sequenced {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]any{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes", "phase": "input", "no_change": noChange},
+				})
+				return
+			}
 			if busyLeft > 0 {
 				w.WriteHeader(http.StatusConflict)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error": map[string]string{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes", "phase": "input"},
+					"error": map[string]any{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes", "phase": "input", "no_change": true},
 				})
 				return
 			}

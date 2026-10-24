@@ -556,7 +556,7 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 		return
 	}
 	if err != nil {
-		if replacementDispatched {
+		if replacementDispatched && !protocol.LiveMediaNoChange(err) {
 			a.session.MediaName = ""
 		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
@@ -586,7 +586,9 @@ func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.Session
 	}
 	if err != nil {
 		// Eject failure leaves the active session alone. Unavailable is not Stop.
-		a.session.MediaName = ""
+		if !protocol.LiveMediaNoChange(err) {
+			a.session.MediaName = ""
+		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -605,6 +607,7 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclie
 	}
 	var result hostclient.SessionResult
 	var err error
+	uncertain := false
 	waits := []time.Duration{0, 40 * time.Millisecond, 80 * time.Millisecond}
 	for _, wait := range waits {
 		if wait > 0 {
@@ -613,18 +616,21 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclie
 			case <-ctx.Done():
 				timer.Stop()
 				if err != nil {
-					return result, err
+					return result, protocol.LiveMediaRetryError(err, uncertain)
 				}
 				return result, ctx.Err()
 			case <-timer.C:
 			}
 		}
 		result, err = client.ClearRemovableMediaForSession(ctx, prior)
+		if err != nil && !protocol.LiveMediaNoChange(err) {
+			uncertain = true
+		}
 		if err == nil || !ejectRetryable(err) {
-			return result, err
+			return result, protocol.LiveMediaRetryError(err, uncertain)
 		}
 	}
-	return result, err
+	return result, protocol.LiveMediaRetryError(err, uncertain)
 }
 
 func ejectRetryable(err error) bool {

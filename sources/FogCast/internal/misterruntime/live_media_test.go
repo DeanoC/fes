@@ -102,21 +102,21 @@ func TestRuntimeClearLiveMediaMapsInputIOToBusyAndOtherIOToUnavailable(t *testin
 	runtime := misterruntime.NewRuntime(control, "", 0, 0)
 	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
 	err := runtime.ClearLiveMedia(context.Background(), binding)
-	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || !strings.Contains(err.Message, "tape loader") {
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || err.NoChange || !strings.Contains(err.Message, "outcome is uncertain") {
 		t.Fatalf("transport glitch = %#v", err)
 	}
 	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
 		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP exchange deadline exceeded: opcode=4 index=1 request=0 ack=unobserved", Phase: "input"}}, nil
 	}
 	err = runtime.ClearLiveMedia(context.Background(), binding)
-	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" {
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || err.NoChange {
 		t.Fatalf("deadline glitch = %#v", err)
 	}
 	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
 		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "busy", Message: "tape busy", Phase: "input"}}, nil
 	}
 	err = runtime.ClearLiveMedia(context.Background(), binding)
-	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" {
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || !err.NoChange {
 		t.Fatalf("loader busy = %#v", err)
 	}
 	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
@@ -219,7 +219,7 @@ func TestRuntimeReplaceLiveMediaRejectsBusyAndStaleGeneration(t *testing.T) {
 	}
 	runtime := misterruntime.NewRuntime(control, "", 0, 0)
 	err := runtime.ReplaceLiveMedia(context.Background(), 1, strings.NewReader("x"), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
-	if err == nil || err.Code != protocol.CodeBusy || !strings.Contains(err.Message, "tape loader") {
+	if err == nil || err.Code != protocol.CodeBusy || !err.NoChange || !strings.Contains(err.Message, "tape loader") {
 		t.Fatalf("busy mapping: %v", err)
 	}
 	stale := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 8}
@@ -227,7 +227,7 @@ func TestRuntimeReplaceLiveMediaRejectsBusyAndStaleGeneration(t *testing.T) {
 		t.Fatal("stale generation dispatched")
 		return response, nil
 	}
-	if err := runtime.ReplaceLiveMedia(context.Background(), 1, strings.NewReader("x"), stale); err == nil || err.Phase != "admission" {
+	if err := runtime.ReplaceLiveMedia(context.Background(), 1, strings.NewReader("x"), stale); err == nil || err.Phase != "admission" || !err.NoChange {
 		t.Fatalf("stale: %v", err)
 	}
 }

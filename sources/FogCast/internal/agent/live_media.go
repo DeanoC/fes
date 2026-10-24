@@ -16,7 +16,7 @@ type liveMediaRuntime interface {
 
 func (c *Coordinator) ReplaceLiveMedia(parent context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running", NoChange: true}
 	}
 	defer c.end()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
@@ -52,7 +52,7 @@ func (c *Coordinator) ReplaceLiveMedia(parent context.Context, size int64, body 
 
 func (c *Coordinator) ClearLiveMedia(parent context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	if !c.begin() {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running", NoChange: true}
 	}
 	defer c.end()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {

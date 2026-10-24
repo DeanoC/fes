@@ -115,9 +115,21 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 	clear.Host = "127.0.0.1"
 	clear.Header.Set("X-FogCast-Session-ID", session.ID)
 	protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Target: "dev"}.SetHeaders(clear.Header)
+	service.err = protocol.LiveMediaBusyError()
 	cw := httptest.NewRecorder()
 	handler.ServeHTTP(cw, clear)
-	if cw.Code != 200 || service.clearCalls != 1 {
+	if cw.Code != http.StatusConflict || service.clearCalls != 1 {
+		t.Fatalf("busy eject status=%d body=%s calls=%d", cw.Code, cw.Body, service.clearCalls)
+	}
+	stillInserted := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if !strings.Contains(stillInserted.Body.String(), `"media_name":"other.p"`) {
+		t.Fatalf("no-op eject rejection lost confirmed name: %s", stillInserted.Body)
+	}
+
+	service.err = nil
+	cw = httptest.NewRecorder()
+	handler.ServeHTTP(cw, clear)
+	if cw.Code != http.StatusOK || service.clearCalls != 2 {
 		t.Fatalf("eject status=%d body=%s calls=%d", cw.Code, cw.Body, service.clearCalls)
 	}
 	if strings.Contains(cw.Body.String(), `"media_name"`) {
@@ -126,6 +138,69 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 
 	if len(input.detach) != detachedBefore {
 		t.Fatalf("input detached unexpectedly: %v", input.detach)
+	}
+}
+
+func TestLiveMediaNoChangeRejectionsPreserveName(t *testing.T) {
+	packageID := strings.Repeat("a", 64)
+	service := &liveMediaService{fakeService: fakeService{status: protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: packageID, Generation: 9,
+		ABI:              protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}},
+	}}, sessionTarget: "dev"}}
+	handler := hostapi.New(service)
+	var session struct {
+		ID string `json:"id"`
+	}
+	if response := serve(t, handler, http.MethodGet, "/api/v1/session"); json.Unmarshal(response.Body.Bytes(), &session) != nil || session.ID == "" {
+		t.Fatalf("session: %s", response.Body)
+	}
+	request := func(path, name string) *httptest.ResponseRecorder {
+		var body *strings.Reader
+		if name != "" {
+			body = strings.NewReader(`{"media_id":"` + strings.Repeat("b", 64) + `","name":"` + name + `"}`)
+		}
+		var req *http.Request
+		if body == nil {
+			req = httptest.NewRequest(http.MethodPost, path, nil)
+		} else {
+			req = httptest.NewRequest(http.MethodPost, path, body)
+			req.Header.Set("Content-Type", "application/json")
+		}
+		req.Host = "127.0.0.1"
+		req.Header.Set(protocol.HostSessionIDHeader, session.ID)
+		protocol.DevelopmentMediaBinding{PackageID: packageID, Generation: 9, Target: "dev"}.SetHeaders(req.Header)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, req)
+		return response
+	}
+	if inserted := request("/api/v1/session/live-media", "first.p"); inserted.Code != http.StatusOK || !strings.Contains(inserted.Body.String(), `"media_name":"first.p"`) {
+		t.Fatalf("initial insert = %d %s", inserted.Code, inserted.Body.String())
+	}
+	service.err = protocol.LiveMediaBusyError()
+	if rejected := request("/api/v1/session/live-media", "second.p"); rejected.Code != http.StatusConflict || !strings.Contains(rejected.Body.String(), `"no_change":true`) {
+		t.Fatalf("busy insert = %d %s", rejected.Code, rejected.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"first.p"`) {
+		t.Fatalf("busy insert lost prior filename: %s", current.Body.String())
+	}
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "reply lost", Phase: "transfer"}
+	if uncertain := request("/api/v1/session/live-media", "second.p"); uncertain.Code == http.StatusOK {
+		t.Fatalf("uncertain insert unexpectedly succeeded: %s", uncertain.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); strings.Contains(current.Body.String(), `"media_name"`) {
+		t.Fatalf("uncertain insert retained stale filename: %s", current.Body.String())
+	}
+	service.err = nil
+	if inserted := request("/api/v1/session/live-media", "third.p"); inserted.Code != http.StatusOK || !strings.Contains(inserted.Body.String(), `"media_name":"third.p"`) {
+		t.Fatalf("restore insert = %d %s", inserted.Code, inserted.Body.String())
+	}
+	service.err = protocol.LiveMediaBusyError()
+	if rejected := request("/api/v1/session/live-media/clear", ""); rejected.Code != http.StatusConflict {
+		t.Fatalf("busy eject = %d %s", rejected.Code, rejected.Body.String())
+	}
+	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"third.p"`) {
+		t.Fatalf("busy eject lost prior filename: %s", current.Body.String())
 	}
 }
 

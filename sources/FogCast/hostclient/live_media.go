@@ -145,7 +145,7 @@ func (c *Client) postLiveMedia(ctx context.Context, path string, body io.Reader,
 		return result, APIStatusError(resp.StatusCode, raw)
 	}
 	if result.State != "active" {
-		return result, protocol.LiveMediaIdentityError()
+		return result, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "live media response did not confirm the captured session", Phase: "recovery"}
 	}
 	return result, nil
 }
@@ -158,14 +158,21 @@ func liveMediaAPIError(result SessionResult) error {
 	code := protocol.ErrorCode(result.ErrorCode)
 	switch code {
 	case protocol.CodeBusy:
-		phase := "admission"
-		if strings.Contains(strings.ToLower(msg), "tape loader") {
+		phase := strings.TrimSpace(result.ErrorPhase)
+		if phase == "" {
+			phase = "admission"
+		}
+		if phase == "admission" && strings.Contains(strings.ToLower(msg), "tape loader") {
 			phase = "input"
 		}
-		return &protocol.APIError{Code: protocol.CodeBusy, Message: msg, Phase: phase}
+		return &protocol.APIError{Code: protocol.CodeBusy, Message: msg, Phase: phase, NoChange: result.ErrorNoChange}
 	case protocol.CodeBadRequest:
-		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: msg, Phase: "request"}
+		phase := strings.TrimSpace(result.ErrorPhase)
+		if phase == "" {
+			phase = "request"
+		}
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: msg, Phase: phase, NoChange: result.ErrorNoChange}
 	default:
-		return &protocol.APIError{Code: code, Message: msg}
+		return &protocol.APIError{Code: code, Message: msg, Phase: strings.TrimSpace(result.ErrorPhase), NoChange: result.ErrorNoChange}
 	}
 }

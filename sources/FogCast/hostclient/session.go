@@ -114,6 +114,8 @@ type SessionResult struct {
 	HPSFramebuffer *bool
 	ErrorCode      string
 	ErrorMessage   string
+	ErrorPhase     string
+	ErrorNoChange  bool
 	// StopStage is the host stop_stage on an error. lease_release means
 	// cleanup reached idle and the kit grant is still renewing.
 	StopStage string
@@ -214,6 +216,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		Error                   *struct {
 			Code      string `json:"code"`
 			Message   string `json:"message"`
+			Phase     string `json:"phase"`
+			NoChange  bool   `json:"no_change"`
 			StopStage string `json:"stop_stage"`
 		} `json:"error"`
 	}
@@ -270,6 +274,8 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	if wire.Error != nil {
 		result.ErrorCode = wire.Error.Code
 		result.ErrorMessage = wire.Error.Message
+		result.ErrorPhase = wire.Error.Phase
+		result.ErrorNoChange = wire.Error.NoChange
 		result.StopStage = strings.TrimSpace(wire.Error.StopStage)
 		return result, nil
 	}
