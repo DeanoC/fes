@@ -1006,6 +1006,13 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
+Kit Home reuses its presented display list while core-list identity, status,
+focus, shelf position, title and content size are unchanged. An asynchronous
+list result, pointer or direction focus change, resize, or unpresented frame
+forces a redraw. Its completed redraw uses `gfx.paint` for the background;
+a soft overrun can therefore present the finished picture for reuse on the
+next frame. State-save debounce continues in `update` during reused frames.
+
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
 previous frame and counts toward eight consecutive frame overruns. A finished
