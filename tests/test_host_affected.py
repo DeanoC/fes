@@ -47,6 +47,47 @@ class SelectionTests(unittest.TestCase):
             code = host_tests.main(args)
         return code, json.loads(output.getvalue()), run.call_args_list
 
+    def test_ui_skips_only_verified_unrelated_go_tests(self):
+        test = 'sources/FogCast/lib/lib_test.go'
+        api = {'ImportPath': 'github.com/example/hostapi',
+               'Dir': str(self.root / 'sources/FogCast/internal/hostapi'),
+               'Module': {'Dir': str(self.root / 'sources/FogCast')}}
+        cases = (([test], (), False), ([test, 'docs/development.md'], (), False),
+                 (['sources/FogCast/internal/hostapi/api_test.go'], (), True),
+                 (['sources/FogCast/lib/lib.go'], (), True),
+                 ([test, 'sources/FogCast/go.mod'], (), True),
+                 ([test, 'Makefile'], (), True), ([test, 'unknown/file'], (), True),
+                 (['sources/FogCast/gone/deleted_test.go'], (), True),
+                 (['<new-branch>'], (), True), (None, (), True), ([], (), True),
+                 ([test], ('--full',), True))
+        for paths, flags, required in cases:
+            with self.subTest(paths=paths, flags=flags):
+                _, report, _ = self.host_report(paths, (*flags, '--ui-if-needed'), [api])
+                self.assertEqual(report['host_ui']['required'], required)
+                self.assertEqual(report['commands'][-1]['argv'],
+                                 ['make', 'test-ui' if required else 'test-ui-boundary'])
+                _, ordinary, _ = self.host_report(paths, flags, [api])
+                self.assertEqual(report['commands'][:-1], ordinary['commands'])
+
+    def test_ui_runs_once_on_last_shard(self):
+        for filename in ('lib_test.go', 'lib.go'):
+            commands = []
+            for shard in range(1, 4):
+                _, report, _ = self.host_report(['sources/FogCast/lib/' + filename],
+                    ['--ui-if-needed', '--shard', f'{shard}/3'])
+                self.assertEqual(report['host_ui']['scheduled'], shard == 3)
+                commands += [c for c in report['commands'] if c['argv'][0] == 'make']
+            self.assertEqual(len(commands), 1)
+
+    def test_embedded_guide_retains_browser_tests(self):
+        module = self.root / host_affected.MODULES[0]
+        record = {'ImportPath': 'github.com/example/root', 'Dir': str(module),
+                  'Module': {'Dir': str(module)}, 'TestEmbedPatterns': ['docs']}
+        _, report, _ = self.host_report(
+            ['sources/FogCast/lib/lib_test.go', 'sources/FogCast/docs/guide.md'],
+            ['--ui-if-needed'], [record])
+        self.assertTrue(report['host_ui']['required'])
+
     def test_optional_host_build_skips_only_verified_test_inputs(self):
         test = 'sources/FogCast/lib/lib_test.go'
         cases = (([test], (), False), ([test, 'docs/development.md'], (), False),

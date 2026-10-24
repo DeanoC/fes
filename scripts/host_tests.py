@@ -28,6 +28,8 @@ def main(argv=None):
     parser.add_argument('--plan-only', action='store_true')
     parser.add_argument('--build-host-if-needed', action='store_true',
                         help='include make host for non-test/full inputs, on shard 1 only')
+    parser.add_argument('--ui-if-needed', action='store_true',
+                        help='run UI tests unless only verified unrelated Go tests changed; last shard only')
     parser.add_argument('--paths-json', help='JSON array of changed repository paths')
     parser.add_argument('--shard', metavar='I/N',
                         help='run shard I of N (1-based) for parallel CI jobs')
@@ -80,12 +82,30 @@ def main(argv=None):
         build_scheduled = build_required and (shard is None or shard[0] == 0)
         if build_scheduled:
             commands.insert(0, {'cwd': '.', 'label': 'host binary build', 'argv': ['make', 'host']})
+    if args.ui_if_needed:
+        # Reuse the graph/embedded-guide validation above. API and UI test
+        # changes retain the browser suite even though they are test-only.
+        ui_required = (selection['scope'] != 'affected' or
+                       any(not path.endswith('_test.go') or
+                           path.startswith(('sources/FogCast/internal/hostapi/',
+                                            'sources/FogCast/ui/'))
+                           for path in go_changes))
+        ui_scheduled = shard is None or shard[0] == shard[1] - 1
+        if ui_scheduled:
+            # The boundary guard scans ALL Go files, including test files.
+            commands.append({'cwd': test_policy.FOGCAST_MODULE,
+                             'label': 'host UI tests' if ui_required else 'host UI boundary',
+                             'argv': ['make', 'test-ui' if ui_required else 'test-ui-boundary']})
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',
               'commands': commands, 'selection': selection}
     if args.build_host_if_needed:
         report['host_build'] = {'required': build_required, 'scheduled': build_scheduled,
             'reason': ('production/build/full or uncertain inputs' if build_required else
                        'only Go tests and verified guides changed')}
+    if args.ui_if_needed:
+        report['host_ui'] = {'required': ui_required, 'scheduled': ui_scheduled,
+                             'reason': ('UI/API, production/full or uncertain inputs' if ui_required else
+                                        'only verified unrelated Go tests and guides changed; boundary retained')}
     if shard is not None:
         report['shard'] = args.shard
     if args.plan_only:

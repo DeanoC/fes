@@ -356,3 +356,14 @@ shared test-mode policy, other unreviewed inputs, or an omitted/unknown path lis
 retain the full parent suite. Manual/scheduled full plans and `--full` remain
 exhaustive. This selection changes parent checks only; component lane selection
 and the integration gate stay unchanged.
+
+### Browser UI checks for Go test changes
+
+CI and the local host runner use `host_tests.py --ui-if-needed`. Only changes
+confined to Go test files in known packages (plus verified guides) can omit the
+browser UI suite. UI and host API tests retain it, as do production code,
+Go dependencies, build/policy inputs, unknown or removed packages, embedded
+guides, and full runs. The Go package graph and reverse test consumers are
+still validated and tested. The UI boundary guard still scans all Go files,
+including changed tests. CI runs the UI check once, on its last host shard.
+The JSON report records whether browser tests were required and scheduled.
