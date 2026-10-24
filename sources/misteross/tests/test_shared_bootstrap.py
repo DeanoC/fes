@@ -363,7 +363,7 @@ class SharedBootstrapEnvironmentTests(unittest.TestCase):
             log = base / "child-env.log"
             fake_bin = _prepare_fixture(
                 root, log, yosys_commit=coleco_commit,
-                nextpnr_commit="27e1b497dd2c313209c366bae25e1dbfb977e4c4")
+                nextpnr_commit="266e18b560b557ddb1d39c7154bf86bdf7aa2742")
             core_lock = root / "cores" / "fes-coleco" / "toolchain.lock"
             core_lock.parent.mkdir(parents=True)
             shutil.copy2(ROOT / "cores" / "fes-coleco" / "toolchain.lock", core_lock)
