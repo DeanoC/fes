@@ -107,7 +107,6 @@
     "cores/fes-menu/toolchain.lock",
     "scripts/bootstrap.sh",
     "scripts/build_fes_c64_oss.py",
-    "scripts/build_fes_menu.py",
     "scripts/c64_slots.py",
     "scripts/coleco_expansion.py",
     "scripts/compiler_read_audit.py",
