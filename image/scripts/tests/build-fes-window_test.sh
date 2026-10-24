@@ -100,7 +100,7 @@ printf '[kernel]\ncommit = "%s"\nrelease = "5.15.1-MiSTer"\n' \
 
 fogcast=$fixture/fogcast
 mkdir -p "$fogcast/bin"
-for tool in fogcast-kit fogcast-tenfoot fes-kit-data fes-kit-software; do
+for tool in fogcast-kit fogcast-tenfoot fes-kit-data fes-kit-software fes-bluetooth; do
   printf '%s\n' '#!/bin/sh' >"$fogcast/bin/$tool-linux-armv7"
   chmod 0755 "$fogcast/bin/$tool-linux-armv7"
 done

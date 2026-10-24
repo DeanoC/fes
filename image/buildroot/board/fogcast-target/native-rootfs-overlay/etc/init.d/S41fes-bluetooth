@@ -1,0 +1,48 @@
+#!/bin/sh
+# Pair HID and HoG controllers once bluetoothd is up. Link keys stay on the
+# FAT state directory across reboots. Hold the controller's pair button.
+set -eu
+
+pid_file=/run/fes-bluetooth.pid
+log=/var/log/fes-bluetooth.log
+
+stop_agent() {
+  [ -f "$pid_file" ] || return 0
+  IFS= read -r pid < "$pid_file"
+  if /bin/kill -0 "$pid" 2>/dev/null; then
+    /bin/kill "$pid" 2>/dev/null || true
+    stop_wait=5
+    while /bin/kill -0 "$pid" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+      /bin/sleep 1
+      stop_wait=$((stop_wait - 1))
+    done
+    if /bin/kill -0 "$pid" 2>/dev/null; then
+      /bin/kill -9 "$pid" 2>/dev/null || true
+    fi
+  fi
+  /bin/rm -f "$pid_file"
+}
+
+case "${1:-start}" in
+  start)
+    if [ -f "$pid_file" ]; then
+      IFS= read -r pid < "$pid_file"
+      if /bin/kill -0 "$pid" 2>/dev/null; then
+        exit 0
+      fi
+    fi
+    /usr/sbin/fes-bluetooth >>"$log" 2>&1 &
+    printf '%s\n' "$!" > "$pid_file"
+    ;;
+  stop)
+    stop_agent
+    ;;
+  restart)
+    stop_agent
+    "$0" start
+    ;;
+  *)
+    printf '%s\n' "usage: $0 start|stop|restart" >&2
+    exit 2
+    ;;
+esac

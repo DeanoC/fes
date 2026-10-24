@@ -190,5 +190,7 @@ class SoftwareSupervisorBuildTests(unittest.TestCase):
             with mock.patch.object(fes_platform.subprocess, 'check_output', return_value='/selected/go1.26.5\n') as probe, mock.patch.object(fes_platform.subprocess, 'run') as compile_go, mock.patch.object(appliance, 'validate_static_arm', return_value='a' * 64):
                 self.assertEqual(fes_platform.build_kit_software(root, fogcast, {}), 'a' * 64)
             self.assertEqual(probe.call_args.args[0], ['go', 'env', 'GOROOT'])
+            packages = [call.args[0][-1] for call in compile_go.call_args_list]
+            self.assertEqual(packages, ['./cmd/fes-kit-software', './cmd/fes-bluetooth'])
             self.assertEqual(compile_go.call_args.args[0][0], '/selected/go1.26.5/bin/go')
             self.assertEqual(compile_go.call_args.kwargs['env']['GOTOOLCHAIN'], 'local')

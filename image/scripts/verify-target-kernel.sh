@@ -86,6 +86,7 @@ archive_path, release = sys.argv[1:]
 modules_root = f"lib/modules/{release}"
 root_directories = {"lib", "lib/modules", modules_root}
 has_module = False
+has_btusb = False
 
 try:
     with tarfile.open(archive_path, "r:gz") as module_archive:
@@ -125,9 +126,13 @@ for member in members:
         reject(f"special member is not allowed: {member.name}")
     if normalized.endswith((".ko", ".ko.xz")):
         has_module = True
+        if normalized.rsplit("/", 1)[-1] in {"btusb.ko", "btusb.ko.xz"}:
+            has_btusb = True
 
 if not has_module:
     reject(f"no kernel module exists beneath {modules_root}")
+if not has_btusb:
+    reject(f"btusb module is absent beneath {modules_root}")
 PY
 }
 
@@ -171,9 +176,30 @@ verify_kernel() {
     CONFIG_FPGA \
     CONFIG_FPGA_MGR_SOCFPGA \
     CONFIG_SOCFPGA_FPGA_BRIDGE \
-    CONFIG_FPGA_REGION; do
+    CONFIG_FPGA_REGION \
+    CONFIG_BT \
+    CONFIG_BT_BREDR \
+    CONFIG_BT_HIDP \
+    CONFIG_BT_LE \
+    CONFIG_UHID \
+    CONFIG_HID \
+    CONFIG_USB_HID \
+    CONFIG_INPUT_JOYDEV \
+    CONFIG_HID_SONY \
+    CONFIG_HID_NINTENDO \
+    CONFIG_HID_PLAYSTATION; do
     grep -Fxq "$symbol=y" "$dir/config" || {
       printf 'verify-target-kernel: required config is absent: %s=y\n' "$symbol" >&2
+      exit 1
+    }
+  done
+  for symbol in \
+    CONFIG_BT_HCIBTUSB \
+    CONFIG_BT_RTL \
+    CONFIG_BT_BCM \
+    CONFIG_BT_INTEL; do
+    grep -Fxq "$symbol=m" "$dir/config" || {
+      printf 'verify-target-kernel: required config is absent: %s=m\n' "$symbol" >&2
       exit 1
     }
   done

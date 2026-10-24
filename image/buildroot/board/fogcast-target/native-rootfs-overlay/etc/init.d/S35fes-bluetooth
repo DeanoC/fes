@@ -1,0 +1,27 @@
+#!/bin/sh
+# Load the USB Bluetooth modules and create BlueZ storage on the FAT state
+# directory before bluetoothd starts. A missing adapter does not stop boot.
+set -eu
+
+state=/media/fat/fogcast/state/bluetooth
+mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
+
+case "${1:-start}" in
+  start)
+    if [ -d /media/fat ]; then
+      /bin/mkdir -p "$state"
+      /bin/chmod 0700 "$state" 2>/dev/null || true
+    fi
+    for name in btintel btbcm btrtl ath3k btusb; do
+      ko=$mods/$name.ko
+      if [ -f "$ko" ]; then
+        /sbin/insmod "$ko" || true
+      fi
+    done
+    ;;
+  stop|restart) ;;
+  *)
+    printf '%s\n' "usage: $0 start|stop|restart" >&2
+    exit 2
+    ;;
+esac
