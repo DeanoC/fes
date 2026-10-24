@@ -985,7 +985,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceVideoSessionDisplayID ||
 				interface.id == kDisplayPlaneInterfaceID ||
 				media;
-			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
+			const bool supported = (known || bus) && ComputerInterfaceCurrent(interface);
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required computer interface is unsupported");

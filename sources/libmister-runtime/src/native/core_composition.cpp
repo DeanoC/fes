@@ -153,7 +153,8 @@ Error OpenLinkedPayload(const std::vector<std::string>& roots, const std::string
 // fes.apple2-bus.slots/1 socket set. The shell's physical sockets are not
 // final, so every Apple II slot 1..7 is admitted until that table is sealed.
 bool Apple2SlotSocket(std::uint64_t slot) {return slot>=1 && slot<=7;}
-bool SpectrumSlotSocket(std::uint64_t slot) {return slot>=1 && slot<=4;}
+// fes.spectrum-bus.sockets/2 is the Spectrum's one edge socket.
+bool SpectrumSlotSocket(std::uint64_t slot) {return slot==1;}
 // fes.c64-bus.sockets/1 is socket 1 (ROM window) and socket 2 (I/O window).
 bool C64SlotSocket(std::uint64_t slot) {return slot==1 || slot==2;}
 bool AtariStSlotSocket(std::uint64_t slot) {return slot==1;}
@@ -188,7 +189,7 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 			bus_id=kSpectrumExpansionBusID;
 			bus_map=kSpectrumExpansionMapID;
 			socket_ok=SpectrumSlotSocket;
-			max_slots=4;
+			max_slots=1;
 		} else {
 			bus_id=kApple2ExpansionBusID;
 			bus_map=kApple2ExpansionMapID;

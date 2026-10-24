@@ -166,7 +166,7 @@ func TestLiveMediaHostRejectsBadAdmissionAndStaleSession(t *testing.T) {
 	}
 	_ = json.Unmarshal(before.Body.Bytes(), &session)
 
-	badName := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"maze.tzx"}`))
+	badName := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"maze.wav"}`))
 	badName.Host = "127.0.0.1"
 	badName.Header.Set("Content-Type", "application/json")
 	badName.Header.Set("X-FogCast-Session-ID", session.ID)
@@ -174,7 +174,7 @@ func TestLiveMediaHostRejectsBadAdmissionAndStaleSession(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, badName)
 	if w.Code != 400 || service.replaceCalls != 0 {
-		t.Fatalf("tzx admission status=%d calls=%d", w.Code, service.replaceCalls)
+		t.Fatalf("wav admission status=%d calls=%d", w.Code, service.replaceCalls)
 	}
 
 	stale := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"maze.p"}`))

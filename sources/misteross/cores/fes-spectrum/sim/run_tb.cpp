@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Development runner for the Spectrum machine simulation. It loads a ROM and
 // optionally a machine state (registers, paging and RAM pages written by
-// scripts/spectrum_state.py from a .sna or .z80 snapshot), runs whole ULA
-// frames, presses keys and writes captured 320x240 frames as PNG. ROMs and
-// programs are read from files; none are stored in this repository.
+// scripts/spectrum_state.py from a .sna or .z80 snapshot) and a PZX tape
+// stream (from FogCast's internal/spectrumtapes), runs whole ULA frames,
+// presses keys and writes captured 320x240 frames as PNG. ROMs and programs
+// are read from files; none are stored in this repository.
 #include "Vspectrum_sim_top.h"
 #include "Vspectrum_sim_top___024root.h"
 #include "spectrum_ram_banks.h"
@@ -91,7 +92,7 @@ const std::map<std::string, int> &key_table() {
 struct KeyEvent { unsigned frame, length; uint64_t mask; };
 
 struct Options {
-    std::string rom, state, dump;
+    std::string rom, state, dump, tape;
     unsigned frames = 50;
     std::vector<unsigned> dump_frames;
     std::vector<KeyEvent> keys;
@@ -108,19 +109,35 @@ public:
     Vspectrum_sim_top dut;
     std::vector<uint32_t> frame = std::vector<uint32_t>(240 * 40);
     uint64_t clocks = 0;
+    // The tape stream, presented as the DDR store presents it: the next byte
+    // after each take, from byte 0 again whenever the deck drops enable.
+    std::vector<uint8_t> tape;
+    size_t tape_pos = 0;
 
     Simulation() {
         dut.clk_sys = 0;
         dut.reset = 1;
         dut.matrix = 0xffffffffffULL;
         dut.kempston = 0;
-        dut.unit_state = 1;
-        dut.unit_size = 0;
+        dut.tape_ready = 0;
+        dut.tape_size = 0;
+        dut.tape_stream_valid = 0;
         dut.eval();
     }
+    void insert(const std::vector<uint8_t> &image) {
+        tape = image;
+        dut.tape_size = tape.size();
+        dut.tape_ready = 1;
+    }
     void clock() {
+        if (!dut.tape_stream_enable) tape_pos = 0;
+        dut.tape_stream_valid = dut.tape_stream_enable && tape_pos < tape.size();
+        dut.tape_stream_data = tape_pos < tape.size() ? tape[tape_pos] : 0;
+        dut.eval();
+        const bool took = dut.tape_stream_valid && dut.tape_stream_take;
         dut.clk_sys = 1; dut.eval();
         dut.clk_sys = 0; dut.eval();
+        if (took) ++tape_pos;
         ++clocks;
         if (dut.pixel_we) frame[dut.pixel_row * 40 + dut.pixel_chunk] = dut.pixel_data;
     }
@@ -241,6 +258,7 @@ int main(int argc, char **argv) {
         };
         if (arg == "--rom") options.rom = next();
         else if (arg == "--state") options.state = next();
+        else if (arg == "--tape") options.tape = next();
         else if (arg == "--frames") options.frames = std::stoul(next());
         else if (arg == "--dump") options.dump = next();
         else if (arg == "--dump-frame") options.dump_frames.push_back(std::stoul(next()));
@@ -270,6 +288,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 16; ++i) sim.clock();
     sim.dut.reset = 0;
     if (!options.state.empty()) sim.load_state(options.state);
+    if (!options.tape.empty()) sim.insert(read_file(options.tape));
+    bool playing = false;
 
     unsigned frames = 0;
     uint64_t retired = 0;
@@ -311,6 +331,11 @@ int main(int argc, char **argv) {
                               unsigned(sim.dut.rootp->MACHINE(cpu_a)));
                 trace << line;
             }
+        }
+        if (sim.dut.tape_playing != playing) {
+            playing = sim.dut.tape_playing;
+            std::cout << "tape " << (playing ? "plays" : "stops") << " in frame " << frames
+                      << " at T " << t << '\n';
         }
         if (sim.dut.cpu_retired) ++retired;
         if (sim.dut.cpu_illegal) fail("CPU illegal state");

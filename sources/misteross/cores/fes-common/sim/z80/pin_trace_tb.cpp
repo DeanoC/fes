@@ -63,6 +63,9 @@ int main(int argc, char **argv) {
                 dut.clk = 1; dut.eval(); dut.clk = 0; dut.eval();
                 dut.ce_p = 0; dut.ce_n = 0; dut.eval();
             }
+            // The NMOS core needs an idle clock after each enabled one, and
+            // its pins follow the bus unit by that clock.
+            dut.clk = 1; dut.eval(); dut.clk = 0; dut.eval();
             const std::array<unsigned, 10> actual = {
                 dut.a, dut.dout, dut.m1_n, dut.mreq_n, dut.iorq_n,
                 dut.rd_n, dut.wr_n, dut.rfsh_n, dut.halt_n, dut.busak_n

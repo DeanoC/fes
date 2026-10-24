@@ -205,7 +205,7 @@ func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
 		minBytes, maxBytes uint32
 	}{
 		{"zx81", protocol.Zx81TapeInterface(), 1, 16384},
-		{"spectrum", protocol.SpectrumTapeInterface(), 1, 65536},
+		{"spectrum", protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)},
 		{"apple2", protocol.Apple2FloppyInterface(), 143360, 143360},
 		{"c64", protocol.C64DiskInterface(), 174848, 174848},
 		{"atari-st", protocol.AtariStFloppyInterface(), 737280, 737280},
