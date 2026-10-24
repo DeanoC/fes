@@ -290,6 +290,7 @@ clock_producer = producer.slot_recipe if st else producer.sgm
 factory = shell_producer if st else shell_producer.factory
 # The ST shell admits DSP modes that its video parts may not own.
 part_forbidden = producer.FORBIDDEN_RESOURCES if st else factory.FORBIDDEN_RESOURCES
+session_display_resources = set(factory.SESSION_DISPLAY_RESOURCES) if not st else set()
 expected_backend = gpu_backend_for_router(args['gpu_router'])
 shell_members = ('manifest.toml','core.rbf','routed.json','socket.qsf') + (('rom-map.json',) if st else ())
 if mode == 'canonical':
@@ -386,7 +387,7 @@ else:
         require('Info: Program finished normally.' in log and 'unrouted' not in log.lower() and not re.search(r'^\s*(?:ERROR|FATAL)\b',log,re.M|re.I), 'video route did not complete')
         backend=factory._require_gpu_backend(log, expected_backend)
         timing=json.loads(bounded(directory/'timing.json')); measured=clock_producer.validate_cart_timing(timing)
-        resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES|(set(factory.SESSION_DISPLAY_RESOURCES) if native else set()))
+        resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES|(session_display_resources if native else set()))
         if not st: measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()}
         prepared=bounded(directory/'cart.json',32<<20)
         if native:
@@ -397,7 +398,7 @@ else:
             proof.update(synth_sha256=sha(synthesized),prepared_sha256=sha(prepared))
             require(summary.get('native_clock_boundary')==proof, 'native clock normalization evidence differs')
         counts=_cell_counts(json.loads(prepared))
-        require(not any(counts.get(name,0) for name in part_forbidden|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
+        require(not any(counts.get(name,0) for name in part_forbidden|set(factory.REQUIRED_RESOURCES)|session_display_resources), 'video part owns a forbidden resource')
         require(not native or sum(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP'))==48, 'native part must own exactly 48 M10K frame-buffer blocks')
         require(not st or not any(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP')), 'ST raster part must not allocate RAM')
         pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')),layout=layout)

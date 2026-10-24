@@ -892,8 +892,9 @@ A closed, faulted, unlocked or reset-held plane returns the machine word
 unchanged. Losing lock or missing a pixel while visible is a scanout fault.
 `make sim-fes-display-plane` checks exact passthrough, the blend at alpha 255,
 128, 64 and 0 (saturating), the fixed latency, lock/relock and fault return.
-ZX81 is the only shell with a plane; [the display pipeline](../../../docs/display-pipeline.md)
-lists the remaining cores.
+The ZX81, Spectrum models and native Coleco shells currently use the plane;
+[the display pipeline](../../../docs/display-pipeline.md) lists the other
+current and planned core paths.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded

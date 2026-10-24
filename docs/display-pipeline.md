@@ -7,8 +7,9 @@ cabinet frame around the machine picture) fit into it.
 
 Historically each shell grew its own variant: fixed 720p generators,
 Direct/Scanlines video-part sockets on Coleco and Atari ST, and a ZX81-only
-opaque launcher plane. The pipeline below replaces those variants with one
-order of stages that every shell follows.
+opaque launcher plane. The ZX81, Spectrum models, and native Coleco shells now
+use the shared display plane described here. The pipeline below gives their
+stages one common order.
 
 ## Stages
 
