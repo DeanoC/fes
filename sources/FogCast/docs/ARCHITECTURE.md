@@ -3504,8 +3504,11 @@ UUID, and add an SMB share as `//server/share` (also `smb://server/share`).
 SMB accepts an optional username, domain and password; an empty username uses
 Guest. A nonstandard SMB port can be included as `//server:port/share`.
 Connections and separate BIOS/media start folders are saved on the machine
-that owns the drive. They survive launcher and host restarts. Disconnected
-saved drives remain listed; opening them again reconnects or reports an error.
+that owns the drive. They survive launcher and host restarts. The kit keeps
+local SMB passwords in memory because its `drives.json` is on FAT; after
+tenfoot restarts, enter those passwords again. Host-side SMB passwords remain
+in the host's private configuration directory. Disconnected saved drives
+remain listed; opening them again reconnects or reports an error.
 
 The browser's Settings has the host drive manager. **From host drive** in
 FPGA library setup and media import browses those same host drives. A browser
@@ -3538,12 +3541,16 @@ configuration; tenfoot keeps its local `drives.json` beside `tenfoot.json` in
 its existing persistent configuration directory. Host drives are household
 resources shared by browser Settings and authenticated paired launchers; they
 are not private to one kit. Every paired operation still requires the
-configured bearer and matching target identity. Writes atomically replace a
-0600 file, including credentials; inventory and save responses expose only
+configured bearer and matching target identity. The host atomically replaces a
+0600 file that includes credentials; inventory and save responses expose only
 `password_set`. Blank password plus `password_set:true` preserves a stored
 password only while the SMB destination and account stay unchanged; clearing
-it is explicit. The local and host stores remain independent of library
-settings and target selection.
+it is explicit. Tenfoot writes local drive metadata without passwords and holds
+local SMB passwords only for its process lifetime. When it reads an older
+`drives.json` containing a password, it removes that field atomically and keeps
+the value only in memory until tenfoot exits. This protects the secret from
+plain FAT file access but requires re-entry after a restart. The local and host
+stores remain independent of library settings and target selection.
 
 The paired launcher admits only the explicit `/api/v1/storage/drives` CRUD,
 drive-relative `entries`/`file` operations, and the existing explicit household

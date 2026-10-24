@@ -1943,7 +1943,11 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKCorePath:
 			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
-			snap.Prompt = "Coleco BIOS path"
+			if a.entryFirmwarePickerLocked() {
+				snap.Prompt = "Firmware ROM path"
+			} else {
+				snap.Prompt = "Coleco BIOS path"
+			}
 		case settingsOSKTapePath:
 			snap.Prompt = "Media path"
 		}

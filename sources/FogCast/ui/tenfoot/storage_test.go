@@ -41,6 +41,28 @@ func pickerDriveManager(t *testing.T) *storage.Manager {
 	return m
 }
 
+func TestLocalDriveManagerDoesNotPersistSMBPasswords(t *testing.T) {
+	prefs := filepath.Join(t.TempDir(), "tenfoot.json")
+	app := &App{prefsPath: prefs}
+	manager := app.driveManagerLocked()
+	drive, err := manager.Save(storage.Drive{
+		Kind: "smb", Source: "//nas/games", Username: "player", Password: "kit-secret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(prefs), "drives.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "kit-secret") || strings.Contains(string(data), `"password"`) {
+		t.Fatalf("local drive config persisted SMB password: %s", data)
+	}
+	if drive.Password != "" || !drive.PasswordSet {
+		t.Fatalf("local drive save response %+v", drive)
+	}
+}
+
 func TestStorageRootRefreshPreservesPickerSelections(t *testing.T) {
 	dir := t.TempDir()
 	library := hostclient.LibraryRoot{ID: "zx81", System: "zx81", Root: dir}

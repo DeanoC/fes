@@ -100,3 +100,29 @@ func TestROMReadinessProjectsLibraryAndVariants(t *testing.T) {
 		}
 	}
 }
+
+func TestFirmwareROMReadinessProjectsAsFirmwareAndClearsAfterSelection(t *testing.T) {
+	for _, ready := range []bool{false, true} {
+		game := catalog.Game{ID: "fpga-zx81-rom", Title: "ZX81 BASIC", System: protocol.System("zx81"), Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true}
+		comp := protocol.CoreComposition{FirmwareRequired: true, FirmwareReady: ready, ROMRole: protocol.FirmwareRole, ROMID: "zx81-machine-rom", ROMSourceSize: 8192}
+		service := &expansionReadinessService{groupedFake: groupedFake{fakeService: fakeService{games: []catalog.Game{game}, game: game}}, compositions: map[string]protocol.CoreComposition{game.ID: comp}}
+		response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/"+game.ID)
+		if response.Code != http.StatusOK {
+			t.Fatal(response.Body.String())
+		}
+		var projected hostclient.Game
+		if err := json.Unmarshal(response.Body.Bytes(), &projected); err != nil {
+			t.Fatal(err)
+		}
+		if !projected.FirmwareRequired || projected.FirmwareReady != ready || projected.ROMRequired || projected.ROMRole != protocol.FirmwareRole || projected.ROMID != comp.ROMID || projected.ROMSourceSize != comp.ROMSourceSize {
+			t.Fatalf("firmware ROM projection: %+v", projected)
+		}
+		want := hostclient.LaunchMissingFirmware
+		if ready {
+			want = ""
+		}
+		if projected.LaunchBlock() != want {
+			t.Fatalf("ready=%v block=%q want %q", ready, projected.LaunchBlock(), want)
+		}
+	}
+}

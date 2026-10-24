@@ -126,6 +126,56 @@ func TestSMBCredentialsStayPrivateAndSurviveFolderSave(t *testing.T) {
 	}
 }
 
+func TestMemorySMBCredentialsNeverReachDriveConfigAndMigrateOldSecrets(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "drives.json")
+	m := NewMemorySMBCredentials(path)
+	d, err := m.Save(Drive{Kind: "smb", Source: "//nas/Games", Username: "player", Password: "kit-secret", BIOSFolder: "BIOS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "kit-secret") || strings.Contains(string(data), `"password"`) {
+		t.Fatalf("SMB password persisted in drive config: %s", data)
+	}
+	if d.PasswordSet != true || d.Password != "" {
+		t.Fatalf("password was not available only as a write-only setting: %+v", d)
+	}
+
+	d.MediaFolder = "Media"
+	d.PasswordSet = true
+	if _, err = m.Save(d); err != nil {
+		t.Fatal(err)
+	}
+	if saved, err := m.drive(d.ID); err != nil || saved.Password != "kit-secret" {
+		t.Fatalf("same-process folder update lost the credential: %+v %v", saved, err)
+	}
+
+	legacy := []byte(`[{"id":"` + d.ID + `","kind":"smb","source":"//nas/Games","label":"//nas/Games","username":"player","password":"legacy-kit-secret","bios_folder":"BIOS","media_folder":"Media","saved":true}]`)
+	if err = os.WriteFile(path, legacy, 0600); err != nil {
+		t.Fatal(err)
+	}
+	migrated := NewMemorySMBCredentials(path)
+	listed, err := migrated.List(context.Background(), false)
+	if err != nil || len(listed) != 1 || !listed[0].PasswordSet {
+		t.Fatalf("legacy inventory %+v %v", listed, err)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil || strings.Contains(string(data), "legacy-kit-secret") || strings.Contains(string(data), `"password"`) {
+		t.Fatalf("legacy password was not removed: %s %v", data, err)
+	}
+	if saved, err := migrated.drive(d.ID); err != nil || saved.Password != "legacy-kit-secret" {
+		t.Fatalf("legacy credential was not retained for this process: %+v %v", saved, err)
+	}
+	restarted := NewMemorySMBCredentials(path)
+	listed, err = restarted.List(context.Background(), false)
+	if err != nil || len(listed) != 1 || listed[0].PasswordSet {
+		t.Fatalf("restart should retain the drive but require credentials again: %+v %v", listed, err)
+	}
+}
+
 func TestSMBPasswordIsNotReusedForChangedDestination(t *testing.T) {
 	m, _ := fixtureManager(t)
 	d, err := m.Save(Drive{Kind: "smb", Source: "//nas/private", Username: "player", Password: "private-password"})

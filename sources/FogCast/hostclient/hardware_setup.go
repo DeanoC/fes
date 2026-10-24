@@ -78,6 +78,39 @@ func (c *Client) SelectCoreEntryMedia(ctx context.Context, game, pkg, expected, 
 	return result, err
 }
 
+func (c *Client) CoreEntry(ctx context.Context, game string) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid core entry identity")
+	}
+	var result CoreEntry
+	err := c.getJSON(ctx, "/api/v1/library/core-entries/"+url.PathEscape(game), &result)
+	if err == nil && (result.GameID != game || protocol.ValidateDigest(result.PackageID) != nil) {
+		err = fmt.Errorf("core entry identity mismatch")
+	}
+	return result, err
+}
+
+func (c *Client) SelectCoreEntryROM(ctx context.Context, game, pkg, rom, expected, id string) (CoreEntryROMSelection, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || strings.TrimSpace(rom) == "" || expected != "" && protocol.ValidateDigest(expected) != nil || id != "" && protocol.ValidateDigest(id) != nil {
+		return CoreEntryROMSelection{}, fmt.Errorf("invalid ROM selection identity")
+	}
+	var result CoreEntryROMSelection
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/rom", map[string]string{
+		"package_id": pkg, "rom_id": rom, "expected_media_id": expected, "media_id": id,
+	}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg || result.ROMID != rom || result.MediaID != id) {
+		err = fmt.Errorf("selected ROM identity mismatch")
+	}
+	return result, err
+}
+
+type CoreEntryROMSelection struct {
+	GameID    string `json:"game_id"`
+	PackageID string `json:"package_id"`
+	ROMID     string `json:"rom_id"`
+	MediaID   string `json:"media_id"`
+}
+
 func (c *Client) ImportCoreExpansion(ctx context.Context, size int64, content io.Reader) (CoreEntryExpansionAsset, error) {
 	if size < 1 || size > expansion.MaxArchiveBytes || content == nil {
 		return CoreEntryExpansionAsset{}, fmt.Errorf("invalid expansion archive size")

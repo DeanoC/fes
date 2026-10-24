@@ -50,7 +50,7 @@ func (a *App) driveManagerLocked() *storage.Manager {
 		if path != "" {
 			config = filepath.Join(filepath.Dir(path), "drives.json")
 		}
-		a.driveManager = storage.New(config)
+		a.driveManager = storage.NewMemorySMBCredentials(config)
 	}
 	return a.driveManager
 }
@@ -232,9 +232,7 @@ func (a *App) loadDrivePickerDirLocked(path, destination string) {
 				a.firmwarePickerStatus = err.Error()
 				return
 			}
-			for i := range rows {
-				rows[i].Selectable = colecoBIOSSelectable(rows[i].Size, rows[i].Kind)
-			}
+			a.markFirmwarePickerRowsLocked(rows)
 			a.firmwarePickerRows = rows
 			a.firmwarePickerPath = path
 			a.firmwarePickerAtRoots = false

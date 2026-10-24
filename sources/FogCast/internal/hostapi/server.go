@@ -75,6 +75,8 @@ type gameResult struct {
 	ROMReady         bool                `json:"rom_ready,omitempty"`
 	ROMID            string              `json:"rom_id,omitempty"`
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
+	ROMRole          string              `json:"rom_role,omitempty"`
+	ROMSourceSize    int64               `json:"rom_source_size,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
 	// SlotExpansions lists a multi-socket title's selected cards and readiness.

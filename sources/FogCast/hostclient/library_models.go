@@ -33,6 +33,8 @@ type Game struct {
 	ROMReady       bool   `json:"rom_ready,omitempty"`
 	ROMID          string `json:"rom_id,omitempty"`
 	ROMMediaID     string `json:"rom_media_id,omitempty"`
+	ROMRole        string `json:"rom_role,omitempty"`
+	ROMSourceSize  int64  `json:"rom_source_size,omitempty"`
 	ExpansionReady bool   `json:"expansion_ready,omitempty"`
 	// SlotExpansions lists a multi-socket title's selected cards. Any card
 	// that is not ready blocks launch like an unready single expansion.
@@ -132,9 +134,6 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	if g.State != "available" {
 		return LaunchNotReady
 	}
-	if g.ROMRequired && !g.ROMReady {
-		return LaunchMissingROM
-	}
 	if g.ExpansionID != "" && !g.ExpansionReady {
 		return LaunchMissingExpansion
 	}
@@ -145,6 +144,9 @@ func (g Game) catalogLaunchBlock() LaunchBlock {
 	}
 	if g.FirmwareRequired && !g.FirmwareReady {
 		return LaunchMissingFirmware
+	}
+	if g.ROMRequired && !g.ROMReady {
+		return LaunchMissingROM
 	}
 	return ""
 }

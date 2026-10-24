@@ -48,14 +48,26 @@ type Backend interface {
 }
 
 type Manager struct {
-	ConfigPath string
-	MountRoot  string
-	Backend    Backend
-	mu         sync.Mutex
+	ConfigPath          string
+	MountRoot           string
+	Backend             Backend
+	persistSMBPasswords bool
+	smbPasswords        map[string]string
+	mu                  sync.Mutex
 }
 
 func New(configPath string) *Manager {
-	return &Manager{ConfigPath: configPath, MountRoot: "/run/fogcast/drives", Backend: systemBackend{}}
+	return &Manager{ConfigPath: configPath, MountRoot: "/run/fogcast/drives", Backend: systemBackend{}, persistSMBPasswords: true}
+}
+
+// NewMemorySMBCredentials keeps SMB passwords only for this manager lifetime.
+// Tenfoot uses it because its drive settings live on FAT, which cannot enforce
+// file permissions. Existing plaintext passwords are migrated out on read.
+func NewMemorySMBCredentials(configPath string) *Manager {
+	manager := New(configPath)
+	manager.persistSMBPasswords = false
+	manager.smbPasswords = map[string]string{}
+	return manager
 }
 
 func Public(d Drive) Drive {
@@ -128,12 +140,26 @@ func (m *Manager) read() ([]Drive, error) {
 	if err = json.Unmarshal(data, &drives); err != nil {
 		return nil, err
 	}
+	removePersistedPasswords := false
 	for i, d := range drives {
 		n, err := normalize(d)
 		if err != nil || n.ID != d.ID {
 			return nil, errors.New("saved drive configuration is invalid")
 		}
+		if !m.persistSMBPasswords {
+			if d.Password != "" && n.Kind == "smb" && m.smbPasswords[n.ID] == "" {
+				m.smbPasswords[n.ID] = d.Password
+			}
+			n.Password = m.smbPasswords[n.ID]
+			n.PasswordSet = n.Password != ""
+			removePersistedPasswords = removePersistedPasswords || d.Password != ""
+		}
 		drives[i] = n
+	}
+	if removePersistedPasswords {
+		if err := m.write(drives); err != nil {
+			return nil, err
+		}
 	}
 	return drives, nil
 }
@@ -146,7 +172,15 @@ func (m *Manager) write(drives []Drive) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(drives, "", "  ")
+	saved := drives
+	if !m.persistSMBPasswords {
+		saved = append([]Drive(nil), drives...)
+		for i := range saved {
+			saved[i].Password = ""
+			saved[i].PasswordSet = false
+		}
+	}
+	data, err := json.MarshalIndent(saved, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -234,11 +268,24 @@ func (m *Manager) Save(d Drive) (Drive, error) {
 			}
 			old[i] = normalized
 			err = m.write(old)
+			if !m.persistSMBPasswords && err == nil {
+				if prior.ID != normalized.ID {
+					delete(m.smbPasswords, prior.ID)
+				}
+				if normalized.Password == "" {
+					delete(m.smbPasswords, normalized.ID)
+				} else {
+					m.smbPasswords[normalized.ID] = normalized.Password
+				}
+			}
 			return Public(normalized), err
 		}
 	}
 	old = append(old, normalized)
 	err = m.write(old)
+	if !m.persistSMBPasswords && err == nil && normalized.Password != "" {
+		m.smbPasswords[normalized.ID] = normalized.Password
+	}
 	return Public(normalized), err
 }
 
@@ -251,7 +298,11 @@ func (m *Manager) Forget(id string) error {
 	}
 	for i, d := range drives {
 		if d.ID == id {
-			return m.write(append(drives[:i], drives[i+1:]...))
+			if err := m.write(append(drives[:i], drives[i+1:]...)); err != nil {
+				return err
+			}
+			delete(m.smbPasswords, id)
+			return nil
 		}
 	}
 	return os.ErrNotExist
