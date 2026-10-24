@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+`include "fes_application.vh"
 `include "fes_computer.vh"
 `include "spectrum_bus.vh"
 `ifndef FES_SPECTRUM_BUILD_ID
@@ -10,7 +11,7 @@
 // the model's T state from it. Complete 50 Hz frames are shown 3x in 720p60
 // through the shared session-display plane. Audio leaves through 48 kHz I2S.
 // Sockets 1-4 are physical and vacant here; a linked card replaces the
-// vacant response.
+// vacant response. HPS DDR port 0 feeds the plane; port 1 holds the tape.
 module top #(
     parameter [127:0] BUILD_ID = `FES_SPECTRUM_BUILD_ID
 ) (
@@ -54,9 +55,10 @@ module top #(
     wire exec_reset;
     wire [143:0] keyboard_rows;
     wire [15:0] controller_buttons;
-    wire [15:0] media_write_addr;
+    wire [23:0] media_write_addr;
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable;
+    wire media_write_ready;
     wire [1:0] unit0_state;
     wire [31:0] unit0_size;
     wire display_request, display_response_valid, display_response_error, display_quiesced;
@@ -65,7 +67,8 @@ module top #(
     wire [15:0] display_argument, display_response_data;
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_SPECTRUM_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(16),
+        .ENABLE_SPECTRUM_TAPE(1), .ENABLE_SESSION_DISPLAY(1),
+        .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(24),
         .UNIT0_MIN(`FES_COMPUTER_SPECTRUM_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_SPECTRUM_TAPE_MAX_BYTES)
     ) gp_mailbox (
@@ -77,7 +80,7 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable), .media_write_ready(1'b1),
+        .media_write_enable(media_write_enable), .media_write_ready(media_write_ready),
         .unit0_state(unit0_state), .unit0_size(unit0_size),
         .display_request(display_request), .display_opcode(display_opcode),
         .display_index(display_index), .display_argument(display_argument),
@@ -110,8 +113,35 @@ module top #(
     end
     wire [39:0] matrix = keyboard_matrix & pad_keys;
 
+    // The tape image lives in the DDR window at offset 16 MiB, clear of the
+    // plane's two 4 MiB slots. The deck reads it back as a byte stream.
+    wire tape_stream_enable, tape_stream_valid, tape_stream_take;
+    wire [7:0] tape_stream_data;
+    wire ddr_hold, ddr0_reset, ddr0_drained, ddr0_read, ddr0_waitrequest, ddr0_readdatavalid;
+    wire [27:0] ddr0_address;
+    wire [7:0] ddr0_burstcount;
+    wire [127:0] ddr0_readdata;
+    wire ddr1_reset, ddr1_read, ddr1_write, ddr1_waitrequest, ddr1_readdatavalid;
+    wire [28:0] ddr1_address;
+    wire [7:0] ddr1_burstcount, ddr1_byteenable;
+    wire [63:0] ddr1_writedata, ddr1_readdata;
+    fes_media_ddr #(
+        .BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h01000000), .AW(24)
+    ) tape_store (
+        .clk(clk_sys), .reset(ddr1_reset),
+        .write_addr(media_write_addr), .write_data(media_write_data),
+        .write_enable(media_write_enable), .write_ready(media_write_ready),
+        .stream_enable(tape_stream_enable), .stream_bytes(unit0_size[24:0]),
+        .stream_valid(tape_stream_valid), .stream_data(tape_stream_data),
+        .stream_take(tape_stream_take),
+        .address(ddr1_address), .burstcount(ddr1_burstcount), .read(ddr1_read),
+        .write(ddr1_write), .writedata(ddr1_writedata), .byteenable(ddr1_byteenable),
+        .waitrequest(ddr1_waitrequest), .readdata(ddr1_readdata),
+        .readdatavalid(ddr1_readdatavalid)
+    );
+
     wire [`SP_BUS_REQ-1:0] bus_request;
-    wire [`SP_BUS_RSP-1:0] response1, response2, response3, response4;
+    wire [`SP_BUS_RSP-1:0] response1;
     wire pixel_we, frame_done, tick, speaker, mic, ear;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
@@ -119,12 +149,12 @@ module top #(
     wire signed [15:0] slot_audio;
     spectrum_machine machine (
         .clk_sys(clk_sys), .reset(exec_reset), .matrix(matrix), .kempston(kempston),
-        .unit_state(unit0_state), .unit_size(unit0_size),
-        .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable),
+        .tape_ready(unit0_state == 2'd3), .tape_size(unit0_size[24:0]),
+        .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
+        .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
+        .tape_playing(),
         .bus_request(bus_request),
-        .response1(response1), .response2(response2),
-        .response3(response3), .response4(response4),
+        .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done),
         .tick(tick), .speaker(speaker), .mic(mic), .ear(ear), .ay_pcm(ay_pcm),
@@ -133,24 +163,9 @@ module top #(
     );
 
     (* keep *) wire [`SP_BUS_REQ-1:0] slot1_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot2_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot3_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot4_plug_request;
     spectrum_slot_socket1 slot1 (
         .clock(clk_sys), .request(bus_request), .response(response1),
         .plug_request(slot1_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket2 slot2 (
-        .clock(clk_sys), .request(bus_request), .response(response2),
-        .plug_request(slot2_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket3 slot3 (
-        .clock(clk_sys), .request(bus_request), .response(response3),
-        .plug_request(slot3_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket4 slot4 (
-        .clock(clk_sys), .request(bus_request), .response(response4),
-        .plug_request(slot4_plug_request), .plug_response(`SP_BUS_RSP'd0)
     );
 
     wire [7:0] red, green, blue;
@@ -177,7 +192,29 @@ module top #(
         .response_valid(display_response_valid), .response_error(display_response_error),
         .response_data(display_response_data), .quiesced_sys(display_quiesced),
         .machine({1'b1, machine_vs, machine_hs, machine_de, red, green, blue}),
-        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted()
+        .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted(),
+        .ddr_hold(ddr_hold), .ddr_reset(ddr0_reset), .ddr_drained(ddr0_drained),
+        .ddr_address(ddr0_address), .ddr_burstcount(ddr0_burstcount), .ddr_read(ddr0_read),
+        .ddr_waitrequest(ddr0_waitrequest), .ddr_readdata(ddr0_readdata),
+        .ddr_readdatavalid(ddr0_readdatavalid)
+    );
+    // Port 0 reads launcher frames in the pixel clock; port 1 reads and
+    // writes the tape in the system clock; port 2 is off.
+    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b1), .P2_ENABLE(1'b0)) memory (
+        .hold(ddr_hold),
+        .p0_clk(pixel_clk), .p0_reset(ddr0_reset), .p0_drained(ddr0_drained),
+        .p0_address(ddr0_address), .p0_burstcount(ddr0_burstcount),
+        .p0_waitrequest(ddr0_waitrequest), .p0_readdata(ddr0_readdata),
+        .p0_readdatavalid(ddr0_readdatavalid), .p0_read(ddr0_read),
+        .p0_writedata(128'd0), .p0_byteenable(16'd0), .p0_write(1'b0),
+        .p1_clk(clk_sys), .p1_reset(ddr1_reset), .p1_drained(),
+        .p1_address(ddr1_address), .p1_burstcount(ddr1_burstcount),
+        .p1_waitrequest(ddr1_waitrequest), .p1_readdata(ddr1_readdata),
+        .p1_readdatavalid(ddr1_readdatavalid), .p1_read(ddr1_read),
+        .p1_writedata(ddr1_writedata), .p1_byteenable(ddr1_byteenable), .p1_write(ddr1_write),
+        .p2_clk(pixel_clk), .p2_reset(), .p2_drained(), .p2_address(29'd0), .p2_burstcount(8'd0),
+        .p2_waitrequest(), .p2_readdata(), .p2_readdatavalid(), .p2_read(1'b0),
+        .p2_writedata(64'd0), .p2_byteenable(8'd0), .p2_write(1'b0)
     );
     assign HDMI_TX_D = hdmi_video[23:0];
     assign HDMI_TX_DE = hdmi_video[24];

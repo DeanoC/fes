@@ -117,8 +117,8 @@ const (
 	FesComputerApple2FloppyUnit                         uint32 = 0x0
 	FesComputerApple2FloppyBytes                        uint32 = 0x23000
 	FesComputerSpectrumTapeUnit                         uint32 = 0x0
-	FesComputerSpectrumTapeMinBytes                     uint32 = 0x1
-	FesComputerSpectrumTapeMaxBytes                     uint32 = 0x10000
+	FesComputerSpectrumTapeMinBytes                     uint32 = 0xa
+	FesComputerSpectrumTapeMaxBytes                     uint32 = 0x1000000
 	FesComputerZx81TapeUnit                             uint32 = 0x0
 	FesComputerZx81TapeMinBytes                         uint32 = 0x1
 	FesComputerZx81TapeMaxBytes                         uint32 = 0x4000
@@ -160,7 +160,7 @@ const (
 	FesComputerInterfaceMediaApple2FloppyMinor          uint16 = 0
 	FesComputerCapabilityMediaApple2Floppy              uint32 = 0x10
 	FesComputerInterfaceMediaSpectrumTapeID                    = "fes.media.spectrum-tape"
-	FesComputerInterfaceMediaSpectrumTapeMajor          uint16 = 1
+	FesComputerInterfaceMediaSpectrumTapeMajor          uint16 = 2
 	FesComputerInterfaceMediaSpectrumTapeMinor          uint16 = 0
 	FesComputerCapabilityMediaSpectrumTape              uint32 = 0x20
 	FesComputerInterfaceMediaC64DiskID                         = "fes.media.c64-disk"

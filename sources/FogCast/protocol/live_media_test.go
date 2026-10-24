@@ -56,7 +56,7 @@ func TestLiveMediaCapableAdmitsComputerZx81Tape(t *testing.T) {
 	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: "fes.media.blob", Major: 1}}}) {
 		t.Fatal("computer blob is not the ZX81 tape unit")
 	}
-	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: SpectrumTapeInterface().ID, Major: 1}}}) {
+	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: SpectrumTapeInterface().ID, Major: 2}}}) {
 		t.Fatal("spectrum tape must not open the ZX81 tape picker")
 	}
 	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1}, ActiveInterfaces: active}) {

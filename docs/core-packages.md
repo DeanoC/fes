@@ -90,7 +90,7 @@ the 128K/+2 (`fes.spectrum128`) a 32 KiB `spectrum128-firmware` (editor ROM,
 then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
 `spectrum-plus3-firmware` (ROMs 0–3 in order) and the Pentagon 128
 (`fes.pentagon`) a 32 KiB `pentagon-firmware` (128, then 48 BASIC). Their edge
-cards and `.tap` cassette are separate inputs (see the
+cards and tape (`.tzx`, `.tap`, `.pzx` or `.csw`) are separate inputs (see the
 [ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
 and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
 Hardware evidence is tied to the exact tested package and software; rebuilding
