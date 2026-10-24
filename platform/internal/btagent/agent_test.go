@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -48,6 +49,14 @@ func fakeBlueZ(conn net.Conn) error {
 		return errors.New("missing BEGIN")
 	}
 	var serial uint32
+	var matches []string
+	sawPairable := false
+	sawDiscoverable := false
+	expectedMatches := []string{
+		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
+		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
+		"type='signal',sender='org.bluez',path_namespace='/org/bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+	}
 	next := func() uint32 {
 		serial++
 		return serial
@@ -74,7 +83,26 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "s", body.buf); err != nil {
 				return err
 			}
+		case "AddMatch":
+			if msg.Dest != dbusDest || msg.Path != dbusPath || msg.Iface != dbusIface || msg.Signature != "s" {
+				return errors.New("invalid AddMatch call")
+			}
+			d := &decoder{b: msg.Body}
+			rule, rest, err := d.readComplete("s")
+			if err != nil || rest != "" {
+				return errors.New("invalid AddMatch rule")
+			}
+			if len(matches) >= len(expectedMatches) || rule != expectedMatches[len(matches)] {
+				return fmt.Errorf("unexpected AddMatch rule %v", rule)
+			}
+			matches = append(matches, rule.(string))
+			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
 		case "RegisterAgent":
+			if len(matches) != 3 {
+				return errors.New("signal matches were not installed before agent registration")
+			}
 			d := &decoder{b: msg.Body}
 			vals, err := d.readSig("os")
 			if err != nil || len(vals) != 2 || vals[0] != agentPath || vals[1] != agentCap {
@@ -83,8 +111,59 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
-		case "RequestDefaultAgent", "Set", "StartDiscovery":
+		case "RequestDefaultAgent":
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
+		case "Set":
+			d := &decoder{b: msg.Body}
+			values, err := d.readSig("ssv")
+			if err != nil || len(values) != 3 {
+				return fmt.Errorf("invalid adapter property Set: signature %q values %v error %v", msg.Signature, values, err)
+			}
+			switch values[0] {
+			case adapterIface:
+				switch values[1] {
+				case "Pairable":
+					sawPairable = true
+					if values[2] != false {
+						return errors.New("adapter remains pairable")
+					}
+				case "Discoverable":
+					sawDiscoverable = true
+					if values[2] != false {
+						return errors.New("adapter remains discoverable")
+					}
+				}
+			case deviceIface:
+				if values[1] == "Trusted" && values[2] != true {
+					return errors.New("controller was not trusted")
+				}
+			default:
+				return fmt.Errorf("unexpected property Set interface %v", values[0])
+			}
+			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
+		case "StartDiscovery":
+			if len(matches) != 3 {
+				return errors.New("discovery started before signal matches")
+			}
+			if !sawPairable || !sawDiscoverable {
+				return errors.New("adapter pairing or discoverability was not disabled")
+			}
+			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
+			signal := &Message{
+				Type:      msgSignal,
+				Serial:    next(),
+				Path:      "/",
+				Iface:     objectsIface,
+				Member:    "InterfacesAdded",
+				Signature: "oa{sa{sv}}",
+			}
+			if err := writeMessage(conn, signal, encodeDeviceAdded(gamepadPath)); err != nil {
 				return err
 			}
 		case "GetManagedObjects":
@@ -173,18 +252,30 @@ const (
 func sampleObjects() []byte {
 	return encodeObjects([]fixtureObj{
 		{path: "/org/bluez/hci0", ifaces: []fixtureIface{{name: adapterIface}}},
-		{path: gamepadPath, ifaces: []fixtureIface{{name: deviceIface, props: []fixtureProp{
-			propString("Name", "Pad"),
-			propUint("Class", 0x508),
-			propBool("Paired", false),
-			propBool("Connected", false),
-			propStrings("UUIDs", hidUUID),
-		}}}},
-		{path: phonePath, ifaces: []fixtureIface{{name: deviceIface, props: []fixtureProp{
-			propString("Name", "Phone"),
-			propUint("Class", 0x200),
-			propBool("Paired", false),
-			propStrings("UUIDs", hidUUID),
-		}}}},
 	})
+}
+
+func encodeDeviceAdded(path string) []byte {
+	e := &encoder{}
+	e.str(path)
+	e.array(8, func() {
+		e.pad(8)
+		e.str(deviceIface)
+		e.array(8, func() {
+			props := []fixtureProp{
+				propString("Name", "Pad"),
+				propUint("Class", 0x508),
+				propBool("Paired", false),
+				propBool("Connected", false),
+				propStrings("UUIDs", hidUUID),
+			}
+			for _, prop := range props {
+				e.pad(8)
+				e.str(prop.name)
+				e.sig(prop.sig)
+				prop.write(e)
+			}
+		})
+	})
+	return e.buf
 }

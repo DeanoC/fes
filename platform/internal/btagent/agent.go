@@ -20,6 +20,9 @@ const (
 	systemSocket = "/var/run/dbus/system_bus_socket"
 	agentPath    = "/org/fes/bluetooth/agent"
 	agentCap     = "KeyboardDisplay"
+	dbusDest     = "org.freedesktop.DBus"
+	dbusPath     = "/org/freedesktop/DBus"
+	dbusIface    = "org.freedesktop.DBus"
 	bluezDest    = "org.bluez"
 	adapterIface = "org.bluez.Adapter1"
 	deviceIface  = "org.bluez.Device1"
@@ -262,7 +265,10 @@ type agent struct {
 }
 
 func (a *agent) run(ctx context.Context) error {
-	if _, err := a.call(ctx, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "Hello", "", nil, 10*time.Second); err != nil {
+	if _, err := a.call(ctx, dbusDest, dbusPath, dbusIface, "Hello", "", nil, 10*time.Second); err != nil {
+		return err
+	}
+	if err := a.addSignalMatches(ctx); err != nil {
 		return err
 	}
 	if err := a.callVoid(ctx, bluezDest, "/org/bluez", "org.bluez.AgentManager1", "RegisterAgent", "os", bodyPathString(agentPath, agentCap), 10*time.Second); err != nil {
@@ -338,6 +344,20 @@ func (a *agent) refresh(ctx context.Context) error {
 	return nil
 }
 
+func (a *agent) addSignalMatches(ctx context.Context) error {
+	rules := []string{
+		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
+		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
+		"type='signal',sender='org.bluez',path_namespace='/org/bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+	}
+	for _, rule := range rules {
+		if err := a.callVoid(ctx, dbusDest, dbusPath, dbusIface, "AddMatch", "s", bodyString(rule), 10*time.Second); err != nil {
+			return fmt.Errorf("dbus AddMatch: %w", err)
+		}
+	}
+	return nil
+}
+
 func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 	switch msg.Member {
 	case "InterfacesAdded":
@@ -390,10 +410,9 @@ func (a *agent) configure(ctx context.Context, path string) {
 		body []byte
 	}{
 		{"Powered", bodyProp(adapterIface, "Powered", "b", true, 0)},
-		{"Pairable", bodyProp(adapterIface, "Pairable", "b", true, 0)},
-		{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", true, 0)},
-		{"PairableTimeout", bodyProp(adapterIface, "PairableTimeout", "u", false, 0)},
-		{"DiscoverableTimeout", bodyProp(adapterIface, "DiscoverableTimeout", "u", false, 0)},
+		// Pairable controls incoming requests; this agent initiates pairing.
+		{"Pairable", bodyProp(adapterIface, "Pairable", "b", false, 0)},
+		{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)},
 	}
 	for _, set := range sets {
 		if err := a.callVoid(ctx, bluezDest, path, propsIface, "Set", "ssv", set.body, 10*time.Second); err != nil {
@@ -411,17 +430,18 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if what == actionIgnore {
 		return
 	}
-	if !a.attempts.Start(dev.Path, time.Now()) {
+	if !a.attempts.Start(dev.Path, time.Now(), what) {
 		return
 	}
-	ok := false
-	defer func() { a.attempts.Finish(dev.Path, ok) }()
+	pairSucceeded := what != actionPair
+	defer func() { a.attempts.Finish(dev.Path, pairSucceeded) }()
 	if what == actionPair {
 		log.Printf("bluetooth: pairing %s %s", dev.Path, dev.Name)
 		if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, 35*time.Second); err != nil {
 			a.logf("pair:"+dev.Path, "bluetooth: pair %s: %v", dev.Path, err)
 			return
 		}
+		pairSucceeded = true
 	}
 	if err := a.callVoid(ctx, bluezDest, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second); err != nil {
 		a.logf("trust:"+dev.Path, "bluetooth: trust %s: %v", dev.Path, err)
@@ -431,7 +451,6 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
 		return
 	}
-	ok = true
 }
 
 func (a *agent) merge(path string, props map[string]any) {
@@ -561,6 +580,12 @@ func bodyPath(path string) []byte {
 func bodyPathString(path, value string) []byte {
 	e := &encoder{}
 	e.str(path)
+	e.str(value)
+	return e.buf
+}
+
+func bodyString(value string) []byte {
+	e := &encoder{}
 	e.str(value)
 	return e.buf
 }

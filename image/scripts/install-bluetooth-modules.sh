@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install the USB Bluetooth modules the pinned kernel already builds.
+# Install USB Bluetooth modules only when their vermagic matches the target kernel.
 # BusyBox insmod cannot decompress .ko.xz, so modules are stored uncompressed.
 set -eu
 
@@ -49,6 +49,33 @@ def module_name(base):
     return None
 
 
+def in_target_release(name):
+    parts = [part for part in name.split("/") if part not in {"", "."}]
+    return len(parts) >= 3 and parts[:3] == ["lib", "modules", release]
+
+
+def module_vermagic(raw, key):
+    marker = b"vermagic="
+    values = []
+    offset = 0
+    while True:
+        index = raw.find(marker, offset)
+        if index < 0:
+            break
+        if index == 0 or raw[index - 1] == 0:
+            value = raw[index + len(marker):].split(b"\0", 1)[0]
+            values.append(value)
+        offset = index + len(marker)
+    if len(values) != 1:
+        fail(f"missing or ambiguous vermagic for {key}")
+    try:
+        version = values[0].decode("ascii").split()[0]
+    except (UnicodeDecodeError, IndexError):
+        fail(f"invalid vermagic for {key}")
+    if version != release:
+        fail(f"wrong vermagic for {key}: {version} (expected {release})")
+
+
 try:
     archive = tarfile.open(archive_path, "r:*")
 except (OSError, tarfile.TarError) as error:
@@ -63,9 +90,10 @@ with archive:
             continue
         if unsafe(member.name) or member.issym() or member.islnk() or not member.isfile():
             fail(f"refusing module member {member.name}")
+        if not in_target_release(member.name):
+            continue
         previous = chosen.get(key)
-        release_path = f"lib/modules/{release}/"
-        if previous is None or (release_path in member.name and release_path not in previous.name):
+        if previous is None:
             chosen[key] = member
     missing = [name for name in required if name not in chosen]
     if missing:
@@ -83,6 +111,7 @@ with archive:
                 fail(f"cannot decompress {member.name}: {error}")
         if not raw or len(raw) > limit:
             fail(f"unexpected size for {key}")
+        module_vermagic(raw, key)
         destination = os.path.join(root, dest_rel, key)
         parent = os.path.realpath(os.path.dirname(destination))
         if parent != root and not parent.startswith(root + os.sep):

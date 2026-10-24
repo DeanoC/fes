@@ -53,9 +53,15 @@ for helper in fes-kit-data fes-kit-software fes-bluetooth; do
 done
 modules=$fixture/bt-modules
 mkdir -p "$modules/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth"
-for name in btintel btbcm btrtl btusb; do
-  printf '%s\n' "$name" >"$modules/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/$name.ko"
-done
+python3 - "$modules/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for name in ("btintel", "btbcm", "btrtl", "btusb"):
+    module = b"\x7fELF\0vermagic=5.15.1-MiSTer SMP preempt mod_unload ARMv7 p2v8\0" + name.encode()
+    (root / f"{name}.ko").write_bytes(module)
+PY
 ln -s /tmp "$modules/lib/modules/5.15.1-MiSTer/build"
 tar -cf "$fixture/bt-modules.tar" -C "$modules" .
 export FES_BLUETOOTH_MODULES_ARCHIVE=$fixture/bt-modules.tar
@@ -377,6 +383,8 @@ test -x "$target/etc/init.d/S35fes-bluetooth"
 test -x "$target/etc/init.d/S41fes-bluetooth"
 test -x "$target/usr/sbin/fes-bluetooth"
 grep -Fq 'AutoEnable=true' "$target/etc/bluetooth/main.conf"
+grep -Fq 'PairableTimeout = 60' "$target/etc/bluetooth/main.conf"
+grep -Fq 'DiscoverableTimeout = 60' "$target/etc/bluetooth/main.conf"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/share/fes/software/bin/fogcast-kit"
 cmp "$window_driver/fes_window.ko" "$target/usr/share/fes/software/share/fes-window/fes_window.ko"

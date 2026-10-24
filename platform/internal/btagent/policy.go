@@ -74,34 +74,38 @@ func decide(paired, connected bool, uuids []string, class uint32) action {
 	return actionPair
 }
 
-// attempts caps pairing work: one attempt at a time, at most three failures,
-// and at least attemptGap between attempts. Has reports the device whose
-// pairing call is in flight so an agent callback can accept its PIN.
+// attempts serializes work per device and rate-limits each attempt. Initial
+// pairing stops after attemptMax failures; reconnect attempts remain available.
+// Has reports the device whose pairing call is in flight so an agent callback
+// can accept its PIN.
 type attempts struct {
 	mu       sync.Mutex
-	inflight map[string]bool
+	inflight map[string]action
 	fails    map[string]int
 	last     map[string]time.Time
 }
 
 func newAttempts() *attempts {
 	return &attempts{
-		inflight: map[string]bool{},
+		inflight: map[string]action{},
 		fails:    map[string]int{},
 		last:     map[string]time.Time{},
 	}
 }
 
-func (a *attempts) Start(path string, now time.Time) bool {
+func (a *attempts) Start(path string, now time.Time, what action) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.inflight[path] || a.fails[path] >= attemptMax {
+	if _, ok := a.inflight[path]; ok {
+		return false
+	}
+	if what == actionPair && a.fails[path] >= attemptMax {
 		return false
 	}
 	if t, ok := a.last[path]; ok && now.Sub(t) < attemptGap {
 		return false
 	}
-	a.inflight[path] = true
+	a.inflight[path] = what
 	a.last[path] = now
 	return true
 }
@@ -109,14 +113,18 @@ func (a *attempts) Start(path string, now time.Time) bool {
 func (a *attempts) Has(path string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.inflight[path]
+	return a.inflight[path] == actionPair
 }
 
-func (a *attempts) Finish(path string, ok bool) {
+func (a *attempts) Finish(path string, pairSucceeded bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	what, exists := a.inflight[path]
 	delete(a.inflight, path)
-	if ok {
+	if !exists || what != actionPair {
+		return
+	}
+	if pairSucceeded {
 		a.fails[path] = 0
 		return
 	}

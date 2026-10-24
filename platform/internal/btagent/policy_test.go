@@ -51,40 +51,65 @@ func TestDecide(t *testing.T) {
 func TestAttemptBudget(t *testing.T) {
 	a := newAttempts()
 	now := time.Unix(1_700_000_000, 0)
-	if !a.Start("p", now) || !a.Has("p") {
+	if !a.Start("p", now, actionPair) || !a.Has("p") {
 		t.Fatal("start")
 	}
-	if a.Start("p", now) {
+	if a.Start("p", now, actionPair) {
 		t.Fatal("second start while in flight")
 	}
 	a.Finish("p", false)
 	if a.Has("p") {
 		t.Fatal("finished path still in flight")
 	}
-	if a.Start("p", now.Add(29*time.Second)) {
+	if a.Start("p", now.Add(29*time.Second), actionPair) {
 		t.Fatal("retry inside the gap")
 	}
-	if !a.Start("p", now.Add(attemptGap)) {
+	if !a.Start("p", now.Add(attemptGap), actionPair) {
 		t.Fatal("second attempt")
 	}
 	a.Finish("p", false)
-	if !a.Start("p", now.Add(2*attemptGap)) {
+	if !a.Start("p", now.Add(2*attemptGap), actionPair) {
 		t.Fatal("third attempt")
 	}
 	a.Finish("p", false)
-	if a.Start("p", now.Add(3*attemptGap)) {
+	if a.Start("p", now.Add(3*attemptGap), actionPair) {
 		t.Fatal("fourth attempt")
 	}
 
 	ok := newAttempts()
-	if !ok.Start("pad", now) {
+	if !ok.Start("pad", now, actionPair) {
 		t.Fatal("success start")
 	}
 	ok.Finish("pad", true)
-	if ok.Start("pad", now) {
+	if ok.Start("pad", now, actionPair) {
 		t.Fatal("success retries immediately")
 	}
-	if !ok.Start("pad", now.Add(attemptGap)) {
+	if !ok.Start("pad", now.Add(attemptGap), actionPair) {
 		t.Fatal("success retries after the gap")
+	}
+}
+
+func TestConnectRetriesAreNotLimitedByPairingBudget(t *testing.T) {
+	a := newAttempts()
+	now := time.Unix(1_700_000_000, 0)
+	for i := 0; i < attemptMax; i++ {
+		if !a.Start("pad", now, actionPair) {
+			t.Fatalf("pair attempt %d did not start", i+1)
+		}
+		a.Finish("pad", false)
+		now = now.Add(attemptGap)
+	}
+	if a.Start("pad", now, actionPair) {
+		t.Fatal("pairing failure budget was not enforced")
+	}
+	for i := 0; i < attemptMax+1; i++ {
+		now = now.Add(attemptGap)
+		if !a.Start("pad", now, actionConnect) {
+			t.Fatalf("reconnect attempt %d did not start", i+1)
+		}
+		if a.Has("pad") {
+			t.Fatal("reconnect was marked as an in-flight pairing request")
+		}
+		a.Finish("pad", false)
 	}
 }
