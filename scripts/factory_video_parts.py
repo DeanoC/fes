@@ -318,6 +318,10 @@ else:
     if mode == 'shell':
         record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
         require(functional(record)==args['functional_inputs_sha256'], 'frozen shell functional inputs differ from selected package')
+        # The record's P&R recipe digest follows the nextpnr option schema
+        # that authenticating the shell's tools registers in this process.
+        if not st:
+            shell_producer.authenticate_tools(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
         expected = (shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], execution=current['execution']) if st else
                     shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options))
         require(functional(record)==functional(expected), 'frozen video shell differs from current recipe')
@@ -340,7 +344,7 @@ else:
             coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
             layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
             require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
-            evidence = shell_producer.factory.validate_build_evidence(shell,root,gpu_backend=expected_backend)
+            evidence = shell_producer.factory.validate_build_evidence(shell,root,gpu_backend=expected_backend,session_display=native)
             for key in ('status','timing','resources','synthesis_cells','rbf'):
                 require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
             require(all(summary.get('route',{}).get(key)==value for key,value in evidence['route'].items()), 'frozen shell route evidence differs')
@@ -382,7 +386,7 @@ else:
         require('Info: Program finished normally.' in log and 'unrouted' not in log.lower() and not re.search(r'^\s*(?:ERROR|FATAL)\b',log,re.M|re.I), 'video route did not complete')
         backend=factory._require_gpu_backend(log, expected_backend)
         timing=json.loads(bounded(directory/'timing.json')); measured=clock_producer.validate_cart_timing(timing)
-        resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
+        resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES|(set(factory.SESSION_DISPLAY_RESOURCES) if native else set()))
         if not st: measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()}
         prepared=bounded(directory/'cart.json',32<<20)
         if native:

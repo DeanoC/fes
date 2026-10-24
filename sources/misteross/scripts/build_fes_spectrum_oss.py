@@ -25,8 +25,9 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import spectrum_slots, rom_map, coleco_expansion, fes_de10nano_evidence, build_fes_menu
+from scripts import spectrum_slots, rom_map, coleco_expansion
 from scripts.compiler_read_audit import guard_functional_source
+from scripts.fes_de10nano_evidence import PLANE_DSP, plane_dsp_evidence as _plane_dsp_evidence, session_display_evidence as _session_display_evidence
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
@@ -153,7 +154,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py", "scripts/fes_de10nano_evidence.py",
-    "scripts/build_fes_menu.py", DDR_ATOM,
+    DDR_ATOM,
     ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
@@ -161,9 +162,7 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json",
 )
-# The session-display plane blends with three unsigned 9x9 products.
-DSP_RESOURCES = frozenset({"MISTRAL_MUL9X9"})
-PLANE_PRODUCTS = 3
+DSP_RESOURCES = frozenset({PLANE_DSP})
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP",
@@ -458,43 +457,6 @@ def validate_firmware_ports(cells: dict, lanes: int) -> None:
              if (match := LANE_RE.fullmatch(name)) and int(match.group(1)) >= lanes]
     if extra:
         raise BuildError(f"unexpected firmware lanes {sorted(extra)}")
-
-
-def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
-    """The plane reads launcher frames through one read-only fpga2sdram port."""
-    normalized = build_fes_menu.layout_graph_with_constants(design)
-    evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
-    cells = normalized["modules"][TOP].get("cells", {})
-    memory = next(cell for cell in cells.values()
-                  if cell.get("type") == "cyclonev_hps_interface_fpga2sdram")
-    ports = memory.get("connections", {})
-    unused = tuple(f"cmd_valid_{port}" for port in range(1, 6)) + tuple(
-        f"wr_valid_{port}" for port in range(4))
-    grounds = [["0"]] + [cell.get("connections", {}).get("Q") for cell in cells.values()
-        if cell.get("type") == "MISTRAL_CONST"
-        and set(str(cell.get("parameters", {}).get("LUT", ""))) == {"0"}
-        and isinstance(cell.get("connections", {}).get("Q"), list)
-        and len(cell["connections"]["Q"]) == 1]
-    if any(ports.get(port) not in grounds for port in unused) or ports.get("cmd_data_0", [])[1:2] not in grounds:
-        raise BuildError("session display DDR writes and unused ports must be tied low")
-    for name, cell in cells.items():
-        if (name.startswith("display.scanout.reader.") and cell.get("type") == "MISTRAL_M10K"
-                and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
-            raise BuildError("session display FIFO requires synchronous M10K reads")
-    return {**evidence, "read_only": True, "unused_ports_disabled": True}
-
-
-def _plane_dsp_evidence(design: dict) -> None:
-    products = [(name, cell) for name, cell in design["modules"][TOP].get("cells", {}).items()
-                if cell.get("type") in DSP_RESOURCES]
-    if len(products) != PLANE_PRODUCTS or not all(name.startswith("display.") for name, _ in products):
-        raise BuildError(f"synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products")
-    for name, cell in products:
-        parameters = cell.get("parameters", {})
-        for sign in ("A_SIGNED", "B_SIGNED"):
-            text = str(parameters.get(sign, "")).strip()
-            if not text or set(text) - {"0", "1"} or int(text, 2) != 0:
-                raise BuildError(f"display-plane product {name} must be unsigned ({sign}={text!r})")
 
 
 def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Path = ROOT) -> dict:
