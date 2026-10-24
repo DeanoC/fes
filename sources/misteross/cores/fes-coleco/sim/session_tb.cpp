@@ -23,7 +23,7 @@ struct Bench {
     Bench() {
         t.clk_sys=0; t.pixel_clk=0; t.reset_hold=1; t.gpo=0; t.eval();
         // The launcher draws opaque frames today.
-        t.rootp->coleco_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__alpha=0xff;
+        t.rootp->coleco_session_harness__DOT__memory__DOT__f2sdram__DOT__alpha=0xff;
         for(unsigned i=0;i<100;++i) tick();
         t.reset_hold=0;
         // The plane composites only after a whole frame confirms the part's raster.
@@ -57,7 +57,7 @@ struct Bench {
         }
         if (history.size()==3)
             check((t.hdmi_word>>24)==(history.front()>>24),"HDMI sync lost its fixed latency");
-        check(!t.rootp->coleco_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__violation,
+        check(!t.rootp->coleco_session_harness__DOT__memory__DOT__f2sdram__DOT__violation,
               "DDR bounds, writes or unused-port violation");
     }
     void cycles(unsigned n) { for(unsigned i=0;i<n;++i) tick(); }
