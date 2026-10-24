@@ -28,6 +28,40 @@ func TestRunPairsGamepadAndRejectsPhone(t *testing.T) {
 	}
 }
 
+func TestAuthorizeServiceDuringPairedControllerConnect(t *testing.T) {
+	path := gamepadPath
+	if decide(true, false, nil, 0x508) != actionConnect {
+		t.Fatal("paired controller did not select connect")
+	}
+	attempts := newAttempts()
+	if !attempts.Start(path, time.Unix(1_700_000_000, 0), actionConnect) {
+		t.Fatal("paired controller connect did not start")
+	}
+	a := &agent{attempts: attempts}
+	for _, uuid := range []string{hidUUID, hogUUID} {
+		_, _, errName := a.dispatch(&Message{Member: "AuthorizeService", Body: bodyPathString(path, uuid)})
+		if errName != "" {
+			t.Errorf("AuthorizeService rejected %s during connect: %s", uuid, errName)
+		}
+	}
+	if _, _, errName := a.dispatch(&Message{Member: "AuthorizeService", Body: bodyPathString(path, "0000110b-0000-1000-8000-00805f9b34fb")}); errName == "" {
+		t.Fatal("audio service authorized during connect")
+	}
+	for _, callback := range []struct {
+		member string
+		body   []byte
+	}{
+		{"RequestPinCode", bodyPath(path)},
+		{"RequestPasskey", bodyPath(path)},
+		{"RequestConfirmation", bodyConfirm(path)},
+		{"RequestAuthorization", bodyPath(path)},
+	} {
+		if _, _, errName := a.dispatch(&Message{Member: callback.member, Body: callback.body}); errName == "" {
+			t.Errorf("%s accepted during connect", callback.member)
+		}
+	}
+}
+
 func fakeBlueZ(conn net.Conn) error {
 	defer conn.Close()
 	r := bufio.NewReader(conn)

@@ -562,7 +562,7 @@ func (a *agent) dispatch(call *Message) (string, []byte, string) {
 		return "", nil, ""
 	case "AuthorizeService":
 		path, uuid, err := bodyPathUUID(call.Body)
-		if err != nil || !a.attempts.Has(path) || !oneControllerUUID(uuid) {
+		if err != nil || !a.attempts.HasServiceAuthorization(path) || !oneControllerUUID(uuid) {
 			return "", nil, "org.bluez.Error.Rejected"
 		}
 		return "", nil, ""

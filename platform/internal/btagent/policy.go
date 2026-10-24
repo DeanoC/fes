@@ -116,6 +116,13 @@ func (a *attempts) Has(path string) bool {
 	return a.inflight[path] == actionPair
 }
 
+func (a *attempts) HasServiceAuthorization(path string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	what, ok := a.inflight[path]
+	return ok && (what == actionPair || what == actionConnect)
+}
+
 func (a *attempts) Finish(path string, pairSucceeded bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
