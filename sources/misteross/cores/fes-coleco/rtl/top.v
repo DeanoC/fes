@@ -137,7 +137,8 @@ module top #(
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(pixel_clk)
+        .outclk_0(pixel_clk),
+        .locked()
     );
 `endif
 
