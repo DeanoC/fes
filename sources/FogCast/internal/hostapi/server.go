@@ -46,6 +46,7 @@ type gameResult struct {
 	ROMSHA256        string              `json:"rom_sha256,omitempty"`
 	Title            string              `json:"title"`
 	System           protocol.System     `json:"system"`
+	CoreID           string              `json:"core_id,omitempty"`
 	Kind             catalog.SourceKind  `json:"kind"`
 	State            catalog.SourceState `json:"state"`
 	RootOnline       bool                `json:"root_online"`

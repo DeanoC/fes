@@ -345,23 +345,34 @@ func catalogSortParam(sort string) string {
 
 // preferLaunchable keeps a grouped row launchable when the region-picked
 // representative is offline or otherwise blocked but a sibling variant is not.
+// Editions keeps those siblings for rooms; Variants stays empty on the row
+// returned to existing callers.
 func preferLaunchable(game Game) Game {
+	editions := game.Variants
 	if game.LaunchEligible() {
+		game.Editions = editions
 		game.Variants = nil
 		return game
 	}
-	for _, variant := range game.Variants {
-		variant.Variants = nil
-		if variant.LaunchEligible() {
-			if !variant.Favorite {
-				variant.Favorite = game.Favorite
-			}
-			if len(variant.Collections) == 0 {
-				variant.Collections = game.Collections
-			}
-			return variant
+	for _, variant := range editions {
+		if !variant.LaunchEligible() {
+			continue
 		}
+		chosen := variant
+		chosen.Variants = nil
+		chosen.Editions = editions
+		if !chosen.Favorite {
+			chosen.Favorite = game.Favorite
+		}
+		if len(chosen.Collections) == 0 {
+			chosen.Collections = game.Collections
+		}
+		if chosen.VariantCount < game.VariantCount {
+			chosen.VariantCount = game.VariantCount
+		}
+		return chosen
 	}
+	game.Editions = editions
 	game.Variants = nil
 	return game
 }

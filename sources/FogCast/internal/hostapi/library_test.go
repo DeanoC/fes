@@ -30,6 +30,79 @@ func TestPlatformsEndpointIsEmptyWithoutLibraryQuery(t *testing.T) {
 	}
 }
 
+type coreIdentityService struct {
+	fakeService
+	entries  []catalog.CoreEntry
+	entryErr error
+	variants []catalog.Game
+}
+
+func (s *coreIdentityService) CoreEntries(context.Context) ([]catalog.CoreEntry, error) {
+	if s.entryErr != nil {
+		return nil, s.entryErr
+	}
+	return append([]catalog.CoreEntry(nil), s.entries...), nil
+}
+
+func (s *coreIdentityService) GamesInGroup(context.Context, string) ([]catalog.Game, error) {
+	return append([]catalog.Game(nil), s.variants...), nil
+}
+
+func TestGamesListAttachesCoreIDForCorePackages(t *testing.T) {
+	service := &coreIdentityService{
+		fakeService: fakeService{games: []catalog.Game{
+			{ID: "fpga-zx81-maze", Title: "3D Monster Maze", System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true},
+			{ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true},
+		}},
+		entries: []catalog.CoreEntry{
+			{GameID: "fpga-zx81-maze", CoreID: "fes.zx81"},
+			{GameID: "snes-mario-test", CoreID: "fes.snes"},
+		},
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"core_id":"fes.zx81"`) || strings.Contains(body, `"core_id":"fes.snes"`) || strings.Count(body, `"core_id"`) != 1 {
+		t.Fatalf("core identity %s", body)
+	}
+
+	service.game = catalog.Game{
+		ID: "fpga-zx81-maze", Title: "3D Monster Maze", System: catalog.CorePlatform,
+		Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
+		GroupKey: "zx81-maze",
+	}
+	service.variants = []catalog.Game{
+		service.game,
+		{ID: "fpga-c64-game", Title: "Impossible Mission", System: catalog.CorePlatform, Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true, GroupKey: "zx81-maze"},
+	}
+	service.entries = append(service.entries, catalog.CoreEntry{GameID: "fpga-c64-game", CoreID: "fes.c64"})
+	detail := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/fpga-zx81-maze")
+	if detail.Code != http.StatusOK {
+		t.Fatal(detail.Body.String())
+	}
+	var result struct {
+		CoreID   string `json:"core_id"`
+		Variants []struct {
+			ID     string `json:"id"`
+			CoreID string `json:"core_id"`
+		} `json:"variants"`
+	}
+	if err := json.Unmarshal(detail.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.CoreID != "fes.zx81" || len(result.Variants) != 2 || result.Variants[0].CoreID != "fes.zx81" || result.Variants[1].ID != "fpga-c64-game" || result.Variants[1].CoreID != "fes.c64" {
+		t.Fatalf("detail %+v", result)
+	}
+
+	service.entryErr = errors.New("core entries unavailable")
+	failed := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if failed.Code != http.StatusOK || strings.Contains(failed.Body.String(), `"core_id"`) {
+		t.Fatalf("core entry failure leaked: %d %s", failed.Code, failed.Body.String())
+	}
+}
+
 func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 	service := &fakeService{games: []catalog.Game{{
 		ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,

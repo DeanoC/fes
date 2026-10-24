@@ -975,6 +975,8 @@ host snapshot. Failed saves and lost Stop responses retain their existing
 retry behavior.
 See [hardware rooms](../../../docs/hardware-rooms.md) for the complete scope.
 
+The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the setup room.
+
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while
 playing changes presentation only: it releases held computer keys, keeps the

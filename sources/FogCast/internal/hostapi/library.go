@@ -326,6 +326,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		return
 	}
 	applyMeshReadiness(r.Context(), service, result.Games)
+	attachCoreIdentities(r.Context(), service, result.Games)
 	if shelfNoticeApplies(query) {
 		if notice, ok := service.(shelfNoticeService); ok {
 			result.Notice = notice.LocalShelfNotice(r.Context())
@@ -661,7 +662,73 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) (
 		return result, err
 	}
 	applyMeshReadiness(ctx, service, games)
+	attachCoreIdentities(ctx, service, games)
 	return games[0], nil
+}
+
+// coreIdentityService reads the catalog's core-entry rows. Games stay
+// listable when a service has no core entries.
+type coreIdentityService interface {
+	CoreEntries(context.Context) ([]catalog.CoreEntry, error)
+}
+
+// attachCoreIdentities stamps core_id from core_entries onto core-package
+// rows, including grouped editions. A missing reader or a failed read leaves
+// core_id empty and the catalog page intact.
+func attachCoreIdentities(ctx context.Context, service Service, games []gameResult) {
+	if !gamesNeedCoreIdentity(games) {
+		return
+	}
+	reader, ok := service.(coreIdentityService)
+	if !ok {
+		return
+	}
+	entries, err := reader.CoreEntries(ctx)
+	if err != nil {
+		return
+	}
+	byGame := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		gameID := strings.TrimSpace(entry.GameID)
+		coreID := strings.TrimSpace(entry.CoreID)
+		if gameID == "" || coreID == "" {
+			continue
+		}
+		byGame[gameID] = coreID
+	}
+	for i := range games {
+		stampCoreID(&games[i], byGame)
+		for j := range games[i].Variants {
+			stampCoreID(&games[i].Variants[j], byGame)
+		}
+	}
+}
+
+func gamesNeedCoreIdentity(games []gameResult) bool {
+	for i := range games {
+		if gameWantsCoreID(games[i]) {
+			return true
+		}
+		for _, variant := range games[i].Variants {
+			if gameWantsCoreID(variant) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func gameWantsCoreID(game gameResult) bool {
+	return game.Kind == catalog.SourceKindCorePackage || game.System == catalog.CorePlatform
+}
+
+func stampCoreID(game *gameResult, byGame map[string]string) {
+	if game == nil || !gameWantsCoreID(*game) {
+		return
+	}
+	if coreID := byGame[game.ID]; coreID != "" {
+		game.CoreID = coreID
+	}
 }
 
 type platformLaunchService interface {

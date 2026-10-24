@@ -156,6 +156,24 @@ func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	}
 }
 
+func TestPreferLaunchableKeepsEditions(t *testing.T) {
+	t.Parallel()
+	sibling := Game{ID: "fpga-zx81-jp", Title: "3D Monster Maze", System: "fpga", State: "available", RootOnline: true, Launchable: true, Region: "Japan", VariantCount: 1}
+	parent := Game{
+		ID: "fpga-zx81-maze", Title: "3D Monster Maze", System: "fpga", State: "available", RootOnline: true, Launchable: true,
+		VariantCount: 2, Variants: []Game{sibling},
+	}
+	got := preferLaunchable(parent)
+	if got.ID != parent.ID || got.Variants != nil || len(got.Editions) != 1 || got.Editions[0].ID != sibling.ID || got.VariantCount != 2 {
+		t.Fatalf("kept parent %+v editions %+v", got, got.Editions)
+	}
+	parent.RootOnline = false
+	got = preferLaunchable(parent)
+	if got.ID != sibling.ID || got.Variants != nil || !got.LaunchEligible() || got.VariantCount != 2 || len(got.Editions) != 1 || got.Editions[0].ID != sibling.ID {
+		t.Fatalf("substituted %+v editions %+v", got, got.Editions)
+	}
+}
+
 func TestPreferLaunchableKeepsPackageAndSkipsDistant(t *testing.T) {
 	t.Parallel()
 	raw := Game{ID: "coleco-dk-cart", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: false}

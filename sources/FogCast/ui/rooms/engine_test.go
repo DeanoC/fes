@@ -46,6 +46,7 @@ func memPack(t *testing.T, id, mainLua string, extra map[string]string) Pack {
 type fakeServices struct {
 	mu        sync.Mutex
 	games     []hostclient.Game
+	details   map[string]hostclient.Game
 	platforms []hostclient.Platform
 	queries   []hostclient.GameListQuery
 	err       error
@@ -70,6 +71,13 @@ func (f *fakeServices) Collections(context.Context) ([]hostclient.Collection, er
 	return []hostclient.Collection{{ID: "strategy", Name: "Strategy"}}, f.err
 }
 func (f *fakeServices) Game(_ context.Context, id string) (hostclient.Game, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.details != nil {
+		if g, ok := f.details[id]; ok {
+			return g, nil
+		}
+	}
 	for _, g := range f.games {
 		if g.ID == id {
 			return g, nil
