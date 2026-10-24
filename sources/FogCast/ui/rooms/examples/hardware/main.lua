@@ -32,6 +32,7 @@ local function same_appearance()
   return (room.overlay and true or false) == overlay
 end
 local data, machine, art
+local initial_game_id = room.initial_game_id or ""
 local chosen, inspected = "", ""
 local focus = "socket"
 local controls = {}
@@ -265,14 +266,16 @@ local function read()
     machine=nil
     local list=value.machines or {}
     for _,m in ipairs(list) do if m.game_id == chosen then machine=m end end
-    if not machine and value.session then
+    if not machine and initial_game_id == "" and value.session then
       for _,m in ipairs(list) do if m.game_id == value.session.game_id then machine=m end end
     end
-    machine=machine or list[1]
+    if not machine and initial_game_id == "" then machine=list[1] end
     if machine then
       chosen=machine.game_id
       if not choice() then inspected=machine.draft_expansion_id end
       page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
+    elseif initial_game_id ~= "" then
+      read_error="The selected ZX81 setup is no longer available."
     end
     if message == "Finding your Sinclair ZX81 setups..." then message="Choose a card to see what it adds." end
   end)
@@ -301,7 +304,8 @@ end
 function load()
   destination.clear()
   local nav=store.get("navigation",{})
-  chosen=nav.game_id or "" inspected=nav.inspected or "" focus=nav.focus or "socket" page=nav.page or 1
+  chosen=initial_game_id ~= "" and initial_game_id or nav.game_id or ""
+  inspected=nav.inspected or "" focus=nav.focus or "socket" page=nav.page or 1
   art=image.load("assets/zx81.png")
   read()
 end

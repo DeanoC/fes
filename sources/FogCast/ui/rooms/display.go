@@ -74,6 +74,7 @@ type Action struct {
 	PackageID       string
 	ExpectedMediaID string
 	GameID          string
+	InitialGameID   string
 	RoomID          string
 	Platform        string
 	Collection      string

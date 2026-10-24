@@ -124,9 +124,12 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
 		// Menu-display kits show the room only when the running package reports
 		// the session-display plane. That includes fes.computer ZX81.
-		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
-		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		displayOK := !r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage)
+		tapeAvailable := tapeErr == nil && displayOK
+		removable := hostclient.RemovableMediaCapable(s.CorePackage) && displayOK
+		r.SetLiveControls(displayOK)
 		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
+		session.RawSetString("removable_available", lua.LBool(removable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
