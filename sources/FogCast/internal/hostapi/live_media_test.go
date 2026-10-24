@@ -215,12 +215,12 @@ func TestLiveMediaNoChangeRejectionsPreserveName(t *testing.T) {
 	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); !strings.Contains(current.Body.String(), `"media_name":"first.p"`) {
 		t.Fatalf("acknowledged insert rejection lost prior filename: %s", current.Body.String())
 	}
-	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "reply lost", Phase: "transfer"}
+	service.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "FES GP command rejected with response 3", Phase: "input"}
 	if uncertain := request("/api/v1/session/live-media", "second.p"); uncertain.Code == http.StatusOK {
-		t.Fatalf("uncertain insert unexpectedly succeeded: %s", uncertain.Body.String())
+		t.Fatalf("numeric rejection unexpectedly succeeded: %s", uncertain.Body.String())
 	}
 	if current := serve(t, handler, http.MethodGet, "/api/v1/session"); strings.Contains(current.Body.String(), `"media_name"`) {
-		t.Fatalf("uncertain insert retained stale filename: %s", current.Body.String())
+		t.Fatalf("numeric rejection retained stale filename: %s", current.Body.String())
 	}
 	service.err = nil
 	if inserted := request("/api/v1/session/live-media", "third.p"); inserted.Code != http.StatusOK || !strings.Contains(inserted.Body.String(), `"media_name":"third.p"`) {

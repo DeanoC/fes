@@ -145,7 +145,7 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "live media delivery is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return mapLiveMediaError(response.Error)
+		return mapLiveMediaInsertError(response.Error)
 	}
 	if !liveMediaResponseMatches(response, b) {
 		return unavailableError()
@@ -193,9 +193,11 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
 	// Loader invalid-state (GP error 4) is "busy". Other completed GP command
-	// rejections guarantee no media change, but retain their unavailable
-	// classification. A poisoned toggle, deadline, or unstable ACK may still
-	// arrive as phase=input io_failed and remains uncertain.
+	// rejections retain their unavailable classification and guarantee no media
+	// change for clear. Insert callers remove that guarantee because a completed
+	// rejection may follow a successful MediaBegin. A poisoned toggle, deadline,
+	// or unstable ACK may still arrive as phase=input io_failed and remains
+	// uncertain.
 	if remote != nil && (remote.Code == "busy" || loaderInvalidState(remote)) {
 		return protocol.LiveMediaBusyError()
 	}
@@ -205,6 +207,18 @@ func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
 	apiErr := mapProtocol2Error(remote)
 	if acknowledgedGPCommandRejection(remote) {
 		apiErr.NoChange = true
+	}
+	return apiErr
+}
+
+func mapLiveMediaInsertError(remote *Protocol2Error) *protocol.APIError {
+	apiErr := mapLiveMediaError(remote)
+	// TransferMediaBlob reports the same numeric rejection for MediaBegin,
+	// MediaData, and MediaCommit. A rejection after MediaBegin can leave the
+	// previous medium not ready, so an insert rejection is not guaranteed to
+	// have made no change.
+	if apiErr != nil && acknowledgedGPCommandRejection(remote) {
+		apiErr.NoChange = false
 	}
 	return apiErr
 }

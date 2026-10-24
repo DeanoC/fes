@@ -218,7 +218,7 @@ func TestClearLiveMediaSerializesKeyboard(t *testing.T) {
 	}
 }
 
-func TestRuntimeReplaceLiveMediaRejectsBusyAndStaleGeneration(t *testing.T) {
+func TestRuntimeReplaceLiveMediaRejectsBusyAndTreatsNumericRejectionAsUncertain(t *testing.T) {
 	response := liveMediaResponse()
 	control := &liveMediaControl{packageControl: packageControl{status2: &response}}
 	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {
@@ -230,11 +230,18 @@ func TestRuntimeReplaceLiveMediaRejectsBusyAndStaleGeneration(t *testing.T) {
 		t.Fatalf("busy mapping: %v", err)
 	}
 	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {
-		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP command rejected with response 2", Phase: "input"}}, nil
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP command rejected with response 3", Phase: "input"}}, nil
 	}
 	err = runtime.ReplaceLiveMedia(context.Background(), 1, strings.NewReader("x"), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
-	if err == nil || err.Code != protocol.CodeMiSTerUnavailable || !err.NoChange {
+	if err == nil || err.Code != protocol.CodeMiSTerUnavailable || err.NoChange {
 		t.Fatalf("acknowledged insert rejection: %#v", err)
+	}
+	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP command rejected with response 4", Phase: "input"}}, nil
+	}
+	err = runtime.ReplaceLiveMedia(context.Background(), 1, strings.NewReader("x"), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
+	if err == nil || err.Code != protocol.CodeBusy || err.NoChange {
+		t.Fatalf("loader rejection after insert dispatch: %#v", err)
 	}
 	stale := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 8}
 	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {

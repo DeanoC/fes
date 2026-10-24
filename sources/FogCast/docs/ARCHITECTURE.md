@@ -770,10 +770,12 @@ The CLI reads the session with a 30-second client. `change-tape` and
 timeout, so an insert can finish inside the host's 150-second budget. A lost
 response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
-`POST /v1/development/clear-media`. A confirmed loader rejection maps to
-retryable `BUSY` with `no_change:true`. An ambiguous or unstable GP handshake
-after eject dispatch maps to retryable `BUSY` without `no_change`, because the
-core may already have ejected the medium. A hard MMIO
+`POST /v1/development/clear-media`. A confirmed loader rejection during eject
+maps to retryable `BUSY` with `no_change:true`. Numeric GP rejections during
+insert are treated as uncertain because `MediaBegin` may have succeeded and
+cleared readiness before a later data or commit rejection. An ambiguous or
+unstable GP handshake after eject dispatch maps to retryable `BUSY` without
+`no_change`, because the core may already have ejected the medium. A hard MMIO
 failure or an invalid clear acknowledgement stays `MISTER_UNAVAILABLE`, even
 when the runtime phase is `input`. The host retries phase-`input` busy and
 does not relabel that hard failure as loader contention. Unavailable eject
@@ -3387,7 +3389,9 @@ selections and adopted sessions have no recorded original filename and display
 that the name is unavailable. A confirmed eject also carries `media_ejected` in
 the session projection for legacy `fes.simple-computer` media, so tenfoot can
 show no media without treating an unknown launch filename as an empty unit.
-Empty and loading units show their observed state.
+Empty and loading units show their observed state. Numeric GP rejections from a
+dispatched insert do not retain the prior filename: the runtime cannot
+distinguish a `MediaBegin` rejection from a later data or commit rejection.
 The name is presentation only; admission continues to use the captured session, target,
 package and generation.
 
