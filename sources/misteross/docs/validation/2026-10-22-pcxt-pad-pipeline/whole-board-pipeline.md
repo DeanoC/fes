@@ -265,3 +265,24 @@ The existing RAM Tester corner audit already distinguishes conservative independ
 A separate host-only pack probe adds fast input/data/output-enable register hints to the sixteen SDRAM DQ pads. All sixteen become MISTRAL_SDRIO with IOREG_IN/OUT/OE enabled. Input capture remains on clocks[1]; data and OE remain on clocks[0]. All sixteen original fabric input-capture registers are absorbed. This establishes compatibility of the existing RTL with IO packing; it supplies no routed timing or hardware result. The probe does not enable a pad profile, does not change the producer constraints and is not an accepted variant. Dynamic DQM masks, board/chip bounds, bus turnaround and capture-to-controller timing still require their own checks.
 
 Receipt 101 records the clock-pad route and its 185.74247418902814-second charge. The original 100-receipt prefix is preserved; cumulative charge is 97491.95968779455811 seconds. Journal SHA256 is `18404c836a33f41ba8bcad3f071bf8e4ac6f75d977ba34be0383ec8fbbc5614c`. The passing functional checkpoint and normal producer remain unchanged. No kit was claimed or touched.
+
+### Local Quartus SDRAM boundary comparison
+
+The build host is Powerboat. Quartus Prime Lite 17.0.2 Build 602 is installed at `/home/deano/intelFPGA_lite/17.0/quartus`; local TimeQuest runs successfully. The earlier SSH-to-self authentication failure was incorrectly treated as a remote tooling blocker and supplies no evidence that Quartus is unavailable.
+
+An isolated whole-RTL comparison first requires three loop-variable declarations to be hoisted for the Quartus 17 parser, the vendor-supported FALSE spelling for disabled bidirectional bus hold, and a behavioral tri-state equivalent of MISTRAL_IO for HPS I2C. These adaptations remain in ignored comparison copies. The frozen source and passing ordinary producer are unchanged. Quartus synthesis then expands the two display VRAMs into 163840 storage registers; the whole design reports 167512 registers. The owned fit is stopped and all attempts retained. This unsuitable mapping is not a timing result or a failure of the OSS block-memory implementation.
+
+A narrower comparison instantiates the exact frozen `pcxt_memory` and `sdram_addon_port` RTL, copies the board's memory PLL and DQ wrapper, and makes the host request interface virtual. It retains the original 100 MHz system clock and 180-degree capture clock. Quartus fits 237 registers and one PLL. Source and generated-input hashes are checked; the only postfit QSF edit allowed by that audit is Quartus's exact LAST_QUARTUS_VERSION metadata suffix. No external input/output requirements or false paths are asserted. PLL uncertainty is derived. Both the initial unspecified-load fit and a separate explicit 30 pF reference-load fit complete; the load is a declared characterization condition, not measured kit loading.
+
+The 30 pF fit has all sixteen capture sources checked for both setup and hold at every corner. The capture handoff has a 5 ns launch/capture relationship. Forwarded-clock reports verify the physical rising pad edge is launched by the falling system-clock edge and vice versa. Synthetic zero delays expose arrivals only and fail their arbitrary output requirement; those failures are not converted into board acceptance. Same-corner pulse arithmetic removes the ideal launch edge, retains the fitted clock prefix, and is invariant under a common prefix translation.
+
+| Quartus reference corner | Capture handoff setup | Capture handoff hold | Fitted high lower bound | Fitted low lower bound |
+| --- | ---: | ---: | ---: | ---: |
+| Slow 100 C | +1.673 ns | +4.340 ns | 2.287 ns | 2.889 ns |
+| Slow -40 C | +1.838 ns | +4.419 ns | 2.613 ns | 2.947 ns |
+| Fast 100 C | +3.020 ns | +4.691 ns | 3.677 ns | 4.267 ns |
+| Fast -40 C | +3.339 ns | +4.703 ns | 3.835 ns | 4.210 ns |
+
+These values describe different Quartus-fitted wiring. They do not grant correlation credit to the OSS route, establish a chip pulse-width requirement, or qualify a native model. The complete unconstrained-path reports are retained: neither the virtual host interface nor external SDRAM setup/hold has an asserted physical budget. The initial unspecified-load fit also passes all sixteen handoffs, but it is not a matched 30 pF comparison. No capture phase, latency, clock rate, producer constraint or timing bound changes follow from either fit.
+
+Evidence is retained under `out/pcxt-whole-board-closure-20261023/quartus-whole-rtl-oracle`, `quartus-sdram-oracle` and `quartus-sdram-reference30`, with per-corner reports, input receipts and machine-readable summaries. These are CPU-only comparison fits, with no new GPU route receipt; the 101-entry route journal is unchanged. No hardware ran. The next physical step remains a qualified correlated model for the actual OSS clock/pad paths and verified chip/board requirements, followed by external-channel and exact-artifact checks.
