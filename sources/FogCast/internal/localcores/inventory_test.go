@@ -518,6 +518,7 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		{name: "computer empty drives", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer spectrum tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.spectrum-tape", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer c64 disk starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.c64-disk", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer zx81 tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.zx81-tape", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer st floppy starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.atari-st-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer st empty-drive extensions", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{
 			{ID: "fes.media.atari-st-floppy", Major: 1, Required: true},

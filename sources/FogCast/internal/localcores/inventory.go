@@ -433,6 +433,7 @@ func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface)
 	for _, contract := range []protocol.RuntimeContract{
 		protocol.Apple2FloppyInterface(),
 		protocol.SpectrumTapeInterface(),
+		protocol.Zx81TapeInterface(),
 		protocol.C64DiskInterface(),
 		protocol.AtariStFloppyInterface(),
 		protocol.AtariStFloppyWriteInterface(),

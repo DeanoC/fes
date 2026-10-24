@@ -1,7 +1,9 @@
 -- FES Home on a kit: the Cartridge Lounge layout over installed cores.
 --
--- The shelf lists what kit.cores reports, names verbatim. FES draws the
--- selected item's title, input needs, readiness, destination and actions
+-- The shelf lists what kit.cores reports, names verbatim, then adds the
+-- host catalog's ZX81 and C64 computers when hardware.read provides them.
+-- Those cards launch with the library, and they do not draw a keyboard.
+-- FES draws the selected item's title, input needs, readiness, destination and actions
 -- in the hero text column (room.toml destination_panel = "hero"); this
 -- script draws the card, artwork motif, shelf and header routes.
 --
@@ -125,6 +127,41 @@ local function choose_opening()
   end
 end
 
+-- Host computers are catalog launches, not kit-local LoadCore calls.
+-- A ready host row replaces a blocked local row for the same core.
+-- A launchable local row stays. Keyboard inputs are not copied onto the
+-- host card: the motif stays a disc so the first draw keeps its budget.
+local function merge_host_computers(list, rows)
+  local index = {}
+  for i, core in ipairs(list) do
+    if core.core_id and core.core_id ~= "" then index[core.core_id] = i end
+  end
+  for _, row in ipairs(rows or {}) do
+    local id = row.core_id or ""
+    if id ~= "" and row.game_id and row.game_id ~= "" and row.package_id and row.package_id ~= "" then
+      local card = {
+        package_id = row.package_id,
+        core_id = id,
+        name = row.title or id,
+        game_id = row.game_id,
+        host_launch = row.ready and true or false,
+        launchable = false,
+        needs = row.ready and "none" or "unsupported",
+        block = row.ready and "" or (row.unavailable_reason or "Unavailable"),
+        inputs = {},
+      }
+      local at = index[id]
+      if not at then
+        list[#list + 1] = card
+        index[id] = #list
+      elseif card.host_launch and not list[at].launchable and not list[at].host_launch then
+        list[at] = card
+      end
+    end
+  end
+  return list
+end
+
 local function publish()
   if row == "menu" then
     local item = MENU[menu_i]
@@ -138,7 +175,21 @@ local function publish()
     return
   end
   local core = selected_core()
-  if core then
+  if core and core.host_launch and core.game_id and core.game_id ~= "" then
+    destination.set{
+      kind = "game",
+      label = core.name,
+      system = "fpga",
+      game_id = core.game_id,
+      matches = {{
+        id = core.game_id,
+        title = core.name,
+        system = "fpga",
+        state = "available",
+        launchable = true,
+      }},
+    }
+  elseif core then
     destination.set{
       kind = "core",
       package_id = core.package_id,
@@ -226,16 +277,29 @@ function load()
       publish()
       return
     end
-    cores = rows or {}
-    if #cores == 0 then
-      status = "Nothing is installed on this kit yet. The Library and Settings are above."
-      if row == "shelf" then row = "menu" end
+    local listed = rows or {}
+    local function settle(merged)
+      cores = merged or {}
+      if #cores == 0 then
+        status = "Nothing is installed on this kit yet. The Library and Settings are above."
+        if row == "shelf" then row = "menu" end
+      else
+        choose_opening()
+        keep_visible()
+      end
       publish()
+    end
+    if hardware == nil or hardware.read == nil then
+      settle(listed)
       return
     end
-    choose_opening()
-    keep_visible()
-    publish()
+    -- A missing hardware service leaves the local shelf unchanged.
+    hardware.read(function(data, herr)
+      if not herr and data and data.computers then
+        listed = merge_host_computers(listed, data.computers)
+      end
+      settle(listed)
+    end)
   end)
 end
 
