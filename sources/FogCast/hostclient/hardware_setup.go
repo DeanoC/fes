@@ -36,7 +36,8 @@ func (c *Client) ZX81Tapes(ctx context.Context) ([]HardwareTape, error) {
 	return c.ZX81TapesForGame(ctx, "")
 }
 
-// ZX81TapesForGame returns starter cassettes plus programs this machine saved.
+// ZX81TapesForGame returns compatible starter cassettes plus programs saved by
+// this machine. The host filters starters against the catalogued core ID.
 func (c *Client) ZX81TapesForGame(ctx context.Context, gameID string) ([]HardwareTape, error) {
 	path := "/api/v1/library/zx81-tapes"
 	if gameID != "" {

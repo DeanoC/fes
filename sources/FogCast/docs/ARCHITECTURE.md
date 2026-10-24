@@ -729,7 +729,8 @@ is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. It applies the active interface and reported size limits
 before import; the host and runtime validate the object again. ZX81 also
-shows the existing starter-tape shelf. Files come from the launcher machine
+shows the existing starter-tape shelf only when its game entry identifies
+`fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
 (home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
 observed DDR and display interfaces, and a supported observed unit 0 for disk
@@ -3313,6 +3314,11 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
+The hardware projection carries each setup's core ID through the tenfoot action;
+bundled starter cassettes appear only for `fes.zx81`, while ZX80 and Timex setups
+can still import a selected `.p`. Machine-bound tape-shelf reads apply the same
+core-ID filter, including the live picker, and saved programs remain scoped to
+their game.
 The attributed `internal/zx81tapes` assets enter the existing media store only
 after explicit selection. A menu-display kit enables live routes for a legacy
 `fes.simple-computer` package only when that package advertises
