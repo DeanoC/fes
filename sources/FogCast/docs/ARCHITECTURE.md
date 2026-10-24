@@ -3382,6 +3382,15 @@ reply until idle or a replacement session is confirmed. If Stop fails, Back,
 controller B and shell exit can return the captured plane; a late open does not
 reopen the room or implicitly close the plane. Display faults cannot invoke MENU
 reload or Stop.
+
+F12 opens **Change media** during an active session when the package offers
+removable media and the hardware controls are available. If the kit's
+session-display plane is required and launcher focus is not active, tenfoot
+focuses the plane first, then opens the selector after that transition succeeds.
+The core keeps running, and the evdev F12 route consumes the key instead of
+forwarding it as HID. When a kit-local core owns input, F12 requests local Stop
+instead. F12 on the idle menu does nothing.
+
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
