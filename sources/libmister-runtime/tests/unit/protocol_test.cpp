@@ -1178,6 +1178,12 @@ void TestLibraryDiskProtocol()
  for(const auto& pair:std::vector<std::pair<std::string,std::string>>{{"737280","737279"},{"atari-st-desktop","../escape"},{"/data","relative"},{b,std::string(64,'B')}}){auto bad=prefix;bad.replace(bad.find(pair.first),pair.first.size(),pair.second);assert(!Parse(bad,&parsed).ok());}
  const std::string save="{\"protocol\":2,\"operation\":\"save_media\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7,\"unit\":0}";
  assert(Parse(save,&parsed).ok()&&parsed.operation==Operation::save_media);
+ const std::string tape="{\"protocol\":2,\"operation\":\"capture_zx81_tape\",\"path\":\"/tmp/program.p\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7}";
+ assert(Parse(tape,&parsed).ok()&&parsed.operation==Operation::capture_zx81_tape&&parsed.media_path=="/tmp/program.p");
+ assert(!Parse(std::string("{\"protocol\":2,\"operation\":\"capture_zx81_tape\",\"path\":\"relative.p\",\"expected_package_id\":\"")+a+"\",\"expected_generation\":7}",&parsed).ok());
+ const std::string acknowledge="{\"protocol\":2,\"operation\":\"acknowledge_zx81_tape\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7}";
+ assert(Parse(acknowledge,&parsed).ok()&&parsed.operation==Operation::acknowledge_zx81_tape&&parsed.expected_package_id==a&&parsed.expected_generation==7);
+ assert(!Parse(std::string("{\"protocol\":2,\"operation\":\"acknowledge_zx81_tape\",\"expected_package_id\":\"")+a+"\",\"expected_generation\":7,\"path\":\"/tmp/other\"}",&parsed).ok());
  auto extra=save;extra.insert(extra.size()-1,",\"path\":\"/unused\"");assert(!Parse(extra,&parsed).ok());
  Status status;status.generation=7;status.active_package.package_id=a;status.active_package.descriptor.abi={"fes.computer",1,0};status.capabilities.media_units.resize(1);auto& u=status.capabilities.media_units[0];u.persistence_mode="persistent";u.game_id="atari-st-desktop";u.base_media_id=b;u.revision=a;
  const auto encoded=mister::daemon::EncodeResponse(2,true,status,"test");assert(encoded.find("\"persistence\":{\"mode\":\"persistent\"")!=std::string::npos);

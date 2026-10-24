@@ -959,6 +959,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool ddr = false;
 		bool display = false;
 		bool plane = false;
+		bool zx81_tape = false;
+		bool zx81_tape_write = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -975,6 +977,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceMouseRelativeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID ||
+				interface.id == FesComputerInterfaceMediaZx81TapeWriteID ||
                 interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
@@ -1002,6 +1005,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;
 			if (interface.id == kDisplayPlaneInterfaceID) plane = true;
 			if (media) media_units++;
+			if (interface.id == FesComputerInterfaceMediaZx81TapeID) zx81_tape = true;
+			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) zx81_tape_write = true;
 		}
 		bool writable = false, geometry = false, st_medium = false;
 		for (const auto& interface : descriptor.interfaces) {
@@ -1015,6 +1020,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		Error pairing = CheckDisplayPlanePairing(display, plane);
 		if (!pairing.ok()) return pairing;
 		if ((writable || geometry) && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "Atari ST media extensions require the base floppy interface");
+		if (zx81_tape_write && !zx81_tape)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"ZX81 tape write requires the base tape interface");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");

@@ -32,6 +32,7 @@ removable media by unit.
 | fes.media.zx81-tape | 11 | Media unit 0: one ZX81 `.p` image, 1..16384 bytes |
 | fes.memory.hps-ddr | 12 | Reserved DDR window for launcher frames. Advertised only when the boot DDR layout and menu adapters exist |
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
+| fes.media.zx81-tape-write | 14 | Writable extension to the ZX81 tape. Captures the BASIC SAVE image; it does not require a loaded cassette |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -240,7 +241,26 @@ floppy, or the ZX81 tape, and only one unit-0 media interface.
 Unit 0. The unit accepts 1..16,384 bytes: a ZX81 `.p` memory image. The core
 copies a ready image into RAM when BASIC reaches `LOAD` at `$0347`. An empty
 unit makes that load return `0/0` instead of waiting on an analog cassette.
-Version 1.0 does not play audio tape and does not return saves to the host.
+Version 1.0 does not play audio tape. Saves return to the host only when the
+shell also implements `fes.media.zx81-tape-write` 1.0 (capability bit 14,
+`0x4000`).
+
+### fes.media.zx81-tape-write 1.0
+
+This extension occupies the same unit 0 as `fes.media.zx81-tape` and reuses
+snapshot opcodes 12–15. The captured image is the program the ROM SAVE
+routine emits, from `$4009` through the byte before `E_LINE`. It is
+independent of the cassette loaded for `LOAD`: Freeze is ready when that
+save image is ready, including when unit 0 is empty. Begin and Eject of the
+load cassette do not clear the save image or its dirty bit.
+
+SnapshotInfo layout tag is 2, major 1, minor 0. Size is the captured byte
+count, 1..16384. Chunks are 2..512 bytes and even, except a final chunk of
+length 1 when the image size is odd. That chunk's data word is the byte in
+the low half and zero in the high half. The change epoch advances once per
+completed SAVE. Flags use the same ready, dirty, frozen and busy bits as the
+ST snapshot. Busy covers the SAVE emitter as well as an in-progress `LOAD`
+copy. Dirty clears on Saved, not on cassette replacement or eject.
 
 ### fes.media.c64-disk 1.0
 
