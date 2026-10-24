@@ -252,7 +252,8 @@ local function choice()
   for _,c in ipairs(machine and machine.choices or {}) do if c.expansion_id == inspected then return c end end
 end
 local function pending()
-  return current() and current_session().hardware_known and (current_session().package_id ~= machine.package_id or (current_session().expansion_id or "") ~= machine.draft_expansion_id)
+  local launch_package=machine and machine.launch_package_id ~= "" and machine.launch_package_id or machine and machine.package_id
+  return current() and current_session().hardware_known and (current_session().package_id ~= launch_package or (current_session().expansion_id or "") ~= machine.draft_expansion_id)
 end
 local function read()
   if loading or saving then return end
@@ -582,7 +583,9 @@ local function picture(part)
   local can_control=not stale and not loading and data and data.session_error == ""
   local can_play=machine and machine.ready and not stale and not loading and not saving and data and data.session and data.session.state == "idle" and data.session_error == ""
   button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,576,186,48,(current() and can_control and current_session().hardware_known) or can_play,function()
-    if running() then session.stop(current_session()) else session.launch(machine.game_id) end
+    if running() then session.stop(current_session())
+    elseif machine.launch_package_id and machine.launch_package_id ~= "" then session.launch(machine.game_id,machine.launch_package_id,machine.package_id)
+    else session.launch(machine.game_id) end
   end,true)
   button("tape",running() and "Choose / eject tape" or "Choose cassette",222,576,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
     if running() then session.open_tape(current_session())

@@ -191,6 +191,17 @@ func listDriveDir(ctx context.Context, manager *storage.Manager, client *Client,
 	return rows, nil
 }
 
+func tapePickerDriveRows(p *hostclient.SessionCorePackage, rows []FirmwarePickerRow) []TapePickerRow {
+	tapes := make([]TapePickerRow, 0, len(rows))
+	for _, row := range rows {
+		if row.Kind == tapePickerKindFile && !hostclient.AdmitRemovableMedia(p, row.Name, row.Size) {
+			continue
+		}
+		tapes = append(tapes, TapePickerRow{Name: row.Name, Path: row.Path, Kind: row.Kind, Size: row.Size, Selectable: row.Kind == tapePickerKindFile})
+	}
+	return tapePickerFolderActions(tapes)
+}
+
 func (a *App) loadDrivePickerDirLocked(path, destination string) {
 	manager, client := a.driveManagerLocked(), a.client
 	gen := 0
@@ -247,11 +258,7 @@ func (a *App) loadDrivePickerDirLocked(path, destination string) {
 				a.tapePickerStatus = err.Error()
 				return
 			}
-			tapes := make([]TapePickerRow, 0, len(rows))
-			for _, r := range rows {
-				tapes = append(tapes, TapePickerRow{Name: r.Name, Path: r.Path, Kind: r.Kind, Size: r.Size, Selectable: r.Kind == tapePickerKindFile && hostclient.AdmitRemovableMedia(a.tapePickerSession.CorePackage, r.Name, r.Size)})
-			}
-			a.tapePickerRows = tapes
+			a.tapePickerRows = tapePickerDriveRows(a.tapePickerSession.CorePackage, rows)
 			a.tapePickerPath = path
 			a.tapePickerAtRoots = false
 			a.tapePickerIndex = 0
