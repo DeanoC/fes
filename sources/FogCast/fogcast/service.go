@@ -725,6 +725,7 @@ type targetPlay struct {
 	execution         string
 	gameID            string
 	system            protocol.System
+	coreID            string
 	packageID         string
 	packageGeneration uint64
 	packageRejection  *protocol.APIError
@@ -2070,7 +2071,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		play := targetPlay{execution: ExecutionFPGADevelopment, packageRejection: cleanupErr}
 		if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
 			play.execution = ExecutionFPGANative
-			play.gameID, play.system = selected.entry.GameID, catalog.CorePlatform
+			play.gameID, play.system, play.coreID = selected.entry.GameID, catalog.CorePlatform, selected.entry.CoreID
 			play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
 		}
 		s.plays[keepTarget] = play
@@ -2087,7 +2088,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	play := targetPlay{execution: ExecutionFPGADevelopment}
 	if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
 		play.execution = ExecutionFPGANative
-		play.gameID, play.system = selected.entry.GameID, catalog.CorePlatform
+		play.gameID, play.system, play.coreID = selected.entry.GameID, catalog.CorePlatform, selected.entry.CoreID
 		play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
 	}
 	s.plays[keepTarget] = play

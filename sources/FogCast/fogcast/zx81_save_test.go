@@ -29,6 +29,16 @@ type zx81RememberClient struct {
 	events       []string
 }
 
+type zx81FailingCoreEntryCatalog struct {
+	*catalog.Store
+	lookups int
+}
+
+func (c *zx81FailingCoreEntryCatalog) CoreEntry(context.Context, string) (catalog.CoreEntry, error) {
+	c.lookups++
+	return catalog.CoreEntry{}, errors.New("catalog unavailable")
+}
+
 func (c *zx81RememberClient) ProbeContent(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
 	return protocol.CacheProbeResponse{}, nil
 }
@@ -75,7 +85,7 @@ func newZX81StopFixture(t *testing.T) (*Service, *zx81RememberClient, *catalog.S
 		catalog: store, requestTimeout: time.Second, uploadTimeout: time.Second,
 		selectedTarget: "kit", activeTarget: "kit", activeExecution: ExecutionFPGANative,
 		plays: map[string]targetPlay{"kit": {
-			execution: ExecutionFPGANative, gameID: entry.GameID, system: catalog.CorePlatform,
+			execution: ExecutionFPGANative, gameID: entry.GameID, system: catalog.CorePlatform, coreID: "fes.zx81",
 			packageID: pkg, packageGeneration: 3,
 		}},
 		targets:       []TargetConfig{{Name: "kit", Enabled: true}},
@@ -164,6 +174,92 @@ func TestStopWithNoPendingZX81SaveAddsNoTapeAndSucceeds(t *testing.T) {
 	record := zx81LogRecord(t, logs)
 	if record["reason"] != "no_pending_save" || record["captured_bytes"] != float64(0) {
 		t.Fatalf("empty capture log = %+v", record)
+	}
+}
+
+func TestStopDoesNotReadCatalogForLaunchBoundNonZX81Core(t *testing.T) {
+	service, client, store, _ := newZX81StopFixture(t)
+	catalogFailure := &zx81FailingCoreEntryCatalog{Store: store}
+	service.catalog = catalogFailure
+	play := service.plays["kit"]
+	play.coreID = "fes.pong"
+	service.plays["kit"] = play
+	logs := captureZX81SaveLogs(t)
+
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop = %+v, %v", status, err)
+	}
+	if catalogFailure.lookups != 0 {
+		t.Fatalf("catalog lookups = %d, want none for launch-bound %s", catalogFailure.lookups, play.coreID)
+	}
+	if client.stopCalls != 1 || client.captureCalls != 0 {
+		t.Fatalf("Stop calls=%d captures=%d, want Stop and no ZX81 capture", client.stopCalls, client.captureCalls)
+	}
+	record := zx81LogRecord(t, logs)
+	if record["reason"] != "play_is_not_zx81" || record["core_id"] != play.coreID {
+		t.Fatalf("non-ZX81 skip log = %+v", record)
+	}
+}
+
+func TestStopAllowsUnboundDevelopmentPlayWhenStatusFails(t *testing.T) {
+	service, client, _, _ := newZX81StopFixture(t)
+	service.activeExecution = ExecutionFPGADevelopment
+	service.plays["kit"] = targetPlay{execution: ExecutionFPGADevelopment, system: catalog.CorePlatform}
+	client.statusErr = errors.New("status unavailable")
+	logs := captureZX81SaveLogs(t)
+
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("Stop = %+v, %v", status, err)
+	}
+	if client.stopCalls != 1 || client.captureCalls != 0 {
+		t.Fatalf("Stop calls=%d captures=%d, want Stop and no unconfirmed ZX81 capture", client.stopCalls, client.captureCalls)
+	}
+	record := zx81LogRecord(t, logs)
+	if record["reason"] != "status_read_failed" || record["error"] != "status unavailable" {
+		t.Fatalf("unbound status failure log = %+v", record)
+	}
+}
+
+func TestStopUnboundWritableZX81BlocksOnlyWhenCaptureHasBytes(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       []byte
+		wantReason string
+		wantBlock  bool
+	}{
+		{name: "empty capture", wantReason: "no_pending_save"},
+		{name: "captured bytes", data: []byte{0x00, 0x0a, 0x76}, wantReason: "pending_save_has_no_game_binding", wantBlock: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, client, _, _ := newZX81StopFixture(t)
+			service.activeExecution = ExecutionFPGADevelopment
+			service.plays["kit"] = targetPlay{execution: ExecutionFPGADevelopment, system: catalog.CorePlatform}
+			client.data = test.data
+			logs := captureZX81SaveLogs(t)
+
+			status, err := service.Stop(context.Background())
+			if test.wantBlock {
+				var apiErr *protocol.APIError
+				if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeSaveFailed {
+					t.Fatalf("Stop error = %v, want save_failed", err)
+				}
+				if client.stopCalls != 0 {
+					t.Fatalf("target Stop calls = %d, want 0", client.stopCalls)
+				}
+			} else if err != nil || status.State != protocol.StateIdle || client.stopCalls != 1 {
+				t.Fatalf("Stop = %+v, %v; calls=%d", status, err, client.stopCalls)
+			}
+			if client.captureCalls != 1 {
+				t.Fatalf("capture calls = %d, want 1", client.captureCalls)
+			}
+			record := zx81LogRecord(t, logs)
+			if record["reason"] != test.wantReason {
+				t.Fatalf("SAVE log = %+v, want reason %q", record, test.wantReason)
+			}
+		})
 	}
 }
 

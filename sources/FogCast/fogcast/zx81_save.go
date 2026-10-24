@@ -53,26 +53,52 @@ func (s *Service) rememberZX81Program(ctx context.Context, client serviceClient,
 		return zx81SaveFailure(ctx, play, "target_client_missing", nil)
 	}
 
-	// Library core entries use the FPGA grouping system. Resolve the selected
-	// entry so ordinary FPGA packages keep their normal Stop path, while a ZX81
-	// entry is held to the stronger save persistence contract.
-	if play.system == catalog.CorePlatform && play.gameID != "" {
-		entries, ok := s.catalog.(zx81CoreEntryCatalog)
-		if !ok {
-			return zx81SaveFailure(ctx, play, "core_entry_catalog_unavailable", nil)
+	// Library core entries carry their selected core identity with the play, so
+	// ordinary FPGA stops do not depend on a catalog read just to rule out ZX81.
+	if play.system == catalog.CorePlatform {
+		if play.coreID != "" {
+			if play.coreID != "fes.zx81" {
+				zx81SaveLog(ctx, slog.LevelInfo, "ZX81 SAVE check skipped", play,
+					slog.String("reason", "play_is_not_zx81"),
+					slog.String("core_id", play.coreID),
+				)
+				return nil
+			}
+			if play.gameID != "" {
+				return s.rememberBoundZX81Program(ctx, client, play)
+			}
+			return s.rememberUnboundZX81Program(ctx, client, play)
 		}
-		entry, err := entries.CoreEntry(ctx, play.gameID)
-		if err != nil {
-			return zx81SaveFailure(ctx, play, "core_entry_lookup_failed", err)
+
+		// Status-adopted or otherwise unidentified FPGA plays may still have a
+		// writable ZX81 package. Check their catalog binding when available, then
+		// inspect the active package; only captured bytes make an unbound SAVE a
+		// reason to hold Stop.
+		if play.gameID != "" {
+			entries, ok := s.catalog.(zx81CoreEntryCatalog)
+			if ok {
+				entry, err := entries.CoreEntry(ctx, play.gameID)
+				if err == nil {
+					if entry.CoreID != "fes.zx81" {
+						zx81SaveLog(ctx, slog.LevelInfo, "ZX81 SAVE check skipped", play,
+							slog.String("reason", "play_is_not_zx81"),
+							slog.String("core_id", entry.CoreID),
+						)
+						return nil
+					}
+					return s.rememberBoundZX81Program(ctx, client, play)
+				}
+				zx81SaveLog(ctx, slog.LevelWarn, "ZX81 SAVE catalog identity unavailable; checking active package", play,
+					slog.String("reason", "core_entry_lookup_failed"),
+					slog.String("error", err.Error()),
+				)
+			} else {
+				zx81SaveLog(ctx, slog.LevelWarn, "ZX81 SAVE catalog identity unavailable; checking active package", play,
+					slog.String("reason", "core_entry_catalog_unavailable"),
+				)
+			}
 		}
-		if entry.CoreID != "fes.zx81" {
-			zx81SaveLog(ctx, slog.LevelInfo, "ZX81 SAVE check skipped", play,
-				slog.String("reason", "play_is_not_zx81"),
-				slog.String("core_id", entry.CoreID),
-			)
-			return nil
-		}
-		return s.rememberBoundZX81Program(ctx, client, play)
+		return s.rememberUnboundZX81Program(ctx, client, play)
 	}
 
 	// A directly identified ZX81 play also needs the strict path. Unbound
@@ -170,10 +196,16 @@ func (s *Service) rememberBoundZX81Program(ctx context.Context, client serviceCl
 func (s *Service) rememberUnboundZX81Program(ctx context.Context, client serviceClient, play targetPlay) error {
 	status, err := client.Status(ctx)
 	if err != nil {
-		return zx81SaveFailure(ctx, play, "status_read_failed", err,
+		// The host cannot confirm a pending SAVE without package status. Let
+		// runtime Stop decide: it independently refuses to retire a dirty ZX81
+		// snapshot, while non-ZX81 development plays remain stoppable.
+		zx81SaveLog(ctx, slog.LevelWarn, "ZX81 SAVE status unavailable; allowing Stop without a confirmed pending save", play,
+			slog.String("reason", "status_read_failed"),
+			slog.String("error", err.Error()),
 			slog.String("observed_package_id", ""),
 			slog.Uint64("observed_generation", 0),
 		)
+		return nil
 	}
 	if status.CorePackage == nil {
 		if play.packageID != "" || play.packageGeneration != 0 {
@@ -381,6 +413,7 @@ func zx81SaveLog(ctx context.Context, level slog.Level, message string, play tar
 	attrs := []slog.Attr{
 		slog.String("game_id", play.gameID),
 		slog.String("play_system", string(play.system)),
+		slog.String("core_id", play.coreID),
 		slog.String("play_execution", play.execution),
 		slog.String("expected_package_id", play.packageID),
 		slog.Uint64("expected_generation", play.packageGeneration),

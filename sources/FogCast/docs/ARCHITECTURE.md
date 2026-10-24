@@ -3410,12 +3410,16 @@ snapshot. Capture keeps the FPGA snapshot frozen and dirty until that
 generation-bound acknowledgement succeeds. Capture, import, catalog, or
 acknowledgement failure returns `save_failed` and leaves the play active so Stop
 can be retried; the runtime independently refuses Stop while an unacknowledged
-SAVE remains. Status, package, generation, or required tape-write capability
-mismatches return `save_failed` with structured expected and observed values in
-the host log. An empty capture means no SAVE is pending. An unbound writable
-package can stop after an empty capture; captured bytes without a catalog game
-binding keep Stop blocked. The running cassette picker adds that game's saved
-programs alongside the attributed starters. A
+SAVE remains. The selected core ID is retained with the launched play, so a
+known non-ZX81 library core skips this bookkeeping without another catalog read.
+For a bound ZX81 play, status, package, generation, or required tape-write
+capability mismatches return `save_failed` with structured expected and observed
+values in the host log. An empty capture means no SAVE is pending. When the
+active package or game binding is unidentified, catalog and status lookup
+failures are logged; Stop proceeds unless an active writable package yields
+captured bytes that cannot be attached to a game. The runtime still refuses to
+retire an unacknowledged SAVE. The running cassette picker adds that game's
+saved programs alongside the attributed starters. A
 saved row already names durable core media, so selecting it arms the existing
 media ID without importing the bytes again. This is software coverage; exact
 artifact hardware acceptance remains separate.
