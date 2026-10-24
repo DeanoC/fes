@@ -53,7 +53,15 @@ retirement on the target CPU. It does not reproduce the historical 48 ms hard
 failure or establish its complete cause.
 
 A one-second `/proc` sampler overlapped the first run. Its scheduling log is
-retained on Powerboat. A separately recorded confirmation omits this sampler.
+retained on Powerboat. The confirmation without the sampler failed at zero-based cycle 71/frame 63
+(after 7,163 completed frames, 195.14 seconds): `draw callback: script exceeded
+48ms budget (elapsed 51.36ms; script run 51.32ms: thread cpu 13.41ms,
+6 voluntary/63 involuntary switches)`. Its full log is `fixture-no-sampler.log`.
+The script-run interval includes about 37.9 ms off-CPU. This reproduces the
+hard-deadline error on ARM without the sampler, but does not identify the
+competing work or distinguish every source of waiting. The fixture process,
+Go runtime and background real launcher remain part of this workload.
+
 The tests preserve the first failure rather than silently retrying it to green.
 
 ## Remaining work
@@ -67,9 +75,23 @@ It is not yet a demonstrated correction.
 The managed-child SIGKILL recovery campaign was not run: automatic approval
 review rejected the deliberate service disruption pending explicit approval.
 The healthy post-activation HDMI frame does not substitute for fault recovery.
-The eight-entry full launcher and the original hard-deadline failure remain
-unverified. Keep #761 open.
+The eight-entry full launcher and its recovery sequence remain unverified;
+the ARM fixture now reproduces both soft retirement and a hard-deadline error. Keep #761 open.
 
 Raw build, activation, software status, lease, scheduler and HDMI artifacts:
 Powerboat `/home/deano/tmp/codex-761-20261024/`. No bearer or lease tokens are
 included in this record.
+
+## Restore and verification
+
+Baseline software was explicitly reactivated through the software API. At
+software generation 56, selected and active both equal `35d58489…`, with no
+pending operation or service fault. The boot ID and loop-backed OS remained
+unchanged. Runtime/local control was idle, the target API lease was free, and
+the baseline Home was visible on HDMI. The status-file claim was released with
+these results. The inert diagnostic executable is retained under `/tmp` on the
+kit; no diagnostic process remains running.
+
+Focused host checks passed: runaway-script termination and the default-budget
+assertions. The new target diagnostic skips by default as intended; the two
+explicit ARM runs are recorded failures, not passing regression tests.
