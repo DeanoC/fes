@@ -128,6 +128,69 @@ func TestLiveMediaHostSessionChangeTapeAndEject(t *testing.T) {
 	}
 }
 
+func TestLiveMediaNameClearsAfterSessionStopsOrChanges(t *testing.T) {
+	packageID := strings.Repeat("a", 64)
+	active := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: packageID, Generation: 9,
+		ABI:              protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}},
+	}}
+	for _, tc := range []struct {
+		name        string
+		intervening func(*liveMediaService)
+	}{
+		{
+			name: "stopped before same-generation restart",
+			intervening: func(service *liveMediaService) {
+				service.status = protocol.Status{State: protocol.StateIdle}
+			},
+		},
+		{
+			name: "package generation changed",
+			intervening: func(service *liveMediaService) {
+				changed := active
+				changed.CorePackage = &protocol.CorePackageStatus{PackageID: packageID, Generation: 10}
+				service.status = changed
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service := &liveMediaService{fakeService: fakeService{status: active, sessionTarget: "dev"}}
+			handler := hostapi.New(service)
+			var session struct {
+				ID string `json:"id"`
+			}
+			if response := serve(t, handler, http.MethodGet, "/api/v1/session"); json.Unmarshal(response.Body.Bytes(), &session) != nil || session.ID == "" {
+				t.Fatalf("session: %s", response.Body)
+			}
+
+			insert := httptest.NewRequest(http.MethodPost, "/api/v1/session/live-media", strings.NewReader(`{"media_id":"`+strings.Repeat("b", 64)+`","name":"maze.p"}`))
+			insert.Host = "127.0.0.1"
+			insert.Header.Set("Content-Type", "application/json")
+			insert.Header.Set(protocol.HostSessionIDHeader, session.ID)
+			protocol.DevelopmentMediaBinding{PackageID: packageID, Generation: 9, Target: "dev"}.SetHeaders(insert.Header)
+			inserted := httptest.NewRecorder()
+			handler.ServeHTTP(inserted, insert)
+			if inserted.Code != http.StatusOK || !strings.Contains(inserted.Body.String(), `"media_name":"maze.p"`) {
+				t.Fatalf("insert = %d %s", inserted.Code, inserted.Body.String())
+			}
+
+			tc.intervening(service)
+			observed := serve(t, handler, http.MethodGet, "/api/v1/session")
+			if strings.Contains(observed.Body.String(), `"media_name"`) {
+				t.Fatalf("changed session retained filename: %s", observed.Body.String())
+			}
+
+			// The runtime may restart and reuse the package's old generation.
+			service.status = active
+			restarted := serve(t, handler, http.MethodGet, "/api/v1/session")
+			if strings.Contains(restarted.Body.String(), `"media_name"`) {
+				t.Fatalf("same-generation session revived stale filename: %s", restarted.Body.String())
+			}
+		})
+	}
+}
+
 func TestLiveMediaHostRejectsBadAdmissionAndStaleSession(t *testing.T) {
 	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
 		PackageID: strings.Repeat("a", 64), Generation: 9,

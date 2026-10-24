@@ -1826,11 +1826,22 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	} else if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
 		result.Target, result.TargetID = binder.SessionTarget()
 	}
-	if result.Target == binding.Target && result.TargetID == binding.TargetID && st.State == protocol.StateActive && st.CorePackage != nil && st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation {
+	mediaBindingMatches := result.Target == binding.Target && result.TargetID == binding.TargetID && st.State == protocol.StateActive && st.CorePackage != nil && st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation
+	if mediaBindingMatches {
 		unit, observed := protocol.MediaUnit(st.CorePackage, 0)
 		if !observed || unit.State == protocol.MediaUnitReady {
 			result.MediaName = name
 		}
+	} else if st.State != "" {
+		// A confirmed filename belongs only to the observed session binding.
+		// Retire it once status proves that session stopped or changed, so a
+		// runtime restart that reuses a package generation cannot revive it.
+		s.mu.Lock()
+		if s.liveMediaName == name && s.liveMediaBinding == binding {
+			s.liveMediaName = ""
+			s.liveMediaBinding = protocol.DevelopmentMediaBinding{}
+		}
+		s.mu.Unlock()
 	}
 	if s.remoteInput != nil {
 		input := s.remoteInput.Status()
