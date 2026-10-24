@@ -559,6 +559,8 @@ func (a *App) launchFromRoomWithPackageLocked(gameID, packageID, expectedPackage
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
+	a.launchPackageID = packageID
+	a.launchExpectedPackageID = expectedPackageID
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{GameID: gameID, Phase: "launching", Message: "resolving " + gameID}
 	ctx := a.ctx

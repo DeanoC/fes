@@ -3425,8 +3425,10 @@ removable media and the hardware controls are available. If the kit's
 session-display plane is required and launcher focus is not active, tenfoot
 focuses the plane first, then opens the selector after that transition succeeds.
 The core keeps running, and the evdev F12 route consumes the key instead of
-forwarding it as HID. When a kit-local core owns input, F12 requests local Stop
-instead. F12 on the idle menu does nothing.
+forwarding it as HID. On a host display, tenfoot opens the existing hardware
+room on the host window and uses the host live-media route without a kit
+session-display transition. When a kit-local core owns input, F12 requests
+local Stop instead. F12 on the idle menu does nothing.
 
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the

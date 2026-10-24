@@ -307,28 +307,30 @@ type App struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 
-	mu                 sync.Mutex
-	games              []hostclient.Game
-	grid               Grid
-	covers             map[string]*coverSlot
-	inflight           map[string]workKind
-	status             string
-	statusLeaseRefusal bool
-	launchLeaseRefusal bool
-	loadErr            string
-	loading            bool
-	libraryRetrying    bool // catalog retry is in flight; independent of the Select gate
-	launch             LaunchSnapshot
-	gamepads           int
-	keyboards          int
-	mice               int
-	affinity           affinityTracker
-	repeat             Repeater
-	theme              theme.Theme
-	jobs               chan workItem
-	results            chan workResult
-	maxGames           int
-	pageLimit          int
+	mu                      sync.Mutex
+	games                   []hostclient.Game
+	grid                    Grid
+	covers                  map[string]*coverSlot
+	inflight                map[string]workKind
+	status                  string
+	statusLeaseRefusal      bool
+	launchLeaseRefusal      bool
+	loadErr                 string
+	loading                 bool
+	libraryRetrying         bool // catalog retry is in flight; independent of the Select gate
+	launch                  LaunchSnapshot
+	launchPackageID         string // pending Workshop package selection retained for retry
+	launchExpectedPackageID string
+	gamepads                int
+	keyboards               int
+	mice                    int
+	affinity                affinityTracker
+	repeat                  Repeater
+	theme                   theme.Theme
+	jobs                    chan workItem
+	results                 chan workResult
+	maxGames                int
+	pageLimit               int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -2374,6 +2376,8 @@ func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, 
 		}
 		return
 	}
+	a.launchPackageID = packageID
+	a.launchExpectedPackageID = expectedPackageID
 	a.sessionTitle = game.Title
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
@@ -2433,6 +2437,12 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 			a.launch.ErrorMessage = err.Error()
 			return
 		}
+		a.mu.Lock()
+		if a.launch.GameID == game.ID && a.launch.Phase == "launching" {
+			a.launchPackageID = ""
+			a.launchExpectedPackageID = ""
+		}
+		a.mu.Unlock()
 	}
 	result, err := a.client.LaunchStamped(ctx, game.ID, stamp)
 	a.mu.Lock()
