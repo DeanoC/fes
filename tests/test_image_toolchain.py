@@ -1,9 +1,11 @@
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import shutil
 import sys
 import tempfile
+import threading
 import tomllib
 import unittest
 from unittest import mock
@@ -72,6 +74,31 @@ class ToolchainCacheTest(unittest.TestCase):
         record["key"] = "wrong"
         (directory / "receipt.json").write_text(json.dumps(record))
         self.assertIsNone(cache.validated_sha(directory, expected))
+
+    def test_concurrent_publishers_leave_a_valid_cache_entry(self):
+        hosts = [self.image / "host-one", self.image / "host-two"]
+        for index, host in enumerate(hosts, start=1):
+            (host / "bin").mkdir(parents=True)
+            (host / "bin" / (cache.PREFIX + "-gcc")).write_bytes(b"compiler " + bytes([index]))
+            (host / "payload").write_bytes(bytes([index]) * (2 * 1024 * 1024))
+
+        directory = cache.cache_dir(self.image)
+        expected = cache.key(self.image)
+        publish_barrier = threading.Barrier(2)
+        original_publish = cache._publish
+
+        def synchronized_publish(*args):
+            publish_barrier.wait(timeout=10)
+            return original_publish(*args)
+
+        with mock.patch.object(cache, "_publish", synchronized_publish):
+            with ThreadPoolExecutor(max_workers=2) as publishers:
+                results = list(publishers.map(
+                    lambda host: cache.package(host, directory, expected), hosts))
+
+        self.assertTrue(all(len(result) == 64 for result in results))
+        self.assertIn(cache.validated_sha(directory, expected), results)
+        self.assertEqual({path.name for path in directory.iterdir()}, {"host.tar", "receipt.json"})
 
     def test_shared_paths_and_ccache_configuration(self):
         shared_temp = tempfile.TemporaryDirectory()
