@@ -251,14 +251,19 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 
 | call | callback |
 | --- | --- |
-| `library.query({platform, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables. The query returns every matching catalog row, including titles that are not ready. |
+| `library.query({platform, core_ids, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables. The query returns matching catalog rows, including titles that are not ready. `core_ids` restricts results to prepared core-package entries with those core IDs. |
 | `library.platforms(fn(platforms, err))` | `{id, label, game_count, online, launchable, tags}` |
 | `library.collections(fn(collections, err))` | `{id, name}` |
-| `library.game(id, fn(game, err))` | one game |
+| `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
 
-Game tables: `id, title, system, genre, year, region, state, series,
+Game tables: `id, title, system, core_id, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
-played, completed, collections`. `played` is FES recorded play activity
+played, completed, collections, variant_count, expansion_id, expansion_ready,
+slot_expansions, variants`. `core_id` is set for an installed core-package
+row. `variant_count` is the grouped edition count. `variants` lists those
+editions as sibling rows. `expansion_id` and `slot_expansions` (`slot`,
+`expansion_id`, `ready`) are the composition the library already stored.
+`played` is FES recorded play activity
 (`play_count` or `last_played_at`). `completed` is an explicit completion
 record only and is false today (no household completion store). Returning
 from a launch is not Completed. Game ids are derived from library path and title, so resolve
@@ -497,6 +502,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
+| `example.computers` | prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries, filtered by core identity before paging. A row is shown when it is already launch-eligible. Grouped editions become variant rows. An `expansion_id` or `slot_expansions` entry becomes its own row and launches the same game id. Confirm stays in the room and calls `session.launch`. The room does not publish a destination, and it adds no sockets, cards, or another machine family |
 | `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:

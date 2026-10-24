@@ -46,16 +46,33 @@ func memPack(t *testing.T, id, mainLua string, extra map[string]string) Pack {
 type fakeServices struct {
 	mu        sync.Mutex
 	games     []hostclient.Game
+	details   map[string]hostclient.Game
 	platforms []hostclient.Platform
 	queries   []hostclient.GameListQuery
 	err       error
 }
 
-func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, _ int) ([]hostclient.Game, error) {
+func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queries = append(f.queries, q)
-	return f.games, f.err
+	games := f.games
+	if len(q.CoreIDs) > 0 {
+		wanted := make(map[string]struct{}, len(q.CoreIDs))
+		for _, coreID := range q.CoreIDs {
+			wanted[coreID] = struct{}{}
+		}
+		games = make([]hostclient.Game, 0)
+		for _, game := range f.games {
+			if _, ok := wanted[game.CoreID]; ok {
+				games = append(games, game)
+			}
+		}
+	}
+	if max > 0 && len(games) > max {
+		games = games[:max]
+	}
+	return games, f.err
 }
 
 func (f *fakeServices) recorded() []hostclient.GameListQuery {
@@ -70,6 +87,13 @@ func (f *fakeServices) Collections(context.Context) ([]hostclient.Collection, er
 	return []hostclient.Collection{{ID: "strategy", Name: "Strategy"}}, f.err
 }
 func (f *fakeServices) Game(_ context.Context, id string) (hostclient.Game, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.details != nil {
+		if g, ok := f.details[id]; ok {
+			return g, nil
+		}
+	}
 	for _, g := range f.games {
 		if g.ID == id {
 			return g, nil

@@ -7,25 +7,30 @@ import (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID               string   `json:"id"`
-	ROMSHA256        string   `json:"rom_sha256,omitempty"`
-	Title            string   `json:"title"`
-	System           string   `json:"system"`
-	Cover            string   `json:"cover,omitempty"`
-	Genre            string   `json:"genre,omitempty"`
-	Year             string   `json:"year,omitempty"`
-	Region           string   `json:"region,omitempty"`
-	State            string   `json:"state"`
-	RootOnline       bool     `json:"root_online"`
-	Launchable       bool     `json:"launchable"`
-	ROMCached        *bool    `json:"rom_cached,omitempty"`
-	Favorite         bool     `json:"favorite,omitempty"`
-	PlayCount        int64    `json:"play_count,omitempty"`
-	LastPlayedAt     int64    `json:"last_played_at,omitempty"`
-	Collections      []string `json:"collections,omitempty"`
-	Series           string   `json:"series,omitempty"`
-	Variants         []Game   `json:"variants,omitempty"`
-	FirmwareRequired bool     `json:"firmware_required,omitempty"`
+	ID           string   `json:"id"`
+	ROMSHA256    string   `json:"rom_sha256,omitempty"`
+	Title        string   `json:"title"`
+	System       string   `json:"system"`
+	CoreID       string   `json:"core_id,omitempty"`
+	Cover        string   `json:"cover,omitempty"`
+	Genre        string   `json:"genre,omitempty"`
+	Year         string   `json:"year,omitempty"`
+	Region       string   `json:"region,omitempty"`
+	State        string   `json:"state"`
+	RootOnline   bool     `json:"root_online"`
+	Launchable   bool     `json:"launchable"`
+	ROMCached    *bool    `json:"rom_cached,omitempty"`
+	Favorite     bool     `json:"favorite,omitempty"`
+	PlayCount    int64    `json:"play_count,omitempty"`
+	LastPlayedAt int64    `json:"last_played_at,omitempty"`
+	Collections  []string `json:"collections,omitempty"`
+	Series       string   `json:"series,omitempty"`
+	VariantCount int      `json:"variant_count,omitempty"`
+	Variants     []Game   `json:"variants,omitempty"`
+	// Editions are the grouped siblings kept after preferLaunchable clears
+	// Variants. Rooms read them; they are not a second wire field.
+	Editions         []Game `json:"-"`
+	FirmwareRequired bool   `json:"firmware_required,omitempty"`
 	// Execution is the service policy for this row (fpga_native, fpga_development, host_only).
 	Execution      string `json:"execution,omitempty"`
 	ExpansionID    string `json:"expansion_id,omitempty"`
@@ -452,6 +457,7 @@ type GameListQuery struct {
 	Cursor         string
 	Limit          int
 	Platform       string
+	CoreIDs        []string
 	Sort           string
 	Q              string
 	Collection     string

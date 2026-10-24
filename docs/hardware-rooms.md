@@ -7,7 +7,7 @@ prelaunch cassette selection. **Set up ZX81** creates a library entry from an
 installed sealed package and an explicitly selected household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
-library is empty. The Amiga-themed `example.workbench` remains a separate room.
+library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a separate shelf of prepared ZX81 and Commodore 64 library entries. It launches them through `session.launch` and adds no sockets or a second workshop.
 
 ## Use the workbench
 
