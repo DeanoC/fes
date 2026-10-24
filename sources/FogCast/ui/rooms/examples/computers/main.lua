@@ -5,6 +5,13 @@ local List = require "widgets.list"
 local color = require "util.color"
 
 local DEST = 130
+-- List colours match the other console rooms: a dark plate, light unfocused
+-- ink, and dark ink on the accent bar. Row text sets its own colour because
+-- the sofa label is meant for the dark shell.
+local PLATE = "#1C2420"
+local INK = "#F0F4F1"
+local FOCUS_INK = "#141916"
+local STATUS = "#C5D4CB"
 local MACHINES = {
   ["fes.zx81"] = "ZX81",
   ["fes.c64"] = "Commodore 64",
@@ -78,7 +85,7 @@ local function show(games)
     id = "computers",
     x = 64, y = 140,
     w = math.min(920, room.width - 128),
-    h = h, row_h = 48, size = 22,
+    h = h, row_h = 56, size = 22,
     items = rows,
   }
 end
@@ -167,7 +174,7 @@ end
 
 function draw()
   gfx.clear(room.theme.background)
-  gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.9))
+  gfx.rect(0, 0, room.width, 112, color.shade(room.theme.background, 0.7))
   gfx.rect(0, 112, room.width, 4, room.theme.accent)
   gfx.text("Computers", 64, 28, { size = 40, bold = true, color = room.theme.accent })
   local note = status
@@ -176,8 +183,14 @@ function draw()
   elseif rows and #rows == 0 and status == "" then
     note = "No prepared ZX81 or Commodore 64 entries yet."
   end
-  gfx.text(note, 64, 76, { size = 16, color = room.theme.status })
+  gfx.text(note, 64, 76, { size = 16, color = STATUS })
   if list then
-    list:draw{ label = function(item) return item.label end }
+    list:draw{
+      label = function(item) return item.label end,
+      background = PLATE,
+      color = INK,
+      focus_color = room.theme.accent,
+      focus_text = FOCUS_INK,
+    }
   end
 end
