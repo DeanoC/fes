@@ -190,15 +190,16 @@ matching `toolchain-fes-<core>` target that provisions its
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
 Pong's lock pins nextpnr `552ba246`, ZX81's `1eecf877` and RISC-V's
-`8f453ebc`, so each has its own slot. Apple II, Atari ST, C64, Coleco and
-Spectrum use nextpnr `5fe55f3d` from nextpnr #276; their shell validators
-require that producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II, C64 and
-Spectrum share one slot, and the Atari ST lock has its own. Coleco's lock also
-pins Yosys `5391eeb1`, so it has a separate toolchain slot. The Coleco
-development shell still uses nextpnr `9128800f`, whose exact route-through map
-is C/D. The validators select the map from each producer's lock; they do not
-broaden the reserved-boundary guard. The other five locks are byte copies of
-the repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses its
+`8f453ebc`, so each has its own slot. Apple II, Atari ST, C64 and Spectrum
+use nextpnr `5fe55f3d` from nextpnr #276; their shell validators require that
+producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II, C64 and Spectrum share
+one slot, and the Atari ST lock has its own. Coleco has its own slot at
+nextpnr `27e1b497`, which retains #276's exact F0/F1 `$ROUTETHRU` map; its
+lock also pins Yosys `5391eeb1`. The Coleco development shell still uses
+nextpnr `9128800f`, whose exact route-through map is C/D. The validators
+select the map from each producer's lock; they do not broaden the
+reserved-boundary guard. The other five locks are byte copies of the
+repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses its
 cached slot for them. The factory recipe stays HIP. The October kit notes do
 not accept a shared-pin seal. See [Cores](docs/cores.md).
 
