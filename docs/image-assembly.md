@@ -100,11 +100,12 @@ archive triggers a cold toolchain build. `TOOLCHAIN_REBUILD=1 make build` forces
 that rebuild and also bypasses the parent image receipt reuse.
 
 `make kit-sdk` publishes that same archive without an image build. It fetches
-the pinned Buildroot checkout and the downloads selected by the toolchain
-configuration, then runs `publish_toolchain` in `image/scripts/build-target-image.sh`
-inside the target-image container. The key, fragment, builder and
-`toolchain_cache.py` package step are the ones `build-target-image.sh
---ensure-toolchain native-dev` uses, so the `host.tar` bytes match. Core
+the pinned Buildroot checkout and Linux kernel Git source, plus the downloads
+selected by the toolchain configuration, then runs `publish_toolchain` in
+`image/scripts/build-target-image.sh` inside the target-image container. The
+key, fragment, builder and `toolchain_cache.py` package step are the ones
+`build-target-image.sh --ensure-toolchain native-dev` uses, so the `host.tar`
+bytes match. Core
 packages, idle and splash RBFs, and the native runtime input lock are not
 inputs. The image path still checks those before it calls the same publisher.
 With `FES_TARGET_IMAGE_SHARED_CACHE` set, the archive lands in

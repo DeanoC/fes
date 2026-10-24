@@ -248,7 +248,7 @@ sdk_base_platform=$(printf '%s\n' "$sdk_base_spec" | sed -n '1p')
 sdk_base_ref=$(printf '%s\n' "$sdk_base_spec" | sed -n '2p')
 grep -Fq "image inspect $sdk_base_ref" "$fixture/sdk-container.log"
 grep -Fq "pull --platform $sdk_base_platform $sdk_base_ref" "$fixture/sdk-container.log"
-grep -Fq '/work/scripts/fetch-target-image-sources.sh buildroot' "$fixture/sdk-container.log"
+grep -Fq '/work/scripts/fetch-target-image-sources.sh kit-sdk' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-fetch-toolchain' "$fixture/sdk-container.log"
 grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
 ! grep -Fq -- '--inside-toolchain ' "$fixture/sdk-container.log"
@@ -257,6 +257,9 @@ grep -Fq -- '--inside-kit-sdk' "$fixture/sdk-container.log"
 test "$(grep -c 'LIBMISTER_RUNTIME_DIR=<unset>' "$fixture/sdk-container.log")" -eq 3
 make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=podman > "$fixture/kit-sdk-podman.make"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-podman.make"
+TARGET_IMAGE_CONTAINER_RUNTIME=podman \
+  make -s -C "$repo/.." -n kit-sdk CONTAINER_RUNTIME=docker > "$fixture/kit-sdk-explicit-runtime.make"
+grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="podman"' "$fixture/kit-sdk-explicit-runtime.make"
 make -s -C "$repo/.." -n kit-sdk > "$fixture/kit-sdk-default.make"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME="docker"' "$fixture/kit-sdk-default.make"
 grep -Fq 'FES_PACKAGE_IDS=<unset>' "$fixture/sdk-container.log"

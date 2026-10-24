@@ -8,14 +8,14 @@ cache=${TARGET_IMAGE_CACHE:-$repo_root/build/cache/target-image}
 test_mode=${TARGET_IMAGE_TEST_MODE:-0}
 fetch_mode=${1:-all}
 case "$fetch_mode" in
-  all|buildroot) ;;
+  all|buildroot|kit-sdk) ;;
   *)
-    printf 'usage: fetch-target-image-sources.sh [all|buildroot]\n' >&2
+    printf 'usage: fetch-target-image-sources.sh [all|buildroot|kit-sdk]\n' >&2
     exit 2
     ;;
 esac
 if [ "$#" -gt 1 ]; then
-  printf 'usage: fetch-target-image-sources.sh [all|buildroot]\n' >&2
+  printf 'usage: fetch-target-image-sources.sh [all|buildroot|kit-sdk]\n' >&2
   exit 2
 fi
 
@@ -72,6 +72,8 @@ if [ "$test_mode" = 1 ]; then
   buildroot_repo=${TARGET_IMAGE_BUILDROOT_REPO:?TARGET_IMAGE_BUILDROOT_REPO is required in test mode}
   if [ "$fetch_mode" = all ]; then
     creator_repo=${TARGET_IMAGE_IMAGE_CREATOR_REPO:?TARGET_IMAGE_IMAGE_CREATOR_REPO is required in test mode}
+  fi
+  if [ "$fetch_mode" = all ] || [ "$fetch_mode" = kit-sdk ]; then
     kernel_repo=${TARGET_IMAGE_KERNEL_REPO:?TARGET_IMAGE_KERNEL_REPO is required in test mode}
   fi
 else
@@ -130,6 +132,11 @@ mkdir -p "$cache"
 fetch_repo buildroot "$buildroot_repo" "$buildroot_commit"
 if [ "$fetch_mode" = buildroot ]; then
   printf 'target image buildroot source fetched in %s\n' "$cache"
+  exit 0
+fi
+if [ "$fetch_mode" = kit-sdk ]; then
+  fetch_bare_repo linux-kernel "$kernel_repo" "$kernel_commit"
+  printf 'target image kit-sdk sources fetched in %s\n' "$cache"
   exit 0
 fi
 fetch_repo image-creator "$creator_repo" "$creator_commit"

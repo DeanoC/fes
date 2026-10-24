@@ -264,6 +264,12 @@ verify_buildroot_checkout() {
     /work/build/cache/target-image buildroot
 }
 
+verify_kit_sdk_sources() {
+  /work/scripts/verify-target-image-source-cache.sh \
+    /work/build/target-image.sources.lock.toml \
+    /work/build/cache/target-image kit-sdk
+}
+
 inside_toolchain() {
   test "$1" = "$epoch"
   test "$(/usr/bin/id -u)" -ne 0
@@ -284,7 +290,7 @@ inside_fetch_toolchain() {
 inside_kit_sdk() {
   test "$1" = "$epoch"
   test "$(/usr/bin/id -u)" -ne 0
-  verify_buildroot_checkout
+  verify_kit_sdk_sources
   publish_toolchain
 }
 
@@ -349,7 +355,7 @@ PY
 build_kit_sdk() {
   ensure_container_base
   run_sdk_container fetch \
-    /work/scripts/fetch-target-image-sources.sh buildroot
+    /work/scripts/fetch-target-image-sources.sh kit-sdk
   run_sdk_container fetch \
     /work/scripts/build-target-image.sh --inside-fetch-toolchain "$epoch"
   run_sdk_container run \
