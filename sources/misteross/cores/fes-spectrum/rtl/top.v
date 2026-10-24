@@ -140,7 +140,7 @@ module top #(
     );
 
     wire [`SP_BUS_REQ-1:0] bus_request;
-    wire [`SP_BUS_RSP-1:0] response1, response2, response3, response4;
+    wire [`SP_BUS_RSP-1:0] response1;
     wire pixel_we, frame_done, tick, speaker, mic, ear;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
@@ -153,8 +153,7 @@ module top #(
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(),
         .bus_request(bus_request),
-        .response1(response1), .response2(response2),
-        .response3(response3), .response4(response4),
+        .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done),
         .tick(tick), .speaker(speaker), .mic(mic), .ear(ear), .ay_pcm(ay_pcm),
@@ -163,24 +162,9 @@ module top #(
     );
 
     (* keep *) wire [`SP_BUS_REQ-1:0] slot1_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot2_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot3_plug_request;
-    (* keep *) wire [`SP_BUS_REQ-1:0] slot4_plug_request;
     spectrum_slot_socket1 slot1 (
         .clock(clk_sys), .request(bus_request), .response(response1),
         .plug_request(slot1_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket2 slot2 (
-        .clock(clk_sys), .request(bus_request), .response(response2),
-        .plug_request(slot2_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket3 slot3 (
-        .clock(clk_sys), .request(bus_request), .response(response3),
-        .plug_request(slot3_plug_request), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket4 slot4 (
-        .clock(clk_sys), .request(bus_request), .response(response4),
-        .plug_request(slot4_plug_request), .plug_response(`SP_BUS_RSP'd0)
     );
 
     wire [7:0] red, green, blue;

@@ -34,9 +34,6 @@ module spectrum_machine #(
     output wire        tape_playing,
     output wire [`SP_BUS_REQ-1:0] bus_request,
     input  wire [`SP_BUS_RSP-1:0] response1,
-    input  wire [`SP_BUS_RSP-1:0] response2,
-    input  wire [`SP_BUS_RSP-1:0] response3,
-    input  wire [`SP_BUS_RSP-1:0] response4,
     output wire        pixel_we,
     output wire [7:0]  pixel_row,
     output wire [5:0]  pixel_chunk,
@@ -67,10 +64,8 @@ module spectrum_machine #(
     wire [2:0] cycle_kind;
     wire [5:0] cycle_t;
     wire cpu_ce_p, cpu_ce_n, tick_p, tick_n, int_n, contend_request;
-    wire nmi = response1[`SP_BUS_NMI] | response2[`SP_BUS_NMI] |
-               response3[`SP_BUS_NMI] | response4[`SP_BUS_NMI];
-    wire card_wait = response1[`SP_BUS_WAIT] | response2[`SP_BUS_WAIT] |
-                     response3[`SP_BUS_WAIT] | response4[`SP_BUS_WAIT];
+    wire nmi = response1[`SP_BUS_NMI];
+    wire card_wait = response1[`SP_BUS_WAIT];
 
     fes_z80_nmos cpu (
         .clk(clk_sys), .reset(reset), .ce_p(cpu_ce_p), .ce_n(cpu_ce_n),
@@ -160,31 +155,11 @@ module spectrum_machine #(
     assign bus_request[`SP_BUS_RESET] = reset;
     assign bus_request[`SP_BUS_RESERVED] = 1'b0;
 
-    wire [27:0] chosen =
-        response1[`SP_BUS_DRIVE] ? response1 :
-        response2[`SP_BUS_DRIVE] ? response2 :
-        response3[`SP_BUS_DRIVE] ? response3 :
-        response4[`SP_BUS_DRIVE] ? response4 : 28'd0;
-    wire romcs = response1[`SP_BUS_ROMCS] | response2[`SP_BUS_ROMCS] |
-                 response3[`SP_BUS_ROMCS] | response4[`SP_BUS_ROMCS];
+    wire [27:0] chosen = response1[`SP_BUS_DRIVE] ? response1 : 28'd0;
+    wire romcs = response1[`SP_BUS_ROMCS];
 
-    // Card PCM is summed from every socket, including a card that is not
-    // driving the CPU bus, then saturated to 16 bits. Two registered stages
-    // cover four sockets; the extra latency does not matter.
-    function signed [18:0] socket_pcm;
-        input [`SP_BUS_RSP-1:0] response;
-        socket_pcm = {{3{response[27]}}, response[`SP_BUS_AUDIO]};
-    endfunction
-    reg signed [18:0] audio_pair0 = 19'sd0;
-    reg signed [18:0] audio_pair1 = 19'sd0;
-    reg signed [18:0] audio_sum = 19'sd0;
-    always @(posedge clk_sys) begin
-        audio_pair0 <= socket_pcm(response1) + socket_pcm(response2);
-        audio_pair1 <= socket_pcm(response3) + socket_pcm(response4);
-        audio_sum <= audio_pair0 + audio_pair1;
-    end
-    assign slot_audio = audio_sum > 19'sd32767 ? 16'sh7fff :
-                        audio_sum < -19'sd32768 ? -16'sh8000 : audio_sum[15:0];
+    // The card's PCM plays whether or not it drives the CPU bus.
+    assign slot_audio = response1[`SP_BUS_AUDIO];
 
     // --------------------------------------------------------------- memory
     wire [7:0] rom_data;

@@ -1919,9 +1919,9 @@ are the format-3 seals. Each model has its own FES recipe row; the shared
 producer names the core it builds in its record, so each P&R recipe digest
 enters that core's identity. Synthesis must keep exact block counts, three
 unsigned display-plane DSP products and the read-only plane DDR port, and the
-52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the four
-`FES_RESERVED_RECT` regions from `scripts/spectrum_slots.py`
-(`fes.spectrum-bus.sockets/1`, sockets 1–4). Socket validation admits a
+52.224, 74.25 and 12.288 MHz domains must pass. The shell reserves the one
+`FES_RESERVED_RECT` region from `scripts/spectrum_slots.py`
+(`fes.spectrum-bus.sockets/2`, its one socket). Socket validation admits a
 compiler-inserted `MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of
 an already pinned boundary flip-flop. The shared `coleco_expansion` check
 requires the paired COMB/MCOMB half, exact physical pin map and ports, and a

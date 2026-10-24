@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Machine simulation: Z80, ULA, memory, tape and probe cards in sockets 1 and
-// 3. The build model is the SPECTRUM_MODEL_* define, as in the producer. The
+// Machine simulation: Z80, ULA, memory, tape and a probe card in the edge
+// socket. The build model is the SPECTRUM_MODEL_* define, as in the producer. The
 // bench plays the media store's part on the tape stream.
 `include "spectrum_bus.vh"
 `include "spectrum_model.vh"
@@ -32,7 +32,7 @@ module spectrum_sim_top (
     output wire [15:0] cpu_pc
 );
     wire [`SP_BUS_REQ-1:0] bus_request;
-    wire [`SP_BUS_RSP-1:0] response1, response2, response3, response4;
+    wire [`SP_BUS_RSP-1:0] response1;
 
 `ifdef SPECTRUM_ROM_64K
     localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-64k.hex";
@@ -48,8 +48,7 @@ module spectrum_sim_top (
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(tape_playing),
         .bus_request(bus_request),
-        .response1(response1), .response2(response2),
-        .response3(response3), .response4(response4),
+        .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done), .tick(tick),
         .speaker(speaker), .mic(), .ear(ear), .ay_pcm(ay_pcm), .slot_audio(),
@@ -57,28 +56,13 @@ module spectrum_sim_top (
         .frame_int_n(frame_int_n), .cpu_pc(cpu_pc)
     );
 
-    wire [`SP_BUS_REQ-1:0] slot1_plug_request, slot3_plug_request;
-    wire [`SP_BUS_RSP-1:0] slot1_plug_response, slot3_plug_response;
+    wire [`SP_BUS_REQ-1:0] slot1_plug_request;
+    wire [`SP_BUS_RSP-1:0] slot1_plug_response;
     spectrum_slot_socket1 slot1 (
         .clock(clk_sys), .request(bus_request), .response(response1),
         .plug_request(slot1_plug_request), .plug_response(slot1_plug_response)
     );
-    spectrum_slot_socket2 slot2 (
-        .clock(clk_sys), .request(bus_request), .response(response2),
-        .plug_request(), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket3 slot3 (
-        .clock(clk_sys), .request(bus_request), .response(response3),
-        .plug_request(slot3_plug_request), .plug_response(slot3_plug_response)
-    );
-    spectrum_slot_socket4 slot4 (
-        .clock(clk_sys), .request(bus_request), .response(response4),
-        .plug_request(), .plug_response(`SP_BUS_RSP'd0)
-    );
-    cart #(.SOCKET(1)) probe1 (
+    cart probe1 (
         .FPGA_CLK1_50(clk_sys), .plug_addr(slot1_plug_request), .plug_rdata(slot1_plug_response)
-    );
-    cart #(.SOCKET(3)) probe3 (
-        .FPGA_CLK1_50(clk_sys), .plug_addr(slot3_plug_request), .plug_rdata(slot3_plug_response)
     );
 endmodule

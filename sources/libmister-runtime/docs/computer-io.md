@@ -226,7 +226,7 @@ object under `active_package.composition`:
 `fes.c64-bus.sockets/1` admits only socket 1 (ROM window) and socket 2 (I/O
 window), at most two cards. `fes.media.c64-disk` 1.0 is media unit 0, an
 exact 174,848-byte read-only D64. `fes.expansion.spectrum-bus` 1.0 uses the
-same operations. Its map `fes.spectrum-bus.sockets/1` admits sockets 1–4.
+same operations. Its map `fes.spectrum-bus.sockets/2` admits the one edge socket, 1.
 `fes.media.spectrum-tape` 2.0 is media unit 0, a 10..16,777,216-byte PZX
 stream; the host converts `.tzx`, `.tap`, `.csw` and `.pzx` images to it.
 `fes.media.zx81-tape` 1.0 is media unit 0, a 1..16,384-byte `.p`. Begin and

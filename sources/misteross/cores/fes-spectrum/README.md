@@ -85,16 +85,19 @@ leaves through the shared 48 kHz I2S path on the paired 12.288 MHz PLL.
 
 ## Edge sockets
 
-Sockets 1–4 share one request word (`rtl/spectrum_bus.vh`). Each socket pins
-32 request and 28 response flip-flops in the same column-24 bands the Apple II
-shell uses, so a frozen shell routes both horizontal clock segments into every
-socket row. The Go linker layout is `fes.spectrum-bus.sockets/1`. WAIT delays
+The Spectrum has one rear edge connector, so the shell has one socket. It
+sees the registered request word (`rtl/spectrum_bus.vh`) and pins 32 request
+and 28 response flip-flops in the Apple II shell's slot 2 band (column 24,
+rows 1–18), so a frozen shell routes both horizontal clock segments into every
+socket row. The Go linker layout is `fes.spectrum-bus.sockets/2`. Four sockets
+down column 24 (`sockets/1`) left the shell only three two-row gaps to route
+across once nextpnr kept shell routing out of reserved regions. WAIT delays
 CPU completion and STROBE is one launch event per access; an expansion
 receives the system clock.
 
-`expansions/probe.v` is the open probe card (module `cart`). Socket N owns
-ports `$E0+(N-1)*4`: id `$F5`, a scratch register, an access counter and the
-socket index, decoded on the low byte. On 128K-class models a port with A15
+`expansions/probe.v` is the open probe card (module `cart`). It owns ports
+`$E0`–`$E3`: id `$F5`, a scratch register, an access counter and the socket
+index (1), decoded on the low byte. On 128K-class models a port with A15
 and A1 low is also `$7FFD`, so the diagnostic addresses the probe as `$80E0`.
 
 ## Cassette
