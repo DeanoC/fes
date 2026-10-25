@@ -229,7 +229,7 @@ def route_record(run: dict, identity: dict, source_fingerprint: str, synthesis: 
         'spike': run['spike'],
         'stages': run.get('stages', {}),
         'synth_json_sha256': synthesis['synth_json_sha256'],
-        'synthesis': identity['synthesis'],
+        'synthesis': synthesis['synthesis'],
         'tools': identity['tools'],
         'version': version,
     }
@@ -461,7 +461,8 @@ def main() -> int:
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
             labels = register_labels(netlist, top, STAGES[spike])
-            record = {'top': top, 'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
+            record = {'top': top, 'synthesis': synthesis,
+                      'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
                       'synth_json_sha256': digest(work / 'synth.json'),
                       'cells_by_stage': cells_by_stage(netlist, top, labels),
                       'logic_depth': logic_depth(netlist, top, STAGES[spike], labels), 'runs': []}
