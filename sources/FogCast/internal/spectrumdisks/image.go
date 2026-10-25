@@ -177,9 +177,3 @@ func readTRDOS(data []byte) (*trdos, error) {
 	}
 	return nil, ErrNotDisk
 }
-
-// Recognize reports whether data is a disk image Read accepts.
-func Recognize(data []byte) bool {
-	_, err := Read(data)
-	return err == nil
-}
