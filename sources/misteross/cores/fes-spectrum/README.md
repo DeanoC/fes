@@ -200,7 +200,10 @@ The +2A/+3 has a uPD765A (`rtl/spectrum_upd765.sv`) on the same unit, with
 `fes.media.spectrum-disk-plus3` 1.0. FogCast converts standard and extended
 `.dsk` images as Fuse 1.6.0's `disk.c` opens them: the +3 gap layout,
 recorded CRC errors and deleted marks, data in the gaps, weak sectors from
-their multiple copies, and FM tracks. A track longer than 6,912 bytes makes
+their multiple copies, and FM tracks. A dump's single copy of a Speedlock
+weak sector (cylinder 0, sector 2, with a data CRC error) reads weak in the
+bytes Fuse's Speedlock hack corrupts: bytes 29 and 58 of an E5-filled
+sector, otherwise every 29th byte, the first eight of them. A track longer than 6,912 bytes makes
 the image use 16 KiB slots. The Beta 128 and the uPD765A share the drive,
 `rtl/spectrum_fdd.sv`.
 
@@ -267,9 +270,9 @@ Read ID, one sector and a run ending with End of Cylinder at 32 us a byte, a
 missing sector after two revolutions, Overrun, a data CRC error, a bad ID, a
 deleted sector, a weak sector, Read Diagnostic, Write Data on a protected
 disk, Version, invalid commands and the boot pulse. A
-mailbox simulation checks the Pentagon's two units: each unit's Info, a
-transfer to each, transfers bound to their unit and one at a time, and an
-eject of one unit leaving the other alone. The video simulation
+mailbox simulation checks the two units of the Pentagon and +2A/+3: each
+unit's Info, a transfer to each, transfers bound to their unit and one at a
+time, and an eject of one unit leaving the other alone. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
 `top.v` through the mailbox and a model of the fpga2sdram ports

@@ -238,7 +238,8 @@ def upd765(verilator: str, go: str) -> None:
 
 
 def mailbox_units(verilator: str) -> None:
-    """The Pentagon's mailbox: the cassette on unit 0 and the disk on unit 1."""
+    """The Pentagon's and +2A/+3's mailbox: the cassette on unit 0 and the disk
+    on unit 1."""
     binary = verilate(verilator, "fes_computer_mailbox_core", ROOT / "build/sim/fes-spectrum-mailbox-units",
                       ("cores/fes-common/rtl/fes_computer_mailbox.v",), "cores/fes-common/sim/computer_mailbox_units_tb.cpp",
                       parameters=("ENABLE_SPECTRUM_TAPE=1'b1", "ENABLE_SPECTRUM_DISK=1'b1", "MEDIA_AW=24",
@@ -292,9 +293,10 @@ def main() -> None:
         snapshot(args.verilator, key, args.go)
     if "pentagon" in (args.model or MODELS):
         beta(args.verilator, args.go)
-        mailbox_units(args.verilator)
     if "plus3" in (args.model or MODELS):
         upd765(args.verilator, args.go)
+    if {"pentagon", "plus3"} & set(args.model or MODELS):
+        mailbox_units(args.verilator)
     video(args.verilator)
     if args.fuse_tests or args.download:
         contention(args.verilator, fuse_tests(args.fuse_tests, args.download))
