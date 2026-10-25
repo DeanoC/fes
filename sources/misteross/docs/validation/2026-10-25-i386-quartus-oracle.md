@@ -3,6 +3,13 @@
 Dated record, 2026-10-25. Host-only diagnostic on Powerboat. No package, RBF
 or kit. Quartus is an oracle here and never the product path.
 
+The whole-CPU timing below was measured from older, pre-`at_start` Q-aligner
+source snapshots, not the RTL in this tree. Their JSONL qalign hashes are
+`55ebf99b` (branch snapshot) and `f4ffbb1d` (scratch snapshot); neither matches
+the qalign source at HEAD. Current `fes_i386_qalign.sv` reads `dec[start]` once
+into `at_start` and uses that copy for both `.run` and `.prefix`. Do not read
+these figures as timing for the current RTL.
+
 The question, from Deano: does the whole CPU's 53-62 MHz on the OSS flow
 come from the RTL or from the flow? Quartus 17.0.2 Lite fitted the same
 design on the same device, 5CSEBA6U23I7, with the same `spike.qsf` pins. The
@@ -39,12 +46,12 @@ data: [`2026-10-25-i386-quartus-oracle.jsonl`](2026-10-25-i386-quartus-oracle.js
       outlier.
     - DeanoC/nextpnr#201: identical placement and routing report different
       figures on different commits.
-- **The RTL still matters for 100 MHz.** Even Quartus stops at 85-89 MHz, on
-  EX at 9-11 logic levels. D reaches 92-100 MHz and Q 91-99. So on any flow,
-  100 MHz needs another cut in EX. On a better P&R the current RTL sits near
-  87 MHz, not near 60.
-- **DeanoC/yosys#59 is real on Quartus too.** On the branch RTL, Q limits
-  Quartus at 74-78 MHz.
+- **The measured RTL still matters for 100 MHz.** Even Quartus stops at
+  85-89 MHz, on EX at 9-11 logic levels. D reaches 92-100 MHz and Q 91-99.
+  So on any flow, 100 MHz needs another cut in EX. On a better P&R this
+  measured netlist sits near 87 MHz, not near 60.
+- **DeanoC/yosys#59 is real on Quartus too.** On the captured pre-copy branch
+  snapshot, Q limits Quartus at 74-78 MHz.
   - With the same Quartus settings, the `at_start` copy alone lifts Q to
     79-83 MHz.
   - Building the remaining stride multiply in logic, as Yosys does, lifts it
@@ -84,9 +91,8 @@ CPU uses 23 RAM blocks in Quartus against 19 M10K in nextpnr.
 
 ## Whole CPU, MHz, seeds 1-4
 
-The scratch RTL is the branch RTL plus #59's `at_start` copy in qalign, which
-is not in this PR. It predates the review's decode fix, a one-term change in
-D's group-1 arm. The nextpnr routes ran HIP through `gpu-run` with
+The scratch snapshot also includes the review's decode fix, a one-term change
+in D's group-1 arm. The nextpnr routes ran HIP through `gpu-run` with
 `NEXTPNR_REQUIRE_GPU=1`, with an 80 MHz target.
 
 | | nextpnr, scratch | Quartus, scratch, multiplies in logic | Quartus, scratch, DSP |
@@ -99,7 +105,7 @@ D's group-1 arm. The nextpnr routes ran HIP through `gpu-run` with
 | F2 | 73.1-78.7 | 104.9-113.2 | 101.8-108.5 |
 | L2 | 73.6-83.8 | 102.5-107.9 | 95.1-100.9 |
 
-On the branch RTL, as in #1109, both flows have #59's DSP:
+On the captured pre-copy branch snapshot, as in #1109, both flows have #59's DSP:
 
 | | nextpnr | Quartus |
 | --- | --- | --- |
