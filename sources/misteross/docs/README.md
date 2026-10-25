@@ -39,6 +39,7 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [i386 Phase 1 first slice](validation/2026-10-25-i386-phase1-spikes.md) | Length decoders exhaustively equal to the Bochs oracle; one instruction per cycle without prefixes; front-end, AG and M2 timing spikes routed on two nextpnr pins. Front end and AG miss 100 MHz. Host-only. |
 | [RAM-test fixed-input controls](validation/2026-09-29-ramtest-fixed-input.md) | Cross-compiler baseline controls isolate BUILD_ID-driven mapping variation. Quartus DDR0 first-error locality and a truth-table-verified shallower zero detector provide the next lead; no new routed gain. Host-only. |
 | [RAM-test merged compiler diagnostic](validation/2026-09-29-ramtest-merged-compilers.md) | Merged pins and paired generic remap: memory 106.16→109.95 MHz, pixel 94.50→94.36. Conservative selector retains baseline; 130 MHz remains unresolved. Host-only. |
 | [RAM-test fixed-placement feedback-state copies](validation/2026-09-28-ramtest-feedback-local-copy.md) | Two legal same-LAB FF copies preserve all 20,014 original routed BELs but memory slips to 116.71 MHz; no gain stacked. Host-only. |

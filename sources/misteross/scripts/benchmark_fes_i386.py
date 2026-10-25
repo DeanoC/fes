@@ -99,7 +99,10 @@ def path_summary(path: dict) -> dict:
         'delay_ns': round(total, 3), 'routing_ns': round(routing, 3), 'logic_ns': round(total - routing, 3),
         'logic_cells': len(logic),
         'carry_cells': sum('ALUT_ARITH' in cell for cell in cells),
-        'm10k_source': bool(segments) and 'M10K' in segments[0]['from']['cell'],
+        # An M10K launches from its data-out ports (A1DATA, B1DATA).
+        'm10k_source': any(segment['type'] == 'clk-to-q'
+                           and segment['from'].get('port', '').startswith(('A1DATA', 'B1DATA'))
+                           for segment in segments),
         'signals': owners,
     }
 

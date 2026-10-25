@@ -67,6 +67,9 @@ class HarnessReportTest(unittest.TestCase):
         self.assertEqual((summary['logic_cells'], summary['carry_cells']), (2, 1))
         self.assertAlmostEqual(summary['routing_ns'], 1.8)
         self.assertFalse(summary['m10k_source'])
+        path['path'][0] = {'type': 'clk-to-q', 'delay': 1.0, 'from': {'cell': 'tags.2.0.0', 'port': 'B1DATA[2]'},
+                           'to': {'cell': 'tags.2.0.0', 'port': 'B1DATA[2]'}}
+        self.assertTrue(benchmark.path_summary(path)['m10k_source'])
 
     def test_backend_follows_the_toolchain_identity(self):
         self.assertEqual(benchmark.expected_backend('nextpnr 1 gpu-router=HIP; hip-architectures=gfx1100'), 'hip')
