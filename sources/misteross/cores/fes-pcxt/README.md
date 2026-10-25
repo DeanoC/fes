@@ -42,6 +42,15 @@ register at phase 18 ns, 2 ns before the other 50 MHz output registers. This giv
 the addon chip-select inverter more setup time while retaining the existing
 chip command/capture cycle. `EXTERNAL_CS_REGISTER` defaults to zero in the
 shared controller; only this experimental top owns that final CS register.
+
+The experimental video PLL also supplies a second 74.25 MHz output at phase
+8979 ps through a dedicated global buffer for `HDMI_TX_CLK`. Pixel registers
+stay on phase zero. The receiver samples between pixel updates, giving its
+hold requirement headroom without changing pixel order or rate. The default
+profile retains one video PLL output and forwards the pixel clock directly.
+The pixel-order proof and conditional external timing results are recorded
+with the native three-seed trial; physical board qualification remains open.
+
 The bridge holds each request and response until acknowledged,
 uses CPU falling-edge transfer registers, and transfers guest tick events
 without changing the nominal 4.772727 MHz guest clock. Coordinated reset

@@ -46,6 +46,65 @@ class PcxtCdcAuditTests(unittest.TestCase):
                                'port_directions': {'I': 'input'}}
         self.reject()
 
+    def declare_pixel_identity(self):
+        name = 'declared_pixel_output'
+        m = self.routed['modules']['top']
+        bits = m['netnames'].pop('clk_pixel')['bits']
+        m['netnames'][name] = {'bits': bits}
+        clocks = json.loads(m['settings']['timing/io_clocks'])
+        for clock in clocks:
+            if clock['net'] == 'clk_pixel':
+                clock.update(net=name, group='video_clock')
+        m['settings']['timing/io_clocks'] = json.dumps(clocks)
+        self.timing['fmax'][name] = self.timing['fmax'].pop('clk_pixel')
+        for net in self.timing['detailed_net_timings']:
+            for row in [net, *net['endpoints']]:
+                for field in ('event', 'launch_event'):
+                    if field in row:
+                        row[field] = row[field].replace('clk_pixel', name)
+        self.cells['video_clock'] = {'type': 'altera_pll',
+            'connections': {'outclk': [999996], 'outclk[1]': [999997]},
+            'port_directions': {'outclk': 'output', 'outclk[1]': 'output'}}
+        self.cells['declared_buffer'] = {'type': 'MISTRAL_CLKBUF', 'parameters': {},
+            'connections': {'A': [999996], 'Q': bits},
+            'port_directions': {'A': 'input', 'Q': 'output'},
+            'attributes': {'FES_PINMAP_V1': json.dumps(
+                {'count': 2, 'pins': {'A': [0, 'A'], 'Q': [0, 'Q']}}).encode().hex()}}
+        return name
+
+    def test_explicit_pixel_identity_requires_architecture_owned_root(self):
+        name = self.declare_pixel_identity()
+        self.reject()  # Ordinary callers still require the original identity.
+        result = cdc.audit(self.routed, self.timing, pixel_clock=name)
+        self.assertEqual(len(result['chains']), 6)
+        self.assertFalse(result['physical_qualified'])
+
+    def test_declared_pixel_bound_to_the_forwarded_counter_rejects(self):
+        name = self.declare_pixel_identity()
+        self.cells['declared_buffer']['connections']['A'] = [999997]
+        with self.assertRaisesRegex(ValueError, 'output zero'):
+            cdc.audit(self.routed, self.timing, pixel_clock=name)
+
+    def test_missing_declared_pixel_root_or_pin_metadata_rejects(self):
+        name = self.declare_pixel_identity()
+        self.cells['declared_buffer']['attributes'].clear()
+        with self.assertRaisesRegex(ValueError, 'pin metadata'):
+            cdc.audit(self.routed, self.timing, pixel_clock=name)
+        self.cells.pop('video_clock')
+        with self.assertRaisesRegex(ValueError, 'output zero'):
+            cdc.audit(self.routed, self.timing, pixel_clock=name)
+
+    def test_nonzero_declared_pixel_phase_rejects(self):
+        name = self.declare_pixel_identity()
+        m = self.routed['modules']['top']
+        clocks = json.loads(m['settings']['timing/io_clocks'])
+        for clock in clocks:
+            if clock['net'] == name:
+                clock['phase'] = 8.979
+        m['settings']['timing/io_clocks'] = json.dumps(clocks)
+        with self.assertRaisesRegex(ValueError, 'phase'):
+            cdc.audit(self.routed, self.timing, pixel_clock=name)
+
     def test_inverted_physical_buffer_rejects(self):
         self.change_pin(self.chain['identity_buffers'][0], 'A', 3)
         self.reject()

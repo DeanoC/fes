@@ -2853,7 +2853,10 @@ An experimental default-off `HALF_RATE_BOARD` diagnostic keeps the CPU and
 byte adapter at 100 MHz while the motherboard, ISA/storage and framebuffer
 capture run at 50 MHz. Held transaction snapshots and CPU falling-edge transfer
 registers connect the related domains; guest tick delivery preserves the
-nominal guest rate. The pixel clock remains 74.25 MHz. Display dot and speaker
+nominal guest rate. The pixel clock remains 74.25 MHz. This experimental top
+forwards a second video PLL output at phase 8979 ps through a global buffer to
+HDMI; pixel state stays on phase zero and the receiver samples between updates.
+The default profile retains its common pixel/HDMI clock. Display dot and speaker
 sample generators use the board rate. The public build option is synthesis-only
 until the pinned native compiler has qualified harmonic-clock coverage; the
 [core guide](../cores/fes-pcxt/README.md#experimental-cpu100--board50-diagnostic)

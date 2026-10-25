@@ -758,3 +758,72 @@ cases, including the four mailbox methods and three new CS methods. All three
 CS methods separately pass with the pinned Yosys/ABC; the unchanged mailbox
 and reset-audit source retains its explicit 22-method pass at `485165b3ec`.
 The final verification commit changes documentation/evidence only.
+
+### Reviewed compiler main and HDMI receiver phase
+
+The task-owned nextpnr clear-reference branch now merges reviewed main at
+`5b6b5a9f`, producing `e9ff47f7`; PR #296 targets main. The merged main includes
+the endpoint launch identities and harmonic-clock support from #294/#295 and
+the device-model lifetime repair. All 64 focused compiler cases and the reset
+parser/CLI checks pass. Three fresh early-CS routes reproduce each previous
+same-seed RBF and complete timing JSON exactly. This integration changes no
+timing requirement or toolchain lock. [Compiler evidence](board50-compiler-main-integration.json)
+retains the identities and comparisons.
+
+A conditional HDMI contract exposes a higher-level hold problem: the original
+common forwarded clock has +5.235 ns setup but -3.598 ns hold, with all 27
+data/control channels failing hold. The contract pairs clock/data pad tails
+within each of four PVT corners, considers independent 0/30 pF clock/data load
+endpoints, and uses the actual native clock-route interval. It includes the
+ADV7513's 1.8/1.3 ns setup/hold requirements for clock delay none, explicit
+300/210 ps reference uncertainty, a 20 ps guard and outward 10 ps rounding.
+Board flight/skew is zero; these declared conditions are not fitted-kit bounds.
+
+The experimental profile gives HDMI its own 74.25 MHz video-PLL output at
+phase 8979 ps, about 4.489 ns before the next pixel edge. Pixel state stays at
+phase zero. An explicit global buffer is required because this output drives
+only the unregistered clock pad. The default profile keeps its single video
+output. A proof projects the actual top-level pin assignments and preserves
+every 27-bit pixel bundle in order after warmup; wrong-clock and corrupt-pixel
+controls produce counterexamples. It proves digital ordering, without a
+propagation, power-up or physical waveform claim.
+
+Fresh two-output Quartus fits at both load endpoints match all 28 native
+egress boundaries and pad/inversion settings. All 896 corner/edge/early/late
+observations identify the same GOUT boundaries as the native routes. The
+queried M/N/fraction, divider and phase-preset fields also match both reference
+RBFs and all three native RBFs: C6/C7 divide by six, and C7 preset five encodes
+approximately 8978.676 ps. TimeQuest reports period 13.464 ns while the raw
+programmed fields imply approximately 13.468013 ns. Pad-tail extraction excludes
+upstream routing; this quantization difference remains explicit.
+
+| Seed | Native setup / hold ns | Conditional HDMI setup / hold ns |
+| --- | ---: | ---: |
+| 1 | +1.343 / +0.708 | +1.183 / +0.788 |
+| 2 | +1.816 / +0.772 | +1.004 / +0.783 |
+| 3 | +1.650 / +0.783 | +0.842 / +0.855 |
+
+Each native report retains 17709 paired and nine unpaired rows. Separate
+combined host replays pass all paired rows and preserve the exact native RBF;
+the 70 SDRAM channels retain +0.962/+1.508 ns CS and +6.506/+2.568 ns DQ read
+setup/hold. The combined reports retain eleven unpaired rows, including the two
+mask mirrors. HPS OE/feedback still lacks qualified hard-IP launch/capture bounds.
+No source clock, exception or failure override is invented for those paths.
+
+All six clock-tree bindings match each exact RBF. The six-chain audit retains
+all 919 distinct reset consumer ports and its asynchronous pulse/control
+obligations. Its alternative pixel-clock identity is explicit and must bind to
+video PLL output zero through the native clock buffer; ordinary callers keep
+their original identity. All 26 focused phase/audit tests pass. The
+[candidate evidence](board50-hdmi-phase-candidate.json) retains the complete
+conditional contracts, reference tails, identities and limitations. Ordinary
+committed-source producer and affected-regression verification follows separately.
+
+Journal entries 125-130 retain all six new native searches, including the
+compiler comparison cohort. There are 130 receipts and cumulative charged wall
+time 101129.89851958258019741 seconds. The prior prefixes and all new receipt,
+artifact and input hashes verify. Failed pack/reference attempts and the
+original failing HDMI contract remain retained as diagnostics. No kit ran;
+native fast-corner calibration, board/load/flight bounds, reset/CDC/HPS physical
+qualification and exact-artifact acceptance remain open. MDA/Scanlines inherit
+no routed acceptance from this CGA Direct cohort.

@@ -11,7 +11,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     output wire [12:0] SDRAM_A,
     inout wire [15:0] SDRAM_DQ
 );
-    wire clk, clk_memory, clk_capture, clk_pixel, memory_locked, video_locked;
+    wire clk, clk_memory, clk_capture, clk_pixel, clk_hdmi, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
     wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] clocks;
@@ -26,11 +26,21 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     assign clk = clocks[0];
     assign clk_memory = HALF_RATE_BOARD ? clocks[2] : clk;
     assign clk_capture = clocks[1];
+    wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(1),
-        .output_clock_frequency0("74.25 MHz"), .phase_shift0("0 ps"), .duty_cycle0(50),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 2 : 1),
+        .output_clock_frequency0("74.25 MHz"), .output_clock_frequency1("74.25 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1("8979 ps"), .duty_cycle0(50), .duty_cycle1(50),
         .operation_mode("direct"), .fractional_vco_multiplier("true")
-    ) video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clk_pixel), .locked(video_locked));
+    ) video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(video_clocks), .locked(video_locked));
+    assign clk_pixel = video_clocks[0];
+    // Only the forwarded HDMI clock advances by about 4.489 ns at 74.25 MHz.
+    // Pixel state stays on phase 0; the ordinary profile keeps one output.
+    generate if (HALF_RATE_BOARD) begin: phased_hdmi_clock
+        MISTRAL_CLKBUF clock_buffer (.A(video_clocks[1]), .Q(clk_hdmi));
+    end else begin: common_hdmi_clock
+        assign clk_hdmi = clk_pixel;
+    end endgenerate
     wire locked = memory_locked && video_locked;
     (* async_reg = "true" *) reg [1:0] sys_reset = 2'b11, pixel_reset = 2'b11;
     always @(posedge clk or negedge locked)
@@ -98,7 +108,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     (* BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0" *)
     cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
         .scl(scl_in), .sda(sda_in), .out_clk(scl_low), .out_data(sda_low));
-    assign HDMI_TX_CLK = clk_pixel;
+    assign HDMI_TX_CLK = clk_hdmi;
     assign HDMI_TX_D = video_response[23:0];
     assign HDMI_TX_DE = video_response[24];
     assign HDMI_TX_HS = video_response[25];

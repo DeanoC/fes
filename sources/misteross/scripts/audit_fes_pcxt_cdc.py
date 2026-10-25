@@ -15,13 +15,13 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def audit(routed, timing):
+def audit(routed, timing, pixel_clock='clk_pixel'):
     m = routed['modules']['top']
     cells = m['cells']
     require(timing['timing_summary']['final_analogue_model'] is True,
             'requires the final analogue report')
     clocks = {c['net']: c for c in json.loads(m['settings']['timing/io_clocks'])}
-    primary = {'clocks[0]', 'clocks[1]', 'clocks[2]', 'clk_pixel'}
+    primary = {'clocks[0]', 'clocks[1]', 'clocks[2]', pixel_clock}
     require(primary <= set(clocks) and set(timing['fmax']) == primary,
             'requires the CPU100/board50 clock inventory')
     require(clocks['clocks[0]']['period'] == [10, 10] and
@@ -31,7 +31,7 @@ def audit(routed, timing):
             clocks['clocks[1]']['phase'] == 10, 'wrong memory clock phases')
     require(all(math.isclose(timing['fmax'][name]['constraint'], mhz, rel_tol=1e-6)
                 for name, mhz in {'clocks[0]': 100, 'clocks[1]': 50,
-                                 'clocks[2]': 50, 'clk_pixel': 74.25}.items()),
+                                 'clocks[2]': 50, pixel_clock: 74.25}.items()),
             'wrong reported clock targets')
     clock_bits = {name: m['netnames'][name]['bits'][0] for name in primary}
     require(len(set(clock_bits.values())) == 4, 'aliased primary clocks')
@@ -44,6 +44,37 @@ def audit(routed, timing):
                     drivers[bit] = (name, port)
                 else:
                     users[bit].append((name, port))
+
+    if pixel_clock != 'clk_pixel':
+        # A caller must declare the new identity. Bind it to architecture-owned
+        # video PLL output zero; never guess an alias or accept the HDMI phase.
+        pixel = clocks[pixel_clock]
+        require(pixel['group'] == 'video_clock' and pixel['phase'] == 0 and
+                len(pixel['period']) == len(pixel['high']) == len(pixel['low']) == 2 and
+                all(math.isclose(p, 1000 / 74.25, rel_tol=1e-6) for p in pixel['period']),
+                'declared pixel clock has the wrong PLL group, phase or period')
+        require(all(math.isclose(p, 500 / 74.25, rel_tol=1e-6)
+                    for p in pixel['high'] + pixel['low']),
+                'declared pixel clock has the wrong duty cycle')
+        driver = drivers.get(clock_bits[pixel_clock])
+        require(driver is not None and driver[1] == 'Q', 'missing pixel clock buffer')
+        buffer = cells[driver[0]]
+        pll = cells.get('video_clock', {})
+        require(buffer['type'] == 'MISTRAL_CLKBUF' and not buffer['parameters'] and
+                set(buffer['connections']) == {'A', 'Q'} and
+                pll.get('type') == 'altera_pll' and
+                len(pll.get('connections', {}).get('outclk', [])) == 1 and
+                buffer['connections']['A'] == pll['connections']['outclk'],
+                'declared pixel clock is not buffered video PLL output zero')
+        metadata = buffer.get('attributes', {}).get('FES_PINMAP_V1')
+        require(metadata is not None, 'missing pixel clock buffer pin metadata')
+        try:
+            metadata = json.loads(bytes.fromhex(metadata))
+        except (ValueError, TypeError) as exc:
+            raise ValueError('malformed pixel clock buffer pin metadata') from exc
+        require(metadata ==
+                {'count': 2, 'pins': {'A': [0, 'A'], 'Q': [0, 'Q']}},
+                'unsupported pixel clock buffer pin mapping')
 
     def pinmap(name):
         cell = cells[name]
@@ -204,8 +235,8 @@ def audit(routed, timing):
                                 'setup_min_ns': min(c['setup_margin_ns'] for c in coverage),
                                 'hold_min_ns': min(c['hold_margin_ns'] for c in coverage)})
     require(Counter((c['kind'], c['clock']) for c in chains) ==
-            {('reset', 'clocks[2]'): 2, ('reset', 'clk_pixel'): 1,
-             ('video', 'clocks[2]'): 1, ('video', 'clk_pixel'): 2},
+            {('reset', 'clocks[2]'): 2, ('reset', pixel_clock): 1,
+             ('video', 'clocks[2]'): 1, ('video', pixel_clock): 2},
             'unexpected chain inventory')
     return {'scope': 'Host-only board50 synchronizer and first-capture reset-cone timing audit. '
                      'No exceptions, CDC protocol proof or physical/MTBF signoff.',
@@ -225,6 +256,8 @@ def main():
     parser.add_argument('--timing', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--receipt', type=Path, required=True)
+    parser.add_argument('--pixel-clock', default='clk_pixel',
+                        help='Explicit native pixel identity; alternatives require video PLL output-zero binding')
     args = parser.parse_args()
     receipt = json.loads(args.receipt.read_text())
     require(receipt['completed'] and receipt['postflight_identity_pass'] and
@@ -233,7 +266,7 @@ def main():
         require(path.resolve().parent == args.receipt.resolve().parent and
                 hashlib.sha256(path.read_bytes()).hexdigest() == receipt['artifacts'][path.name],
                 'route artifact does not match its receipt')
-    result = audit(json.loads(args.routed.read_text()), json.loads(args.timing.read_text()))
+    result = audit(json.loads(args.routed.read_text()), json.loads(args.timing.read_text()), args.pixel_clock)
     result['inputs_sha256'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in (args.routed, args.timing, args.receipt)}
     args.output.write_text(json.dumps(result, indent=2) + '\n')
