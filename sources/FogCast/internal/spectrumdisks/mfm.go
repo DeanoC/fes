@@ -87,11 +87,6 @@ func (w *trackWriter) data(data []byte) {
 	w.run(w.gaps.gap, w.gaps.gap3)
 }
 
-// sectorBytes is the raw length of one sector of n data bytes.
-func (g gapLayout) sectorBytes(n int) int {
-	return 2*(g.syncLen+3+1) + 4 + 2 + g.gap2 + n + 2 + g.gap3
-}
-
 // lengthCode is the ID's size code: 128 << code bytes.
 func lengthCode(n int) byte {
 	code := byte(0)
