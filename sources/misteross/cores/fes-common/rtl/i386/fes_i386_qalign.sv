@@ -20,7 +20,7 @@
 // avail) is a register per byte and variant, so the loop's check is part of
 // the same select. An instruction may use bytes of the next half in the cycle
 // L2 writes them; the aligner takes those bytes from L2's register.
-module fes_i386_qalign (
+module fes_i386_qalign import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
     input  logic                   redirect,
@@ -28,17 +28,15 @@ module fes_i386_qalign (
     input  logic [1:0]             half_valid,
     input  logic [1:0][27:0]       half_block,
     input  logic [31:0][7:0]       bytes,
-    input  fes_i386_pkg::lbyte_t [31:0] dec,
+    input  lbyte_t [31:0]          dec,
     input  logic [31:0][3:0]       avail,
     input  logic [15:0][7:0]       fill_data,
     output logic [1:0]             release_half,
     output logic                   start_half,
     output logic                   q_valid,
-    output fes_i386_pkg::fetched_t q,
+    output fetched_t               q,
     input  logic                   d_ready
 );
-    typedef fes_i386_pkg::prefixes_t prefixes_t;
-
     logic [4:0]  start;
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
@@ -54,9 +52,9 @@ module fes_i386_qalign (
     for (genvar j = 0; j < 32; j++) begin : g_pos
         localparam int H = j / 16;
         localparam int K = j % 16;
-        fes_i386_pkg::lbyte_t d;
-        logic [3:0]           usable;
-        logic [4:0]           fin;  // where the instruction ends, counted as L counts
+        lbyte_t     d;
+        logic [3:0] usable;
+        logic [4:0] fin;  // where the instruction ends, counted as L counts
 
         assign d = dec[j];
         assign usable = avail[j];
@@ -73,7 +71,7 @@ module fes_i386_qalign (
     logic       out_free, too_long_run, issue, consume, advance;
     logic [4:0] start_next;
 
-    fes_i386_pkg::lbyte_t at_start;  // a whole record: DeanoC/yosys#52
+    lbyte_t at_start;  // a whole record: DeanoC/yosys#52
     assign at_start = dec[start];
     assign run_here = at_start.run;
     assign prefix_here = at_start.prefix;

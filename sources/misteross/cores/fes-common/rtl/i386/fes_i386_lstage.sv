@@ -16,16 +16,16 @@
 // The end is summed beside the length, so no add follows the length.
 // CS.D and the byte's own 66h or 67h are folded into each variant, so Q
 // selects by its accumulator alone; a CS.D change flushes the front end.
-module fes_i386_lstage (
-    input  logic                         code32,
-    input  fes_i386_pkg::lclass_t [15:0] cls,
-    output fes_i386_pkg::lbyte_t [15:0]  dec
+module fes_i386_lstage import fes_i386_pkg::*; (
+    input  logic           code32,
+    input  lclass_t [15:0] cls,
+    output lbyte_t [15:0]  dec
 );
     // Records are read and written whole: Yosys reads dec[k].field as a
     // generate-block name (DeanoC/yosys#52).
     for (genvar k = 0; k < 16; k++) begin : g_slot
-        fes_i386_pkg::lclass_t c;
-        fes_i386_pkg::lbyte_t  d;
+        lclass_t c;
+        lbyte_t  d;
         assign c = cls[k];
         assign d.prefix = c.prefix;
         assign d.run = c.run;
