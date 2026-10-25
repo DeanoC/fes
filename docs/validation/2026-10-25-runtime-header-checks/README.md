@@ -21,8 +21,10 @@ GNU Make 4.4.1. Baseline `c9888f00`; candidate `b04fa8c2`.
 Each arm started without a build directory, in the same private worktree at
 `/home/deano/fes/out/dev/perf-runtime-ci-rebuilds`. Prior build outputs were
 preserved under that worktree's ignored `out/runtime-profile/` directory.
-The top-level stages use `-j2`; the existing header/version scripts retain
-`-j16`. The stage sequence is the same sequence used by `make -j2 test`.
+The `run-tests` and `active-tree-test` stages use `-j2`; the recorded
+hardware-support truth-test command has no explicit parallelism flag. The
+existing header/version scripts retain `-j16`. The stage sequence is the same
+sequence used by `make -j2 test`.
 
 | Stage | Baseline seconds | Candidate seconds |
 | --- | ---: | ---: |

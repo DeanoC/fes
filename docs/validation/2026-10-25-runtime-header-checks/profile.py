@@ -4,7 +4,7 @@ module=root/'sources/libmister-runtime'
 fes_commit=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
 text=(module/'Makefile').read_text()
 bins=re.search(r'TEST_BINS := (.*?)(?=\nTEST_HEADERS)',text,re.S).group(1).replace('\\\n',' ').replace('$(BUILD_DIR)','build').split()
-steps=[('initial-tests',['make','-j2','run-tests']),('header-rebuild',['bash','tests/incremental_build_test.sh',str(module),*bins]),('version-rebuild',['bash','tests/version_build_test.sh',str(module)]),('active-tree',['make','-j2','active-tree-test']),('hardware-support',['make','-j2','hardware-support-truth-test'])]
+steps=[('initial-tests',['make','-j2','run-tests']),('header-rebuild',['bash','tests/incremental_build_test.sh',str(module),*bins]),('version-rebuild',['bash','tests/version_build_test.sh',str(module)]),('active-tree',['make','-j2','active-tree-test']),('hardware-support',['make','hardware-support-truth-test'])]
 for name,argv in steps:
     log=pathlib.Path('/tmp')/f'fes-runtime-{label}-{name}.log'
     start=time.monotonic()

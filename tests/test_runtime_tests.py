@@ -36,6 +36,12 @@ class RuntimeChecks(unittest.TestCase):
                 self.assertEqual(runtime_tests.command(paths, 3, full)['argv'],
                                  ['make', '-j3', target])
 
+    def test_incremental_build_target_requires_the_functional_suite(self):
+        makefile = (ROOT / 'sources/libmister-runtime/Makefile').read_text()
+        target = re.search(r'(?m)^incremental-build-test:\s*(.*)$', makefile)
+        self.assertIsNotNone(target)
+        self.assertIn('run-tests', target.group(1).split())
+
     def fixture(self, root, dependent=True, stale=False):
         for header in HEADERS:
             path = root / header
