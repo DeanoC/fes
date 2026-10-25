@@ -37,7 +37,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',

@@ -475,6 +475,26 @@ actual pixel fabric. This is a host-only reference screen, not a native timing
 model or whole-board acceptance. External IO, reset/CDC and physical board
 requirements remain separate. No producer constraints or artifacts are changed.
 
+The retained default-off CPU100/board50 candidate also has a host-only
+synchronizer audit:
+
+```sh
+python3 scripts/audit_fes_pcxt_cdc.py \
+  --routed /absolute/route/routed.json \
+  --timing /absolute/route/timing.json \
+  --receipt /absolute/route/receipt.json \
+  --output /absolute/cdc-audit.json
+```
+
+It requires the successful immutable route receipt and final analogue timing.
+The audit checks the actual twelve FFs, six two-stage chains, effective native
+clock/reset/control pins, exclusive interstage fanout through identity buffers,
+and paired positive setup/hold checks. It records downstream consumers without
+qualifying their safety. This diagnostic changes no constraints or artifacts and
+grants no timing exceptions, bundled-data protocol proof or physical/MTBF
+acceptance. It applies to the retained board50 recipe, whose normal producer
+routing remains gated on compiler integration.
+
 No factory package selection or shared contract changes are made.
 
 The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`

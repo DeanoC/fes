@@ -542,3 +542,38 @@ waived. Complete pad models/contracts, measured board/load/flight/CS2,
 waveforms and reset/CDC qualification remain open. No hardware ran.
 [Replay evidence](board50-io-reference-replay.json) binds the artifacts and
 records this host-only boundary separately from the native route cohort.
+
+### Routed synchronizer structure and interstage timing
+
+`scripts/audit_fes_pcxt_cdc.py` audits the actual CPU100/board50 checkpoints
+against their successful route receipts and final analogue timing reports.
+All three retained routes have the same twelve marked FFs in six disjoint
+two-stage chains: three reset chains and three video synchronizers. The audit
+checks effective native clock, enable, reset and load pins, permits only
+uninverted native identity buffers between stages, requires exclusive head
+fanout, and retains paired setup/hold checks bound to each actual driver.
+It grants no timing exception and does not qualify downstream consumers.
+
+| Seed | Minimum interstage setup ns | Minimum interstage hold ns |
+| --- | ---: | ---: |
+| 1 | +12.288 | +0.837 |
+| 2 | +12.324 | +0.820 |
+| 3 | +12.267 | +0.858 |
+
+Twelve focused tests use an excerpt of the actual native seed-1 cells and
+reports. Corrupting fanout, buffer polarity, stage clock, enable, reset
+polarity, stage marking, pin metadata, checked timing flags, edge identity,
+negative/nonfinite margins or final-model status rejects the audit.
+The affected-check planner selects host/component checks without rebuilding
+unchanged RTL for this diagnostic. No source RTL, constraints, toolchain lock,
+RBF or runtime/shared contract changes.
+
+The four PLL-driven clear rows, three asynchronous video synchronizer entries
+and two bundled bank transfers remain open timing/physical obligations.
+Synchronizer tails also feed additional reset controls; their consumer lists
+are retained, without claiming downstream safety. Pulse/slew/relock, settling
+and MTBF, bundled-data stability and actual board interfaces still require
+qualification. No kit ran and no route was added: the journal remains at 121.
+[Audit evidence](board50-reset-cdc-audit.json) records every chain identity,
+source/report/receipt hashes, per-chain margins and the exact qualification
+boundary.

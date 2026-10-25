@@ -224,6 +224,11 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
 
+    def test_pcxt_cdc_audit_runs_host_checks_without_rtl(self):
+        selected = plan(['sources/misteross/scripts/audit_fes_pcxt_cdc.py'])
+        self.assertTrue(selected['lanes']['fpga'])
+        self.assertEqual(selected['cores'], [])
+
     def test_misteross_tests_run_software_without_simulations(self):
         for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',
                      'tests/fixtures/new/case.json'):
