@@ -125,6 +125,32 @@ places the open-drain output enables in the HPS peripheral-clock domain.
 Neither the 100 MHz system clock nor the 74.25 MHz pixel clock supplies their
 launch timing.
 
+`scripts/audit_fes_pcxt_hps_i2c.py` checks all four native enable/feedback
+identities, the pad locations/polarities, and constant-low output data against
+an immutable ordinary-producer route receipt. An optional bound native
+extraction retains unsupported analogue arcs as unknown; zero-filled failed
+queries are not delay bounds. A successful audit is structural evidence only.
+
+`scripts/characterize_fes_pcxt_hps_i2c.py` rebuilds the matching Quartus
+17.0.2 reference at declared 0/30 pF load endpoints and validates 128 paths
+covering both pins, directions, edges, early/late observations and four corners.
+It disables automatic dedicated open-drain conversion so the reference retains
+the native separate OE path. It assigns no fabric clock to the HPS source.
+
+```sh
+python3 scripts/audit_fes_pcxt_hps_i2c.py \
+  --route-receipt /absolute/immutable-producer-wrapper/receipt.json \
+  --output /absolute/hps-audit.json
+python3 scripts/characterize_fes_pcxt_hps_i2c.py \
+  --quartus-bin /absolute/quartus/bin --mistral-cv /absolute/mistral-cv \
+  --output /absolute/new-hps-reference
+```
+
+These references cover their own HPS-boundary-to-pad routes, not the hard-IP
+clock-to-output/capture timing or a native route's fast-corner delays. Receiver,
+pull-up, capacitance and flight bounds remain separate. Neither command exports
+a package, changes a native route or programs a kit.
+
 The RAM Tester budget generator is specific to its EM63B165 -6 reference and
 registered-pad timing boundary. The ordinary PC/XT profile retains fabric DQ
 capture and unregistered DQ data/OE paths. The experimental CPU100/board50
@@ -470,7 +496,7 @@ make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synt
 ```
 
 The board producer authenticates `cores/fes-pcxt/toolchain.lock`, with reviewed
-nextpnr main `b9ffde2d`, Yosys `3a5accbd` and the Mistral timing-line fix `9ab65220`. Without
+nextpnr main `2fa5ec4c`, Yosys `3a5accbd` and the Mistral timing-line fix `9ab65220`. Without
 `CACHE_ROOT`, the toolchain and build commands both use the repository-local
 `build/toolchain/fes-pcxt` install. Select
 `PCXT_GPU_ROUTER=CUDA` for both preparation and build on a CUDA host; HIP and

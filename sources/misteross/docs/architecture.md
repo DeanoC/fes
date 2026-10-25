@@ -2866,6 +2866,14 @@ unchanged model limits; physical reset qualification remains open. The
 describes the regression and remaining physical gates. No accepted package or
 hardware status follows from this profile.
 
+The PC/XT HPS-I2C auditor binds the frozen route receipt to all four native
+enable/feedback identities and proves constant-low pad data without borrowing
+a fabric launch clock. The separate Quartus characterizer retains explicit OE
+buffers and complete four-corner 0/30 pF boundary observations. Unsupported
+native source waveforms remain unknown, and the reference's own routes grant
+no native fast-corner, hard-IP, board or hardware qualification. Both commands
+are host diagnostics described in the core guide.
+
 ### Machine partition and timing
 
 ```mermaid
