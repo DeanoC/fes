@@ -147,6 +147,8 @@ RTL_SOURCES = (
     "cores/fes-spectrum/rtl/spectrum_tape.v",
     "cores/fes-spectrum/rtl/spectrum_snapshot.v",
     "cores/fes-spectrum/rtl/spectrum_beta.sv",
+    "cores/fes-spectrum/rtl/spectrum_fdd.sv",
+    "cores/fes-spectrum/rtl/spectrum_upd765.sv",
     "cores/fes-spectrum/rtl/spectrum_keyboard.v",
     "cores/fes-spectrum/rtl/spectrum_audio.v",
     "cores/fes-spectrum/rtl/spectrum_slot_sockets.v",

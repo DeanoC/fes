@@ -6,9 +6,10 @@ The machine simulation runs the open diagnostic firmware on the 48K, 128K,
 +2A/+3 and Pentagon builds (one Verilator model per SPECTRUM_MODEL_* define).
 The snapshot simulation restores a synthetic .z80 snapshot on each model
 through FogCast's restore stream (built with Go) and checks the machine state
-at the first fetch from real memory. The Beta 128 simulation drives the
-Pentagon's FD1793 through its ports against a synthetic .trd converted to the
-raw track image (Go). The video simulation streams 50 Hz frames into the
+at the first fetch from real memory. The Beta 128 and uPD765 simulations
+drive the Pentagon's FD1793 and the +2A/+3's floppy controller through their
+ports against a synthetic .trd and extended .dsk converted to the raw track
+image (Go). The video simulation streams 50 Hz frames into the
 720p60 frame banks.
 Optionally (--fuse-tests DIR or --download) it also replays Fuse's Z80 core
 tests through the NMOS Z80 and the Sinclair contention classifier.
@@ -33,7 +34,8 @@ Z80 = tuple(f"cores/fes-common/rtl/z80/{name}" for name in
 MACHINE_RTL = (
     f"{CORE}/rtl/spectrum_machine.sv", f"{CORE}/rtl/spectrum_ula.sv",
     f"{CORE}/rtl/spectrum_contention.sv", f"{CORE}/rtl/spectrum_ram.v", f"{CORE}/rtl/spectrum_rom.v",
-    f"{CORE}/rtl/spectrum_tape.v", f"{CORE}/rtl/spectrum_snapshot.v", f"{CORE}/rtl/spectrum_beta.sv",
+    f"{CORE}/rtl/spectrum_tape.v", f"{CORE}/rtl/spectrum_snapshot.v", f"{CORE}/rtl/spectrum_beta.sv", f"{CORE}/rtl/spectrum_fdd.sv",
+    f"{CORE}/rtl/spectrum_upd765.sv",
     f"{CORE}/rtl/spectrum_slot_sockets.v",
     "cores/fes-zx81/expansions/zonx_ay.v", *Z80,
 )
@@ -182,11 +184,56 @@ def trd() -> bytes:
 
 def beta(verilator: str, go: str) -> None:
     build = ROOT / "build/sim/fes-spectrum-beta"
-    binary = verilate(verilator, "spectrum_beta", build, (f"{CORE}/rtl/spectrum_beta.sv",),
+    binary = verilate(verilator, "spectrum_beta", build, (f"{CORE}/rtl/spectrum_beta.sv", f"{CORE}/rtl/spectrum_fdd.sv"),
                       f"{CORE}/sim/beta_tb.cpp")
     (build / "disk.trd").write_bytes(trd())
     subprocess.run([go, "run", "./cmd/fes-spectrum-disk", "-out", str(build / "disk.img"),
                     str(build / "disk.trd")], cwd=ROOT.parent / "FogCast", check=True)
+    subprocess.run([str(binary), str(build / "disk.img")], cwd=ROOT, check=True)
+
+
+def edsk() -> bytes:
+    """A single-sided extended DSK as upd765_tb.cpp expects: cylinders 0-2
+    of nine 512-byte sectors, cylinder 3 with a data CRC error (2), an ID CRC
+    error (3), a deleted sector (4) and a weak one (5)."""
+    def sector_bytes(cylinder: int, sector: int) -> bytes:
+        return bytes((cylinder * 63 + sector * 3 + i * 13) & 0xFF for i in range(512))
+
+    tracks = []
+    for cylinder in range(4):
+        if cylinder < 3:
+            sectors = [(sector, 0, 0, sector_bytes(cylinder, sector)) for sector in range(1, 10)]
+        else:
+            weak = bytearray(sector_bytes(3, 5) * 2)
+            for i in range(100, 300):
+                weak[512 + i] ^= 0x5A
+            sectors = [(1, 0, 0, sector_bytes(3, 1)), (2, 0x20, 0x20, sector_bytes(3, 2)),
+                       (3, 0x20, 0, sector_bytes(3, 3)), (4, 0, 0x40, sector_bytes(3, 4)),
+                       (5, 0, 0, bytes(weak))]
+        info = bytearray(256)
+        info[:12] = b"Track-Info\r\n"
+        info[0x10], info[0x13], info[0x14], info[0x15], info[0x16], info[0x17] = cylinder, 2, 2, len(sectors), 0x4E, 0xE5
+        data = b""
+        for j, (r, st1, st2, body) in enumerate(sectors):
+            info[0x18 + 8 * j:0x20 + 8 * j] = bytes([cylinder, 0, r, 2, st1, st2, len(body) & 0xFF, len(body) >> 8])
+            data += body
+        track = bytes(info) + data
+        tracks.append(track + bytes(-len(track) % 256))
+    header = bytearray(256)
+    header[:34] = b"EXTENDED CPC DSK File\r\nDisk-Info\r\n"
+    header[0x30], header[0x31] = len(tracks), 1
+    for i, track in enumerate(tracks):
+        header[0x34 + i] = len(track) // 256
+    return bytes(header) + b"".join(tracks)
+
+
+def upd765(verilator: str, go: str) -> None:
+    build = ROOT / "build/sim/fes-spectrum-upd765"
+    binary = verilate(verilator, "spectrum_upd765", build,
+                      (f"{CORE}/rtl/spectrum_upd765.sv", f"{CORE}/rtl/spectrum_fdd.sv"), f"{CORE}/sim/upd765_tb.cpp")
+    (build / "disk.dsk").write_bytes(edsk())
+    subprocess.run([go, "run", "./cmd/fes-spectrum-disk", "-out", str(build / "disk.img"),
+                    str(build / "disk.dsk")], cwd=ROOT.parent / "FogCast", check=True)
     subprocess.run([str(binary), str(build / "disk.img")], cwd=ROOT, check=True)
 
 
@@ -246,6 +293,8 @@ def main() -> None:
     if "pentagon" in (args.model or MODELS):
         beta(args.verilator, args.go)
         mailbox_units(args.verilator)
+    if "plus3" in (args.model or MODELS):
+        upd765(args.verilator, args.go)
     video(args.verilator)
     if args.fuse_tests or args.download:
         contention(args.verilator, fuse_tests(args.fuse_tests, args.download))
