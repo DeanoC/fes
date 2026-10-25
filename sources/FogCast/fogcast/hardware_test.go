@@ -598,6 +598,27 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 	if _, err := s.SelectCoreEntryExpansion(ctx, entry.GameID, entry.PackageID, wrongShell.ID, ""); err != nil {
 		t.Fatal(err)
 	}
+	zx80, err := store.CreateCoreEntry(ctx, "ZX80", "fes.zx80", entry.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Hardware(ctx)
+	if err != nil || len(view) != 2 {
+		t.Fatalf("family snapshot %+v %v", view, err)
+	}
+	var sawZX80 bool
+	for _, machine := range view {
+		if machine.GameID != zx80.GameID {
+			continue
+		}
+		sawZX80 = true
+		if machine.CoreID != "fes.zx80" || machine.PackageReady || machine.PackageID != entry.PackageID {
+			t.Fatalf("zx80 package admission %+v", machine)
+		}
+	}
+	if !sawZX80 {
+		t.Fatal("zx80 setup missing")
+	}
 }
 
 func TestHardwareDraftChangePreservesLoadedExpansion(t *testing.T) {

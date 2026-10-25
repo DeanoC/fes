@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -54,7 +55,15 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return
 	}
 	s.HardwareMode = "tapes"
-	s.Status = "Loading starter cassettes…"
+	if !zx81family.Known(action.CoreID) {
+		s.Status = "Choose a cassette for the next start."
+		return
+	}
+	s.Status = "Loading cassettes…"
+	done := "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN."
+	if action.CoreID == "fes.zx81" {
+		done += " Each starter tape shows its recommended RAM."
+	}
 	var tapes []hostclient.HardwareTape
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		var err error
@@ -62,7 +71,7 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 		return err
 	}, func() {
 		s.Tapes = tapes
-		s.Status = "Choose a cassette for the next start. After starting, type LOAD \"\", then RUN. Each starter tape shows its recommended RAM."
+		s.Status = done
 	})
 }
 
@@ -235,40 +244,49 @@ func (a *App) openZX81SetupLocked() {
 	}
 	a.resetCoreLibraryLocked()
 	a.coreLibrary.InstalledSetup = true
-	a.coreLibrary.FilterCoreID = "fes.zx81"
-	a.refreshInstalledZX81Locked()
+	a.coreLibrary.FilterCoreID = ""
+	a.coreLibrary.Online = true
+	a.coreLibrary.Status = "Choose a ZX81-family machine…"
 }
 
 func (a *App) refreshInstalledZX81Locked() {
 	s := &a.coreLibrary
+	variant, ok := zx81family.ByID(s.FilterCoreID)
+	if !ok {
+		return
+	}
 	s.Online = false
 	s.Ref = nil
 	s.Setup = nil
 	s.Index = 0
-	s.Status = "Finding installed Sinclair ZX81 packages…"
+	s.Status = "Finding installed " + variant.Label + " packages…"
 	var cores []hostclient.AvailableCore
+	standing := "experimental"
+	if variant.CoreID == "fes.zx81" {
+		standing = "supported"
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		library, err := a.client.CoreLibrary(ctx)
 		if err != nil {
 			return err
 		}
 		for _, p := range library.Packages {
-			if p.CoreID != "fes.zx81" {
+			if p.CoreID != variant.CoreID {
 				continue
 			}
 			setup, err := a.client.InstalledZX81Setup(ctx, p.PackageID)
 			if err != nil {
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: "Sinclair ZX81 " + p.Version + " · " + p.PackageID[:8], Standing: "supported", ArtifactState: "installed"})
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {
 		s.Cores = cores
 		s.Online = true
-		s.Status = "Choose an installed Sinclair ZX81 and its BASIC ROM. Adding a setup does not start it."
+		s.Status = "Choose an installed " + variant.Label + " and its BASIC ROM. Adding a setup does not start it."
 		if len(cores) == 0 {
-			s.Status = "No Sinclair ZX81 with a sealed ROM requirement is installed. Browse published systems to install one."
+			s.Status = "No " + variant.Label + " with a sealed ROM requirement is installed. Browse published systems to install one."
 		}
 	})
 }

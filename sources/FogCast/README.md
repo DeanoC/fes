@@ -455,7 +455,7 @@ is in [docs/launch-composition.md](docs/launch-composition.md), with the
 ZX81/Coleco expansions, Apple II slot cards and the Apple II removable disk.
 
 The [Sinclair ZX81 workbench](../../docs/hardware-rooms.md) adds local installed-package
-setup, compatible expansion import with progress labels, and cassettes selected
+setup for ZX81, ZX80, TS1000 and TS1500, compatible expansion import with progress labels, and cassettes selected
 before Start. Its three starter programs retain their source and licences in
 [`internal/zx81tapes`](internal/zx81tapes/README.md). The kit's single HDMI menu
 uses MENU while idle. A display-capable ZX81 shell also offers visible live
