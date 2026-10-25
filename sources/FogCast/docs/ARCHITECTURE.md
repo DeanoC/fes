@@ -752,9 +752,11 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 
 ### Cartridge swap over play (Coleco)
 
-A running `fes.application` machine with one linked cartridge (`rom_link` on
-its session package) and the kit session plane also opens **Change media**
-from Home or Guide, as a cartridge picker. Its Select stays the machine's
+A running `fes.application` machine with a linked cartridge and the kit
+session plane also opens **Change media** from Home or Guide, as a cartridge
+picker. The cartridge is the single `rom_link` on its session package, or the
+second `rom_links` source after a linked BIOS. A swap replaces only that
+cartridge source. Its Select stays the machine's
 keypad `*` while the machine owns input. When launcher controls or a picker
 have focus, Select goes to that UI and is not forwarded to the machine. The
 cartridge is linked into the bitstream, so there is no eject and no live

@@ -33,12 +33,30 @@ func colecoKitSession() hostclient.SessionResult {
 	return s
 }
 
+// colecoBIOSKitSession is the format-4 Coleco shell: its BIOS and a 16 KiB
+// cartridge are both linked, and only the cartridge is swapped.
+func colecoBIOSKitSession() hostclient.SessionResult {
+	s := colecoKitSession()
+	s.CorePackage.ROMLink = nil
+	s.CorePackage.ROMLinks = &hostclient.SessionROMLinks{Sources: []hostclient.SessionROMSource{
+		{ID: "coleco-bios", Role: "firmware", SourceSize: 8192},
+		{ID: "coleco-cart", Role: "cartridge", SourceSize: 16384}}}
+	return s
+}
+
 // Home over a running Coleco opens the media selector as a cartridge picker.
 // Choosing a cartridge imports it and relaunches the title through the
 // session-bound cartridge call; the selector closes on the new generation.
 func TestKitCartridgeMachineSwapsCartridgeOverPlay(t *testing.T) {
-	prior := colecoKitSession()
-	next := colecoKitSession()
+	for name, session := range map[string]func() hostclient.SessionResult{
+		"cartridge": colecoKitSession, "bios-and-cartridge": colecoBIOSKitSession} {
+		t.Run(name, func(t *testing.T) { testCartridgeSwapOverPlay(t, session) })
+	}
+}
+
+func testCartridgeSwapOverPlay(t *testing.T, session func() hostclient.SessionResult) {
+	prior := session()
+	next := session()
 	next.CorePackage.Generation = prior.CorePackage.Generation + 1
 	dir := t.TempDir()
 	cart := bytes.Repeat([]byte{0xc0}, 16384)

@@ -25,11 +25,17 @@ func AdmitCartridgeName(name string) bool {
 	return false
 }
 
-// CartridgeSwapCapable is a running fes.application machine whose single
-// cartridge is linked into its bitstream, with the session plane its selector
-// is drawn on.
+// CartridgeSwapCapable is a running fes.application machine whose cartridge
+// is linked into its bitstream, alone or after its BIOS, with the session
+// plane its selector is drawn on.
 func CartridgeSwapCapable(p *CorePackageStatus) bool {
-	return p != nil && applicationMachine(p) && p.ROMLink != nil && p.ROMLinks == nil && SessionDisplayCapable(p)
+	if p == nil || !applicationMachine(p) || !SessionDisplayCapable(p) {
+		return false
+	}
+	if p.ROMLinks != nil {
+		return p.ROMLink == nil && len(p.ROMLinks.Sources) == 2 && p.ROMLinks.Sources[1].Role == "cartridge"
+	}
+	return p.ROMLink != nil
 }
 
 // MatchesCartridgeSwap admits the request's binding only for the exact

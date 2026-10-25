@@ -873,3 +873,36 @@ func TestCartridgeSwapRelaunchPassesReplacementThroughTargetLinker(t *testing.T)
 		t.Fatalf("swap changed the title's saved cartridge: %+v %v", selected, err)
 	}
 }
+
+// A format-4 swap replaces the cartridge source; the BIOS stays the kit's
+// firmware slot and the title's own cartridge binding is unchanged.
+func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
+	ctx := context.Background()
+	s, _, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart swap", 2*time.Minute)
+	size := inspection.Descriptor.ROMs[1].SourceSize
+	own, _, err := s.ImportCoreMedia(ctx, size, bytes.NewReader(bytes.Repeat([]byte{0x34}, int(size))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _, err := s.ImportCoreMedia(ctx, size, bytes.NewReader(bytes.Repeat([]byte{0x78}, int(size))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bios, _, err := s.ImportCoreMedia(ctx, 8192, bytes.NewReader(bytes.Repeat([]byte{0x12}, 8192)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", own.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	selected, data, err := s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, other.MediaID), entry, inspection.Descriptor)
+	if err != nil || selected.MediaID != other.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0x78}, int(size))) {
+		t.Fatalf("format-4 swap read %+v %v", selected, err)
+	}
+	if _, _, err = s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, bios.MediaID), entry, inspection.Descriptor); err == nil {
+		t.Fatal("BIOS-sized media admitted as the cartridge")
+	}
+	if binding, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
+		t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
+	}
+}

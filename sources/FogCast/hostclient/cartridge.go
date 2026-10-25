@@ -9,17 +9,32 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// CartridgeSwapCapable is a running fes.application machine with one linked
+// CartridgeSwapCapable is a running fes.application machine with a linked
 // cartridge and the kit session plane: its media selector swaps the
 // cartridge by relaunching the title.
 func CartridgeSwapCapable(p *SessionCorePackage) bool {
 	return SessionDisplayCapable(p) && p.ABI == (SessionCoreABI{ID: "fes.application", Major: 1}) &&
-		p.ROMLink != nil && p.ROMLink.SourceSize > 0
+		linkedCartridgeSize(p) > 0
+}
+
+// linkedCartridgeSize is the running cartridge's source size: the single
+// linked ROM, or the cartridge source after a linked BIOS.
+func linkedCartridgeSize(p *SessionCorePackage) int64 {
+	switch {
+	case p.ROMLinks != nil:
+		if p.ROMLink != nil || len(p.ROMLinks.Sources) != 2 || p.ROMLinks.Sources[1].Role != "cartridge" {
+			return 0
+		}
+		return p.ROMLinks.Sources[1].SourceSize
+	case p.ROMLink != nil:
+		return p.ROMLink.SourceSize
+	}
+	return 0
 }
 
 // AdmitCartridge accepts a dump the running cartridge's exact size.
 func AdmitCartridge(p *SessionCorePackage, name string, size int64) bool {
-	return CartridgeSwapCapable(p) && protocol.AdmitCartridgeName(name) && size == p.ROMLink.SourceSize
+	return CartridgeSwapCapable(p) && protocol.AdmitCartridgeName(name) && size == linkedCartridgeSize(p)
 }
 
 // ReplaceCartridgeForSession relaunches the captured session's title with
