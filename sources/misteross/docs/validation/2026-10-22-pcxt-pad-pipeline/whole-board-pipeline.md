@@ -589,3 +589,53 @@ IDs and host logs remain bound in the audit evidence; no broad pass replaces
 the failed capture. A corrupted report-digest CLI control also rejects before
 producing an audit. No source, constraints or hardware changes accompany
 this validation record.
+
+### Video ownership proof and reset paths to the next registers
+
+`tests/test_pcxt_video_mailbox.py` proves digital safety on the real CGA/MDA
+ownership logic with arbitrary source/pixel clock ordering and arbitrary extra
+first-stage sampling stalls. Frame-tail position and output SOF are
+independent inputs, preserving the actual eligibility/queue guards; RAM
+outputs are arbitrary. Both logical domains reset together. The projection
+contains every post-reset ownership trace under that contract, without
+simulating entire frames.
+
+ABC PDR proves bank identifier stability while pending, valid/separate bank
+selection, source/display ownership after acknowledgement, adoption-only
+front changes, and two prior pixel observations of the identifier and toggle
+before adoption. A 24-step SAT witness covers queuing, publication, adoption,
+acknowledgement and republication. Early pending-identifier modification and
+a shortened synchronizer produce counterexamples in frames 3 and 4.
+Initial bounded induction is inconclusive under arbitrary stalls; the final
+PDR safety proof is unbounded. No production RTL changes.
+
+This proof does not establish framebuffer contents or write-commit timing,
+physical bundled-data delay/skew, analogue metastability/MTBF, independent
+reset safety, or physical reset timing. Reachability is not a liveness proof.
+It grants no timing exception to the five asynchronous video rows.
+
+The routed audit now follows each reset tail through combinational logic to
+the next register inputs. Every supported terminal must retain its effective
+native pin identity, same clock and edge, actual routed driver, and positive
+paired setup/hold checks. Combinational cycles, unsupported terminals,
+missing rows, changed clocks and cut checks reject. All three routes have
+the same 919 distinct consumer ports. Their 1021 cone/terminal checks overlap;
+they are not 1021 distinct paths.
+
+| Seed | Raw consumer setup minimum ns | Raw consumer hold minimum ns |
+| --- | ---: | ---: |
+| 1 | +6.578 | +0.931 |
+| 2 | +5.180 | +1.048 |
+| 3 | +6.723 | +0.934 |
+
+Two related asynchronous clear consumers remain explicit pulse/control
+obligations even though their native paired checks pass. Consumer policy,
+exceptions and physical qualification remain false. Eighteen structural
+corruption tests and four formal test methods pass with the pinned Yosys/ABC;
+CGA and MDA are separate positive proof cases. The expanded native excerpt
+retains the complete reset consumer cones and relevant rows.
+[Control evidence](board50-cdc-control-proof.json) binds all solver artifacts,
+source/tool hashes and the three native audits. No fresh routes, kit operation,
+core lock, runtime/shared contract or hardware acceptance changes; the route
+journal remains at 121 receipts. Fitted SDRAM revision/chip identification is
+still needed to replace the optimistic physical IO assumptions.

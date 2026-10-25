@@ -489,11 +489,33 @@ python3 scripts/audit_fes_pcxt_cdc.py \
 It requires the successful immutable route receipt and final analogue timing.
 The audit checks the actual twelve FFs, six two-stage chains, effective native
 clock/reset/control pins, exclusive interstage fanout through identity buffers,
-and paired positive setup/hold checks. It records downstream consumers without
-qualifying their safety. This diagnostic changes no constraints or artifacts and
+and paired positive setup/hold checks. It traces each reset tail through
+combinational logic to the next FF inputs, requires same-domain checked timing
+for every consumer, and rejects loops, missing rows and unsupported terminals.
+Additional asynchronous clear consumers retain separate pulse/control obligations. This diagnostic changes no constraints or artifacts and
 grants no timing exceptions, bundled-data protocol proof or physical/MTBF
 acceptance. It applies to the retained board50 recipe, whose normal producer
 routing remains gated on compiler integration.
+
+The video mailbox has a separate digital ownership proof:
+
+```sh
+YOSYS=/absolute/pinned/yosys python3 -m unittest discover -s tests \
+  -p test_pcxt_video_mailbox.py -v
+```
+
+It uses the real capture/publication and adoption logic, with arbitrary clock
+interleavings and first-stage sampling stalls. Frame-tail position and output
+SOF are overapproximated; RAM outputs are arbitrary. ABC's property-directed
+reachability proves the bank identifier remains stable while pending, source
+write-bank separation, acknowledgement/adoption ownership, and two prior pixel
+samples of the identifier and toggle before adoption. A bounded witness covers
+queuing, publication, adoption, acknowledgement and republication; changed-bank
+and shortened-synchronizer mutations produce counterexamples. Both logical
+domains reset together in this proof. Analogue metastability, reset edge timing,
+physical bundled-data delay/skew and framebuffer contents remain unqualified.
+The test uses `yosys-abc` alongside the pinned Yosys; `YOSYS_ABC` can select it
+explicitly. No source RTL or producer constraints change.
 
 No factory package selection or shared contract changes are made.
 

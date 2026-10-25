@@ -85,6 +85,55 @@ class PcxtCdcAuditTests(unittest.TestCase):
                 row['setup_slack_ns'] = value
                 self.reject()
 
+    def consumer(self):
+        stages = {c[k] for c in self.good['chains'] for k in ('head', 'tail')}
+        cone = self.good['reset_consumers'][0]
+        return next(c for c in cone['terminals'] if c['cell'] not in stages and
+                    c['port'] == 'DATAIN')
+
+    def test_reset_cones_are_timed_but_additional_async_controls_stay_open(self):
+        self.assertEqual(sum(len(c['terminals']) for c in self.good['reset_consumers']), 1021)
+        self.assertEqual(sum(c['asynchronous_clear_consumers']
+                             for c in self.good['reset_consumers']), 2)
+        self.assertFalse(self.good['reset_consumer_policy_valid'])
+        self.assertFalse(self.good['timing_exception_valid'])
+
+    def test_missing_reset_consumer_row_rejects(self):
+        c = self.consumer()
+        for net in self.timing['detailed_net_timings']:
+            net['endpoints'] = [e for e in net['endpoints']
+                                if (e['cell'], e['port']) != (c['cell'], c['port'])]
+        self.reject()
+
+    def test_different_reset_consumer_clock_rejects(self):
+        c = self.consumer()
+        self.cells[c['cell']]['connections']['CLK'] = [999999]
+        self.reject()
+
+    def test_cut_reset_consumer_hold_rejects(self):
+        c = self.consumer()
+        for net in self.timing['detailed_net_timings']:
+            for row in net['endpoints']:
+                if (row['cell'], row['port']) == (c['cell'], c['port']):
+                    row['hold_checked'] = False
+        self.reject()
+
+    def test_new_unmodeled_async_consumer_rejects(self):
+        c = self.consumer()
+        self.cells['extra_reset'] = copy.deepcopy(self.cells[c['cell']])
+        self.cells['extra_reset']['connections']['Q'] = [999999]
+        self.cells['extra_reset']['connections']['ACLR'] = self.cells[
+            self.good['reset_consumers'][0]['tail']]['connections']['Q']
+        self.change_pin('extra_reset', 'ACLR', 0)
+        self.reject()
+
+    def test_combinational_reset_loop_rejects(self):
+        root = self.cells[self.good['reset_consumers'][0]['tail']]['connections']['Q']
+        self.cells['extra_loop'] = {
+            'type': 'MISTRAL_ALUT2', 'connections': {'A': root, 'B': [999999], 'Q': [999999]},
+            'port_directions': {'A': 'input', 'B': 'input', 'Q': 'output'}}
+        self.reject()
+
     def test_estimated_timing_rejects(self):
         self.timing['timing_summary']['final_analogue_model'] = False
         self.reject()

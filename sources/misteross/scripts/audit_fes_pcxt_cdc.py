@@ -148,16 +148,75 @@ def audit(routed, timing):
                        'setup_margin_ns': row['setup_slack_ns'],
                        'hold_margin_ns': row['hold_slack_ns'],
                        'tail_consumers': sorted(users[bit(tail, 'Q')])})
+    reset_consumers = []
+    combinational = {'MISTRAL_ALUT' + str(n) for n in range(1, 7)} | {'MISTRAL_BUF', 'MISTRAL_NOT'}
+    for chain in chains:
+        if chain['kind'] != 'reset':
+            continue
+        pending = [(bit(chain['tail'], 'Q'), False)]
+        visited, active, terminals = set(), set(), set()
+        while pending:
+            net, leaving = pending.pop()
+            if leaving:
+                active.remove(net)
+                visited.add(net)
+                continue
+            if net in visited:
+                continue
+            require(net not in active, 'combinational cycle in reset consumer cone')
+            active.add(net)
+            pending.append((net, True))
+            for name, port in users[net]:
+                cell = cells[name]
+                if cell['type'] in combinational:
+                    pending.extend((b, False) for p, bits in cell['connections'].items()
+                                   if cell['port_directions'][p] == 'output' for b in bits)
+                else:
+                    terminals.add((name, port))
+        coverage = []
+        for name, port in sorted(terminals):
+            cell = cells[name]
+            require(cell['type'] == 'MISTRAL_FF' and port in {'DATAIN', 'SCLR', 'ENA', 'ACLR'},
+                    'unsupported reset consumer: ' + name + '.' + port)
+            pins = pinmap(name)
+            require(pins['CLK'] == 0 and pins[port] in (0, 3) and
+                    bit(name, 'CLK') == clock_bits[chain['clock']],
+                    'reset consumer has unsupported clock or effective control: ' + name)
+            event = 'posedge ' + chain['clock']
+            matches = [(net, row) for net, row in endpoints[name, port]
+                       if row['launch_event'] == event]
+            require(len(matches) == 1, 'missing or ambiguous reset consumer timing: ' + name)
+            net, row = matches[0]
+            require((net['driver'], net['port']) == drivers[bit(name, port)] and
+                    row['event'] == event and row.get('setup_checked') and row.get('hold_checked'),
+                    'reset consumer path is cut, unpaired or misbound: ' + name)
+            for field in ('setup_slack_ns', 'hold_slack_ns'):
+                value = row[field]
+                require(type(value) in (int, float) and math.isfinite(value) and value >= 0,
+                        'reset consumer timing failure: ' + name)
+            coverage.append({'cell': name, 'port': port,
+                             'setup_margin_ns': row['setup_slack_ns'],
+                             'hold_margin_ns': row['hold_slack_ns']})
+        require(coverage, 'reset tail has no modeled consumers')
+        reset_consumers.append({'tail': chain['tail'], 'clock': chain['clock'],
+                                'terminals': coverage,
+                                'asynchronous_clear_consumers': sum(c['port'] == 'ACLR' for c in coverage),
+                                'setup_min_ns': min(c['setup_margin_ns'] for c in coverage),
+                                'hold_min_ns': min(c['hold_margin_ns'] for c in coverage)})
     require(Counter((c['kind'], c['clock']) for c in chains) ==
             {('reset', 'clocks[2]'): 2, ('reset', 'clk_pixel'): 1,
              ('video', 'clocks[2]'): 1, ('video', 'clk_pixel'): 2},
             'unexpected chain inventory')
-    return {'scope': 'Host-only board50 synchronizer graph and interstage timing audit. '
-                     'No exceptions, CDC protocol proof, recovery/removal or MTBF signoff.',
+    return {'scope': 'Host-only board50 synchronizer and first-capture reset-cone timing audit. '
+                     'No exceptions, CDC protocol proof or physical/MTBF signoff.',
             'structure_valid': True, 'interstage_setup_hold_pass': True, 'chains': chains,
+            'reset_consumer_timing_pass': True, 'reset_consumers': reset_consumers,
+            'reset_consumer_policy_valid': False,
+            'consumer_policy_note': 'Additional asynchronous clears retain pulse/control obligations; '
+                                    'timed rows grant no exception or physical acceptance.',
             'timing_exception_valid': False, 'physical_qualified': False,
             'remaining': ['PLL lock/reset waveform and relock', 'metastability and MTBF',
-                          'downstream reset consumer safety', 'bundled video bank stability']}
+                          'downstream asynchronous reset pulse/control safety', 'bundled video bank physical stability']}
 
 
 def main():
@@ -178,7 +237,7 @@ def main():
     result['inputs_sha256'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in (args.routed, args.timing, args.receipt)}
     args.output.write_text(json.dumps(result, indent=2) + '\n')
-    print('PASS: six two-stage chains retain exclusive timed interstage paths; physical qualification open')
+    print('PASS: six chains and their reset consumer timing pass; physical qualification open')
 
 
 if __name__ == '__main__':
