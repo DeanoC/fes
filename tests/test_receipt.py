@@ -105,6 +105,30 @@ class ReceiptTest(unittest.TestCase):
             after, _ = build.build_fingerprint(revisions, profile, "go test")
         self.assertEqual(before, after)
 
+    def test_image_fingerprint_binds_platform_build_sources(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "platform/internal/btagent/agent.go"
+            source.parent.mkdir(parents=True)
+            source.write_text("package btagent\n")
+            (root / "platform/go.mod").write_text("module github.com/DeanoC/fes/platform\n")
+            (root / "platform/go.sum").write_text("dependency checksum\n")
+            image_recipe_files = build.image_recipe_files
+            with mock.patch.object(build, "ROOT", root), \
+                    mock.patch.object(build, "BUILD_RECIPE_FILES", ()), \
+                    mock.patch.object(build, "toolchain_key", return_value="toolchain"), \
+                    mock.patch.object(build, "image_recipe_files",
+                                      side_effect=lambda: image_recipe_files(root)):
+                before, before_info = build.build_fingerprint({}, {}, "go test")
+                source.write_text("package btagent\n// changed image binary\n")
+                after, after_info = build.build_fingerprint({}, {}, "go test")
+            self.assertNotEqual(before, after)
+            for name in ("platform/internal/btagent/agent.go", "platform/go.mod", "platform/go.sum"):
+                self.assertIn(name, before_info["image_recipe"])
+                self.assertIn(name, after_info["image_recipe"])
+
     def test_host_fingerprint_excludes_unrelated_system_inputs_but_binds_host_inputs(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

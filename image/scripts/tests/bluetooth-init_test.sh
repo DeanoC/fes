@@ -34,16 +34,24 @@ cat > "$fixture/rm" <<'INNER'
 #!/bin/sh
 exec /bin/rm "$@"
 INNER
+cat > "$fixture/readlink" <<'INNER'
+#!/bin/sh
+case "${1:-}" in
+  /proc/*/exe) printf '%s\n' "$BT_PROCESS_EXE" ;;
+  *) exit 1 ;;
+esac
+INNER
 cat > "$fixture/agent" <<'INNER'
 #!/bin/sh
 printf '%s\n' start >> "$BT_STARTS"
 INNER
-chmod +x "$fixture/kill" "$fixture/sleep" "$fixture/rm" "$fixture/agent"
+chmod +x "$fixture/kill" "$fixture/sleep" "$fixture/rm" "$fixture/readlink" "$fixture/agent"
 
 sed \
   -e "s|/run/fes-bluetooth.pid|$fixture/pid|g" \
   -e "s|/var/log/fes-bluetooth.log|$fixture/log|g" \
   -e "s|/usr/sbin/fes-bluetooth|$fixture/agent|g" \
+  -e "s|/usr/bin/readlink|$fixture/readlink|g" \
   -e "s|/bin/kill|$fixture/kill|g" \
   -e "s|/bin/sleep|$fixture/sleep|g" \
   -e "s|/bin/rm|$fixture/rm|g" \
@@ -54,10 +62,12 @@ export BT_ALIVE=$fixture/alive
 export BT_SIGNALS=$fixture/signals
 export BT_SLEEP_COUNT=$fixture/sleep-count
 export BT_STARTS=$fixture/starts
+export BT_PROCESS_EXE=$fixture/agent
 
 setup_old_agent() {
   rm -f "$BT_ALIVE" "$BT_SIGNALS" "$BT_SLEEP_COUNT" "$BT_STARTS"
   : > "$BT_ALIVE"
+  BT_PROCESS_EXE=$fixture/agent
   printf '%s\n' 4242 > "$fixture/pid"
 }
 
@@ -101,3 +111,16 @@ setup_old_agent
 test ! -e "$fixture/pid"
 test ! -e "$BT_SLEEP_COUNT"
 test -e "$BT_ALIVE"
+
+setup_old_agent
+BT_PROCESS_EXE=/usr/bin/sleep "$fixture/init" stop
+test ! -e "$fixture/pid"
+test ! -e "$BT_SIGNALS"
+test -e "$BT_ALIVE"
+
+setup_old_agent
+BT_PROCESS_EXE=/usr/bin/sleep "$fixture/init" start
+wait_for_start
+test ! -e "$BT_SIGNALS"
+test "$(cat "$BT_STARTS")" = start
+test "$(cat "$fixture/pid")" != 4242

@@ -78,6 +78,7 @@ var controllerProducts = map[string]map[string]struct{}{
 	"054c": {"0268": {}, "05c4": {}, "09cc": {}, "0ce6": {}},                                                 // Sony: DualShock 3/4, DualSense
 	"045e": {"02d1": {}, "02d2": {}, "02dd": {}, "02e3": {}, "02ea": {}, "02fd": {}, "0b00": {}, "0b12": {}}, // Microsoft: Xbox controllers
 	"057e": {"2009": {}},                                                                                     // Nintendo Switch Pro Controller
+	"2dc8": {"2000": {}, "200f": {}, "201e": {}, "3106": {}, "3109": {}, "310a": {}, "310b": {}, "6001": {}}, // 8BitDo gamepads
 }
 
 // knownController parses a BlueZ modalias such as "usb:v054Cp0CE6d0100" or

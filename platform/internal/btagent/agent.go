@@ -31,6 +31,9 @@ const (
 	propsIface   = "org.freedesktop.DBus.Properties"
 	objectsIface = "org.freedesktop.DBus.ObjectManager"
 	flagNoReply  = 1
+	// staleBondRemovalMax bounds recovery attempts for one device during this
+	// agent lifetime, including attempts whose RemoveDevice call fails.
+	staleBondRemovalMax = 3
 )
 
 type dbusError struct {
@@ -248,13 +251,14 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		return err
 	}
 	a := &agent{
-		bus:                bus,
-		attempts:           newAttempts(),
-		devices:            map[string]devInfo{},
-		adapters:           map[string]struct{}{},
-		configuredAdapters: map[string]struct{}{},
-		logged:             map[string]time.Time{},
-		staleBondRemoved:   map[string]struct{}{},
+		bus:                      bus,
+		attempts:                 newAttempts(),
+		devices:                  map[string]devInfo{},
+		adapters:                 map[string]struct{}{},
+		configuredAdapters:       map[string]struct{}{},
+		logged:                   map[string]time.Time{},
+		staleBondRemoved:         map[string]struct{}{},
+		staleBondRemovalAttempts: map[string]int{},
 	}
 	bus.onCall = a.handleCall
 	go bus.readLoop()
@@ -268,16 +272,17 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 }
 
 type agent struct {
-	bus                *bus
-	attempts           *attempts
-	devices            map[string]devInfo
-	adapters           map[string]struct{}
-	logged             map[string]time.Time
-	bluezOwner         string
-	registeredOwner    string
-	configuredAdapters map[string]struct{}
-	staleBondMu        sync.Mutex
-	staleBondRemoved   map[string]struct{}
+	bus                      *bus
+	attempts                 *attempts
+	devices                  map[string]devInfo
+	adapters                 map[string]struct{}
+	logged                   map[string]time.Time
+	bluezOwner               string
+	registeredOwner          string
+	configuredAdapters       map[string]struct{}
+	staleBondMu              sync.Mutex
+	staleBondRemoved         map[string]struct{}
+	staleBondRemovalAttempts map[string]int
 }
 
 func (a *agent) run(ctx context.Context) error {
@@ -450,6 +455,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 		a.adapters = map[string]struct{}{}
 		a.devices = map[string]devInfo{}
 		a.configuredAdapters = map[string]struct{}{}
+		a.resetStaleBondRemovalClaims()
 		if newOwner == "" {
 			log.Printf("bluetooth: org.bluez owner disappeared from %s", previousOwner)
 			return nil
@@ -573,6 +579,7 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 			return
 		}
 		pairSucceeded = true
+		a.resetStaleBondRemoval(dev.Path)
 	}
 	if err := a.callVoid(ctx, bluezDest, dev.Path, propsIface, "Set", "ssv", bodyProp(deviceIface, "Trusted", "b", true, 0), 10*time.Second); err != nil {
 		a.logf("trust:"+dev.Path, "bluetooth: trust %s: %v", dev.Path, err)
@@ -581,8 +588,9 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second); err != nil && !isName(err, "org.bluez.Error.AlreadyConnected") {
 		if dev.Paired && isGamepad(dev) && isStaleBondError(err) && a.claimStaleBondRemoval(dev.Path) {
 			adapterPath := path.Dir(dev.Path)
-			log.Printf("bluetooth: removing stale bond for %s after authentication/key failure: %v", dev.Path, err)
+			log.Printf("bluetooth: removing stale bond for %s after missing-key error: %v", dev.Path, err)
 			if removeErr := a.callVoid(ctx, bluezDest, adapterPath, adapterIface, "RemoveDevice", "o", bodyPath(dev.Path), 10*time.Second); removeErr != nil {
+				a.releaseStaleBondRemoval(dev.Path)
 				a.logf("remove-stale-bond:"+dev.Path, "bluetooth: remove stale bond %s: %v", dev.Path, removeErr)
 			} else {
 				a.attempts.AllowPairAfterBondRemoval(dev.Path)
@@ -600,22 +608,50 @@ func (a *agent) claimStaleBondRemoval(devicePath string) bool {
 	if a.staleBondRemoved == nil {
 		a.staleBondRemoved = map[string]struct{}{}
 	}
+	if a.staleBondRemovalAttempts == nil {
+		a.staleBondRemovalAttempts = map[string]int{}
+	}
 	if _, exists := a.staleBondRemoved[devicePath]; exists {
 		return false
 	}
+	if a.staleBondRemovalAttempts[devicePath] >= staleBondRemovalMax {
+		return false
+	}
+	a.staleBondRemovalAttempts[devicePath]++
 	a.staleBondRemoved[devicePath] = struct{}{}
 	return true
+}
+
+func (a *agent) releaseStaleBondRemoval(devicePath string) {
+	a.staleBondMu.Lock()
+	defer a.staleBondMu.Unlock()
+	delete(a.staleBondRemoved, devicePath)
+}
+
+// A successful pairing creates a fresh bond. Clear the current-bond claim,
+// while retaining the cumulative cap to prevent an unbounded remove/pair loop.
+func (a *agent) resetStaleBondRemoval(devicePath string) {
+	a.releaseStaleBondRemoval(devicePath)
+}
+
+// BlueZ owner changes invalidate in-flight claims but preserve the attempt cap.
+func (a *agent) resetStaleBondRemovalClaims() {
+	a.staleBondMu.Lock()
+	defer a.staleBondMu.Unlock()
+	a.staleBondRemoved = map[string]struct{}{}
 }
 
 func isStaleBondError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if isName(err, "org.bluez.Error.AuthenticationFailed") || isName(err, "org.bluez.Error.AuthenticationRejected") {
-		return true
+	var bluezErr *dbusError
+	if !errors.As(err, &bluezErr) {
+		return false
 	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "key missing") || strings.Contains(message, "key-missing") || strings.Contains(message, "key_missing")
+	message := strings.ToLower(bluezErr.Message)
+	return strings.Contains(message, "key missing") || strings.Contains(message, "missing key") ||
+		strings.Contains(message, "key-missing") || strings.Contains(message, "key_missing")
 }
 
 func (a *agent) merge(path string, props map[string]any) {
@@ -721,19 +757,25 @@ func (a *agent) dispatch(call *Message) (string, []byte, string) {
 		}
 		// NoInputNoOutput agents cannot display passkeys or PINs.
 		return "", nil, "org.bluez.Error.Rejected"
-	case "RequestPinCode", "RequestPasskey":
+	case "RequestPinCode":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {
 			return "", nil, "org.bluez.Error.Rejected"
 		}
-		// NoInputNoOutput agents do not invent or enter PIN/passkey values.
+		// Legacy gamepads commonly use this fixed PIN. The callback is only
+		// reachable during an in-flight gamepad pairing attempt.
+		return "s", bodyString("0000"), ""
+	case "RequestPasskey":
+		path, err := bodyObject(call.Body)
+		if err != nil || !a.attempts.Has(path) {
+			return "", nil, "org.bluez.Error.Rejected"
+		}
+		// NoInputNoOutput agents cannot enter an arbitrary passkey.
 		return "", nil, "org.bluez.Error.Rejected"
 	case "RequestConfirmation":
-		path, err := bodyObject(call.Body)
-		if err != nil || !a.attempts.Has(path) {
-			return "", nil, "org.bluez.Error.Rejected"
-		}
-		return "", nil, ""
+		// A NoInputNoOutput agent cannot compare or confirm a passkey. Just
+		// Works pairing does not require this callback.
+		return "", nil, "org.bluez.Error.Rejected"
 	case "RequestAuthorization":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {

@@ -71,6 +71,18 @@ def image_recipe_files(root=ROOT):
             continue
         paths.extend(path for path in sorted(base.rglob("*")) if path.is_file()
                      and "tests" not in path.parts)
+    # scripts/platform.py builds target binaries from this Go module, including
+    # the Bluetooth agent; bind the image receipt to its compiled sources and
+    # module lock files as well as the Buildroot recipe.
+    platform = root / "platform"
+    if platform.is_dir():
+        paths.extend(
+            path for path in sorted(platform.rglob("*"))
+            if path.is_file() and (
+                path.name in {"go.mod", "go.sum"}
+                or (path.suffix == ".go" and not path.name.endswith("_test.go"))
+            )
+        )
     return tuple(path for path in paths if not is_diagnostic_recipe_file(path, root))
 
 def run(args, **kwargs):

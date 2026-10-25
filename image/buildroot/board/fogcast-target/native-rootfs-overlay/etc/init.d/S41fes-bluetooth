@@ -5,29 +5,56 @@ set -eu
 
 pid_file=/run/fes-bluetooth.pid
 log=/var/log/fes-bluetooth.log
+agent=/usr/sbin/fes-bluetooth
+
+agent_matches_pid() {
+  candidate=$1
+  case "$candidate" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  executable=$(/usr/bin/readlink "/proc/$candidate/exe" 2>/dev/null) || return 1
+  case "$executable" in
+    "$agent"|"$agent (deleted)") ;;
+    *) return 1 ;;
+  esac
+  /bin/kill -0 "$candidate" 2>/dev/null
+}
+
+agent_pid() {
+  [ -f "$pid_file" ] || return 1
+  IFS= read -r candidate < "$pid_file" || return 1
+  agent_matches_pid "$candidate" || return 1
+  printf '%s\n' "$candidate"
+}
+
+signal_agent() {
+  candidate=$1
+  agent_matches_pid "$candidate" || return 1
+  /bin/kill "$candidate" 2>/dev/null
+}
 
 stop_agent() {
   # No stop countdown: the shutdown budget is already full, and the agent
   # returns as soon as it receives SIGTERM.
   [ -f "$pid_file" ] || return 0
-  IFS= read -r pid < "$pid_file" || true
-  if [ -n "${pid:-}" ] && /bin/kill -0 "$pid" 2>/dev/null; then
-    /bin/kill "$pid" 2>/dev/null || true
+  pid=$(agent_pid) || pid=
+  if [ -n "$pid" ]; then
+    signal_agent "$pid" || true
   fi
   /bin/rm -f "$pid_file"
 }
 
 restart_agent() {
   if [ -f "$pid_file" ]; then
-    IFS= read -r pid < "$pid_file" || true
-    if [ -n "${pid:-}" ] && /bin/kill -0 "$pid" 2>/dev/null; then
-      /bin/kill "$pid" 2>/dev/null || true
+    pid=$(agent_pid) || pid=
+    if [ -n "$pid" ]; then
+      signal_agent "$pid" || true
       restart_wait=5
-      while /bin/kill -0 "$pid" 2>/dev/null && [ "$restart_wait" -gt 0 ]; do
+      while agent_matches_pid "$pid" && [ "$restart_wait" -gt 0 ]; do
         /bin/sleep 1
         restart_wait=$((restart_wait - 1))
       done
-      if /bin/kill -0 "$pid" 2>/dev/null; then
+      if agent_matches_pid "$pid"; then
         printf '%s\n' "fes-bluetooth: PID $pid did not exit; restart cancelled" >&2
         return 1
       fi
@@ -39,13 +66,12 @@ restart_agent() {
 
 case "${1:-start}" in
   start)
-    if [ -f "$pid_file" ]; then
-      IFS= read -r pid < "$pid_file"
-      if /bin/kill -0 "$pid" 2>/dev/null; then
-        exit 0
-      fi
+    pid=$(agent_pid) || pid=
+    if [ -n "$pid" ]; then
+      exit 0
     fi
-    /usr/sbin/fes-bluetooth >>"$log" 2>&1 &
+    /bin/rm -f "$pid_file"
+    "$agent" >>"$log" 2>&1 &
     printf '%s\n' "$!" > "$pid_file"
     ;;
   stop)

@@ -92,7 +92,7 @@ func TestAuthorizeServiceDuringPairedControllerConnect(t *testing.T) {
 	}{
 		{"RequestPinCode", bodyPath(path)},
 		{"RequestPasskey", bodyPath(path)},
-		{"RequestConfirmation", bodyConfirm(path)},
+		{"RequestConfirmation", bodyConfirmPasskey(path, 654321)},
 		{"DisplayPasskey", bodyDisplayPasskey(path)},
 		{"RequestAuthorization", bodyPath(path)},
 	} {
@@ -110,14 +110,24 @@ func TestPairingCallbacksMatchNoInputNoOutput(t *testing.T) {
 		t.Fatal("gamepad pairing did not start")
 	}
 	a := &agent{attempts: attempts}
-	if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirm(path)}); errName != "" {
-		t.Fatalf("gamepad confirmation rejected: %s", errName)
+	for _, passkey := range []uint32{0, 654321} {
+		if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirmPasskey(path, passkey)}); errName == "" {
+			t.Errorf("NoInputNoOutput agent confirmed passkey %d", passkey)
+		}
+	}
+	sig, pinBody, errName := a.dispatch(&Message{Member: "RequestPinCode", Body: bodyPath(path)})
+	if errName != "" || sig != "s" {
+		t.Fatalf("legacy gamepad PIN request: signature=%q error=%q", sig, errName)
+	}
+	pinDecoder := &decoder{b: pinBody}
+	pin, rest, err := pinDecoder.readComplete("s")
+	if err != nil || rest != "" || pin != "0000" {
+		t.Fatalf("legacy gamepad PIN = %v (rest %q, err %v), want 0000", pin, rest, err)
 	}
 	for _, callback := range []struct {
 		member string
 		body   []byte
 	}{
-		{"RequestPinCode", bodyPath(path)},
 		{"RequestPasskey", bodyPath(path)},
 		{"DisplayPinCode", bodyPath(path)},
 		{"DisplayPasskey", bodyDisplayPasskey(path)},
@@ -141,16 +151,21 @@ func TestPairingCallbacksMatchNoInputNoOutput(t *testing.T) {
 
 func TestStaleBondErrorClassificationAndRemovalBound(t *testing.T) {
 	for _, err := range []error{
-		&dbusError{Name: "org.bluez.Error.AuthenticationFailed"},
-		&dbusError{Name: "org.bluez.Error.AuthenticationRejected"},
 		&dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
-		errors.New("key-missing"),
+		&dbusError{Name: "org.bluez.Error.Failed", Message: "br-connection-key-missing"},
+		&dbusError{Name: "org.bluez.Error.AuthenticationFailed", Message: "stored key missing"},
 	} {
 		if !isStaleBondError(err) {
 			t.Errorf("stale bond error not recognized: %v", err)
 		}
 	}
-	for _, err := range []error{nil, errors.New("org.bluez.Error.Failed: not connected")} {
+	for _, err := range []error{
+		nil,
+		&dbusError{Name: "org.bluez.Error.AuthenticationFailed"},
+		&dbusError{Name: "org.bluez.Error.AuthenticationRejected"},
+		&dbusError{Name: "org.bluez.Error.Failed", Message: "authentication failed"},
+		errors.New("key-missing"),
+	} {
 		if isStaleBondError(err) {
 			t.Errorf("ordinary connection error treated as stale bond: %v", err)
 		}
@@ -162,6 +177,27 @@ func TestStaleBondErrorClassificationAndRemovalBound(t *testing.T) {
 	}
 	if a.claimStaleBondRemoval(gamepadPath) {
 		t.Fatal("stale bond removal was claimed twice")
+	}
+	a.releaseStaleBondRemoval(gamepadPath) // failed RemoveDevice can be retried
+	if !a.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("failed RemoveDevice did not release its claim")
+	}
+	a.releaseStaleBondRemoval(gamepadPath)
+	if !a.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("second bounded removal retry was not claimed")
+	}
+	a.releaseStaleBondRemoval(gamepadPath)
+	if a.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("stale-bond removal exceeded its cumulative attempt cap")
+	}
+
+	freshBond := &agent{}
+	if !freshBond.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("fresh-bond test could not claim initial removal")
+	}
+	freshBond.resetStaleBondRemoval(gamepadPath)
+	if !freshBond.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("successful re-pair did not clear the current-bond claim")
 	}
 }
 
@@ -348,8 +384,13 @@ func fakeBlueZ(conn net.Conn) error {
 			if err != nil {
 				return err
 			}
-			if pin.Type != msgError {
-				return errors.New("NoInputNoOutput agent supplied a PIN")
+			if pin.Type != msgMethodReturn || pin.Signature != "s" {
+				return errors.New("legacy gamepad PIN request was rejected")
+			}
+			pinDecoder := &decoder{b: pin.Body}
+			pinValue, rest, err := pinDecoder.readComplete("s")
+			if err != nil || rest != "" || pinValue != "0000" {
+				return errors.New("legacy gamepad received an unexpected PIN")
 			}
 			passkey, err := callAgent("RequestPasskey", "o", bodyPath(gamepadPath))
 			if err != nil {
@@ -372,12 +413,12 @@ func fakeBlueZ(conn net.Conn) error {
 			if phone.Type != msgError {
 				return errors.New("phone confirmation accepted")
 			}
-			ok, err := callAgent("RequestConfirmation", "ou", bodyConfirm(gamepadPath))
+			ok, err := callAgent("RequestConfirmation", "ou", bodyConfirmPasskey(gamepadPath, 654321))
 			if err != nil {
 				return err
 			}
-			if ok.Type != msgMethodReturn {
-				return errors.New("gamepad confirmation rejected")
+			if ok.Type != msgError {
+				return errors.New("NoInputNoOutput agent confirmed a passkey")
 			}
 			audio, err := callAgent("AuthorizeService", "os", bodyPathString(gamepadPath, "0000110b-0000-1000-8000-00805f9b34fb"))
 			if err != nil {
@@ -458,9 +499,13 @@ func replyError(conn net.Conn, serial, to uint32, name, message string) error {
 }
 
 func bodyConfirm(path string) []byte {
+	return bodyConfirmPasskey(path, 0)
+}
+
+func bodyConfirmPasskey(path string, passkey uint32) []byte {
 	e := &encoder{}
 	e.str(path)
-	e.u32(0)
+	e.u32(passkey)
 	return e.buf
 }
 
