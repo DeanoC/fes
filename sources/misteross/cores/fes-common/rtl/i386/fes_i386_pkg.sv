@@ -107,7 +107,7 @@ package fes_i386_pkg;
             8'hf3: r.rep = REP_E;
             default: ;
         endcase
-        add_prefix = r;
+        return r;
     endfunction
 
     // ---- Uop ------------------------------------------------------------------

@@ -36,7 +36,7 @@ module fes_i386_oplen (
         f.modrm = modrm;
         f.creg = creg;
         f.imm = imm;
-        form = f;
+        return f;
     endfunction
 
     function automatic form_t one_byte(input logic [7:0] op, input logic [2:0] reg_field);
@@ -86,7 +86,7 @@ module fes_i386_oplen (
                 default: ;
             endcase
         end
-        one_byte = f;
+        return f;
     endfunction
 
     // The 0Fh map. The i486 forms (CMPXCHG, XADD, BSWAP) get their lengths
@@ -108,16 +108,16 @@ module fes_i386_oplen (
             8'hbb, 8'hbc, 8'hbd, 8'hbe, 8'hbf, 8'hc0, 8'hc1: f.modrm = 1'b1;
             default: ;
         endcase
-        two_byte = f;
+        return f;
     endfunction
 
     // ModRM, SIB and displacement bytes.
     function automatic logic [2:0] modrm16(input logic [7:0] m);
         case (m[7:6])
-            2'b00: modrm16 = m[2:0] == 3'd6 ? 3'd3 : 3'd1;
-            2'b01: modrm16 = 3'd2;
-            2'b10: modrm16 = 3'd3;
-            default: modrm16 = 3'd1;
+            2'b00: return m[2:0] == 3'd6 ? 3'd3 : 3'd1;
+            2'b01: return 3'd2;
+            2'b10: return 3'd3;
+            default: return 3'd1;
         endcase
     endfunction
 
@@ -125,10 +125,10 @@ module fes_i386_oplen (
         logic has_sib;
         has_sib = m[2:0] == 3'd4;
         case (m[7:6])
-            2'b00: modrm32 = has_sib ? (sib[2:0] == 3'd5 ? 3'd6 : 3'd2) : (m[2:0] == 3'd5 ? 3'd5 : 3'd1);
-            2'b01: modrm32 = has_sib ? 3'd3 : 3'd2;
-            2'b10: modrm32 = has_sib ? 3'd6 : 3'd5;
-            default: modrm32 = 3'd1;
+            2'b00: return has_sib ? (sib[2:0] == 3'd5 ? 3'd6 : 3'd2) : (m[2:0] == 3'd5 ? 3'd5 : 3'd1);
+            2'b01: return has_sib ? 3'd3 : 3'd2;
+            2'b10: return has_sib ? 3'd6 : 3'd5;
+            default: return 3'd1;
         endcase
     endfunction
 
