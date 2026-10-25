@@ -232,8 +232,10 @@ producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
 
-The host seals of all four packages with tape 2.0, with their package
-identities, clock results and resources, and their kit A check are in
+The host seals of all four packages with snapshot loading, with their package
+identities, clock results and resources, and their kit A checks are in
+[the snapshot record](../../../../docs/validation/2026-10-25-spectrum-snapshots.md);
+the tape path's design is in
 [the tape record](../../../../docs/validation/2026-10-22-spectrum-tape-ddr.md);
 the models' Fuse timing comparisons are in
 [the models record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
