@@ -86,15 +86,60 @@ class HarnessReportTest(unittest.TestCase):
             return {'endpoints': [{'cell': cell, 'setup_checked': checked, 'setup_slack_ns': slack}
                                   for cell, slack, checked in endpoints]}
         report = {'detailed_net_timings': [
-            net(('dut.fetch.l_bytes_MISTRAL_FF_Q_3', 1.5, True), ('dut.align.start_MISTRAL_FF_Q', -0.5, True)),
+            net(('dut.fetch.l1_bytes_MISTRAL_FF_Q_3', 1.5, True), ('dut.align.start_MISTRAL_FF_Q', -0.5, True)),
             net(('dut.align.fill_data_MISTRAL_FF_Q_9', 0.5, True), ('dut.align.dec_fin_MISTRAL_FF_Q_1', 2.0, True)),
             net(('signature_MISTRAL_FF_Q', 4.0, True), ('dut.align.start_MISTRAL_ALUT6', -9.0, False)),
+            net(('dut.align.redirect_linear_MISTRAL_FF_Q', 5.0, True)),
         ]}
-        figures = benchmark.stage_figures(report, benchmark.STAGES['frontend'], 100.0)
-        self.assertEqual(figures['F2'], {'setup_slack_ns': 0.5, 'fmax_mhz': 105.26, 'endpoint': 'dut.align.fill_data'})
+        stages = benchmark.STAGES['frontend']
+        figures = benchmark.stage_figures(report, stages, 100.0)
+        self.assertEqual(figures['L1'], {'setup_slack_ns': 0.5, 'fmax_mhz': 105.26, 'endpoint': 'dut.align.fill_data'})
+        self.assertEqual(figures['F2']['endpoint'], 'dut.fetch.l1_bytes')
         self.assertEqual(figures['Q']['fmax_mhz'], 95.24)
-        self.assertEqual(figures['L']['endpoint'], 'dut.align.dec_fin')
+        self.assertEqual(figures['L2']['endpoint'], 'dut.align.dec_fin')
         self.assertEqual(figures['envelope']['endpoint'], 'signature')
+        self.assertEqual([item['endpoint'] for item in benchmark.envelope_endpoints(report, stages)],
+                         ['signature', 'dut.align.redirect_linear'])
+
+    @staticmethod
+    def netlist(cells, names):
+        def cell(kind, **ports):
+            outputs = {'Q', 'SO', 'CO', 'B1DATA'}
+            return {'type': kind, 'connections': ports,
+                    'port_directions': {port: 'output' if port in outputs else 'input' for port in ports}}
+        return {'modules': {'top': {
+            'cells': {name: cell(kind, **ports) for name, (kind, ports) in cells.items()},
+            'netnames': {name: {'bits': bits, 'hide_name': 0} for name, bits in names.items()}}}}
+
+    def test_registers_are_labelled_by_any_alias_then_their_input(self):
+        netlist = self.netlist({
+            # The F2 register, named only as an L1 decoder input, is found by its input.
+            'dut.fetch.decoders.g_oplen[4].oplen.o_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [10], 'DATAIN': [11]}),
+            # The L1/L2 register named after L2's input port.
+            'dut.fetch.sums.mb32_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [12], 'DATAIN': [13]}),
+            # A stimulus register that took Q's port name stays envelope.
+            'redirect_linear_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [14], 'DATAIN': [15]}),
+            'l1i_data0.0.0.0': ('MISTRAL_M10K', {'B1DATA': [16], 'B1ADDR': [17]}),
+        }, {'dut.fetch.decoders.g_oplen[4].oplen.o': [10], 'dut.fetch.mem_data': [11],
+            'dut.fetch.sums.mb32': [12], 'redirect_linear': [14], 'dut.align.redirect_linear': [14]})
+        labels = benchmark.register_labels(netlist, 'top', benchmark.STAGES['frontend'])
+        self.assertEqual(labels, {'dut.fetch.decoders.g_oplen[4].oplen.o_MISTRAL_FF_Q': 'F2',
+                                  'dut.fetch.sums.mb32_MISTRAL_FF_Q': 'L1',
+                                  'redirect_linear_MISTRAL_FF_Q': 'envelope', 'l1i_data0.0.0.0': 'F1'})
+
+    def test_logic_depth_counts_luts_and_carry_cells(self):
+        netlist = self.netlist({
+            'amode.sib_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [1], 'DATAIN': [20]}),
+            'lut_a': ('MISTRAL_ALUT2', {'A': [1], 'B': [1], 'Q': [2]}),
+            'not_a': ('MISTRAL_NOT', {'A': [2], 'Q': [3]}),
+            'lut_b': ('MISTRAL_ALUT3', {'A': [3], 'B': [1], 'C': [1], 'Q': [4]}),
+            'carry_0': ('MISTRAL_ALUT_ARITH', {'A': [4], 'B': ['0'], 'CI': ['0'], 'SO': [5], 'CO': [6]}),
+            'carry_1': ('MISTRAL_ALUT_ARITH', {'A': ['0'], 'B': [1], 'CI': [6], 'SO': [7], 'CO': [8]}),
+            'ag_row_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [9], 'DATAIN': [7]}),
+        }, {'amode.sib': [1], 'dfwd.row': [4], 'ag_row': [9]})
+        depth = benchmark.logic_depth(netlist, 'top', benchmark.STAGES['dag'])
+        self.assertEqual(depth['D'], {'lut_levels': 3, 'carry_cells': 2, 'endpoint': 'ag_row',
+                                      'path': ['amode.sib', 'dfwd.row']})
 
     def test_backend_follows_the_toolchain_identity(self):
         self.assertEqual(benchmark.expected_backend('nextpnr 1 gpu-router=HIP; hip-architectures=gfx1100'), 'hip')
@@ -123,7 +168,8 @@ class RtlTest(unittest.TestCase):
         result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2'],
                                 cwd=frontend.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('D and AG: 196608 cases', result.stdout)
+        self.assertIn('D and AG: 196608 uops in', result.stdout)
+        self.assertIn('load [2, 2, 3], late [3, 3, 4]', result.stdout)
         self.assertIn('; 0 failures', result.stdout)
 
     @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
