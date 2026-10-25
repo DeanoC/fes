@@ -1,0 +1,118 @@
+{
+  "artifacts": {
+    "bundle.tar": {
+      "sha256": "16bf410862014182035cfec467be809fa903896fda948bc3f905eedb2755af42",
+      "size": 36210176
+    }
+  },
+  "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+  "base_factory_manifest_sha256": "dec88d7d7e607f1d011570dcb10b13c641e2cb9383cbcbc77f6d39adad928e14",
+  "base_image_sha256": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+  "bundle": {
+    "id": "2042b540a43fed43ec0a70b8a3dbff255245e9f2b70b39a58a5be52c926fbaf3",
+    "manifest": {
+      "architecture": "armv7",
+      "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+      "board": "de10-nano",
+      "files": [
+        {
+          "mode": 365,
+          "path": "bin/fogcast-kit",
+          "sha256": "c2f0a7c7e1cd674a74b15cfea4ed4fbc01e8dfa0820fd9a5a802ac597481b0a7",
+          "size": 1573026
+        },
+        {
+          "mode": 365,
+          "path": "bin/fogcast-tenfoot",
+          "sha256": "e02f16dd490a1c9e8edd10eab632e6c45932a53d12eba43d2c8b5d4589d0503c",
+          "size": 23068834
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-agent",
+          "sha256": "a9f6c7879271625f1a087b70f12ea9c1a31291ab79a7f2c4f038503ca92e6c42",
+          "size": 10289314
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-runtime",
+          "sha256": "d3fb12a969b373998403df62e9d47e451c38cc6de41c0f9a0a5f980d394db6df",
+          "size": 1259840
+        },
+        {
+          "mode": 292,
+          "path": "share/fes-window/fes_window.ko",
+          "sha256": "eaf0810e4978aa41f051f4a9b145c0b8f5a76b5f4f9ee6f50fd541b4b1061561",
+          "size": 10012
+        },
+        {
+          "mode": 292,
+          "path": "share/fes-window/version",
+          "sha256": "d261f4e45c1f4d5baf2f619d33522c799a94bbdb4f536df83360d573e3643661",
+          "size": 17
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/config.toml",
+          "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+          "size": 432
+        }
+      ],
+      "format": 1,
+      "interfaces": {
+        "maintenance": "fes-kit-maintenance-v1",
+        "menu.fes.memory.hps-ddr": "1.0",
+        "menu.fes.video.fixed-720p60": "1.0",
+        "menu.fes.video.menu-blitter": "1.1",
+        "menu.fes.video.menu-display": "1.0",
+        "runtime-protocol": "2",
+        "software-admission": "fes-kit-software-v1"
+      },
+      "provenance": {
+        "fogcast": "0f3b35c95249aef16cf1403ab91e0b2939220af6",
+        "runtime": "0f3b35c95249aef16cf1403ab91e0b2939220af6"
+      },
+      "version": "merged-media-0f3b35c9"
+    }
+  },
+  "deployed": false,
+  "format": 1,
+  "go_toolchain": {
+    "compile_sha256": "10c67b9de41c1e546b9bf416ceef410e5e3dd87a76d129b08b74a9570db9c463",
+    "flags": [
+      "-buildvcs=false",
+      "-trimpath",
+      "-ldflags",
+      "-s -w -X github.com/DeanoC/FogCast/internal/version.Version=merged-media-0f3b35c9 -X github.com/DeanoC/FogCast/internal/version.Revision=0f3b35c95249aef16cf1403ab91e0b2939220af6"
+    ],
+    "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+    "helper": "linux/amd64 CGO_ENABLED=0",
+    "target": "linux/arm GOARM=7 CGO_ENABLED=0",
+    "version": "go version go1.26.5 linux/amd64"
+  },
+  "source_commit": "0f3b35c95249aef16cf1403ab91e0b2939220af6",
+  "source_trees": {
+    "image": "9c5591900806bf589b4bfa20d1c425529db45868",
+    "sources/FogCast": "4e665f3a9465f334c7dcc6f20105818882bf494a",
+    "sources/libmister-runtime": "ceeecc0cf880eb85f4f02abde132889c5cabc7a3"
+  },
+  "toolchain": {
+    "archive_sha256": "612870146bf0ae4ea6e28bab8bfe2009b91c1341360a6fb249c67672341e3a1e",
+    "container_base": {
+      "digest": "sha256:b1a741487078b369e78119849663d7f1a5341ef2768798f7b7406c4240f86aef",
+      "image": "docker.io/library/debian:12.11-slim",
+      "platform": "linux/amd64"
+    },
+    "container_context_sha256": "018e124379f5bbe906e6f120e1e4c31565f0b99d1b5ae45a5fa7d4cd3bd90609",
+    "container_id": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "key": "22d5e8277dfc785abc941fd0a3e678a1618a74ac892b43aca3aac53309b175fd"
+  },
+  "window_driver": {
+    "kernel_commit": "d7adb20b4ca595838289406c083fff78f004a8c3",
+    "kernel_release": "5.15.1-MiSTer",
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "sha256": "eaf0810e4978aa41f051f4a9b145c0b8f5a76b5f4f9ee6f50fd541b4b1061561",
+    "version": "c1abf21022cff994"
+  },
+  "workflow_sha256": "08e6fb0b763daeeca03a48441598f4ee72a5a5d2c12eb0859f9538ec5fe0fc5c"
+}

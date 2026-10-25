@@ -729,7 +729,8 @@ is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. It applies the active interface and reported size limits
 before import; the host and runtime validate the object again. ZX81 also
-shows the existing starter-tape shelf. Files come from the launcher machine
+shows the existing starter-tape shelf only when its game entry identifies
+`fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
 (home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
 the selector opened. Session-display admission checks the captured generation,
 observed DDR and display interfaces, and a supported observed unit 0 for disk
@@ -982,7 +983,9 @@ computer.
 ## Native 10-foot launcher
 
 The embedded **Sinclair ZX81 workbench** (`example.hardware`) reads host-owned hardware
-setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
+setups through `GET /api/v1/library/hardware`. Set up ZX81 first asks which
+machine — ZX81, ZX80, TS1000 or TS1500 — then lists installed packages of that
+core. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
@@ -1017,7 +1020,20 @@ reply is ambiguous, Tenfoot reads the saved entry: the requested package
 confirms the selection, the old package keeps retry available, and a different
 package reports a conflict without overwriting it.
 
-The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the setup room.
+The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the ZX81 setup room. **Set up** opens `example.hardware` for a ZX81 row and `example.c64` for a
+Commodore 64 row, passing the selected game ID through `rooms.open` as the child
+room's `room.initial_game_id`. Each workbench selects that entry for the visit;
+the ZX81 workbench falls back to the active or first available setup if that
+entry is absent, and later refreshes fall back if its current setup disappears.
+Direct room opens continue to restore saved navigation. The Commodore 64 room
+queries up to 2,000 rows filtered to `fes.c64`; when the selected ID falls
+beyond that result it resolves the ID directly, and if the title is gone it
+keeps the other entries available. The room shows the entry's edition, saved
+sockets, and saved `.d64`. It starts through `session.launch` and opens the live
+disk picker only while that entry is running. A failed hardware refresh clears
+the observed live session and disables the session controls until a later read
+succeeds. Launcher session-state changes invalidate the cached hardware session,
+request a fresh hardware read, and force the controls and Running label to redraw.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while
@@ -3368,6 +3384,10 @@ package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
+The hardware projection carries each setup's core ID through the tenfoot action;
+bundled starter cassettes appear only for `fes.zx81`. ZX80 and Timex setups still
+load their game-scoped saved programs and can import a selected `.p`. Machine-bound
+tape-shelf reads apply the same starter filter, including the live picker.
 The workbench may suggest a same-target ZX81 package with required
 session-display, HPS DDR and ABI-specific media interfaces when the selected
 package lacks them. Optional declarations count only when the exact package is

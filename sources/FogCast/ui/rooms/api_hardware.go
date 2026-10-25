@@ -135,10 +135,13 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 		// An empty tape unit is still removable media. The workshop button
 		// follows that offer, so a library with no .p files does not hide it.
 		// Menu-display kits also require the session-display plane.
-		tapeAvailable := (tapeErr == nil || hostclient.RemovableMediaCapable(s.CorePackage)) &&
-			(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
-		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		displayOK := !r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage)
+		removableCapable := hostclient.RemovableMediaCapable(s.CorePackage)
+		tapeAvailable := (tapeErr == nil || removableCapable) && displayOK
+		removable := removableCapable && displayOK
+		r.SetLiveControls(displayOK)
 		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
+		session.RawSetString("removable_available", lua.LBool(removable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {
@@ -160,14 +163,17 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 
 func hardwareSetupAction(L *lua.LState, kind ActionKind) Action {
 	opts := L.CheckTable(1)
-	game, pkg := optString(opts, "game_id"), optString(opts, "package_id")
+	game, coreID, pkg := optString(opts, "game_id"), optString(opts, "core_id"), optString(opts, "package_id")
 	if game == "" || pkg == "" {
 		L.ArgError(1, "game_id and package_id are required")
 	}
 	if kind == ActionHardwareTapes {
+		if coreID == "" {
+			L.ArgError(1, "core_id is required")
+		}
 		if _, ok := opts.RawGetString("expected_media_id").(lua.LString); !ok {
 			L.ArgError(1, "expected_media_id is required")
 		}
 	}
-	return Action{Kind: kind, GameID: game, PackageID: pkg, ExpectedMediaID: optString(opts, "expected_media_id")}
+	return Action{Kind: kind, GameID: game, CoreID: coreID, PackageID: pkg, ExpectedMediaID: optString(opts, "expected_media_id")}
 }

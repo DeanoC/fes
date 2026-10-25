@@ -37,8 +37,17 @@ func TestDefaultZX81TapesImportWithoutSelectingOrLaunching(t *testing.T) {
 
 type savedZX81Service struct {
 	coreMediaAPIService
-	saves []catalog.ZX81Save
-	err   error
+	saves   []catalog.ZX81Save
+	coreIDs map[string]string
+	err     error
+}
+
+func (s *savedZX81Service) CoreEntry(_ context.Context, gameID string) (catalog.CoreEntry, error) {
+	coreID := s.coreIDs[gameID]
+	if coreID == "" {
+		coreID = "fes.zx81"
+	}
+	return catalog.CoreEntry{GameID: gameID, CoreID: coreID}, nil
 }
 
 func (s *savedZX81Service) ListZX81Saves(_ context.Context, gameID string) ([]catalog.ZX81Save, error) {
@@ -77,5 +86,38 @@ func TestZX81TapeShelfScopesSavedProgramsToGame(t *testing.T) {
 	}
 	if _, err := client.ZX81TapesForGame(context.Background(), "Bad Game"); err == nil {
 		t.Fatal("invalid game was listed")
+	}
+}
+
+func TestZX81TapeShelfOmitsStartersForZX80(t *testing.T) {
+	service := &savedZX81Service{coreIDs: map[string]string{"my-zx80": "fes.zx80"}}
+	server := httptest.NewServer(hostapi.New(service))
+	defer server.Close()
+	client := hostclient.NewClient(server.URL, server.Client())
+	tapes, err := client.ZX81TapesForGame(context.Background(), "my-zx80")
+	if err != nil || len(tapes) != 0 {
+		t.Fatalf("ZX80 starter shelf: %+v %v", tapes, err)
+	}
+}
+
+func TestZX81TapeShelfKeepsTimexSavesWithoutStarters(t *testing.T) {
+	mediaID := strings.Repeat("cd", 32)
+	for _, coreID := range []string{"fes.ts1000", "fes.ts1500"} {
+		t.Run(coreID, func(t *testing.T) {
+			gameID := "my-" + strings.TrimPrefix(coreID, "fes.")
+			service := &savedZX81Service{
+				coreIDs: map[string]string{gameID: coreID},
+				saves: []catalog.ZX81Save{{
+					GameID: gameID, MediaID: mediaID, Name: "Saved program", Size: 917,
+				}},
+			}
+			server := httptest.NewServer(hostapi.New(service))
+			defer server.Close()
+			client := hostclient.NewClient(server.URL, server.Client())
+			tapes, err := client.ZX81TapesForGame(context.Background(), gameID)
+			if err != nil || len(tapes) != 1 || tapes[0].MediaID != mediaID || tapes[0].Name != "Saved program" {
+				t.Fatalf("%s shelf: %+v %v", coreID, tapes, err)
+			}
+		})
 	}
 }

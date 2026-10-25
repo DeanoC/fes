@@ -32,6 +32,8 @@ local function same_appearance()
   return (room.overlay and true or false) == overlay
 end
 local data, machine, art
+local initial_game_id = room.initial_game_id or ""
+local initial_selection_pending = false
 local chosen, inspected = "", ""
 local focus = "socket"
 local controls = {}
@@ -269,12 +271,15 @@ local function read()
     if not machine and value.session then
       for _,m in ipairs(list) do if m.game_id == value.session.game_id then machine=m end end
     end
-    machine=machine or list[1]
+    if not machine then machine=list[1] end
     if machine then
       chosen=machine.game_id
       if not choice() then inspected=machine.draft_expansion_id end
       page=math.max(1,math.min(page,math.ceil(math.max(1,#machine.choices)/3)))
+    elseif initial_selection_pending then
+      read_error="The selected ZX81 setup is no longer available."
     end
+    initial_selection_pending=false
     if message == "Finding your Sinclair ZX81 setups..." then message="Choose a card to see what it adds." end
   end)
 end
@@ -302,7 +307,9 @@ end
 function load()
   destination.clear()
   local nav=store.get("navigation",{})
-  chosen=nav.game_id or "" inspected=nav.inspected or "" focus=nav.focus or "socket" page=nav.page or 1
+  chosen=initial_game_id ~= "" and initial_game_id or nav.game_id or ""
+  initial_selection_pending=initial_game_id ~= ""
+  inspected=nav.inspected or "" focus=nav.focus or "socket" page=nav.page or 1
   art=image.load("assets/zx81.png")
   read()
 end
@@ -589,7 +596,7 @@ local function picture(part)
   end,true)
   button("tape",running() and "Choose / eject tape" or "Choose cassette",222,576,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
     if running() then session.open_tape(current_session())
-    else hardware.open_tapes{game_id=machine.game_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
+    else hardware.open_tapes{game_id=machine.game_id,core_id=machine.core_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
   end)
   button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
