@@ -261,6 +261,10 @@ func (a *App) refreshInstalledZX81Locked() {
 	s.Index = 0
 	s.Status = "Finding installed " + variant.Label + " packages…"
 	var cores []hostclient.AvailableCore
+	standing := "experimental"
+	if variant.CoreID == "fes.zx81" {
+		standing = "supported"
+	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		library, err := a.client.CoreLibrary(ctx)
 		if err != nil {
@@ -274,7 +278,7 @@ func (a *App) refreshInstalledZX81Locked() {
 			if err != nil {
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: "supported", ArtifactState: "installed"})
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {

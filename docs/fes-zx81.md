@@ -54,7 +54,7 @@ reaches uinput.
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 1.2 bring-up/oracle lane; it does not produce the standard socketed package.
 `make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
-1.6 socketed format-3 package. The package seals `rom-map.json` alongside
+1.7.0 socketed format-3 package. The package seals `rom-map.json` alongside
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses the first-party NMOS Z80 (`fes_z80_nmos`), a 52.224 MHz system clock, registered M10K and
