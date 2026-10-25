@@ -86,7 +86,7 @@ STAGES = {
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
         # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|dut\.fetch\.sums\.'),
-        ('L2', r'(.*\.)?(bytes|half_block|dec_\w+|avail)$'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.(?!redirect_linear$)'),
     ),
     'dag': (
