@@ -29,7 +29,7 @@
 // this edge: Q's start has then left that half and cannot read it next cycle.
 // For the same reason the next half's term assumes a release whenever Q is in
 // that half now.
-module fes_i386_fetchbuf (
+module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              clk,
     input  logic              reset,
     input  logic              redirect,
@@ -46,12 +46,9 @@ module fes_i386_fetchbuf (
     output logic [1:0][27:0]  half_block,
     output logic [31:0][7:0]  bytes,
     // Each buffer byte's decode from L2 (fes_i386_lstage), by accumulator variant.
-    output fes_i386_pkg::lbyte_t [31:0] dec,
+    output lbyte_t [31:0]     dec,
     output logic [31:0][3:0]  avail
 );
-    typedef fes_i386_pkg::lclass_t lclass_t;
-    typedef fes_i386_pkg::lbyte_t lbyte_t;
-
     logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
     logic [1:0]       filling;  // L2 writes this half on this edge
     logic             active;       // F2 holds a block; idle from reset to the first redirect

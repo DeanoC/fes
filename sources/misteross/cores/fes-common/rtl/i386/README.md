@@ -181,31 +181,29 @@ state. `trace_*` and `arch_*` show each retirement.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `d4ac300d9d`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork's main at `ca51238cb9`, with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. The timing spikes default to it. The repository's
-shared lock stays at Yosys `3a5accbd`, which reads this RTL's per-byte
-records wrongly, so check and route the i386 RTL with this lock's Yosys.
-Each later Yosys fix is a small bump of this lock, the removal of its one
-workaround, the `--yosys` check and a re-measure.
+shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
+and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
+small bump of this lock, the removal of its one workaround, the `--yosys`
+check and a re-measure.
 
-The locked Yosys still parses a subset of SystemVerilog, and gets some of it
-wrong without an error. This RTL stays inside what it reads correctly:
+Narrow sums (lengths, ends, counts) mark their `+` with `(* no_carry *)`, so
+the locked Yosys builds them from LUTs rather than an ALM carry chain
+([DeanoC/yosys#44](https://github.com/DeanoC/yosys/pull/44); the attribute
+is opt-in and Verilator ignores it).
 
-- no `import`: ports name `fes_i386_pkg::` types, and a module may alias one
-  with `typedef fes_i386_pkg::x x;` ([DeanoC/yosys#36](https://github.com/DeanoC/yosys/issues/36));
-- no `return` ([#37](https://github.com/DeanoC/yosys/issues/37)), and no
-  assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
-- no function returning a struct called from another function, which Yosys
-  reads as empty ([#33](https://github.com/DeanoC/yosys/issues/33));
+The locked Yosys still gets some SystemVerilog wrong. This RTL stays inside
+what it reads correctly:
+
+- no assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
 - a field of an array element, `arr[i].field`, is read and written through a
   whole-record copy: Yosys takes `arr[i]` for a generate block, which is an
   error with a variable index and a silent, undriven wire with a constant one
   ([#52](https://github.com/DeanoC/yosys/issues/52));
-- package functions do not use package constants ([#35](https://github.com/DeanoC/yosys/issues/35));
-- small sums are built from gates (`fes_i386_pkg::small_add`), since every `+`
-  becomes an ALM carry chain ([#39](https://github.com/DeanoC/yosys/issues/39));
-- synthesis runs `proc -norom` first, or the length decoders' opcode tables
-  become an M10K ROM that nextpnr-mistral rejects ([#40](https://github.com/DeanoC/yosys/issues/40));
+- modules import `fes_i386_pkg` for its types but call its functions by their
+  qualified names: Yosys asserts on an imported function's bare name
+  ([#55](https://github.com/DeanoC/yosys/issues/55));
 - logic replicated to cut fanout merges back into one copy even on
   `(* keep *)` wires, so each replica needs its own kept input register
   ([#51](https://github.com/DeanoC/yosys/issues/51)).

@@ -88,7 +88,8 @@ STAGES = {
     'frontend': (
         ('envelope', r'(.*\.)?(signature|noise|LED0|redirect|code32|d_ready)$|redirect_linear$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
-        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
+        # A decoder's opcode table can map to an M10K that holds F2's bytes.
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|dut\.fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
@@ -109,7 +110,7 @@ STAGES = {
     'cpu': (
         ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|init_\w+)$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
-        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)'),
@@ -125,10 +126,8 @@ STAGES = {
     ),
 }
 # M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform
-# rules). proc -norom first keeps the length decoders' opcode tables in logic:
-# Yosys would otherwise turn them into asynchronous ROMs, which an M10K
-# cannot be.
-SYNTHESIS = 'proc -norom; synth_intel_alm -family cyclonev -nolutram'
+# rules).
+SYNTHESIS = 'synth_intel_alm -family cyclonev -nolutram'
 
 
 def digest(path: Path) -> str:

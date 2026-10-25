@@ -261,7 +261,7 @@ python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
 ```
 
 `--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
-(after `proc -norom; flatten; opt -purge`) instead of the RTL.
+(after `proc; flatten; opt -purge`) instead of the RTL.
 
 ## Timing spikes
 

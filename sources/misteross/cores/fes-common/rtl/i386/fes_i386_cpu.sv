@@ -395,7 +395,7 @@ module fes_i386_cpu (
                     // Real mode: the base is selector * 16; limit and attributes stay.
                     seg_sel[wb_s.uop.dst.index[2:0]] <= wb_s.result[15:0];
                     seg_base[wb_s.uop.dst.index[2:0]] <= {12'd0, wb_s.result[15:0], 4'd0};
-                    seg_hi1[wb_s.uop.dst.index[2:0]] <= {11'd0, fes_i386_pkg::small_add({1'b0, wb_s.result[15:12]}, 5'd1)};
+                    seg_hi1[wb_s.uop.dst.index[2:0]] <= {11'd0, 5'(wb_s.result[15:12]) + (* no_carry *) 5'd1};
                 end
                 if (wb_stop) halted <= 1'b1;
             end

@@ -67,44 +67,25 @@ package fes_i386_pkg;
         endcase
     endfunction
 
-    // A sum of a few bits built from gates. Yosys maps every + to an ALM
-    // carry chain, and entering one costs about a nanosecond; for lengths and
-    // positions a LUT is faster.
-    function automatic logic [4:0] small_add(input logic [4:0] a, input logic [4:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 5; i++) begin
-            small_add[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
-    // The same for six bits.
-    function automatic logic [5:0] small_add6(input logic [5:0] a, input logic [5:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 6; i++) begin
-            small_add6[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
-    // Fold prefix byte b into p; b must satisfy is_prefix. The seg and rep
-    // values are computed from the byte, since Yosys cannot resolve package
-    // constants inside a package function called from a module.
+    // Fold prefix byte b into p; b must satisfy is_prefix.
     function automatic prefixes_t add_prefix(input prefixes_t p, input logic [7:0] b);
         prefixes_t r;
         r = p;
         case (b)
-            8'h26, 8'h2e, 8'h36, 8'h3e: begin r.seg_valid = 1'b1; r.seg = {1'b0, b[4:3]}; end  // ES CS SS DS
-            8'h64, 8'h65: begin r.seg_valid = 1'b1; r.seg = {2'b10, b[0]}; end                // FS GS
+            8'h26: begin r.seg_valid = 1'b1; r.seg = SEG_ES; end
+            8'h2e: begin r.seg_valid = 1'b1; r.seg = SEG_CS; end
+            8'h36: begin r.seg_valid = 1'b1; r.seg = SEG_SS; end
+            8'h3e: begin r.seg_valid = 1'b1; r.seg = SEG_DS; end
+            8'h64: begin r.seg_valid = 1'b1; r.seg = SEG_FS; end
+            8'h65: begin r.seg_valid = 1'b1; r.seg = SEG_GS; end
             8'h66: r.opsize = 1'b1;
             8'h67: r.adsize = 1'b1;
             8'hf0: r.lock = 1'b1;
-            8'hf2, 8'hf3: r.rep = {1'b1, b[0]};                                                 // REP_NE REP_E
+            8'hf2: r.rep = REP_NE;
+            8'hf3: r.rep = REP_E;
             default: ;
         endcase
-        add_prefix = r;
+        return r;
     endfunction
 
     // ---- Uop ------------------------------------------------------------------

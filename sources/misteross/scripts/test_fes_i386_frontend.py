@@ -75,7 +75,7 @@ def synthesize_netlist(yosys: str, sources: list[Path], top: str, output: Path) 
     """Write Yosys's reading of top, from sources, as a flat Verilog netlist."""
     netlist = output / f'{top}.netlist.v'
     script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {top}; '
-              f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
+              f'proc; flatten; opt -purge; write_verilog -noattr {netlist}')
     log = output / 'yosys.log'
     with log.open('w') as stream:
         result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)

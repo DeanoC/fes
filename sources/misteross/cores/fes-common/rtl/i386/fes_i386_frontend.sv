@@ -4,7 +4,7 @@
 // (an M10K-like port whose data may arrive late) instead of L1I; there is no
 // branch prediction, so fetch is sequential from the last redirect. Q hands D
 // one instruction per cycle when no earlier prefix needs a cycle of its own.
-module fes_i386_frontend (
+module fes_i386_frontend import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
     input  logic                   redirect,
@@ -15,7 +15,7 @@ module fes_i386_frontend (
     input  logic [15:0][7:0]       mem_data,
     input  logic                   mem_valid,
     output logic                   q_valid,
-    output fes_i386_pkg::fetched_t q,
+    output fetched_t               q,
     input  logic                   d_ready
 );
     logic [1:0]        release_half, half_valid;
@@ -23,7 +23,7 @@ module fes_i386_frontend (
     logic [15:0][7:0]  fill_bytes;
     logic [1:0][27:0]  half_block;
     logic [31:0][7:0]  bytes;
-    fes_i386_pkg::lbyte_t [31:0] dec;
+    lbyte_t [31:0]     dec;
     logic [31:0][3:0]  avail;
 
     fes_i386_fetchbuf fetch (
