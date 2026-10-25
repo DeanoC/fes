@@ -18,6 +18,15 @@
 //
 // The memory port models an M10K with address stall: mem_data is the block at
 // the address registered on the last edge with mem_load set.
+//
+// avail[j][v] says Q may issue or consume the instruction at buffer byte j
+// under accumulator variant v: byte j's half is valid, its bytes 12-15 have
+// been decoded if j is one of them, and if the instruction ends past its half,
+// the next half is valid or being filled. It is registered from next-cycle
+// state, so Q's loop reads one register. It ignores Q's release of a half on
+// this edge: Q's start has then left that half and cannot read it next cycle.
+// For the same reason the next half's term assumes a release whenever Q is in
+// that half now.
 module fes_i386_fetchbuf (
     input  logic              clk,
     input  logic              reset,
@@ -28,10 +37,9 @@ module fes_i386_fetchbuf (
     output logic              mem_load,
     input  logic [15:0][7:0]  mem_data,
     input  logic [1:0]        release_half,   // Q left this half on this edge
+    input  logic              q_half,         // the half Q's start is in
     output logic [1:0]        half_valid,
-    output logic [1:0]        tail_ok,        // the half's bytes 12-15 are decoded
-    output logic [1:0]        filling,        // L writes this half on this edge
-    output logic [15:0][7:0]  fill_bytes,     // ... with these bytes
+    output logic [15:0][7:0]  fill_bytes,     // the bytes L2 writes on this edge
     output logic [1:0][27:0]  half_block,
     output logic [31:0][7:0]  bytes,
     // Each buffer byte's decode from L2 (fes_i386_lstage), by accumulator variant.
@@ -39,8 +47,11 @@ module fes_i386_fetchbuf (
     output logic [31:0]       dec_run,
     output logic [31:0][15:0] dec_len,
     output logic [31:0][19:0] dec_fin,
-    output logic [31:0][3:0]  dec_far
+    output logic [31:0][3:0]  avail
 );
+    logic [31:0][3:0] dec_far;  // the instruction at the byte ends past its half
+    logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
+    logic [1:0]       filling;  // L2 writes this half on this edge
     logic             active;       // F2 holds a block; idle from reset to the first redirect
     logic [27:0]      f2_block;     // the block whose address the memory holds
     logic [27:0]      fetch_block;  // the block after f2_block
@@ -69,7 +80,7 @@ module fes_i386_fetchbuf (
     logic [15:0][2:0] new_head, new_mb32;
     logic [15:0][1:0] new_mb16;
 
-    fes_i386_lendec l1 (
+    fes_i386_lendec decoders (
         .w({l1_bytes, l2_bytes[15:12]}), .prefix(new_prefix), .run(new_run), .opsize(new_opsize),
         .adsize(new_adsize), .head(new_head), .mb16(new_mb16), .mb32(new_mb32), .z(new_z), .moffs(new_moffs)
     );
@@ -79,10 +90,47 @@ module fes_i386_fetchbuf (
     logic [15:0][19:0] new_fin;
     logic [15:0][3:0]  new_far;
 
-    fes_i386_lstage l2 (
+    fes_i386_lstage sums (
         .code32, .run(l2_run), .opsize(l2_opsize), .adsize(l2_adsize), .head(l2_head), .mb16(l2_mb16),
         .mb32(l2_mb32), .z(l2_z), .moffs(l2_moffs), .len(new_len), .fin(new_fin), .far(new_far)
     );
+
+    // Next-cycle state as if Q released nothing.
+    logic [1:0] valid_next, tail_next, hold_next;
+    logic       l2_valid_next, l2_half_next;
+
+    assign valid_next = half_valid | filling;
+    assign tail_next = tail_ok & ~filling | ({!half, half} & {2{l2_fire}} & half_valid);
+    assign l2_valid_next = l1_advance || (l2_valid && !l2_fire);
+    assign l2_half_next = l1_advance ? l1_block[0] : half;
+    assign hold_next = {l2_valid_next && l2_half_next, l2_valid_next && !l2_half_next};
+
+    logic [31:0][3:0] avail_next;
+    for (genvar j = 0; j < 32; j++) begin : g_avail
+        localparam int H = j / 16;
+        localparam int K = j % 16;
+        // L2 writes this byte's decode with half H (bytes 0-11, slot K + 4) or
+        // with the other half (bytes 12-15, slot K - 12).
+        localparam int SLOT = K < 12 ? K + 4 : K - 12;
+        logic       here, next_ok, written;
+        logic [3:0] far_next;
+
+        assign here = valid_next[H] && (K < 12 || tail_next[H]);
+        assign next_ok = hold_next[1 - H] || (q_half == (H != 0) && valid_next[1 - H]);
+        assign written = l2_fire && (half == (H != 0)) == (K < 12);
+        assign far_next = written ? new_far[SLOT] : dec_far[j];
+        for (genvar v = 0; v < 4; v++) begin : g_variant
+            assign avail_next[j][v] = here && (!far_next[v] || next_ok);
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (reset || redirect) begin
+            avail <= '0;
+        end else begin
+            avail <= avail_next;
+        end
+    end
 
     always_ff @(posedge clk) begin
         if (reset) begin
