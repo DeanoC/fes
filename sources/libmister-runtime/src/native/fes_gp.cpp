@@ -1093,7 +1093,10 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 			// tell a dead link from a busy loader.
 			if (ExchangeTransportGlitch(exchange)) {
 				(void)gp_.Realign(deadline);
-				return {ErrorCode::busy, "tape loader is busy", "input"};
+				// The eject command may have reached the core before its ACK was
+				// lost. Keep the transport error so callers do not claim that the
+				// current media is unchanged.
+				return exchange;
 			}
 			return MediaBusyOrIo(exchange);
 		}
@@ -1757,6 +1760,11 @@ Error FesGpCoreDriver::EjectMedia(std::uint8_t unit, std::uint64_t deadline)
 	error = ComputerCommand(FesComputerOpcodeMediaEject, unit, 0, deadline);
 	// A completed rejection changes no endpoint state; an ambiguous one might.
 	if (!error.ok()) {
+		// Invalid state is the completed busy rejection defined by the computer
+		// mailbox. Preserve it as busy so clients can distinguish this pre-eject
+		// no-op from a numeric rejection while confirming the post-eject state.
+		if (CommandRejected(error, FesSimpleComputerErrorInvalidState))
+			return {ErrorCode::busy, "media unit eject is busy", "input"};
 		if (gp_.Poisoned()) target->state = MediaUnitState::loading;
 		return error;
 	}
