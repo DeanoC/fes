@@ -1,30 +1,49 @@
 #!/bin/sh
-# Load the USB Bluetooth modules and create BlueZ storage before bluetoothd
-# starts. /var/lib/bluetooth links to the ext4 appliance data partition
-# (mmcblk0p3 at /run/fogcast/fesdata3): BlueZ names entries after adapter and
-# device addresses, and the colons are invalid on the exFAT /media/fat. A
-# missing adapter does not stop boot.
+# Load the USB Bluetooth modules and prepare BlueZ storage. /var/lib/bluetooth
+# links to the ext4 appliance data partition (mmcblk0p3 at
+# /run/fogcast/fesdata3): BlueZ names entries after adapter and device
+# addresses, and the colons are invalid on the exFAT /media/fat.
+# fes-kit-software mounts that partition after bluetoothd starts, so a
+# background helper waits for the mount, creates the storage directory, and
+# restarts bluetoothd and the agent if an adapter registered before it existed.
+# A missing adapter or partition does not stop boot.
 set -eu
 
 data=/run/fogcast/fesdata3
 state=$data/bluetooth
 old=/media/fat/fogcast/state/bluetooth
 mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
+log=/var/log/fes-bluetooth-storage.log
+
+prepare_storage() {
+  wait=600
+  while ! /bin/grep -q " $data ext4 " /proc/mounts; do
+    if [ "$wait" -le 0 ]; then
+      echo "$data not mounted; Bluetooth pairings cannot be stored"
+      return 1
+    fi
+    /bin/sleep 1
+    wait=$((wait - 1))
+  done
+  /bin/mkdir -p "$state"
+  /bin/chmod 0700 "$state"
+  # Earlier images pointed storage at FAT, where nothing usable can exist.
+  if [ -d "$old" ]; then
+    /bin/cp -a "$old"/. "$state"/ 2>/dev/null || true
+    /bin/rm -rf "$old" || true
+  fi
+  echo "storage ready at $state"
+  if [ -e /sys/class/bluetooth/hci0 ]; then
+    echo "adapter registered before storage; restarting bluetoothd and agent"
+    /etc/init.d/S40bluetooth restart || true
+    /bin/sleep 2
+    /etc/init.d/S41fes-bluetooth restart || true
+  fi
+}
 
 case "${1:-start}" in
   start)
-    if ! /bin/grep -q " $data " /proc/mounts; then
-      printf %s
- "S35fes-bluetooth: $data not mounted; pairings will not persist" >&2
-    fi
-    /bin/mkdir -p "$state"
-    /bin/chmod 0700 "$state" 2>/dev/null || true
-    # Earlier images kept storage on FAT. Nothing usable can live there, so
-    # carry over any entries and drop the old directory.
-    if [ -d "$old" ]; then
-      /bin/cp -a "$old"/. "$state"/ 2>/dev/null || true
-      /bin/rm -rf "$old" 2>/dev/null || true
-    fi
+    (prepare_storage >>"$log" 2>&1 &)
     for name in btintel btbcm btrtl ath3k btusb; do
       ko=$mods/$name.ko
       if [ -f "$ko" ]; then
@@ -34,7 +53,7 @@ case "${1:-start}" in
     ;;
   stop|restart) ;;
   *)
-    printf '%s\n' "usage: $0 start|stop|restart" >&2
+    printf "%s\n" "usage: $0 start|stop|restart" >&2
     exit 2
     ;;
 esac

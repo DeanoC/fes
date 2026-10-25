@@ -1,6 +1,6 @@
 #!/bin/sh
-# Pair HID and HoG controllers once bluetoothd is up. Link keys stay on the
-# FAT state directory across reboots. Hold the controller's pair button.
+# Pair gamepad controllers once bluetoothd is up. Link keys stay on the ext4
+# appliance data partition across reboots. Hold the controller's pair button.
 set -eu
 
 pid_file=/run/fes-bluetooth.pid
