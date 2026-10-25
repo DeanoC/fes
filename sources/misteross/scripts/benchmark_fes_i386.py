@@ -66,17 +66,22 @@ SPIKES = {
     'dag': ('spike_dag', DAG_RTL),
     'm2': ('spike_m2', ()),
 }
-# Which stage writes each register, by the RTL signal a cell maps from. After
-# flattening a register may carry the name of any port it drives, so the
-# patterns match leaf names. The first match wins; a path belongs to the stage
-# that writes its end. The envelope's redirect_linear register can take Q's
-# port name, so Q excludes it.
+# Which stage writes each register, by the RTL signals around it. After
+# flattening a register's cell takes the name of any one port it drives, and
+# Yosys may drop the register's own name (the F2 register can come out named
+# only as L1 decoder inputs). So register_labels labels a register from every
+# public name of its output net in the synthesized netlist and its cell name;
+# if none matches, from the names of its data input. The first stage whose
+# pattern matches any name wins; a path belongs to the stage that writes its
+# end. The envelope's redirect_linear register can take Q's port name, so Q
+# excludes it.
 STAGES = {
     'frontend': (
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
-        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes)$'),
-        ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$'),
-        ('L2', r'(.*\.)?(bytes|half_block|dec_\w+)$'),
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
+        # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
+        ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|dut\.fetch\.sums\.'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec_\w+|avail)$'),
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.(?!redirect_linear$)'),
     ),
     'dag': (
@@ -140,11 +145,46 @@ def path_summary(path: dict) -> dict:
     }
 
 
-def stage_figures(data: dict, stages, target_mhz: float) -> dict:
+def register_labels(netlist: dict, top: str, stages) -> dict[str, str]:
+    """Each register and M10K cell's stage, from every public name of its output."""
+    module = netlist['modules'][top]
+    aliases: dict[int, list[str]] = {}
+    for net, info in module['netnames'].items():
+        if not info.get('hide_name'):
+            for bit in info['bits']:
+                if isinstance(bit, int):
+                    aliases.setdefault(bit, []).append(net)
+    def match(names: list[str]) -> str | None:
+        return next((label for label, pattern in stages
+                     if any(re.match(pattern, candidate) for candidate in names)), None)
+
+    def named(bits) -> list[str]:
+        return [net for bit in bits if isinstance(bit, int) for net in aliases.get(bit, [])]
+
+    labels = {}
+    for name, cell in module['cells'].items():
+        if cell['type'] not in ('MISTRAL_FF', 'MISTRAL_M10K'):
+            continue
+        connections = cell['connections']
+        outputs = connections.get('Q', []) if cell['type'] == 'MISTRAL_FF' else []
+        labels[name] = (match([_owner(name), *named(outputs)])
+                        or (cell['type'] == 'MISTRAL_FF' and match(named(connections.get('DATAIN', []))))
+                        or 'envelope')
+    return labels
+
+
+def _label(cell: str, stages, labels) -> str:
+    if labels and cell in labels:
+        return labels[cell]
+    owner = _owner(cell)
+    return next((label for label, pattern in stages if re.match(pattern, owner)), 'envelope')
+
+
+def stage_figures(data: dict, stages, target_mhz: float, labels=None) -> dict:
     """Each stage's worst setup slack and the clock it alone would allow.
 
     Registers no pattern names (the stimulus and signature envelope) are
-    reported as 'envelope'.
+    reported as 'envelope'. labels maps cell names to stages (register_labels).
     """
     period = 1000.0 / target_mhz
     worst: dict[str, tuple[float, str]] = {}
@@ -153,7 +193,7 @@ def stage_figures(data: dict, stages, target_mhz: float) -> dict:
             if not endpoint.get('setup_checked') or 'setup_slack_ns' not in endpoint:
                 continue
             owner = _owner(endpoint['cell'])
-            label = next((label for label, pattern in stages if re.match(pattern, owner)), 'envelope')
+            label = _label(endpoint['cell'], stages, labels)
             slack = float(endpoint['setup_slack_ns'])
             if label not in worst or slack < worst[label][0]:
                 worst[label] = (slack, owner)
@@ -162,7 +202,7 @@ def stage_figures(data: dict, stages, target_mhz: float) -> dict:
             for label, (slack, owner) in sorted(worst.items())}
 
 
-def envelope_endpoints(data: dict, stages, count: int = 5) -> list[dict]:
+def envelope_endpoints(data: dict, stages, labels=None, count: int = 5) -> list[dict]:
     """The envelope's worst setup endpoints, one per register name."""
     worst: dict[str, float] = {}
     for net in data.get('detailed_net_timings', []):
@@ -170,7 +210,7 @@ def envelope_endpoints(data: dict, stages, count: int = 5) -> list[dict]:
             if not endpoint.get('setup_checked') or 'setup_slack_ns' not in endpoint:
                 continue
             owner = _owner(endpoint['cell'])
-            if any(re.match(pattern, owner) for _, pattern in stages):
+            if _label(endpoint['cell'], stages, labels) != 'envelope':
                 continue
             slack = float(endpoint['setup_slack_ns'])
             worst[owner] = min(slack, worst.get(owner, slack))
@@ -178,15 +218,15 @@ def envelope_endpoints(data: dict, stages, count: int = 5) -> list[dict]:
             for owner, slack in sorted(worst.items(), key=lambda item: item[1])[:count]]
 
 
-def timing_summary(report: Path, stages=(), target_mhz: float = 100.0) -> dict:
+def timing_summary(report: Path, stages=(), target_mhz: float = 100.0, labels=None) -> dict:
     data = json.loads(report.read_text())
     clocks = data.get('fmax', {})
     achieved = [float(record['achieved']) for record in clocks.values() if 'achieved' in record]
     if not achieved:
         raise ValueError(f'{report} has no achieved clock frequency')
     return {'fmax_mhz': min(achieved), 'clocks': clocks, 'utilization': data.get('utilization', {}),
-            'stages': stage_figures(data, stages, target_mhz),
-            'envelope_worst': envelope_endpoints(data, stages),
+            'stages': stage_figures(data, stages, target_mhz, labels),
+            'envelope_worst': envelope_endpoints(data, stages, labels),
             'critical_paths': [path_summary(path) for path in data.get('critical_paths', [])]}
 
 
@@ -194,7 +234,7 @@ _SOURCES = ('MISTRAL_FF', 'MISTRAL_M10K', 'MISTRAL_IB', 'MISTRAL_CLKBUF')
 _PASS = ('MISTRAL_NOT', 'MISTRAL_BUF')
 
 
-def logic_depth(netlist: dict, top: str, stages) -> dict:
+def logic_depth(netlist: dict, top: str, stages, labels=None) -> dict:
     """Each stage's deepest logic path in the synthesized netlist.
 
     A level is one LUT. A carry chain counts one level where its operands
@@ -270,7 +310,7 @@ def logic_depth(netlist: dict, top: str, stages) -> dict:
         if cell['type'] not in ('MISTRAL_FF', 'MISTRAL_M10K'):
             continue
         owner = _owner(name)
-        label = next((label for label, pattern in stages if re.match(pattern, owner)), 'envelope')
+        label = _label(name, stages, labels)
         for bit in inputs(cell):
             levels, carries, _ = depth(bit)
             if label not in result or (levels, carries) > (result[label]['lut_levels'], result[label]['carry_cells']):
@@ -355,9 +395,11 @@ def main() -> int:
                 raise RuntimeError(f'synthesis failed; see {work / "yosys.log"}')
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
+            labels = register_labels(netlist, top, STAGES[spike])
             record = {'top': top, 'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
                       'synth_json_sha256': digest(work / 'synth.json'),
-                      'logic_depth': logic_depth(netlist, top, STAGES[spike]), 'runs': []}
+                      'registers_by_stage': dict(sorted(Counter(labels.values()).items())),
+                      'logic_depth': logic_depth(netlist, top, STAGES[spike], labels), 'runs': []}
             print(f'{spike} logic depth: ' + ', '.join(f'{label} {depth["lut_levels"]} LUT'
                                                       + (f' + {depth["carry_cells"]} carry' if depth['carry_cells'] else '')
                                                       for label, depth in record['logic_depth'].items()), flush=True)
@@ -384,7 +426,7 @@ def main() -> int:
                        **board.gpu_route_evidence(log_text, args.gpu_device)}
                 if result.returncode == 0:
                     run['gpu_backend'] = board._require_gpu_backend(log_text, backend)
-                    run.update(timing_summary(destination / 'timing.json', STAGES[spike], args.target_mhz))
+                    run.update(timing_summary(destination / 'timing.json', STAGES[spike], args.target_mhz, labels))
                     run['target_met'] = run['fmax_mhz'] >= args.target_mhz
                     stages = ', '.join(f'{label} {figure["fmax_mhz"]:.1f}' for label, figure in run['stages'].items())
                     print(f'{spike} seed {seed}: {run["fmax_mhz"]:.2f} MHz; '
