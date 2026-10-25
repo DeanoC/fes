@@ -356,3 +356,21 @@ shared test-mode policy, other unreviewed inputs, or an omitted/unknown path lis
 retain the full parent suite. Manual/scheduled full plans and `--full` remain
 exhaustive. This selection changes parent checks only; component lane selection
 and the integration gate stay unchanged.
+
+### Browser UI checks for Go test changes
+
+CI and the local host runner use `host_tests.py --ui-if-needed`. Only changes
+confined to Go test files in known packages (plus verified guides) can omit the
+browser UI suite. UI and host API tests retain it, as do production code,
+Go dependencies, build/policy inputs, unknown or removed packages, embedded
+guides, and full runs. The Go package graph and reverse test consumers are
+still validated and tested. The UI boundary guard still scans all Go files,
+including changed tests. CI runs the UI check once, on its last host shard.
+In the `scripts/test_changed.py` plan, the host command under `commands` includes
+`host_ui.target` (`test-ui` or `test-ui-boundary`). The standalone host runner's
+JSON report puts the same selection at the top level: `host_ui.scheduled`
+describes the browser suite and `host_ui.boundary_scheduled` describes the
+boundary guard.
+Node.js is required only when browser tests are scheduled; both runners check
+this before executing tests. Inspect the exact target without executing checks with:
+`python3 scripts/host_tests.py --ui-if-needed --plan-only --paths-json '["sources/FogCast/internal/rebootguard/fallback_test.go"]'`.
