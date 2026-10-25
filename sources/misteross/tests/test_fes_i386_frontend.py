@@ -41,12 +41,15 @@ class RunnerOutputTest(unittest.TestCase):
         stream = {'stream': 'prefix-free', 'default_size': 32, 'instructions': 10, 'compared': 10,
                   'too_long': 0, 'failures': 0, 'issue_cycles': 10, 'timing_failures': 0,
                   'redirect_to_issue': {'5': 3}}
-        dag = {'dag_cases': 9, 'addresses': 5, 'wrapped_16': 2, 'late_base': [1, 0, 0], 'late_index': [0, 1, 0],
-               'stall_not_ready': 2, 'stall_both_late': 1, 'stall_scaled_late': 1, 'failures': 0}
+        dag = {'uops': 7, 'dag_cases': 9, 'addresses': 5, 'wrapped_16': 2, 'late_base': [1, 0, 0],
+               'late_index': [0, 1, 0], 'stall_not_ready': 2, 'stall_both_late': 1, 'stall_scaled_late': 1,
+               'released': 2, 'wait_cycles': {'early': [0, 0, 1], 'load': [2, 2, 3], 'late': [3, 3, 4]},
+               'failures': 0}
         lines = frontend.summary([], [stream], [dag])
         self.assertIn('10 issued in 10 cycles', lines[0])
         self.assertIn('redirect to first issue: 5 cycles x3', lines[0])
-        self.assertIn('D and AG: 9 cases, 5 addresses', lines[1])
+        self.assertIn('D and AG: 7 uops in 9 D cycles, 5 addresses', lines[1])
+        self.assertIn('load [2, 2, 3]', lines[1])
         self.assertIn('1 late scaled index', lines[1])
 
     def test_every_bench_names_existing_sources(self):

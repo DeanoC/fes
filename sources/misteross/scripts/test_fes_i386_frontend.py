@@ -16,11 +16,12 @@ Verilator testbenches in cores/fes-common/sim/i386:
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
                    cycle, plus one cycle for each prefix before the last).
-  dag_tb.cpp       D's address operands (forwarding, scaling, the late
-                   operand and its stalls) and AG: every memory ModRM and SIB
-                   in both address sizes against random registers and
-                   producers, for the stall rule and the architectural
-                   address. Needs no oracle.
+  dag_tb.cpp       D's address operands (the forwarding table, scaling, the
+                   late operand and its stalls) and AG, cycle by cycle: every
+                   memory ModRM and SIB in both address sizes as a uop stream
+                   whose producers move through AG to WB, for the stall rule
+                   and the architectural address, then each kind of result
+                   timed into the next uop's address. Needs no oracle.
 
 With --yosys, each bench first runs its RTL through that Yosys (read, proc,
 flatten, opt) and simulates the netlist Yosys wrote instead: the routed
@@ -152,11 +153,14 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
                      f"{record['timing_failures']} timing failures; redirect to first issue: {latency}")
         lines.append(line)
     for record in dag:
-        lines.append(f"D and AG: {record['dag_cases']} cases, {record['addresses']} addresses "
-                     f"({record['wrapped_16']} with a 16-bit wrap), late base {sum(record['late_base'])}, "
+        waits = record['wait_cycles']
+        lines.append(f"D and AG: {record['uops']} uops in {record['dag_cases']} D cycles, {record['addresses']} "
+                     f"addresses ({record['wrapped_16']} with a 16-bit wrap), late base {sum(record['late_base'])}, "
                      f"late unscaled index {sum(record['late_index'])}, stalls: {record['stall_not_ready']} "
                      f"not ready, {record['stall_both_late']} both late, {record['stall_scaled_late']} late scaled "
-                     f"index; {record['failures']} failures")
+                     f"index; {record['released']} released after stalling; cycles waited behind the uop ahead "
+                     f"(base, index, scaled index): early {waits['early']}, load {waits['load']}, "
+                     f"late {waits['late']}; {record['failures']} failures")
     return lines
 
 

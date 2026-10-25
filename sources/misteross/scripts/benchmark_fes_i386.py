@@ -85,7 +85,10 @@ STAGES = {
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.(?!redirect_linear$)'),
     ),
     'dag': (
-        ('D', r'(.*\.)?ag_|agu\.(row|last|disp|late|late_hi|seg_term|seg_hi|seg_hi_plus1|addr32)$'),
+        # D writes AG's operands, the producer entering AG, and the forwarding
+        # table for the next uop.
+        ('D', r'(.*\.)?ag_|agu\.(row|last|disp|late|late_hi|seg_term|seg_hi|seg_hi_plus1|addr32)$'
+              r'|dfwd\.(ready|late_now|wait_now|source_now|in_ag|left|\w+_next)$|(.*\.)?prod_\w+$'),
         ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
     ),
     'm2': (('M2', r'(.*\.)?load_'),),
