@@ -80,7 +80,7 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1), .unit0_state(unit0_state),
-        .unit0_size(),
+        .unit0_size(), .media_write_unit(), .unit1_state(), .unit1_size(),
         .display_request(display_request), .display_opcode(display_opcode),
         .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(display_response_valid),

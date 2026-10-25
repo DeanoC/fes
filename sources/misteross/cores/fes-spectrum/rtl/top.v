@@ -2,6 +2,7 @@
 `include "fes_application.vh"
 `include "fes_computer.vh"
 `include "spectrum_bus.vh"
+`include "spectrum_model.vh"
 `ifndef FES_SPECTRUM_BUILD_ID
 `define FES_SPECTRUM_BUILD_ID 128'h00000000000000000000000000000000
 `endif
@@ -11,7 +12,8 @@
 // the model's T state from it. Complete 50 Hz frames are shown 3x in 720p60
 // through the shared session-display plane. Audio leaves through 48 kHz I2S.
 // Sockets 1-4 are physical and vacant here; a linked card replaces the
-// vacant response. HPS DDR port 0 feeds the plane; port 1 holds the tape.
+// vacant response. HPS DDR port 0 feeds the plane; port 1 holds the tape and,
+// on the Pentagon, port 2 the Beta 128's disk (media unit 1).
 module top #(
     parameter [127:0] BUILD_ID = `FES_SPECTRUM_BUILD_ID
 ) (
@@ -59,15 +61,17 @@ module top #(
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable;
     wire media_write_ready;
-    wire [1:0] unit0_state;
-    wire [31:0] unit0_size;
+    wire [1:0] unit0_state, unit1_state;
+    wire [31:0] unit0_size, unit1_size;
+    wire media_write_unit;
+    localparam bit DISK = `SPECTRUM_MODEL == 3;
     wire display_request, display_response_valid, display_response_error, display_quiesced;
     wire [6:0] display_opcode;
     wire [7:0] display_index;
     wire [15:0] display_argument, display_response_data;
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_SPECTRUM_TAPE(1), .ENABLE_SESSION_DISPLAY(1),
+        .ENABLE_SPECTRUM_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .ENABLE_SPECTRUM_DISK(DISK),
         .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(24),
         .UNIT0_MIN(`FES_COMPUTER_SPECTRUM_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_SPECTRUM_TAPE_MAX_BYTES)
@@ -80,8 +84,10 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
-        .media_write_enable(media_write_enable), .media_write_ready(media_write_ready),
+        .media_write_enable(media_write_enable), .media_write_unit(media_write_unit),
+        .media_write_ready(media_write_ready),
         .unit0_state(unit0_state), .unit0_size(unit0_size),
+        .unit1_state(unit1_state), .unit1_size(unit1_size),
         .display_request(display_request), .display_opcode(display_opcode),
         .display_index(display_index), .display_argument(display_argument),
         .display_response_valid(display_response_valid),
@@ -125,20 +131,62 @@ module top #(
     wire [28:0] ddr1_address;
     wire [7:0] ddr1_burstcount, ddr1_byteenable;
     wire [63:0] ddr1_writedata, ddr1_readdata;
+    wire tape_write_ready, disk_write_ready;
+    assign media_write_ready = tape_write_ready | disk_write_ready;
     fes_media_ddr #(
         .BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h01000000), .AW(24)
     ) tape_store (
         .clk(clk_sys), .reset(ddr1_reset),
         .write_addr(media_write_addr), .write_data(media_write_data),
-        .write_enable(media_write_enable), .write_ready(media_write_ready),
+        .write_enable(media_write_unit ? 2'b00 : media_write_enable),
+        .write_ready(tape_write_ready),
         .stream_enable(tape_stream_enable), .stream_bytes(unit0_size[24:0]),
         .stream_valid(tape_stream_valid), .stream_data(tape_stream_data),
         .stream_take(tape_stream_take),
+        .fetch(1'b0), .fetch_addr(24'd0), .fetch_ready(), .fetch_data(),
         .address(ddr1_address), .burstcount(ddr1_burstcount), .read(ddr1_read),
         .write(ddr1_write), .writedata(ddr1_writedata), .byteenable(ddr1_byteenable),
         .waitrequest(ddr1_waitrequest), .readdata(ddr1_readdata),
         .readdatavalid(ddr1_readdatavalid)
     );
+
+    // The Pentagon's disk image lives at window offset 32 MiB; the Beta 128
+    // reads its tracks a byte at a time through the fetch port.
+    wire disk_fetch, disk_fetch_ready;
+    wire [20:0] disk_fetch_addr;
+    wire [7:0] disk_fetch_data;
+    wire ddr2_reset, ddr2_read, ddr2_write, ddr2_waitrequest, ddr2_readdatavalid;
+    wire [28:0] ddr2_address;
+    wire [7:0] ddr2_burstcount, ddr2_byteenable;
+    wire [63:0] ddr2_writedata, ddr2_readdata;
+    generate if (DISK) begin : disk
+        fes_media_ddr #(
+            .BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h02000000), .AW(21)
+        ) disk_store (
+            .clk(clk_sys), .reset(ddr2_reset),
+            .write_addr(media_write_addr[20:0]), .write_data(media_write_data),
+            .write_enable(media_write_unit ? media_write_enable : 2'b00),
+            .write_ready(disk_write_ready),
+            .stream_enable(1'b0), .stream_bytes(22'd0), .stream_valid(), .stream_data(),
+            .stream_take(1'b0),
+            .fetch(disk_fetch), .fetch_addr(disk_fetch_addr),
+            .fetch_ready(disk_fetch_ready), .fetch_data(disk_fetch_data),
+            .address(ddr2_address), .burstcount(ddr2_burstcount), .read(ddr2_read),
+            .write(ddr2_write), .writedata(ddr2_writedata), .byteenable(ddr2_byteenable),
+            .waitrequest(ddr2_waitrequest), .readdata(ddr2_readdata),
+            .readdatavalid(ddr2_readdatavalid)
+        );
+    end else begin : no_disk
+        assign disk_write_ready = 1'b0;
+        assign disk_fetch_ready = 1'b0;
+        assign disk_fetch_data = 8'd0;
+        assign ddr2_address = 29'd0;
+        assign ddr2_burstcount = 8'd0;
+        assign ddr2_read = 1'b0;
+        assign ddr2_write = 1'b0;
+        assign ddr2_writedata = 64'd0;
+        assign ddr2_byteenable = 8'd0;
+    end endgenerate
 
     wire [`SP_BUS_REQ-1:0] bus_request;
     wire [`SP_BUS_RSP-1:0] response1;
@@ -150,6 +198,9 @@ module top #(
     spectrum_machine machine (
         .clk_sys(clk_sys), .reset(exec_reset), .matrix(matrix), .kempston(kempston),
         .tape_ready(unit0_state == 2'd3), .tape_size(unit0_size[24:0]),
+        .disk_ready(unit1_state == 2'd3), .disk_size(unit1_size[21:0]),
+        .disk_fetch(disk_fetch), .disk_fetch_addr(disk_fetch_addr),
+        .disk_fetch_ready(disk_fetch_ready), .disk_fetch_data(disk_fetch_data),
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(),
@@ -198,9 +249,9 @@ module top #(
         .ddr_waitrequest(ddr0_waitrequest), .ddr_readdata(ddr0_readdata),
         .ddr_readdatavalid(ddr0_readdatavalid)
     );
-    // Port 0 reads launcher frames in the pixel clock; port 1 reads and
-    // writes the tape in the system clock; port 2 is off.
-    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b1), .P2_ENABLE(1'b0)) memory (
+    // Port 0 reads launcher frames in the pixel clock; ports 1 and 2 read
+    // and write the tape and disk in the system clock.
+    fes_hps_ddr #(.P0_WRITE_ENABLE(1'b0), .P1_ENABLE(1'b1), .P2_ENABLE(DISK)) memory (
         .hold(ddr_hold),
         .p0_clk(pixel_clk), .p0_reset(ddr0_reset), .p0_drained(ddr0_drained),
         .p0_address(ddr0_address), .p0_burstcount(ddr0_burstcount),
@@ -212,9 +263,11 @@ module top #(
         .p1_waitrequest(ddr1_waitrequest), .p1_readdata(ddr1_readdata),
         .p1_readdatavalid(ddr1_readdatavalid), .p1_read(ddr1_read),
         .p1_writedata(ddr1_writedata), .p1_byteenable(ddr1_byteenable), .p1_write(ddr1_write),
-        .p2_clk(pixel_clk), .p2_reset(), .p2_drained(), .p2_address(29'd0), .p2_burstcount(8'd0),
-        .p2_waitrequest(), .p2_readdata(), .p2_readdatavalid(), .p2_read(1'b0),
-        .p2_writedata(64'd0), .p2_byteenable(8'd0), .p2_write(1'b0)
+        .p2_clk(clk_sys), .p2_reset(ddr2_reset), .p2_drained(),
+        .p2_address(ddr2_address), .p2_burstcount(ddr2_burstcount),
+        .p2_waitrequest(ddr2_waitrequest), .p2_readdata(ddr2_readdata),
+        .p2_readdatavalid(ddr2_readdatavalid), .p2_read(ddr2_read),
+        .p2_writedata(ddr2_writedata), .p2_byteenable(ddr2_byteenable), .p2_write(ddr2_write)
     );
     assign HDMI_TX_D = hdmi_video[23:0];
     assign HDMI_TX_DE = hdmi_video[24];

@@ -6,8 +6,10 @@ The machine simulation runs the open diagnostic firmware on the 48K, 128K,
 +2A/+3 and Pentagon builds (one Verilator model per SPECTRUM_MODEL_* define).
 The snapshot simulation restores a synthetic .z80 snapshot on each model
 through FogCast's restore stream (built with Go) and checks the machine state
-at the first fetch from real memory. The video simulation streams 50 Hz
-frames into the 720p60 frame banks.
+at the first fetch from real memory. The Beta 128 simulation drives the
+Pentagon's FD1793 through its ports against a synthetic .trd converted to the
+raw track image (Go). The video simulation streams 50 Hz frames into the
+720p60 frame banks.
 Optionally (--fuse-tests DIR or --download) it also replays Fuse's Z80 core
 tests through the NMOS Z80 and the Sinclair contention classifier.
 """
@@ -31,7 +33,8 @@ Z80 = tuple(f"cores/fes-common/rtl/z80/{name}" for name in
 MACHINE_RTL = (
     f"{CORE}/rtl/spectrum_machine.sv", f"{CORE}/rtl/spectrum_ula.sv",
     f"{CORE}/rtl/spectrum_contention.sv", f"{CORE}/rtl/spectrum_ram.v", f"{CORE}/rtl/spectrum_rom.v",
-    f"{CORE}/rtl/spectrum_tape.v", f"{CORE}/rtl/spectrum_snapshot.v", f"{CORE}/rtl/spectrum_slot_sockets.v",
+    f"{CORE}/rtl/spectrum_tape.v", f"{CORE}/rtl/spectrum_snapshot.v", f"{CORE}/rtl/spectrum_beta.sv",
+    f"{CORE}/rtl/spectrum_slot_sockets.v",
     "cores/fes-zx81/expansions/zonx_ay.v", *Z80,
 )
 # Model define, report name and the frame T state at which the diagnostic's
@@ -52,13 +55,14 @@ FUSE_FILES = {
 }
 
 
-def verilate(verilator: str, top: str, build: Path, sources, tb: str, defines=(), public=False) -> Path:
+def verilate(verilator: str, top: str, build: Path, sources, tb: str, defines=(), public=False,
+             parameters=()) -> Path:
     build.mkdir(parents=True, exist_ok=True)
     command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "0", "--top-module", top, "-Wall",
                *(f"-Wno-{name}" for name in WAIVERS),
                f"-I{CORE}/rtl", "-Icores/fes-common/generated", "-Icores/fes-common/rtl",
                f"-I{CORE}/expansions", *(f"-D{define}" for define in defines),
-               *(["--public-flat-rw"] if public else []),
+               *(["--public-flat-rw"] if public else []), *(f"-G{p}" for p in parameters),
                "-CFLAGS", "-std=c++17 -O2 " + " ".join(f"-D{d}" for d in defines),
                "--Mdir", str(build), *sources, str(ROOT / tb)]
     subprocess.run(command, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
@@ -166,6 +170,35 @@ def snapshot(verilator: str, key: str, go: str) -> None:
         subprocess.run([str(binary), "--refuse", str(other / "stream.bin")], cwd=ROOT, check=True)
 
 
+def trd() -> bytes:
+    """An 80-cylinder double-sided TR-DOS image whose bytes encode their
+    logical track, sector and offset, as beta_tb.cpp expects."""
+    data = bytearray((track * 7 + sector * 3 + offset) & 0xFF
+                     for track in range(160) for sector in range(16) for offset in range(256))
+    data[8 * 256 + 227] = 0x16
+    data[8 * 256 + 231] = 0x10
+    return bytes(data)
+
+
+def beta(verilator: str, go: str) -> None:
+    build = ROOT / "build/sim/fes-spectrum-beta"
+    binary = verilate(verilator, "spectrum_beta", build, (f"{CORE}/rtl/spectrum_beta.sv",),
+                      f"{CORE}/sim/beta_tb.cpp")
+    (build / "disk.trd").write_bytes(trd())
+    subprocess.run([go, "run", "./cmd/fes-spectrum-disk", "-out", str(build / "disk.img"),
+                    str(build / "disk.trd")], cwd=ROOT.parent / "FogCast", check=True)
+    subprocess.run([str(binary), str(build / "disk.img")], cwd=ROOT, check=True)
+
+
+def mailbox_units(verilator: str) -> None:
+    """The Pentagon's mailbox: the cassette on unit 0 and the disk on unit 1."""
+    binary = verilate(verilator, "fes_computer_mailbox_core", ROOT / "build/sim/fes-spectrum-mailbox-units",
+                      ("cores/fes-common/rtl/fes_computer_mailbox.v",), "cores/fes-common/sim/computer_mailbox_units_tb.cpp",
+                      parameters=("ENABLE_SPECTRUM_TAPE=1'b1", "ENABLE_SPECTRUM_DISK=1'b1", "MEDIA_AW=24",
+                                  "UNIT0_MIN=10", "UNIT0_MAX=16777216"))
+    subprocess.run([str(binary)], cwd=ROOT, check=True)
+
+
 def video(verilator: str) -> None:
     binary = verilate(verilator, "spectrum_video", ROOT / "build/sim/fes-spectrum-video",
                       (f"{CORE}/rtl/spectrum_video.v",), f"{CORE}/sim/video_tb.cpp")
@@ -202,7 +235,7 @@ def main() -> None:
                         help="machine models to simulate (default all)")
     parser.add_argument("--fuse-tests", type=Path, help="directory holding Fuse tests.in/tests.expected")
     parser.add_argument("--download", action="store_true", help="fetch the pinned Fuse Z80 tests")
-    parser.add_argument("--go", default="go", help="Go toolchain for FogCast's restore stream writer")
+    parser.add_argument("--go", default="go", help="Go toolchain for FogCast's restore stream and disk writers")
     args = parser.parse_args()
     subprocess.run([sys.executable, f"{CORE}/diagnostic/firmware.py", "--output-dir",
                     "build/diagnostics/fes-spectrum"], cwd=ROOT, check=True)
@@ -210,6 +243,9 @@ def main() -> None:
         machine(args.verilator, key)
     for key in args.model or MODELS:
         snapshot(args.verilator, key, args.go)
+    if "pentagon" in (args.model or MODELS):
+        beta(args.verilator, args.go)
+        mailbox_units(args.verilator)
     video(args.verilator)
     if args.fuse_tests or args.download:
         contention(args.verilator, fuse_tests(args.fuse_tests, args.download))

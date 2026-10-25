@@ -135,6 +135,9 @@ constexpr std::uint32_t FesComputerZx81TapeLayoutMajor = 0x1u;
 constexpr std::uint32_t FesComputerZx81TapeLayoutMinor = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
+constexpr std::uint32_t FesComputerSpectrumDiskUnit = 0x1u;
+constexpr std::uint32_t FesComputerSpectrumDiskMinBytes = 0x2000u;
+constexpr std::uint32_t FesComputerSpectrumDiskMaxBytes = 0x15a000u;
 constexpr std::uint32_t FesComputerAtariStFloppyUnit = 0x0u;
 constexpr std::uint32_t FesComputerAtariStFloppyBytes = 0xb4000u;
 constexpr std::uint32_t FesComputerAtariStFloppyGeometryMinBytes = 0x5a000u;
@@ -207,6 +210,10 @@ constexpr const char* FesComputerInterfaceMediaZx81TapeWriteID = "fes.media.zx81
 constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeWriteMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeWriteMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaZx81TapeWrite = 0x4000u;
+constexpr const char* FesComputerInterfaceMediaSpectrumDiskID = "fes.media.spectrum-disk";
+constexpr std::uint16_t FesComputerInterfaceMediaSpectrumDiskMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaSpectrumDiskMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaSpectrumDisk = 0x8000u;
 
 } // namespace generated
 } // namespace native

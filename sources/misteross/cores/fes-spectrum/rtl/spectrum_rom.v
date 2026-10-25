@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Blank linked ZX Spectrum ROM: 16, 32 or 64 KiB, by build model.
+// Blank linked ZX Spectrum ROM: 16, 32, 48 or 64 KiB, by build model.
 //
 // The linked firmware is the model's ROM pages in order: 48K BASIC; 128K
-// editor then 48 BASIC; the four +2A/+3 ROMs; Pentagon 128 then 48. Each
+// editor then 48 BASIC; the four +2A/+3 ROMs; Pentagon 128, 48 and TR-DOS. Each
 // 1 KiB lane is an individually placed, empty 1024x10 M10K that the ROM map
 // authenticates against the routed BELs: lanes 0-15 column 5 rows 32-47,
 // 16-23 rows 48-55, 24-31 rows 73-80, 32-63 column 14 rows 32-63. The model
@@ -20,13 +20,16 @@ module spectrum_rom #(
 );
 `ifdef SPECTRUM_ROM_64K
     localparam integer LANES = 64;
+`elsif SPECTRUM_ROM_48K
+    localparam integer LANES = 48;
 `elsif SPECTRUM_ROM_32K
     localparam integer LANES = 32;
 `else
     localparam integer LANES = 16;
 `endif
     wire [7:0] source_data;
-    wire [15:0] used = address & 16'(LANES * 1024 - 1);
+    // 48 lanes are three pages; the Pentagon never addresses a fourth.
+    wire [15:0] used = LANES == 48 ? address : address & 16'(LANES * 1024 - 1);
 `ifdef VERILATOR
     reg [7:0] memory [0:LANES*1024-1];
     initial $readmemh(ROM_FILE, memory);
@@ -56,8 +59,8 @@ module spectrum_rom #(
     wire [9:0] q30 = 10'd0;
     wire [9:0] q31 = 10'd0;
 `endif
-`ifdef SPECTRUM_ROM_64K
-    wire [9:0] q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63;
+`ifdef SPECTRUM_ROM_48K
+    wire [9:0] q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47;
 `else
     wire [9:0] q32 = 10'd0;
     wire [9:0] q33 = 10'd0;
@@ -75,6 +78,10 @@ module spectrum_rom #(
     wire [9:0] q45 = 10'd0;
     wire [9:0] q46 = 10'd0;
     wire [9:0] q47 = 10'd0;
+`endif
+`ifdef SPECTRUM_ROM_64K
+    wire [9:0] q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63;
+`else
     wire [9:0] q48 = 10'd0;
     wire [9:0] q49 = 10'd0;
     wire [9:0] q50 = 10'd0;
@@ -259,7 +266,7 @@ module spectrum_rom #(
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q31), .ACLR0(1'b0), .ACLR1(1'b0)
     );
 `endif
-`ifdef SPECTRUM_ROM_64K
+`ifdef SPECTRUM_ROM_48K
     (* keep, BEL = "MISTRAL_M10K.14.32.0" *)
     MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(10240'b0)) lane32 (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
@@ -340,6 +347,8 @@ module spectrum_rom #(
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q47), .ACLR0(1'b0), .ACLR1(1'b0)
     );
+`endif
+`ifdef SPECTRUM_ROM_64K
     (* keep, BEL = "MISTRAL_M10K.14.48.0" *)
     MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(10240'b0)) lane48 (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),

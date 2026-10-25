@@ -2405,14 +2405,15 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 	const auto full = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
 		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
 		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaApple2FloppyID});
-	// Registered live bits must equal the declared set; unregistered bits are ignored.
-	// Bit 5 is the Spectrum tape and bit 6 is the C64 disk. This Apple II shell
-	// declares neither, so a live word with either bit set does not match.
+	// Registered live bits must equal the declared set. Bit 5 is the Spectrum
+	// tape, bit 6 the C64 disk and bit 15 the Spectrum disk. This Apple II
+	// shell declares none of them, so a live word with any of them set does
+	// not match.
 	const unsigned registered = FesComputerCapabilityVideoFixed720p60 |
 		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
 		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaApple2Floppy |
 		FesComputerCapabilityMediaSpectrumTape | FesComputerCapabilityMediaC64Disk |
-		FesComputerCapabilityMediaAtariStFloppy;
+		FesComputerCapabilityMediaAtariStFloppy | FesComputerCapabilityMediaSpectrumDisk;
 	for (const unsigned live : {31u, 15u, 23u, 30u, 63u, 0x801fu, 31u | 64u, 31u | 128u}) {
 		ComputerFixture f(static_cast<std::uint16_t>(live), {{0, {143360, 143360}}}, full);
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
@@ -2468,6 +2469,35 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 			unit.interface.major == 2 && unit.interface.minor == 0);
 		assert(unit.min_bytes == FesComputerSpectrumTapeMinBytes &&
 			unit.max_bytes == FesComputerSpectrumTapeMaxBytes);
+	}
+	// The Pentagon's disk sits on unit 1 beside the tape, and an insert
+	// addresses it in every Begin, Chunk and Commit.
+	{
+		auto pentagon = spectrum;
+		pentagon.interfaces.push_back({FesComputerInterfaceMediaSpectrumDiskID,
+			FesComputerInterfaceMediaSpectrumDiskMajor, FesComputerInterfaceMediaSpectrumDiskMinor, true});
+		auto units = spectrum_units;
+		units[1] = {FesComputerSpectrumDiskMinBytes, FesComputerSpectrumDiskMaxBytes};
+		ComputerFixture f(static_cast<std::uint16_t>(spectrum_live | FesComputerCapabilityMediaSpectrumDisk),
+			units, pentagon);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 2);
+		const auto& tape = f.driver.media_units()[0];
+		const auto& disk = f.driver.media_units()[1];
+		assert(tape.unit == 0 && tape.interface.id == FesComputerInterfaceMediaSpectrumTapeID);
+		assert(disk.unit == 1 && disk.interface.id == FesComputerInterfaceMediaSpectrumDiskID &&
+			disk.min_bytes == FesComputerSpectrumDiskMinBytes &&
+			disk.max_bytes == FesComputerSpectrumDiskMaxBytes);
+		const std::size_t start = f.endpoint.requests.size();
+		const std::string image(FesComputerSpectrumDiskMinBytes, '\x5a');
+		assert(f.Insert(image, 1, FesComputerSpectrumDiskMaxBytes).ok());
+		assert(f.endpoint.unit(1).state == 3 && f.endpoint.unit(1).data.size() == image.size());
+		assert(f.endpoint.unit(0).state == 1);
+		for (const auto& request : f.Since(start)) {
+			if (request.opcode == FesComputerOpcodeMediaBegin || request.opcode == FesComputerOpcodeMediaChunk)
+				assert(request.index / FesComputerMediaHeaderStride == 1);
+			if (request.opcode == FesComputerOpcodeMediaCommit) assert(request.index == 1);
+		}
 	}
 	{
 		auto tape_v1 = spectrum;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Open ZX Spectrum diagnostic firmware (16, 32 or 64 KiB) and a PZX tape.
+"""Open ZX Spectrum diagnostic firmware (16, 32, 48 or 64 KiB) and a PZX tape.
 
 Nothing here is derived from a Sinclair or Amstrad ROM. Hand-assembled; the
 program at $0100:
@@ -20,7 +20,10 @@ program at $0100:
     and its scratch register into $8001-$8004. The probe ports use high byte
     $80: on 128K-class models a low port with A15 and A1 clear is $7FFD.
 The last 16 KiB page of a larger image repeats the first, so every ROM page
-selection reaches the same program.
+selection reaches the same program. The 48 KiB Pentagon image's third page
+stands in for TR-DOS, which the Pentagon pages in at reset: it selects 48
+BASIC and jumps to $0000 through RAM, which pages TR-DOS out as TR-DOS's own
+exit does.
 """
 
 from __future__ import annotations
@@ -182,13 +185,32 @@ def page() -> bytes:
     return bytes(image)
 
 
+# The Pentagon's TR-DOS page: select 48 BASIC, then JP $0000 from $5B00.
+DOS_EXIT = bytes([
+    0xF3,                    # di
+    0x01, 0xFD, 0x7F,        # ld bc,$7FFD
+    0x3E, 0x10,              # ld a,$10
+    0xED, 0x79,              # out (c),a         48 BASIC
+    0x3E, 0xC3,              # ld a,$C3
+    0x32, 0x00, 0x5B,        # ld ($5B00),a
+    0xAF,                    # xor a
+    0x32, 0x01, 0x5B,        # ld ($5B01),a
+    0x32, 0x02, 0x5B,        # ld ($5B02),a      jp $0000
+    0xC3, 0x00, 0x5B,        # jp $5B00
+])
+
+
+def dos_page() -> bytes:
+    return DOS_EXIT + bytes(16384 - len(DOS_EXIT))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    for size in (16, 32, 64):
-        image = page() * (size // 16)
+    for size in (16, 32, 48, 64):
+        image = page() * 2 + dos_page() if size == 48 else page() * (size // 16)
         suffix = "" if size == 16 else f"-{size}k"
         (args.output_dir / f"firmware{suffix}.hex").write_text(
             "\n".join(f"{byte:02x}" for byte in image) + "\n", encoding="ascii")

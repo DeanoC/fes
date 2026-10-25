@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Machine simulation: Z80, ULA, memory, tape and a probe card in the edge
 // socket. The build model is the SPECTRUM_MODEL_* define, as in the producer. The
-// bench plays the media store's part on the tape stream.
+// bench plays the media store's part on the tape stream and the disk fetch port.
 `include "spectrum_bus.vh"
 `include "spectrum_model.vh"
 
@@ -17,6 +17,12 @@ module spectrum_sim_top (
     input  wire [7:0]  tape_stream_data,
     output wire        tape_stream_take,
     output wire        tape_playing,
+    input  wire        disk_ready,
+    input  wire [21:0] disk_size,
+    output wire        disk_fetch,
+    output wire [20:0] disk_fetch_addr,
+    input  wire        disk_fetch_ready,
+    input  wire [7:0]  disk_fetch_data,
     output wire        pixel_we,
     output wire [7:0]  pixel_row,
     output wire [5:0]  pixel_chunk,
@@ -36,6 +42,8 @@ module spectrum_sim_top (
 
 `ifdef SPECTRUM_ROM_64K
     localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-64k.hex";
+`elsif SPECTRUM_ROM_48K
+    localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-48k.hex";
 `elsif SPECTRUM_ROM_32K
     localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-32k.hex";
 `else
@@ -47,6 +55,9 @@ module spectrum_sim_top (
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
         .tape_playing(tape_playing),
+        .disk_ready(disk_ready), .disk_size(disk_size), .disk_fetch(disk_fetch),
+        .disk_fetch_addr(disk_fetch_addr), .disk_fetch_ready(disk_fetch_ready),
+        .disk_fetch_data(disk_fetch_data),
         .bus_request(bus_request),
         .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),

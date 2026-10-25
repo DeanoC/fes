@@ -961,6 +961,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool plane = false;
 		bool zx81_tape = false;
 		bool zx81_tape_write = false;
+		bool spectrum_tape = false;
+		bool spectrum_disk = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -978,6 +980,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceMouseRelativeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeWriteID ||
+				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
                 interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
@@ -1007,6 +1010,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (media) media_units++;
 			if (interface.id == FesComputerInterfaceMediaZx81TapeID) zx81_tape = true;
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) zx81_tape_write = true;
+			if (interface.id == FesComputerInterfaceMediaSpectrumTapeID) spectrum_tape = true;
+			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
 		}
 		bool writable = false, geometry = false, st_medium = false;
 		for (const auto& interface : descriptor.interfaces) {
@@ -1023,6 +1028,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (zx81_tape_write && !zx81_tape)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"ZX81 tape write requires the base tape interface");
+		// The unit-1 disk sits beside a Spectrum cassette and keeps its image
+		// in the core's HPS DDR window.
+		if (spectrum_disk && (!spectrum_tape || !ddr))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"Spectrum disk requires the Spectrum tape and HPS DDR");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");
