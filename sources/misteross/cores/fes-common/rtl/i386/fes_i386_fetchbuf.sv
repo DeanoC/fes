@@ -101,11 +101,14 @@ module fes_i386_fetchbuf (
         localparam int SLOT = K < 12 ? K + 4 : K - 12;
         logic       here, next_ok, written;
         logic [3:0] far_next;
+        lbyte_t     stored, incoming;  // whole records: DeanoC/yosys#52
 
         assign here = valid_next[H] && (K < 12 || tail_next[H]);
         assign next_ok = hold_next[1 - H] || (q_half == (H != 0) && valid_next[1 - H]);
         assign written = l2_fire && (half == (H != 0)) == (K < 12);
-        assign far_next = written ? new_dec[SLOT].past_half : dec[j].past_half;
+        assign stored = dec[j];
+        assign incoming = new_dec[SLOT];
+        assign far_next = written ? incoming.past_half : stored.past_half;
         for (genvar v = 0; v < 4; v++) begin : g_variant
             assign avail_next[j][v] = here && (!far_next[v] || next_ok);
         end

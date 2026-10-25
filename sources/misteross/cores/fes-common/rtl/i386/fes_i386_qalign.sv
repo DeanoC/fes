@@ -73,8 +73,10 @@ module fes_i386_qalign (
     logic       out_free, too_long_run, issue, consume, advance;
     logic [4:0] start_next;
 
-    assign run_here = dec[start].run;
-    assign prefix_here = dec[start].prefix;
+    fes_i386_pkg::lbyte_t at_start;  // a whole record: DeanoC/yosys#52
+    assign at_start = dec[start];
+    assign run_here = at_start.run;
+    assign prefix_here = at_start.prefix;
     assign out_free = !q_valid || d_ready;
     // A prefix run that reaches a 16th byte before its opcode cannot fit in
     // 15 bytes; issue it so D raises #GP(0) instead of consuming forever.

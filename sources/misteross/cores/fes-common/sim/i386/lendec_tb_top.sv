@@ -21,12 +21,16 @@ module lendec_tb_top (
     fes_i386_lstage l2 (.code32, .cls, .dec);
 
     for (genvar k = 0; k < 16; k++) begin : g_slot
-        assign prefix[k] = dec[k].prefix;
-        assign run[k] = dec[k].run;
-        assign opsize[k] = cls[k].opsize;
-        assign adsize[k] = cls[k].adsize;
-        assign len[k] = dec[k].len;
-        assign fin[k] = dec[k].fin;
-        assign past_half[k] = dec[k].past_half;
+        fes_i386_pkg::lclass_t c;  // whole records: DeanoC/yosys#52
+        fes_i386_pkg::lbyte_t  d;
+        assign c = cls[k];
+        assign d = dec[k];
+        assign prefix[k] = d.prefix;
+        assign run[k] = d.run;
+        assign opsize[k] = c.opsize;
+        assign adsize[k] = c.adsize;
+        assign len[k] = d.len;
+        assign fin[k] = d.fin;
+        assign past_half[k] = d.past_half;
     end
 endmodule

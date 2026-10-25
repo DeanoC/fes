@@ -121,6 +121,10 @@ wrong without an error. This RTL stays inside what it reads correctly:
   assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
 - no function returning a struct called from another function, which Yosys
   reads as empty ([#33](https://github.com/DeanoC/yosys/issues/33));
+- a field of an array element, `arr[i].field`, is read and written through a
+  whole-record copy: Yosys takes `arr[i]` for a generate block, which is an
+  error with a variable index and a silent, undriven wire with a constant one
+  ([#52](https://github.com/DeanoC/yosys/issues/52));
 - package functions do not use package constants ([#35](https://github.com/DeanoC/yosys/issues/35));
 - small sums are built from gates (`fes_i386_pkg::small_add`), since every `+`
   becomes an ALM carry chain ([#39](https://github.com/DeanoC/yosys/issues/39));
