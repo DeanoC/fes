@@ -76,7 +76,7 @@ def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
     sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
     netlist = output / f'{synthesized}.netlist.v'
     script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {synthesized}; '
-              f'proc; flatten; opt -purge; write_verilog -noattr {netlist}')
+              f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
     log = output / 'yosys.log'
     with log.open('w') as stream:
         result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
