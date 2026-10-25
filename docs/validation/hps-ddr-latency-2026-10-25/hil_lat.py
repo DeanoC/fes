@@ -1,10 +1,10 @@
-# hil_lat: fes.ramtest latency windows on kit B through a private host (Claude, zbl-lat, FES ramtest latency PR).
+# hil_lat: fes.ramtest latency windows on kit A through a private host (Claude, zbl-lat, FES ramtest latency PR).
 # Core-only run: no bundle install, no image change. Import the sealed .fcore into a private host, launch it,
 # read the LAT rows from HDMI with Linux idle, then with a CPU and memory load on the HPS (busybox dd/cat
 # started under the zbl-latload name and killed by PID), stop, and check the kit is back to its baseline.
 # usage: python3 hil_lat.py <fcore> <package_id> <out_dir>
 from pathlib import Path
-import sys, json, urllib.request, urllib.error, time, hashlib, datetime, fcntl, subprocess, os, signal
+import sys, json, urllib.request, urllib.error, time, hashlib, datetime, fcntl, subprocess, os, signal, re
 signal.signal(signal.SIGTERM, lambda *_: sys.exit('terminated'))
 WT = Path.home() / 'fes/.claude/worktrees/zen-bell-09f7a3'
 sys.path.insert(0, str(WT / 'scripts'))
@@ -16,20 +16,48 @@ import ocr_ramtest
 fcore, package_id, out = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 out.mkdir()
 FR = out / 'fr'; FR.mkdir()
-VID = '/dev/v4l/by-id/usb-ASUS_4KPRO_802B003090700329-video-index0'
-KA = str(Path(__file__).resolve().parent / 'kb')
+VID = '/dev/v4l/by-id/usb-GENKI_ShadowCast_3_KT044001-video-index0'
+KA = str(Path(__file__).resolve().parent / 'ka')
 FONT = WT / 'sources/misteross/cores/fes-ramtest/rtl/ram_font.v'
-TID = '67c5f4e2-d288-49bb-9049-39ecf39cf6f6'
+TID = '73dc9f5f-1a12-4a95-a820-a9b4e600769a'
 BUNDLE = '35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b'
 BASE = '4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26'
 HOSTBIN = Path.home() / '.local/lib/fogcast/fogcast-api-58f029e014c9f9ad491e03b8270667c2c22c316d'
 IMAGE = 'sha256:44b7b0c76728be2a697e5cd7150a1ef7ddfda6c880212d11f9fef43d950a2af6'
 FONT_TABLE = ocr_ramtest.load_font(FONT)
+BASE_IMAGE = BASE
+# Stops only the load: each PID must be in the load's own session, must not be a dropbear process and must
+# not be this shell. It never signals 0, -1, a negative PID or a process group.
+STOP_SCRIPT = r"""#!/bin/sh
+# zbl-latstop: stop only the zbl-latload processes (Claude zbl-lat)
+SID=$1; shift
+case "$SID" in ''|*[!0-9]*|0|1) echo "REFUSED bad session $SID"; exit 1;; esac
+DROP=" $(pidof dropbear) "
+MYSID=$(cut -d' ' -f6 /proc/$$/stat)
+[ "$SID" = "$MYSID" ] && { echo "REFUSED: load session is this shell's"; exit 1; }
+for d in $DROP; do [ "$(cut -d' ' -f6 /proc/$d/stat)" = "$SID" ] && { echo "REFUSED: load session is dropbear's"; exit 1; }; done
+echo "this shell $$ session $MYSID; dropbear$DROP; load session $SID; asked: $*"
+ps -o pid,pgid,comm | grep -e dd -e cat -e ' sh' -e dropbear
+check_kill() {
+  p=$1
+  case "$p" in ''|*[!0-9]*|0|1) echo "REFUSED bad pid $p"; return;; esac
+  [ -r /proc/$p/stat ] || { echo "gone $p"; return; }
+  set -- $(cat /proc/$p/stat)
+  if [ "$6" != "$SID" ] || [ "$p" = "$$" ] || echo "$DROP" | grep -q " $p "; then echo "REFUSED $p: $1 $2 pgrp $5 session $6"; return; fi
+  echo "kill $p $2 pgrp $5 session $6"; kill "$p"
+}
+for p in "$@"; do check_kill "$p"; done
+sleep 2
+for st in /proc/[0-9]*/stat; do set -- $(cat $st 2>/dev/null); [ "$6" = "$SID" ] && check_kill "$1"; done
+sleep 1
+left=""; for st in /proc/[0-9]*/stat; do set -- $(cat $st 2>/dev/null); [ "$6" = "$SID" ] && left="$left $1"; done
+echo "left in load session:${left:- none}"
+"""
 
-with (Path.home() / 'kit-status/kitB-STATUS.md').open('r') as claim:
+with (Path.home() / 'kit-status/kitA-STATUS.md').open('r') as claim:
     fcntl.flock(claim, fcntl.LOCK_SH)
     heading = [l for l in claim.read().splitlines() if l.startswith('## ')][-1]
-    assert 'KIT B IN USE: Claude' in heading and 'zbl-lat' in heading, 'claim not ours; no kit contact'
+    assert 'KIT A IN USE: Claude' in heading and 'zbl-lat' in heading, 'claim not ours; no kit contact'
 
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def log(*a): print(datetime.datetime.now().strftime('%T'), *a, flush=True)
@@ -88,14 +116,11 @@ def series(tag, count, gap):
     return samples
 
 R = {}
-# The shared config selects kit A; load kit B from a private 0600 copy that selects it, removed straight after.
-cfg = out / 'config-kitB.toml'; src = (Path.home() / '.config/fogcast/config.toml').read_text()
-assert src.count("selected_target = 'dev'") == 1; cfg.touch(mode=0o600)
-cfg.write_text(src.replace("selected_target = 'dev'", "selected_target = 'kit2'"))
-try: target = iso._load_private_target(cfg, TID)
-finally: cfg.unlink()
+# The shared config selects kit A (target dev).
+target = iso._load_private_target(Path.home() / '.config/fogcast/config.toml', TID)
 home = iso.prepare_private_home(out, target)
 load_pids = []
+load_sid = None
 status = req(target.address, '/v1/status', 'before-status', token=target.agent); assert status['state'] == 'idle'
 lease = req(target.address, '/v1/kit/lease', 'before-lease', token=target.agent); assert lease['state'] == 'free'
 kit('cat /run/mister-runtime-boot-hps-ddr; echo; busybox devmem 0xFFC25080 32; uptime; free; nproc; df -h /tmp; '
@@ -141,28 +166,40 @@ try:
         kit('cat /proc/loadavg; free', 'idle-after')
         # Load: two dd writers stream 8 MiB buffers (memory writes past the 512 KiB L2) and a cat loop
         # reads a 64 MiB file from /tmp, keeping both A9 cores busy on memory traffic.
+        # The load runs in its own session (setsid), apart from dropbear's, which also holds every ssh shell.
         kit("cat > /tmp/zbl-latload.sh <<'EOS'\n#!/bin/sh\n# zbl-latload: HPS CPU and memory load for the fes.ramtest latency check (Claude zbl-lat)\n"
+            "echo \"sid $$\" > /tmp/zbl-latload.pids\n"
             "dd if=/dev/zero of=/tmp/zbl-latload.bin bs=1M count=64 2>/dev/null\n"
-            "dd if=/dev/zero of=/dev/null bs=8M 2>/dev/null & echo $! > /tmp/zbl-latload.pids\n"
-            "dd if=/dev/zero of=/dev/null bs=8M 2>/dev/null & echo $! >> /tmp/zbl-latload.pids\n"
-            "( while :; do cat /tmp/zbl-latload.bin > /dev/null; done ) & echo $! >> /tmp/zbl-latload.pids\n"
-            "EOS\nsetsid sh /tmp/zbl-latload.sh </dev/null >/dev/null 2>&1 & sleep 5; cat /tmp/zbl-latload.pids", 'load-start')
-        # Only the pid file's lines: kit() appends an 'exit N' line, and a stray 0 would make kill signal
-        # the whole ssh session's process group (which, on this image, includes the dropbear listener).
-        text = (out / 'load-start.txt').read_text().split('\nexit ')[0]
-        load_pids = [int(p) for p in text.split() if p.isdigit() and int(p) > 1]
-        log('load pids', load_pids); assert len(load_pids) == 3, load_pids
+            "dd if=/dev/zero of=/dev/null bs=8M 2>/dev/null & echo \"pid $!\" >> /tmp/zbl-latload.pids\n"
+            "dd if=/dev/zero of=/dev/null bs=8M 2>/dev/null & echo \"pid $!\" >> /tmp/zbl-latload.pids\n"
+            "( while :; do cat /tmp/zbl-latload.bin > /dev/null; done ) & echo \"pid $!\" >> /tmp/zbl-latload.pids\n"
+            "EOS\nsetsid sh /tmp/zbl-latload.sh </dev/null >/dev/null 2>&1 & sleep 5; cat /tmp/zbl-latload.pids; "
+            "echo; for d in $(pidof dropbear); do echo \"dropbear $(cut -d' ' -f1-6 /proc/$d/stat)\"; done; "
+            "for p in $(sed -n 's/^pid //p' /tmp/zbl-latload.pids); do echo \"load $(cut -d' ' -f1-6 /proc/$p/stat)\"; done; "
+            "ps -o pid,pgid,comm | grep -e dd -e cat -e ' sh' -e dropbear", 'load-start')
+        lines = (out / 'load-start.txt').read_text().splitlines()
+        sids = [int(l.split()[1]) for l in lines if re.fullmatch(r'sid [0-9]+', l)]
+        load_pids = [int(l.split()[1]) for l in lines if re.fullmatch(r'pid [0-9]+', l)]
+        load_pids = [p for p in load_pids if p > 1]
+        log('load session', sids, 'pids', load_pids)
+        assert len(sids) == 1 and sids[0] > 1 and len(load_pids) == 3, (sids, load_pids)
+        load_sid = sids[0]
         time.sleep(15)
         kit('cat /proc/loadavg; top -b -n 1 | head -n 15', 'load-top')
         R['load'] = series('20-load', 24, 4)
         kit('cat /proc/loadavg; top -b -n 1 | head -n 15', 'load-top-end')
     finally:
-        load_pids = [p for p in load_pids if isinstance(p, int) and p > 1]
-        if load_pids:
-            kit('for p in %s; do kill $p; done; sleep 3; for p in %s; do [ -d /proc/$p ] && echo alive $p; done; rm -f /tmp/zbl-latload.sh /tmp/zbl-latload.bin /tmp/zbl-latload.pids; ls /tmp | grep zbl; cat /proc/loadavg'
-                % (' '.join(map(str, load_pids)), ' '.join(map(str, load_pids))), 'load-stop')
+        load_pids = [p for p in load_pids if type(p) is int and p > 1]
+        if load_pids and type(load_sid) is int and load_sid > 1:
+            kit("cat > /tmp/zbl-latstop.sh <<'EOS'\n" + STOP_SCRIPT + "EOS\nsh /tmp/zbl-latstop.sh %d %s; "
+                "rm -f /tmp/zbl-latstop.sh /tmp/zbl-latload.sh /tmp/zbl-latload.bin /tmp/zbl-latload.pids; "
+                "ls /tmp | grep zbl; cat /proc/loadavg" % (load_sid, ' '.join(map(str, load_pids))), 'load-stop')
             stop_text = (out / 'load-stop.txt').read_text()
-            R['load_stopped'] = 'alive' not in stop_text and stop_text.rstrip().endswith('exit 0')
+            R['load_stopped'] = ('left in load session: none' in stop_text and 'REFUSED' not in stop_text
+                                 and stop_text.rstrip().endswith('exit 0'))
+            # A fresh connection proves dropbear is still listening.
+            check = kit('echo sshd-ok; for d in $(pidof dropbear); do cut -d" " -f1-6 /proc/$d/stat; done', 'sshd-check')
+            R['sshd_ok'] = 'sshd-ok' in check
             time.sleep(10)
             R['after_load'] = series('30-after-load', 4, 4)
         session = req(origin, '/api/v1/session', 'session-after')
