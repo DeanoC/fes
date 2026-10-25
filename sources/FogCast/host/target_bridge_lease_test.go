@@ -45,6 +45,18 @@ func TestRevokedGrantConnectStopsInputReconnect(t *testing.T) {
 	var streams atomic.Int32
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(func() { manager.Close() })
+	// New reconciles asynchronously; wait before requesting the first grant.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		status := manager.Status()
+		if status.State == "free" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("lease manager did not finish startup reconciliation: %+v", status)
+		}
+		time.Sleep(time.Millisecond)
+	}
 	api := httpapi.New(leaseProbeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(leaseProbeInput{}))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/input/stream" {
