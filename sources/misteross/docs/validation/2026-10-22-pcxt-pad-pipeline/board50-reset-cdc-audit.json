@@ -329,5 +329,31 @@
     "Three asynchronous video chain entries and two bundled bank transfers; no protocol exception granted",
     "External HDMI/HPS pad contracts and fitted board/load/flight/CS2/waveform requirements"
   ],
-  "route_receipt_count_unchanged": 121
+  "route_receipt_count_unchanged": 121,
+  "stable_source_verification": {
+    "commit": "a7a30a603c918e8170cf2a1a5bc43bc923977299",
+    "make_check": "PASS: 21 generated consumers and37 fixture copies",
+    "affected_initial_run": "FAIL in sandbox: parent990 tests,10 failures/136 errors,1 skip; local socket/cache permissions prevented116 unique cases. Component lane was not started. Original failure retained.",
+    "targeted_host_parent_retry": {
+      "cases": 116,
+      "status": "PASS",
+      "all_initial_failure_ids_covered": true
+    },
+    "remaining_component_lane": {
+      "cases": 1313,
+      "status": "PASS",
+      "existing_skips": 49,
+      "new_audit_tests_all_run": 12
+    },
+    "receipt_digest_negative_control": "PASS: corrupted digest rejects before any output",
+    "limits": "Host checks only. No new RTL/synthesis/route/hardware acceptance. Existing optional-tool/oracle skips remain explicit.",
+    "logs_sha256": {
+      "board50-cdc-test-changed.log": "e5cece656d3d304b9a502b36dca611ca31958bc0e8712905c59220572bb01f11",
+      "board50-cdc-sandbox-failed-tests.json": "3f09caf86e0fe13e041998a956ad1bc7e2838ece7c805c9585bf4bd3434f87a2",
+      "board50-cdc-parent-host-retry.log": "00a85fbbec7c306fa68d364811af706aa0e59512575cabdb367690231acb86b9",
+      "board50-cdc-component-tests.log": "774b199af359adb4e1e2d90f6e295d84777e725c3ed4cc99b63fbf6e7a31d5ab",
+      "board50-cdc-make-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+      "board50-cdc-receipt-negative.log": "dfea55fe6b84126bbb6f574156dfb55fbc4f72573c51fed71de5862aea48d388"
+    }
+  }
 }

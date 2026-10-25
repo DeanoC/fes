@@ -577,3 +577,15 @@ qualification. No kit ran and no route was added: the journal remains at 121.
 [Audit evidence](board50-reset-cdc-audit.json) records every chain identity,
 source/report/receipt hashes, per-chain margins and the exact qualification
 boundary.
+
+Stable source `a7a30a603c918e8170cf2a1a5bc43bc923977299` passes
+`make check`. The affected run initially fails in its sandboxed parent lane:
+990 cases include 10 failures and 136 errors (116 unique test IDs), with
+one skip; local sockets and build/cache access are denied. The unchanged
+116 failed cases all pass on a targeted host rerun. The unstarted component
+lane then passes 1313 cases on the host, including all twelve new audit tests,
+with 49 existing optional-tool/oracle skips. The original failure, exact retry
+IDs and host logs remain bound in the audit evidence; no broad pass replaces
+the failed capture. A corrupted report-digest CLI control also rejects before
+producing an audit. No source, constraints or hardware changes accompany
+this validation record.
