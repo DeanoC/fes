@@ -119,10 +119,9 @@ module fes_i386_oplen (
         logic has_sib;
         has_sib = m[2:0] == 3'd4;
         case (m[7:6])
-            2'b00: modrm32 = 3'd1 + {2'b0, has_sib}
-                           + ((m[2:0] == 3'd5 || (has_sib && sib[2:0] == 3'd5)) ? 3'd4 : 3'd0);
-            2'b01: modrm32 = 3'd2 + {2'b0, has_sib};
-            2'b10: modrm32 = 3'd5 + {2'b0, has_sib};
+            2'b00: modrm32 = has_sib ? (sib[2:0] == 3'd5 ? 3'd6 : 3'd2) : (m[2:0] == 3'd5 ? 3'd5 : 3'd1);
+            2'b01: modrm32 = has_sib ? 3'd3 : 3'd2;
+            2'b10: modrm32 = has_sib ? 3'd6 : 3'd5;
             default: modrm32 = 3'd1;
         endcase
     endfunction
@@ -148,7 +147,11 @@ module fes_i386_oplen (
             logic [3:0] z, moffs;
             assign z = (f.imm == IMM_Z || f.imm == IMM_AP) ? (os32 != 0 ? 4'd4 : 4'd2) : 4'd0;
             assign moffs = f.imm == IMM_MOFFS ? (as32 != 0 ? 4'd4 : 4'd2) : 4'd0;
-            assign len[os32 * 2 + as32] = (escape ? 4'd2 : 4'd1) + {1'b0, modrm_bytes[as32]} + fixed + z + moffs;
+            logic [4:0] sum;
+            assign sum = fes_i386_pkg::small_add(
+                fes_i386_pkg::small_add({3'b0, escape ? 2'd2 : 2'd1}, {2'b0, modrm_bytes[as32]}),
+                fes_i386_pkg::small_add({1'b0, fixed}, fes_i386_pkg::small_add({1'b0, z}, {1'b0, moffs})));
+            assign len[os32 * 2 + as32] = sum[3:0];
         end
     end
 endmodule

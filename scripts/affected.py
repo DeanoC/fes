@@ -98,9 +98,11 @@ C64_SCRIPTS = frozenset({'c64_slots.py', 'build_c64_slot_card.py'})
 SPECTRUM_SCRIPTS = frozenset({'spectrum_slots.py'})
 ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
                              'fetch_atari_st_emutos.py'})
-# The i386 lockstep oracle and its corpus runners are test-only software with no
-# RTL consumer; their unit tests run in the FPGA software lane.
-I386_ORACLE_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py'})
+# The i386 CPU has no core or package consumer yet. Its oracle, corpus runners,
+# RTL checks and timing harness are test-only software; their unit tests run in
+# the FPGA software lane.
+I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
+                          'test_fes_i386_frontend.py', 'benchmark_fes_i386.py'})
 
 
 def fpga_cores(path):
@@ -148,7 +150,9 @@ def fpga_cores(path):
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):
             return ('riscv',), 'original RV32I CPU and its fes.riscv consumer'
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'sim', 'i386'):
-            return (), 'i386 oracle adapter, testbenches and divergence list; no RTL consumer'
+            return (), 'i386 oracle adapter, testbenches, timing spikes and divergence list; no core consumer'
+        if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
+            return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
             return ('menu', 'zx81', 'spectrum', 'c64'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
@@ -187,8 +191,8 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-        if parts[1] in I386_ORACLE_SCRIPTS:
-            return (), 'i386 oracle and corpus runners; no RTL consumer'
+        if parts[1] in I386_SCRIPTS:
+            return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':
         # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'

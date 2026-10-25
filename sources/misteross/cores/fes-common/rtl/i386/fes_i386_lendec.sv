@@ -30,7 +30,9 @@ module fes_i386_lendec (
         assign opsize[k] = w[k] == 8'h66;
         assign adsize[k] = w[k] == 8'h67;
         for (genvar i = 0; i < 4; i++) begin : g_len
-            assign len[k][4 * i +: 4] = prefix[k] ? unprefixed[k + 1][i] + 4'd1 : unprefixed[k][i];
+            logic [4:0] with_prefix;
+            assign with_prefix = fes_i386_pkg::small_add({1'b0, unprefixed[k + 1][i]}, 5'd1);
+            assign len[k][4 * i +: 4] = prefix[k] ? with_prefix[3:0] : unprefixed[k][i];
         end
     end
 endmodule

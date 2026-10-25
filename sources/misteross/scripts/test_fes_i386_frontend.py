@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Check the i386 front end (length decoders, fetch buffer, Q) against the oracle.
+"""Check the i386 front end and AG address unit; the front end against the oracle.
 
 Host simulation only. No network access occurs unless --download is given,
 which fetches the pinned Bochs oracle (scripts/fes_i386_oracle.py) into the
 ignored build directory.
 
-Two Verilator testbenches in cores/fes-common/sim/i386:
+Verilator testbenches in cores/fes-common/sim/i386:
 
   lendec_tb.cpp    The 16 per-byte length decoders, exhaustively: no prefix or
                    each of the eleven, every one- and two-byte opcode, every
@@ -15,6 +15,8 @@ Two Verilator testbenches in cores/fes-common/sim/i386:
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
                    cycle, plus one cycle for each prefix before the last).
+  agu_tb.cpp       The AG address unit against the architectural address,
+                   random and 16-bit wrap-edge operands. Needs no oracle.
 
 Example:
   python3 scripts/test_fes_i386_frontend.py --download
@@ -43,10 +45,11 @@ SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-frontend'
 LENDEC_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv')
 FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
-# testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source)
+# testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source, links the oracle)
 BENCHES = {
-    'lendec': ('fes_i386_lendec', LENDEC_RTL, (), 'lendec_tb.cpp'),
-    'frontend': ('frontend_tb_top', FRONTEND_RTL, ('frontend_tb_top.sv',), 'frontend_tb.cpp'),
+    'lendec': ('fes_i386_lendec', LENDEC_RTL, (), 'lendec_tb.cpp', True),
+    'frontend': ('frontend_tb_top', FRONTEND_RTL, ('frontend_tb_top.sv',), 'frontend_tb.cpp', True),
+    'agu': ('fes_i386_agu', ('fes_i386_agu.sv',), (), 'agu_tb.cpp', False),
 }
 
 
@@ -56,14 +59,14 @@ class FrontendError(RuntimeError):
 
 def verilate(verilator: str, name: str, linked: list[Path], jobs: int) -> Path:
     """Build one testbench against the oracle; return the executable."""
-    top, rtl, sim, source = BENCHES[name]
+    top, rtl, sim, source, uses_oracle = BENCHES[name]
     output = OUTPUT / name
     output.mkdir(parents=True, exist_ok=True)
     command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
                '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', '-LDFLAGS', '-pthread',
                *(str(RTL / path) for path in rtl), *(str(SIM / path) for path in sim),
-               str(SIM / source), *map(str, linked)]
+               str(SIM / source), *(map(str, linked) if uses_oracle else ())]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
@@ -94,7 +97,7 @@ def failed(records: list[dict]) -> bool:
     return not records
 
 
-def summary(lendec: list[dict], frontend: list[dict]) -> list[str]:
+def summary(lendec: list[dict], frontend: list[dict], agu: list[dict]) -> list[str]:
     lines = []
     for record in lendec:
         if 'default_size' in record:
@@ -111,6 +114,9 @@ def summary(lendec: list[dict], frontend: list[dict]) -> list[str]:
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
                      f"{record['timing_failures']} timing failures")
         lines.append(line)
+    for record in agu:
+        lines.append(f"AG address unit: {record['agu_vectors']} vectors, {record['wrapped_16']} with a 16-bit wrap, "
+                     f"{record['failures']} failures")
     return lines
 
 
@@ -148,9 +154,10 @@ def main() -> int:
     report: dict[str, object] = {'instructions_per_stream': args.instructions, 'seed': args.seed}
     exit_code = 0
     try:
-        linked = oracle.link_inputs(args.jobs, args.download)
+        selected = args.bench or tuple(BENCHES)
+        linked = oracle.link_inputs(args.jobs, args.download) if any(BENCHES[name][4] for name in selected) else []
         results = {}
-        for name in args.bench or tuple(BENCHES):
+        for name in selected:
             executable = verilate(verilator, name, linked, args.jobs)
             records, failures, code = run(executable, env)
             results[name] = records
@@ -162,7 +169,7 @@ def main() -> int:
         return 2
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-    for line in summary(results.get('lendec', []), results.get('frontend', [])):
+    for line in summary(results.get('lendec', []), results.get('frontend', []), results.get('agu', [])):
         print(line)
     for name in results:
         for line in report[name]['failures'][:40]:

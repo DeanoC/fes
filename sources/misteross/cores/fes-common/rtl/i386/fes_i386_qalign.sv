@@ -62,10 +62,10 @@ module fes_i386_qalign (
         assign as32 = code32 ^ (acc.adsize | dec_adsize[j]);
         assign lengths = dec_len[j];
         assign len[j] = lengths[{os32, as32, 2'b00} +: 4];
-        assign fin = 5'(K) + {1'b0, len[j]};
-        assign next[j] = dec_run[j] ? 5'(j + 1) : 5'(j) + {1'b0, len[j]};
+        assign fin = fes_i386_pkg::small_add(5'(K), {1'b0, len[j]});
+        assign next[j] = dec_run[j] ? 5'(j + 1) : fes_i386_pkg::small_add(5'(j), {1'b0, len[j]});
         assign ok[j] = half_valid[H] && (K < 12 || tail_ok[H])
-                    && (dec_run[j] || fin <= 5'd16 || half_valid[1 - H] || filling[1 - H]);
+                    && (dec_run[j] || !fin[4] || fin[3:0] == 4'd0 || half_valid[1 - H] || filling[1 - H]);
     end
 
     // ---- The loop -----------------------------------------------------------
@@ -90,7 +90,8 @@ module fes_i386_qalign (
     logic [31:0][7:0] source;
     logic [12:0][7:0] rotated;
     logic [31:0]      linear_here;
-    logic [4:0]       total;
+    logic [4:0]       total;     // at most 13 + 12, so bit 4 means over 15 bytes
+    logic [4:0]       prefix_count, acc_count_next;
     prefixes_t        prefixes;
 
     for (genvar j = 0; j < 32; j++) begin : g_source
@@ -98,7 +99,9 @@ module fes_i386_qalign (
     end
     assign rotated = 104'({source, source} >> {start, 3'b000});
     assign linear_here = {half_block[start[4]], start[3:0]};
-    assign total = {1'b0, acc_count} + {1'b0, len[start]};
+    assign total = fes_i386_pkg::small_add({1'b0, acc_count}, {1'b0, len[start]});
+    assign prefix_count = fes_i386_pkg::small_add({1'b0, acc_count}, {4'b0, prefix_here});
+    assign acc_count_next = fes_i386_pkg::small_add({1'b0, acc_count}, 5'd1);
     assign prefixes = prefix_here ? fes_i386_pkg::add_prefix(acc, rotated[0]) : acc;
 
     always_ff @(posedge clk) begin
@@ -115,7 +118,7 @@ module fes_i386_qalign (
             acc_count <= 4'd0;
         end else if (consume) begin
             acc <= fes_i386_pkg::add_prefix(acc, rotated[0]);
-            acc_count <= acc_count + 4'd1;
+            acc_count <= acc_count_next[3:0];
             if (acc_count == 4'd0) acc_linear <= linear_here;
         end
 
@@ -125,12 +128,14 @@ module fes_i386_qalign (
             q_valid <= issue;
         end
 
-        if (issue) begin
+        // The record loads whenever D can take one, so the loop's issue
+        // decision drives only q_valid; q is meaningful when q_valid is set.
+        if (out_free) begin
             q.linear <= acc_count == 4'd0 ? linear_here : acc_linear;
             q.length <= total[3:0];
-            q.prefix_count <= acc_count + {3'b0, prefix_here};
+            q.prefix_count <= prefix_count[3:0];
             q.prefixes <= prefixes;
-            q.too_long <= too_long_run || total > 5'd15;
+            q.too_long <= too_long_run || total[4];
             q.bytes <= prefix_here ? rotated[11:1] : rotated[10:0];
         end
     end
