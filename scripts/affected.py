@@ -89,8 +89,8 @@ SHARED_RTL = {
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
-    'fes_display_plane.v': ('zx81', 'spectrum', 'c64'),
-    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64'),
+    'fes_display_plane.v': ('zx81', 'spectrum', 'c64', 'coleco'),
+    'fes_display_cdc.v': ('zx81', 'spectrum', 'c64', 'coleco'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})
@@ -131,7 +131,7 @@ def fpga_cores(path):
     if relative.as_posix() == 'cores/fes-common/generated/fes_pcxt_isa.vh':
         return ('pcxt',), 'PC/XT ISA fabric consumer'
     if relative.as_posix() == 'cores/fes-common/generated/fes_display_plane.vh':
-        return ('menu', 'zx81', 'spectrum', 'c64'), 'display-plane fabric consumers'
+        return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'display-plane fabric consumers'
     if len(parts) >= 3 and parts[0] == 'cores':
         if parts[1] == 'fes-common' and '/'.join(parts[2:]) in (
                 'sim/native_video_top.v', 'sim/native_video_tb.cpp',
@@ -154,7 +154,7 @@ def fpga_cores(path):
         if len(parts) >= 5 and parts[1:4] == ('fes-common', 'rtl', 'i386'):
             return (), 'i386 CPU RTL, checked by its software-lane tests; no core consumer yet'
         if parts[1] == 'fes-menu' and '/'.join(parts[2:]) in MENU_SESSION_INPUTS:
-            return ('menu', 'zx81', 'spectrum', 'c64'), 'idle and running-session display consumers'
+            return ('menu', 'zx81', 'spectrum', 'c64', 'coleco'), 'idle and running-session display consumers'
         if parts[1] in CORE_DIRECTORIES:
             return CORE_DIRECTORIES[parts[1]], 'core family and dependent consumers'
         if parts[1:3] == ('fes-common', 'rtl'):
@@ -167,7 +167,8 @@ def fpga_cores(path):
             if len(parts) == 4 and parts[3] in SHARED_RTL:
                 return SHARED_RTL[parts[3]], 'shared RTL consumers'
     if len(parts) == 2 and parts[0] == 'scripts':
-        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py', 'sim_fes_native_socket.py'):
+        if parts[1] in ('sim_fes_native_video.py', 'sim_fes_coleco_native.py', 'sim_fes_native_socket.py',
+                        'sim_fes_coleco_session.py'):
             return ('coleco',), 'native pixel/frame and Coleco source simulation recipes'
         producer = any(parts[1] == f'build_fes_{core.replace("-", "_")}{suffix}.py'
                        for core in CORES if core not in SIMULATION_ONLY_CORES

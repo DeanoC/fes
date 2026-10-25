@@ -4,9 +4,9 @@
 module pixel_pll (
     input  wire refclk,
     input  wire rst,
-    output wire outclk_0
+    output wire outclk_0,
+    output wire locked
 );
-    wire locked;
 
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"),

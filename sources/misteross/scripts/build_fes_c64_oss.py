@@ -25,7 +25,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import c64_slots, coleco_expansion, rom_map, build_fes_menu, fes_de10nano_evidence
+from scripts import c64_slots, coleco_expansion, rom_map, fes_de10nano_evidence
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -154,7 +154,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/c64_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
-    "scripts/build_fes_menu.py", "scripts/fes_de10nano_evidence.py", DDR_ATOM,
+    "scripts/fes_de10nano_evidence.py", DDR_ATOM,
     ABI_DEFINITION, C64_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
     "cores/fes-c64/rtl/c64_cia.COPYING",
     "cores/fes-c64/rtl/c64_sid.COPYING",
@@ -513,7 +513,7 @@ def validate_frame_store(cells: dict) -> None:
 
 def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
     """The plane reads launcher frames through one read-only fpga2sdram port."""
-    normalized = build_fes_menu.layout_graph_with_constants(design)
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized["modules"][TOP].get("cells", {})
     memory = next(cell for cell in cells.values()

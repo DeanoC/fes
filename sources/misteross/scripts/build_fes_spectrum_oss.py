@@ -25,8 +25,10 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import spectrum_slots, rom_map, coleco_expansion, fes_de10nano_evidence, build_fes_menu
+from scripts import spectrum_slots, rom_map, coleco_expansion
 from scripts.compiler_read_audit import guard_functional_source
+from scripts import fes_de10nano_evidence
+from scripts.fes_de10nano_evidence import PLANE_DSP, plane_dsp_evidence as _plane_dsp_evidence
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
@@ -155,7 +157,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py", "scripts/fes_de10nano_evidence.py",
-    "scripts/build_fes_menu.py", DDR_ATOM,
+    DDR_ATOM,
     ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
@@ -163,9 +165,7 @@ BUILD_OUTPUTS = (
     "build-inputs.json", "build-summary.json", "manifest.toml", "rom-map.json",
     "socket.qsf", "qor-ranking.json",
 )
-# The session-display plane blends with three unsigned 9x9 products.
-DSP_RESOURCES = frozenset({"MISTRAL_MUL9X9"})
-PLANE_PRODUCTS = 3
+DSP_RESOURCES = frozenset({PLANE_DSP})
 ORDINARY_RESOURCES = frozenset({
     "MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO",
     "MISTRAL_M10K", "MISTRAL_M10K_TDP",
@@ -465,7 +465,7 @@ def validate_firmware_ports(cells: dict, lanes: int) -> None:
 def _hps_ddr_evidence(design: dict, label: str, source_root: Path) -> dict:
     """The plane reads launcher frames on fpga2sdram port 0 and the tape store
     reads and writes port 1; port 0 never writes and port 2 is unused."""
-    normalized = build_fes_menu.layout_graph_with_constants(design)
+    normalized = fes_de10nano_evidence.layout_graph_with_constants(design)
     evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
     cells = normalized["modules"][TOP].get("cells", {})
     memory = next(cell for cell in cells.values()
@@ -487,21 +487,6 @@ def _hps_ddr_evidence(design: dict, label: str, source_root: Path) -> dict:
                 and int(str(cell.get("parameters", {}).get("CFG_ASYNC_READ", "0")), 2)):
             raise BuildError("session display FIFO requires synchronous M10K reads")
     return {**evidence, "plane_port": 0, "tape_port": 1, "unused_ports_disabled": True}
-
-
-def _plane_dsp_evidence(design: dict) -> None:
-    products = [(name, cell) for name, cell in design["modules"][TOP].get("cells", {}).items()
-                if cell.get("type") in DSP_RESOURCES]
-    if len(products) != PLANE_PRODUCTS or not all(name.startswith("display.") for name, _ in products):
-        raise BuildError(f"synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products")
-    for name, cell in products:
-        parameters = cell.get("parameters", {})
-        for sign in ("A_SIGNED", "B_SIGNED"):
-            text = str(parameters.get(sign, "")).strip()
-            if not text or set(text) - {"0", "1"} or int(text, 2) != 0:
-                raise BuildError(f"display-plane product {name} must be unsigned ({sign}={text!r})")
-
-
 def validate_synth_evidence(output: Path, *, model: str = "48", source_root: Path = ROOT) -> dict:
     machine = model_for(model)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")

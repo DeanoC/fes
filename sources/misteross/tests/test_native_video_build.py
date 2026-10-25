@@ -134,6 +134,55 @@ class NativeVideoProducerTest(unittest.TestCase):
                 with self.subTest(fields=bad), self.assertRaisesRegex(ValueError, "one exact sealed"):
                     part.package_profile(SimpleNamespace(fields=bad))
 
+    def test_native_shell_carries_the_session_plane(self):
+        record = b'{"format":2,"parameters":{},"recipe_sha256":"' + b'a' * 64 + b'"}'
+        evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32,
+                    "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                            "file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
+        identities = {name: "fixture" for name in ("yosys", "nextpnr-mistral", "mistral")}
+        arguments = (record, evidence, "https://example.invalid/fes.git", "d" * 40, identities)
+        plane = [{"id": interface, "major": 1, "minor": 0, "required": True}
+                 for interface in ("fes.memory.hps-ddr", "fes.video.session-display",
+                                   "fes.fabric.video.display-plane")]
+        fields = tomllib.loads(shell.manifest(*arguments, native_video=True).decode())
+        self.assertEqual(fields["core"]["version"], "1.4.0")
+        for row in plane:
+            self.assertIn(row, fields["interfaces"])
+        raster_fields = tomllib.loads(shell.manifest(*arguments, video_socket=True).decode())
+        self.assertFalse(any(row in raster_fields["interfaces"] for row in plane))
+        # Only the native shell drops -nodsp, for the plane's three products.
+        tools = {name: Path("/tool") / name for name in ("yosys", "nextpnr-mistral")}
+        native_program = shell.build_commands(shell.ROOT, shell.ROOT / shell.NATIVE_VIDEO_OUTPUT_RELATIVE,
+                                              "a" * 32, tools, native_video=True)[0][-1]
+        raster_program = shell.build_commands(shell.ROOT, shell.ROOT / shell.VIDEO_OUTPUT_RELATIVE,
+                                              "a" * 32, tools, video_socket=True)[0][-1]
+        self.assertNotIn("-nodsp", native_program)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", raster_program)
+        for source in shell.DISPLAY_PLANE_SOURCES:
+            self.assertIn(source, native_program)
+            self.assertNotIn(source, raster_program)
+
+    def test_plane_products_on_a_yosys_without_sign_parameters(self):
+        from scripts import fes_de10nano_evidence as evidence
+
+        def design(cells):
+            return {"modules": {"top": {"cells": cells}}}
+
+        good = {f"display.blend.mul{i}": {"type": "MISTRAL_MUL9X9", "parameters": {}} for i in range(3)}
+        evidence.plane_dsp_evidence(design(good), sign_parameters=False)
+        # Coleco's Yosys never emits sign parameters: one appearing means the
+        # toolchain moved, and a stray product is never the plane's.
+        signed = copy.deepcopy(good)
+        signed["display.blend.mul0"]["parameters"]["A_SIGNED"] = "0"
+        stray = {**good, "machine.vdp.mul": {"type": "MISTRAL_MUL9X9", "parameters": {}}}
+        missing = dict(list(good.items())[:2])
+        for cells in (signed, stray, missing):
+            with self.subTest(cells=sorted(cells)), self.assertRaises(ValueError):
+                evidence.plane_dsp_evidence(design(cells), sign_parameters=False)
+        # With sign parameters, an absent one is not proof of unsigned.
+        with self.assertRaises(ValueError):
+            evidence.plane_dsp_evidence(design(good))
+
     def test_native_memory_clock_and_publication_use_native_fence(self):
         routed = {"modules": {"top": {"netnames": {"pixel_clk": {"bits": [9000]}},
             "cells": {"fes_cart$framebuffer": {"type": "MISTRAL_M10K", "connections": {
