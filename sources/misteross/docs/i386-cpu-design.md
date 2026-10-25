@@ -430,8 +430,11 @@ clock from 100 MHz to the spikes' 75 MHz would cost 25%.
 Fetch works in linear addresses (CS base plus EIP). L1I is 16 KiB, 4-way,
 32-byte lines, physically tagged and indexed by linear bits 11:5. A way is one
 4 KiB page, so the index needs no translation. F2 writes 16 bytes per cycle
-into a 32-byte fetch buffer. The ITLB has 16 fully associative entries in
-flip-flops; a miss starts the shared page walker.
+into a 32-byte fetch buffer. F2 holds its registered block until the memory
+response is ready; a miss can empty L2 while Q crosses the buffer halves, so
+Q's stored availability must withhold instructions that reach into a missing
+half. The ITLB has 16 fully associative entries in flip-flops; a miss starts
+the shared page walker.
 
 Fetch may run ahead of the CS limit. D checks `EIP + length - 1 <= CS.limit`
 for each instruction and raises #GP only for an instruction that would
