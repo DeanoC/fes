@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "d4ac300d9d244c6bfa9da24c30fd9cff225c3405"
+commit = "ca51238cb98355d214e1cf192aa80c77a2f3448d"
 order = 10
-rationale = "DeanoC/yosys main commit d4ac300d9d (squash merge of #49: width detection for multi-dimensional packed arrays declared in generate blocks, fixing #41). It also brings #43 (a packed array of packed structs elaborates to its full width, fixing #34), #31 (opt_merge keeps cells marked nomerge apart) and #32 (sat folds repeated high bits of $mul). It is 487 commits past 3a5accbd, the Yosys of the repository and per-core locks, and includes the upstream Yosys 0.70 merge with its name-storage rework. This lock covers the i386 CPU RTL only, its timing spikes first: the shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL keeps its workarounds for the issues still open (#33, #35-#40). Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4."
+rationale = "DeanoC/yosys main commit ca51238cb9 (squash merge of #50: case-table ROMs map to M10K with CLK1 connected, fixing #40). Since d4ac300d9d, the previous i386 pin, it adds #42 (packed struct members survive in constant functions, fixing the silent miscompile #33), #45 (package enum members resolve inside package functions, #35), #46 (package imports, #36), #47 (return in functions and tasks, #37) and #44 (narrow adders can map to LUTs: opt-in, fixing #39). d4ac300d9d already brought #43 and #49 (#34, #41), #31 (nomerge), #32 and the upstream Yosys 0.70 merge, 487 commits past 3a5accbd. This lock covers the i386 CPU RTL only, its timing spikes first: the shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL keeps its workarounds for the issues still open (#38, #51, #52). Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin d4ac300d9d."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
