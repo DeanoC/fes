@@ -256,11 +256,12 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 | `library.collections(fn(collections, err))` | `{id, name}` |
 | `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
 
-Game tables: `id, title, system, core_id, genre, year, region, state, series,
+Game tables: `id, title, system, core_id, package_id, media_id, media_role, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
 played, completed, collections, variant_count, expansion_id, expansion_ready,
 slot_expansions, variants`. `core_id` is set for an installed core-package
-row. `variant_count` is the grouped edition count. `variants` lists those
+row, along with that entry's `package_id` and, when the entry saved media,
+`media_id` and `media_role`. `variant_count` is the grouped edition count. `variants` lists those
 editions as sibling rows. `expansion_id` and `slot_expansions` (`slot`,
 `expansion_id`, `ready`) are the composition the library already stored.
 `played` is FES recorded play activity
@@ -414,7 +415,8 @@ An older agent omits `inputs`.
   host session state.
 - `session.stop(snapshot.session)` requests the ordinary Stop/save path;
   `session.open_tape(snapshot.session)`
-  opens the native live `.p` picker only for an eligible active session.
+  opens the live tape or disk picker only for an eligible active session.
+  A Commodore 64 session uses it for the 1541 `.d64` unit.
   `session.resume()` returns from a room to the running session. They never
   replace a live tape swap with a launch. Both carry the exact observed play
   identity, so a stale room cannot act on another foreground play. The
@@ -452,8 +454,10 @@ unpaired host keeps the existing save. Machines expose `game_id`, `title`, `core
 The first host projection contains ZX81 entries only. Session fields are
 `id`, `game_id`, `state`, `target`, `target_id`, `flight_id`, `package_id`,
 `expansion_id`, `generation` (a decimal string preserving all 64 bits),
-`hardware_known` and `tape_available`; the last two prevent a missing receipt
-from being mistaken for an empty connector or a supported tape path.
+`hardware_known`, `tape_available`, and `removable_available`. The last three
+prevent a missing receipt from being mistaken for an empty connector or a
+supported tape or disk path. `removable_available` is true for a running
+package that reports a supported unit, including a Commodore 64 `.d64`.
 `hardware_known` requires a composition receipt naming the active package;
 a missing or mismatched receipt is displayed as unavailable hardware.
 
@@ -502,7 +506,8 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.computers` | prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries, filtered by core identity before paging. A row is shown when it is already launch-eligible. Grouped editions become variant rows. An `expansion_id` or `slot_expansions` entry becomes its own row and launches the same game id. Confirm stays in the room and calls `session.launch`. The room does not publish a destination, and it adds no sockets, cards, or another machine family |
+| `example.computers` | prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries, filtered by core identity before paging. A row is shown when it is already launch-eligible. Grouped editions become variant rows. An `expansion_id` or `slot_expansions` entry becomes its own row and launches the same game id. Confirm stays in the room and calls `session.launch`. **Set up** opens `example.hardware` or `example.c64` for the focused row. The shelf itself does not add sockets, cards, or another machine family |
+| `example.c64` | Commodore 64 setup for prepared `fes.c64` entries. Next machine and Next edition walk the library rows and grouped editions. Socket 1, socket 2, and a saved expansion come from that entry. A saved disk is `media_role=disk`. `.tap`, `.t64`, and `.crt` are not offered. Start calls `session.launch`. Choose disk calls `session.open_tape` only while that entry is running with removable media |
 | `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:

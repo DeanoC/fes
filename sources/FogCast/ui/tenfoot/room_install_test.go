@@ -62,7 +62,7 @@ func TestInstalledRoomLiveUpdateAndFailedUpdateKeepWorkingInstance(t *testing.T)
 	}
 	second := installedTestRoom(t, root, "live", "Second", "function load() assert(store.get('keep') == 'v1'); store.set('keep', 'v2') end; function draw() gfx.text('new', 1, 1) end")
 	app.session.State = "active"
-	app.openInstalledRoomLocked(second, true)
+	app.openInstalledRoomLocked(second, true, "")
 	if app.room != original {
 		t.Fatal("room replacement disturbed active play")
 	}
@@ -137,7 +137,7 @@ func TestHomeRefreshesUpdatedRoomAndKeepsWorkingInstanceOnFailedTrial(t *testing
 		t.Fatalf("home did not load the changed selection: %s", app.status)
 	}
 	working := app.room
-	app.openNestedRoomLocked("home-child")
+	app.openNestedRoomLocked("home-child", "")
 	if app.room == nil || app.room.ID() != "home-child" || len(app.roomStack) != 1 || app.roomStack[0] != working {
 		t.Fatalf("nested room did not keep the current home: %s", app.status)
 	}
@@ -225,9 +225,32 @@ func TestInstalledNestedRoomKeepsParent(t *testing.T) {
 	defer app.closeAllRoomsLocked()
 	app.openRoomLocked("parent")
 	original := app.room
-	app.openNestedRoomLocked("child")
+	app.openNestedRoomLocked("child", "")
 	if app.room == nil || app.room.ID() != "child" || len(app.roomStack) != 1 || app.roomStack[0] != original {
 		t.Fatalf("nested room lost parent: %s", app.status)
+	}
+}
+
+func TestNestedRoomReceivesInitialGameID(t *testing.T) {
+	root := t.TempDir()
+	parent := installedTestRoom(t, root, "parent", "Parent", "function on_input(cmd) if cmd == 'select' then rooms.open('child', {game_id = 'c64-second'}) return true end return false end; function draw() end")
+	child := installedTestRoom(t, root, "child", "Child", "function draw() end")
+	h := newRoomHost(t)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{parent, child}), root)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	defer app.closeAllRoomsLocked()
+	app.openRoomLocked("parent")
+	if app.room == nil || !app.room.Input("select") {
+		t.Fatal("parent did not handle selection")
+	}
+	app.applyRoomActionsLocked()
+	if app.room == nil || app.room.ID() != "child" {
+		t.Fatalf("child room did not open: %s", app.status)
+	}
+	if err := app.room.CheckGlobal("room.initial_game_id == 'c64-second'"); err != nil {
+		t.Fatalf("child did not receive its selected game: %v", err)
 	}
 }
 
