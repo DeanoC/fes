@@ -1,8 +1,9 @@
 # FES pc386 machine design
 
-**Status:** Proposal. No RTL, simulation, routed result or kit evidence exists
-for this machine. Every clock, area, bandwidth and latency figure below is a
-budget or an estimate unless it names a measurement. The milestone that
+**Status:** Proposal, with its design decisions settled on 2026-10-25
+([decisions](#decisions)). No RTL, simulation, routed result or kit evidence
+exists for this machine. Every clock, area, bandwidth and latency figure below
+is a budget or an estimate unless it names a measurement. The milestone that
 measures one replaces it.
 
 **Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
@@ -134,10 +135,13 @@ L2 fills in the two ROM ranges and the reset alias to the ROM M10K; everything
 else goes to DDR port 0 at window offset `0x04000000 + physical`. The ROM
 ranges are read-only, so their lines are never dirty and never written back.
 
-**Upper RAM** lets a UMB driver load DOS drivers high without V86, which the
-Ultima VII games forbid. Whether the acceptance setups need it is checked in
-Phase 3 against their free-memory figures. Real AT clones with shadow-capable
-chipsets offered the same.
+**Upper RAM** is on by default, so a UMB driver can load DOS drivers high
+without V86, which the Ultima VII games forbid. UMBM from the Jemm package
+(public domain) is such a driver: it hands RAM it finds in the upper area to
+DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
+chipset shadow RAM; here the RAM is already on. Phase 3 confirms UMBM finds it
+and checks whether the acceptance setups need it for their free-memory
+figures. Real AT clones with shadow-capable chipsets offered the same.
 
 Guest RAM is 16 MiB, the AT's DMA reach. The CPU design allows up to 64 MiB;
 a RAM-size setting is later work.
@@ -186,9 +190,10 @@ changes as 15 µs each, so bit 4 must follow channel 1 as the BIOS programs it.
 | 6 | Free (no floppy) | 14 | ATA |
 | 7 | Sound Blaster | 15 | Free |
 
-The Sound Blaster uses 220h, IRQ 7 and DMA 1, advertised as `BLASTER=A220 I7
-D1 T3`. These are SB 2.0 factory settings; confirming them against the CT1350
-manual is a Phase M3 task. No other device uses DMA in this scope.
+The Sound Blaster is fixed at 220h, IRQ 7 and DMA 1, advertised as
+`BLASTER=A220 I7 D1 T3`; there is no setting. These are SB 2.0 factory
+settings; confirming them against the CT1350 manual is a Phase M3 task. No
+other device uses DMA in this scope.
 
 ### HPS DDR window and ports
 
@@ -607,7 +612,7 @@ Survey of open OPL2 RTL:
 | [JTOPL](https://github.com/jotego/jtopl) (`jtopl2.v`) | YM3526, YM3812 | GPL-3.0 | Clock enable input. "Accurate at sample level, and at internal cycle clock where reasonable." CSM not implemented. OPL3 not yet. |
 | [Nuked-OPL3](https://github.com/nukeykt/Nuked-OPL3) | YMF262 in C | LGPL-2.1 | Cycle-accurate software model with an OPL2-compatible mode. Oracle only. |
 
-**Proposed decision: import opl2_fpga.** It is the smallest, its licence is
+**Decision: import opl2_fpga.** It is the smallest, its licence is
 weak copyleft and compatible with misteross (which already carries
 GPL-3.0-or-later RTL such as fx68k), and its OPL3 parent is the upgrade path
 when OPL3 and the Sound Blaster Pro arrive. JTOPL is the fallback if the
@@ -714,8 +719,8 @@ held, and the mailbox carries only control, geometry, a CRC and the dirty map.
 
 ### Media contract: `fes.media.ata-disk` 1.0
 
-A new interface in the `fes.computer` registry, unit 0. Proposed constants:
-window offset `0x08000000`, maximum 134,217,728 bytes, chunk 65,536 bytes.
+A new interface in the `fes.computer` registry, unit 0. Constants: window
+offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
@@ -758,11 +763,62 @@ It also proves that the runtime's cache clean reached DDR.
 
   Load time is roughly the image's used bytes over the kit's storage read
   rate; Phase M4 measures it.
-- **Preparing images.** Phase 3 accepts images made elsewhere (DOSBox-X, QEMU,
-  86Box) and test images built by repository tooling from FreeDOS and a game
-  directory. A FogCast disk builder (FAT16 from FreeDOS plus a folder) is
-  follow-up work; shipping FreeDOS in FogCast is an open decision because of
-  its GPL source obligations.
+- **Preparing images.** FogCast accepts images made elsewhere (DOSBox-X, QEMU,
+  86Box). It also gets a disk builder that makes a bootable FAT16 image from
+  FreeDOS plus a folder of the player's game files, shipping FreeDOS with its
+  GPL source obligations met ([below](#freedos-in-the-fogcast-disk-builder)).
+  The builder is follow-up work in FogCast, not part of this design's PR.
+  Until it lands, Phase 3 test images come from repository tooling that uses
+  the same pinned FreeDOS archives.
+
+### FreeDOS in the FogCast disk builder
+
+FogCast ships FreeDOS inside the disk images its builder makes, and so
+distributes FreeDOS binaries. The design meets the GPL and the other
+component licences like this.
+
+**Pinned release.** FreeDOS 1.4 ([released 2025-04-05](https://www.freedos.org/download/announce.html)),
+taken package by package from the [FreeDOS package archive](https://gitlab.com/FreeDOS/base)
+at each package's `FreeDOS-v1.4` tag. Each package archive holds `BIN`, `DOC`,
+`SOURCE`, `APPINFO` and, for most, a `LICENSE`. FogCast's builder lock records
+every archive's SHA-256. A later FreeDOS release is a deliberate lock change.
+
+**Components that ship:**
+
+| Component | FreeDOS 1.4 version | Licence (package `APPINFO` record) | Why it ships |
+| --- | --- | --- | --- |
+| Kernel: `KERNEL.SYS` and the FAT16 boot sector from its `SYS` | 2043 | GPL v2 (upstream: v2 or later) | DOS and the volume boot record |
+| FreeCOM: `COMMAND.COM` | 0.86a | GPL v2 | Shell |
+| HimemX | 3.38 | GPL, Artistic and public domain: Japheth's changes are public domain, the FD Himem code it derives from is GPL and/or Artistic | XMS and A20 for HIMEM-using games |
+| Jemm: `UMBM.EXE` now, `JEMM386.EXE` from CPU Phase 5 | 5.85 | JEMM386 and JEMMEX partly Artistic License (from FreeDOS EMM386); UMBM public domain | Upper memory without V86; EMS for the Phase 5 checks |
+| CuteMouse: `CTMOUSE.EXE` | 2.1b4 | GPL v2 | INT 33h mouse driver over the PS/2 BIOS services |
+| MEM | 1.12 | GPL v2 | The free-memory acceptance check |
+| Free FDISK: its master boot record code | 1.4.3 | GPL v2 | The MBR the builder writes |
+
+The builder writes `FDCONFIG.SYS`, `AUTOEXEC.BAT` (including `BLASTER`) and
+the partition table itself; those files are FogCast's own. Binaries ship
+unmodified. If a component ever needs a patch, the source that ships is the
+patched source with the changes marked. Adding a component means adding a row
+here and to the lock, with its licence. The image is an aggregate of
+separately licensed programs, so FogCast's own licence is unaffected.
+
+**Corresponding source.** Every image the builder writes carries the complete
+source with it, which GPL v2 §3(a) allows and which needs no written offer:
+
+- each shipped package's `SOURCE` tree goes onto the image as one archive per
+  package under `\FDOS\SOURCE\`, a few megabytes in all (estimate; the lock
+  records the exact sizes);
+- FogCast's own release carries the same pinned package archives, sources
+  included, since the builder reads them from there; the binaries FogCast
+  distributes never travel without their source;
+- the library entry for a built image links the same source archives, so a
+  player can fetch them without booting the image.
+
+**Licence texts on the image.** Each package's `LICENSE` and `DOC` files go to
+`\FDOS\DOC\<package>\`: the GPL v2 text, Jemm's `Artistic.txt`, HimemX's
+licence statement. The builder also writes `\FDOS\LICENSES.TXT`, listing
+every component with its version, licence, archive SHA-256 and the path of its
+source archive on the image.
 
 ### Write-back and persistence
 
@@ -822,14 +878,14 @@ local changes. The producer takes the locked images.
 
 ### How the package carries them
 
-**Proposed decision: the two images are M10K contents of the sealed RBF, a
+**Decision: for Phase 3 the two images are M10K contents of the sealed RBF, a
 format-2 package, 96 blocks.** The ROM lanes are placed and named like the
 C64's and Atari ST's firmware sockets, so a later format-3 ROM map can relink
 a user-supplied BIOS through the existing linker without rerouting. This uses
 nothing new in mister-packages or the runtime, and it fits the budget. The CPU
 design said user-linked firmware "stays possible", not required.
 
-The alternatives are an open decision:
+Alternatives not taken, kept as later options:
 
 - **Format 3 with a FogCast-supplied default.** The base RBF has blank ROM
   lanes; FogCast's catalog ships the open BIOS as a firmware asset bound by
@@ -965,15 +1021,15 @@ It declares, all required:
 | `fes.pc386.machine` 1.0 layout | 18 | New |
 
 **The capability word is full.** `fes.computer` 1.0 uses bits 0–14 of its
-single 16-bit capability word, and identity has no spare word. The proposal is
+single 16-bit capability word, and identity has no spare word. The decision is
 `fes.computer` 1.1, which adds identity word 16 for capability bits 16–31.
 Older runtimes reject ABI 1.1 at compatibility, before programming, which is
-the normal refusal path. A new `fes.pc` ABI is the alternative, but it would
-duplicate keyboard, mouse, media and display semantics only because one
+the normal refusal path. A new `fes.pc` ABI was the alternative; it would have
+duplicated keyboard, mouse, media and display semantics only because one
 identity word ran out.
 
-Opcodes proposed for 1.1, avoiding the display's 18–21 (final numbers belong
-to the YAML):
+Opcodes for 1.1, avoiding the display's 18–21 (the YAML fixes the final
+numbers):
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
@@ -1019,7 +1075,11 @@ own `toolchain.lock`.
   code profile, written into the `fes.pc386.machine` record. The settings API
   follows Pong's (expected revision, next launch).
 - Save at Stop for the disk and the record; "reset disk"; later "save as new
-  image" and the disk builder.
+  image".
+- The disk builder with the pinned FreeDOS archives, the source on every image
+  and the licence index
+  ([FreeDOS in the builder](#freedos-in-the-fogcast-disk-builder)). This is
+  follow-up FogCast work.
 - The hardware room shows the disk as fixed: no eject while running.
 
 ## Verification
@@ -1090,41 +1150,44 @@ CD-ROM, a VGA read cache, the video-part socket.
 
 ## Decisions
 
-Proposed in this document, for review with it:
+Settled on 2026-10-25. Deano took every recommendation and chose to ship
+FreeDOS with its GPL obligations:
+
+1. **DDR ports.** The display plane moves to DDR port 2 behind the 128-to-64-bit
+   beat splitter; port 0 is the CPU's alone
+   ([DDR window and ports](#hps-ddr-window-and-ports)).
+2. **ABI.** `fes.computer` goes to 1.1, with identity word 16 as a second
+   capability word ([ABI and manifest](#abi-and-manifest)).
+3. **Firmware.** For Phase 3 the BIOS and VGA BIOS are M10K contents of a
+   format-2 RBF ([how the package carries them](#how-the-package-carries-them)).
+4. **OPL2.** Import opl2_fpga (LGPL-3.0), with JTOPL as the fallback
+   ([OPL2](#opl2)).
+5. **Disk.** 128 MiB maximum, 64 KiB dirty chunks, a chunk-delta record
+   ([write-back and persistence](#write-back-and-persistence)).
+6. **Persistence key.** One record per library game holds CMOS and the
+   settings ([persistence](#persistence)).
+7. **Sound Blaster.** Fixed at 220h, IRQ 7, DMA 1, with no setting
+   ([interrupts and DMA](#interrupts-and-dma)).
+8. **Upper RAM.** C8000–EFFFF is RAM by default
+   ([guest physical memory](#guest-physical-memory)).
+9. **FreeDOS.** FogCast's disk builder ships FreeDOS and meets its GPL source
+   obligations ([FreeDOS in the builder](#freedos-in-the-fogcast-disk-builder)).
+   The builder is follow-up FogCast work.
+
+Design decisions this document takes, settled with it:
 
 - On-board devices use a direct I/O decoder, not the ISA fabric.
-- Port 0 is the CPU's alone; the display plane moves to port 2 through a beat
-  splitter; VRAM is on port 1; capture, presenter and disk are on port 2.
+- VRAM is on port 1; capture, presenter, plane and disk are on port 2.
 - I/O timing classes `isa8`, `isa16` and `vga`, with VGA port writes ordered in
   the VGA FIFO.
 - VGA output is captured to triple buffers in DDR and scaled to a centred
   960 × 720 picture with an area-weighted filter.
 - The ATA image is written into the DDR window by the runtime, verified by a
   core-side CRC, and persisted as a content-addressed chunk delta.
-- CMOS and the CPU settings share one per-game `fes.pc386.machine` record.
 - The 8042 is an RTL state machine; the keyboard model owns typematic repeat;
   the mouse carries excess movement instead of overflowing.
 
-Open decisions for Deano:
-
-1. **DDR ports.** Move the plane to port 2 behind a splitter (recommended), or
-   share port 0 between the plane and the CPU.
-2. **ABI.** Extend `fes.computer` to 1.1 with a second capability word
-   (recommended), or define a new `fes.pc` ABI.
-3. **Firmware carriage.** M10K in a format-2 RBF (recommended for Phase 3),
-   format 3 with a FogCast-supplied default BIOS, or firmware in DDR through a
-   new package member.
-4. **OPL2 source.** Import opl2_fpga, LGPL-3.0 (recommended), import JTOPL,
-   GPL-3.0, or write one.
-5. **Disk.** 128 MiB maximum and 64 KiB dirty chunks, with a chunk-delta
-   record (recommended), or a whole-image record like the ST's.
-6. **Persistence key.** One record per library game for CMOS and settings
-   (recommended, and implied by per-game speed), or per core as Pong does.
-7. **Sound Blaster resources.** Fixed at 220h, IRQ 7, DMA 1, or a setting.
-8. **Upper RAM.** C8000–EFFFF as RAM by default (recommended), or a hole.
-9. **FreeDOS in FogCast.** Ship FreeDOS in a FogCast disk builder, taking on
-   its GPL source obligations, or leave images to players and keep FreeDOS in
-   test tooling only.
+No decision is open.
 
 ## Location
 
@@ -1135,4 +1198,5 @@ controller move from `cores/fes-pcxt/` to `cores/fes-common/` when pc386 first
 uses them, since two cores then share them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
-`scripts/build_fes_pc386_oss.py`.
+`scripts/build_fes_pc386_oss.py`. The FogCast disk builder and its FreeDOS
+lock land in `sources/FogCast/` with that follow-up.
