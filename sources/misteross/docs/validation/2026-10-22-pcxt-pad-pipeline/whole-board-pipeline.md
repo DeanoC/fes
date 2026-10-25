@@ -970,3 +970,69 @@ flight/skew/inverter-slew bounds; reset/relock/pulse/MTBF and bundled-data
 qualification; and exact-artifact hardware acceptance. HPS and fabric clocks
 retain no declared phase relation. This CGA Direct cohort supplies no MDA or
 Scanlines native routed acceptance. No hardware ran in this integration step.
+
+### HPS enable/feedback inventory and reference, 25 October
+
+Base `e9ee608e02`; implementation `c0a3e0d0e7`. The HPS auditor binds all
+four enable/feedback boundaries to each immutable ordinary producer receipt,
+complete routed JSON and exact RBF. It discovers roles through external ports
+and validates controller 2 at native site 52.60.0, SCL U10, SDA AA4,
+constant-low data, unregistered IO, pin maps, exclusive enables and uncrossed
+feedback. All three frozen seeds pass this structural check.
+
+Read-only extraction finds two supported feedback routes and two unsupported
+OE routes per seed. Mistral's waveform builder has no HPS output case. Its
+unavailable OE zero arrays become unknown bounds in the audit. The helpers use
+preserved `fdf0462d` objects and Mistral `9ab65220`, independently of the
+selected producer. They restore native pin maps and read the original RBFs.
+An explicit four-corner routing helper reproduces all slow100 controls exactly.
+The two OEs remain unsupported at every corner. Seed 1 SDA falling feedback
+changes from 3.586--3.639 ns at slow100 to 1.290--1.313 ns at minimum/-40 C;
+these values use the unrepaired legacy voltage model and are retained as
+diagnostics, not trusted route bounds. They also exclude pad and hard-IP
+capture timing.
+
+The committed characterizer produces fresh Quartus 17.0.2 Build 602 final-model
+fits at declared 0 and 30 pF loads. All 128 paths cover both pins, directions,
+transitions, early/late analysis and four corners. Every path retains its
+IOOBUF OE or IOIBUF boundary and HPS site. `AUTO_OPEN_DRAIN_PINS OFF` is
+essential: the default optimization uses dedicated open-drain DATAOUT,
+bypassing the separate OE boundary used by the native bitstreams. The final
+references retain separate OE routes and the native delay-selector values.
+Earlier dedicated-open-drain and failed fixture attempts remain retained.
+The zero source row is an HPS analysis boundary, not characterized clock-to-Q.
+These own-route references do not supply native-route, measured board-load,
+continuous-load, hard-IP launch/capture or HPS/fabric phase bounds.
+
+The minimum-corner investigation identifies a simulator supply bug:
+`add_gnd_vdd` does not update the fixed 1 V threshold setting.
+[Mistral #22](https://github.com/DeanoC/mistral/pull/22), code `d210ec5d9a`,
+corrects it and adds an independent analytical RC voltage-invariance test.
+The actual parent fails and the corrected source passes. A clean build passes
+all ten CTests. Three host controls linked to the actual corrected library
+reproduce every complete original final native timing JSON and RBF exactly;
+the native producer uses the unchanged 1 V slow100 corner. Other corner
+voltage/model corrections remain under investigation. The toolchain lock is
+unchanged, and this correction grants no fast-corner or physical acceptance.
+
+Two briefly leased, read-only Kit B captures observe nominal 100 MHz L4 SP,
+standard-mode counts 427/499, requested 100 kHz bus rate and one TX hold cycle.
+The boot ticket and health agree on image `4db74864`. Running agent/runtime
+hashes match active bundle `35d58489` and its declared `022481f4` provenance;
+the different base-image agent digest is recorded separately. The image
+manifest's kernel digest matches that source revision's locked artifact.
+Actual loaded-kernel and root-image backing bytes were not hashed, so full
+kernel-source binding remains open. No PC/XT RBF load, I2C transaction,
+software/image/boot or shared-host change occurs. Both captures finish
+lease-free; the current status file governs later kit use.
+
+[HPS evidence](board50-hps-i2c-contract.json) binds code, native receipts,
+128 fitted paths, configuration snapshots and regressions. `make check` passes
+21 generated consumers/37 fixture copies. The full selected affected run
+passes 843 parent tests, 1,351 component tests and all 21 PC/XT simulation
+suites; 64 optional component checks are skipped. Ten focused HPS tests and
+the fresh 128-path characterizer also pass. No native route
+search runs; the 133-entry journal is unchanged. No runtime/shared contract
+or package changes. Physical HPS/OE/pad/board bounds, complete native
+fast-corner cell/clock/data coverage, reset/CDC qualification and observable
+exact-artifact PC/XT hardware acceptance remain open.
