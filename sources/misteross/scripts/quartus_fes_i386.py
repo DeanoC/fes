@@ -16,6 +16,12 @@ flatten; opt -purge; write_verilog`. That is the netlist the lockstep checks
 with --yosys, it is not technology-mapped, and Quartus does all synthesis
 (LUT mapping, carry chains) and all placement and routing.
 
+The elaborated netlist still spells packed-array strides as constant
+multiplies (start*42 for dec[start]). Quartus maps the widest to a DSP block;
+synth_intel_alm folds them into logic. --dsp-in-logic sets Quartus's
+DSP_BLOCK_BALANCING to logic elements, the fair setting wherever the OSS
+netlist has no DSP.
+
 Each seed fits the same synthesis. TimeQuest reports, at the slow corner
 (1100 mV, 100 C):
   - the worst setup path to every register, labelled by pipeline stage with
@@ -34,6 +40,7 @@ Writes build/quartus/fes-i386/<fingerprint>/summary.json.
 from __future__ import annotations
 
 import argparse
+import collections
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
@@ -99,7 +106,7 @@ class QuartusError(RuntimeError):
 
 
 _DECLARATION = re.compile(r'^\s*(?:wire|reg|input|output)\s+(?:signed\s+)?(?:\[(\d+):(\d+)\]\s+)?(\\\S+|\w+)\s*;')
-_ASSIGN = re.compile(r'^\s*assign\s+\{(.*)\}\s*=\s*(_\d+_)\s*;')
+_ASSIGN = re.compile(r'^\s*assign\s+(?:\{(.*)\}|(\S+(?:\s*\[[^\]]*\])?))\s*=\s*(_\d+_)\s*;')
 _PART = re.compile(r'(\\\S+|\w+)(?:\s*\[(\d+)(?::(\d+))?\])?')
 
 
@@ -117,25 +124,45 @@ def register_names(netlist: str) -> dict[tuple[str, int], str]:
         if not match:
             continue
         bit = 0
-        for part in reversed([item.strip() for item in match.group(1).split(',')]):
+        target = match.group(1) if match.group(1) is not None else match.group(2)
+        for part in reversed([item.strip() for item in target.split(',')]):
             found = _PART.fullmatch(part)
             if not found:
                 break
             name, hi, lo = found.group(1).lstrip('\\'), found.group(2), found.group(3)
             width = 1 if hi is not None and lo is None else int(hi) - int(lo) + 1 if hi is not None else widths.get(name, 1)
             for _ in range(width):
-                names[(match.group(2), bit)] = name
+                names[(match.group(3), bit)] = name
                 bit += 1
+    # Bits that drive a function's result variable ($-named) take the name
+    # most of their register's other bits drive; so does the whole register
+    # (bit -1), for the RAM-based shift registers Quartus infers from it.
+    common = {}
+    for (register, _), name in names.items():
+        if '$' not in name:
+            common.setdefault(register, collections.Counter())[name] += 1
+    for key, name in list(names.items()):
+        if '$' in name and key[0] in common:
+            names[key] = names[(name, -1)] = common[key[0]].most_common(1)[0][0]
+    for register, counts in common.items():
+        names[(register, -1)] = counts.most_common(1)[0][0]
     return names
 
 
 def node_label(name: str, stages, names: dict | None = None) -> str:
     """A Quartus register name, as the benchmark's 'cpu' labels read it."""
+    # A RAM or RAM-based shift register Quartus inferred from a register.
+    ram = re.match(r'(?:altshift_taps|altsyncram):(\\?[\w.$]+?)_rtl_\d+\|', name)
+    if ram:
+        name = (names or {}).get((ram.group(1), -1), ram.group(1))
     name = re.sub(r'~.*$', '', name).split('|')[-1].strip('\\ ')
     anonymous = re.fullmatch(r'(_\d+_)\[(\d+)\]', name)
     if anonymous and names:
-        name = names.get((anonymous.group(1), int(anonymous.group(2))), name)
-    name = re.sub(r'\[[^\]]*\]', '', name)
+        key = (anonymous.group(1), int(anonymous.group(2)))
+        name = names.get(key, names.get((key[0], -1), name))
+    name = re.sub(r'_reg$', '', re.sub(r'\[[^\]]*\]', '', name))
+    if names and (name, -1) in names:
+        name = names[(name, -1)]
     return next((label for label, pattern in stages if re.match(pattern, name)), 'envelope')
 
 
@@ -190,6 +217,8 @@ def main() -> int:
     parser.add_argument('--target-mhz', type=float, default=100.0)
     parser.add_argument('--jobs', type=int, default=4, help='seeds fitted at once')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--dsp-in-logic', action='store_true',
+                        help="build multiplies in logic, as Yosys does when it folds them into a shift")
     parser.add_argument('--reuse', action='store_true', help='keep an existing synthesis and fits; re-run TimeQuest')
     args = parser.parse_args()
     seeds = args.seed or [1, 2, 3, 4]
@@ -204,7 +233,7 @@ def main() -> int:
         for path in sources:
             digest.update(path.read_bytes())
         digest.update(Path(args.yosys).read_bytes())
-        digest.update(f'{args.spike}{args.target_mhz}{version}'.encode())
+        digest.update(f'{args.spike}{args.target_mhz}{version}{args.dsp_in_logic}'.encode())
         output = (args.output or ROOT / 'build/quartus/fes-i386' / digest.hexdigest()[:12]).resolve()
         base = output / 'synthesis'
         reuse = args.reuse and (base / 'db').is_dir()
@@ -226,7 +255,9 @@ def main() -> int:
             f'set_global_assignment -name TOP_LEVEL_ENTITY {TOP}\n'
             'set_global_assignment -name NUM_PARALLEL_PROCESSORS 4\n'
             f'set_global_assignment -name VERILOG_FILE {TOP}.v\n'
-            f'set_global_assignment -name SDC_FILE {TOP}.sdc\n' + pins)
+            f'set_global_assignment -name SDC_FILE {TOP}.sdc\n'
+            + ('set_global_assignment -name DSP_BLOCK_BALANCING "LOGIC ELEMENTS"\n' if args.dsp_in_logic else '')
+            + pins)
         (base / f'{TOP}.sdc').write_text(
             f'create_clock -name clk -period {1000.0 / args.target_mhz:.3f} [get_ports {{FPGA_CLK1_50}}]\n')
         if not reuse:
@@ -238,7 +269,7 @@ def main() -> int:
 
         def fit(seed: int) -> dict:
             work = output / f'seed-{seed}'
-            if not (reuse and (work / 'output_files' / f'{TOP}.fit.summary').is_file()):
+            if not (reuse and (work / f'{TOP}.fit.summary').is_file()):
                 if work.exists():
                     shutil.rmtree(work)
                 shutil.copytree(base, work)
@@ -246,10 +277,10 @@ def main() -> int:
             (work / 'sta.tcl').write_text(STA_TCL.format(top=TOP, post_map='', out='sta.tsv', paths=PATHS))
             run([str(bin_dir / 'quartus_sta'), '-t', 'sta.tcl'], work, work / 'sta.log', env)
             result = parse_sta((work / 'sta.tsv').read_text(), args.target_mhz, stages, names)
-            report = (work / 'output_files' / f'{TOP}.fit.summary')
+            report = (work / f'{TOP}.fit.summary')
             result['fit_summary'] = report.read_text() if report.is_file() else ''
-            stages = ', '.join(f'{label} {figure["fmax_mhz"]:.1f}' for label, figure in result['stages'].items())
-            print(f'quartus seed {seed}: {result["fmax_mhz"]} MHz ({stages})', flush=True)
+            listing = ', '.join(f'{label} {figure["fmax_mhz"]:.1f}' for label, figure in result['stages'].items())
+            print(f'quartus seed {seed}: {result["fmax_mhz"]} MHz ({listing})', flush=True)
             return {'seed': seed, **result}
 
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
@@ -258,7 +289,8 @@ def main() -> int:
                    'created_utc': datetime.now(timezone.utc).isoformat(), 'quartus': version,
                    'spike': args.spike, 'yosys': args.yosys,
                    'netlist': NETLIST.format(files='<spike sources>', top=TOP, out=f'{TOP}.v'),
-                   'device': DEVICE, 'target_mhz': args.target_mhz, 'corner': 'slow 1100mV 100C (TimeQuest default)',
+                   'dsp_in_logic': args.dsp_in_logic, 'device': DEVICE, 'target_mhz': args.target_mhz,
+                   'corner': 'slow 1100mV 100C (TimeQuest default)',
                    'sources': {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
                                for path in sources},
                    'post_map': post_map, 'runs': runs}
