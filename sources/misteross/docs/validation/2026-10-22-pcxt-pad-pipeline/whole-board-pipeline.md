@@ -690,3 +690,71 @@ charged wall time is 100408.94542329385818741 seconds. The 121-entry prefix rema
 exact. The outer tool session reported 143 after the retained completion line;
 all three child receipts independently record exit 0 and immutable artifacts.
 No kit ran or runtime/shared contract changed.
+
+### Committed early-CS source and fresh four-counter reference
+
+Commit `695036ff48` integrates the four RTL files byte for byte from frozen
+source `320dbc51`. The routed cohort selects CGA Direct; MDA/scanline variants
+inherit no routed acceptance. A fresh ordinary authenticated `--half-rate-board --synth-only`
+producer at that committed revision reproduces the complete frozen synthesis
+JSON after normalizing only source/output directory prefixes. Generated ROMs
+also match; no cells, parameters, nets, source lines or other fields are dropped.
+
+All five native clock trees match the selected edges decoded from each exact
+RBF. Raw memory-PLL queries include default fields: M=20, N=2, VCO=500 MHz;
+C6/C7/C5/C8 preserve CPU/capture/board/CS period and phase. C8 has high/low
+counts 5/5, preset 10 and phase mux 0, encoding period 20 ns and phase 18 ns.
+The final CS pad is the only register clocked by that output. Missing CS
+branch bindings and an incorrect phase preset are rejected. This is structural
+encoding evidence, without an analogue waveform or metastability claim.
+
+A new Quartus 17.0.2 reference uses the committed PLL/CS blocks and actual
+memory frontend/controller bytes. The queried raw memory-PLL fields match all
+three native RBFs, and the nine-edge forwarded SDRAM clock branch matches.
+The fitted CS clock sidebranch and other fabric differ from the native full
+board; these reports do not calibrate the native IO delays. The reference's
+virtual probes are not board interfaces.
+
+Every paired native row has fresh explicit four-corner uncertainty budgets,
+including the board-to-CS transfer. All 17709 paired identities match across
+the cohort and remain positive under this partial screen:
+
+| Seed | Setup after fresh reference uncertainty ns | Hold after fresh reference uncertainty ns |
+| --- | ---: | ---: |
+| 1 | +1.562 | +0.794 |
+| 2 | +0.605 | +0.761 |
+| 3 | +0.405 | +0.796 |
+
+The screen still exits 1 because the same nine unpaired rows remain. It does
+not assert native fast-corner, external IO, reset or CDC acceptance. The bounded
+Quartus chip reference separately includes Etron -6 CL2 and the conditional
+4.2 ns CS2 inverter delay, declared FPGA 30 pF, and zero board flight. All four
+corners pass their reported paths. Worst reference setup/hold is +6.048/+4.861 ns
+for the 16 inputs, +5.183/+5.389 ns for the 51 output paths, and +2.495/+10.635 ns
+for the 16 capture handoffs. Separate shell CKE/DQML/DQMH mirrors remain outside
+those chip-pin output requirements.
+
+The new native routes also pass the same six-chain structural/interstage
+checks and all 919 reset consumer ports. Minimum consumer setup/hold is
++6.553/+1.000 ns, +6.146/+0.870 ns and +6.612/+0.931 ns for seeds 1/2/3.
+The 1021 cone-terminal checks overlap; two asynchronous clear consumers retain
+pulse/control obligations. The committed final-stage proof now reads the
+actual top-level CS register as well as the shared IO stage; all three proof
+cases pass after both final stages have loaded, including rejection of the
+missing-stage variant. Power-up behavior before that warmup is outside this lemma.
+
+[Fresh reference](board50-cslead-quartus-reference.json) retains the complete
+corner summaries, source/constraint/report identities, branch comparison and
+partial native screens. [Verification](board50-cslead-verification.json)
+retains producer, proof and audit identities. No further native route ran;
+the journal remains at 124 receipts. Whole-board physical qualification and
+exact-artifact hardware acceptance remain open.
+
+Validation of committed code `695036ff48` passes `make check` and the full
+`make test-changed TEST_CHANGED_ARGS='--base 485165b3ec'` run: 843 parent cases,
+1326 component cases, all 21 PC/XT suites, and the full selected Atari ST and
+RAM Tester simulations. The component run skips 56 existing/optional tool
+cases, including the four mailbox methods and three new CS methods. All three
+CS methods separately pass with the pinned Yosys/ABC; the unchanged mailbox
+and reset-audit source retains its explicit 22-method pass at `485165b3ec`.
+The final verification commit changes documentation/evidence only.

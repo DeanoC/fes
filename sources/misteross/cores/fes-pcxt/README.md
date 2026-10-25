@@ -106,9 +106,11 @@ Neither the 100 MHz system clock nor the 74.25 MHz pixel clock supplies their
 launch timing.
 
 The RAM Tester budget generator is specific to its EM63B165 -6 reference and
-registered-pad timing boundary. PC/XT retains fabric DQ capture and unregistered
-DQ data/OE paths, so those directions need matching pad bounds before reusing
-its formulas. Recompute the forwarded-clock-dependent budgets after routing
+registered-pad timing boundary. The ordinary PC/XT profile retains fabric DQ
+capture and unregistered DQ data/OE paths. The experimental CPU100/board50
+profile packs those registers into the pads; its conditional IO replay and
+[fresh four-counter reference](../../docs/validation/2026-10-22-pcxt-pad-pipeline/board50-cslead-quartus-reference.json)
+remain separate from fitted-kit qualification. Recompute the forwarded-clock-dependent budgets after routing
 changes, and check both setup/hold and the chip's pulse-width and turnaround
 requirements. Missing board inputs remain unknown; do not substitute the
 example flight intervals or the 30 pF reference load as measurements.
@@ -124,7 +126,8 @@ mask-output coverage distinction; it supplies no physical SDC or timing waiver.
 ## SDRAM storage
 
 `rtl/pcxt_memory.sv` implements the motherboard's byte VALID/READY/DONE port
-at 100 MHz using the unchanged `fes-ramtest/rtl/sdram_addon_port.v` controller.
+using the shared `fes-ramtest/rtl/sdram_addon_port.v` controller. Its ordinary
+profile runs at 100 MHz; the experimental split runs this port at 50 MHz.
 CPU and DMA already share that port through the motherboard arbiter. Accepted
 payloads are retained independently of caller pins, with one completion and no
 repeat while VALID stays high. Reads select the requested halfword byte;
@@ -168,7 +171,9 @@ bank recovery state and RAM contents across FPGA reset.
 output. The board diagnostic supplies captured `dq_rise/dq_fall`, bidirectional
 pads and PLL phases; their physical setup/hold constraints remain unqualified. The diagnostic synthesis retains
 `altddio_out` as a technology primitive; it does not qualify a mapped pad or
-clock network. This is host-only evidence, with no routed timing or kit load.
+clock network. These standalone functional checks supply host-only evidence;
+the experimental profile's routed results are recorded separately and no kit
+acceptance is inherited.
 
 Run `python3 scripts/sim_fes_pcxt.py --suite memory` from `sources/misteross`
 for independent packed-address/command/CAS/DQM checks, 4,000 random neighbour

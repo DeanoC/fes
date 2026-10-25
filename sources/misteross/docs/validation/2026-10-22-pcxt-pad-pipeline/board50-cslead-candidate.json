@@ -89,11 +89,20 @@
     "reference_scope": "Logical event ordering only. Native routed checks separately cover the 18 ns source-to-CS capture window; no analogue or board claim."
   },
   "remaining": [
-    "No fresh four-corner uncertainty reference yet for this four-counter variant; do not reuse the earlier cohort adjusted margins.",
+    "Fresh four-corner reference budgets cover all paired native clock events, including the board-to-CS pair. Nine unpaired rows keep whole-board qualification open; native fast-corner, reset pulse/CDC/MTBF and fitted-board IO requirements are not supplied by this partial screen.",
     "Raw PLL reset entries, video CDC entry/physical bank-skew and MTBF obligations remain open.",
     "Fitted board load/flight/inverter slew, HDMI/HPS contracts, and fresh authenticated producer/exact-artifact hardware qualification remain open."
   ],
   "route_budget_unlimited": true,
   "physical_qualified": false,
-  "hardware": false
+  "hardware": false,
+  "committed_integration": "695036ff4863af9345def69c85d4f12790b630b8",
+  "fresh_reference": "board50-cslead-quartus-reference.json",
+  "verification": "board50-cslead-verification.json",
+  "synthesis_parameters": {
+    "MDA": 0,
+    "SCANLINES": 0,
+    "HALF_RATE_BOARD": 1
+  },
+  "variant_scope": "The three native routes report passing paired timing for CGA Direct only. MDA and scanline combinations inherit no routed or hardware acceptance."
 }
