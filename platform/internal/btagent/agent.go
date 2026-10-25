@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +20,7 @@ import (
 const (
 	systemSocket = "/var/run/dbus/system_bus_socket"
 	agentPath    = "/org/fes/bluetooth/agent"
-	agentCap     = "KeyboardDisplay"
+	agentCap     = "NoInputNoOutput"
 	dbusDest     = "org.freedesktop.DBus"
 	dbusPath     = "/org/freedesktop/DBus"
 	dbusIface    = "org.freedesktop.DBus"
@@ -32,11 +33,17 @@ const (
 	flagNoReply  = 1
 )
 
-type dbusError struct{ Name string }
+type dbusError struct {
+	Name    string
+	Message string
+}
 
 func (e *dbusError) Error() string {
 	if e.Name == "" {
 		return "dbus error"
+	}
+	if e.Message != "" {
+		return e.Name + ": " + e.Message
 	}
 	return e.Name
 }
@@ -247,6 +254,7 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		adapters:           map[string]struct{}{},
 		configuredAdapters: map[string]struct{}{},
 		logged:             map[string]time.Time{},
+		staleBondRemoved:   map[string]struct{}{},
 	}
 	bus.onCall = a.handleCall
 	go bus.readLoop()
@@ -268,6 +276,8 @@ type agent struct {
 	bluezOwner         string
 	registeredOwner    string
 	configuredAdapters map[string]struct{}
+	staleBondMu        sync.Mutex
+	staleBondRemoved   map[string]struct{}
 }
 
 func (a *agent) run(ctx context.Context) error {
@@ -551,11 +561,11 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	if what == actionIgnore {
 		return
 	}
-	if !a.attempts.Start(dev.Path, time.Now(), what) {
+	if !a.attempts.Start(dev, time.Now(), what) {
 		return
 	}
 	pairSucceeded := what != actionPair
-	defer func() { a.attempts.Finish(dev.Path, pairSucceeded) }()
+	defer func() { a.attempts.Finish(dev.Path, pairSucceeded, time.Now()) }()
 	if what == actionPair {
 		log.Printf("bluetooth: pairing %s %s", dev.Path, dev.Name)
 		if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, 35*time.Second); err != nil {
@@ -569,9 +579,43 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	}
 	log.Printf("bluetooth: connecting %s %s", dev.Path, dev.Name)
 	if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Connect", "", nil, 35*time.Second); err != nil && !isName(err, "org.bluez.Error.AlreadyConnected") {
+		if dev.Paired && isGamepad(dev) && isStaleBondError(err) && a.claimStaleBondRemoval(dev.Path) {
+			adapterPath := path.Dir(dev.Path)
+			log.Printf("bluetooth: removing stale bond for %s after authentication/key failure: %v", dev.Path, err)
+			if removeErr := a.callVoid(ctx, bluezDest, adapterPath, adapterIface, "RemoveDevice", "o", bodyPath(dev.Path), 10*time.Second); removeErr != nil {
+				a.logf("remove-stale-bond:"+dev.Path, "bluetooth: remove stale bond %s: %v", dev.Path, removeErr)
+			} else {
+				a.attempts.AllowPairAfterBondRemoval(dev.Path)
+			}
+			return
+		}
 		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
 		return
 	}
+}
+
+func (a *agent) claimStaleBondRemoval(devicePath string) bool {
+	a.staleBondMu.Lock()
+	defer a.staleBondMu.Unlock()
+	if a.staleBondRemoved == nil {
+		a.staleBondRemoved = map[string]struct{}{}
+	}
+	if _, exists := a.staleBondRemoved[devicePath]; exists {
+		return false
+	}
+	a.staleBondRemoved[devicePath] = struct{}{}
+	return true
+}
+
+func isStaleBondError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isName(err, "org.bluez.Error.AuthenticationFailed") || isName(err, "org.bluez.Error.AuthenticationRejected") {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "key missing") || strings.Contains(message, "key-missing") || strings.Contains(message, "key_missing")
 }
 
 func (a *agent) merge(path string, props map[string]any) {
@@ -620,7 +664,12 @@ func (a *agent) call(ctx context.Context, dest, path, iface, member, sig string,
 		return nil, err
 	}
 	if reply.Type == msgError {
-		return nil, &dbusError{Name: reply.ErrorName}
+		message := ""
+		d := &decoder{b: reply.Body}
+		if value, rest, decodeErr := d.readComplete("s"); decodeErr == nil && rest == "" {
+			message, _ = value.(string)
+		}
+		return nil, &dbusError{Name: reply.ErrorName, Message: message}
 	}
 	if reply.Type != msgMethodReturn {
 		return nil, fmt.Errorf("dbus %s: unexpected reply type %d", member, reply.Type)
@@ -663,25 +712,29 @@ func (a *agent) handleCall(call *Message) {
 
 func (a *agent) dispatch(call *Message) (string, []byte, string) {
 	switch call.Member {
-	case "Release", "Cancel", "DisplayPinCode", "DisplayPasskey":
+	case "Release", "Cancel":
 		return "", nil, ""
-	case "RequestPinCode":
+	case "DisplayPinCode", "DisplayPasskey":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {
 			return "", nil, "org.bluez.Error.Rejected"
 		}
-		e := &encoder{}
-		e.str("0000")
-		return "s", e.buf, ""
-	case "RequestPasskey":
+		// NoInputNoOutput agents cannot display passkeys or PINs.
+		return "", nil, "org.bluez.Error.Rejected"
+	case "RequestPinCode", "RequestPasskey":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {
 			return "", nil, "org.bluez.Error.Rejected"
 		}
-		e := &encoder{}
-		e.u32(0)
-		return "u", e.buf, ""
-	case "RequestConfirmation", "RequestAuthorization":
+		// NoInputNoOutput agents do not invent or enter PIN/passkey values.
+		return "", nil, "org.bluez.Error.Rejected"
+	case "RequestConfirmation":
+		path, err := bodyObject(call.Body)
+		if err != nil || !a.attempts.Has(path) {
+			return "", nil, "org.bluez.Error.Rejected"
+		}
+		return "", nil, ""
+	case "RequestAuthorization":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {
 			return "", nil, "org.bluez.Error.Rejected"

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestRunPairsGamepadRejectsPhoneAndRestoresAfterBlueZRestart(t *testing.T) {
+func TestRunRecoversStaleGamepadBondAndRestoresAfterBlueZRestart(t *testing.T) {
 	client, server := net.Pipe()
 	errc := make(chan error, 1)
 	go func() { errc <- fakeBlueZ(server) }()
@@ -68,11 +68,12 @@ func TestBlueZOwnerChangeIsIdempotent(t *testing.T) {
 
 func TestAuthorizeServiceDuringPairedControllerConnect(t *testing.T) {
 	path := gamepadPath
-	if decide(devInfo{Paired: true, Class: 0x508}) != actionConnect {
+	pad := devInfo{Path: path, Paired: true, Class: 0x508}
+	if decide(pad) != actionConnect {
 		t.Fatal("paired controller did not select connect")
 	}
 	attempts := newAttempts()
-	if !attempts.Start(path, time.Unix(1_700_000_000, 0), actionConnect) {
+	if !attempts.Start(pad, time.Unix(1_700_000_000, 0), actionConnect) {
 		t.Fatal("paired controller connect did not start")
 	}
 	a := &agent{attempts: attempts}
@@ -92,11 +93,75 @@ func TestAuthorizeServiceDuringPairedControllerConnect(t *testing.T) {
 		{"RequestPinCode", bodyPath(path)},
 		{"RequestPasskey", bodyPath(path)},
 		{"RequestConfirmation", bodyConfirm(path)},
+		{"DisplayPasskey", bodyDisplayPasskey(path)},
 		{"RequestAuthorization", bodyPath(path)},
 	} {
 		if _, _, errName := a.dispatch(&Message{Member: callback.member, Body: callback.body}); errName == "" {
 			t.Errorf("%s accepted during connect", callback.member)
 		}
+	}
+}
+
+func TestPairingCallbacksMatchNoInputNoOutput(t *testing.T) {
+	path := gamepadPath
+	pad := devInfo{Path: path, Class: 0x508}
+	attempts := newAttempts()
+	if !attempts.Start(pad, time.Unix(1_700_000_000, 0), actionPair) {
+		t.Fatal("gamepad pairing did not start")
+	}
+	a := &agent{attempts: attempts}
+	if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirm(path)}); errName != "" {
+		t.Fatalf("gamepad confirmation rejected: %s", errName)
+	}
+	for _, callback := range []struct {
+		member string
+		body   []byte
+	}{
+		{"RequestPinCode", bodyPath(path)},
+		{"RequestPasskey", bodyPath(path)},
+		{"DisplayPinCode", bodyPath(path)},
+		{"DisplayPasskey", bodyDisplayPasskey(path)},
+	} {
+		if _, _, errName := a.dispatch(&Message{Member: callback.member, Body: callback.body}); errName == "" {
+			t.Errorf("%s accepted by a NoInputNoOutput agent", callback.member)
+		}
+	}
+	for _, dev := range []devInfo{
+		{Path: phonePath, Class: 0x200},
+		{Path: "/org/bluez/hci0/dev_12_34_56_78_90_AB", UUIDs: []string{hidUUID}, Modalias: "usb:v045Ep0001d0001"},
+	} {
+		if attempts.Start(dev, time.Unix(1_700_000_000, 0), actionPair) {
+			t.Fatalf("non-gamepad %s started pairing", dev.Path)
+		}
+		if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirm(dev.Path)}); errName == "" {
+			t.Errorf("RequestConfirmation accepted non-gamepad %s", dev.Path)
+		}
+	}
+}
+
+func TestStaleBondErrorClassificationAndRemovalBound(t *testing.T) {
+	for _, err := range []error{
+		&dbusError{Name: "org.bluez.Error.AuthenticationFailed"},
+		&dbusError{Name: "org.bluez.Error.AuthenticationRejected"},
+		&dbusError{Name: "org.bluez.Error.Failed", Message: "Key missing"},
+		errors.New("key-missing"),
+	} {
+		if !isStaleBondError(err) {
+			t.Errorf("stale bond error not recognized: %v", err)
+		}
+	}
+	for _, err := range []error{nil, errors.New("org.bluez.Error.Failed: not connected")} {
+		if isStaleBondError(err) {
+			t.Errorf("ordinary connection error treated as stale bond: %v", err)
+		}
+	}
+
+	a := &agent{}
+	if !a.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("first stale bond removal was not claimed")
+	}
+	if a.claimStaleBondRemoval(gamepadPath) {
+		t.Fatal("stale bond removal was claimed twice")
 	}
 }
 
@@ -126,6 +191,7 @@ func fakeBlueZ(conn net.Conn) error {
 	sawDiscoverable := false
 	var registerCount, startDiscoveryCount int
 	var poweredSets, pairableSets, discoverableSets int
+	var connectCount, removeDeviceCount, pairCount int
 	expectedMatches := []string{
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
@@ -190,7 +256,7 @@ func fakeBlueZ(conn net.Conn) error {
 			d := &decoder{b: msg.Body}
 			vals, err := d.readSig("os")
 			if err != nil || len(vals) != 2 || vals[0] != agentPath || vals[1] != agentCap {
-				return errors.New("agent was not registered as KeyboardDisplay")
+				return errors.New("agent was not registered as NoInputNoOutput")
 			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
@@ -265,7 +331,7 @@ func fakeBlueZ(conn net.Conn) error {
 				Member:    "InterfacesAdded",
 				Signature: "oa{sa{sv}}",
 			}
-			if err := writeMessage(conn, signal, encodeDeviceAdded(gamepadPath)); err != nil {
+			if err := writeMessage(conn, signal, encodeDeviceAddedState(gamepadPath, true)); err != nil {
 				return err
 			}
 		case "GetManagedObjects":
@@ -277,17 +343,27 @@ func fakeBlueZ(conn net.Conn) error {
 			if msg.Path != gamepadPath {
 				return errors.New("paired " + msg.Path)
 			}
+			pairCount++
 			pin, err := callAgent("RequestPinCode", "o", bodyPath(gamepadPath))
 			if err != nil {
 				return err
 			}
-			if pin.Type != msgMethodReturn {
-				return errors.New("pin rejected")
+			if pin.Type != msgError {
+				return errors.New("NoInputNoOutput agent supplied a PIN")
 			}
-			d := &decoder{b: pin.Body}
-			got, _, err := d.readComplete("s")
-			if err != nil || got != "0000" {
-				return errors.New("pin is not 0000")
+			passkey, err := callAgent("RequestPasskey", "o", bodyPath(gamepadPath))
+			if err != nil {
+				return err
+			}
+			if passkey.Type != msgError {
+				return errors.New("NoInputNoOutput agent supplied a passkey")
+			}
+			display, err := callAgent("DisplayPasskey", "ouq", bodyDisplayPasskey(gamepadPath))
+			if err != nil {
+				return err
+			}
+			if display.Type != msgError {
+				return errors.New("NoInputNoOutput agent accepted a display-passkey request")
 			}
 			phone, err := callAgent("RequestConfirmation", "ou", bodyConfirm(phonePath))
 			if err != nil {
@@ -320,9 +396,44 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
+		case "RemoveDevice":
+			if msg.Path != "/org/bluez/hci0" || msg.Iface != adapterIface || msg.Signature != "o" {
+				return errors.New("stale device was not removed through Adapter1.RemoveDevice")
+			}
+			d := &decoder{b: msg.Body}
+			device, rest, err := d.readComplete("o")
+			if err != nil || rest != "" || device != gamepadPath {
+				return errors.New("RemoveDevice targeted the wrong device")
+			}
+			removeDeviceCount++
+			if removeDeviceCount != 1 {
+				return errors.New("stale device removed more than once")
+			}
+			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
+			removed := &encoder{}
+			removed.str(gamepadPath)
+			removed.array(4, func() { removed.str(deviceIface) })
+			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesRemoved", Signature: "oas"}, removed.buf); err != nil {
+				return err
+			}
+			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesAdded", Signature: "oa{sa{sv}}"}, encodeDeviceAddedState(gamepadPath, false)); err != nil {
+				return err
+			}
 		case "Connect":
 			if msg.Path != gamepadPath {
 				return errors.New("connected " + msg.Path)
+			}
+			connectCount++
+			if connectCount == 1 {
+				if err := replyError(conn, next(), msg.Serial, "org.bluez.Error.Failed", "Key missing"); err != nil {
+					return err
+				}
+				continue
+			}
+			if connectCount != 2 || pairCount != 1 || removeDeviceCount != 1 {
+				return fmt.Errorf("stale bond recovery counts: connect=%d pair=%d remove=%d", connectCount, pairCount, removeDeviceCount)
 			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
@@ -341,10 +452,24 @@ func reply(conn net.Conn, serial, to uint32, sig string, body []byte) error {
 	return writeMessage(conn, msg, body)
 }
 
+func replyError(conn net.Conn, serial, to uint32, name, message string) error {
+	msg := &Message{Type: msgError, Serial: serial, ReplySerial: to, ErrorName: name, Signature: "s"}
+	return writeMessage(conn, msg, bodyString(message))
+}
+
 func bodyConfirm(path string) []byte {
 	e := &encoder{}
 	e.str(path)
 	e.u32(0)
+	return e.buf
+}
+
+func bodyDisplayPasskey(path string) []byte {
+	e := &encoder{}
+	e.str(path)
+	e.u32(123456)
+	e.pad(2)
+	e.buf = append(e.buf, 0, 0)
 	return e.buf
 }
 
@@ -367,7 +492,7 @@ func sampleObjects() []byte {
 	})
 }
 
-func encodeDeviceAdded(path string) []byte {
+func encodeDeviceAddedState(path string, paired bool) []byte {
 	e := &encoder{}
 	e.str(path)
 	e.array(8, func() {
@@ -377,7 +502,7 @@ func encodeDeviceAdded(path string) []byte {
 			props := []fixtureProp{
 				propString("Name", "Pad"),
 				propUint("Class", 0x508),
-				propBool("Paired", false),
+				propBool("Paired", paired),
 				propBool("Connected", false),
 				propStrings("UUIDs", hidUUID),
 			}

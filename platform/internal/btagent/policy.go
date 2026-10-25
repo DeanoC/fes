@@ -21,12 +21,13 @@ const (
 	appearanceMouse    = 0x03C2
 	appearanceJoystick = 0x03C3
 	// classKeyPointing is the keyboard and pointing bits of a peripheral minor class.
-	classKeyPointing   = 0xC0
-	majorUncategorized = 0x1f
-	appearanceGamepad  = 0x03C4
+	classKeyPointing  = 0xC0
+	appearanceGamepad = 0x03C4
 
 	attemptGap = 30 * time.Second
 	attemptMax = 3
+	// attemptCooldown expires the pairing lockout after repeated failures.
+	attemptCooldown = 5 * time.Minute
 )
 
 type action int
@@ -40,9 +41,10 @@ const (
 // isGamepad reports whether a remote device is a gamepad or joystick. Only
 // such devices are paired, trusted and connected; keyboards, mice, phones,
 // computers, audio and anything else nearby are ignored. A device qualifies
-// by its Class of Device (peripheral, joystick or gamepad minor), by its LE
-// appearance (joystick 0x03C3 or gamepad 0x03C4), or by a known pad vendor
-// in its modalias with HID/HoG and no keyboard or pointing class or appearance.
+// by its Class of Device (peripheral, joystick or gamepad minor), its LE
+// appearance (joystick 0x03C3 or gamepad 0x03C4), or an exact known-controller
+// vendor/product pair in its modalias. Vendor alone is not enough: controller
+// makers also sell keyboards and other HID devices.
 func isGamepad(dev devInfo) bool {
 	major := (dev.Class >> 8) & 0x1f
 	// Keyboard and pointing classifications take precedence over every
@@ -67,36 +69,30 @@ func isGamepad(dev devInfo) bool {
 	if dev.Appearance == appearanceJoystick || dev.Appearance == appearanceGamepad {
 		return true
 	}
-	// A known pad vendor alone is not enough: these vendors also make
-	// keyboards and mice. Accept only HID devices with a plausible controller
-	// class and no keyboard or pointing indicators.
-	if !padVendor(dev.Modalias) || !controllerUUID(dev.UUIDs) {
-		return false
-	}
-	return major == majorPeripheral || major == majorUncategorized || dev.Class == 0
+	return knownController(dev.Modalias)
 }
 
-// padVendors are USB/Bluetooth vendor ids of game controller makers:
-// Sony, Microsoft, Nintendo and 8BitDo.
-var padVendors = map[string]bool{"054c": true, "045e": true, "057e": true, "2dc8": true}
-
-// padVendor parses a BlueZ modalias such as "usb:v054CpCE6Bd0100" or
-// "bluetooth:v057Ep2009d0001" and reports a known pad vendor.
-func padVendor(modalias string) bool {
-	_, rest, ok := strings.Cut(modalias, ":v")
-	if !ok || len(rest) < 4 {
-		return false
-	}
-	return padVendors[strings.ToLower(rest[:4])]
+// controllerProducts contains exact USB/Bluetooth controller identities.
+// These known models remain identifiable when they omit CoD and appearance.
+var controllerProducts = map[string]map[string]struct{}{
+	"054c": {"0268": {}, "05c4": {}, "09cc": {}, "0ce6": {}},                                                 // Sony: DualShock 3/4, DualSense
+	"045e": {"02d1": {}, "02d2": {}, "02dd": {}, "02e3": {}, "02ea": {}, "02fd": {}, "0b00": {}, "0b12": {}}, // Microsoft: Xbox controllers
+	"057e": {"2009": {}},                                                                                     // Nintendo Switch Pro Controller
 }
 
-func controllerUUID(ids []string) bool {
-	for _, id := range ids {
-		if oneControllerUUID(id) {
-			return true
-		}
+// knownController parses a BlueZ modalias such as "usb:v054Cp0CE6d0100" or
+// "bluetooth:v057Ep2009d0001" and accepts only an exact controller VID:PID.
+func knownController(modalias string) bool {
+	_, rest, ok := strings.Cut(strings.ToLower(modalias), ":v")
+	if !ok || len(rest) < 9 || rest[4] != 'p' {
+		return false
 	}
-	return false
+	products, ok := controllerProducts[rest[:4]]
+	if !ok {
+		return false
+	}
+	_, ok = products[rest[5:9]]
+	return ok
 }
 
 func oneControllerUUID(id string) bool {
@@ -115,31 +111,43 @@ func decide(dev devInfo) action {
 
 // attempts serializes work per device and rate-limits each attempt. Initial
 // pairing stops after attemptMax failures; reconnect attempts remain available.
-// Has reports the device whose pairing call is in flight so an agent callback
-// can accept its PIN.
+// Has reports whether a gamepad pairing call is in flight so the agent can
+// gate pairing callbacks.
 type attempts struct {
-	mu       sync.Mutex
-	inflight map[string]action
-	fails    map[string]int
-	last     map[string]time.Time
+	mu          sync.Mutex
+	inflight    map[string]action
+	fails       map[string]int
+	last        map[string]time.Time
+	lockedUntil map[string]time.Time
 }
 
 func newAttempts() *attempts {
 	return &attempts{
-		inflight: map[string]action{},
-		fails:    map[string]int{},
-		last:     map[string]time.Time{},
+		inflight:    map[string]action{},
+		fails:       map[string]int{},
+		last:        map[string]time.Time{},
+		lockedUntil: map[string]time.Time{},
 	}
 }
 
-func (a *attempts) Start(path string, now time.Time, what action) bool {
+func (a *attempts) Start(dev devInfo, now time.Time, what action) bool {
+	if dev.Path == "" || (what != actionPair && what != actionConnect) || !isGamepad(dev) {
+		return false
+	}
+	path := dev.Path
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if _, ok := a.inflight[path]; ok {
 		return false
 	}
-	if what == actionPair && a.fails[path] >= attemptMax {
-		return false
+	if what == actionPair {
+		if until, ok := a.lockedUntil[path]; ok {
+			if now.Before(until) {
+				return false
+			}
+			delete(a.lockedUntil, path)
+			a.fails[path] = 0
+		}
 	}
 	if t, ok := a.last[path]; ok && now.Sub(t) < attemptGap {
 		return false
@@ -147,6 +155,14 @@ func (a *attempts) Start(path string, now time.Time, what action) bool {
 	a.inflight[path] = what
 	a.last[path] = now
 	return true
+}
+
+// AllowPairAfterBondRemoval lets discovery immediately restart pairing after a
+// stale bond was removed, instead of applying the just-failed Connect delay.
+func (a *attempts) AllowPairAfterBondRemoval(path string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	delete(a.last, path)
 }
 
 func (a *attempts) Has(path string) bool {
@@ -162,7 +178,7 @@ func (a *attempts) HasServiceAuthorization(path string) bool {
 	return ok && (what == actionPair || what == actionConnect)
 }
 
-func (a *attempts) Finish(path string, pairSucceeded bool) {
+func (a *attempts) Finish(path string, pairSucceeded bool, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	what, exists := a.inflight[path]
@@ -172,7 +188,11 @@ func (a *attempts) Finish(path string, pairSucceeded bool) {
 	}
 	if pairSucceeded {
 		a.fails[path] = 0
+		delete(a.lockedUntil, path)
 		return
 	}
 	a.fails[path]++
+	if a.fails[path] >= attemptMax {
+		a.lockedUntil[path] = now.Add(attemptCooldown)
+	}
 }
