@@ -55,6 +55,6 @@ For every route, `system_clock.clocks[0]` reached 52.260 MHz against 52.225 MHz 
 | scanlines | `system_clock.clocks[0]` | 52.260 | 52.260 | 52.225 | PASS |
 | scanlines | `system_clock.clocks[1]` | 152.184 | 152.184 | 12.288 | PASS |
 
-Seed 1 misses Scanlines at 71.129 MHz. Seed 13 passes Direct at 77.616 MHz and Scanlines at 76.400 MHz, the best shared result in this final-shell matrix. This is frozen-input host route evidence only. No fresh producer build, seal, kit diagnostic, or hardware acceptance for seed 13 is included; the normal producer and hardware gates remain required.
+Seed 1 misses Scanlines at 71.129 MHz. Seed 13 passes Direct at 77.616 MHz and Scanlines at 76.400 MHz, the best shared result in this final-shell matrix. This matrix remains frozen-input host route evidence. The subsequent production shell and seed-13 Direct/Scanlines builds and seals are recorded in [production-builds.md](production-builds.md); Kit HIL remains pending.
 
 The retained compact Scanlines JSONL ends at seed 15, while its saved `runs/scanlines/seed-16/run.json` and route log show a completed seed-16 miss. The seed-16 row was reconstructed from those saved artifacts and the contemporaneous GPU status record; no route was rerun.
