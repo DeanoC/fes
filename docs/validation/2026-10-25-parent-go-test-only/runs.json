@@ -1,0 +1,54 @@
+[
+  {
+    "label": "base",
+    "commit": "1bfefd6c47bb0a3680b1cc07f759061c9ce144f0",
+    "root": "/home/deano/fes/out/dev/ci-parent-go-test-only",
+    "argv": [
+      "/usr/bin/python3",
+      "scripts/parent_tests.py",
+      "--video",
+      "false",
+      "--media",
+      "false",
+      "--paths-json",
+      "[\"sources/FogCast/host/target_bridge_lease_test.go\"]"
+    ],
+    "elapsed_s": 202.585,
+    "returncode": 0,
+    "groups": [
+      "acceptance",
+      "build",
+      "packages",
+      "policy"
+    ],
+    "selected_count": 853,
+    "omitted_count": 239,
+    "report_sha256": "775368d745f50f8ae4915f0664699ac50ccf58584486353fba43704ff2cefbcb",
+    "log_sha256": "88ac642870a4c6eb935e81aab4161f9ac985e0cfc440fcbd84f9479645598c69"
+  },
+  {
+    "label": "candidate",
+    "commit": "7a95fb420ff7eaf1d0c88d8fe472d7f23472ccac",
+    "root": "/home/deano/fes/out/dev/ci-parent-go-test-only",
+    "argv": [
+      "/usr/bin/python3",
+      "scripts/parent_tests.py",
+      "--video",
+      "false",
+      "--media",
+      "false",
+      "--paths-json",
+      "[\"sources/FogCast/host/target_bridge_lease_test.go\"]"
+    ],
+    "elapsed_s": 49.081,
+    "returncode": 0,
+    "groups": [
+      "build",
+      "policy"
+    ],
+    "selected_count": 389,
+    "omitted_count": 711,
+    "report_sha256": "e37a5dcdf0e21d569f09d9f3b4fdbc3f4d2d7b5744e6f72c4ce7a6283f6097bc",
+    "log_sha256": "03ce696533649b442e72710c1c0dbdaf2a8f1262a132d837be1cb6959da89794"
+  }
+]
