@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Timing spike (a): fes_i386_frontend. Fetch reads a 4 KiB M10K memory
-// model whose address register holds while F2 waits, as an L1I data array
-// would; the stimulus rewrites its rows. Redirects, CS.D and D's ready come
-// from the stimulus. Every field Q hands D feeds the signature.
+// Timing spike (a): fes_i386_frontend behind an L1I model. F1's block address
+// loads the M10K address registers of a 16 KiB 4-way L1I: four data ways of
+// one 16-byte block each (linear bits 11:4) and the tags of the 32-byte line
+// (linear bits 11:5, four ways of valid and a 20-bit page). In F2 the four
+// tags are compared with the ITLB page registered alongside, and the hitting
+// way's block goes into the front end's F2 register: M2's shape. A miss
+// passes zeros; there is no refill. The stimulus rewrites tags and data.
+// Redirects, CS.D and D's ready come from the stimulus. Every field Q hands
+// D feeds the signature.
 module spike_frontend (
     input  wire  FPGA_CLK1_50,
     input  wire  KEY0_N,
@@ -10,13 +15,12 @@ module spike_frontend (
 );
     wire clk = FPGA_CLK1_50;
     logic         reset;
-    logic [255:0] noise;
-    spike_stimulus #(.WIDTH(256)) stimulus (.clk, .key0_n(KEY0_N), .reset, .noise);
+    logic [383:0] noise;
+    spike_stimulus #(.WIDTH(384)) stimulus (.clk, .key0_n(KEY0_N), .reset, .noise);
 
     logic [27:0]            mem_block;
     logic                   mem_load;
-    logic [127:0]           mem [0:255];
-    logic [127:0]           mem_data;
+    logic [15:0][7:0]       mem_data;
     logic                   redirect = 1'b1;
     logic [31:0]            redirect_linear;
     logic                   code32;
@@ -24,10 +28,40 @@ module spike_frontend (
     logic                   q_valid;
     fes_i386_pkg::fetched_t q;
 
+    // L1I arrays, written by the stimulus, read with address stall.
+    logic [127:0] l1i_data0 [0:255];
+    logic [127:0] l1i_data1 [0:255];
+    logic [127:0] l1i_data2 [0:255];
+    logic [127:0] l1i_data3 [0:255];
+    logic [83:0]  l1i_tags [0:127];
+    logic [127:0] way0, way1, way2, way3;
+    logic [83:0]  tags;
+    logic [19:0]  itlb_page;  // the ITLB's physical page for the block in F2
+
     always_ff @(posedge clk)
-        if (noise[0] && noise[9]) mem[noise[20:13]] <= noise[255:128];
+        if (noise[0] && noise[9]) begin
+            case (noise[11:10])
+                2'd0: l1i_data0[noise[19:12]] <= noise[255:128];
+                2'd1: l1i_data1[noise[19:12]] <= noise[255:128];
+                2'd2: l1i_data2[noise[19:12]] <= noise[255:128];
+                default: l1i_data3[noise[19:12]] <= noise[255:128];
+            endcase
+        end
     always_ff @(posedge clk)
-        if (mem_load) mem_data <= mem[mem_block[7:0]];
+        if (noise[1] && noise[2]) l1i_tags[noise[26:20]] <= noise[343:260];
+    always_ff @(posedge clk) if (mem_load) way0 <= l1i_data0[mem_block[7:0]];
+    always_ff @(posedge clk) if (mem_load) way1 <= l1i_data1[mem_block[7:0]];
+    always_ff @(posedge clk) if (mem_load) way2 <= l1i_data2[mem_block[7:0]];
+    always_ff @(posedge clk) if (mem_load) way3 <= l1i_data3[mem_block[7:0]];
+    always_ff @(posedge clk) if (mem_load) tags <= l1i_tags[mem_block[7:1]];
+    always_ff @(posedge clk) if (mem_load) itlb_page <= {noise[363:356], mem_block[27:16]};
+
+    logic [3:0] hit;
+    for (genvar w = 0; w < 4; w++) begin : g_way
+        assign hit[w] = tags[21 * w + 20] && tags[21 * w +: 20] == itlb_page;
+    end
+    assign mem_data = (way0 & {128{hit[0]}}) | (way1 & {128{hit[1]}})
+                    | (way2 & {128{hit[2]}}) | (way3 & {128{hit[3]}});
 
     always_ff @(posedge clk) begin
         redirect <= reset || noise[40:33] == 8'd0;
@@ -40,7 +74,7 @@ module spike_frontend (
 
     fes_i386_frontend dut (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
-        .mem_data(mem_data), .q_valid, .q, .d_ready
+        .mem_data, .q_valid, .q, .d_ready
     );
 
     logic [31:0]  signature;

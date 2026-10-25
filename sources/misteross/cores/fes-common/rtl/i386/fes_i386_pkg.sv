@@ -55,6 +55,16 @@ package fes_i386_pkg;
         end
     endfunction
 
+    // The same for six bits.
+    function automatic logic [5:0] small_add6(input logic [5:0] a, input logic [5:0] b);
+        logic carry;
+        carry = 1'b0;
+        for (int i = 0; i < 6; i++) begin
+            small_add6[i] = a[i] ^ b[i] ^ carry;
+            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
+        end
+    endfunction
+
     // Fold prefix byte b into p; b must satisfy is_prefix. The seg and rep
     // values are computed from the byte, since Yosys cannot resolve package
     // constants inside a package function called from a module.
