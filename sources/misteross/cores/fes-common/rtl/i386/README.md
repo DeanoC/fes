@@ -30,10 +30,11 @@ exception delivery yet.
 Fetch is sequential from the last redirect; there is no L1I or prediction yet.
 The memory port stands for the L1I's way-selected output, as an M10K with
 address stall: `mem_data` is the block at the address registered on the last
-edge with `mem_load`, once `mem_valid` says it has arrived. F2 waits for it
-and registers that block. Nothing decodes M10K data in F2 (design rule 7). A
-redirect flushes F2, L1, L2, the buffer and Q; a change of CS.D (`code32`)
-needs one.
+edge with `mem_load`, and `mem_valid` says that response is available. F2
+holds its address and does not advance until `mem_valid`; it requests the next
+block on the edge that accepts the current response. Nothing decodes M10K data
+in F2 (design rule 7). A redirect flushes F2, L1, L2, the buffer and Q; a
+change of CS.D (`code32`) needs one.
 
 Length decode takes two stages. L1 runs the 16 decoders on F2's register and
 registers what each byte's instruction is made of: its prefix and run flags,

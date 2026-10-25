@@ -302,7 +302,7 @@ FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains \
   FES_TOOLCHAIN_GPU_ROUTER=HIP FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   scripts/bootstrap.sh   # provisions the i386 lock's toolchain once
 python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains \
-    --version "phase 1 front-end fixes"
+    --version "phase 1 whole CPU"
 ```
 
 ## Tests
