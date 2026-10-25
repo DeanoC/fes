@@ -241,11 +241,12 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		return err
 	}
 	a := &agent{
-		bus:      bus,
-		attempts: newAttempts(),
-		devices:  map[string]devInfo{},
-		adapters: map[string]struct{}{},
-		logged:   map[string]time.Time{},
+		bus:                bus,
+		attempts:           newAttempts(),
+		devices:            map[string]devInfo{},
+		adapters:           map[string]struct{}{},
+		configuredAdapters: map[string]struct{}{},
+		logged:             map[string]time.Time{},
 	}
 	bus.onCall = a.handleCall
 	go bus.readLoop()
@@ -259,11 +260,14 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 }
 
 type agent struct {
-	bus      *bus
-	attempts *attempts
-	devices  map[string]devInfo
-	adapters map[string]struct{}
-	logged   map[string]time.Time
+	bus                *bus
+	attempts           *attempts
+	devices            map[string]devInfo
+	adapters           map[string]struct{}
+	logged             map[string]time.Time
+	bluezOwner         string
+	registeredOwner    string
+	configuredAdapters map[string]struct{}
 }
 
 func (a *agent) run(ctx context.Context) error {
@@ -273,14 +277,18 @@ func (a *agent) run(ctx context.Context) error {
 	if err := a.addSignalMatches(ctx); err != nil {
 		return err
 	}
-	if err := a.callVoid(ctx, bluezDest, "/org/bluez", "org.bluez.AgentManager1", "RegisterAgent", "os", bodyPathString(agentPath, agentCap), 10*time.Second); err != nil {
-		return err
-	}
-	if err := a.callVoid(ctx, bluezDest, "/org/bluez", "org.bluez.AgentManager1", "RequestDefaultAgent", "o", bodyPath(agentPath), 10*time.Second); err != nil {
-		return err
-	}
-	if err := a.refresh(ctx); err != nil {
-		a.logf("refresh", "bluetooth: %v", err)
+	owner, err := a.nameOwner(ctx, bluezDest)
+	if err != nil {
+		if isName(err, "org.freedesktop.DBus.Error.NameHasNoOwner") {
+			log.Printf("bluetooth: waiting for %s to acquire its D-Bus name", bluezDest)
+		} else {
+			return fmt.Errorf("D-Bus GetNameOwner for %s: %w", bluezDest, err)
+		}
+	} else {
+		a.bluezOwner = owner
+		if err := a.setupBlueZ(ctx); err != nil {
+			log.Printf("bluetooth: setup failed for org.bluez owner %s: %v", owner, err)
+		}
 	}
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -301,6 +309,15 @@ func (a *agent) run(ctx context.Context) error {
 				return err
 			}
 		case <-ticker.C:
+			if a.bluezOwner == "" {
+				continue
+			}
+			if a.registeredOwner != a.bluezOwner {
+				if err := a.setupBlueZ(ctx); err != nil {
+					log.Printf("bluetooth: setup failed for org.bluez owner %s: %v", a.bluezOwner, err)
+				}
+				continue
+			}
 			if err := a.refresh(ctx); err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -309,6 +326,44 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (a *agent) nameOwner(ctx context.Context, name string) (string, error) {
+	reply, err := a.call(ctx, dbusDest, dbusPath, dbusIface, "GetNameOwner", "s", bodyString(name), 10*time.Second)
+	if err != nil {
+		return "", err
+	}
+	d := &decoder{b: reply.Body}
+	owner, rest, err := d.readComplete("s")
+	if err != nil || rest != "" {
+		return "", errors.New("D-Bus GetNameOwner returned an invalid owner")
+	}
+	value, ok := owner.(string)
+	if !ok || value == "" {
+		return "", errors.New("D-Bus GetNameOwner returned an empty owner")
+	}
+	return value, nil
+}
+
+func (a *agent) setupBlueZ(ctx context.Context) error {
+	if a.bluezOwner == "" {
+		return nil
+	}
+	if a.registeredOwner != a.bluezOwner {
+		err := a.callVoid(ctx, bluezDest, "/org/bluez", "org.bluez.AgentManager1", "RegisterAgent", "os", bodyPathString(agentPath, agentCap), 10*time.Second)
+		if err != nil && !isName(err, "org.bluez.Error.AlreadyExists") {
+			return fmt.Errorf("RegisterAgent: %w", err)
+		}
+		if err := a.callVoid(ctx, bluezDest, "/org/bluez", "org.bluez.AgentManager1", "RequestDefaultAgent", "o", bodyPath(agentPath), 10*time.Second); err != nil {
+			return fmt.Errorf("RequestDefaultAgent: %w", err)
+		}
+		a.registeredOwner = a.bluezOwner
+		log.Printf("bluetooth: agent registered as default for org.bluez owner %s", a.bluezOwner)
+	}
+	if err := a.refresh(ctx); err != nil {
+		return fmt.Errorf("refresh BlueZ adapters: %w", err)
+	}
+	return nil
 }
 
 func (a *agent) handleSignals(ctx context.Context) error {
@@ -335,9 +390,16 @@ func (a *agent) refresh(ctx context.Context) error {
 		return err
 	}
 	a.devices = devices
-	a.adapters = map[string]struct{}{}
+	a.adapters = make(map[string]struct{}, len(adapters))
 	for _, path := range adapters {
 		a.adapters[path] = struct{}{}
+	}
+	for path := range a.configuredAdapters {
+		if _, ok := a.adapters[path]; !ok {
+			delete(a.configuredAdapters, path)
+		}
+	}
+	for _, path := range adapters {
 		a.configure(ctx, path)
 	}
 	for _, dev := range devices {
@@ -351,6 +413,7 @@ func (a *agent) addSignalMatches(ctx context.Context) error {
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
 		"type='signal',sender='org.bluez',path_namespace='/org/bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+		"type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bluez'",
 	}
 	for _, rule := range rules {
 		if err := a.callVoid(ctx, dbusDest, dbusPath, dbusIface, "AddMatch", "s", bodyString(rule), 10*time.Second); err != nil {
@@ -362,6 +425,29 @@ func (a *agent) addSignalMatches(ctx context.Context) error {
 
 func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 	switch msg.Member {
+	case "NameOwnerChanged":
+		name, _, newOwner, err := decodeNameOwnerChanged(msg.Body)
+		if err != nil {
+			a.logf("owner", "bluetooth: NameOwnerChanged: %v", err)
+			return nil
+		}
+		if name != bluezDest || newOwner == a.bluezOwner {
+			return nil
+		}
+		previousOwner := a.bluezOwner
+		a.bluezOwner = newOwner
+		a.registeredOwner = ""
+		a.adapters = map[string]struct{}{}
+		a.devices = map[string]devInfo{}
+		a.configuredAdapters = map[string]struct{}{}
+		if newOwner == "" {
+			log.Printf("bluetooth: org.bluez owner disappeared from %s", previousOwner)
+			return nil
+		}
+		log.Printf("bluetooth: org.bluez owner changed from %s to %s; restoring agent and adapters", previousOwner, newOwner)
+		if err := a.setupBlueZ(ctx); err != nil {
+			log.Printf("bluetooth: setup failed for org.bluez owner %s: %v", newOwner, err)
+		}
 	case "InterfacesAdded":
 		path, ifaces, err := decodeAdded(msg.Body)
 		if err != nil {
@@ -387,6 +473,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 				delete(a.devices, path)
 			case adapterIface:
 				delete(a.adapters, path)
+				delete(a.configuredAdapters, path)
 			}
 		}
 	case "PropertiesChanged":
@@ -400,6 +487,9 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 			a.act(ctx, a.devices[msg.Path])
 		}
 		if iface == adapterIface && msg.Path != "" {
+			if adapterNeedsSetup(props) {
+				delete(a.configuredAdapters, msg.Path)
+			}
 			a.configure(ctx, msg.Path)
 		}
 	}
@@ -407,6 +497,12 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 }
 
 func (a *agent) configure(ctx context.Context, path string) {
+	if _, ok := a.configuredAdapters[path]; ok {
+		return
+	}
+	if a.configuredAdapters == nil {
+		a.configuredAdapters = map[string]struct{}{}
+	}
 	sets := []struct {
 		name string
 		body []byte
@@ -416,15 +512,38 @@ func (a *agent) configure(ctx context.Context, path string) {
 		{"Pairable", bodyProp(adapterIface, "Pairable", "b", false, 0)},
 		{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)},
 	}
+	configured := true
 	for _, set := range sets {
 		if err := a.callVoid(ctx, bluezDest, path, propsIface, "Set", "ssv", set.body, 10*time.Second); err != nil {
-			a.logf("set:"+path+set.name, "bluetooth: set %s %s: %v", path, set.name, err)
+			configured = false
+			log.Printf("bluetooth: adapter setup failed %s set %s: %v", path, set.name, err)
 		}
 	}
 	err := a.callVoid(ctx, bluezDest, path, adapterIface, "StartDiscovery", "", nil, 10*time.Second)
 	if err != nil && !isName(err, "org.bluez.Error.InProgress") {
-		a.logf("discover:"+path, "bluetooth: discovery %s: %v", path, err)
+		configured = false
+		log.Printf("bluetooth: adapter setup failed %s start discovery: %v", path, err)
 	}
+	if configured {
+		a.configuredAdapters[path] = struct{}{}
+		log.Printf("bluetooth: adapter setup succeeded %s (Powered=true Pairable=false Discoverable=false, discovery active)", path)
+	}
+}
+
+func adapterNeedsSetup(props map[string]any) bool {
+	if powered, ok := props["Powered"].(bool); ok && !powered {
+		return true
+	}
+	if pairable, ok := props["Pairable"].(bool); ok && pairable {
+		return true
+	}
+	if discoverable, ok := props["Discoverable"].(bool); ok && discoverable {
+		return true
+	}
+	if discovering, ok := props["Discovering"].(bool); ok && !discovering {
+		return true
+	}
+	return false
 }
 
 func (a *agent) act(ctx context.Context, dev devInfo) {
@@ -739,6 +858,21 @@ func decodeChanged(body []byte) (string, map[string]any, error) {
 		return "", nil, err
 	}
 	return iface, props, nil
+}
+
+func decodeNameOwnerChanged(body []byte) (string, string, string, error) {
+	d := &decoder{b: body}
+	values, err := d.readSig("sss")
+	if err != nil || len(values) != 3 {
+		return "", "", "", errors.New("NameOwnerChanged")
+	}
+	name, nameOK := values[0].(string)
+	oldOwner, oldOK := values[1].(string)
+	newOwner, newOK := values[2].(string)
+	if !nameOK || !oldOK || !newOK || name == "" {
+		return "", "", "", errors.New("NameOwnerChanged fields")
+	}
+	return name, oldOwner, newOwner, nil
 }
 
 func ifaceMap(v any) (map[string]map[string]any, error) {

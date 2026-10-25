@@ -128,8 +128,8 @@ fi
 /bin/rm -rf "$target/etc/dropbear"
 /bin/ln -s /run/dropbear "$target/etc/dropbear"
 
-# BlueZ link keys cannot live on the read-only root. bluetoothd starts after
-# S35 creates this directory on the FAT state partition.
+# BlueZ link keys live at /run/fogcast/fesdata3/bluetooth on the FESDATA3 ext4
+# partition, not on the read-only root or FAT. S35 creates this directory.
 /bin/rm -rf "$target/var/lib/bluetooth"
 /bin/mkdir -p "$target/var/lib"
 /bin/ln -s /run/fogcast/fesdata3/bluetooth "$target/var/lib/bluetooth"

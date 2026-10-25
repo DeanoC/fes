@@ -23,6 +23,11 @@ func TestIsGamepad(t *testing.T) {
 		{"microsoft keyboard", devInfo{Class: 0x540, UUIDs: hid, Modalias: "usb:v045Ep0001d0001"}, false},
 		{"microsoft mouse", devInfo{Class: 0x580, UUIDs: hid, Modalias: "usb:v045Ep0002d0001"}, false},
 		{"microsoft keyboard appearance", devInfo{Appearance: 0x03C1, UUIDs: hog, Modalias: "bluetooth:v045Ep0003d0001"}, false},
+		{"gamepad class with keyboard pointing bits", devInfo{Class: 0x5c8}, false},
+		{"gamepad appearance with keyboard class bits", devInfo{Class: 0x5c8, Appearance: appearanceGamepad}, false},
+		{"known controller with keyboard class bits", devInfo{Class: 0x5c8, UUIDs: hid, Modalias: "usb:v045Ep0001d0001"}, false},
+		{"gamepad class with keyboard appearance", devInfo{Class: 0x508, Appearance: appearanceKeyboard}, false},
+		{"joystick appearance with mouse appearance", devInfo{Appearance: appearanceMouse, UUIDs: hog}, false},
 		{"microsoft peripheral without hid", devInfo{Class: 0x500, Modalias: "usb:v045Ep0002d0001"}, false},
 		{"keyboard", devInfo{Class: 0x540, UUIDs: hid}, false},
 		{"pointing", devInfo{Class: 0x580, UUIDs: hid}, false},
@@ -52,6 +57,9 @@ func TestDecide(t *testing.T) {
 	}
 	if decide(devInfo{Paired: true, Connected: true, Class: 0x508}) != actionIgnore {
 		t.Fatal("connected gamepad")
+	}
+	if decide(devInfo{Class: 0x5c8, Appearance: appearanceGamepad, UUIDs: []string{hidUUID}, Modalias: "usb:v045Ep0001d0001"}) != actionIgnore {
+		t.Fatal("keyboard and pointing class bits must override gamepad indicators")
 	}
 	if decide(devInfo{UUIDs: []string{hidUUID}, Class: 0x540}) != actionIgnore {
 		t.Fatal("keyboard must not be paired")

@@ -45,6 +45,15 @@ const (
 // in its modalias with HID/HoG and no keyboard or pointing class or appearance.
 func isGamepad(dev devInfo) bool {
 	major := (dev.Class >> 8) & 0x1f
+	// Keyboard and pointing classifications take precedence over every
+	// positive controller hint. Some controllers and keyboards share vendors,
+	// and malformed devices can advertise contradictory CoD/appearance data.
+	if major == majorPeripheral && dev.Class&classKeyPointing != 0 {
+		return false
+	}
+	if dev.Appearance == appearanceKeyboard || dev.Appearance == appearanceMouse {
+		return false
+	}
 	switch major {
 	case majorComputer, majorPhone, majorAudio:
 		return false
@@ -59,15 +68,9 @@ func isGamepad(dev devInfo) bool {
 		return true
 	}
 	// A known pad vendor alone is not enough: these vendors also make
-	// keyboards and mice. Accept only HID devices that carry no keyboard or
-	// pointing class bits or appearance.
+	// keyboards and mice. Accept only HID devices with a plausible controller
+	// class and no keyboard or pointing indicators.
 	if !padVendor(dev.Modalias) || !controllerUUID(dev.UUIDs) {
-		return false
-	}
-	if major == majorPeripheral && dev.Class&classKeyPointing != 0 {
-		return false
-	}
-	if dev.Appearance == appearanceKeyboard || dev.Appearance == appearanceMouse {
 		return false
 	}
 	return major == majorPeripheral || major == majorUncategorized || dev.Class == 0

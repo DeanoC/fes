@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestRunPairsGamepadAndRejectsPhone(t *testing.T) {
+func TestRunPairsGamepadRejectsPhoneAndRestoresAfterBlueZRestart(t *testing.T) {
 	client, server := net.Pipe()
 	errc := make(chan error, 1)
 	go func() { errc <- fakeBlueZ(server) }()
@@ -25,6 +25,44 @@ func TestRunPairsGamepadAndRejectsPhone(t *testing.T) {
 	}
 	if runErr == nil {
 		t.Fatal("expected the closed bus to end the agent")
+	}
+}
+
+func TestAdapterNeedsSetupOnlyForUndesiredProperties(t *testing.T) {
+	for name, props := range map[string]map[string]any{
+		"desired powered":      {"Powered": true},
+		"desired pairable":     {"Pairable": false},
+		"desired discoverable": {"Discoverable": false},
+		"discovering":          {"Discovering": true},
+		"unrelated property":   {"Alias": "Controller adapter"},
+		"powered off":          {"Powered": false},
+		"pairable":             {"Pairable": true},
+		"discoverable":         {"Discoverable": true},
+		"discovery stopped":    {"Discovering": false},
+	} {
+		want := name == "powered off" || name == "pairable" || name == "discoverable" || name == "discovery stopped"
+		if got := adapterNeedsSetup(props); got != want {
+			t.Errorf("%s: adapterNeedsSetup() = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestBlueZOwnerChangeIsIdempotent(t *testing.T) {
+	a := &agent{
+		bluezOwner:         ":1.2",
+		registeredOwner:    ":1.2",
+		adapters:           map[string]struct{}{"/org/bluez/hci0": {}},
+		configuredAdapters: map[string]struct{}{"/org/bluez/hci0": {}},
+	}
+	msg := &Message{Member: "NameOwnerChanged", Body: bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")}
+	if err := a.onSignal(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	if a.bluezOwner != ":1.2" || a.registeredOwner != ":1.2" {
+		t.Fatalf("duplicate owner signal changed registration state: owner %q registered %q", a.bluezOwner, a.registeredOwner)
+	}
+	if _, ok := a.configuredAdapters["/org/bluez/hci0"]; !ok {
+		t.Fatal("duplicate owner signal cleared adapter setup")
 	}
 }
 
@@ -86,10 +124,13 @@ func fakeBlueZ(conn net.Conn) error {
 	var matches []string
 	sawPairable := false
 	sawDiscoverable := false
+	var registerCount, startDiscoveryCount int
+	var poweredSets, pairableSets, discoverableSets int
 	expectedMatches := []string{
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
 		"type='signal',sender='org.bluez',path_namespace='/org/bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+		"type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bluez'",
 	}
 	next := func() uint32 {
 		serial++
@@ -133,8 +174,17 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
+		case "GetNameOwner":
+			d := &decoder{b: msg.Body}
+			name, rest, err := d.readComplete("s")
+			if err != nil || rest != "" || name != bluezDest {
+				return errors.New("GetNameOwner did not query org.bluez")
+			}
+			if err := reply(conn, next(), msg.Serial, "s", bodyString(":1.1")); err != nil {
+				return err
+			}
 		case "RegisterAgent":
-			if len(matches) != 3 {
+			if len(matches) != 4 {
 				return errors.New("signal matches were not installed before agent registration")
 			}
 			d := &decoder{b: msg.Body}
@@ -145,6 +195,7 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
+			registerCount++
 		case "RequestDefaultAgent":
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
@@ -158,12 +209,19 @@ func fakeBlueZ(conn net.Conn) error {
 			switch values[0] {
 			case adapterIface:
 				switch values[1] {
+				case "Powered":
+					poweredSets++
+					if values[2] != true {
+						return errors.New("adapter is not powered")
+					}
 				case "Pairable":
+					pairableSets++
 					sawPairable = true
 					if values[2] != false {
 						return errors.New("adapter remains pairable")
 					}
 				case "Discoverable":
+					discoverableSets++
 					sawDiscoverable = true
 					if values[2] != false {
 						return errors.New("adapter remains discoverable")
@@ -180,7 +238,7 @@ func fakeBlueZ(conn net.Conn) error {
 				return err
 			}
 		case "StartDiscovery":
-			if len(matches) != 3 {
+			if len(matches) != 4 {
 				return errors.New("discovery started before signal matches")
 			}
 			if !sawPairable || !sawDiscoverable {
@@ -188,6 +246,16 @@ func fakeBlueZ(conn net.Conn) error {
 			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
+			}
+			startDiscoveryCount++
+			if startDiscoveryCount == 2 {
+				if registerCount != 2 || poweredSets != 2 || pairableSets != 2 || discoverableSets != 2 {
+					return fmt.Errorf("BlueZ restart setup counts: register=%d powered=%d pairable=%d discoverable=%d", registerCount, poweredSets, pairableSets, discoverableSets)
+				}
+				if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {
+					return err
+				}
+				return nil
 			}
 			signal := &Message{
 				Type:      msgSignal,
@@ -259,7 +327,9 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
-			return nil
+			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {
+				return err
+			}
 		default:
 			return errors.New("unexpected method " + msg.Member)
 		}
@@ -275,6 +345,14 @@ func bodyConfirm(path string) []byte {
 	e := &encoder{}
 	e.str(path)
 	e.u32(0)
+	return e.buf
+}
+
+func bodyNameOwnerChanged(name, oldOwner, newOwner string) []byte {
+	e := &encoder{}
+	e.str(name)
+	e.str(oldOwner)
+	e.str(newOwner)
 	return e.buf
 }
 
