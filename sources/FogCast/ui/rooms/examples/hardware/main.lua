@@ -593,7 +593,7 @@ local function picture(part)
   end,true)
   button("tape",running() and "Choose / eject tape" or "Choose cassette",222,576,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
     if running() then session.open_tape(current_session())
-    else hardware.open_tapes{game_id=machine.game_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
+    else hardware.open_tapes{game_id=machine.game_id,core_id=machine.core_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
   end)
   button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)

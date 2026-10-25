@@ -163,14 +163,17 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 
 func hardwareSetupAction(L *lua.LState, kind ActionKind) Action {
 	opts := L.CheckTable(1)
-	game, pkg := optString(opts, "game_id"), optString(opts, "package_id")
+	game, coreID, pkg := optString(opts, "game_id"), optString(opts, "core_id"), optString(opts, "package_id")
 	if game == "" || pkg == "" {
 		L.ArgError(1, "game_id and package_id are required")
 	}
 	if kind == ActionHardwareTapes {
+		if coreID == "" {
+			L.ArgError(1, "core_id is required")
+		}
 		if _, ok := opts.RawGetString("expected_media_id").(lua.LString); !ok {
 			L.ArgError(1, "expected_media_id is required")
 		}
 	}
-	return Action{Kind: kind, GameID: game, PackageID: pkg, ExpectedMediaID: optString(opts, "expected_media_id")}
+	return Action{Kind: kind, GameID: game, CoreID: coreID, PackageID: pkg, ExpectedMediaID: optString(opts, "expected_media_id")}
 }

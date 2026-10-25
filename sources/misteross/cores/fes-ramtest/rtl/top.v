@@ -17,7 +17,9 @@ module top #(
     // Bytes each DDR port scans. Port 0 takes the first half of the window,
     // ports 1 and 2 a quarter each, so the three cover all of it.
     parameter [31:0] DDR_WIDE_BYTES = `ifdef SIM 32'd4096 `else `FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 2 `endif,
-    parameter [31:0] DDR_NARROW_BYTES = `ifdef SIM 32'd4096 `else `FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 4 `endif
+    parameter [31:0] DDR_NARROW_BYTES = `ifdef SIM 32'd4096 `else `FES_APPLICATION_HPS_DDR_WINDOW_BYTES / 4 `endif,
+    // Line reads per latency window.
+    parameter [15:0] LAT_SAMPLES = `ifdef SIM 16'd256 `else 16'd32768 `endif
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -122,6 +124,9 @@ module top #(
     wire [15:0] sdram_was;
     wire [15:0] sdram_expect, sdram_got;
     wire scan_start, scan_write, scan_pass, scan_fail, scan_stopped;
+    // Latency monitor handshakes, per target: P0, P1, P2, SDRAM.
+    wire [3:0] lat_start, lat_ready, lat_sample;
+    wire [55:0] lat_first, lat_last;
     wire [25:0] scan_addr;
     wire [15:0] scan_wdata;
     wire [31:0] scan_errors;
@@ -319,7 +324,9 @@ module top #(
         .phase(sdram_phase), .reading(sdram_reading), .shown_addr(sdram_shown),
         .fault_addr(sdram_fault), .last_addr(sdram_last), .fault_got(sdram_was),
         .errors(scan_errors), .pattern_errors(sdram_patterns),
-        .shown_expect(sdram_expect), .shown_got(sdram_got)
+        .shown_expect(sdram_expect), .shown_got(sdram_got),
+        .lat_start(lat_start[3]), .lat_ready(lat_ready[3]), .lat_sample(lat_sample[3]),
+        .lat_first(lat_first[55:42]), .lat_last(lat_last[55:42])
     );
 
 `ifdef RAM_OSS_HIGH_SPEED
@@ -500,7 +507,9 @@ module top #(
         .fault_addr(ddr0_status[229:198]), .last_addr(ddr0_status[197:166]),
         .fault_phase(ddr0_status[165:163]), .bad(ddr0_status[162:35]),
         .done(ddr0_done), .nack(ddr0_nack), .stopped(ddr0_stopped),
-        .write_cycles(ddr_cycles[31:0]), .read_cycles(ddr_cycles[63:32])
+        .write_cycles(ddr_cycles[31:0]), .read_cycles(ddr_cycles[63:32]),
+        .lat_start(lat_start[0]), .lat_ready(lat_ready[0]), .lat_sample(lat_sample[0]),
+        .lat_first(lat_first[13:0]), .lat_last(lat_last[13:0])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR1_BASE),
                   .BYTES(DDR_NARROW_BYTES)) ddr1_test (
@@ -513,7 +522,9 @@ module top #(
         .fault_addr(ddr1_status[229:198]), .last_addr(ddr1_status[197:166]),
         .fault_phase(ddr1_status[165:163]), .bad(ddr1_status[98:35]),
         .done(ddr1_done), .nack(ddr1_nack), .stopped(ddr1_stopped),
-        .write_cycles(ddr_cycles[95:64]), .read_cycles(ddr_cycles[127:96])
+        .write_cycles(ddr_cycles[95:64]), .read_cycles(ddr_cycles[127:96]),
+        .lat_start(lat_start[1]), .lat_ready(lat_ready[1]), .lat_sample(lat_sample[1]),
+        .lat_first(lat_first[27:14]), .lat_last(lat_last[27:14])
     );
     ddr_channel #(.DATA_W(64), .ADDR_W(29), .BASE(DDR2_BASE),
                   .BYTES(DDR_NARROW_BYTES)) ddr2_test (
@@ -526,7 +537,9 @@ module top #(
         .fault_addr(ddr2_status[229:198]), .last_addr(ddr2_status[197:166]),
         .fault_phase(ddr2_status[165:163]), .bad(ddr2_status[98:35]),
         .done(ddr2_done), .nack(ddr2_nack), .stopped(ddr2_stopped),
-        .write_cycles(ddr_cycles[159:128]), .read_cycles(ddr_cycles[191:160])
+        .write_cycles(ddr_cycles[159:128]), .read_cycles(ddr_cycles[191:160]),
+        .lat_start(lat_start[2]), .lat_ready(lat_ready[2]), .lat_sample(lat_sample[2]),
+        .lat_first(lat_first[41:28]), .lat_last(lat_last[41:28])
     );
     ddr_rates #(.WIDE_NUMERATOR({8'd0, DDR_WIDE_BYTES} * DDR_MHZ),
                 .NARROW_NUMERATOR({8'd0, DDR_NARROW_BYTES} * DDR_MHZ)) ddr_speed (
@@ -544,6 +557,23 @@ module top #(
     assign ddr1_status[162:99] = 64'd0;
     assign ddr2_status[162:99] = 64'd0;
 
+    // Latency windows start once every scan has ended, and take the
+    // memories in turn so that no two ports run at once.
+    wire scans_ended = (sdram_pass | sdram_fail | sdram_stopped) &
+        (ddr0_done | ddr0_nack | ddr0_stopped) &
+        (ddr1_done | ddr1_nack | ddr1_stopped) &
+        (ddr2_done | ddr2_nack | ddr2_stopped);
+    wire [511:0] lat_results /* verilator public_flat_rd */;
+    lat_monitor #(.SAMPLES(LAT_SAMPLES)) latency (
+        .clk(mem_clk), .reset(mem_reset_sync[1]),
+        .enable(scans_ended), .stop(stop_sync[1]),
+        .ready(lat_ready),
+        .dead({sdram_fail | sdram_stopped, ddr2_nack | ddr2_stopped,
+               ddr1_nack | ddr1_stopped, ddr0_nack | ddr0_stopped}),
+        .start(lat_start), .sample(lat_sample),
+        .first(lat_first), .last(lat_last), .results(lat_results)
+    );
+
     ram_display display (
         .byte_status(byte_status),
         .pixel_clk(pixel_clk),
@@ -555,6 +585,7 @@ module top #(
         .sdram_pass(sdram_pass), .sdram_fail(sdram_fail), .sdram_stopped(sdram_stopped),
         .pat50(pat50), .pat75(pat75), .pat100(pat100), .pat_ok(pat_ok),
         .ddr0(ddr0_status), .ddr1(ddr1_status), .ddr2(ddr2_status),
+        .latency(lat_results),
         .red(play_red), .green(play_green), .blue(play_blue)
     );
 
