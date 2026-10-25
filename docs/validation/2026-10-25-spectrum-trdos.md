@@ -90,7 +90,34 @@ Pentagon on seed 4 after seed 5 (47.75 MHz). The Pentagon's 241 M10K are the
 
 ## Kit check
 
-KIT_PENDING
+Kit B, run `trdB2` (2026-10-25 19:26-19:55 EET), on the running image
+`4db74864` with the branch's kit software (bundle `12e3c8c5`, built from
+`0f39491f`: the runtime's unit-1 Spectrum disk) installed and activated, and a
+private FogCast host built from `f931e08c`. The kit imported the four
+packages above by package ID. Bundle install-then-restore: afterwards the kit
+software is back on `35d58489` (generation 64), the image, boot state, idle
+and launcher files are unchanged, and the kit was released idle and
+lease-free.
+
+- TR-DOS: `fes.pentagon` 0.4.0 launched three disks, each booting through
+  TR-DOS from its launch image: `tetris.trd` to its menu, `b1942.scl` (1942)
+  to its options screen and `bombjack2.scl` (Bomb Jack 2) to its first
+  prompt. A disk inserted live while Tetris ran changed only the medium; the
+  running program carried on. `fes.spectrum` refused a disk
+  (`UNSUPPORTED_OPERATION`), having no disk unit.
+- Snapshots: the 48K restored `.z80` and `.sna` games (Exolon, Fantasy World
+  Dizzy, Acro Jet), the 128K Bubble Dizzy and Xonix, the +2A/+3 Nanako
+  Descends to Hell and Exolon, and the Pentagon Bubble Dizzy and Exolon. The
+  48K, 128K and Pentagon each refused a snapshot class they do not run (the
+  +2A/+3 runs all three).
+- Tapes: all four models loaded the turbo-loader `.tzx` from DDR to its
+  eight paper stripes and `0 OK, 10:3`, with HDMI held (ADV7513 `0xBA` =
+  `0x20`, no relocks). The 128K, +2A/+3 and Pentagon passed the automatic
+  stripe check. On the 48K it failed: the still grabbed after the recording
+  was black, as were three of that run's 600 recorded frames, while the
+  recording's last frames show the stripes and `0 OK, 10:3` exactly as on the
+  128K. The check's own verdict was FAIL; the load is judged from the
+  recording.
 
 ## Not established
 
