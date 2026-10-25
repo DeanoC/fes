@@ -375,3 +375,25 @@ boundary guard.
 Node.js is required only when browser tests are scheduled; both runners check
 this before executing tests. Inspect the exact target without executing checks with:
 `python3 scripts/host_tests.py --ui-if-needed --plan-only --paths-json '["sources/FogCast/internal/rebootguard/fallback_test.go"]'`.
+
+### Parent checks for verified Go test-only changes
+
+The shared parent runner can select policy/build integration groups for changes
+confined to ordinary FogCast Go tests, optionally accompanied by reviewed guides.
+It checks the current native and race Go package metadata: each changed file
+must exist without a symlink, belong to a known package, and appear in
+`TestGoFiles` or `XTestGoFiles`. Potential embedded inputs keep their existing
+consumers, including embedded guides. Unlisted/build-tagged-out or deleted
+files, missing Go metadata, production code, dependencies, build/policy changes,
+shared contracts, and unknown paths retain their previous selection.
+
+Mixed guides still select all documentation readers, and unassigned test modules
+always run. Appliance/image-selector consumers, extended media/video modes,
+manual/scheduled full plans and `--full` keep their existing coverage. Host Go
+package tests and reverse consumers, generated consistency, UI checks and the
+integration gate are unchanged. Inspect the parent plan with:
+
+```sh
+python3 scripts/parent_tests.py --video false --media false --plan-only \
+  --paths-json '["sources/FogCast/host/target_bridge_lease_test.go"]'
+```
