@@ -3,7 +3,7 @@
 
 One shell builds four packages, chosen by --model: the 48K (fes.spectrum),
 128K/+2 (fes.spectrum128), +2A/+3 (fes.spectrum-plus3) and Pentagon 128
-(fes.pentagon). Each is format 3: blank 1024x10 firmware lanes (16, 32 or 64)
+(fes.pentagon). Each is format 3: blank 1024x10 firmware lanes (16, 32, 48 or 64)
 are described by a sealed ROM map for the model's firmware image that
 FogCast links at download time. The shell reserves the edge socket's named
 rectangle of `fes.spectrum-bus.sockets/2` and pins its boundary flip-flops and
