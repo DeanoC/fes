@@ -458,12 +458,12 @@ byte per plane, so the four planes at one planar offset are one word. DDR
 port 1 is 64 bits wide and carries two VRAM words per beat.
 
 Address translation follows the sequencer memory mode and graphics misc
-register. Chain-4 uses plane `A & 3` at planar offset `A & ~3`, which is what
+register. Chain-4 uses plane `A & 3` at planar offset `A >> 2`, which is what
 mode 13h's dword-mode scanout reads and what DOSBox does. Odd/even uses plane
-`A & 1` (plus the page bit for planes 2 and 3) at `A & ~1`. Otherwise the
-offset is `A` and the map mask selects planes. Games that switch chain-4 off
-and read mode 13h data back unchained depend on this mapping, so the VGA
-trace replay checks it against the reference.
+`A & 1` (plus the page bit for planes 2 and 3) at planar offset `A >> 1`.
+Otherwise the offset is `A` and the map mask selects planes. Games that switch
+chain-4 off and read mode 13h data back unchained depend on this mapping, so
+the VGA trace replay checks it against the reference.
 
 Every CPU write arrives through the FIFO as a dword with byte enables. Each
 enabled byte is one VGA write, in address order:
