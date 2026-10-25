@@ -956,13 +956,18 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. For named ROM
-selection it admits `GET /api/v1/library/core-entries/{game_id}` and
+IDs so uncached room selections can load their detail row. Setup-room Add game
+admits `POST /api/v1/library/core-entries` for one installed package and title.
+The listener forwards that body unchanged and pins the session target to the
+requesting kit so compatibility uses that kit. Other methods on that collection
+stay denied. For named ROM selection it admits
+`GET /api/v1/library/core-entries/{game_id}`,
+`GET /api/v1/library/core-entries/{game_id}/rom`, and
 `PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
 admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
-single-entry expansion selection. Both selection bodies are forwarded
-unchanged after paired-target checks; neither replaces the foreground target.
-Slot writes, presentation edits, other library PUTs and settings stay denied.
+single-entry expansion selection. Selection bodies are forwarded unchanged
+after paired-target checks; none of these writes replaces the foreground
+target. Slot writes, presentation edits, other library PUTs and settings stay denied.
 It does not expose full `/api/v1/library/settings`, which contains host
 filesystem roots. Tenfoot uses `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
@@ -1015,7 +1020,20 @@ reply is ambiguous, Tenfoot reads the saved entry: the requested package
 confirms the selection, the old package keeps retry available, and a different
 package reports a conflict without overwriting it.
 
-The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the setup room.
+The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the ZX81 setup room. **Set up** opens `example.hardware` for a ZX81 row and `example.c64` for a
+Commodore 64 row, passing the selected game ID through `rooms.open` as the child
+room's `room.initial_game_id`. Each workbench selects that entry for the visit;
+the ZX81 workbench falls back to the active or first available setup if that
+entry is absent, and later refreshes fall back if its current setup disappears.
+Direct room opens continue to restore saved navigation. The Commodore 64 room
+queries up to 2,000 rows filtered to `fes.c64`; when the selected ID falls
+beyond that result it resolves the ID directly, and if the title is gone it
+keeps the other entries available. The room shows the entry's edition, saved
+sockets, and saved `.d64`. It starts through `session.launch` and opens the live
+disk picker only while that entry is running. A failed hardware refresh clears
+the observed live session and disables the session controls until a later read
+succeeds. Launcher session-state changes invalidate the cached hardware session,
+request a fresh hardware read, and force the controls and Running label to redraw.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while
@@ -3452,9 +3470,12 @@ filename; a confirmed eject clears it.
 The name is presentation only; admission continues to use the captured session, target,
 package and generation.
 
-It also admits the core-entry list, installed core-package list and exact
-installed package descriptor/media-capability reads used by Workshop setup;
-package import and compatibility mutation remain outside the paired listener.
+It also admits the core-entry list, exact single-entry reads, and exact
+package, ROM, expansion and media selection routes used by setup. Core-entry
+routes require one validated game ID and the expected path suffix. Installed
+core-package inventory and exact descriptor/media-capability reads are
+available; package import and compatibility mutation remain outside the paired
+listener.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has
