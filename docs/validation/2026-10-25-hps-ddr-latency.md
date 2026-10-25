@@ -10,7 +10,8 @@ revisit the choice." This record measures it.
 0's first data takes 18-19 cycles at the median and 16-17 at best, well
 inside 40. Even with Linux idle, though, 1% of reads take 45-51 cycles and the
 worst read in each window 55-84. The second half of the check, whether Linux
-activity makes DDR erratic, is **not answered**: the loaded run was not done.
+activity makes DDR erratic, is **not answered yet**: the loaded run is
+pending Kit B's power cycle.
 
 This is a **hardware diagnostic** on Kit B with an exact sealed package. It is
 not package or image acceptance.
@@ -105,13 +106,11 @@ refresh takes 36-37 cycles longer.
 
 ### HPS CPU and memory load
 
-**Not done.** The driver started the load (two `dd` writers streaming 8 MiB
-buffers and a `cat` loop reading a 64 MiB tmpfs file), but a script bug
-aborted the step before any loaded frame was read. Its cleanup then stopped
-Kit B's sshd (see below). Deano chose not to power-cycle Kit B now, so no
-loaded numbers exist.
-
-What remains, once Kit B has had its power cycle (or on Kit A):
+**Pending Kit B's power cycle.** The driver started the load (two `dd`
+writers streaming 8 MiB buffers and a `cat` loop reading a 64 MiB tmpfs
+file). A script bug aborted the step before any loaded frame was read, and
+its cleanup stopped Kit B's sshd (see below). Deano will power-cycle Kit B
+later. The loaded run follows that:
 
 1. Check the baseline on Kit B.
 2. Run the fixed `hil_lat.py`, which reads idle and then loaded frames in one
