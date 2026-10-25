@@ -502,3 +502,43 @@ is 100144.64048435585514741 seconds (not GPU time); journal SHA256 is
 Whole-board physical qualification remains open: external IO/OE/feedback,
 reset/CDC, actual board load/flight/CS2 and waveform obligations remain.
 No hardware ran, compiler pin changed, or runtime/shared contract changed.
+
+### Registered SDRAM IO coverage and chip-reference replay
+
+The current board50 source no longer has the old thirteen dynamic CEOUT pad
+configurations: all 37 registered SDRAM output pads have constant enables.
+The existing compiler `fdf0462d` therefore supports their pad references.
+A private dynamic-CE port was built and its retained reference/corruption
+checks pass, but it is unnecessary here and remains unpublished. No route
+was launched with that port.
+
+A host-only replay adds only explicit profile/30 pF load attributes to those
+37 pads. All 70 external channels are timed: 16 input captures, 36 output
+data, 16 DQ enables and both forwarded-clock edges. Synthetic zero external
+requirements first establish coverage. A separate replay uses the published
+AS4C32M16SB-6TIN CL2 6 ns access, 2.5 ns output hold, 1.5 ns setup and
+0.8 ns input hold reference. Constraints include the actual reported forwarded
+clock rise interval [1.259, 6.797] ns exactly once. Board flight, uncertainty,
+margin and CS2 inverter delay are zero assumptions, not qualified bounds.
+The resulting report reproduces the same clock interval.
+
+| Reference boundary | Channels | Setup minimum ns | Hold minimum ns |
+| --- | ---: | ---: | ---: |
+| DQ input capture | 16 | +6.506 | +2.568 |
+| Output data and OE | 52 | +2.817 | +3.507 |
+
+Both replay RBFs are byte-identical to the original successful seed-1 RBF.
+All original 17718 logical endpoint identities remain. Reload recalculates
+analogue minimum delays and slacks, so replay timing does not replace the
+fresh-route reports and supplies no new route-cohort pass. No exceptions or
+failure overrides are used. The route journal remains at 121 receipts.
+
+The two separate DQML/DQMH mirror pins are fabric-register driven, not
+constant. Standard MiSTer chip masks use shared A11/A12; actual fitted-board
+connectivity is still a physical obligation. IO instrumentation additionally
+exposes 29 unconstrained pad-output rows: with the existing four PLL clears
+and five video CDC rows, 38 rows remain unpaired in this report. No rows are
+waived. Complete pad models/contracts, measured board/load/flight/CS2,
+waveforms and reset/CDC qualification remain open. No hardware ran.
+[Replay evidence](board50-io-reference-replay.json) binds the artifacts and
+records this host-only boundary separately from the native route cohort.
