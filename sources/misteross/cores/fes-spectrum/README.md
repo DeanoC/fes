@@ -119,11 +119,48 @@ tape therefore waits at its start until a loader runs, and pauses when the
 program stops loading. STOP blocks stop it (flag 1 only on the 48K) and the
 end of the tape stops and rewinds it. MIC writes are not returned to the host.
 
+## Snapshots
+
+The cassette unit also loads `.z80` (versions 1-3) and `.sna` (48K and 128K)
+snapshots. The host converts a snapshot into a restore stream (FogCast
+`internal/spectrumsnapshots`, also `cmd/fes-spectrum-restore`): an 8-byte
+header, `ZXRS`, version 1, the snapshot's class (0 48K, 1 128K, 2 +2A/+3)
+and two zero bytes, followed by Z80 code. `rtl/spectrum_snapshot.v` reads the
+first 8 bytes of every image. A tape goes to the deck after the stream
+rewinds. A restore stream of a class the model runs resets the machine, and
+then every CPU memory read, at any address, takes the next stream byte; WAIT
+holds a read while the media ring is empty. Writes, I/O and contention are
+unchanged. The code:
+
+- fills RAM with `LD (HL),n` / `INC HL`: a 48K snapshot fills `$4000-$FFFF`,
+  which every model maps to banks 5, 2 and 0 after reset; a 128K-class one
+  pages each bank in at `$C000` through `$7FFD`;
+- sets the border, and on 128K-class snapshots all 16 AY registers and the
+  selected register;
+- writes `$1FFD`, then `$7FFD`. On the 128K and Pentagon `$1FFD` decodes as
+  `$7FFD`, so the second write replaces it; the 48K has neither. A 48K
+  snapshot on a paged model selects 48 BASIC (ROM 3 on the +2A/+3) and locks
+  paging; a 128K snapshot's ROM 1 is ROM 3 on the +2A/+3;
+- loads the alternate and main registers, IX, IY, I and IM, sets R so that it
+  holds the snapshot's value at the first fetch from real memory, pops AF from
+  the stream, loads SP, executes EI if IFF1 was set, and jumps to PC.
+
+Restore ends when the image's last byte has been read; a 128 KiB snapshot
+takes about 0.64 s. It runs again whenever the machine leaves reset with the
+snapshot inserted, and ejecting it gives the normal ROM boot. Packages
+declare the optional interfaces `fes.media.spectrum-snapshot` 1.0 (every
+model), `fes.media.spectrum-snapshot-128` 1.0 (128K-class models) and
+`fes.media.spectrum-snapshot-plus3` 1.0 (+2A/+3); the host refuses a snapshot
+the package does not run, and the core leaves a stream of another class to
+the deck. IFF2 is restored only as a copy of IFF1, and the T state within the
+frame is not restored. 16K, SamRam, MGT, Scorpion, Didaktik and Timex
+snapshots, and those with the Interface 1 or TR-DOS ROM paged in, are refused.
+
 ## Simulation
 
 ```sh
 make sim-fes-spectrum              # every model's machine, video, board mailbox and DDR tape, deck
-make sim-fes-spectrum-machine      # diagnostic firmware on all four models, frame-bank video
+make sim-fes-spectrum-machine      # diagnostic firmware and snapshot restore on all four models, frame-bank video
 make sim-fes-spectrum-board
 make sim-fes-spectrum-tape
 make sim-fes-spectrum-contention   # downloads the pinned Fuse Z80 tests
@@ -139,7 +176,13 @@ the deck's loader detection, see its 1200 T pilot and decode the four bytes of
 its 350/700 T turbo block. It also checks the
 frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
-attribute swaps ink and paper every 16 frames. The video simulation
+attribute swaps ink and paper every 16 frames. The snapshot simulation
+writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
+with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
+`cmd/fes-spectrum-restore` (Go), streams it with random gaps and checks every
+register, the paging ports, border, AY registers and all RAM at the first
+fetch from real memory, then that the restored program runs; each model also
+leaves a stream of a class it cannot run to the deck. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
 `top.v` through the mailbox and a model of the fpga2sdram ports
@@ -204,7 +247,7 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 ## Not implemented
 
 The +3 disk drive, TR-DOS, tape write-back, accelerated tape loading
-(#999), snapshot loading through the mailbox, ULAplus, Timex video modes and
+(#999), `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
 the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those

@@ -399,7 +399,7 @@ func resolveCassetteArgument(ctx context.Context, origin, arg string) (mediaID, 
 	}
 	before, err := os.Lstat(arg)
 	base := filepath.Base(arg)
-	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitSpectrumTapeName(base) || !protocol.AdmitSpectrumTapeSize(before.Size()) {
+	if err != nil || !before.Mode().IsRegular() || !protocol.AdmitSpectrumCassetteName(base) || !protocol.AdmitSpectrumTapeSize(before.Size()) {
 		return "", "", protocol.CassetteMediaRequestError()
 	}
 	file, err := os.Open(arg)

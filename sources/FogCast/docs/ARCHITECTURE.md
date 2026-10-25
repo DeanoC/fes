@@ -807,7 +807,12 @@ layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `f
 `spectrum-tape`, names `.tzx`, `.tap`, `.pzx` and `.csw` up to 32 MiB, on the
 same unit 0. The library keeps the image as imported; at insertion
 `internal/spectrumtapes` converts it to the unit's 10..16,777,216-byte PZX
-stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A shell
+stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
+package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
+`-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80` and `.sna`;
+media that is not a tape image but reads as a snapshot is converted by
+`internal/spectrumsnapshots` to the core's restore stream instead, and a
+snapshot of a machine the package does not declare is refused. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are
@@ -818,8 +823,8 @@ is a failed launch and follows existing library-slot Stop/recovery. The same ses
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
-legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx` or `.csw` name inserts the
-Spectrum cassette on unit 0.
+legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80` or `.sna` name
+inserts the Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum tape. A stored

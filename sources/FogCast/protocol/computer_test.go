@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 )
 
 func apple2Descriptor(floppy corepackage.Interface) corepackage.Descriptor {
@@ -162,6 +163,41 @@ func TestSpectrumTapeProjection(t *testing.T) {
 	if DeclaresDiskMedia(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) ||
 		!DeclaresSpectrumTape(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) {
 		t.Fatal("tape projected as a disk")
+	}
+}
+
+func TestSpectrumSnapshotDeclarations(t *testing.T) {
+	tape := corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}
+	snapshot := func(id string) corepackage.Interface { return corepackage.Interface{ID: id, Major: 1} }
+	base, paged, plus3 := snapshot(SpectrumSnapshotInterfaceID), snapshot(SpectrumSnapshot128InterfaceID), snapshot(SpectrumSnapshotPlus3InterfaceID)
+	for name, tc := range map[string]struct {
+		interfaces []corepackage.Interface
+		runs       [3]bool
+	}{
+		"tape only":     {[]corepackage.Interface{tape}, [3]bool{}},
+		"48K":           {[]corepackage.Interface{tape, base}, [3]bool{true, false, false}},
+		"128K":          {[]corepackage.Interface{tape, base, paged}, [3]bool{true, true, false}},
+		"+2A/+3":        {[]corepackage.Interface{tape, base, paged, plus3}, [3]bool{true, true, true}},
+		"no tape unit":  {[]corepackage.Interface{base, paged, plus3}, [3]bool{}},
+		"128K, no base": {[]corepackage.Interface{tape, paged}, [3]bool{}},
+	} {
+		d := corepackage.Descriptor{Core: corepackage.Core{ID: "example.any-core"},
+			ABI: corepackage.Contract{ID: "fes.computer", Major: 1}, Interfaces: tc.interfaces}
+		for machine, want := range tc.runs {
+			if got := SpectrumSnapshotRuns(d, spectrumsnapshots.Machine(machine)); got != want {
+				t.Errorf("%s: class %d runs = %v", name, machine, got)
+			}
+		}
+		media := DeclaredCoreMediaCapabilities(d)
+		listed := len(media) == 1 && strings.Contains(strings.Join(media[0].Extensions, " "), ".z80 .sna")
+		if listed != tc.runs[0] {
+			t.Errorf("%s: snapshot extensions listed = %v (%v)", name, listed, media)
+		}
+	}
+	for name, want := range map[string]bool{"game.z80": true, "GAME.SNA": true, "game.tzx": true, "game.p": false, "a/game.z80": false} {
+		if AdmitSpectrumCassetteName(name) != want || AdmitLiveMediaName(name) != (want || name == "game.p") {
+			t.Errorf("cassette name %q admitted = %v", name, !want)
+		}
 	}
 }
 

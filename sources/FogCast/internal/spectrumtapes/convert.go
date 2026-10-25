@@ -46,6 +46,16 @@ func Admit(name string) bool {
 // AdmitSize reports whether a source image of size bytes may be converted.
 func AdmitSize(size int64) bool { return size > 0 && size <= MaxInputBytes }
 
+// Recognize reports whether data reads as a tape image: a TZX, PZX or CSW
+// signature, or .tap blocks that cover it exactly.
+func Recognize(data []byte) bool {
+	if !AdmitSize(int64(len(data))) {
+		return false
+	}
+	_, err := read(data)
+	return err == nil
+}
+
 // Convert reads a tape image and returns its PZX stream. TZX, PZX and CSW
 // images are known by their signatures; anything else must be a .tap image
 // whose blocks cover it exactly.

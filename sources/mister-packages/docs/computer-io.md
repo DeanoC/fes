@@ -254,6 +254,16 @@ this and is checked against libspectrum on fixtures of every block type.
 Version 1.0 (a `.tap` image of at most 64 KiB held in M10K) is withdrawn; a
 1.0 package is refused at compatibility.
 
+A Spectrum package may also declare the optional interfaces
+`fes.media.spectrum-snapshot` 1.0, `fes.media.spectrum-snapshot-128` 1.0 and
+`fes.media.spectrum-snapshot-plus3` 1.0. They add no unit and no capability
+bit: they say that this unit also runs restore streams for 48K, 128K and
++2A/+3 snapshots. A restore stream starts with `ZXRS`, version 1, its class
+(0, 1 or 2) and two zero bytes; the core resets the machine and serves every
+CPU memory read from the stream's following bytes until the last one, then
+fetches from real memory. FogCast's `internal/spectrumsnapshots` writes it
+from `.z80` and `.sna` snapshots; the FES Spectrum README describes the code.
+
 A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
 floppy, or the ZX81 tape, and only one unit-0 media interface.
 

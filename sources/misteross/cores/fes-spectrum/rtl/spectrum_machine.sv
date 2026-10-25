@@ -14,7 +14,8 @@
 // Port $FE (A0 low) is the ULA. Port $1F (A7:A5 low) is a built-in Kempston
 // joystick. On 128K-class models $FFFD/$BFFD (A15, A14, A1) is the AY-3-8912.
 // Other reads return the ULA's floating bus where the model has one. The tape
-// deck plays a PZX image that the shell streams from its media store.
+// deck plays a PZX image that the shell streams from its media store; a
+// restore stream in the same unit loads a snapshot instead (spectrum_snapshot).
 `include "spectrum_bus.vh"
 `include "spectrum_model.vh"
 
@@ -66,10 +67,13 @@ module spectrum_machine #(
     wire cpu_ce_p, cpu_ce_n, tick_p, tick_n, int_n, contend_request;
     wire nmi = response1[`SP_BUS_NMI];
     wire card_wait = response1[`SP_BUS_WAIT];
+    // A snapshot restore resets the machine (not the shell) before it runs.
+    wire restore_reset, restoring, restore_wait;
+    wire machine_reset = reset | restore_reset;
 
     fes_z80_nmos cpu (
-        .clk(clk_sys), .reset(reset), .ce_p(cpu_ce_p), .ce_n(cpu_ce_n),
-        .wait_n(~card_wait), .int_n(int_n), .nmi_n(~nmi), .busrq_n(1'b1), .din(cpu_di),
+        .clk(clk_sys), .reset(machine_reset), .ce_p(cpu_ce_p), .ce_n(cpu_ce_n),
+        .wait_n(~(card_wait | restore_wait)), .int_n(int_n), .nmi_n(~nmi), .busrq_n(1'b1), .din(cpu_di),
         .m1_n(cpu_m1_n), .mreq_n(cpu_mreq_n), .iorq_n(cpu_iorq_n), .rd_n(cpu_rd_n),
         .wr_n(cpu_wr_n), .rfsh_n(cpu_rfsh_n), .halt_n(cpu_halt_n), .busak_n(),
         .a(cpu_a), .dout(cpu_do), .illegal(cpu_illegal), .retired(cpu_retired),
@@ -127,7 +131,7 @@ module spectrum_machine #(
     wire [7:0] screen_data, floating;
     reg [2:0] border_q = 3'd7;
     spectrum_ula #(.MODEL(MODEL)) ula (
-        .clk(clk_sys), .reset(reset), .tick_p(tick_p), .tick_n(tick_n),
+        .clk(clk_sys), .reset(machine_reset), .tick_p(tick_p), .tick_n(tick_n),
         .contend_request(contend_request), .cpu_ce_p(cpu_ce_p), .cpu_ce_n(cpu_ce_n),
         .int_n(int_n), .screen7(port_7ffd[3]), .screen_bank(screen_bank),
         .screen_addr(screen_addr),
@@ -152,7 +156,7 @@ module spectrum_machine #(
     assign bus_request[`SP_BUS_WR] = ~cpu_wr_n;
     assign bus_request[`SP_BUS_M1] = ~cpu_m1_n;
     assign bus_request[`SP_BUS_STROBE] = strobe;
-    assign bus_request[`SP_BUS_RESET] = reset;
+    assign bus_request[`SP_BUS_RESET] = machine_reset;
     assign bus_request[`SP_BUS_RESERVED] = 1'b0;
 
     wire [27:0] chosen = response1[`SP_BUS_DRIVE] ? response1 : 28'd0;
@@ -196,7 +200,7 @@ module spectrum_machine #(
     reg mic_q = 1'b0;
     reg ear_default = 1'b0;   // last OUT bit 4: Issue 3 / 128K read-back
     always @(posedge clk_sys) begin
-        if (reset) begin
+        if (machine_reset) begin
             border_q <= 3'd7;
             speaker_q <= 1'b0;
             mic_q <= 1'b0;
@@ -229,11 +233,22 @@ module spectrum_machine #(
     reg ula_reading_q = 1'b0;
     always @(posedge clk_sys) ula_reading_q <= ula_reading;
 
-    wire tape_ear;
-    spectrum_tape #(.IS_48K(MODEL == 0)) tape (
-        .clk(clk_sys), .reset(reset), .tick(tick_p), .ready(tape_ready), .size(tape_size),
+    wire mem_read = ~cpu_mreq_n & ~cpu_rd_n;
+    wire deck_ready, deck_stream_enable, deck_stream_take;
+    spectrum_snapshot #(.MODEL(8'(MODEL))) snapshot (
+        .clk(clk_sys), .reset(reset), .ready(tape_ready), .size(tape_size),
         .stream_enable(tape_stream_enable), .stream_valid(tape_stream_valid),
         .stream_data(tape_stream_data), .stream_take(tape_stream_take),
+        .deck_ready(deck_ready), .deck_stream_enable(deck_stream_enable),
+        .deck_stream_take(deck_stream_take), .mem_read(mem_read),
+        .machine_reset(restore_reset), .restoring(restoring), .restore_wait(restore_wait)
+    );
+
+    wire tape_ear;
+    spectrum_tape #(.IS_48K(MODEL == 0)) tape (
+        .clk(clk_sys), .reset(reset), .tick(tick_p), .ready(deck_ready), .size(tape_size),
+        .stream_enable(deck_stream_enable), .stream_valid(tape_stream_valid & deck_ready),
+        .stream_data(tape_stream_data), .stream_take(deck_stream_take),
         .ula_read(ula_reading & ~ula_reading_q), .cpu_b(cpu_bc[15:8]),
         .ear(tape_ear), .playing(tape_playing), .underruns()
     );
@@ -245,7 +260,7 @@ module spectrum_machine #(
         reg ay_div = 1'b0;
         always @(posedge clk_sys) if (tick_p) ay_div <= ~ay_div;
         zonx_ay ay (
-            .clk(clk_sys), .reset_n(~reset), .chip_ce(tick_p && ay_div),
+            .clk(clk_sys), .reset_n(~machine_reset), .chip_ce(tick_p && ay_div),
             .address_write(io_write_strobe && ay_select_hit),
             .data_write(io_write_strobe && ay_data_hit),
             .data(cpu_do), .read_data(ay_read_data), .pcm(ay_pcm), .ym_levels()
@@ -274,7 +289,6 @@ module spectrum_machine #(
     wire amstrad_float_port = cpu_a <= 16'h1000 && cpu_a > 16'h0001 && cpu_a[1:0] == 2'b01;
     wire [7:0] unattached = MODEL == 3 ? (cpu_a[7:0] == 8'hff ? floating : 8'hff) :
                             AMSTRAD && !amstrad_float_port ? 8'hff : floating;
-    wire mem_read = ~cpu_mreq_n & ~cpu_rd_n;
     wire io_read = io & ~cpu_rd_n;
     wire [7:0] rom_mux = (romcs && chosen[`SP_BUS_DRIVE]) ? chosen[`SP_BUS_RDATA] :
                          romcs ? 8'hff : rom_data;
@@ -282,5 +296,6 @@ module spectrum_machine #(
                         ula_port ? ula_read :
                         kempston_hit ? {3'b000, kempston} :
                         ay_select_hit ? ay_read_data : unattached;
-    assign cpu_di = mem_read ? (cpu_rom ? rom_mux : ram_data) : io_read ? io_mux : 8'hff;
+    assign cpu_di = mem_read ? (restoring ? tape_stream_data : cpu_rom ? rom_mux : ram_data) :
+                    io_read ? io_mux : 8'hff;
 endmodule

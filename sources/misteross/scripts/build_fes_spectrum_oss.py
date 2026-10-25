@@ -93,19 +93,19 @@ class Model:
 MODELS = {model.key: model for model in (
     Model("48", "fes.spectrum", "FES ZX Spectrum 48K",
           "ZX Spectrum 48K: NMOS Z80 with ULA contention, linked 16 KiB firmware",
-          "0.4.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
+          "0.5.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
           Path("build/fes-spectrum-oss")),
     Model("128", "fes.spectrum128", "FES ZX Spectrum 128K",
           "ZX Spectrum 128K/+2: NMOS Z80, ULA contention, AY-3-8912, 128 KiB paged RAM, "
-          "linked 32 KiB firmware", "0.2.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
+          "linked 32 KiB firmware", "0.3.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
           3_546_900, 70_908, 8, Path("build/fes-spectrum128-oss")),
     Model("plus3", "fes.spectrum-plus3", "FES ZX Spectrum +2A/+3",
           "ZX Spectrum +2A/+3 without a disk drive: gate-array contention, all-RAM paging, "
-          "AY-3-8912, linked 64 KiB firmware", "0.2.0", "SPECTRUM_MODEL_PLUS3",
+          "AY-3-8912, linked 64 KiB firmware", "0.3.0", "SPECTRUM_MODEL_PLUS3",
           "spectrum-plus3-firmware", 64, 3_546_900, 70_908, 8, Path("build/fes-spectrum-plus3-oss")),
     Model("pentagon", "fes.pentagon", "FES Pentagon 128",
           "Pentagon 128: uncontended 71,680 T-state frame, AY-3-8912, 128 KiB paged RAM, "
-          "linked 32 KiB firmware", "0.2.0", "SPECTRUM_MODEL_PENTAGON", "pentagon-firmware", 32,
+          "linked 32 KiB firmware", "0.3.0", "SPECTRUM_MODEL_PENTAGON", "pentagon-firmware", 32,
           3_500_000, 71_680, 8, Path("build/fes-pentagon-oss")),
 )}
 # Exact synthesized block counts: (MISTRAL_M10K, MISTRAL_M10K_TDP). M10K is the
@@ -144,6 +144,7 @@ RTL_SOURCES = (
     "cores/fes-spectrum/rtl/spectrum_rom.v",
     "cores/fes-spectrum/rtl/spectrum_video.v",
     "cores/fes-spectrum/rtl/spectrum_tape.v",
+    "cores/fes-spectrum/rtl/spectrum_snapshot.v",
     "cores/fes-spectrum/rtl/spectrum_keyboard.v",
     "cores/fes-spectrum/rtl/spectrum_audio.v",
     "cores/fes-spectrum/rtl/spectrum_slot_sockets.v",
@@ -598,12 +599,19 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         ("fes.audio.pcm-s16-stereo-48k", 1), ("fes.media.spectrum-tape", 2),
         ("fes.memory.hps-ddr", 1), ("fes.video.session-display", 1), ("fes.fabric.video.display-plane", 1),
     ]
+    # The cassette unit also runs snapshot restore streams: 48K ones on every
+    # model, 128K ones on the paged models and +2A/+3 ones on the +2A/+3.
+    snapshots = ["fes.media.spectrum-snapshot"]
+    if machine.ram_banks == 8:
+        snapshots.append("fes.media.spectrum-snapshot-128")
+    if machine.key == "plus3":
+        snapshots.append("fes.media.spectrum-snapshot-plus3")
     fields = {
         "format": 3,
         "core": {
             "id": machine.core_id,
             "name": machine.name,
-            "description": machine.description + ", .tzx/.tap/.pzx cassette and an edge socket",
+            "description": machine.description + ", .tzx/.tap/.pzx cassette, .z80/.sna snapshots and an edge socket",
             "version": machine.version,
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
@@ -611,7 +619,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "abi": {"id": "fes.computer", "major": 1, "minor": 0},
         "interfaces": [{"id": interface, "major": major, "minor": 0, "required": True}
                        for interface, major in required] +
-                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}],
+                      [{"id": spectrum_slots.INTERFACE, "major": 1, "minor": 0, "required": False}] +
+                      [{"id": interface, "major": 1, "minor": 0, "required": False} for interface in snapshots],
         "build": {
             "id": evidence["build_id"],
             "repository": repository,

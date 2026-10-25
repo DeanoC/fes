@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
@@ -83,6 +84,43 @@ func Apple2FloppyInterface() RuntimeContract {
 // SpectrumTapeInterface is the unit-0 ZX Spectrum .tap contract.
 func SpectrumTapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumTapeID, Major: generated.FesComputerInterfaceMediaSpectrumTapeMajor, Minor: generated.FesComputerInterfaceMediaSpectrumTapeMinor}
+}
+
+// Spectrum snapshot interfaces. A package whose cassette unit also runs
+// restore streams (internal/spectrumsnapshots) declares them as optional
+// interfaces: fes.media.spectrum-snapshot 1.0 for 48K snapshots, plus
+// -128 1.0 for 128K ones and -plus3 1.0 for +2A/+3 ones. They add no unit
+// and no capability bit; the unit still carries fes.media.spectrum-tape.
+const (
+	SpectrumSnapshotInterfaceID      = "fes.media.spectrum-snapshot"
+	SpectrumSnapshot128InterfaceID   = "fes.media.spectrum-snapshot-128"
+	SpectrumSnapshotPlus3InterfaceID = "fes.media.spectrum-snapshot-plus3"
+)
+
+// SpectrumSnapshotRuns reports whether the descriptor's Spectrum cassette
+// unit runs restore streams of machine.
+func SpectrumSnapshotRuns(descriptor corepackage.Descriptor, machine spectrumsnapshots.Machine) bool {
+	if !DeclaresSpectrumTape(descriptor) {
+		return false
+	}
+	declared := func(id string) bool {
+		for _, i := range descriptor.Interfaces {
+			if i.ID == id && i.Major == 1 && i.Minor == 0 {
+				return true
+			}
+		}
+		return false
+	}
+	switch machine {
+	case spectrumsnapshots.Machine48K:
+		return declared(SpectrumSnapshotInterfaceID)
+	case spectrumsnapshots.Machine128K:
+		return declared(SpectrumSnapshotInterfaceID) && declared(SpectrumSnapshot128InterfaceID)
+	case spectrumsnapshots.MachinePlus3:
+		return declared(SpectrumSnapshotInterfaceID) && declared(SpectrumSnapshot128InterfaceID) &&
+			declared(SpectrumSnapshotPlus3InterfaceID)
+	}
+	return false
 }
 
 // Zx81TapeInterface is the unit-0 ZX81 .p contract.
@@ -260,13 +298,17 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
-			// The library holds tape images; the host converts one to the
-			// unit's PZX stream when it is inserted.
+			// The library holds tape images, and snapshots where the package
+			// runs them; the host converts one to the unit's PZX or restore
+			// stream when it is inserted.
 			unit := SpectrumTapeUnit
+			extensions := append([]string(nil), spectrumtapes.Extensions...)
+			if declaresSpectrumSnapshots(descriptor) {
+				extensions = append(extensions, spectrumsnapshots.Extensions...)
+			}
 			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tape",
 				MinBytes: 1, MaxBytes: SpectrumTapeImageMaxBytes, Interface: tape,
-				Transport: ComputerMediaTransport, Unit: &unit,
-				Extensions: append([]string(nil), spectrumtapes.Extensions...)})
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
 		}
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
@@ -277,6 +319,15 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 		}
 	}
 	return result
+}
+
+func declaresSpectrumSnapshots(descriptor corepackage.Descriptor) bool {
+	for _, i := range descriptor.Interfaces {
+		if i.ID == SpectrumSnapshotInterfaceID && i.Major == 1 && i.Minor == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // DeclaresDiskMedia reports whether the descriptor has a unit-0 disk
@@ -353,6 +404,15 @@ func AdmitSpectrumTapeName(name string) bool {
 	return spectrumtapes.Admit(name)
 }
 
+// AdmitSpectrumCassetteName accepts a Spectrum tape image or a .z80 or .sna
+// snapshot basename; the active package decides whether it runs snapshots.
+func AdmitSpectrumCassetteName(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return false
+	}
+	return spectrumtapes.Admit(name) || spectrumsnapshots.Admit(name)
+}
+
 // AdmitSpectrumTapeSize reports whether a Spectrum tape image may be
 // converted; the converted stream must then fit the unit.
 func AdmitSpectrumTapeSize(size int64) bool {
@@ -386,10 +446,10 @@ func AdmitComputerDiskName(name string) bool {
 }
 
 // AdmitLiveMediaName accepts the names of every live media form: ZX81 tapes,
-// home-computer disks and Spectrum cassettes. The active package then chooses
-// the exact contract.
+// home-computer disks and Spectrum cassettes and snapshots. The active
+// package then chooses the exact contract.
 func AdmitLiveMediaName(name string) bool {
-	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name) || AdmitSpectrumTapeName(name)
+	return AdmitTapeMediaName(name) || AdmitComputerDiskName(name) || AdmitSpectrumCassetteName(name)
 }
 
 // MediaUnitBinding names one unit of the already active target package
@@ -459,11 +519,17 @@ func DiskMediaRequestError() *APIError {
 
 // CassetteMediaRequestError is the live-media refusal for Spectrum tapes.
 func CassetteMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB, or a .z80 or .sna snapshot", Phase: "request"}
 }
 
 // CassetteConversionError reports a Spectrum tape image the host could not
 // convert to the unit's PZX stream.
 func CassetteConversionError(err error) *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "Spectrum tape image: " + err.Error(), Phase: "request"}
+}
+
+// SnapshotConversionError reports a Spectrum snapshot the host could not
+// convert to a restore stream, or one the active package does not run.
+func SnapshotConversionError(err error) *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum snapshot: " + err.Error(), Phase: "request"}
 }
