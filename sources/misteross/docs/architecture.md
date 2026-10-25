@@ -2859,8 +2859,9 @@ HDMI; pixel state stays on phase zero and the receiver samples between updates.
 The default profile retains its common pixel/HDMI clock. Display dot and speaker
 sample generators use the board rate. The ordinary diagnostic producer selects
 the board50 pad constraints and explicit harmonic/FF-clear reference timing,
-with the cohort search budget fixed at zero. Timing failures remain fatal;
-the FF reference's source/deassertion validation gap remains open. The
+with the cohort search budget fixed at zero. Timing failures remain fatal.
+A separately merged source/deassertion-validated FF reference confirms the
+unchanged model limits; physical reset qualification remains open. The
 [core guide](../cores/fes-pcxt/README.md#experimental-cpu100--board50-diagnostic)
 describes the regression and remaining physical gates. No accepted package or
 hardware status follows from this profile.

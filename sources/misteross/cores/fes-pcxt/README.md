@@ -69,8 +69,11 @@ registers. The core lock selects reviewed nextpnr main `2fa5ec4c`, including
 endpoint launch identities, harmonic-clock timing and the explicit FF clear
 reference. Only this experimental profile enables the harmonic/reset-reference
 options and fixes the cohort search budget at zero. Setup/hold failures remain
-fatal. The FF reference's source/deassertion validation gap remains open; these
-options do not supply physical reset qualification.
+fatal. The separately merged [FF reference correction](https://github.com/DeanoC/nextpnr/pull/299)
+validates the unchanged 170/270 ps model limits with 1,648 source/deassertion-checked
+observations. The selected compiler and original route receipts predate that
+reference-only correction; its timing engine is unchanged. Physical reset
+qualification remains open.
 The native trial and four-corner reference screen are
 [recorded here](../../docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md).
 They do not qualify the IO, reset chains, physical board or a runtime package.

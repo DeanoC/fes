@@ -1,0 +1,1263 @@
+{
+  "scope": "Ordinary authenticated producer integration of merged nextpnr #296 for the default-off CGA Direct CPU100/board50 profile. Diagnostic native timing and separate conditional host IO replay; no sealed package, deployment or physical/hardware acceptance.",
+  "base_fes_commit": "a907e1ec984d6a076168bc4fa30fcfaa0f541d4c",
+  "validated_code_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+  "source_sha256": {
+    "cores/fes-pcxt/toolchain.lock": "526fae173ab429cfbe65dba15ad9422e408db27fc27117130926160fea60da4f",
+    "scripts/build_fes_pcxt.py": "79f3fd04b6788d6f2331e1b93f75962e9f41c74b850a7f5f62a412d4ebc6cfa5",
+    "tests/test_pcxt_toolchain.py": "344af53ddd94895e8dc489698377c5a6f2978693efc026af23e0919a037742ef",
+    "cores/fes-pcxt/README.md": "0918a9819cd47de5d8daec9146ba2c5b24e59b8823ea6f0213a9e565eadf3cb5",
+    "docs/architecture.md": "a7a3869eff87b68a15dd62e83054a01b80d2e6463216a60c6c22d16ad0fdaed8"
+  },
+  "toolchain_cache": {
+    "key": "6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448",
+    "ready_sha256": "606bd2722c5498a873bda22fc97a5e57a950269dee75a2072c3f15acfa3442f3",
+    "tools": {
+      "mistral": {
+        "commit": "9ab6522077948fc3dd2e074338874f92e848fc44",
+        "sha256": "001b329603a35fc4941d9d3811fbe59ab4081c2d20fc76e40caf9119443e7f88"
+      },
+      "nextpnr": {
+        "commit": "2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99",
+        "sha256": "cc71603a4be779e9e0e46a18b367096be5fd8de433cea07e51f9f446260c3295"
+      },
+      "openfpgaloader": {
+        "commit": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
+        "sha256": "209ff6608b4a0466b07656689ee2251969ea8cab3f1d64b46125e0401a1264cd"
+      },
+      "verilator": {
+        "commit": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
+        "sha256": "098b09b11ba7d3e904ae13d924a9e8dac8ced5c9d7c9beff3b9d36119a417581"
+      },
+      "yosys": {
+        "commit": "3a5accbd78c526ab7bae32640044a2e062a3cfc9",
+        "sha256": "77da90b48cb0cd4c114ad3924b2cd8d801fd63698dc9b706ffbbc596226c022e"
+      }
+    }
+  },
+  "clock_targets_mhz": {
+    "cpu": 100,
+    "board": 50,
+    "capture": 50,
+    "chip_select": 50,
+    "pixel": 74.25,
+    "hdmi_forwarded": 74.25
+  },
+  "make_check": "PASS:21 generated consumers,37 fixture copies,0 copied source pins",
+  "affected_run": {
+    "format": 1,
+    "root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board",
+    "base": "a907e1ec984d6a076168bc4fa30fcfaa0f541d4c",
+    "head": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+    "checkout_head": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+    "merge_base": "a907e1ec984d6a076168bc4fa30fcfaa0f541d4c",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": false,
+        "runtime": false,
+        "contracts": false,
+        "fpga": true
+      },
+      "skipped": [
+        "host",
+        "runtime",
+        "contracts"
+      ],
+      "cores": [
+        "pcxt"
+      ],
+      "test_modes": {
+        "video": true,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "sources/misteross/cores/fes-pcxt/README.md",
+        "sources/misteross/cores/fes-pcxt/toolchain.lock",
+        "sources/misteross/docs/architecture.md",
+        "sources/misteross/scripts/build_fes_pcxt.py",
+        "sources/misteross/tests/test_pcxt_toolchain.py"
+      ],
+      "reasons": [
+        "sources/misteross/cores/fes-pcxt/toolchain.lock: core family and dependent consumers",
+        "sources/misteross/scripts/build_fes_pcxt.py: FPGA producer/package software tests; RTL unchanged",
+        "sources/misteross/tests/test_pcxt_toolchain.py: FPGA producer/package software tests; RTL unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "a907e1ec984d6a076168bc4fa30fcfaa0f541d4c",
+          "--head",
+          "47b21bc4bb1f2cdecf825833e0ec8240d847c8df"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "true",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"sources/misteross/cores/fes-pcxt/README.md\", \"sources/misteross/cores/fes-pcxt/toolchain.lock\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/scripts/build_fes_pcxt.py\", \"sources/misteross/tests/test_pcxt_toolchain.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py",
+        "cwd": "sources/misteross",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "strace"
+        ],
+        "files": [
+          "tests/test_*.py"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "pcxt RTL simulation",
+        "cwd": "sources/misteross",
+        "argv": [
+          "make",
+          "sim-fes-pcxt",
+          "PYTHON=/usr/bin/python3"
+        ],
+        "tools": [
+          "c++",
+          "make",
+          "verilator"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "passed",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "pcxt RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ]
+  },
+  "affected_test_counts": [
+    19,
+    26,
+    843,
+    1341
+  ],
+  "focused_tests": {
+    "producer": 9,
+    "merged_pinned_profile_pack": 4,
+    "merged_reset_parser": 8,
+    "merged_characterizer": 2,
+    "merged_cli": "PASS",
+    "followup_parser": 8,
+    "followup_characterizer": 2
+  },
+  "test_logs_sha256": {
+    "board50-merged-pinned-profile-tests.log": "843526141c657d7cba22832facdfbe62e4b91767b5bcf3d9ca7c2ed9c007ee4a",
+    "board50-merged-producer-tests.log": "5ef1c51089b534fda073c212867e80303e826b3cc35f6c8af79480652e3377b0"
+  },
+  "collector_scripts_sha256": {
+    "run-board50-merged-producer.py": "68791c85e3e190891c0faab6da32bf2fe6633a89350bd52a3b182b5ef37f4897",
+    "verify-board50-merged-producer.py": "be57361677bc4bf8bda35b1a1ea449d0608f90889a2f5bab1000e882acb9a77b",
+    "replay-board50-merged-combined.py": "e14662301360110ac1ba0413fbf39b3dd5018433e7f7924428880a4e24523ca0",
+    "account-board50-merged-producers.py": "fc6a7c5e917ec8fc3b2d14bf4b95571170ae5e0ef348228ad9c337cfb4d16d21",
+    "record-board50-merged-integration.py": "9995839d7b8bd6741a780de28fb487cb5f6e02441138828dc9091e14d4a8cf2a"
+  },
+  "native": [
+    {
+      "scope": "Fresh ordinary merged-compiler producer, complete mapped JSON and same-seed final native timing comparison. Only source/output/tool-install directory prefixes are normalized; every JSON field is retained. Conditional external IO and physical acceptance remain separate.",
+      "seed": 1,
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "nextpnr_commit": "2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99",
+      "producer_receipt_sha256": "8aa40f589f56d3e06a3cd9d73629721b66e2d3b4edd0d52a0e6f7da8eba7a507",
+      "wrapper_receipt_sha256": "9baf69c8160fa0d8fd627d0f71c77a716cad2c46eebd7ced4a7334d947a7204f",
+      "producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672",
+      "baseline_receipt_sha256": "c4061584b9a56c55970ec381c03dbde8157024b0166b9c2d3ceb4f6c5677fa33",
+      "normalization": {
+        "old_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-hdmi-buffered/sources/misteross",
+        "new_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross",
+        "old_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/synth-board50-hdmi-buffered",
+        "new_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672",
+        "old_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/103cef4b84dfbe0cf60cd3adc2ed8aa17e202d49ee075b2ffacecb678bb940a0/install",
+        "new_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install"
+      },
+      "complete_mapped_json_equal": true,
+      "generated_roms_equal": true,
+      "complete_final_native_timing_json_equal": true,
+      "same_seed_rbf_byte_identical": true,
+      "final_analogue_model": true,
+      "paired_rows": 17709,
+      "unpaired_rows": [
+        {
+          "net": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "delay": [
+            2.621000051498413,
+            2.6470000743865967
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge video_clocks[0]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            1.871999979019165,
+            3.1610000133514404
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1",
+          "delay": [
+            1.871999979019165,
+            3.1610000133514404
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            2.3559999465942383,
+            3.6449999809265137
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR",
+          "delay": [
+            2.3559999465942383,
+            3.6449999809265137
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q",
+          "delay": [
+            2.880000114440918,
+            2.9030001163482666
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.front_MISTRAL_FF_Q_1$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q_1",
+          "delay": [
+            2.869999885559082,
+            2.8910000324249268
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.machine.board.audio.reset",
+          "driver": "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "delay": [
+            3.825000047683716,
+            3.8489999771118164
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.sent",
+          "driver": "system.video.adapter.sent_MISTRAL_FF_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "delay": [
+            3.0350000858306885,
+            3.0350000858306885
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        }
+      ],
+      "setup_min_ns": 1.343000054359436,
+      "hold_min_ns": 0.7080000042915344,
+      "all_paired_positive": true,
+      "cdc_audit_sha256": "8a6e67c966a76d036b09127ce5d3476cf99baa0810dfa996cae7c89a7deed671",
+      "hardware": false,
+      "physical_qualified": false,
+      "native_receipt_sha256": "9baf69c8160fa0d8fd627d0f71c77a716cad2c46eebd7ced4a7334d947a7204f",
+      "artifacts_sha256": {
+        "synth.json": "d9dce8af13034d5b825661b228893b223c70bc47c9cf25db9b973e573ec20c01",
+        "routed.json": "a3d8e703d178fb390f1cb3105f997c605d365717e6dbd2e86e0c514245b5f1b3",
+        "timing.json": "cdfd062a657df2bc3eab55636eff982e6ef301971ea7725e835ef21d795b5fc2",
+        "model.json": "fa942d2b90bce4d6de6778cdc8f5df56b1f2564c6d2deb060f64b217c93b6af1",
+        "diagnostic.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "diagnostic.json": "8aa40f589f56d3e06a3cd9d73629721b66e2d3b4edd0d52a0e6f7da8eba7a507"
+      },
+      "native_route_wall_seconds": "530.1922153830528",
+      "producer_wall_seconds": "913.0224406",
+      "reset_consumer_audit": {
+        "chains": 6,
+        "distinct_ports": 919,
+        "overlapping_cone_terminals": 1021,
+        "setup_min_ns": 6.914000034332275,
+        "hold_min_ns": 0.902999997138977,
+        "physical_qualified": false
+      }
+    },
+    {
+      "scope": "Fresh ordinary merged-compiler producer, complete mapped JSON and same-seed final native timing comparison. Only source/output/tool-install directory prefixes are normalized; every JSON field is retained. Conditional external IO and physical acceptance remain separate.",
+      "seed": 2,
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "nextpnr_commit": "2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99",
+      "producer_receipt_sha256": "9cfcb6654a34b455538512127a96e6e1a1d0b70c756882ead57b830f5dba8c2e",
+      "wrapper_receipt_sha256": "93782df9ce533e869796e9d360e14daf72989a226a2bfced4b1c655dec8905c0",
+      "producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b",
+      "baseline_receipt_sha256": "2fc4f68a89bf18ba7d13c1c27cc12f52913023d72a5cc3b188ac053c75787c6c",
+      "normalization": {
+        "old_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-hdmi-buffered/sources/misteross",
+        "new_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross",
+        "old_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/synth-board50-hdmi-buffered",
+        "new_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b",
+        "old_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/103cef4b84dfbe0cf60cd3adc2ed8aa17e202d49ee075b2ffacecb678bb940a0/install",
+        "new_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install"
+      },
+      "complete_mapped_json_equal": true,
+      "generated_roms_equal": true,
+      "complete_final_native_timing_json_equal": true,
+      "same_seed_rbf_byte_identical": true,
+      "final_analogue_model": true,
+      "paired_rows": 17709,
+      "unpaired_rows": [
+        {
+          "net": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.ack_meta_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "delay": [
+            2.4649999141693115,
+            2.496999979019165
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge video_clocks[0]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            2.3299999237060547,
+            3.816999912261963
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1",
+          "delay": [
+            2.3299999237060547,
+            3.816999912261963
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            1.690999984741211,
+            3.177999973297119
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR",
+          "delay": [
+            1.690999984741211,
+            3.177999973297119
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.published_bank[0]",
+          "driver": "system.video.adapter.published_bank_MISTRAL_FF_Q_1",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q",
+          "delay": [
+            3.2730000019073486,
+            3.2730000019073486
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.published_bank[1]",
+          "driver": "system.video.adapter.published_bank_MISTRAL_FF_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q_1",
+          "delay": [
+            3.3259999752044678,
+            3.3259999752044678
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.machine.board.audio.reset",
+          "driver": "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "delay": [
+            4.177999973297119,
+            4.202000141143799
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "delay": [
+            2.9739999771118164,
+            2.996000051498413
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        }
+      ],
+      "setup_min_ns": 1.815999984741211,
+      "hold_min_ns": 0.7720000147819519,
+      "all_paired_positive": true,
+      "cdc_audit_sha256": "dd6e8407333543dc8da6918b5448a0c1dd6fa755515e77cd23d08aee4d92cf30",
+      "hardware": false,
+      "physical_qualified": false,
+      "native_receipt_sha256": "93782df9ce533e869796e9d360e14daf72989a226a2bfced4b1c655dec8905c0",
+      "artifacts_sha256": {
+        "synth.json": "d9dce8af13034d5b825661b228893b223c70bc47c9cf25db9b973e573ec20c01",
+        "routed.json": "f6c22f728cd737212654d2f28f67db1b070d0fb06952f4a4cc8545f365bcc868",
+        "timing.json": "d33df669de471652589bb333b458a254c67ea47bd50fa6835cae536d66d483a9",
+        "model.json": "b39aa9130fc7d57f621b2bba98029395f67936d33e79e837528ee2479ff71945",
+        "diagnostic.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "diagnostic.json": "9cfcb6654a34b455538512127a96e6e1a1d0b70c756882ead57b830f5dba8c2e"
+      },
+      "native_route_wall_seconds": "661.4468739689328",
+      "producer_wall_seconds": "1037.60677302",
+      "reset_consumer_audit": {
+        "chains": 6,
+        "distinct_ports": 919,
+        "overlapping_cone_terminals": 1021,
+        "setup_min_ns": 6.250999927520752,
+        "hold_min_ns": 0.9580000042915344,
+        "physical_qualified": false
+      }
+    },
+    {
+      "scope": "Fresh ordinary merged-compiler producer, complete mapped JSON and same-seed final native timing comparison. Only source/output/tool-install directory prefixes are normalized; every JSON field is retained. Conditional external IO and physical acceptance remain separate.",
+      "seed": 3,
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "nextpnr_commit": "2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99",
+      "producer_receipt_sha256": "5ecb13e3b60985fc03fa55788a62b479e322e8af520b03abb441976e98123da2",
+      "wrapper_receipt_sha256": "f964f05e9f09ff6ff97479eec2ec007ad13eacf5285589fb46a692dbd66ca2cc",
+      "producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302",
+      "baseline_receipt_sha256": "da865f431d1bc4dce47f87e15cc6bb85fb95bd1f49a4ba7d17b82c7f330c6f17",
+      "normalization": {
+        "old_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-hdmi-buffered/sources/misteross",
+        "new_source": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross",
+        "old_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/synth-board50-hdmi-buffered",
+        "new_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302",
+        "old_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/103cef4b84dfbe0cf60cd3adc2ed8aa17e202d49ee075b2ffacecb678bb940a0/install",
+        "new_tool_install": "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install"
+      },
+      "complete_mapped_json_equal": true,
+      "generated_roms_equal": true,
+      "complete_final_native_timing_json_equal": true,
+      "same_seed_rbf_byte_identical": true,
+      "final_analogue_model": true,
+      "paired_rows": 17709,
+      "unpaired_rows": [
+        {
+          "net": "system.video.adapter.received",
+          "driver": "system.video.adapter.received_MISTRAL_FF_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.ack_meta_MISTRAL_FF_Q",
+          "delay": [
+            2.38700008392334,
+            2.38700008392334
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge video_clocks[0]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            1.899999976158142,
+            4.139999866485596
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_1",
+          "delay": [
+            1.899999976158142,
+            4.139999866485596
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR_DATAIN_MISTRAL_FF_Q",
+          "delay": [
+            2.367000102996826,
+            4.60699987411499
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "locked",
+          "driver": "locked_MISTRAL_ALUT2_Q",
+          "driver_port": "Q",
+          "cell": "locked_MISTRAL_FF_ACLR",
+          "delay": [
+            2.367000102996826,
+            4.60699987411499
+          ],
+          "event": "posedge clocks[2]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "<async>",
+          "port": "ACLR",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.front_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q",
+          "delay": [
+            3.625999927520752,
+            3.6489999294281006
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.published_bank[1]",
+          "driver": "system.video.adapter.published_bank_MISTRAL_FF_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.front_MISTRAL_FF_Q_1",
+          "delay": [
+            2.6730000972747803,
+            2.6730000972747803
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.machine.board.audio.reset",
+          "driver": "system.machine.board.audio.reset_MISTRAL_NOT_Q",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.hold_meta_MISTRAL_FF_Q",
+          "delay": [
+            3.5260000228881836,
+            3.549999952316284
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        },
+        {
+          "net": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU$conn$Q",
+          "driver": "system.video.adapter.sent_meta_MISTRAL_FF_Q$ROUTETHRU",
+          "driver_port": "Q",
+          "cell": "system.video.adapter.sent_meta_MISTRAL_FF_Q",
+          "delay": [
+            3.302999973297119,
+            3.3269999027252197
+          ],
+          "event": "posedge video_clocks[0]",
+          "hold_checked": false,
+          "hold_slack_ns": null,
+          "launch_event": "posedge clocks[2]",
+          "port": "DATAIN",
+          "setup_checked": false,
+          "setup_slack_ns": null
+        }
+      ],
+      "setup_min_ns": 1.649999976158142,
+      "hold_min_ns": 0.7829999923706055,
+      "all_paired_positive": true,
+      "cdc_audit_sha256": "4a41dd50424718847def216011640e650b597d282aa170a22071312710c39092",
+      "hardware": false,
+      "physical_qualified": false,
+      "native_receipt_sha256": "f964f05e9f09ff6ff97479eec2ec007ad13eacf5285589fb46a692dbd66ca2cc",
+      "artifacts_sha256": {
+        "synth.json": "d9dce8af13034d5b825661b228893b223c70bc47c9cf25db9b973e573ec20c01",
+        "routed.json": "b263281800cc5afefd0a4983cd8063b2e6dbe24d978468baf0fc4a5f2ac9f70c",
+        "timing.json": "b18f6f877d9a26b4c5a26fb1ee687d6bfec25ee8f3c507389b9e5a9ff27b42dd",
+        "model.json": "bbec79e2309b4c272ec1bd23c23c774c3df87bda171297e0ab2ddd69b3075231",
+        "diagnostic.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "diagnostic.json": "5ecb13e3b60985fc03fa55788a62b479e322e8af520b03abb441976e98123da2"
+      },
+      "native_route_wall_seconds": "342.1352077051997",
+      "producer_wall_seconds": "973.614991364",
+      "reset_consumer_audit": {
+        "chains": 6,
+        "distinct_ports": 919,
+        "overlapping_cone_terminals": 1021,
+        "setup_min_ns": 6.947999954223633,
+        "hold_min_ns": 0.8629999756813049,
+        "physical_qualified": false
+      }
+    }
+  ],
+  "conditional_combined": [
+    {
+      "scope": "Strict host-only combined conditional IO replay of the fresh ordinary merged-compiler route. Existing same-seed SDRAM/HDMI contract is reused only after exact RBF and complete final native timing equality; no new Quartus characterization, native fast-corner, board or hardware acceptance.",
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "seed": 1,
+      "command": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install/bin/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "instrumented.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "combined.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "combined-timing.json",
+        "--rbf",
+        "combined.rbf",
+        "--compress-rbf"
+      ],
+      "native_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672",
+      "native_rbf_matches_retained_contract": true,
+      "reference_receipt_sha256": "872e406792959b2c79f9fa4a2dc591c69cf94640945e5bf740ae427d1425d6c3",
+      "hardware": false,
+      "physical_qualified": false,
+      "returncode": 0,
+      "seconds": 27.24291243078187,
+      "postflight_identity_pass": true,
+      "final_analogue": true,
+      "hdmi_channels": 27,
+      "sdram_channels": 70,
+      "hdmi_setup_min_ns": 1.1829999685287476,
+      "hdmi_hold_min_ns": 0.7879999876022339,
+      "chip_select_setup_ns": 0.9620000123977661,
+      "chip_select_hold_ns": 1.5080000162124634,
+      "all_paired_positive": true,
+      "paired_rows": 17806,
+      "unpaired_rows": 11,
+      "complete_final_combined_timing_json_equal": true,
+      "rbf_identical": true
+    },
+    {
+      "scope": "Strict host-only combined conditional IO replay of the fresh ordinary merged-compiler route. Existing same-seed SDRAM/HDMI contract is reused only after exact RBF and complete final native timing equality; no new Quartus characterization, native fast-corner, board or hardware acceptance.",
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "seed": 2,
+      "command": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install/bin/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "instrumented.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "combined.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "combined-timing.json",
+        "--rbf",
+        "combined.rbf",
+        "--compress-rbf"
+      ],
+      "native_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b",
+      "native_rbf_matches_retained_contract": true,
+      "reference_receipt_sha256": "ef045cf4ca62be8c60eb2c7b05d18f5ef98f1b9e7f0e1421a137e8d91c7b5ec3",
+      "hardware": false,
+      "physical_qualified": false,
+      "returncode": 0,
+      "seconds": 37.08012966811657,
+      "postflight_identity_pass": true,
+      "final_analogue": true,
+      "hdmi_channels": 27,
+      "sdram_channels": 70,
+      "hdmi_setup_min_ns": 1.003999948501587,
+      "hdmi_hold_min_ns": 0.7829999923706055,
+      "chip_select_setup_ns": 0.9620000123977661,
+      "chip_select_hold_ns": 1.5080000162124634,
+      "all_paired_positive": true,
+      "paired_rows": 17806,
+      "unpaired_rows": 11,
+      "complete_final_combined_timing_json_equal": true,
+      "rbf_identical": true
+    },
+    {
+      "scope": "Strict host-only combined conditional IO replay of the fresh ordinary merged-compiler route. Existing same-seed SDRAM/HDMI contract is reused only after exact RBF and complete final native timing equality; no new Quartus characterization, native fast-corner, board or hardware acceptance.",
+      "FES_commit": "47b21bc4bb1f2cdecf825833e0ec8240d847c8df",
+      "seed": 3,
+      "command": [
+        "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install/bin/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "instrumented.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "combined.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "combined-timing.json",
+        "--rbf",
+        "combined.rbf",
+        "--compress-rbf"
+      ],
+      "native_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302",
+      "native_rbf_matches_retained_contract": true,
+      "reference_receipt_sha256": "2d0c24bcc42cab5ae790cfd69ece8b763e0b609767ce5a326d658a208cabfc47",
+      "hardware": false,
+      "physical_qualified": false,
+      "returncode": 0,
+      "seconds": 19.401665302924812,
+      "postflight_identity_pass": true,
+      "final_analogue": true,
+      "hdmi_channels": 27,
+      "sdram_channels": 70,
+      "hdmi_setup_min_ns": 0.8420000076293945,
+      "hdmi_hold_min_ns": 0.8550000190734863,
+      "chip_select_setup_ns": 0.9620000123977661,
+      "chip_select_hold_ns": 1.5080000162124634,
+      "all_paired_positive": true,
+      "paired_rows": 17806,
+      "unpaired_rows": 11,
+      "complete_final_combined_timing_json_equal": true,
+      "rbf_identical": true
+    }
+  ],
+  "hardware": false,
+  "physical_qualified": false,
+  "changes_to_runtime_or_shared_contracts": false,
+  "same_recipe_three_of_three_native_pass": true,
+  "nextpnr_command_template": [
+    "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install/bin/nextpnr-mistral",
+    "--json",
+    "synth.json",
+    "--device",
+    "5CSEBA6U23I7",
+    "--qsf",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/cores/fes-pcxt/constraints-board50.qsf",
+    "--sdc",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+    "--freq",
+    "100",
+    "--seed",
+    "<SEED>",
+    "--router",
+    "gpu",
+    "--placer-heap-timingweight",
+    "2000",
+    "--placer-heap-critexp",
+    "5",
+    "--rbf",
+    "diagnostic.rbf",
+    "--compress-rbf",
+    "--write",
+    "routed.json",
+    "--report",
+    "timing.json",
+    "--detailed-timing-report",
+    "--timing-report-paths",
+    "1024",
+    "--phase-related-harmonic-clocks",
+    "--mistral-ff-reset-reference",
+    "--critical-cohort-budget",
+    "0",
+    "--critical-cohort-model-out",
+    "model.json"
+  ],
+  "reset_reference_followup": {
+    "pull_request": "https://github.com/DeanoC/nextpnr/pull/299",
+    "status": "Merged. The fresh source/deassertion-validated reference supports the unchanged model limits in the selected #296 compiler. These native routes remain bound to #296, not the later reference-only merge.",
+    "merge_commit": "bec82e36d436acec7cbeb248725acfde72b8f220",
+    "merged_at": "2026-10-25T13:39:51Z",
+    "review": {
+      "state": "COMMENTED",
+      "commit": "2bc7d90beb1e31b0902557e54107d10b78beb190",
+      "url": "https://github.com/DeanoC/nextpnr/pull/299#pullrequestreview-5643362102"
+    },
+    "commit": "2bc7d90beb1e31b0902557e54107d10b78beb190",
+    "original_unmodified_reproduction_sha256": "32aac169174e64b3f2a0bd55f9aa3c846d4bdd1657fc3e65f2afe506d2c4a5d6",
+    "original_failure": "AssertionError(('removal', 'sink_0_0', 'FF'))",
+    "regenerated_summary": {
+      "scope": "Four-corner bounded reference, not silicon, native routing or physical acceptance.",
+      "observed_max_ns": {
+        "recovery": 0.164,
+        "removal": 0.043
+      },
+      "model_ps": {
+        "recovery": 170,
+        "removal": 270
+      },
+      "preserves_historical_hold_floor": true,
+      "hardware": false,
+      "full_reference_gzip_sha256": "56794e748a01199be87d254a3b5eeede168ccce8bcef0c5d5e8750e07ad75dd5",
+      "full_reference_json_sha256": "46d11d2a804499e7d8bb4ef8866656802fb23f963e22dd4c00e919b4b745f300",
+      "projects": {
+        "rates": {
+          "observations": 48,
+          "reference_sha256": "10390bf1941d4dc791772205d589a0783f76ab272252b2c9c128027116c40c0a",
+          "source_sha256": {
+            "top.sv": "952031910afeef12ef2e297d3f2a242ac3904c88e14323cb993a82a79008c7b2",
+            "top.qsf": "bce0eed676d8d7d6e983c91281bc77975f1329722a1d430aa22668b3158a8017",
+            "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+            "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+            "audit.tcl": "c381b7ceae8c682a61d5287512dcf55d31a166aa2a787ce67a0625106321bb60",
+            "fixture.json": "0a1e9adb3df41c7cbc6809a2031c42c9f300570ab2d4605296906dd51bb867c9"
+          },
+          "reports_sha256": {
+            "timing-audit/7_slow_1100mv_100c/recovery.rpt": "66a3d42dc5048d2d5f91770f5f13f8d1c19b443a52422ab3316b0c286e2d87dc",
+            "timing-audit/7_slow_1100mv_100c/removal.rpt": "0147ceb3c7697b61ca74dcd35947fcbf3c18f3a0c532b0c750a56011b68aa025",
+            "timing-audit/7_slow_1100mv_-40c/recovery.rpt": "bce98634c4afbda8d1f729ca4047018e643b26de4a0a8def11452cd30c4f4aba",
+            "timing-audit/7_slow_1100mv_-40c/removal.rpt": "6e939b091a2bf582d6cd0e6bb7a1a2c0729e15259e2cb41d90c3caf02c4a6ef4",
+            "timing-audit/MIN_fast_1100mv_100c/recovery.rpt": "f08f3e17a08b31303923cb5fc6615e03ae8b7fff3386a953f12551405efec031",
+            "timing-audit/MIN_fast_1100mv_100c/removal.rpt": "56068d1744dff3c5f79e1d556b9013fcd5baaefa5f100ca1d0621c8a11ecba19",
+            "timing-audit/MIN_fast_1100mv_-40c/recovery.rpt": "f4d222376ad4cf058f47e5ba776914822826da61ee3ee86f77adbe9a0e276551",
+            "timing-audit/MIN_fast_1100mv_-40c/removal.rpt": "ac5affb4a49ad3905cd169d263be06046e9103f706681bf69b28556d04be6059"
+          },
+          "observed_max_ns": {
+            "recovery": 0.153,
+            "removal": 0.043
+          }
+        },
+        "slots": {
+          "observations": 640,
+          "reference_sha256": "f2df15a2c52bd41372cd0baf96ca079c98f0f96b109c232dc251c0760e0b938b",
+          "source_sha256": {
+            "top.sv": "8eacf54f7dd7cee55072a963852dc89c66fe20975e4c050bd06f88d22af8d012",
+            "top.qsf": "f2e22dc905660400b915c7ddfa1dcc6b2c3bab0ee720a495e4a2461fbeba5440",
+            "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+            "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+            "audit.tcl": "c381b7ceae8c682a61d5287512dcf55d31a166aa2a787ce67a0625106321bb60",
+            "fixture.json": "24d181cd1006cd7075c5ba11a1e5c45f047f79689d33c63c47442ca56672b388"
+          },
+          "reports_sha256": {
+            "timing-audit/7_slow_1100mv_100c/recovery.rpt": "0ce01f0bc73cf0fba6a1d560769daf67781fba10aeac25b73d46dd772f2cf8ad",
+            "timing-audit/7_slow_1100mv_100c/removal.rpt": "62195226d2989e47d55270de879d623ddd8739853a0e9eb336d013d8cc386d02",
+            "timing-audit/7_slow_1100mv_-40c/recovery.rpt": "3d9dffbf05c56115a3866d42f89f49ae03a7dfbe08346fcbc68903a722565dbf",
+            "timing-audit/7_slow_1100mv_-40c/removal.rpt": "54f9a13fc4bffac84195865e4eba9099c3e480a2949c34436cd39215665e68ce",
+            "timing-audit/MIN_fast_1100mv_100c/recovery.rpt": "2336581cb353b79d795681ce739ecb8e548ff67ef66b2981bc1ce4b023d3ca3c",
+            "timing-audit/MIN_fast_1100mv_100c/removal.rpt": "8a2de4477635081cbe30b1a9fecdbe7ff1835e6bb5901db4bdac63b5e9a7aaf5",
+            "timing-audit/MIN_fast_1100mv_-40c/recovery.rpt": "0ac1c570c2dce37a2236eb974c628a7dcc534e01bbd1f83c518c1e70c289867f",
+            "timing-audit/MIN_fast_1100mv_-40c/removal.rpt": "720cbd1bebbb496f7dcf5133ecf34605ddb1beaf2177961f3223f9b4a0a7d26d"
+          },
+          "observed_max_ns": {
+            "recovery": 0.164,
+            "removal": 0.027
+          }
+        },
+        "slots-ce": {
+          "observations": 960,
+          "reference_sha256": "283a49e36397761a903b1d7b3e2055eefd5b8fe2ab07c8166f5dc3d4321354d3",
+          "source_sha256": {
+            "top.sv": "8e974dc98efe1b792f1479c3b15a5673c5cb72a23298f098c0dcc8fabfcb9ce4",
+            "top.qsf": "2dc65b5a26b8bd912d4c073bbe435f2d6dd3460ee401b01991993c359f8227bf",
+            "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+            "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+            "audit.tcl": "c381b7ceae8c682a61d5287512dcf55d31a166aa2a787ce67a0625106321bb60",
+            "fixture.json": "e2ece04375aa6f77269d4946a5d688c2557402ca1a656942a5b9e93f24439e8e"
+          },
+          "reports_sha256": {
+            "timing-audit/7_slow_1100mv_100c/recovery.rpt": "a754217f31ccb94dfda3a47535378e21f5ba9bcec7d70fa3a597a678aa64695c",
+            "timing-audit/7_slow_1100mv_100c/removal.rpt": "76f436b4d5fc0469aeb87eb305112dcc621038c726f9b67bfbdc47b0965db414",
+            "timing-audit/7_slow_1100mv_-40c/recovery.rpt": "ab802294f936e3a73abf6f3bf2f284eeec8ff1deb2ec18d67a65870ab82ae7da",
+            "timing-audit/7_slow_1100mv_-40c/removal.rpt": "7f0e6984ccf232269d6dc821e07ab9737b81d1c3fd39b5533e94816a527a1122",
+            "timing-audit/MIN_fast_1100mv_100c/recovery.rpt": "e69b5d4646cabb90ca01c7d715534d4099613fac7d4ad9d4120b30cc3cc12ae3",
+            "timing-audit/MIN_fast_1100mv_100c/removal.rpt": "9ae0c6362ae3bedcddf0c563a52c8fcc9b60ff172cc7a4afcce6cacc93b7dd47",
+            "timing-audit/MIN_fast_1100mv_-40c/recovery.rpt": "073eea2b9c2c64a82e845b0a084d608d98ec8695badf312e1a49ee41445e35f1",
+            "timing-audit/MIN_fast_1100mv_-40c/removal.rpt": "35227529f543292fe6f4d844bf396265a457c3897e4403f1728971280b3ef42b"
+          },
+          "observed_max_ns": {
+            "recovery": 0.164,
+            "removal": 0.03
+          }
+        }
+      }
+    },
+    "exact_source_and_deassertion_validation_pass": true,
+    "observations": 1648,
+    "native_timing_engine_changed": false,
+    "launch_receipts_retain_original_incomplete_reference_warning": true,
+    "physical_qualified": false
+  },
+  "route_search_accounting": {
+    "completed_route_search_receipts": 133,
+    "previous_130_prefix_exact": true,
+    "previous_prefix_sha256": "ffbfcddf0149fd954c78db1ba12fab7025d108b890a0c8abeb7277581ed10a0c",
+    "candidate_charge_seconds": "1533.7742970571853",
+    "cumulative_charge_seconds": "102663.67281663976549741",
+    "journal_sha256": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585"
+  },
+  "remaining": [
+    "Nine native and eleven combined unpaired rows remain explicit.",
+    "HPS hard-IP source/OE/pad/feedback timing and immutable running-artifact binding; no invented HPS/fabric phase relation.",
+    "Native fast-corner routing and fitted board/load/flight/skew/inverter-slew bounds.",
+    "Reset/relock/pulse/MTBF and bundled-data physical qualification.",
+    "Exact-artifact kit acceptance; MDA/Scanlines inherit no routed acceptance."
+  ]
+}

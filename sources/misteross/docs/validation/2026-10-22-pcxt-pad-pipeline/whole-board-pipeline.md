@@ -895,3 +895,78 @@ HPS source/OE/pad/feedback bounds, native fast-corner and board/load/flight/skew
 qualification, reset/relock/pulse/MTBF and bundled-data checks, followed by
 exact-artifact hardware acceptance. No runtime/shared protocol or package is
 promoted by these results.
+
+### Merged compiler and ordinary three-seed producer, 25 October
+
+Base `a907e1ec98`; implementation `47b21bc4bb`. The core lock now selects
+the canonical nextpnr #296 merge `2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99`.
+Mistral, Yosys and the other tool pins are unchanged. A fresh immutable shared
+cache authenticates the selected binaries. The ordinary `--half-rate-board`
+producer now routes with `constraints-board50.qsf`, explicit harmonic and
+FF-clear reference options, and cohort budget zero. It retains every failed
+attempt and adds no failure override. The default common-clock profile keeps
+its previous pad and timing choices. No RTL, clock frequency, runtime/shared
+contract, package or kit changes accompany this integration.
+
+All three fresh ordinary CGA Direct producers succeed from clean committed
+sources with one fixed recipe, using normal shared GPU phase leases and two
+active jobs/phases per owner. Every complete mapped JSON equals the frozen
+candidate after normalizing only source/output/tool-install directory prefixes.
+No fields are dropped. Generated ROMs match. Every same-seed final native
+timing JSON is equal under those same path substitutions, and every RBF is
+byte-for-byte identical to the retained candidate.
+
+| Seed | Native setup / hold minimum ns | Conditional HDMI setup / hold minimum ns |
+| --- | ---: | ---: |
+| 1 | +1.343 / +0.708 | +1.183 / +0.788 |
+| 2 | +1.816 / +0.772 | +1.004 / +0.783 |
+| 3 | +1.650 / +0.783 | +0.842 / +0.855 |
+
+Each native result has 17,709 positive paired rows and the same nine explicit
+unpaired CDC/reset rows. Fresh reset audits retain six chains, 919 distinct
+consumer ports and 1,021 overlapping cone-terminal checks. Separate strict host
+replays reuse the existing conditional SDRAM/HDMI contracts only after exact
+native RBF and complete timing equality. Their complete final timing JSONs
+match the retained same-seed replays. All 17,806 paired rows pass, including
+70 SDRAM and 27 HDMI channels, with eleven unpaired rows retained. Each replay
+preserves its fresh native RBF exactly. These are conditional host checks,
+not new Quartus characterization, native fast-corner or fitted-board acceptance.
+
+The merged #296 reference also exposes a real regeneration gap: its unrestricted
+Quartus removal query selects falling CLRN assertion, which the strict rising
+deassertion validator rejects. The failed unmodified fit and reports are
+retained. [nextpnr #299](https://github.com/DeanoC/nextpnr/pull/299) restricts
+recovery/removal queries to rising reset-source edges and regenerates all three
+fixtures and four corners. All 1,648 observations now validate the RTL clear
+source and sink deassertion transition; all fitted recovery/removal checks pass.
+The maxima are 164 ps recovery and 43 ps removal, within the unchanged
+170/270 ps backend limits. Eight parser/archive tests and two characterizer
+failure-publication tests pass. A model review reports no issues, and #299 is
+merged as `bec82e36d436acec7cbeb248725acfde72b8f220`, with a tree identical
+to reviewed `2bc7d90beb1e31b0902557e54107d10b78beb190`. It changes only
+reference fixtures, tests, archives and documentation. These native routes stay
+bound to the selected #296 binary; their original incomplete-reference warning
+is retained as launch metadata. The fresh merged reference validates its
+unchanged limits, without granting physical reset acceptance.
+
+`make check` passes 21 generated consumers/37 fixture copies/zero copied source
+pins. The full selected affected run for `47b21bc4bb` passes 843 parent tests,
+1,341 component tests and all 21 PC/XT suites. Nine focused producer tests,
+four explicit profile-pack tests using the newly authenticated tools, and the
+merged parser/characterizer/CLI checks also pass.
+
+[Integration verification](board50-merged-producer-verification.json) binds
+the code, tool/cache identities, complete native comparisons, separate IO
+replays, reset audits and new reference. The append-only journal now retains
+133 route-search receipts. Its first 130 entries are byte-for-byte unchanged;
+the three native runner wall charges total 1,533.7742970571853 seconds,
+including GPU lease waits and excluding synthesis. Full producer wall times
+are retained separately. No additional native searches were omitted.
+
+The compiler/ordinary-producer integration step is complete. Whole-board
+acceptance still requires HPS hard-IP source/OE/pad/feedback contracts and
+immutable running-artifact binding; native fast-corner and fitted board/load/
+flight/skew/inverter-slew bounds; reset/relock/pulse/MTBF and bundled-data
+qualification; and exact-artifact hardware acceptance. HPS and fabric clocks
+retain no declared phase relation. This CGA Direct cohort supplies no MDA or
+Scanlines native routed acceptance. No hardware ran in this integration step.
