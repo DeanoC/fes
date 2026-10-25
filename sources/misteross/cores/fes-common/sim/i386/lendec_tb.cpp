@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Exhaustive check of the per-byte length decoders (fes_i386_lendec) against
+// Exhaustive check of the per-byte length decoders (fes_i386_lendec), and of
+// each decoder's end (12 + slot + length, as L counts it), against
 // the oracle's decoder. Every prefix (none or one of the eleven), every
 // opcode (one-byte and 0Fh two-byte), every ModRM and every SIB byte, in
 // both 16- and 32-bit default sizes. Lengths depend on no other byte.
@@ -73,12 +74,18 @@ struct Shared {
 struct Slot {
     bool prefix, run, opsize, adsize;
     uint8_t len[4];  // len[{os32, as32}]
+    uint8_t end[4];  // where L counts the instruction's end: 12 + slot + len
 };
 
 Slot slot(const Vfes_i386_lendec &top, unsigned k) {
     Slot s;
     uint32_t lengths = top.len[k / 2] >> (16 * (k % 2));
     for (unsigned i = 0; i < 4; ++i) s.len[i] = uint8_t(lengths >> (4 * i)) & 0xf;
+    for (unsigned i = 0; i < 4; ++i) {
+        unsigned bit = 24 * k + 6 * i;
+        uint64_t word = top.ends[bit / 32] | (bit / 32 + 1 < 12 ? uint64_t(top.ends[bit / 32 + 1]) << 32 : 0);
+        s.end[i] = uint8_t(word >> (bit % 32)) & 0x3f;
+    }
     s.prefix = (top.prefix >> k) & 1;
     s.run = (top.run >> k) & 1;
     s.opsize = (top.opsize >> k) & 1;
@@ -141,6 +148,7 @@ void worker(Shared &shared) {
                 Slot s = slot(top, slots[c]);
                 const uint8_t *bytes = cases[c];
                 bool flags_ok = s.prefix == (prefix >= 0) && !s.run && s.opsize == (p == 0x66) && s.adsize == (p == 0x67);
+                for (unsigned i = 0; i < 4; ++i) flags_ok = flags_ok && s.end[i] == 12 + slots[c] + s.len[i];
                 uint8_t unlocked[16];
                 std::copy(bytes, bytes + 16, unlocked);
                 if (p == 0xf0) unlocked[0] = 0x26;

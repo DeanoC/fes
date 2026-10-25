@@ -11,7 +11,10 @@
 // So the last prefix before an opcode is free and each earlier one costs a
 // cycle. L has already added each length to its byte's position for every
 // accumulator variant, so the loop picks a next start by the accumulator's
-// 66h/67h flags and then by start: a select, with no add.
+// 66h/67h flags and then by start: a select, with no add. L counts ends from
+// the half before the block it decodes; position j's byte came through L with
+// its own half (bytes 0-11) or with the next one (bytes 12-15), which fixes
+// how an end maps back to a buffer position.
 //
 // An instruction may use bytes of the next half in the cycle L writes them;
 // the aligner takes those bytes from L's register.
@@ -56,7 +59,7 @@ module fes_i386_qalign (
         logic [15:0] lengths;
         logic [19:0] ends;
         logic [3:0]  fars;
-        logic [4:0]  fin;  // next start, counted from this half
+        logic [4:0]  fin;  // where the instruction ends, counted as L counts
 
         assign lengths = dec_len[j];
         assign ends = dec_fin[j];
@@ -64,7 +67,9 @@ module fes_i386_qalign (
         assign len[j] = lengths[{variant, 2'b00} +: 4];
         assign fin = variant[1] ? (variant[0] ? ends[19:15] : ends[14:10])
                                 : (variant[0] ? ends[9:5] : ends[4:0]);
-        assign next[j] = {fin[4] ^ (H != 0), fin[3:0]};
+        // L wrote this byte while filling half (K < 12 ? H : 1 - H); its count
+        // starts at the other half's byte 0.
+        assign next[j] = {!(fin[4] ^ ((K < 12) == (H != 0))), fin[3:0]};
         assign ok[j] = half_valid[H] && (K < 12 || tail_ok[H])
                     && (!fars[variant] || half_valid[1 - H] || filling[1 - H]);
     end
