@@ -221,3 +221,60 @@ func TestRefusals(t *testing.T) {
 		}
 	}
 }
+
+// A launch disk without a boot program gets Fuse's autoload loader: a BASIC
+// "boot" that runs the first BASIC program, in the next free sector, with
+// the directory and descriptor updated. Across the 907 local .trd and .scl
+// images Convert accepts, the launch images match Fuse 1.6.0's autoload
+// tracks except where Fuse rewrites the descriptor and clears its unused
+// bytes (and, for two .scl images, its deleted-file count).
+func TestLaunchDiskGetsABootLoader(t *testing.T) {
+	data := scl()
+	d, err := readTRDOS(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.addBootLoader()
+	info := d.data[trdosInfo:]
+	entry := d.data[16*3:][:16]
+	if string(entry[:9]) != "boot    B" || entry[13] != 1 || entry[14] != 4 || entry[15] != 2 {
+		t.Fatalf("boot entry % x", entry)
+	}
+	program := []byte{0x00, 0x01, 0x1c, 0x00, 0xf9, 0xc0, '1', '5', '6', '1', '9', 0x0e, 0x00, 0x00, 0x03, 0x3d,
+		0x00, ':', 0xea, ':', 0xf7, '"', 'F', 'I', 'L', 'E', '0', ' ', ' ', ' ', '"', 0x0d}
+	if int(entry[9])|int(entry[10])<<8 != len(program) || int(entry[11])|int(entry[12])<<8 != len(program) {
+		t.Fatalf("boot lengths % x", entry[9:13])
+	}
+	file := d.data[(2*16+4)*trdosSectorBytes:][:trdosSectorBytes]
+	if !bytes.Equal(file[:len(program)], program) || !bytes.Equal(file[len(program):len(program)+4], []byte{0x80, 0xaa, 1, 0}) ||
+		!bytes.Equal(file[len(program)+4:], make([]byte, trdosSectorBytes-len(program)-4)) {
+		t.Fatalf("boot file % x", file[:48])
+	}
+	if info[225] != 5 || info[226] != 2 || info[228] != 4 || int(info[229])|int(info[230])<<8 != 2544-21 {
+		t.Fatalf("descriptor % x", info[224:232])
+	}
+	// A second pass, a disk with a boot program, and one without a BASIC
+	// program are left alone.
+	before := append([]byte(nil), d.data...)
+	d.addBootLoader()
+	if !bytes.Equal(before, d.data) {
+		t.Fatal("a disk with a boot program changed")
+	}
+	code := sclOf(1, 1)
+	code[9+8] = 'C'
+	plain, err := readTRDOS(append(code, make([]byte, 256)...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before = append([]byte(nil), plain.data...)
+	plain.addBootLoader()
+	if !bytes.Equal(before, plain.data) {
+		t.Fatal("a disk without a BASIC program changed")
+	}
+	// Convert adds it only for a launch.
+	launch, _ := Convert(data, true)
+	swap, _ := Convert(data, false)
+	if bytes.Equal(launch[SlotBytes:], swap[SlotBytes:]) || launch[7] != 2 || swap[7] != 0 {
+		t.Fatal("launch and swapped images do not differ as expected")
+	}
+}

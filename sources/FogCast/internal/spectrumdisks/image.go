@@ -140,27 +140,40 @@ func (d *Disk) Image() ([]byte, error) {
 // ErrNotDisk reports data that is not a disk image this package reads.
 var ErrNotDisk = errors.New("spectrum disk: not a TR-DOS .trd or .scl image")
 
-// Convert reads a .trd or .scl image and returns its raw track image, with
-// the boot flag set for a launch.
+// Convert reads a .trd or .scl image and returns its raw track image. A
+// launch image carries the boot flag, and a disk without a "boot" program
+// gets one that runs its first BASIC program, as Fuse's disk autoload adds.
 func Convert(data []byte, boot bool) ([]byte, error) {
-	d, err := Read(data)
+	t, err := readTRDOS(data)
 	if err != nil {
 		return nil, err
 	}
+	if boot {
+		t.addBootLoader()
+	}
+	d := t.disk()
 	d.Boot = boot
 	return d.Image()
 }
 
-// Read reads a .trd or .scl image.
+// Read reads a .trd or .scl image as it is.
 func Read(data []byte) (*Disk, error) {
+	t, err := readTRDOS(data)
+	if err != nil {
+		return nil, err
+	}
+	return t.disk(), nil
+}
+
+func readTRDOS(data []byte) (*trdos, error) {
 	if len(data) > MaxInputBytes {
 		return nil, fmt.Errorf("spectrum disk: %d bytes is larger than %d", len(data), MaxInputBytes)
 	}
 	if isSCL(data) {
-		return readSCL(data)
+		return trdosFromSCL(data)
 	}
 	if isTRD(data) {
-		return readTRD(data)
+		return trdosFromTRD(data), nil
 	}
 	return nil, ErrNotDisk
 }
