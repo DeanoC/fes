@@ -231,6 +231,29 @@ Expected check(const fes_i386::Oracle &oracle, const Bench &bench, const Issued 
     switch (want.kind) {
     case Expected::Undefined:
         ++report.undefined;
+        // Bochs cannot provide a length for some #UD encodings. Check Q's
+        // limit flag against its low length and prefix count, plus the
+        // definite case where 15 leading prefixes leave no room for an opcode.
+        // A non-prefix overlength wraps the four-bit total below its prefix count.
+        if (got.too_long != (got.length < got.prefix_count || want.prefixes == 15)) {
+            report.fail(describe(bench, got, got.too_long ? "unexpected too_long" : "expected too_long"));
+            return want;
+        }
+        if (want.prefixes == 15) return want;
+        {
+            Prefixes prefixes;
+            for (unsigned i = 0; i < want.prefixes; ++i) prefixes.add(bench.byte(got.linear + i));
+            if (got.prefix_count != want.prefixes || !(got.prefixes == prefixes))
+                report.fail(describe(bench, got, "prefix mismatch"));
+        }
+        if (!got.too_long && got.length >= want.prefixes) {
+            for (unsigned i = 0; i < got.length - want.prefixes && i < 11; ++i) {
+                if (got.bytes[i] != bench.byte(got.linear + want.prefixes + i)) {
+                    report.fail(describe(bench, got, "aligned bytes mismatch"));
+                    break;
+                }
+            }
+        }
         return want;
     case Expected::TooLong:
         ++report.too_long;
@@ -250,7 +273,7 @@ Expected check(const fes_i386::Oracle &oracle, const Bench &bench, const Issued 
     Prefixes prefixes;
     for (unsigned i = 0; i < want.prefixes; ++i) prefixes.add(bench.byte(got.linear + i));
     if (got.prefix_count != want.prefixes || !(got.prefixes == prefixes)) report.fail(describe(bench, got, "prefix mismatch"));
-    for (unsigned i = 0; i < got.length - want.prefixes && i < 11; ++i) {
+    for (unsigned i = 0; got.length >= want.prefixes && i < got.length - want.prefixes && i < 11; ++i) {
         if (got.bytes[i] != bench.byte(got.linear + want.prefixes + i)) {
             report.fail(describe(bench, got, "aligned bytes mismatch"));
             break;
