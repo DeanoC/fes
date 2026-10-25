@@ -34,11 +34,11 @@ module fes_i386_cpu (
     input  logic [5:0][31:0] init_limit,
     input  logic [5:0][15:0] init_ar,      // descriptor bits 8-23, the limit nibble clear
     // Fetch: the L1I's way-selected block, an M10K with address stall whose
-    // data may arrive late (mem_ready).
+    // data may arrive late (mem_valid).
     output logic [27:0]      mem_block,
     output logic             mem_load,
     input  logic [15:0][7:0] mem_data,
-    input  logic             mem_ready,
+    input  logic             mem_valid,
     output logic             trace_retire,
     output logic             trace_halt,           // stopped: HLT retired or a fault was raised
     output logic             trace_fault,          // ... a fault, which is not delivered yet
@@ -100,7 +100,7 @@ module fes_i386_cpu (
     logic     q_valid, d_ready;
     fetched_t q;
     fes_i386_frontend frontend (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data, .mem_ready,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data, .mem_valid,
         .q_valid, .q, .d_ready
     );
 
