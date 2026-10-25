@@ -127,7 +127,7 @@ module fes_i386_decode (
                         s1_valid = 1'b1;
                         imm = b0[0] ? (opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
                     end else begin
-                        known = reg_form;
+                        known = known && reg_form;
                         s1_valid = 1'b1;
                         s1_idx = b0[1] ? reg_f : rm;
                         s2_valid = 1'b1;
