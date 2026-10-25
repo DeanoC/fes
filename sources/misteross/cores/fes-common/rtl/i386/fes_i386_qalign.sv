@@ -3,26 +3,26 @@
 // "Length decode and alignment").
 //
 // start is the buffer position of the next byte to consume. Each cycle Q
-// selects the per-byte decode at start and either
+// selects the per-byte decode at start (from L) and either
 //   - consumes one prefix into the accumulator, when the byte at start is a
 //     prefix followed by another prefix; or
 //   - issues the instruction at start (its last prefix, if any, is part of
 //     the per-byte decode) and clears the accumulator.
 // So the last prefix before an opcode is free and each earlier one costs a
-// cycle. Every per-position quantity the loop needs (next start, whether the
-// bytes are present) is computed beside its position from registers, so the
-// loop itself is one 32:1 select.
+// cycle. L has already added each length to its byte's position for every
+// accumulator variant, so the loop picks a next start by the accumulator's
+// 66h/67h flags and then by start: a select, with no add. L counts ends from
+// the half before the block it decodes; position j's byte came through L with
+// its own half (bytes 0-11) or with the next one (bytes 12-15), which fixes
+// how an end maps back to a buffer position.
 //
-// An instruction may use bytes of the next half in the cycle F2 writes them;
-// the aligner takes those bytes from the incoming block.
-//
-// code32 is CS.D. A change of code32 needs a redirect, as does every flush.
+// An instruction may use bytes of the next half in the cycle L writes them;
+// the aligner takes those bytes from L's register.
 module fes_i386_qalign (
     input  logic                   clk,
     input  logic                   reset,
     input  logic                   redirect,
     input  logic [31:0]            redirect_linear,
-    input  logic                   code32,
     input  logic [1:0]             half_valid,
     input  logic [1:0]             tail_ok,
     input  logic [1:0]             filling,
@@ -30,9 +30,9 @@ module fes_i386_qalign (
     input  logic [31:0][7:0]       bytes,
     input  logic [31:0]            dec_prefix,
     input  logic [31:0]            dec_run,
-    input  logic [31:0]            dec_opsize,
-    input  logic [31:0]            dec_adsize,
     input  logic [31:0][15:0]      dec_len,
+    input  logic [31:0][19:0]      dec_fin,
+    input  logic [31:0][3:0]       dec_far,
     input  logic [15:0][7:0]       fill_data,
     output logic [1:0]             release_half,
     output logic                   q_valid,
@@ -47,25 +47,31 @@ module fes_i386_qalign (
     logic [31:0] acc_linear;   // linear address of the first consumed prefix
 
     // ---- Per-position view of the buffer ----------------------------------
+    logic [1:0]       variant;  // {66h seen, 67h seen} among consumed prefixes
     logic [31:0]      ok;
     logic [31:0][4:0] next;
     logic [31:0][3:0] len;
 
+    assign variant = {acc.opsize, acc.adsize};
     for (genvar j = 0; j < 32; j++) begin : g_pos
         localparam int H = j / 16;
         localparam int K = j % 16;
-        logic        os32, as32;
         logic [15:0] lengths;
-        logic [4:0]  fin;  // K + length; above 16 the instruction ends in the other half
+        logic [19:0] ends;
+        logic [3:0]  fars;
+        logic [4:0]  fin;  // where the instruction ends, counted as L counts
 
-        assign os32 = code32 ^ (acc.opsize | dec_opsize[j]);
-        assign as32 = code32 ^ (acc.adsize | dec_adsize[j]);
         assign lengths = dec_len[j];
-        assign len[j] = lengths[{os32, as32, 2'b00} +: 4];
-        assign fin = fes_i386_pkg::small_add(5'(K), {1'b0, len[j]});
-        assign next[j] = dec_run[j] ? 5'(j + 1) : fes_i386_pkg::small_add(5'(j), {1'b0, len[j]});
+        assign ends = dec_fin[j];
+        assign fars = dec_far[j];
+        assign len[j] = lengths[{variant, 2'b00} +: 4];
+        assign fin = variant[1] ? (variant[0] ? ends[19:15] : ends[14:10])
+                                : (variant[0] ? ends[9:5] : ends[4:0]);
+        // L wrote this byte while filling half (K < 12 ? H : 1 - H); its count
+        // starts at the other half's byte 0.
+        assign next[j] = {!(fin[4] ^ ((K < 12) == (H != 0))), fin[3:0]};
         assign ok[j] = half_valid[H] && (K < 12 || tail_ok[H])
-                    && (dec_run[j] || !fin[4] || fin[3:0] == 4'd0 || half_valid[1 - H] || filling[1 - H]);
+                    && (!fars[variant] || half_valid[1 - H] || filling[1 - H]);
     end
 
     // ---- The loop -----------------------------------------------------------

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""i386 front end and AG address unit: the check runner, the timing harness's
-report reading, and (when the tools are present) the RTL itself. No network
-access. Verilator cases skip without Verilator; the oracle-backed run skips
-unless the pinned Bochs checkout is already in build/."""
+"""i386 front end, D's address operands and AG: the check runner, the timing
+harness's report reading, and (when the tools are present) the RTL itself. No
+network access. Verilator cases skip without Verilator; the oracle-backed run
+skips unless the pinned Bochs checkout is already in build/; the netlist run
+needs a Yosys named by FES_I386_YOSYS."""
 import os
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ from scripts import fes_i386_oracle as oracle
 from scripts import test_fes_i386_frontend as frontend
 
 VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
+YOSYS = shutil.which(os.environ.get('FES_I386_YOSYS', '')) if os.environ.get('FES_I386_YOSYS') else None
 BOCHS = (oracle.BUILD / ('bochs-' + oracle.BOCHS_REVISION) / '.git').is_dir()
 
 
@@ -38,12 +40,15 @@ class RunnerOutputTest(unittest.TestCase):
     def test_summary_reports_throughput(self):
         stream = {'stream': 'prefix-free', 'default_size': 32, 'instructions': 10, 'compared': 10,
                   'too_long': 0, 'failures': 0, 'issue_cycles': 10, 'timing_failures': 0}
-        lines = frontend.summary([], [stream], [{'agu_vectors': 5, 'wrapped_16': 2, 'failures': 0}])
+        dag = {'dag_cases': 9, 'addresses': 5, 'wrapped_16': 2, 'late_base': [1, 0, 0], 'late_index': [0, 1, 0],
+               'stall_not_ready': 2, 'stall_both_late': 1, 'stall_scaled_late': 1, 'failures': 0}
+        lines = frontend.summary([], [stream], [dag])
         self.assertIn('10 issued in 10 cycles', lines[0])
-        self.assertIn('AG address unit: 5 vectors', lines[1])
+        self.assertIn('D and AG: 9 cases, 5 addresses', lines[1])
+        self.assertIn('1 late scaled index', lines[1])
 
     def test_every_bench_names_existing_sources(self):
-        for name, (top, rtl, sim, source, _) in frontend.BENCHES.items():
+        for name, (top, rtl, sim, source, _, synthesized) in frontend.BENCHES.items():
             with self.subTest(bench=name):
                 for path in (*(frontend.RTL / item for item in rtl), *(frontend.SIM / item for item in sim),
                              frontend.SIM / source):
@@ -71,6 +76,21 @@ class HarnessReportTest(unittest.TestCase):
                            'to': {'cell': 'tags.2.0.0', 'port': 'B1DATA[2]'}}
         self.assertTrue(benchmark.path_summary(path)['m10k_source'])
 
+    def test_stage_figures_take_each_stages_worst_slack(self):
+        def net(*endpoints):
+            return {'endpoints': [{'cell': cell, 'setup_checked': checked, 'setup_slack_ns': slack}
+                                  for cell, slack, checked in endpoints]}
+        report = {'detailed_net_timings': [
+            net(('dut.fetch.l_bytes_MISTRAL_FF_Q_3', 1.5, True), ('dut.align.start_MISTRAL_FF_Q', -0.5, True)),
+            net(('dut.align.fill_data_MISTRAL_FF_Q_9', 0.5, True), ('dut.align.dec_fin_MISTRAL_FF_Q_1', 2.0, True)),
+            net(('signature_MISTRAL_FF_Q', 4.0, True), ('dut.align.start_MISTRAL_ALUT6', -9.0, False)),
+        ]}
+        figures = benchmark.stage_figures(report, benchmark.STAGES['frontend'], 100.0)
+        self.assertEqual(figures['F2'], {'setup_slack_ns': 0.5, 'fmax_mhz': 105.26, 'endpoint': 'dut.align.fill_data'})
+        self.assertEqual(figures['Q']['fmax_mhz'], 95.24)
+        self.assertEqual(figures['L']['endpoint'], 'dut.align.dec_fin')
+        self.assertEqual(figures['envelope']['endpoint'], 'signature')
+
     def test_backend_follows_the_toolchain_identity(self):
         self.assertEqual(benchmark.expected_backend('nextpnr 1 gpu-router=HIP; hip-architectures=gfx1100'), 'hip')
         self.assertEqual(benchmark.expected_backend('nextpnr 1 gpu-router=CUDA; cuda-architectures=86'), 'cuda')
@@ -93,12 +113,21 @@ class RtlTest(unittest.TestCase):
                                          *files], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_agu_matches_architectural_addresses(self):
-        env = dict(os.environ, VERILATOR=VERILATOR)
-        result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'agu', '--jobs', '2'],
+    def test_d_and_ag_follow_the_late_operand_rule(self):
+        env = dict(os.environ, VERILATOR=VERILATOR, FES_I386_DAG_ROUNDS='2')
+        result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2'],
                                 cwd=frontend.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(' 0 failures', result.stdout)
+        self.assertIn('D and AG: 196608 cases', result.stdout)
+        self.assertIn('; 0 failures', result.stdout)
+
+    @unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+    def test_yosys_reads_d_and_ag_as_simulated(self):
+        env = dict(os.environ, VERILATOR=VERILATOR, FES_I386_DAG_ROUNDS='2')
+        result = subprocess.run([sys.executable, 'scripts/test_fes_i386_frontend.py', '--bench', 'dag', '--jobs', '2',
+                                 '--yosys', YOSYS], cwd=frontend.ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('; 0 failures', result.stdout)
 
 
 @unittest.skipUnless(VERILATOR and BOCHS, 'Verilator or the pinned Bochs checkout is absent')

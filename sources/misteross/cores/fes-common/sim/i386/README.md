@@ -2,8 +2,8 @@
 
 Phase 0 of the i386 CPU design (DeanoC/fes#1068): an external emulator as the
 lockstep oracle, checked against two corpora, with a divergence list naming the
-deciding case for every disagreement. Phase 1's first slice adds Verilator
-checks of the [front-end and AG RTL](../../rtl/i386/README.md) against the
+deciding case for every disagreement. Phase 1 adds Verilator checks of the
+[front-end, D and AG RTL](../../rtl/i386/README.md), the front end against the
 oracle, and the routed [timing spikes](#timing-spikes).
 
 Everything here is test-only. The oracle, the corpora and the tools that build
@@ -179,7 +179,7 @@ differs. Directed tests in later phases decide these, not the oracle:
 - SingleStepTests has no protected-mode, V86 or paging set yet, so those paths
   are checked only by test386.
 
-## Front-end checks
+## Front-end and address checks
 
 `scripts/test_fes_i386_frontend.py` builds three Verilator testbenches and
 writes `build/sim/fes-i386-frontend/report.json`:
@@ -187,8 +187,8 @@ writes `build/sim/fes-i386-frontend/report.json`:
 | Testbench | Scope | Coverage |
 | --- | --- | --- |
 | [`lendec_tb.cpp`](lendec_tb.cpp) | The 16 per-byte length decoders | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
-| [`frontend_tb.cpp`](frontend_tb.cpp) | Fetch buffer, decoders and Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly |
-| [`agu_tb.cpp`](agu_tb.cpp) | The AG address unit | Sampled: random operands and operands at the 16-bit wrap edges, against the architectural address. Needs no oracle |
+| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly |
+| [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv) | Exhaustive over every memory ModRM, every SIB and both address sizes, with random register files and random producers in AG, M1, M2, EX and WB: D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset. Needs no oracle |
 
 A case is compared where the oracle defines the encoding; for LOCK, the
 encoding without LOCK, since LOCK's validity is D's check. An instruction the
@@ -197,7 +197,13 @@ oracle cannot fit in 15 bytes must come out `too_long`.
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
+python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/locked/yosys
 ```
+
+`--yosys` runs every check on the netlist that Yosys writes from the RTL
+instead of the RTL itself. The spikes are built from Yosys's reading of the
+SystemVerilog, and the repository's Yosys has misread constructs without an
+error.
 
 ## Timing spikes
 
@@ -206,15 +212,16 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
 | --- | --- |
-| `spike_frontend.sv` | `fes_i386_frontend` fetching from a 4 KiB M10K memory model |
-| `spike_ag.sv` | The AG stage: 5:1 forwarding muxes, `fes_i386_agu`, a real-mode segment write forwarded from M1 |
+| `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select), L, the buffer and Q |
+| `spike_dag.sv` | D's address operands (addressing decode, register file, forwarding by tag, scaling, segment select) and AG |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
 authenticated Yosys (M10K and DSP allowed, no LUT RAM) and routes each seed
 with nextpnr's GPU router through `gpu-run`, CPU fallback rejected. Timing is
 allowed to fail so a miss is measured; it writes `summary.json` and
-`runs.jsonl` with each seed's fmax and critical path.
+`runs.jsonl` with each seed's fmax, critical path and a figure per pipeline
+stage (the worst setup slack among the registers the stage writes).
 
 ```sh
 python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains
@@ -225,7 +232,8 @@ python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-tool
 `tests/test_fes_i386_oracle.py` covers MOO parsing, failure classification, the
 divergence-list schema, listing parsing and test386 case extraction without
 network access; its oracle smoke test runs when the pinned Bochs checkout is
-already in `build/`. `tests/test_fes_i386_frontend.py` covers the front-end
-runner and the spike harness's report reading; it lints the spikes and runs
-the AG check when Verilator is installed, and runs the oracle-backed front-end
-checks when the pinned Bochs checkout is present too.
+already in `build/`. `tests/test_fes_i386_frontend.py` covers the runner and
+the spike harness's report reading; it lints the spikes and runs the D and AG
+check when Verilator is installed, runs the oracle-backed front-end checks when
+the pinned Bochs checkout is present too, and runs the D and AG check on
+Yosys's netlist when `FES_I386_YOSYS` names a Yosys.

@@ -5,9 +5,16 @@
 // suffice. Lengths follow the i386: the ModRM of MOV to or from CR, DR and TR
 // is always a register form, and F6h/F7h carry an immediate for /0 and /1.
 // Encodings the i386 does not define get some length; D raises #UD for them.
-module fes_i386_oplen (
+//
+// ends[{os32, as32}] is BASE plus that length, from the same adder tree: BASE
+// joins the opcode-byte count, which is a constant pair, so the sum is no
+// deeper than the length itself.
+module fes_i386_oplen #(
+    parameter int BASE = 0
+) (
     input  logic [3:0][7:0] o,
-    output logic [3:0][3:0] len
+    output logic [3:0][3:0] len,
+    output logic [3:0][5:0] ends
 );
     typedef enum logic [2:0] {
         IMM_NONE,   // no immediate
@@ -21,7 +28,7 @@ module fes_i386_oplen (
 
     // Each table sets the fields it needs on a cleared form_t. A function
     // returning form_t, called from another function, reads as empty in Yosys
-    // 3a5accbd. The committed frontend runner checks Verilator, not this netlist.
+    // 3a5accbd. The runner checks it with --bench lendec --yosys <yosys>.
     typedef struct packed {
         logic modrm;
         logic creg;   // ModRM present and always a register form
@@ -147,10 +154,15 @@ module fes_i386_oplen (
             assign z = (f.imm == IMM_Z || f.imm == IMM_AP) ? (os32 != 0 ? 4'd4 : 4'd2) : 4'd0;
             assign moffs = f.imm == IMM_MOFFS ? (as32 != 0 ? 4'd4 : 4'd2) : 4'd0;
             logic [4:0] sum;
+            logic [5:0] end_at;
             assign sum = fes_i386_pkg::small_add(
                 fes_i386_pkg::small_add({3'b0, escape ? 2'd2 : 2'd1}, {2'b0, modrm_bytes[as32]}),
                 fes_i386_pkg::small_add({1'b0, fixed}, fes_i386_pkg::small_add({1'b0, z}, {1'b0, moffs})));
+            assign end_at = fes_i386_pkg::small_add6(
+                fes_i386_pkg::small_add6(escape ? 6'(BASE + 2) : 6'(BASE + 1), {3'b0, modrm_bytes[as32]}),
+                fes_i386_pkg::small_add6({2'b0, fixed}, fes_i386_pkg::small_add6({2'b0, z}, {2'b0, moffs})));
             assign len[os32 * 2 + as32] = sum[3:0];
+            assign ends[os32 * 2 + as32] = end_at;
         end
     end
 endmodule

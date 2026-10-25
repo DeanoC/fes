@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the i386 front end and AG address unit; the front end against the oracle.
+"""Check the i386 front end against the oracle, and D's address operands and AG.
 
 Host simulation only. No network access occurs unless --download is given,
 which fetches the pinned Bochs oracle (scripts/fes_i386_oracle.py) into the
@@ -15,8 +15,16 @@ Verilator testbenches in cores/fes-common/sim/i386:
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
                    cycle, plus one cycle for each prefix before the last).
-  agu_tb.cpp       The AG address unit against the architectural address,
-                   random and 16-bit wrap-edge operands. Needs no oracle.
+  dag_tb.cpp       D's address operands (forwarding, scaling, the late
+                   operand and its stalls) and AG: every memory ModRM and SIB
+                   in both address sizes against random registers and
+                   producers, for the stall rule and the architectural
+                   address. Needs no oracle.
+
+With --yosys, each bench first runs its RTL through that Yosys (read, proc,
+flatten, opt) and simulates the netlist Yosys wrote instead: the routed
+spikes are built from Yosys's reading of the SystemVerilog, and this shows
+it is the same design.
 
 Example:
   python3 scripts/test_fes_i386_frontend.py --download
@@ -44,12 +52,15 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-frontend'
 LENDEC_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv')
-FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
-# testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source, links the oracle)
+FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_lstage.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
+DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
+# testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source, links the oracle,
+#                    the module --yosys turns into a netlist)
 BENCHES = {
-    'lendec': ('fes_i386_lendec', LENDEC_RTL, (), 'lendec_tb.cpp', True),
-    'frontend': ('frontend_tb_top', FRONTEND_RTL, ('frontend_tb_top.sv',), 'frontend_tb.cpp', True),
-    'agu': ('fes_i386_agu', ('fes_i386_agu.sv',), (), 'agu_tb.cpp', False),
+    'lendec': ('fes_i386_lendec', LENDEC_RTL, (), 'lendec_tb.cpp', True, 'fes_i386_lendec'),
+    'frontend': ('frontend_tb_top', FRONTEND_RTL, ('frontend_tb_top.sv',), 'frontend_tb.cpp', True,
+                 'fes_i386_frontend'),
+    'dag': ('dag_tb_top', DAG_RTL, ('dag_tb_top.sv',), 'dag_tb.cpp', False, 'dag_tb_top'),
 }
 
 
@@ -57,16 +68,39 @@ class FrontendError(RuntimeError):
     pass
 
 
-def verilate(verilator: str, name: str, linked: list[Path], jobs: int) -> Path:
-    """Build one testbench against the oracle; return the executable."""
-    top, rtl, sim, source, uses_oracle = BENCHES[name]
-    output = OUTPUT / name
+def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
+    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
+    _, rtl, sim, _, _, synthesized = BENCHES[name]
+    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
+    netlist = output / f'{synthesized}.netlist.v'
+    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {synthesized}; '
+              f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
+    log = output / 'yosys.log'
+    with log.open('w') as stream:
+        result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise FrontendError(f'yosys failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+    return netlist
+
+
+def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
+    """Build one testbench, from the RTL or Yosys's netlist of it; return the executable."""
+    top, rtl, sim, source, uses_oracle, synthesized = BENCHES[name]
+    output = OUTPUT / (name + ('-netlist' if yosys else ''))
     output.mkdir(parents=True, exist_ok=True)
+    if yosys:
+        # The netlist replaces the synthesized module and everything under it;
+        # a wrapper left as SystemVerilog still needs the package's types.
+        design = [yosys_netlist(yosys, name, output), RTL / 'fes_i386_pkg.sv',
+                  *(SIM / path for path in sim if Path(path).stem != synthesized)]
+        warnings = ['-Wno-fatal']
+    else:
+        design = [*(RTL / path for path in rtl), *(SIM / path for path in sim)]
+        warnings = []
     command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', top,
-               '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
+               '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM}', '-LDFLAGS', '-pthread',
-               *(str(RTL / path) for path in rtl), *(str(SIM / path) for path in sim),
-               str(SIM / source), *(map(str, linked) if uses_oracle else ())]
+               *map(str, design), str(SIM / source), *(map(str, linked) if uses_oracle else ())]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
@@ -97,7 +131,7 @@ def failed(records: list[dict]) -> bool:
     return not records
 
 
-def summary(lendec: list[dict], frontend: list[dict], agu: list[dict]) -> list[str]:
+def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[str]:
     lines = []
     for record in lendec:
         if 'default_size' in record:
@@ -114,9 +148,12 @@ def summary(lendec: list[dict], frontend: list[dict], agu: list[dict]) -> list[s
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
                      f"{record['timing_failures']} timing failures")
         lines.append(line)
-    for record in agu:
-        lines.append(f"AG address unit: {record['agu_vectors']} vectors, {record['wrapped_16']} with a 16-bit wrap, "
-                     f"{record['failures']} failures")
+    for record in dag:
+        lines.append(f"D and AG: {record['dag_cases']} cases, {record['addresses']} addresses "
+                     f"({record['wrapped_16']} with a 16-bit wrap), late base {sum(record['late_base'])}, "
+                     f"late unscaled index {sum(record['late_index'])}, stalls: {record['stall_not_ready']} "
+                     f"not ready, {record['stall_both_late']} both late, {record['stall_scaled_late']} late scaled "
+                     f"index; {record['failures']} failures")
     return lines
 
 
@@ -138,6 +175,7 @@ def main() -> int:
                         help='instructions per front-end stream (default 400000)')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--bench', choices=tuple(BENCHES), action='append')
+    parser.add_argument('--yosys', help='simulate this Yosys\'s netlist of each bench instead of the RTL')
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
         parser.error('--jobs must be between 1 and 64')
@@ -156,9 +194,15 @@ def main() -> int:
     try:
         selected = args.bench or tuple(BENCHES)
         linked = oracle.link_inputs(args.jobs, args.download) if any(BENCHES[name][4] for name in selected) else []
+        yosys = None
+        if args.yosys:
+            yosys = shutil.which(args.yosys)
+            if yosys is None:
+                raise FrontendError(f'selected Yosys not found: {args.yosys}')
+            report['yosys'] = yosys
         results = {}
         for name in selected:
-            executable = verilate(verilator, name, linked, args.jobs)
+            executable = verilate(verilator, name, linked, args.jobs, yosys)
             records, failures, code = run(executable, env)
             results[name] = records
             report[name] = {'records': records, 'failures': failures}
@@ -169,7 +213,7 @@ def main() -> int:
         return 2
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-    for line in summary(results.get('lendec', []), results.get('frontend', []), results.get('agu', [])):
+    for line in summary(results.get('lendec', []), results.get('frontend', []), results.get('dag', [])):
         print(line)
     for name in results:
         for line in report[name]['failures'][:40]:
