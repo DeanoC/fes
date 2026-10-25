@@ -116,8 +116,9 @@ STAGES = {
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
-        # Q's output register may keep only the name of DC's decoder input.
-        ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?decode\.q$'),
+        # Q's output register may keep only the names of DC's inputs: the
+        # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
+        ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
         ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|trace_\w+|start|start_linear|arch_\w+)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), ex_out's are ex_s
