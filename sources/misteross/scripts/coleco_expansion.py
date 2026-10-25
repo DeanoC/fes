@@ -34,11 +34,13 @@ NEXTPNR_ROUTETHRU_REMAP = '5fe55f3df5d9e48d81b41ec5134a4f3e9a6c06fe'
 # nextpnr main with #289 and #292: slot carry chains place past the
 # narrow-pin check, and fpga2sdram's unconnected buses reload; #276's pin map.
 NEXTPNR_CARRY_PINS = '266e18b560b557ddb1d39c7154bf86bdf7aa2742'
+NEXTPNR_MAIN_BEC82E36 = 'bec82e36d436acec7cbeb248725acfde72b8f220'
 NEXTPNR_MAIN_BD7A1C0D = 'bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb'
 ROUTETHROUGH_INPUT_PINS = {
     NEXTPNR_PRE_ROUTETHRU_REMAP: ('C', 'D'),
     NEXTPNR_ROUTETHRU_REMAP: ('F0', 'F1'),
     NEXTPNR_CARRY_PINS: ('F0', 'F1'),
+    NEXTPNR_MAIN_BEC82E36: ('F0', 'F1'),
     NEXTPNR_MAIN_BD7A1C0D: ('F0', 'F1'),
 }
 

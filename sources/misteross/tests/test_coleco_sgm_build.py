@@ -77,6 +77,10 @@ class BoundaryRouteThroughTest(unittest.TestCase):
              "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
             (coleco_expansion.NEXTPNR_CARRY_PINS,
              "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_MAIN_BEC82E36,
+             "MISTRAL_FF.24.4.56", "F0", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
+            (coleco_expansion.NEXTPNR_MAIN_BEC82E36,
+             "MISTRAL_FF.24.4.58", "F1", coleco_expansion.NEXTPNR_PRE_ROUTETHRU_REMAP),
         )
         for commit, ff_bel, input_pin, wrong_commit in cases:
             with self.subTest(commit=commit, ff_bel=ff_bel):
@@ -212,8 +216,8 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertEqual(pnr_recipe.lock_path(shell.ROOT, "fes.coleco"), shell.ROOT / shell.TOOLCHAIN_LOCK)
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         self.assertEqual(lock["tool"]["nextpnr"]["commit"], pnr_recipe.nextpnr_pin("fes.coleco"))
-        self.assertEqual(pnr_recipe.nextpnr_pin("fes.coleco"), coleco_expansion.NEXTPNR_CARRY_PINS)
-        self.assertEqual(coleco_expansion.ROUTETHROUGH_INPUT_PINS[coleco_expansion.NEXTPNR_CARRY_PINS],
+        self.assertEqual(pnr_recipe.nextpnr_pin("fes.coleco"), coleco_expansion.NEXTPNR_MAIN_BEC82E36)
+        self.assertEqual(coleco_expansion.ROUTETHROUGH_INPUT_PINS[coleco_expansion.NEXTPNR_MAIN_BEC82E36],
                          ("F0", "F1"))
         with patch.object(shell, "functional_record_fields",
                           side_effect=lambda root, fields, *args, **kwargs: fields), \

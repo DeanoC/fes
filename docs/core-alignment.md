@@ -43,7 +43,7 @@ These are the choices already in the tree at `6d9939c2`.
    registered locks each have their own slot: Pong pins nextpnr `552ba246`
    (fes#887), ZX81 pins nextpnr `1eecf877` (#936), RISC-V pins nextpnr
    `8f453ebc` (#945), Atari ST pins nextpnr `5fe55f3d` (#910), and Coleco pins
-   Yosys `5391eeb1` with nextpnr `266e18b5` and the shared Mistral. The
+   Yosys `5391eeb1` with nextpnr `bec82e36` and the shared Mistral. The
    unregistered PC/XT diagnostic also sits on `552ba246` (#840). HIP
    architectures are `gfx1100;gfx1201`. Pin changes stay scoped to the
    affected core; a lock is that core's last known good, not a required pin.
@@ -161,7 +161,7 @@ Eight registered locks differ from the repository-level pin (Yosys
 `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`): Pong on nextpnr
 `552ba246`, ZX81 on `1eecf877`, RISC-V on `8f453ebc`, Apple II and C64 on
 `5fe55f3d` (#1007), Spectrum on nextpnr main `bd7a1c0d`, Atari ST on
-`5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `266e18b5`;
+`5fe55f3d` (#910), and Coleco on Yosys `5391eeb1` with nextpnr `bec82e36`;
 the unregistered PC/XT diagnostic is also on `552ba246`. The other five match
 it. The following historical seal records remain tied to
 the artifacts they name; current recipe lock paths are shown in
@@ -171,7 +171,7 @@ the artifacts they name; current recipe lock paths are shown in
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `cores/fes-c64/toolchain.lock` (nextpnr `5fe55f3d` since #1007; recorded pin `9128800f`) | The recorded CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`) predates the per-core lock layout. Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the same commits (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `cores/fes-atari-st/toolchain.lock` (nextpnr `5fe55f3d` since #910, own cache slot) | Factory. The October kit notes do not accept a shared-pin seal. |
-| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `266e18b5`: main with nextpnr #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
+| 3 | `fes.coleco` | `cores/fes-coleco/toolchain.lock` (Yosys `5391eeb1`, nextpnr `bec82e36`: current main includes #296 and #299 and retains #289, #290 and #292, own cache slot) | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second selected lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `cores/fes-apple2/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` (Apple II on nextpnr `5fe55f3d` since #1007; Spectrum on nextpnr main `bd7a1c0d`) | Same multi-region cart support. Both files started at the shared commits. |
 | 5 | `fes.sms`, `fes.sg1000` | `cores/fes-sms/toolchain.lock`, `cores/fes-sg1000/toolchain.lock` | Both files start at the shared commits. The old Coleco producer selects the repository-level lock. |
 | 6 | `fes.zx81` | `cores/fes-zx81/toolchain.lock` (nextpnr `1eecf877` since #936) | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
@@ -181,7 +181,7 @@ authenticates that file. Pong, ZX81 and RISC-V have moved their nextpnr pins
 forward under the per-pin timer tracker (#876). Apple II and C64 use nextpnr
 `5fe55f3d` for its F0/F1 boundary route-through map (#1007), and Atari ST
 followed (#910). Spectrum uses nextpnr main `bd7a1c0d`, which contains #276 as
-merged; Coleco uses `266e18b5` and keeps its own Yosys. The other five
+merged; Coleco uses `bec82e36` and keeps its own Yosys. The other five
 registered locks still share the repository-level slot.
 
 The 130 MHz timing diagnostic uses `cores/fes-ramtest/toolchain.lock`. OSS has not closed 130 MHz.

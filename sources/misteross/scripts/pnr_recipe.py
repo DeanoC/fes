@@ -63,12 +63,22 @@ _ADDED_105_OPTIONS = {
     "critical_cohort_model_out": "unset", "router2_profile": "unset",
 }
 
+# nextpnr main bec82e36 adds two explicit opt-ins. The phase-related harmonic
+# clock analysis is disabled unless requested, and Mistral's FF reset recovery
+# reference is likewise opt-in; neither changes a producer's default argv.
+_ADDED_107_OPTIONS = {
+    "phase_related_harmonic_clocks": False,
+    "mistral_ff_reset_reference": False,
+}
+_ADDED_OPTIONS = {**_ADDED_105_OPTIONS, **_ADDED_107_OPTIONS}
+
 # A nextpnr source option set selects one of these recipe-flag schemas. The
 # option names not present in either flag table are still included in the exact
 # CLI fingerprint; producer-owned inputs and deliberately unused CLI options
 # remain closed by the recipe and argv builders.
 _SCHEMA_96_OPTIONS = MappingProxyType(_DEFAULTS_96_OPTIONS)
 _SCHEMA_105_OPTIONS = MappingProxyType({**_DEFAULTS_96_OPTIONS, **_ADDED_105_OPTIONS})
+_SCHEMA_107_OPTIONS = MappingProxyType({**_SCHEMA_105_OPTIONS, **_ADDED_107_OPTIONS})
 _OTHER_SOURCE_OPTIONS = frozenset({
     "Werror", "compress_rbf", "debug", "debug_placer", "debug_router",
     "detailed_timing_report", "device", "force", "freq", "gpu_device", "gui",
@@ -85,6 +95,7 @@ _ABSENT_BY_RECIPE_OPTIONS = frozenset({
 _SOURCE_OPTION_SET_SCHEMAS: Mapping[frozenset[str], Mapping[str, object]] = MappingProxyType({
     frozenset(_SCHEMA_96_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_96_OPTIONS,
     frozenset(_SCHEMA_105_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_105_OPTIONS,
+    frozenset(_SCHEMA_107_OPTIONS) | _OTHER_SOURCE_OPTIONS: _SCHEMA_107_OPTIONS,
 })
 _RUNTIME_SCHEMAS: dict[
     tuple[str, str, str, tuple[str, int, int, int, int] | None], Mapping[str, object]
@@ -112,6 +123,7 @@ FLAG_BOOLEAN_FIELDS = frozenset({
     "remap_optimize_pins", "remap_preserve_ffs",
     "remap_lut_pair_compose_copy", "arrival_pin_assignment",
     "isolated_lut_placement", "mistral_dsp_signed_lanes", "gpu_required",
+    "phase_related_harmonic_clocks", "mistral_ff_reset_reference",
 })
 FLAG_INTEGER_FIELDS = frozenset({
     "placer_heap_cell_placement_timeout", "timing_report_paths",
@@ -267,13 +279,13 @@ def _effective_flags(core_id: str, recipe: Mapping[str, object],
     listed = set(flags)
     options = set(schema)
     unknown = listed - options
-    missing = options - listed - set(_ADDED_105_OPTIONS)
+    missing = options - listed - set(_ADDED_OPTIONS)
     if unknown or missing:
         raise RecipeError(
             f"{core_id}: recipe flags differ from the nextpnr option schema; "
             f"missing {sorted(missing)}, extra {sorted(unknown)}")
     effective = {
-        name: flags[name] if name in flags else _ADDED_105_OPTIONS[name]
+        name: flags[name] if name in flags else _ADDED_OPTIONS[name]
         for name in schema
     }
     if (any(not _valid_flag_value(name, value) for name, value in effective.items())
