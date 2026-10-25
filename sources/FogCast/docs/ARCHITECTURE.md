@@ -1018,7 +1018,9 @@ package reports a conflict without overwriting it.
 The embedded **Computers** room (`example.computers`) lists prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries and launches the focused row through `session.launch`. A row appears when that entry is already launch-eligible. Variant rows come from grouped editions. Expansion rows come from an existing `expansion_id` or `slot_expansions` value on that entry. The room adds no sockets, cards, or another machine family. The ZX81 workbench remains the ZX81 setup room. **Set up** opens `example.hardware` for a ZX81 row and `example.c64` for a
 Commodore 64 row, passing the selected game ID through `rooms.open` as the child
 room's `room.initial_game_id`. Each workbench selects that entry for the visit;
-direct room opens continue to restore saved navigation. The Commodore 64 room
+the ZX81 workbench falls back to the active or first available setup if that
+entry is absent, and later refreshes fall back if its current setup disappears.
+Direct room opens continue to restore saved navigation. The Commodore 64 room
 queries up to 2,000 rows filtered to `fes.c64`; when the selected ID falls
 beyond that result it resolves the ID directly, and if the title is gone it
 keeps the other entries available. The room shows the entry's edition, saved
