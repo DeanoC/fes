@@ -5,12 +5,18 @@ A CPU-only routed harness like the RISC-V QoR one (cores/fes-riscv/qor.md):
 each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
 (cores/fes-common/sim/i386/spike) with one clock, KEY0 and LED0 on pads.
 
-  frontend  F1, F2, the fetch buffer with its 16 length decoders, and Q,
-            fetching from an M10K memory model
-  ag        the AG stage: forwarding mux, 4:2 compression, the linear and
-            offset adders and the 16-bit-wrap high-half select
+  frontend  F1; F2 with a 4-way L1I model (M10K tags and data, compares
+            against a registered ITLB page, way select); L, the 16 length
+            decoders and next starts; the fetch buffer; and Q
+  dag       D's address operands (addressing decode, register file,
+            forwarding by tag, index scaling, segment select) and AG (one
+            late operand, the 3:2 rows, the adders, the 16-bit-wrap select)
   m2        the M2 stage: M10K tag and data reads, four tag compares against
             a registered page number, way select
+
+Each route reports the clock, its critical path, and a figure for every
+pipeline stage: the worst setup slack among the registers the stage writes,
+from nextpnr's per-endpoint timing.
 
 Tools come from the selected toolchain lock's authenticated slot (default: the
 repository toolchain.lock). Synthesis permits M10K and DSP cells and forbids
@@ -48,15 +54,36 @@ ROOT = Path(__file__).resolve().parents[1]
 RTL = Path('cores/fes-common/rtl/i386')
 SPIKE = Path('cores/fes-common/sim/i386/spike')
 DEVICE = '5CSEBA6U23I7'
-FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_fetchbuf.sv',
-                'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
+FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
+                'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
+DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
 SPIKES = {
     'frontend': ('spike_frontend', FRONTEND_RTL),
-    'ag': ('spike_ag', ('fes_i386_agu.sv',)),
+    'dag': ('spike_dag', DAG_RTL),
     'm2': ('spike_m2', ()),
 }
-# M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform rules).
-SYNTHESIS = 'synth_intel_alm -family cyclonev -nolutram'
+# Which stage writes each register, by the RTL signal a cell maps from. After
+# flattening a register may carry the name of any port it drives, so the
+# patterns match leaf names. The first match wins; a path belongs to the stage
+# that writes its end.
+STAGES = {
+    'frontend': (
+        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
+        ('F2', r'(.*\.)?(l_valid|l_block|l_bytes|fill_bytes|fill_data)$'),
+        ('L', r'(.*\.)?(bytes|half_block|dec_\w+)$'),
+        ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.'),
+    ),
+    'dag': (
+        ('D', r'(.*\.)?ag_|agu\.(row|last|disp|late|late_hi|seg_term|seg_hi|seg_hi_plus1|addr32)$'),
+        ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
+    ),
+    'm2': (('M2', r'(.*\.)?load_'),),
+}
+# M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform
+# rules). proc -norom first keeps the length decoders' opcode tables in logic:
+# Yosys would otherwise turn them into asynchronous ROMs, which an M10K
+# cannot be.
+SYNTHESIS = 'proc -norom; synth_intel_alm -family cyclonev -nolutram'
 
 
 def digest(path: Path) -> str:
@@ -107,13 +134,36 @@ def path_summary(path: dict) -> dict:
     }
 
 
-def timing_summary(report: Path) -> dict:
+def stage_figures(data: dict, stages, target_mhz: float) -> dict:
+    """Each stage's worst setup slack and the clock it alone would allow.
+
+    Registers no pattern names (the stimulus and signature envelope) are
+    reported as 'envelope'.
+    """
+    period = 1000.0 / target_mhz
+    worst: dict[str, tuple[float, str]] = {}
+    for net in data.get('detailed_net_timings', []):
+        for endpoint in net.get('endpoints', []):
+            if not endpoint.get('setup_checked') or 'setup_slack_ns' not in endpoint:
+                continue
+            owner = _owner(endpoint['cell'])
+            label = next((label for label, pattern in stages if re.match(pattern, owner)), 'envelope')
+            slack = float(endpoint['setup_slack_ns'])
+            if label not in worst or slack < worst[label][0]:
+                worst[label] = (slack, owner)
+    return {label: {'setup_slack_ns': round(slack, 3), 'fmax_mhz': round(1000.0 / (period - slack), 2),
+                    'endpoint': owner}
+            for label, (slack, owner) in sorted(worst.items())}
+
+
+def timing_summary(report: Path, stages=(), target_mhz: float = 100.0) -> dict:
     data = json.loads(report.read_text())
     clocks = data.get('fmax', {})
     achieved = [float(record['achieved']) for record in clocks.values() if 'achieved' in record]
     if not achieved:
         raise ValueError(f'{report} has no achieved clock frequency')
     return {'fmax_mhz': min(achieved), 'clocks': clocks, 'utilization': data.get('utilization', {}),
+            'stages': stage_figures(data, stages, target_mhz),
             'critical_paths': [path_summary(path) for path in data.get('critical_paths', [])]}
 
 
@@ -176,7 +226,7 @@ def main() -> int:
             work = output / spike
             work.mkdir(exist_ok=True)
             files = ' '.join(str(snapshot / path) for path in sources(spike))
-            program = f'read_verilog -sv {files}; {SYNTHESIS} -top {top}; stat; write_json synth.json'
+            program = f'read_verilog -sv {files}; hierarchy -top {top}; {SYNTHESIS} -top {top}; stat; write_json synth.json'
             (work / 'synth.ys').write_text(program + '\n')
             started = time.monotonic()
             with (work / 'yosys.log').open('w') as log:
@@ -211,10 +261,12 @@ def main() -> int:
                        **board.gpu_route_evidence(log_text, args.gpu_device)}
                 if result.returncode == 0:
                     run['gpu_backend'] = board._require_gpu_backend(log_text, backend)
-                    run.update(timing_summary(destination / 'timing.json'))
+                    run.update(timing_summary(destination / 'timing.json', STAGES[spike], args.target_mhz))
                     run['target_met'] = run['fmax_mhz'] >= args.target_mhz
+                    stages = ', '.join(f'{label} {figure["fmax_mhz"]:.1f}' for label, figure in run['stages'].items())
                     print(f'{spike} seed {seed}: {run["fmax_mhz"]:.2f} MHz; '
-                          f'target {args.target_mhz:g} MHz {"met" if run["target_met"] else "missed"}', flush=True)
+                          f'target {args.target_mhz:g} MHz {"met" if run["target_met"] else "missed"} ({stages})',
+                          flush=True)
                 record['runs'].append(run)
                 with runs_path.open('a') as stream:
                     stream.write(json.dumps({k: v for k, v in run.items() if k != 'critical_paths'}

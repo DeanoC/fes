@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The fes_i386_cpu front end as far as Phase 1's first slice: F1, F2, the
-// fetch buffer with its length decoders, and Q. Fetch reads a memory model
+// The fes_i386_cpu front end as far as Phase 1 has built it: F1, F2, L (the
+// length decoders), the fetch buffer and Q. Fetch reads a memory model
 // (an M10K-like port) instead of L1I; there is no branch prediction, so fetch
 // is sequential from the last redirect. Q hands D one instruction per cycle
 // when no earlier prefix needs a cycle of its own.
@@ -18,20 +18,23 @@ module fes_i386_frontend (
     input  logic                   d_ready
 );
     logic [1:0]        release_half, half_valid, tail_ok, filling;
+    logic [15:0][7:0]  fill_bytes;
     logic [1:0][27:0]  half_block;
     logic [31:0][7:0]  bytes;
-    logic [31:0]       dec_prefix, dec_run, dec_opsize, dec_adsize;
+    logic [31:0]       dec_prefix, dec_run;
     logic [31:0][15:0] dec_len;
+    logic [31:0][19:0] dec_fin;
+    logic [31:0][3:0]  dec_far;
 
     fes_i386_fetchbuf fetch (
-        .clk, .reset, .redirect, .redirect_linear, .mem_block, .mem_load, .mem_data,
-        .release_half, .half_valid, .tail_ok, .filling, .half_block, .bytes,
-        .dec_prefix, .dec_run, .dec_opsize, .dec_adsize, .dec_len
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data,
+        .release_half, .half_valid, .tail_ok, .filling, .fill_bytes, .half_block, .bytes,
+        .dec_prefix, .dec_run, .dec_len, .dec_fin, .dec_far
     );
 
     fes_i386_qalign align (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .half_valid, .tail_ok, .filling,
-        .half_block, .bytes, .dec_prefix, .dec_run, .dec_opsize, .dec_adsize, .dec_len,
-        .fill_data(mem_data), .release_half, .q_valid, .q, .d_ready
+        .clk, .reset, .redirect, .redirect_linear, .half_valid, .tail_ok, .filling,
+        .half_block, .bytes, .dec_prefix, .dec_run, .dec_len, .dec_fin, .dec_far,
+        .fill_data(fill_bytes), .release_half, .q_valid, .q, .d_ready
     );
 endmodule
