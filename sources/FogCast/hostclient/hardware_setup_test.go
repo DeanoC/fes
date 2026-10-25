@@ -34,6 +34,7 @@ func TestInstalledZX81CreationFinishesEmptyROMWithoutPublicationCatalog(t *testi
 				json.NewEncoder(w).Encode(map[string]any{"entries": entries})
 			} else {
 				created = true
+				w.WriteHeader(http.StatusCreated)
 				json.NewEncoder(w).Encode(entry)
 			}
 		case "/api/v1/library/core-entries/my-zx81/rom":
@@ -101,6 +102,7 @@ func TestInstalledZX80SetupAcceptsFamilyROMAndRejectsOtherCores(t *testing.T) {
 				json.NewEncoder(w).Encode(map[string]any{"entries": []any{}})
 				return
 			}
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(CoreEntry{GameID: "my-zx80", Title: "My ZX80", CoreID: "fes.zx80", PackageID: zx80})
 		case "/api/v1/library/core-entries/my-zx80/rom":
 			json.NewEncoder(w).Encode(map[string]string{"game_id": "my-zx80", "package_id": zx80, "rom_id": "zx80-rom", "media_id": rom})

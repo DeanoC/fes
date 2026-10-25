@@ -284,20 +284,30 @@ func TestCoreMediaErrorsAreReturnedWithoutReplay(t *testing.T) {
 	}
 }
 
-func TestCoreMediaEntryManagementIsHostOnly(t *testing.T) {
+func TestLauncherAdmitsCoreMediaSelection(t *testing.T) {
 	s := &coreMediaAPIService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
 	}
+	pkg, media := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	body := `{"expected_package_id":"` + pkg + `","expected_media_id":"","media_role":"cassette","media_id":"` + media + `"}`
+	req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-zx81/media", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-zx81", pkg, "", "cassette", media}) {
+		t.Fatalf("selection status=%d calls=%d args=%v body=%s", response.Code, s.calls, s.args, response.Body)
+	}
+	// Media reads and malformed selection routes stay outside the launcher.
 	for _, tc := range []struct{ method, path string }{
 		{"GET", "/api/v1/core-media/" + strings.Repeat("a", 64)},
-		{"POST", "/api/v1/library/core-entries"}, {"PUT", "/api/v1/library/core-entries/core-test/media"},
+		{"PUT", "/api/v1/library/core-entries/Nope/media"},
+		{"PUT", "/api/v1/library/core-entries/fpga-zx81/media/extra"},
 	} {
 		req := launcherRequest(tc.method, "http://192.0.2.1:8789"+tc.path, strings.NewReader("{}"))
 		out := httptest.NewRecorder()
 		handler.ServeHTTP(out, req)
-		if out.Code != 404 || s.calls != 0 {
+		if out.Code != http.StatusNotFound || s.calls != 1 {
 			t.Fatalf("status=%d calls=%d body=%s", out.Code, s.calls, out.Body)
 		}
 	}
