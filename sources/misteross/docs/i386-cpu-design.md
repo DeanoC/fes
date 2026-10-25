@@ -5,15 +5,18 @@ pinned Bochs oracle adapter and corpus runners ([#1071](https://github.com/Deano
 are implemented. Phase 1 has built the uop definitions, the front end through
 Q, D's address forwarding and the AG address unit. Its Verilator checks of
 length decode, front-end behaviour and D/AG addressing also pass on Yosys's
-netlist. Three rounds of four-seed routed spikes measured those stages alone:
+netlist. Three rounds of four-seed routed spikes measured the front end, D+AG,
+and the M2 model, with per-stage timing endpoints recorded:
 the [first slice](validation/2026-10-25-i386-phase1-spikes.md)
 ([#1080](https://github.com/DeanoC/fes/pull/1080)), the
 [cuts](validation/2026-10-25-i386-phase1-cuts.md)
 ([#1091](https://github.com/DeanoC/fes/pull/1091)) and the
 [front-end fixes](validation/2026-10-25-i386-phase1-front-end-fixes.md)
 ([#1095](https://github.com/DeanoC/fes/pull/1095)). With nextpnr bd7a1c0d's
-corrected timing model, the slowest stage is now Q at 76–86 MHz alone, and the
-pipeline below settles at a design point of about 80 MHz under
+corrected timing model, Q was the slowest per-stage endpoint in the final
+front-end spike at 76–86 MHz. Those routes predate the `mem_ready` hold added
+in #1095, so they do not measure that change. The pipeline below settles at a
+design point of about 80 MHz under
 [rule 9](#platform-constraints). The first slice's front-end routes used
 pre-correction RTL whose synthesized length decoder omitted some ModRM and
 immediate bytes; the later rounds route the corrected decoder. See the
@@ -276,7 +279,7 @@ PC/XT's FFh for unclaimed reads.
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
 | Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The CPU's timing figures come from the newest authenticated nextpnr with the corrected LUT-input and M10K timing models (`bd7a1c0d` when Phase 1 measured). A lock is a last known good and moves forward. The i386 work is moving to a lock of its own with the fixed Yosys ([#1096](https://github.com/DeanoC/fes/issues/1096)) | [Recipes](architecture.md#per-core-place-and-route-recipes) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
-| i386 Phase 1 spikes | Each block routed alone with nextpnr bd7a1c0d, seeds 1–4, in MHz. First slice: the pre-correction front end 70–74, AG 77–81, M2 102–110. After the cuts: L 61–68, Q 65–71, F2 72–79, D 79–85, AG 96–102. After the front-end fixes: F1 88–95, F2 78–89, L1 90–92, L2 90–94, Q 76–86, D 85–92, AG 91–96, M2 102–106; the whole front-end spike 76.06–85.97. The repository lock's older nextpnr reads 4–46% higher on the same netlists because it predates the corrected models | [#1080](https://github.com/DeanoC/fes/pull/1080), [#1091](https://github.com/DeanoC/fes/pull/1091), [#1095](https://github.com/DeanoC/fes/pull/1095) |
+| i386 Phase 1 spikes | Four-seed spike reports with per-stage endpoints, in MHz: F1–Q share the front-end route, D and AG share the D+AG route, and M2 is separate. First slice: pre-correction front end 69.74–74.35, AG 77–81, M2 102–110. After the cuts: L 61–68, Q 65–71, F2 72–79, D 79–85, AG 96–102. After the front-end fixes: F1 88–95, F2 78–89, L1 90–92, L2 90–94, Q 76–86, D 85–92, AG 91–96, M2 102–106; combined front-end spike 76.06–85.97. The older repository lock's nextpnr reads 2.5–45.6% higher across 40 paired routes of the same netlists because it predates the corrected models. These final route numbers predate the `mem_ready` hold added in #1095; the front-end spike ties `mem_ready` high | [#1080](https://github.com/DeanoC/fes/pull/1080), [#1091](https://github.com/DeanoC/fes/pull/1091), [#1095](https://github.com/DeanoC/fes/pull/1095) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
 | HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others at 100 MHz, which scale to about 1,250 and 560 MB/s at 80 MHz | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md) |
 | RAM rules | M10K reads are synchronous (producers reject asynchronous M10K); current producers forbid MLAB | [Architecture](architecture.md) |
@@ -310,8 +313,9 @@ Rules that follow, checked in review and against every routed critical path:
    two after, routed at 77–81 MHz.
 9. Each cut is re-measured with the spike harness before the next one is made.
    If the re-measured stages still miss 100 MHz, the clock lands at the measured
-   figure. Applied on 2026-10-25, after three rounds:
-   - Q, the slowest stage alone, routes at 76–86 MHz.
+   figure. Applied on 2026-10-25, after three rounds; in the last
+   pre-`mem_ready` front-end spike:
+   - Q, the slowest per-stage endpoint, routes at 76–86 MHz.
    - Its limiting path is 6–7 cells, and 8.4–9.8 ns of it is routing.
    - The design point is therefore about 80 MHz, where the
      [estimate](#performance-estimate) just meets the target gate.
@@ -353,7 +357,7 @@ micro-operations (uops) into the same pipeline.
 flowchart LR
     BTB[BTB and return stack] --> F1
     F1[F1 fetch] --> F2[F2 way select] --> L1[L1 length classes]
-    L1 --> L2[L2 lengths and ends] --> Q[Q select and align]
+    L1 --> L2S[L2 lengths and ends] --> Q[Q select and align]
     Q --> D[D decode and microcode] --> AG[AG address and early ALU]
     AG --> M1[M1 L1D and DTLB] --> M2[M2 tag check and load data]
     M2 --> EX[EX ALU, shift, multiply, divide] --> WB[WB commit]
@@ -365,19 +369,24 @@ flowchart LR
     WB --> IO[MMIO and I/O ports]
 ```
 
-Measured figures are each stage routed alone with nextpnr bd7a1c0d, seeds 1–4
-([#1095](https://github.com/DeanoC/fes/pull/1095)); stages without one are not
-built yet.
+The table reports per-stage endpoint fmax from four-seed spikes using nextpnr
+bd7a1c0d ([#1095](https://github.com/DeanoC/fes/pull/1095)). F1–Q share each
+front-end route; D and AG share each D+AG route; M2 is a separate control
+route. They are not independently routed stages. These timing runs predate
+the `mem_ready` hold added in #1095: the routed front-end spike ties
+`mem_ready` high, and those measurements were not repeated for the hold
+([record](validation/2026-10-25-i386-phase1-front-end-fixes.md)). Stages
+without a timing endpoint are not built yet.
 
-| Stage | Work | Timing budget | Measured alone |
+| Stage | Work | Timing budget | Per-stage endpoint fmax |
 | --- | --- | --- | --- |
 | F1 | Choose the fetch address: sequential, BTB, return stack or redirect. Read L1I data and tags, the BTB and the ITLB. | One 28-bit incrementer and a 4:1 select into M10K address registers | 88–95 MHz |
-| F2 | Compare L1I tags with the ITLB page in eight replicated hit sets, select a way, register 16 bytes. A BTB hit redirects F1. | M10K output, equality compares, way mux: M2's shape. No decode, no carry chain | 78–89 MHz |
+| F2 | Compare L1I tags with the ITLB page in eight replicated hit sets, select a way, register 16 bytes, and hold the block until its memory response is ready. A BTB hit redirects F1. | M10K output, equality compares, way mux: M2's shape. No decode, no carry chain | 78–89 MHz |
 | L1 | Run the 16 per-byte length decoders on F2's register and register each byte's length classes. | Decoder logic from flip-flops; no M10K output, no carry chain | 90–92 MHz |
 | L2 | Sum each byte's classes, for every 66h/67h accumulator variant, into its length, end and next-half bit; write the fetch buffer. | Small sums built from LUTs; no carry chain | 90–94 MHz |
 | Q | Pick the stored end at the current start by the accumulator's flags, check availability, strip the last prefix, rotate the instruction bytes. | 32:1 select of a stored end; no add in the loop | 76–86 MHz, the slowest stage |
-| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands from a per-GPR table written a cycle ahead, and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale; no carry chain | 85–92 MHz (address forwarding) |
-| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 91–96 MHz (address unit, routed with D) |
+| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands from a per-GPR table written a cycle ahead, and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale; no carry chain | 85–92 MHz (address forwarding, D+AG route) |
+| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 91–96 MHz (address unit, D+AG route) |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain | — |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain | 102–106 MHz (tag check model) |
 | EX | Align and extend load data; late ALU, shifter and flags; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux | — |
@@ -424,7 +433,7 @@ At the settled 80 MHz that is about 51 million instructions per second; at
 70 MHz, about 45 million. Taking about 2 CPI for a 486 on the same code, which
 is also an estimate, a 486DX2-66 retires about 33 million. So 80 MHz just meets
 the 1.5× target gate, and 70 MHz meets only the minimum. The two L stages cost
-about 3% against the nine-stage pipeline first drawn.
+about 2% against the nine-stage pipeline first drawn.
 
 The L2-miss row is a budget. The bare DDR port's median first data is about
 185 ns ([#1076](https://github.com/DeanoC/fes/pull/1076)); the CPU's path
@@ -440,9 +449,9 @@ through L2 is still to measure.
 | Decoded-uop or trace cache | Parallel per-byte length decode handles x86 length cheaply. The M10K is better spent on L2. |
 | Write-back L1D | Write-through, the 486's choice, keeps DMA reads and self-modifying-code detection simple. A coalescing write buffer and the L2 absorb the store traffic. |
 | Virtually tagged L1D | EMM386 maps one physical page at several linear addresses, and the aliases would go stale. |
-| Lengths predecoded into the L1I's spare bits | Two spare bits per byte cannot hold a length for every operand- and address-size variant, and fills would need the decoders anyway. A stage of its own costs one mispredict cycle. |
+| Lengths predecoded into the L1I's spare bits | Two spare bits per byte cannot hold a length for every operand- and address-size variant, and fills would need the decoders anyway. A separate stage would add one cycle to recovery. The current two-stage L split moves AG/EX mispredict penalties from +4/+7 to +6/+9, adding about 0.036 CPI, or 2%. |
 | Splitting AG into two stages | Every address-forwarding penalty would grow by a cycle, and the early ALU's zero-cycle forward into the next address would be lost. Moving forwarding and scaling into D keeps both. |
-| More front-end cuts toward 100 MHz now | Three rounds took the front end from 61–68 MHz to 76–86 MHz alone, and Q's limiting path is now mostly routing. The remaining idea, start-after-next ([#1097](https://github.com/DeanoC/fes/issues/1097)), waits until a whole-CPU route shows where the clock really ends up ([rule 9](#platform-constraints)). |
+| More front-end cuts toward 100 MHz now | The three rounds measured 69.74–74.35 MHz for the pre-correction first-slice front end, 61.43–67.54 MHz after the cuts, and 76.06–85.97 MHz after the front-end fixes. In the final pre-`mem_ready` routes, Q's limiting path is mostly routing. The remaining idea, start-after-next ([#1097](https://github.com/DeanoC/fes/issues/1097)), waits until a whole-CPU route shows where the clock really ends up ([rule 9](#platform-constraints)). |
 | Translation on the HPS | Not a CPU core, and capped by the Cortex-A9. |
 
 ## Front end
@@ -451,17 +460,20 @@ through L2 is still to measure.
 
 Fetch works in linear addresses (CS base plus EIP). L1I is 16 KiB, 4-way,
 32-byte lines, physically tagged and indexed by linear bits 11:5. A way is one
-4 KiB page, so the index needs no translation. F2 registers 16 bytes per
-cycle, and L2 writes them into a 32-byte fetch buffer. The ITLB has 16 fully
-associative entries in flip-flops; a miss starts the shared page walker.
+4 KiB page, so the index needs no translation. F2 writes 16 bytes per cycle
+into a 32-byte fetch buffer. F2 holds its registered block until the memory
+response is ready; a miss can empty L2 while Q crosses the buffer halves, so
+Q's stored availability must withhold instructions that reach into a missing
+half. The ITLB has 16 fully associative entries in flip-flops; a miss starts
+the shared page walker.
 
 F2 compares the ITLB page in eight replicated hit sets, one per two bytes, so
 no hit drives more than 16 way-select bits. Each set compares against its own
 kept copy of the page register, because Yosys merges identical logic even on
-kept wires ([DeanoC/yosys#51](https://github.com/DeanoC/yosys/issues/51)). The
-replicas did not lift F2, which routes at 78–89 MHz alone, so its limit is not
-hit fanout. Their extra load cost F1, which fell from 100–139 to 88–95 MHz. F2's
-real limit is still to trace.
+kept wires ([DeanoC/yosys#51](https://github.com/DeanoC/yosys/issues/51)). In
+the pre-`mem_ready` routes, the replicas did not lift F2, which measured
+78–89 MHz; their extra load cost F1, which fell from 100–139 to 88–95 MHz.
+F2's remaining limit is still to trace.
 
 Fetch may run ahead of the CS limit. D checks `EIP + length - 1 <= CS.limit`
 for each instruction and raises #GP only for an instruction that would
@@ -773,7 +785,8 @@ updates hold the L2's DMA port between their read and their write.
   | Median | 18–19 cycles | 19–29 cycles |
   | Slowest 1% | 47–51 cycles | 64–87 cycles |
 
-  The worst read seen was 135 cycles. Typical reads pass. The full-CPU
+  The worst read seen was 135 cycles. Typical reads pass the 40-cycle check,
+  but the tail does not. The full-CPU
   Phase 1 check still measures line fills through the CPU path on both
   memories; the current slices exercise neither memory path. The SDRAM would then become a faster
   tier in front of DDR, not a replacement. DDR jitter costs speed only; nothing
@@ -915,11 +928,12 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
 
 ## Budgets
 
-These are budgets for the planned full CPU, not measured totals. The routed
-front-end, AG and M2 spike counts and timing are recorded separately in the
-[Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md); those
-isolated harnesses do not replace the CPU budgets below. No whole-CPU synthesis
-or area result exists yet.
+These are budgets for the planned full CPU, not measured totals. Isolated
+front-end, D+AG and M2 spike counts and timing are recorded in the [first
+slice](validation/2026-10-25-i386-phase1-spikes.md), [cuts](validation/2026-10-25-i386-phase1-cuts.md)
+and [front-end fixes](validation/2026-10-25-i386-phase1-front-end-fixes.md)
+records. Those routed harnesses do not replace the CPU budgets below. No
+whole-CPU synthesis or area result exists yet.
 
 | Block | ALMs | M10K | DSP blocks |
 | --- | ---: | ---: | ---: |
@@ -963,7 +977,8 @@ for the complete CPU and machine.
    instruction lockstep; coverage and results are in the
    [simulation README](../cores/fes-common/sim/i386/README.md).
 4. **Routed spikes (implemented for isolated blocks).** Three rounds of
-   four-seed timing runs cover F1 through AG and the M2 model. Results and
+   four-seed timing runs cover the grouped F1–Q front end, grouped D+AG, and
+   the M2 model. Results and
    critical paths are in the
    [first slice](validation/2026-10-25-i386-phase1-spikes.md),
    [cuts](validation/2026-10-25-i386-phase1-cuts.md) and
@@ -993,9 +1008,9 @@ for the complete CPU and machine.
    `-timedemo demo3`, 3DBench, PCPBench and a cache and memory benchmark
    (Speedsys or CACHECHK) against published period results. Every performance
    feature lands with its before and after.
-10. **Timing and seal (planned):** the Phase 1 spike harness routes each stage
-    alone like the RISC-V QoR harness, followed by the complete CPU and then the
-    machine producer. Seal evidence follows AGENTS.md and requires an
+10. **Timing and seal (planned):** extend the grouped Phase 1 spike coverage to
+    the remaining blocks, then route the complete CPU and the machine
+    producer. Seal evidence follows AGENTS.md and requires an
     authenticated HIP or CUDA backend. Existing isolated-block spikes are not
     full-CPU timing or seal evidence.
 
@@ -1004,7 +1019,7 @@ for the complete CPU and machine.
 | Milestone | Content | Exit |
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
-| Phase 1 | Real-mode pipeline: all eleven stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | **In progress:** the front end through Q, D's address forwarding and AG are built and checked. Three rounds of isolated spikes settled the design point at about 80 MHz. Next come the whole-CPU retirement lockstep, then decode, execute, commit, the memory pipeline, real-mode microcode and the L1I, each slice routing the CPU as it grows. Exit requires clean real-mode lockstep, a whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) |
+| Phase 1 | Real-mode pipeline: all eleven stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | **In progress:** the front end through Q, D's address forwarding and AG are built and checked. Three rounds of isolated spikes settled the design point at about 80 MHz. Next come decode, execute, commit, the memory pipeline, real-mode microcode and the L1I, built in slices with routing as the CPU grows; whole-CPU retirement lockstep follows once the retirement path exists. Exit requires clean real-mode lockstep, a whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
@@ -1033,8 +1048,9 @@ Settled on 2026-10-25:
   ([microarchitecture](#microarchitecture)).
 - After three rounds of spikes, the design point settles at about 80 MHz under
   [rule 9](#platform-constraints). L runs in two stages, D's forwarding selects
-  are computed a cycle ahead and F2's hits are replicated; Q's loop is the
-  limit at 76–86 MHz alone. The start-after-next idea for Q waits for a
+  are computed a cycle ahead and F2's hits are replicated; Q's loop was the
+  limiting endpoint at 76–86 MHz in the last pre-`mem_ready` front-end spike.
+  The start-after-next idea for Q waits for a
   whole-CPU route ([#1097](https://github.com/DeanoC/fes/issues/1097)).
 - A CPU reset keeps the L2's contents, and FLUSH completes in every CPU state
   ([commit](#commit-exceptions-and-interrupts)).

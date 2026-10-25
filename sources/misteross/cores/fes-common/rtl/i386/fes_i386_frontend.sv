@@ -12,6 +12,7 @@ module fes_i386_frontend (
     input  logic                   code32,
     output logic [27:0]            mem_block,
     output logic                   mem_load,
+    input  logic                   mem_ready,
     input  logic [15:0][7:0]       mem_data,
     output logic                   q_valid,
     output fes_i386_pkg::fetched_t q,
@@ -28,7 +29,7 @@ module fes_i386_frontend (
     logic [31:0][3:0]  avail;
 
     fes_i386_fetchbuf fetch (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_ready, .mem_data,
         .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
         .bytes, .dec_prefix, .dec_run, .dec_len, .dec_fin, .avail
     );

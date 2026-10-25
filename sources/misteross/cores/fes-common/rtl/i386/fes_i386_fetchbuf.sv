@@ -35,6 +35,7 @@ module fes_i386_fetchbuf (
     input  logic              code32,
     output logic [27:0]       mem_block,
     output logic              mem_load,
+    input  logic              mem_ready,      // response for the registered F2 address is available
     input  logic [15:0][7:0]  mem_data,
     input  logic [1:0]        release_half,   // Q left this half on this edge
     input  logic              q_half,         // the half Q's start is in
@@ -69,7 +70,7 @@ module fes_i386_fetchbuf (
     assign half = l2_block[0];
     assign l2_fire = l2_valid && !half_valid[half];
     assign l1_advance = l1_valid && (!l2_valid || l2_fire);
-    assign f2_advance = active && (!l1_valid || l1_advance);
+    assign f2_advance = active && mem_ready && (!l1_valid || l1_advance);
     assign filling = {l2_fire && half, l2_fire && !half};
     assign fill_bytes = l2_bytes;
     assign mem_load = redirect || f2_advance;
