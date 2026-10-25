@@ -245,24 +245,25 @@ module spectrum_upd765 #(
         end
     endtask
 
-    // start_read_data: the next sector, or abort_read_data at the end of the
-    // track (no terminal count on the +3, so a whole track ends with End of
-    // Cylinder).
-    task automatic start_read;
+    // Advance after a sector was read or skipped. A multi-track command reads
+    // head 1 of the same cylinder after head 0, then ends at its EOT.
+    task automatic next_read_sector;
         begin
-            if (first_rw || dr[5] > dr[3]) begin
-                if (!first_rw) dr[3] <= dr[3] + 8'd1;
-                first_rw <= 1'b0;
+            first_rw <= 1'b0;
+            if (dr[5] > dr[3]) begin
+                dr[3] <= dr[3] + 8'd1;
                 revs <= 2'd0;
                 xs <= X_SEARCH;
-            end else if (mt) begin
-                dr[1] <= dr[1] + 8'd1;
+            end else if (mt && !hd) begin
+                hd <= 1'b1;
+                dr[0][2] <= 1'b1;
+                dr[2] <= 8'd1;
                 dr[3] <= 8'd1;
                 revs <= 2'd0;
                 xs <= X_SEARCH;
             end else begin
-                if (st0 == 8'd0 && st1 == 8'd0) begin
-                    st0 <= ST0_ABNORMAL;
+                if ((st0 & 8'hf8) == 8'd0 && st1 == 8'd0) begin
+                    st0 <= (st0 & 8'h07) | ST0_ABNORMAL;
                     st1 <= ST1_EN;
                 end else if ((st0 & ST0_READY_CHANGE) == 8'd0) begin
                     dr[1] <= dr[1] + 8'd1;
@@ -270,6 +271,16 @@ module spectrum_upd765 #(
                 end
                 result_phase();
             end
+        end
+    endtask
+
+    task automatic start_read;
+        begin
+            if (first_rw) begin
+                first_rw <= 1'b0;
+                revs <= 2'd0;
+                xs <= X_SEARCH;
+            end else next_read_sector();
         end
     endtask
 
@@ -562,9 +573,7 @@ module spectrum_upd765 #(
                             st2 <= st2 | ST2_CM;
                             if (sk) begin
                                 // Skip the sector and look for the next.
-                                dr[3] <= dr[3] + 8'd1;
-                                revs <= 2'd0;
-                                xs <= X_SEARCH;
+                                next_read_sector();
                             end
                         end
                     end else if (dam_window == 6'd0 || mark) begin

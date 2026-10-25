@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // +3 disk bench: drives spectrum_upd765's $2FFD/$3FFD as +3DOS does, against
-// a raw track image (FogCast internal/spectrumdisks) of a synthetic extended
-// DSK from scripts/sim_fes_spectrum.py: cylinders 0-2 are nine 512-byte
-// sectors numbered 1-9 whose bytes encode cylinder, sector and offset;
-// cylinder 3 holds sector 1 normal, 2 with a data CRC error, 3 with an ID
-// CRC error, 4 deleted and 5 weak over bytes 100-299. The fetch port answers
-// with a varying DDR delay; a T state is 15 system clocks.
+// a raw track image (FogCast internal/spectrumdisks) of a synthetic two-sided
+// extended DSK from scripts/sim_fes_spectrum.py: cylinders 0-2 have nine
+// 512-byte sectors numbered 1-9 whose bytes encode cylinder, head, sector and
+// offset; cylinder 3 side 0 holds sector 1 normal, 2 with a data CRC error,
+// 3 with an ID CRC error, 4 deleted and 5 weak over bytes 100-299. The fetch
+// port answers with a varying DDR delay; a T state is 15 system clocks.
 //
 // Checks the motor's 400 ms ready delay, Specify, Recalibrate and Seek with
 // Sense Interrupt Status (and Sense Interrupt Status without an interrupt),
-// Sense Drive Status, Read ID, Read Data of one sector and of a run to EOT
-// ending with End of Cylinder, data bytes at 32 us, CRC and deleted-mark
-// results, a weak sector reading differently, a missing sector, Overrun,
-// Read Diagnostic, Write Data's Not Writable, Version, an invalid command, a
-// read with the motor off, the empty drive B, and the launch image's boot
-// pulse. Data bytes are sampled clocks after the read starts, as the CPU does.
+// Sense Drive Status, Read ID, Read Data of one sector and a run to EOT
+// ending with End of Cylinder, multi-track head switching, SK at EOT, data
+// bytes at 32 us, CRC and deleted-mark results, a weak sector reading
+// differently, a missing sector, Overrun, Read Diagnostic, Write Data's Not
+// Writable, Version, an invalid command, a read with the motor off, the empty
+// drive B, and the launch image's boot pulse. Data bytes are sampled clocks
+// after the read starts, as the CPU does.
 #include "Vspectrum_upd765.h"
 #include "verilated.h"
 
@@ -40,8 +41,8 @@ void expect(bool ok, const std::string &what) {
 constexpr unsigned CLOCKS_PER_T = 15;
 constexpr uint64_t T_PER_MS = 3547;
 
-uint8_t pattern(unsigned cylinder, unsigned sector, unsigned offset) {
-    return uint8_t(cylinder * 9 * 7 + sector * 3 + offset * 13);
+uint8_t pattern(unsigned cylinder, unsigned sector, unsigned offset, unsigned head = 0) {
+    return uint8_t(cylinder * 9 * 7 + head * 97 + sector * 3 + offset * 13);
 }
 
 class Bench {
@@ -153,8 +154,8 @@ public:
         }
     }
     std::vector<uint8_t> read(uint8_t c, uint8_t r, uint8_t eot, std::vector<uint8_t> *res,
-                              uint8_t op = 0x46, unsigned delay_t = 0) {
-        command({op, 0x00, c, 0x00, r, 0x02, eot, 0x2a, 0xff});
+                              uint8_t op = 0x46, unsigned delay_t = 0, uint8_t unit_head = 0) {
+        command({op, unit_head, c, 0x00, r, 0x02, eot, 0x2a, 0xff});
         return transfer(res, 2000, delay_t);
     }
     std::vector<uint8_t> sense_int() {
@@ -270,6 +271,22 @@ int main(int argc, char **argv) {
             if (d[(s - 1) * 512 + 7] != pattern(2, s, 7)) fail("run sector " + std::to_string(s));
         expect(r[0] == 0x40 && r[1] == 0x80 && r[5] == 9, "run results");
     }
+    // Multi-track reads the other side at the same C, then ends at its EOT.
+    {
+        std::vector<uint8_t> r;
+        const auto d = b.read(2, 9, 9, &r, 0xc6);
+        expect(d.size() == 10 * 512, "multi-track: " + std::to_string(d.size()) + " bytes");
+        for (unsigned track_sector = 0; track_sector < 10; ++track_sector) {
+            const unsigned head = track_sector == 0 ? 0 : 1;
+            const unsigned sector = track_sector == 0 ? 9 : track_sector;
+            for (unsigned offset = 0; offset < 512; ++offset)
+                if (d[track_sector * 512 + offset] != pattern(2, sector, offset, head))
+                    fail("multi-track head " + std::to_string(head) + " sector " + std::to_string(sector) +
+                         " byte " + std::to_string(offset));
+        }
+        expect(r.size() == 7 && r[0] == 0x40 && r[1] == 0x80 && r[3] == 2 && r[4] == 1 && r[5] == 9,
+               "multi-track results end at head 1 EOT");
+    }
     // A sector that is not there: two index pulses, then Missing Address Mark.
     {
         std::vector<uint8_t> r;
@@ -297,6 +314,10 @@ int main(int argc, char **argv) {
         expect((r[0] & 0xc0) == 0x40 && (r[1] & 0x05) == 0x05, "ID CRC error: never found");
         b.read(3, 4, 4, &r);
         expect((r[2] & 0x40) && (r[0] & 0xc0) == 0 && r[1] == 0, "deleted data mark: control mark");
+        const auto skipped = b.read(3, 4, 4, &r, 0x46, 0, 0x20);
+        expect(skipped.empty() && r.size() == 7 && r[0] == 0x40 && r[1] == 0x80 &&
+               (r[2] & 0x40) && r[3] == 3 && r[4] == 0 && r[5] == 4,
+               "skip deleted sector at EOT ends with End of Cylinder");
         const auto deleted = b.read(3, 4, 4, &r, 0x4c);   // Read Deleted Data
         expect(deleted.size() == 512 && (r[2] & 0x40) == 0, "read deleted data");
         const auto w1 = b.read(3, 5, 5, &r);

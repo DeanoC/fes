@@ -193,35 +193,36 @@ def beta(verilator: str, go: str) -> None:
 
 
 def edsk() -> bytes:
-    """A single-sided extended DSK as upd765_tb.cpp expects: cylinders 0-2
-    of nine 512-byte sectors, cylinder 3 with a data CRC error (2), an ID CRC
-    error (3), a deleted sector (4) and a weak one (5)."""
-    def sector_bytes(cylinder: int, sector: int) -> bytes:
-        return bytes((cylinder * 63 + sector * 3 + i * 13) & 0xFF for i in range(512))
+    """A two-sided extended DSK as upd765_tb.cpp expects: cylinders 0-2
+    have nine 512-byte sectors per side; cylinder 3 side 0 has a data CRC
+    error (2), an ID CRC error (3), a deleted sector (4) and a weak one (5)."""
+    def sector_bytes(cylinder: int, head: int, sector: int) -> bytes:
+        return bytes((cylinder * 63 + head * 97 + sector * 3 + i * 13) & 0xFF for i in range(512))
 
     tracks = []
     for cylinder in range(4):
-        if cylinder < 3:
-            sectors = [(sector, 0, 0, sector_bytes(cylinder, sector)) for sector in range(1, 10)]
-        else:
-            weak = bytearray(sector_bytes(3, 5) * 2)
-            for i in range(100, 300):
-                weak[512 + i] ^= 0x5A
-            sectors = [(1, 0, 0, sector_bytes(3, 1)), (2, 0x20, 0x20, sector_bytes(3, 2)),
-                       (3, 0x20, 0, sector_bytes(3, 3)), (4, 0, 0x40, sector_bytes(3, 4)),
-                       (5, 0, 0, bytes(weak))]
-        info = bytearray(256)
-        info[:12] = b"Track-Info\r\n"
-        info[0x10], info[0x13], info[0x14], info[0x15], info[0x16], info[0x17] = cylinder, 2, 2, len(sectors), 0x4E, 0xE5
-        data = b""
-        for j, (r, st1, st2, body) in enumerate(sectors):
-            info[0x18 + 8 * j:0x20 + 8 * j] = bytes([cylinder, 0, r, 2, st1, st2, len(body) & 0xFF, len(body) >> 8])
-            data += body
-        track = bytes(info) + data
-        tracks.append(track + bytes(-len(track) % 256))
+        for head in range(2):
+            if cylinder < 3 or head == 1:
+                sectors = [(sector, 0, 0, sector_bytes(cylinder, head, sector)) for sector in range(1, 10)]
+            else:
+                weak = bytearray(sector_bytes(3, head, 5) * 2)
+                for i in range(100, 300):
+                    weak[512 + i] ^= 0x5A
+                sectors = [(1, 0, 0, sector_bytes(3, head, 1)), (2, 0x20, 0x20, sector_bytes(3, head, 2)),
+                           (3, 0x20, 0, sector_bytes(3, head, 3)), (4, 0, 0x40, sector_bytes(3, head, 4)),
+                           (5, 0, 0, bytes(weak))]
+            info = bytearray(256)
+            info[:12] = b"Track-Info\r\n"
+            info[0x10], info[0x11], info[0x13], info[0x14], info[0x15], info[0x16], info[0x17] = cylinder, head, 2, 2, len(sectors), 0x4E, 0xE5
+            data = b""
+            for j, (r, st1, st2, body) in enumerate(sectors):
+                info[0x18 + 8 * j:0x20 + 8 * j] = bytes([cylinder, head, r, 2, st1, st2, len(body) & 0xFF, len(body) >> 8])
+                data += body
+            track = bytes(info) + data
+            tracks.append(track + bytes(-len(track) % 256))
     header = bytearray(256)
     header[:34] = b"EXTENDED CPC DSK File\r\nDisk-Info\r\n"
-    header[0x30], header[0x31] = len(tracks), 1
+    header[0x30], header[0x31] = 4, 2
     for i, track in enumerate(tracks):
         header[0x34 + i] = len(track) // 256
     return bytes(header) + b"".join(tracks)
