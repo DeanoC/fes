@@ -30,8 +30,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
-  requires repair. Marked Coleco shells, including a format-3 16 KiB cartridge, link
-  one video part with an optional CPU expansion, retaining the shell identity
+  requires repair. Marked Coleco shells, including the format-4 BIOS and 16 KiB
+  cartridge shell, link one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See
   [library video preferences](docs/ARCHITECTURE.md#library-video-preferences) and

@@ -114,7 +114,9 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 		return protocol.Status{}, err
 	}
 	singleComposed, slotComposed := status.CorePackage != nil && status.CorePackage.Composition != nil, status.CorePackage != nil && status.CorePackage.SlotComposition != nil
-	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || status.CorePackage.ROMLink != nil)) || (!parts && status.CorePackage.PartsComposition != nil && status.CorePackage.ROMLink == nil) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	// A ROM input composes on the target, so its reply may carry a composition.
+	romLinked := status.CorePackage != nil && (status.CorePackage.ROMLink != nil || status.CorePackage.ROMLinks != nil)
+	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || romLinked)) || (!parts && status.CorePackage.PartsComposition != nil && !romLinked) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && !romLinked) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	// A physical load can finish after lease expiry has scheduled target cleanup.
@@ -151,20 +153,19 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	if c := value.PartsComposition; c != nil {
-		if value.Composition != nil || value.SlotComposition != nil || value.ROMLinks != nil || !validPartsStatus(*c, value.PackageID) {
+		if value.Composition != nil || value.SlotComposition != nil || !validPartsStatus(*c, value.PackageID) {
 			return false
 		}
+		// The ST shell links its firmware ROM (format 3). Coleco shells run
+		// ROM-less (format 2) or with the linked BIOS and cartridge (format 4).
 		if c.Layout == expansion.AtariStVideoLayout {
 			bound := protocol.MediaDataBound(value)
 			persistence := (value.PersistenceMode == "volatile" && !bound) || (value.PersistenceMode == "persistent" && bound)
-			if value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) || value.ROMLink == nil || !persistence {
+			if value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) || value.ROMLink == nil || value.ROMLinks != nil || !persistence {
 				return false
 			}
-		} else if (c.Layout == expansion.ColecoNativeVideoLayout || c.Layout == expansion.ColecoVideoLayout) && value.ROMLink != nil {
-			if value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
-				return false
-			}
-		} else if value.ROMLink != nil || value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
+		} else if value.ROMLink != nil || (value.ROMLinks != nil && c.Layout != expansion.ColecoNativeVideoLayout && c.Layout != expansion.ColecoVideoLayout) ||
+			value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
 			return false
 		}
 	}

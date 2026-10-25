@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -20,6 +20,9 @@ type ROMInputV2 struct {
 	BIOS      []byte
 	Cartridge []byte
 	Expansion *expansion.Asset
+	// Parts carries the Coleco video part and an optional CPU part. It
+	// excludes the single-socket Expansion.
+	Parts []expansion.Asset
 }
 
 type ROMSourceIdentity struct {
@@ -51,12 +54,18 @@ func (r ROMLinksIdentity) ValidFor(d Descriptor) bool {
 	return true
 }
 
+// romInputReceiptV2 binds the transported sources. With parts it also carries
+// the sender's link evidence, which the receiver compares after relinking.
 type romInputReceiptV2 struct {
-	Format      int                 `json:"format"`
-	PackageID   string              `json:"package_id"`
-	Sources     []ROMSourceIdentity `json:"sources"`
-	MapSHA256   string              `json:"map_sha256"`
-	ExpansionID string              `json:"expansion_id,omitempty"`
+	Format           int                         `json:"format"`
+	PackageID        string                      `json:"package_id"`
+	Sources          []ROMSourceIdentity         `json:"sources"`
+	MapSHA256        string                      `json:"map_sha256"`
+	ExpansionID      string                      `json:"expansion_id,omitempty"`
+	Parts            []expansion.PartSelection   `json:"parts,omitempty"`
+	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
+	ProgrammedSHA256 string                      `json:"programmed_sha256,omitempty"`
+	ProgrammedSize   int64                       `json:"programmed_size,omitempty"`
 }
 
 // Validation results stay private to one operation; they are never cached
@@ -67,11 +76,6 @@ type preparedROMInputV2 struct {
 	base, mapping []byte
 	receipt       romInputReceiptV2
 	romMap        *expansion.ROMMap
-}
-
-func inspectROMInputV2(in ROMInputV2) (Inspection, []byte, []byte, romInputReceiptV2, error) {
-	p, err := prepareROMInputV2(in)
-	return p.inspection, p.base, p.mapping, p.receipt, err
 }
 
 func prepareROMInputV2(in ROMInputV2) (preparedROMInputV2, error) {
@@ -86,6 +90,9 @@ func prepareROMInputV2(in ROMInputV2) (preparedROMInputV2, error) {
 	if d.Format != 4 || len(d.ROMs) != 2 || d.ROMMap == nil ||
 		int64(len(in.BIOS)) != d.ROMs[0].SourceSize || int64(len(in.Cartridge)) != d.ROMs[1].SourceSize {
 		return preparedROMInputV2{}, errors.New("two-source ROM input requires format 4 and exact BIOS/cartridge sizes")
+	}
+	if in.Expansion != nil && len(in.Parts) != 0 {
+		return preparedROMInputV2{}, errors.New("two-source ROM input carries either one expansion or parts")
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: d}
 	receipt := romInputReceiptV2{Format: 2, PackageID: inspection.PackageID, MapSHA256: d.ROMMap.SHA256,
@@ -103,6 +110,12 @@ func prepareROMInputV2(in ROMInputV2) (preparedROMInputV2, error) {
 		}
 		receipt.ExpansionID = in.Expansion.ID
 	}
+	if len(in.Parts) != 0 {
+		receipt.Parts, err = admitROMParts(inspection, payload, in.Parts)
+		if err != nil {
+			return preparedROMInputV2{}, err
+		}
+	}
 	return preparedROMInputV2{in, inspection, payload, mapping, receipt, parsed}, nil
 }
 
@@ -118,85 +131,84 @@ func IsROMInputV2(data []byte) bool {
 }
 
 func WriteROMInputV2(in ROMInputV2) ([]byte, error) {
-	_, _, _, receipt, err := inspectROMInputV2(in)
+	transport, err := PrepareROMInputV2(context.Background(), in)
+	return transport.Data, err
+}
+
+// PrepareROMInputV2 validates both sources and emits a canonical archive.
+// Parts are linked here as well; the receipt carries that closed evidence
+// for the receiver's independent relink.
+func PrepareROMInputV2(ctx context.Context, in ROMInputV2) (ROMTransport, error) {
+	if ctx == nil {
+		return ROMTransport{}, errors.New("missing ROM input context")
+	}
+	prepared, err := prepareROMInputV2(in)
 	if err != nil {
-		return nil, err
+		return ROMTransport{}, err
+	}
+	receipt := prepared.receipt
+	if len(in.Parts) != 0 {
+		linked, err := linkPreparedROMInputV2(ctx, prepared)
+		if err != nil {
+			return ROMTransport{}, err
+		}
+		receipt = linked.receipt
 	}
 	encoded, err := json.Marshal(receipt)
 	if err != nil {
-		return nil, err
+		return ROMTransport{}, err
 	}
-	members := []struct {
-		name string
-		data []byte
-	}{
+	members := []canonicalMember{
 		{"rom-link-v2.json", encoded}, {"package.tar", in.Package}, {"bios.bin", in.BIOS}, {"cartridge.bin", in.Cartridge},
 	}
 	if in.Expansion != nil {
 		var asset bytes.Buffer
 		if err := in.Expansion.Write(&asset); err != nil {
-			return nil, err
+			return ROMTransport{}, err
 		}
-		members = append(members, struct {
-			name string
-			data []byte
-		}{"expansion.tar", asset.Bytes()})
+		members = append(members, canonicalMember{"expansion.tar", asset.Bytes()})
 	}
-	var out bytes.Buffer
-	for _, member := range members {
-		out.Write(canonicalHeader(member.name, int64(len(member.data))))
-		out.Write(member.data)
-		out.Write(make([]byte, (512-len(member.data)%512)%512))
+	parts, err := romPartMembers(in.Parts)
+	if err != nil {
+		return ROMTransport{}, err
 	}
-	out.Write(make([]byte, 1024))
-	if out.Len() > MaxROMInputSize {
-		return nil, errors.New("two-source ROM input exceeds size limit")
+	data, err := writeCanonicalMembers(append(members, parts...), MaxROMInputSize)
+	if err != nil {
+		return ROMTransport{}, errors.New("two-source ROM input exceeds size limit")
 	}
-	return out.Bytes(), nil
+	return ROMTransport{Data: data, PartsComposition: receipt.PartsComposition}, nil
 }
 
 func readPreparedROMInputV2(data []byte) (preparedROMInputV2, error) {
 	if len(data) > MaxROMInputSize || !IsROMInputV2(data) {
 		return preparedROMInputV2{}, errors.New("invalid two-source ROM transport")
 	}
-	offset := 0
-	read := func(name string, limit int64) ([]byte, error) {
-		if len(data)-offset < 512 {
-			return nil, errors.New("truncated ROM input")
-		}
-		header := data[offset : offset+512]
-		size, err := canonicalSize(header[124:136])
-		if err != nil || size < 1 || size > limit || !bytes.Equal(header, canonicalHeader(name, size)) {
-			return nil, fmt.Errorf("invalid ROM member %s", name)
-		}
-		offset += 512
-		padded := int((size + 511) &^ 511)
-		if padded > len(data)-offset || !allZero(data[offset+int(size):offset+padded]) {
-			return nil, errors.New("invalid ROM member padding or length")
-		}
-		value := data[offset : offset+int(size)]
-		offset += padded
-		return value, nil
-	}
-	receipt, err := read("rom-link-v2.json", 4096)
+	reader := &canonicalReader{data: data}
+	receiptBytes, err := reader.read("rom-link-v2.json", 4096)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
-	pkg, err := read("package.tar", MaxArchiveSize)
+	pkg, err := reader.read("package.tar", MaxArchiveSize)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
-	bios, err := read("bios.bin", 256<<10)
+	bios, err := reader.read("bios.bin", 256<<10)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
-	cart, err := read("cartridge.bin", 256<<10)
+	cart, err := reader.read("cartridge.bin", 256<<10)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
 	in := ROMInputV2{Package: pkg, BIOS: bios, Cartridge: cart}
-	if len(data)-offset != 1024 {
-		encoded, err := read("expansion.tar", expansion.MaxArchiveBytes)
+	var sent romInputReceiptV2
+	decoder := json.NewDecoder(bytes.NewReader(receiptBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&sent); err != nil {
+		return preparedROMInputV2{}, errors.New("two-source receipt is invalid")
+	}
+	if reader.peek() == "expansion.tar" {
+		encoded, err := reader.read("expansion.tar", expansion.MaxArchiveBytes)
 		if err != nil {
 			return preparedROMInputV2{}, err
 		}
@@ -205,55 +217,103 @@ func readPreparedROMInputV2(data []byte) (preparedROMInputV2, error) {
 			return preparedROMInputV2{}, err
 		}
 		in.Expansion = &asset
+	} else if reader.hasROMParts() {
+		in.Parts, err = reader.readROMParts()
+		if err != nil {
+			return preparedROMInputV2{}, err
+		}
 	}
-	if len(data)-offset != 1024 || !allZero(data[offset:]) {
+	if err := reader.finish(); err != nil {
 		return preparedROMInputV2{}, errors.New("ROM input must end with two zero blocks")
 	}
 	prepared, err := prepareROMInputV2(in)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
-	canonical, err := json.Marshal(prepared.receipt)
+	expected := prepared.receipt
+	if len(in.Parts) != 0 {
+		if sent.PartsComposition == nil || sent.ProgrammedSHA256 == "" || sent.ProgrammedSize < 1 {
+			return preparedROMInputV2{}, errors.New("two-source parts input requires link evidence")
+		}
+		expected.PartsComposition, expected.ProgrammedSHA256, expected.ProgrammedSize = sent.PartsComposition, sent.ProgrammedSHA256, sent.ProgrammedSize
+	}
+	canonical, err := json.Marshal(expected)
 	if err != nil {
 		return preparedROMInputV2{}, err
 	}
-	if !bytes.Equal(receipt, canonical) {
+	if !bytes.Equal(receiptBytes, canonical) {
 		return preparedROMInputV2{}, errors.New("two-source receipt differs from components")
 	}
+	prepared.receipt = expected
 	return prepared, nil
 }
 
-func linkPreparedROMInputV2(ctx context.Context, prepared preparedROMInputV2) (Inspection, ROMLinksIdentity, []byte, *CompositionBundle, error) {
+type romLinksResult struct {
+	inspection Inspection
+	identity   ROMLinksIdentity
+	programmed []byte
+	bundle     *CompositionBundle
+	parts      *PartsBundle
+	receipt    romInputReceiptV2
+}
+
+// linkPreparedROMInputV2 derives every programmed byte from the sealed map.
+// Receipt link evidence, when present, must equal this independent result.
+func linkPreparedROMInputV2(ctx context.Context, prepared preparedROMInputV2) (romLinksResult, error) {
 	if err := ctx.Err(); err != nil {
-		return Inspection{}, ROMLinksIdentity{}, nil, nil, err
+		return romLinksResult{}, err
 	}
 	inspection, base, receipt := prepared.inspection, prepared.base, prepared.receipt
+	sent := receipt
+	receipt.PartsComposition, receipt.ProgrammedSHA256, receipt.ProgrammedSize = nil, "", 0
 	in := prepared.input
 	source := append(append(make([]byte, 0, len(in.BIOS)+len(in.Cartridge)), in.BIOS...), in.Cartridge...)
 	m := *prepared.romMap
+	if err := validateROMPartsDestinations(ctx, inspection, base, m); err != nil {
+		return romLinksResult{}, err
+	}
+	result := romLinksResult{inspection: inspection}
 	var err error
-	var programmed []byte
-	var bundle *CompositionBundle
-	if in.Expansion == nil {
-		programmed, err = expansion.LinkROM(ctx, base, m, source)
-	} else {
-		shell, shellErr := compositionShell(inspection, base)
-		if shellErr != nil {
-			return Inspection{}, ROMLinksIdentity{}, nil, nil, shellErr
+	switch {
+	case len(in.Parts) != 0:
+		var parts *PartsBundle
+		parts, result.programmed, err = linkROMParts(ctx, inspection, in.Package, base, in.Parts, m, source)
+		if err != nil {
+			return romLinksResult{}, err
 		}
-		identity, overlay, result, linkErr := expansion.ComposeROM(ctx, shell, *in.Expansion, m, source)
-		err = linkErr
-		programmed = result
-		bundle = &CompositionBundle{Package: in.Package, Asset: *in.Expansion, Composition: identity, Payload: overlay}
+		result.parts = parts
+		final := parts.Composition
+		receipt.PartsComposition = &final
+		receipt.ProgrammedSHA256, receipt.ProgrammedSize = romDigest(result.programmed), int64(len(result.programmed))
+	case in.Expansion == nil:
+		result.programmed, err = expansion.LinkROM(ctx, base, m, source)
+		if err != nil {
+			return romLinksResult{}, err
+		}
+	default:
+		shell, err := compositionShell(inspection, base)
+		if err != nil {
+			return romLinksResult{}, err
+		}
+		identity, overlay, programmed, err := expansion.ComposeROM(ctx, shell, *in.Expansion, m, source)
+		if err != nil {
+			return romLinksResult{}, err
+		}
+		result.programmed = programmed
+		result.bundle = &CompositionBundle{Package: in.Package, Asset: *in.Expansion, Composition: identity, Payload: overlay}
 	}
-	if err != nil {
-		return Inspection{}, ROMLinksIdentity{}, nil, nil, err
+	if sent.PartsComposition != nil || sent.ProgrammedSHA256 != "" || sent.ProgrammedSize != 0 {
+		if !reflect.DeepEqual(sent.PartsComposition, receipt.PartsComposition) ||
+			sent.ProgrammedSHA256 != receipt.ProgrammedSHA256 || sent.ProgrammedSize != receipt.ProgrammedSize {
+			return romLinksResult{}, errors.New("two-source parts link evidence differs from the independent link")
+		}
 	}
-	identity := ROMLinksIdentity{Sources: receipt.Sources, MapSHA256: receipt.MapSHA256, ProgrammedSHA256: romDigest(programmed), ProgrammedSize: int64(len(programmed))}
-	if !identity.ValidFor(inspection.Descriptor) {
-		return Inspection{}, ROMLinksIdentity{}, nil, nil, errors.New("invalid linked source identity")
+	result.receipt = receipt
+	result.identity = ROMLinksIdentity{Sources: receipt.Sources, MapSHA256: receipt.MapSHA256, ProgrammedSHA256: romDigest(result.programmed), ProgrammedSize: int64(len(result.programmed))}
+	if !result.identity.ValidFor(inspection.Descriptor) {
+		return romLinksResult{}, errors.New("invalid linked source identity")
 	}
-	return inspection, identity, programmed, bundle, nil
+	return result, nil
 }
 
 // StageROMInputV2 verifies and links both sources before publishing any package.
@@ -272,16 +332,20 @@ func StageROMInputV2(ctx context.Context, root string, size int64, reader io.Rea
 	if err != nil {
 		return Staged{}, err
 	}
-	_, identity, programmed, bundle, err := linkPreparedROMInputV2(ctx, prepared)
+	linked, err := linkPreparedROMInputV2(ctx, prepared)
 	if err != nil {
 		return Staged{}, err
 	}
+	identity, programmed := linked.identity, linked.programmed
 	in := prepared.input
 	var staged Staged
-	if bundle == nil {
+	switch {
+	case linked.parts != nil:
+		staged, err = stagePartsBundle(ctx, root, *linked.parts)
+	case linked.bundle != nil:
+		staged, err = stageCompositionBundle(ctx, root, *linked.bundle)
+	default:
 		staged, err = Stage(ctx, root, int64(len(in.Package)), bytes.NewReader(in.Package))
-	} else {
-		staged, err = stageCompositionBundle(ctx, root, *bundle)
 	}
 	if err != nil {
 		return Staged{}, err

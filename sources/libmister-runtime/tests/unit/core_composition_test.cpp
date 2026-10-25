@@ -398,6 +398,13 @@ void DeveloperVideoPartsAdmission(bool native=false,bool st=false) {
  assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
  f.base.descriptor.interfaces.push_back(f.base.descriptor.interfaces.back());assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
  f.base.descriptor.format=st ? 2 : 3;assert(!f.Open(&out).ok());f.base.descriptor.format=st ? 3 : 2;
+ if (!st) {
+  f.base.descriptor.format=4;assert(!f.Open(&out).ok());
+  f.base.descriptor.roms={{"coleco-bios","firmware",8192,0},{"coleco-cart","cartridge",16384,8192}};
+  assert(f.Open(&out).ok());
+  f.base.descriptor.roms[1].source_size=131072;assert(!f.Open(&out).ok());
+  f.base.descriptor.roms.clear();f.base.descriptor.format=2;
+ }
  f.request.composition.layout=native ? "fes.coleco-video.parts/1" : "fes.coleco-native-video.parts/1";
  seal();assert(!f.Open(&out).ok());f.request.composition.layout=layout;seal();
  const std::string crossed_map=native ? "fes.coleco-video.socket/1" : "fes.coleco-native-video.socket/1";
