@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -57,9 +58,9 @@ func (s *Service) rememberZX81Program(ctx context.Context, client serviceClient,
 	// ordinary FPGA stops do not depend on a catalog read just to rule out ZX81.
 	if play.system == catalog.CorePlatform {
 		if play.coreID != "" {
-			if play.coreID != "fes.zx81" {
+			if !zx81family.Saves(play.coreID) {
 				zx81SaveLog(ctx, slog.LevelInfo, "ZX81 SAVE check skipped", play,
-					slog.String("reason", "play_is_not_zx81"),
+					slog.String("reason", "core_does_not_save"),
 					slog.String("core_id", play.coreID),
 				)
 				return nil
@@ -79,9 +80,9 @@ func (s *Service) rememberZX81Program(ctx context.Context, client serviceClient,
 			if ok {
 				entry, err := entries.CoreEntry(ctx, play.gameID)
 				if err == nil {
-					if entry.CoreID != "fes.zx81" {
+					if !zx81family.Saves(entry.CoreID) {
 						zx81SaveLog(ctx, slog.LevelInfo, "ZX81 SAVE check skipped", play,
-							slog.String("reason", "play_is_not_zx81"),
+							slog.String("reason", "core_does_not_save"),
 							slog.String("core_id", entry.CoreID),
 						)
 						return nil
