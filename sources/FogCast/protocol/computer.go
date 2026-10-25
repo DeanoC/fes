@@ -404,6 +404,14 @@ func AdmitSpectrumTapeName(name string) bool {
 	return spectrumtapes.Admit(name)
 }
 
+// AdmitSpectrumSnapshotName accepts a Spectrum .z80 or .sna snapshot basename.
+func AdmitSpectrumSnapshotName(name string) bool {
+	if name == "" || strings.ContainsAny(name, "/\\") || name != filepath.Base(name) {
+		return false
+	}
+	return spectrumsnapshots.Admit(name)
+}
+
 // AdmitSpectrumCassetteName accepts a Spectrum tape image or a .z80 or .sna
 // snapshot basename; the active package decides whether it runs snapshots.
 func AdmitSpectrumCassetteName(name string) bool {

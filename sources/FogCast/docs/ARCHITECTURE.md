@@ -727,8 +727,10 @@ On a kit, Home or Select/View opens **Change media** directly over the running
 machine, with transparent pixels outside the opaque picker. The launch room
 is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
-or Atari ST `.st`. It applies the active interface and reported size limits
-before import; the host and runtime validate the object again. ZX81 also
+or Atari ST `.st`. Spectrum `.z80` and `.sna` appear only when the active
+package reports `fes.media.spectrum-snapshot` 1.0. It applies the active
+interface and reported size limits before import; the host and runtime
+validate the object again. ZX81 also
 shows the existing starter-tape shelf only when its game entry identifies
 `fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine
 (home, mounted media and accessible library roots); saved FogCast host drives are browsed through drive-relative storage APIs. Import, insert and eject retain the session captured when
@@ -811,9 +813,9 @@ same unit 0. The library keeps the image as imported; at insertion
 stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
 package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
 `-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80` and `.sna`;
-media that is not a tape image but reads as a snapshot is converted by
-`internal/spectrumsnapshots` to the core's restore stream instead, and a
-snapshot of a machine the package does not declare is refused. A shell
+the host checks for a valid snapshot before probing tape blocks because TAP
+has no magic header, converts it by `internal/spectrumsnapshots` to the core's
+restore stream, and refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are

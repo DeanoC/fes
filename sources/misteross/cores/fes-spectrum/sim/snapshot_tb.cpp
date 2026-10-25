@@ -194,6 +194,23 @@ int main(int argc, char** argv) {
     const uint8_t* marked = spectrum_ram_bank(root, marker_bank);
     require(marked != nullptr && marked[marker_offset] == marker_value, "the restored program did not run");
     require(!root.MACHINE(restoring), "a second restore started");
-    std::cout << "fes.spectrum " SPECTRUM_MODEL_NAME " snapshot: registers, paging, AY and RAM restored; program ran\n";
+
+    // Reset the machine without ejecting the snapshot. The same inserted
+    // stream must be probed and restored again after reset.
+    dut.reset = 1;
+    for (int i = 0; i < 64; ++i) clock();
+    dut.reset = 0;
+    while (!root.MACHINE(restoring) && clocks < limit) clock();
+    require(root.MACHINE(restoring), "snapshot did not restart after machine reset");
+    while (root.MACHINE(restoring) && clocks < limit) clock();
+    require(!root.MACHINE(restoring), "repeat restore never finished");
+    require(pos == stream.size(), "repeat restore ended before the stream did");
+    while (root.MACHINE(cpu_m1_n) && clocks < limit) clock();
+    require(!root.MACHINE(cpu_m1_n), "no fetch after the repeated restore");
+    check("pc", root.MACHINE(cpu_a));
+    check("af", root.ENGINE(a_reg) << 8 | root.ENGINE(f_reg));
+    check("sp", root.ENGINE(sp));
+    check("border", root.MACHINE(border_q));
+    std::cout << "fes.spectrum " SPECTRUM_MODEL_NAME " snapshot: registers, paging, AY and RAM restored; program ran and restored again after reset\n";
     return 0;
 }

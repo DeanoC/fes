@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
+	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -34,6 +35,16 @@ func sna128() []byte {
 	return append(sna48(), make([]byte, 4+5*16<<10)...)
 }
 
+// z80TapCollision is a valid uncompressed 48K version-1 .z80 file whose
+// first RAM bytes make its full contents a valid sequence of TAP blocks.
+func z80TapCollision() []byte {
+	data := make([]byte, 30+48<<10)
+	data[0], data[1] = 0x1c, 0x00   // TAP block length 28
+	data[6] = 1                     // nonzero .z80 PC
+	data[30], data[31] = 0xfe, 0xbf // TAP block length 49150
+	return data
+}
+
 // tap is one 19-byte header block.
 func tap() []byte {
 	block := append([]byte{0x00}, make([]byte, 18)...)
@@ -56,6 +67,17 @@ func TestSpectrumCassetteStreamChoosesTapeOrSnapshot(t *testing.T) {
 		if err != nil || !bytes.HasPrefix(stream, spectrumsnapshots.Magic[:]) {
 			t.Fatalf("%s snapshot: %v", name, err)
 		}
+	}
+}
+
+func TestSpectrumCassetteStreamPrioritizesValidSnapshotOverTAP(t *testing.T) {
+	data := z80TapCollision()
+	if !spectrumsnapshots.Recognize(data) || !spectrumtapes.Recognize(data) {
+		t.Fatal("fixture must be recognized as both a valid snapshot and TAP")
+	}
+	stream, err := cassette(t, spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID), data)
+	if err != nil || !bytes.HasPrefix(stream, spectrumsnapshots.Magic[:]) {
+		t.Fatalf("ambiguous snapshot became a tape: %v", err)
 	}
 }
 

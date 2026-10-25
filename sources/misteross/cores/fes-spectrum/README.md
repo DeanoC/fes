@@ -181,7 +181,8 @@ writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
 with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
 `cmd/fes-spectrum-restore` (Go), streams it with random gaps and checks every
 register, the paging ports, border, AY registers and all RAM at the first
-fetch from real memory, then that the restored program runs; each model also
+fetch from real memory, then that the restored program runs and restores
+again after a machine reset with the snapshot still inserted; each model also
 leaves a stream of a class it cannot run to the deck. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives

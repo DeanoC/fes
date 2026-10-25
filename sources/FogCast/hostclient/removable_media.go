@@ -33,6 +33,18 @@ func RemovableMediaCapable(p *SessionCorePackage) bool {
 	return ok || LiveMediaCapable(p)
 }
 
+func spectrumSnapshotsCapable(p *SessionCorePackage) bool {
+	if p == nil {
+		return false
+	}
+	for _, i := range p.ActiveInterfaces {
+		if i.ID == protocol.SpectrumSnapshotInterfaceID && i.Major == 1 && i.Minor == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // AdmitRemovableMedia applies the active unit's format and observed size
 // limits. A Spectrum tape image is converted to the unit's PZX stream on
 // insert, and a snapshot to its restore stream, so each is bounded as an
@@ -43,6 +55,9 @@ func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 		return LiveMediaCapable(p) && protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size)
 	}
 	if u.Interface == protocol.SpectrumTapeInterface() {
+		if protocol.AdmitSpectrumSnapshotName(name) && !spectrumSnapshotsCapable(p) {
+			return false
+		}
 		return protocol.AdmitSpectrumCassetteName(name) && protocol.AdmitSpectrumTapeSize(size)
 	}
 	if size < int64(u.MinBytes) || size > int64(u.MaxBytes) {
