@@ -99,10 +99,8 @@ STAGES = {
     'm2': (('M2', r'(.*\.)?load_'),),
 }
 # M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform
-# rules). proc -norom first keeps the length decoders' opcode tables in logic:
-# Yosys would otherwise turn them into asynchronous ROMs, which an M10K
-# cannot be.
-SYNTHESIS = 'proc -norom; synth_intel_alm -family cyclonev -nolutram'
+# rules).
+SYNTHESIS = 'synth_intel_alm -family cyclonev -nolutram'
 
 
 def digest(path: Path) -> str:
