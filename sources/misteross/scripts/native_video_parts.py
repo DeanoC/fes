@@ -20,9 +20,10 @@ REGION = "video"
 PLACEMENT = "video 5 23 38 38"
 CRAM = (124, 1800, 3906, 3442)
 CLOCK = "pixel_clk"
-# Seed 3 misses pixel_clk on the Scanlines part (70.5 MHz); seed 11 closes
-# both parts on the session-display shell (Direct 75.65, Scanlines 76.35 MHz).
-PLACER_SEED = 11
+# Once the shell supplies the plane's valid bit, seed 11 misses pixel_clk on
+# the Scanlines part (69.64 MHz analogue). A HIP sweep of seeds 1-16 passes
+# ten; seed 1 has the most margin (Scanlines 77.84, Direct 79.53 MHz).
+PLACER_SEED = 1
 PREFIX = "video_socket."
 REQUEST_BITS = 32
 RESPONSE_BITS = 28
