@@ -144,16 +144,46 @@ Programmer's Reference Manual (1986):
   implemented. This is a recorded deviation; no target software is known to
   use it.
 
-Hidden descriptor caches behave as on a 386. A segment load in real or V86 mode
-sets the base to selector × 16, the limit to FFFFh, and the attributes to their
-real-mode values; it does not preserve an extended limit. Unreal mode instead
-loads a larger descriptor in protected mode and then clears PE without reloading
-that segment register. Its cached descriptor survives until that register is
-loaded again in real or V86 mode. Every data access is checked against the
-cached limit in every mode: with a normal real-mode segment, a word access at
-offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode segment
-uses its cached extended limit ([Intel 80386 Programmer's Reference Manual,
-§2.3.5](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
+Hidden descriptor caches behave as on a 386:
+
+- In real mode, loading DS, ES, FS, GS or SS sets the selector and sets the
+  base to selector × 16. The cached limit and attributes stay as they were.
+- A real-mode load of CS, by a far transfer or an interrupt, sets the base the
+  same way and gives CS a limit of FFFFh and real-mode access rights.
+- In V86 mode every segment load sets the base to selector × 16, the limit to
+  FFFFh and the attributes to V86 values.
+- A protected-mode load replaces the whole cache from the descriptor.
+
+So unreal mode works. Software loads a segment with a large limit in protected
+mode and clears PE, and the limit survives every later real-mode reload of
+that register; it ends only when the register is loaded in protected or V86
+mode. DOS reloads DS and ES on every call, so unreal-mode programs that call
+DOS depend on this, and Ultima VII's Voodoo memory manager runs in unreal mode.
+Every data access is checked against the cached limit in every mode: with a
+normal real-mode segment, a word access at offset FFFFh raises #GP (#SS for a
+stack access), while an unreal-mode segment uses its cached extended limit.
+
+The evidence:
+
+- The 386 manual's procedure for returning to real mode
+  ([§14.5](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s14_05.htm))
+  has software load SS, DS, ES, FS and GS with 64K-limit, byte-granular,
+  expand-up, writable descriptors before it clears PE. That step is needed
+  only because real-mode loads leave the limit alone. The procedure also moves
+  to a 64K code segment first, because code runs on the old CS cache until the
+  far JMP, and that far JMP "puts appropriate values in the access rights of
+  the CS register".
+- Bochs, the lockstep oracle (`REL_3_1_FINAL`, `cpu/segment_ctrl_pro.cc`,
+  `load_seg_reg`), keeps the limit and attributes on every real-mode load
+  ("Support for big real mode") and sets FFFFh and V86 attributes in V86 mode.
+  Its comment quotes Robert Collins' x86.org finding that on the 286, 386 and
+  486 only CS gets fixed real-mode values when loaded in real mode.
+- Bochs also keeps CS's cache on a real-mode far transfer. When the RTL
+  lockstep reaches that case it goes into the divergence list, following
+  x86.org and §14.5.
+- Neither corpus checks hidden segment state. SingleStepTests/80386 has no
+  unreal-mode set yet, and test386.asm has no unreal-mode test. Phase 2's
+  directed unreal-mode tests cover it.
 
 ### The 386, not the 486
 
@@ -215,10 +245,24 @@ pull-up resistors on the data bus when no coprocessor is fitted, and a
 So:
 
 - CR0.ET is 0 after reset, and MOV to CR0 can change it, as on the 386DX.
-- EM, MP and TS act as architected. ESC raises #NM when EM is set or when MP
-  and TS are both set; TS alone is insufficient. WAIT raises #NM when MP and
-  TS are both set ([Intel 80386 Programmer's Reference Manual, §11.1.5.1](https://read.seas.harvard.edu/~kohler/class/aosref/i386.pdf)).
-  Software FPU emulators rely on this.
+- EM, MP and TS act as architected. ESC raises #NM when EM or TS is set. WAIT
+  raises #NM only when MP and TS are both set. Software FPU emulators and lazy
+  FPU context switching rely on this. The evidence:
+  - The 386 manual's
+    [§11.1](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s11_01.htm)
+    says "If, when interpreting one of the ESC instructions, the CPU finds TS
+    already set, it causes exception 7", and its
+    [§4.1.3](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s04_01.htm)
+    says the processor "tests TS when interpreting coprocessor instructions".
+  - The summary list in §11.1.5.1 names only EM, or MP and TS together, for
+    ESC. It is narrower than the section's own TS paragraph, and this design
+    follows the TS paragraph.
+  - Bochs, the lockstep oracle, does the same: `BxNoFPU` in
+    `cpu/proc_ctrl.cc` raises #NM on EM or TS, and WAIT in `cpu/fpu_emu.cc`
+    raises it only on TS with MP. Intel's later SDM table for EM, MP and TS
+    gives the same answer for TS alone: an FPU instruction raises #NM and WAIT
+    executes.
+  - Neither corpus covers it, since SingleStepTests/80386 leaves out D8–DF.
 - Otherwise ESC instructions complete without an FPU exception of their own and
   never raise IRQ13. WAIT does nothing.
 - On a tested 386DX-33 with an empty 387 socket, FNSTSW to memory and FNSTCW
