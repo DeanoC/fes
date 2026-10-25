@@ -286,11 +286,11 @@ def main() -> int:
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
                            other['summary']['trace_hash'] for other in random_results if other['seed'] == result['seed'])]
-    # Cycles between retirements without latency: in sequence, after extra
-    # prefixes, after a taken branch.
+    # Cycles between retirements without latency, by what retired (see
+    # lockstep_tb.cpp's Summary).
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
-            for key in ('sequential', 'prefixed', 'after_taken')}
+            for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken')}
     if corpus_failures or random_failures or hash_mismatches:
         exit_code = 1
     report.update({
@@ -317,9 +317,11 @@ def main() -> int:
             total = sum(histogram.values())
             return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
         common = max(gaps['after_taken'], key=gaps['after_taken'].get) if gaps['after_taken'] else None
-        print(f"cycles between retirements without latency: {sum(gaps['sequential'].values())} in sequence, "
-              f"{share(gaps['sequential'], 1)} one cycle apart; {sum(gaps['after_taken'].values())} after a taken "
-              f"branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart")
+        print(f"cycles between retirements without latency: {sum(gaps['sequential'].values())} other "
+              f"instructions, {share(gaps['sequential'], 1)} one cycle apart; "
+              f"{sum(gaps['after_not_taken'].values())} after a branch not taken, "
+              f"{share(gaps['after_not_taken'], 1)} one cycle apart; {sum(gaps['after_taken'].values())} after a "
+              f"taken branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart")
     for line in (corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')

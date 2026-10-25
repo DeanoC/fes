@@ -393,10 +393,12 @@ struct Summary {
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
-    // Cycles from one retirement to the next: after an instruction that
-    // continued in sequence with at most one prefix, after one with more
-    // prefixes (each but the last costs Q a cycle), and after a taken branch.
-    std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_after_taken;
+    // Cycles from one retirement to the next, by what retired: after a
+    // branch, taken or not; otherwise an instruction with more than one
+    // prefix (each but the last costs Q a cycle), an LEA, a selector read
+    // (MOV r/m, Sreg), or any other.
+    std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
+        gap_after_not_taken;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -406,6 +408,45 @@ void hash_state(Summary &summary, const State &s) {
     mix(s.eip);
     for (uint32_t r : s.gpr) mix(r);
     mix(s.eflags);
+}
+
+// A branch's opcode and whether it is taken from this state, as the 386
+// decides: Jcc by its condition, LOOPcc and JCXZ by CX or ECX (address size).
+bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken) {
+    unsigned i = 0;
+    bool as32 = code32;
+    while (i < 15 && is_prefix(code[i])) {
+        if (code[i] == 0x67) as32 = !code32;
+        ++i;
+    }
+    const uint8_t op = code[i];
+    auto cond = [&](unsigned cc) {
+        const uint32_t f = s.eflags;
+        const bool cf = f & 1, pf = f & 4, zf = f & 0x40, sf = f & 0x80, of = f & 0x800;
+        bool t = false;
+        switch (cc >> 1) {
+        case 0: t = of; break;
+        case 1: t = cf; break;
+        case 2: t = zf; break;
+        case 3: t = cf || zf; break;
+        case 4: t = sf; break;
+        case 5: t = pf; break;
+        case 6: t = sf != of; break;
+        default: t = zf || sf != of; break;
+        }
+        return t != bool(cc & 1);
+    };
+    const uint32_t count = as32 ? s.gpr[fes_i386::REG_ECX] : s.gpr[fes_i386::REG_ECX] & 0xffff;
+    const bool zf = s.eflags & 0x40;
+    if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
+    else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
+    else if (op == 0xe9 || op == 0xeb) taken = true;
+    else if (op == 0xe2) taken = count != 1;
+    else if (op == 0xe1) taken = count != 1 && zf;
+    else if (op == 0xe0) taken = count != 1 && !zf;
+    else if (op == 0xe3) taken = count == 0;
+    else return false;
+    return true;
 }
 
 struct Outcome {
@@ -420,7 +461,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                  const Fields &label_corpus, uint64_t retire_limit, Summary &summary, Mismatches &out) {
     Outcome outcome;
     uint64_t last_retirement = 0;
-    bool retired_before = false, taken_before = false;
+    bool retired_before = false, branch_before = false, taken_before = false;
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
             outcome.limit = true;
@@ -463,12 +504,17 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         {
             unsigned prefixes = 0;
             while (prefixes < 15 && is_prefix(code[prefixes])) ++prefixes;
-            if (retired_before)
-                ++(taken_before ? summary.gap_after_taken : prefixes > 1 ? summary.gap_prefixed
-                                                                           : summary.gap_sequential)[rtl.cycles - last_retirement];
-            const fes_i386::Decoded decoded = oracle.decode(code, 16, code32);
+            const uint8_t op = code[prefixes];
+            if (retired_before) {
+                auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
+                           : prefixes > 1 ? summary.gap_prefixed
+                           : op == 0x8d ? summary.gap_lea
+                           : op == 0x8c ? summary.gap_selector
+                                        : summary.gap_sequential;
+                ++gaps[rtl.cycles - last_retirement];
+            }
             retired_before = true;
-            taken_before = !decoded.complete || oracle.get_state().eip != before.eip + decoded.length;
+            branch_before = branch_taken(code, before, code32, taken_before);
             last_retirement = rtl.cycles;
         }
 
@@ -1058,13 +1104,16 @@ int main(int argc, char **argv) {
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"retire_limits\": %llu, \"divergence_retirements\": {%s}, \"trace_hash\": \"%016llx\", "
-                "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"after_taken\": %s}}\n",
+                "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
+                "\"after_taken\": %s, \"after_not_taken\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.limits,
                 divergences.c_str(), (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
-                histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_after_taken).c_str());
+                histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
+                histogram(summary.gap_selector).c_str(), histogram(summary.gap_after_taken).c_str(),
+                histogram(summary.gap_after_not_taken).c_str());
     return summary.failed ? 1 : 0;
 }
