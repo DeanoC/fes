@@ -29,6 +29,9 @@ open first.
 
 - [i386 CPU design](i386-cpu-design.md) — a first-party 386-compatible CPU
   for era games. No RTL exists; it is not a build instruction.
+- [pc386 machine design](pc386-machine-design.md) — the fes.pc386 AT-class
+  machine around that CPU: chipset, VGA, audio, ATA disk in DDR, open BIOS.
+  No RTL exists; it is not a build instruction.
 
 ## Dated records
 

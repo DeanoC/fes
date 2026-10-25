@@ -5,11 +5,17 @@ pinned Bochs oracle adapter and corpus runners ([#1071](https://github.com/Deano
 are implemented. Phase 1's first slice, delivered by
 [#1080](https://github.com/DeanoC/fes/pull/1080), implements the uop definitions,
 front end through Q, and AG address unit; Verilator checks cover length decode,
-front-end behavior and AG arithmetic. Four-seed routed spikes cover the front
-end, AG and M2. With nextpnr `bd7a1c0d`'s corrected timing model, their fmax
-ranges are 69.74–74.35 MHz, 77.36–80.71 MHz and 102.23–109.69 MHz,
-respectively, against a 100 MHz target. The pipeline below follows those
-measurements. See the [RTL README](../cores/fes-common/rtl/i386/README.md),
+front-end behavior and AG arithmetic. Four-seed routed spikes from that first
+slice cover the front end, AG and M2. The first-slice front-end routes used
+pre-correction RTL whose synthesized length decoder omitted some ModRM and
+immediate bytes. The corrected decoder had not been routed at the time, so
+corrected front-end timing was unmeasured in that record. The later
+[Phase 1 cuts](validation/2026-10-25-i386-phase1-cuts.md) record
+remeasurements of the revised stages. With nextpnr bd7a1c0d's corrected timing model, the
+pre-correction front end routed at 69.74–74.35 MHz; AG and M2 routed at
+77.36–80.71 MHz and 102.23–109.69 MHz, respectively, against a 100 MHz
+target. The original pipeline below follows those first-slice measurements.
+See the [RTL README](../cores/fes-common/rtl/i386/README.md),
 [simulation README](../cores/fes-common/sim/i386/README.md) and
 [Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md). The CPU
 top, decode, caches, execute, whole-CPU lockstep, complete machine, package,
@@ -265,7 +271,7 @@ PC/XT's FFh for unclaimed reads.
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
 | Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The CPU's timing figures come from the newest authenticated nextpnr with the corrected LUT-input and M10K timing models (`bd7a1c0d` when Phase 1 measured). A lock is a last known good and moves forward | [Recipes](architecture.md#per-core-place-and-route-recipes) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
-| i386 Phase 1 spikes | Each block routed alone with nextpnr `bd7a1c0d`, seeds 1–4: the front end as first drawn 70–74 MHz, AG as first drawn 77–81 MHz, M2 102–110 MHz. The repository lock's older nextpnr reports 84–98 MHz for the first two because it predates the corrected models | [#1080](https://github.com/DeanoC/fes/pull/1080) |
+| i386 Phase 1 spikes | Each block routed alone with nextpnr bd7a1c0d, seeds 1–4: the pre-correction first-slice front end 70–74 MHz, AG as first drawn 77–81 MHz, M2 102–110 MHz. The repository lock's older nextpnr reports 84–98 MHz for the same pre-correction netlists because it predates the corrected models | [#1080](https://github.com/DeanoC/fes/pull/1080) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
 | HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md) |
 | RAM rules | M10K reads are synchronous (producers reject asynchronous M10K); current producers forbid MLAB | [Architecture](architecture.md) |
@@ -291,7 +297,8 @@ Rules that follow, checked in review and against every routed critical path:
 7. In the stage where an M10K output arrives, it feeds at most equality
    compares and a way select. That is M2's shape, which routed at 102–110 MHz.
    Decoding M10K data waits for the next stage: the first front end, with seven
-   LUT levels of length decode behind the M10K, routed at 70–74 MHz.
+   LUT levels of length decode behind the M10K, routed at 70–74 MHz on the
+   pre-correction RTL.
 8. A stage with a 32-bit carry chain has at most two LUT levels before the
    chain and one after it. The first AG, with four or five levels before and
    two after, routed at 77–81 MHz.
@@ -477,9 +484,9 @@ Phase 1 checked the decoders against the oracle on every opcode, ModRM, SIB
 and single-prefix combination in both default sizes, with no mismatch, and
 showed one prefix-free instruction per cycle
 ([#1080](https://github.com/DeanoC/fes/pull/1080)). Its first draft decoded
-straight from the M10K output in F2 and routed at 70–74 MHz; the L stage
-exists because of that ([rule 7](#platform-constraints)). The I-cache's ×40
-spare bits stay unused: two bits per byte cannot hold a length for every size
+straight from the M10K output in F2 and, on the pre-correction RTL, routed
+at 70–74 MHz; the L stage exists because of that
+([rule 7](#platform-constraints)). The I-cache's ×40 spare bits stay unused: two bits per byte cannot hold a length for every size
 variant.
 
 ## Decode and microcode
