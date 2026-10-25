@@ -27,7 +27,7 @@
 // this edge: Q's start has then left that half and cannot read it next cycle.
 // For the same reason the next half's term assumes a release whenever Q is in
 // that half now.
-module fes_i386_fetchbuf (
+module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              clk,
     input  logic              reset,
     input  logic              redirect,
@@ -44,12 +44,9 @@ module fes_i386_fetchbuf (
     output logic [1:0][27:0]  half_block,
     output logic [31:0][7:0]  bytes,
     // Each buffer byte's decode from L2 (fes_i386_lstage), by accumulator variant.
-    output fes_i386_pkg::lbyte_t [31:0] dec,
+    output lbyte_t [31:0]     dec,
     output logic [31:0][3:0]  avail
 );
-    typedef fes_i386_pkg::lclass_t lclass_t;
-    typedef fes_i386_pkg::lbyte_t lbyte_t;
-
     logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
     logic [1:0]       filling;  // L2 writes this half on this edge
     logic             active;       // F2 holds a block; idle from reset to the first redirect
@@ -102,14 +99,11 @@ module fes_i386_fetchbuf (
         localparam int SLOT = K < 12 ? K + 4 : K - 12;
         logic       here, next_ok, written;
         logic [3:0] far_next;
-        lbyte_t     stored, incoming;  // whole records: DeanoC/yosys#52
 
         assign here = valid_next[H] && (K < 12 || tail_next[H]);
         assign next_ok = hold_next[1 - H] || (q_half == (H != 0) && valid_next[1 - H]);
         assign written = l2_fire && (half == (H != 0)) == (K < 12);
-        assign stored = dec[j];
-        assign incoming = new_dec[SLOT];
-        assign far_next = written ? incoming.past_half : stored.past_half;
+        assign far_next = written ? new_dec[SLOT].past_half : dec[j].past_half;
         for (genvar v = 0; v < 4; v++) begin : g_variant
             assign avail_next[j][v] = here && (!far_next[v] || next_ok);
         end
