@@ -1,8 +1,18 @@
 # FES i386 CPU design
 
-**Status:** Proposal. No RTL, oracle harness, simulation, routed result or kit
-evidence exists. Every clock, area, latency and performance figure below is a
-budget or an estimate. The milestone that measures one replaces it.
+**Status:** The complete CPU and `fes.pc386` machine remain proposals. Phase 0's
+pinned Bochs oracle adapter and corpus runners are implemented. Phase 1's first
+slice implements the uop definitions, front end through Q, and AG address unit;
+Verilator checks cover length decode, front-end behavior and AG arithmetic.
+Four-seed routed spikes cover the front end, AG and M2. With nextpnr
+`bd7a1c0d`'s corrected timing model, their fmax ranges are 69.74–74.35 MHz,
+77.36–80.71 MHz and 102.23–109.69 MHz, respectively, against a 100 MHz target.
+See the [RTL README](../cores/fes-common/rtl/i386/README.md),
+[simulation README](../cores/fes-common/sim/i386/README.md) and
+[Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md). The CPU
+top, decode, caches, execute, whole-CPU lockstep, complete machine, package,
+RBF and kit evidence do not exist. Estimates below describe the planned design;
+isolated spike results are not full-CPU timing or seal evidence.
 
 **Owners:** misteross for the CPU RTL, microcode, test harness and producer.
 The machine around the CPU (AT chipset, VGA, audio, storage, firmware) is a
@@ -348,7 +358,7 @@ flowchart LR
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
-| L2 miss | DDR latency plus two beats (measured in Phase 1) |
+| L2 miss | DDR latency plus two beats (estimate; full-path measurement pending) |
 
 ### Performance estimate
 
@@ -642,11 +652,12 @@ updates hold the L2's DMA port between their read and their write.
   100 MHz peaks at 200 MB/s. DDR returns a 32-byte line in two beats once data
   starts, where the SDRAM needs 16 beats plus row opening, about 22 cycles. No
   addon is needed.
-- The check: Phase 1 measures line-fill latency on both memories. If DDR's first
-  data takes much more than about 40 cycles at 100 MHz, or Linux activity makes
-  it erratic, revisit the choice. The SDRAM would then become a faster tier in
-  front of DDR, not a replacement. DDR jitter costs speed only; nothing in the
-  machine times itself by memory latency.
+- The planned full-CPU Phase 1 check measures line-fill latency on both memories.
+  The current front-end/AG slice does not exercise either memory path. If DDR's
+  first data takes much more than about 40 cycles at 100 MHz, or Linux activity
+  makes it erratic, revisit the choice. The SDRAM would then become a faster
+  tier in front of DDR, not a replacement. DDR jitter costs speed only; nothing
+  in the machine times itself by memory latency.
 - **Self-modifying code:** every committed store looks up the L1I tags through
   port B and invalidates a hit. In the same cycle it compares its physical line
   with the lines of the instructions in flight from F2 to WB. A hit flushes the
@@ -776,7 +787,11 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
 
 ## Budgets
 
-Budgets, not measurements. Phase 1 replaces the CPU rows with synthesis numbers.
+These are budgets for the planned full CPU, not measured totals. The routed
+front-end, AG and M2 spike counts and timing are recorded separately in the
+[Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md); those
+isolated harnesses do not replace the CPU budgets below. No whole-CPU synthesis
+or area result exists yet.
 
 | Block | ALMs | M10K | DSP blocks |
 | --- | ---: | ---: | ---: |
@@ -794,53 +809,57 @@ Budgets, not measurements. Phase 1 replaces the CPU rows with synthesis numbers.
 
 ## Verification
 
-Evidence is named as AGENTS.md requires: host-only check, hardware diagnostic,
-or exact-artifact hardware acceptance.
+Current evidence is host-only simulation plus isolated routed diagnostics; no
+package, RBF or kit acceptance exists. The later checks below remain the plan
+for the complete CPU and machine.
 
-1. **Oracle.** An external emulator configured as a 386 (MAME's i386 core or
-   Bochs at CPU level 3, whichever passes more of the corpora) behind a thin
-   adapter. It is an oracle only and never ships, as Fuse is for the Spectrum.
-   Where the corpora show it wrong, the harness keeps a divergence list, each
-   entry naming its deciding case.
-2. **SingleStepTests/80386** at a pinned revision, consuming only test data, as
-   [`test_fes_z80_vectors.py`](../scripts/test_fes_z80_vectors.py) does for the
-   Z80. Architectural state only: the corpus comes from a 386EX's 16-bit bus,
-   and this CPU does not reproduce bus cycles.
-3. **test386.asm** as a simulated boot ROM with `TEST_UNDEF` set: protected
-   mode, paging, V86 and task switches. POST codes arrive on an I/O port and the
-   final memory is compared with the oracle's. It is GPL-3 test input and never
-   enters a package.
-4. **RTL lockstep.** Verilator runs the RTL beside the oracle and compares
+1. **Oracle and corpus runners (implemented).** Phase 0 pins Bochs 3.1 at CPU
+   level 3 as the oracle after comparing it with MAME. The adapter and runners
+   cover SingleStepTests/80386 and test386.asm; the divergence list names the
+   deciding case for each known disagreement. The oracle and test inputs never
+   ship. See the [simulation README](../cores/fes-common/sim/i386/README.md).
+2. **RTL checks (implemented for the first slice).** Verilator checks all 16
+   per-byte length decoders against Bochs `decode()`, samples the whole front
+   end, and compares AG address results against the architectural calculation.
+   They do not constitute whole-CPU instruction lockstep; coverage and results
+   are in the [simulation README](../cores/fes-common/sim/i386/README.md).
+3. **Routed spikes (implemented for isolated blocks).** The front end, AG and
+   M2 have four-seed timing runs. Their exact results and critical paths are in
+   the [Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md).
+   These runs do not establish a full-CPU route, package seal or hardware result.
+4. **Whole-CPU RTL lockstep (planned).** Verilator will run the RTL beside the
+   oracle and compare
    every retirement: EIP, GPRs, EFLAGS, segment caches, control registers,
    memory writes, I/O and exceptions. Interrupts are injected at random, and
    every memory, MMIO, I/O and DMA port gets random latency. Latency never
    changes a result.
-5. **Directed tests:** both self-modifying-code profiles, A20 toggling, DMA
+5. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling, DMA
    against CPU stores (randomised), unreal mode, 16-bit wrap cases, page faults
    inside REP, segment-limit edges, LOCK against DMA, governor pacing, and every
    no-387 ESC form with the common FPU-detection routines.
-6. **Random programs:** constrained-random instruction streams in each mode,
+6. **Random programs (planned):** constrained-random instruction streams in each mode,
    against the oracle.
-7. **System:** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
+7. **System (planned):** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
    [first acceptance games](#first-acceptance-games), each in the setup its
    install guide names and at its recorded speed. Later breadth: JEMM386 (V86
    with paging) with Wolfenstein 3D using its EMS, and DOS32A- or
    CWSDPMI-based test programs and a DOS/4GW game (Doom) for flat protected
    mode. Commercial games are user-supplied like any ROM.
-8. **Performance:** one microbenchmark per row of the latency table, plus Doom
+8. **Performance (planned):** one microbenchmark per row of the latency table, plus Doom
    `-timedemo demo3`, 3DBench, PCPBench and a cache and memory benchmark
    (Speedsys or CACHECHK) against published period results. Every performance
    feature lands with its before and after.
-9. **Timing:** a CPU-only routed harness like the RISC-V QoR one from Phase 1, then
-   the machine producer. Seal evidence follows AGENTS.md, from an authenticated
-   HIP or CUDA backend.
+9. **Timing and seal (planned for the complete CPU):** route the complete CPU
+   with the authenticated producer, then the machine producer. Seal evidence
+   follows AGENTS.md and requires an authenticated HIP or CUDA backend. The
+   existing isolated-block spikes are not this evidence.
 
 ## Milestones
 
 | Milestone | Content | Exit |
 | --- | --- | --- |
-| Phase 0 | Oracle adapter and corpus runners | Both corpora run against the oracle; every failure is in the divergence list with its deciding case |
-| Phase 1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured against the [DDR check](#l2-and-coherence) |
+| Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
+| Phase 1 | Full real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | **In progress:** the first slice (front end through Q and AGU) has RTL, Verilator checks and isolated timing spikes. Completion still requires full-CPU lockstep, routed fmax and area, and the DDR/SDRAM line-fill measurements in the [DDR check](#l2-and-coherence) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
@@ -853,7 +872,7 @@ or exact-artifact hardware acceptance.
 Settled on 2026-10-24:
 
 - DSP blocks are used wherever they help ([rule 6](#platform-constraints)).
-- Guest RAM is in HPS DDR port 0, subject to Phase 1's
+- Guest RAM is in HPS DDR port 0, subject to the pending full-CPU Phase 1
   [latency check](#l2-and-coherence).
 - `i486-isa` is a later extension (Phase 7), not part of the first acceptance.
 - The [first acceptance games](#first-acceptance-games) set the machine's
