@@ -219,6 +219,26 @@ package fes_i386_pkg;
 
     // ---- Pipeline ---------------------------------------------------------------
 
+    // An instruction decoded in DC, as D takes it (fes_i386_decode and
+    // fes_i386_amode on Q's output register; fes_i386_cpu).
+    typedef struct packed {
+        uop_t        uop;
+        logic [3:0]  length;
+        logic        opsize32;
+        logic        lea;
+        logic        lea_early;
+        logic [31:0] lea_disp;
+        logic        consumes;
+        logic        reads_seg;
+        logic [2:0]  seg_index;
+        logic        stop;
+        logic        has_base;
+        logic [2:0]  base;
+        logic        has_index;
+        logic [2:0]  index;
+        logic [1:0]  scale;
+    } decoded_t;
+
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
     // right, 1 left), size z (8, 16, 32 bits) and fill k (the operand alone,
