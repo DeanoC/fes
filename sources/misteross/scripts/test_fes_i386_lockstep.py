@@ -286,6 +286,11 @@ def main() -> int:
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
                            other['summary']['trace_hash'] for other in random_results if other['seed'] == result['seed'])]
+    # Cycles between retirements without latency: in sequence, after extra
+    # prefixes, after a taken branch.
+    gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
+                                  for result in steady_results), Counter()).items()))
+            for key in ('sequential', 'prefixed', 'after_taken')}
     if corpus_failures or random_failures or hash_mismatches:
         exit_code = 1
     report.update({
@@ -295,7 +300,8 @@ def main() -> int:
                    'failures': corpus_failures[:200]},
         'random': {'seeds': [result['seed'] for result in random_results], 'programs_per_seed': args.random_programs,
                    'totals': dict(random_totals), 'latency_free_reruns': [result['seed'] for result in steady_results],
-                   'trace_hash_mismatches': hash_mismatches, 'failures': random_failures[:200]},
+                   'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
+                   'failures': random_failures[:200]},
     })
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
@@ -307,6 +313,13 @@ def main() -> int:
               f"faulting, {random_totals['retire_limits']} at the retirement limit), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
+        def share(histogram: dict, cycles: int) -> str:
+            total = sum(histogram.values())
+            return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
+        common = max(gaps['after_taken'], key=gaps['after_taken'].get) if gaps['after_taken'] else None
+        print(f"cycles between retirements without latency: {sum(gaps['sequential'].values())} in sequence, "
+              f"{share(gaps['sequential'], 1)} one cycle apart; {sum(gaps['after_taken'].values())} after a taken "
+              f"branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart")
     for line in (corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')

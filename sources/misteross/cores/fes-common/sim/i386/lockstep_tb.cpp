@@ -393,6 +393,10 @@ struct Summary {
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
+    // Cycles from one retirement to the next: after an instruction that
+    // continued in sequence with at most one prefix, after one with more
+    // prefixes (each but the last costs Q a cycle), and after a taken branch.
+    std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_after_taken;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -415,6 +419,8 @@ struct Outcome {
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                  const Fields &label_corpus, uint64_t retire_limit, Summary &summary, Mismatches &out) {
     Outcome outcome;
+    uint64_t last_retirement = 0;
+    bool retired_before = false, taken_before = false;
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
             outcome.limit = true;
@@ -454,6 +460,17 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         ++summary.retirements;
         if (!result.writes.empty()) out.add(at + "oracle-write", result.writes.front().physical, 0);
+        {
+            unsigned prefixes = 0;
+            while (prefixes < 15 && is_prefix(code[prefixes])) ++prefixes;
+            if (retired_before)
+                ++(taken_before ? summary.gap_after_taken : prefixes > 1 ? summary.gap_prefixed
+                                                                           : summary.gap_sequential)[rtl.cycles - last_retirement];
+            const fes_i386::Decoded decoded = oracle.decode(code, 16, code32);
+            retired_before = true;
+            taken_before = !decoded.complete || oracle.get_state().eip != before.eip + decoded.length;
+            last_retirement = rtl.cycles;
+        }
 
         // Fields this retirement leaves to the corpus.
         Fields skip = label_corpus;
@@ -1027,6 +1044,12 @@ int main(int argc, char **argv) {
         run_corpus(*oracle, bus, rtl, entries, summary);
     }
 
+    auto histogram = [](const std::map<uint64_t, uint64_t> &map) {
+        std::string text;
+        for (auto &[gap, count] : map)
+            text += (text.empty() ? "" : ", ") + std::string("\"") + std::to_string(gap) + "\": " + std::to_string(count);
+        return "{" + text + "}";
+    };
     std::string vectors, divergences;
     for (auto &[vector, count] : summary.fault_vectors)
         vectors += (vectors.empty() ? "" : ", ") + std::string("\"") + std::to_string(vector) + "\": " + std::to_string(count);
@@ -1034,12 +1057,14 @@ int main(int argc, char **argv) {
         divergences += (divergences.empty() ? "" : ", ") + std::string("\"") + id + "\": " + std::to_string(count);
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
-                "\"retire_limits\": %llu, \"divergence_retirements\": {%s}, \"trace_hash\": \"%016llx\"}\n",
+                "\"retire_limits\": %llu, \"divergence_retirements\": {%s}, \"trace_hash\": \"%016llx\", "
+                "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"after_taken\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.limits,
-                divergences.c_str(), (unsigned long long)summary.trace_hash);
+                divergences.c_str(), (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
+                histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_after_taken).c_str());
     return summary.failed ? 1 : 0;
 }
