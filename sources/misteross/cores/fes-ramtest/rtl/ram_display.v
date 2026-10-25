@@ -7,6 +7,9 @@
 // address[31:0], errors[31:0], first fault[31:0], last fault[31:0],
 // fault phase[2:0], failing bits[127:0], done, nack, stopped,
 // write MB/s digits[15:0], read MB/s digits[15:0].
+//
+// latency is lat_monitor's results: 128 bits per target (P0, P1, P2, SDRAM),
+// eight four-digit decimal values each.
 module ram_display (
     input wire [106:0] byte_status,
     input wire pixel_clk,
@@ -34,6 +37,7 @@ module ram_display (
     input wire [297:0] ddr0,
     input wire [297:0] ddr1,
     input wire [297:0] ddr2,
+    input wire [511:0] latency,
     output reg [7:0] red,
     output reg [7:0] green,
     output reg [7:0] blue
@@ -44,6 +48,7 @@ module ram_display (
     reg [297:0] ddr0_sync0 = 298'd0, ddr0_sync1 = 298'd0;
     reg [297:0] ddr1_sync0 = 298'd0, ddr1_sync1 = 298'd0;
     reg [297:0] ddr2_sync0 = 298'd0, ddr2_sync1 = 298'd0;
+    reg [511:0] lat_sync0 = 512'd0, lat_sync1 = 512'd0;
     wire [769:0] snap = {
         pat_ok, pat100, pat75, pat50,
         sdram_mhz,
@@ -252,10 +257,20 @@ module ram_display (
         end
     endfunction
 
+    // A 40-column template with spaces where fields go.
+    function [7:0] text_at;
+        input [319:0] text;
+        input [5:0] column;
+        begin
+            text_at = text[(6'd39 - column) * 8 +: 8];
+        end
+    endfunction
+
+    // SDRAM rows: name, pattern, rate and status; the address and faults;
+    // the error count; the live expect/got word, with the button hint.
     function [7:0] line_char;
         input [4:0] line;
         input [5:0] column;
-        input [39:0] label;
         input [2:0] which;
         input reading;
         input [31:0] cursor;
@@ -271,30 +286,29 @@ module ram_display (
         input failed;
         begin
             case (line)
-                5'd0: line_char = byte5(label, column);
-                5'd1: begin
-                    if (column < 6'd4)
-                        line_char = byte4(phase_name(which), column);
-                    else if (column == 6'd5)
+                5'd0: begin
+                    if (column < 6'd5)
+                        line_char = byte5("SDRAM", column);
+                    else if (column >= 6'd6 && column < 6'd10)
+                        line_char = byte4_at(phase_name(which), column, 6'd6);
+                    else if (column == 6'd11)
                         line_char = reading ? "R" : "W";
-                    else if (column == 6'd7)
+                    else if (column == 6'd13)
                         line_char = hex_digit({1'b0, which} + 4'd1);
-                    else if (column == 6'd8)
+                    else if (column == 6'd14)
                         line_char = "/";
-                    else if (column == 6'd9)
+                    else if (column == 6'd15)
                         line_char = "6";
-                    else if (mhz != 8'd0 && column >= 6'd12 && column < 6'd15)
-                        line_char = mhz_at(mhz, column, 6'd12);
-                    else if (mhz != 8'd0 && column == 6'd16)
-                        line_char = "M";
-                    else if (mhz != 8'd0 && column == 6'd17)
-                        line_char = "H";
-                    else if (mhz != 8'd0 && column == 6'd18)
-                        line_char = "Z";
+                    else if (mhz != 8'd0 && column >= 6'd18 && column < 6'd21)
+                        line_char = mhz_at(mhz, column, 6'd18);
+                    else if (mhz != 8'd0 && column >= 6'd22 && column < 6'd25)
+                        line_char = byte4_at("MHZ ", column, 6'd22);
+                    else if (column >= 6'd34 && column < 6'd38)
+                        line_char = byte4_at(status_name(stopped, passed, failed), column, 6'd34);
                     else
                         line_char = 8'h00;
                 end
-                5'd2: begin
+                5'd1: begin
                     if (column < 6'd4)
                         line_char = byte4("ADDR", column);
                     else if (column >= 6'd5 && column < 6'd13)
@@ -308,7 +322,7 @@ module ram_display (
                     else
                         line_char = 8'h00;
                 end
-                5'd3: begin
+                5'd2: begin
                     if (column < 6'd4)
                         line_char = byte4("ERR ", column);
                     else if (column >= 6'd4 && column < 6'd12)
@@ -320,7 +334,7 @@ module ram_display (
                     else
                         line_char = 8'h00;
                 end
-                5'd4: begin
+                5'd3: begin
                     if (column < 6'd3)
                         line_char = byte4("EXP ", column);
                     else if (column >= 6'd4 && column < 6'd8)
@@ -329,10 +343,11 @@ module ram_display (
                         line_char = byte4_at("GOT ", column, 6'd9);
                     else if (column >= 6'd13 && column < 6'd17)
                         line_char = hex_digit(hex16(got, column, 6'd13));
+                    else if (column >= 6'd27)
+                        line_char = text_at("                           BUTTON STOPS ", column);
                     else
                         line_char = 8'h00;
                 end
-                5'd5: line_char = byte4(status_name(stopped, passed, failed), column);
                 default: line_char = 8'h00;
             endcase
         end
@@ -422,15 +437,6 @@ module ram_display (
         end
     endfunction
 
-    // A 40-column template with spaces where fields go.
-    function [7:0] text_at;
-        input [319:0] text;
-        input [5:0] column;
-        begin
-            text_at = text[(6'd39 - column) * 8 +: 8];
-        end
-    endfunction
-
     function [7:0] decimal4;
         input [15:0] digits;
         input [5:0] column;
@@ -440,16 +446,23 @@ module ram_display (
         end
     endfunction
 
-    // DDR block rows: summary per port, first and last fault per port,
-    // failing bits per port, then the MB/s of each port's last passes.
-    localparam [4:0] DDR_HEAD = 5'd7;
-    localparam [4:0] DDR_SUMMARY = 5'd8;
-    localparam [4:0] DDR_FAULTS = 5'd11;
-    localparam [4:0] DDR_BITS = 5'd14;
-    localparam [4:0] DDR_RATES = 5'd17;
-    localparam [4:0] BUTTON_ROW = 5'd27;
-    localparam [4:0] TABLE_HEAD = 5'd20;
-    localparam [4:0] TABLE_FIRST = 5'd21;
+    // Rows: SDRAM 0-3, the byte lane 4, the DDR block 5-15 (summary per
+    // port, first and last fault per port, failing bits per port, then the
+    // MB/s of each port's last passes), latency 16-20, the byte-lane receipt
+    // 21-22 and the SDRAM pattern table 23-29.
+    localparam [4:0] SDRAM_ROWS = 5'd4;
+    localparam [4:0] BYTE_ROW = 5'd4;
+    localparam [4:0] DDR_HEAD = 5'd5;
+    localparam [4:0] DDR_SUMMARY = 5'd6;
+    localparam [4:0] DDR_FAULTS = 5'd9;
+    localparam [4:0] DDR_BITS = 5'd12;
+    localparam [4:0] DDR_RATES = 5'd15;
+    localparam [4:0] LAT_HEAD = 5'd16;
+    localparam [4:0] LAT_FIRST = 5'd17;
+    localparam [4:0] BYTE_AT = 5'd21;
+    localparam [4:0] BYTE_DATA = 5'd22;
+    localparam [4:0] TABLE_HEAD = 5'd23;
+    localparam [4:0] TABLE_FIRST = 5'd24;
 
     function [1:0] ddr_port_of;
         input [4:0] line;
@@ -563,7 +576,7 @@ module ram_display (
         input [4:0] line;
         input [5:0] column;
         begin
-            if (line == 5'd6) begin
+            if (line == BYTE_ROW) begin
                 if (column >= 6'd5 && column < 6'd9)
                     byte_char = byte4_at(byte_sync1[103] ? "NACK" :
                         status_name(byte_sync1[104], byte_sync1[106], byte_sync1[105]), column, 6'd5);
@@ -572,7 +585,7 @@ module ram_display (
                 else if (column >= 6'd28 && column < 6'd32)
                     byte_char = hex_digit(hex16(byte_sync1[94:79], column, 6'd28));
                 else byte_char = text_at("BYTE      CASE     /0080 RD     /0200   ", column);
-            end else if (line == 5'd18) begin
+            end else if (line == BYTE_AT) begin
                 if (column >= 6'd8 && column < 6'd16)
                     byte_char = hex_digit(hex_nibble({6'd0, byte_sync1[78:53]}, column, 6'd8));
                 else if (column == 6'd22)
@@ -592,15 +605,73 @@ module ram_display (
         end
     endfunction
 
+    // A right-aligned four-digit decimal field from first; leading zeros
+    // and an empty value are blank.
+    function [7:0] decimal_at;
+        input [15:0] bcd;
+        input [5:0] column;
+        input [5:0] first;
+        reg [3:0] digit;
+        reg shown;
+        begin
+            case (column - first)
+                6'd0: begin digit = bcd[15:12]; shown = bcd[15:12] != 4'd0; end
+                6'd1: begin digit = bcd[11:8]; shown = bcd[15:8] != 8'd0; end
+                6'd2: begin digit = bcd[7:4]; shown = bcd[15:4] != 12'd0; end
+                default: begin digit = bcd[3:0]; shown = bcd != 16'd0; end
+            endcase
+            decimal_at = shown ? 8'h30 + {4'd0, digit} : 8'h00;
+        end
+    endfunction
+
+    // Latency rows: the target, F and first-data min, median, p99 and max,
+    // then L and the same for the whole line. Cycles of the memory clock.
+    // Stage 1 of the character pipeline selects the target of this row.
+    reg [127:0] lat_q = 128'd0;
+    reg [1:0] lat_index_q = 2'd0;
+    function [7:0] lat_char;
+        input [4:0] line;
+        input [5:0] column;
+        begin
+            // The pipeline delay clips the last column, so these end at 38.
+            if (line == LAT_HEAD)
+                lat_char = text_at("LAT MIN MED P99  MAX  MIN MED P99  MAX  ", column);
+            else if (column == 6'd0)
+                lat_char = lat_index_q == 2'd3 ? "S" : "P";
+            else if (column == 6'd1)
+                lat_char = lat_index_q == 2'd3 ? "D" : 8'h30 + {6'd0, lat_index_q};
+            else if (column == 6'd3)
+                lat_char = "F";
+            else if (column == 6'd21)
+                lat_char = "L";
+            else if (column >= 6'd4 && column < 6'd7)
+                lat_char = decimal_at({4'd0, lat_q[11:0]}, column, 6'd3);
+            else if (column >= 6'd8 && column < 6'd11)
+                lat_char = decimal_at({4'd0, lat_q[27:16]}, column, 6'd7);
+            else if (column >= 6'd12 && column < 6'd15)
+                lat_char = decimal_at({4'd0, lat_q[43:32]}, column, 6'd11);
+            else if (column >= 6'd16 && column < 6'd20)
+                lat_char = decimal_at(lat_q[63:48], column, 6'd16);
+            else if (column >= 6'd22 && column < 6'd25)
+                lat_char = decimal_at({4'd0, lat_q[75:64]}, column, 6'd21);
+            else if (column >= 6'd26 && column < 6'd29)
+                lat_char = decimal_at({4'd0, lat_q[91:80]}, column, 6'd25);
+            else if (column >= 6'd30 && column < 6'd33)
+                lat_char = decimal_at({4'd0, lat_q[107:96]}, column, 6'd29);
+            else if (column >= 6'd34 && column < 6'd38)
+                lat_char = decimal_at(lat_q[127:112], column, 6'd34);
+            else
+                lat_char = 8'h00;
+        end
+    endfunction
+
     function [7:0] table_char;
         input [4:0] line;
         input [5:0] column;
         reg [4:0] table_line;
         begin
             table_line = line - TABLE_FIRST;
-            if (line == BUTTON_ROW)
-                table_char = text_at("BUTTON STOPS                            ", column);
-            else if (line == TABLE_HEAD)
+            if (line == TABLE_HEAD)
                 table_char = rate_head(column);
             else if (line >= TABLE_FIRST && line < TABLE_FIRST + 5'd6)
                 table_char = pattern_row(table_line[2:0], column);
@@ -633,6 +704,7 @@ module ram_display (
     reg [7:0] ddr_ch_t = 8'h00;
     reg [7:0] byte_ch_t = 8'h00;
     reg [7:0] table_ch_t = 8'h00;
+    reg [7:0] lat_ch_t = 8'h00;
     reg [2:0] glyph_row_t = 3'd0;
     reg [2:0] glyph_col_t = 3'd0;
     reg active_t = 1'b0;
@@ -659,11 +731,12 @@ module ram_display (
     wire [4:0] row_q = y_q[7:3];
     wire [1:0] port_now = ddr_port_of(row_q);
     wire [4:0] table_now = row_q - TABLE_FIRST;
+    wire [4:0] lat_now = row_q - LAT_FIRST;
     wire ddr_status_row = row_s >= DDR_SUMMARY && row_s < DDR_FAULTS;
-    wire status_now = row_s == 5'd5 || row_s == 5'd6 || ddr_status_row;
-    wire failed_now = ddr_status_row ? (q_nack || q_errors != 32'd0) : (row_s == 5'd6 ? byte_sync1[105] : s_fail);
-    wire passed_now = ddr_status_row ? q_done : (row_s == 5'd6 ? byte_sync1[106] : s_pass);
-    wire halted_now = ddr_status_row ? q_stopped : (row_s == 5'd6 ? byte_sync1[104] : s_stopped);
+    wire status_now = row_s == 5'd0 || row_s == BYTE_ROW || ddr_status_row;
+    wire failed_now = ddr_status_row ? (q_nack || q_errors != 32'd0) : (row_s == BYTE_ROW ? byte_sync1[105] : s_fail);
+    wire passed_now = ddr_status_row ? q_done : (row_s == BYTE_ROW ? byte_sync1[106] : s_pass);
+    wire halted_now = ddr_status_row ? q_stopped : (row_s == BYTE_ROW ? byte_sync1[104] : s_stopped);
 
     ram_font font (
         .ch(ch_q),
@@ -686,6 +759,10 @@ module ram_display (
         ddr1_sync1 <= ddr1_sync0;
         ddr2_sync0 <= ddr2;
         ddr2_sync1 <= ddr2_sync0;
+        lat_sync0 <= latency;
+        // Only in vertical blank, so one frame never mixes two windows.
+        if (inactive == 12'hFFF)
+            lat_sync1 <= lat_sync0;
         active_d <= active;
         x_q <= field_x;
         y_q <= field_y;
@@ -724,10 +801,13 @@ module ram_display (
         table_counts_q <= {pattern_count(s_pat100, table_now[2:0]),
             pattern_count(s_pat75, table_now[2:0]), pattern_count(s_pat50, table_now[2:0])};
         port_q <= port_now == 2'd0 ? ddr0_sync1 : (port_now == 2'd1 ? ddr1_sync1 : ddr2_sync1);
-        sdram_ch_t <= row_s < 5'd6 ? line_char(row_s, col_s, "SDRAM", s_phase, s_reading, s_addr,
+        lat_index_q <= lat_now[1:0];
+        lat_q <= lat_sync1[lat_now[1:0] * 128 +: 128];
+        sdram_ch_t <= row_s < SDRAM_ROWS ? line_char(row_s, col_s, s_phase, s_reading, s_addr,
             s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
         ddr_ch_t <= row_s >= DDR_HEAD && row_s <= DDR_RATES ? ddr_char(row_s, col_s) : 8'h00;
-        byte_ch_t <= row_s == 5'd6 || row_s == 5'd18 || row_s == 5'd19 ? byte_char(row_s, col_s) : 8'h00;
+        lat_ch_t <= row_s >= LAT_HEAD && row_s < LAT_FIRST + 5'd4 ? lat_char(row_s, col_s) : 8'h00;
+        byte_ch_t <= row_s == BYTE_ROW || row_s == BYTE_AT || row_s == BYTE_DATA ? byte_char(row_s, col_s) : 8'h00;
         table_ch_t <= table_char(row_s, col_s);
         glyph_row_t <= glyph_row_s;
         glyph_col_t <= glyph_col_s;
@@ -737,7 +817,7 @@ module ram_display (
         passed_t <= passed_now;
         halted_t <= halted_now;
         // At most one section decodes a character on any row.
-        ch_q <= sdram_ch_t | ddr_ch_t | table_ch_t | byte_ch_t;
+        ch_q <= sdram_ch_t | ddr_ch_t | lat_ch_t | table_ch_t | byte_ch_t;
         glyph_row_q <= glyph_row_t;
         glyph_col_q <= glyph_col_t;
         active_c <= active_t;
