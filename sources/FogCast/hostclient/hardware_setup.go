@@ -105,6 +105,23 @@ func (c *Client) CoreEntry(ctx context.Context, game string) (CoreEntry, error) 
 	return result, err
 }
 
+// SelectCoreEntryPackage changes the saved package only if it still matches
+// the package shown to the user. The host rechecks core, media and persistence
+// compatibility before saving the selection.
+func (c *Client) SelectCoreEntryPackage(ctx context.Context, game, expected, pkg string) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(expected) != nil || protocol.ValidateDigest(pkg) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid package selection identity")
+	}
+	var result CoreEntry
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game), map[string]string{
+		"expected_package_id": expected, "package_id": pkg,
+	}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg) {
+		err = fmt.Errorf("host returned a different package selection")
+	}
+	return result, err
+}
+
 func (c *Client) SelectCoreEntryROM(ctx context.Context, game, pkg, rom, expected, id string) (CoreEntryROMSelection, error) {
 	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || strings.TrimSpace(rom) == "" || expected != "" && protocol.ValidateDigest(expected) != nil || id != "" && protocol.ValidateDigest(id) != nil {
 		return CoreEntryROMSelection{}, fmt.Errorf("invalid ROM selection identity")

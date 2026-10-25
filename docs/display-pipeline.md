@@ -7,8 +7,9 @@ cabinet frame around the machine picture) fit into it.
 
 Historically each shell grew its own variant: fixed 720p generators,
 Direct/Scanlines video-part sockets on Coleco and Atari ST, and a ZX81-only
-opaque launcher plane. The pipeline below replaces those variants with one
-order of stages that every shell follows.
+opaque launcher plane. The ZX81, Spectrum models, and native Coleco shells now
+use the shared display plane described here. The pipeline below gives their
+stages one common order.
 
 ## Stages
 
@@ -124,7 +125,7 @@ display fault.
 | --- | --- | --- | --- |
 | ZX81 | Shell 720p raster | No | Yes (`fes_display_plane`) |
 | Spectrum models (48K, 128K, +2A/+3, Pentagon) | ULA frame banks, 3x3 in a shell 720p raster | No | Yes (`fes_display_plane`) |
-| Coleco | Native pixels | Yes | Planned |
+| Coleco native | Native pixels | Yes | Yes (`fes_display_plane`, after the part) |
 | Atari ST | Shell raster | Yes | Planned |
 | SMS, SG-1000, C64, Apple II | Shell 720p raster | No | Planned |
 | Pong, Catch, RISC-V, RAM test, demos | `fes_video_720p` | No | Planned |

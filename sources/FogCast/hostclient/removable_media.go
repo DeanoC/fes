@@ -33,11 +33,16 @@ func RemovableMediaCapable(p *SessionCorePackage) bool {
 	return ok || LiveMediaCapable(p)
 }
 
-// AdmitRemovableMedia applies the active unit's format and observed size limits.
+// AdmitRemovableMedia applies the active unit's format and observed size
+// limits. A Spectrum tape image is converted to the unit's PZX stream on
+// insert, so it is bounded as an image and the host checks the stream.
 func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 	u, ok := RemovableMediaUnit(p)
 	if !ok {
 		return LiveMediaCapable(p) && protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size)
+	}
+	if u.Interface == protocol.SpectrumTapeInterface() {
+		return protocol.AdmitSpectrumTapeName(name) && protocol.AdmitSpectrumTapeSize(size)
 	}
 	if size < int64(u.MinBytes) || size > int64(u.MaxBytes) {
 		return false
@@ -45,8 +50,6 @@ func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 	switch u.Interface {
 	case protocol.Zx81TapeInterface():
 		return protocol.AdmitTapeMediaName(name)
-	case protocol.SpectrumTapeInterface():
-		return protocol.AdmitSpectrumTapeName(name)
 	case protocol.Apple2FloppyInterface():
 		return protocol.AdmitDiskMediaName(name)
 	case protocol.C64DiskInterface():
@@ -107,7 +110,7 @@ func (c *Client) postRemovableMedia(ctx context.Context, prior SessionResult, pa
 	client.httpClient = &transport
 	result, err := client.postLiveMedia(ctx, path, body, length, sessionID, b)
 	if err == nil && (result.ID != prior.ID || result.Target != prior.Target || result.TargetID != prior.TargetID || result.CorePackage == nil || result.CorePackage.PackageID != b.PackageID || result.CorePackage.Generation != b.Generation) {
-		return result, protocol.LiveMediaIdentityError()
+		return result, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "live media response did not confirm the captured session", Phase: "recovery"}
 	}
 	return result, err
 }

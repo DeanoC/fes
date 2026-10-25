@@ -408,7 +408,10 @@ An older agent omits `inputs`.
 ### `session`, `rooms`, `store`, `log`
 
 - `session.launch(game_id)` launches through the ordinary host path (the
-  same admission rules as the library); `session.state()` is the current
+  same admission rules as the library). The optional
+  `session.launch(game_id, package_id, expected_package_id)` first saves that
+  package for the entry with compare-and-swap, then launches it; the host still
+  checks package, media and persistence compatibility. `session.state()` is the current
   host session state.
 - `session.stop(snapshot.session)` requests the ordinary Stop/save path;
   `session.open_tape(snapshot.session)`

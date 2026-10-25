@@ -26,7 +26,6 @@ func TestRemovableMediaUsesObservedFormatAndBounds(t *testing.T) {
 		name, wrong string
 	}{
 		{protocol.Zx81TapeInterface(), 1, 16384, "game.p", "game.tap"},
-		{protocol.SpectrumTapeInterface(), 1, 65536, "game.tap", "game.p"},
 		{protocol.Apple2FloppyInterface(), 143360, 143360, "game.do", "game.d64"},
 		{protocol.C64DiskInterface(), 174848, 174848, "game.d64", "game.st"},
 		{protocol.AtariStFloppyInterface(), 737280, 737280, "game.st", "game.dsk"},
@@ -45,6 +44,21 @@ func TestRemovableMediaUsesObservedFormatAndBounds(t *testing.T) {
 				t.Fatal("unobserved interface admitted")
 			}
 		})
+	}
+}
+
+// A Spectrum tape image is converted to the unit's PZX stream on insert, so
+// it is bounded as an image, not by the stream's observed limits.
+func TestRemovableMediaBoundsSpectrumTapeImages(t *testing.T) {
+	p := removableSession(protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)).CorePackage
+	for _, name := range []string{"game.tzx", "game.tap", "game.pzx", "game.csw"} {
+		if !RemovableMediaCapable(p) || !AdmitRemovableMedia(p, name, 1) || !AdmitRemovableMedia(p, name, protocol.SpectrumTapeImageMaxBytes) {
+			t.Fatalf("%s image refused", name)
+		}
+	}
+	if AdmitRemovableMedia(p, "game.tzx", protocol.SpectrumTapeImageMaxBytes+1) || AdmitRemovableMedia(p, "game.tzx", 0) ||
+		AdmitRemovableMedia(p, "game.p", 1) {
+		t.Fatal("wrong tape image admitted")
 	}
 }
 

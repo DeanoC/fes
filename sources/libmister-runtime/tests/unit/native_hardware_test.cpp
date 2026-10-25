@@ -1330,7 +1330,8 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
 	for (const auto& interface : computer.interfaces) {
-		assert(interface.major == 1 && interface.minor == 0);
+		// The Spectrum tape is 2.0, a PZX stream; every other interface is 1.0.
+		assert(interface.major == (interface.id == "fes.media.spectrum-tape" ? 2 : 1) && interface.minor == 0);
 		computer_interfaces.push_back(interface.id);
 	}
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
@@ -3384,7 +3385,8 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     assert(unchanged.capabilities.media_units[0].state==mister::MediaUnitState::ready);
     assert(unchanged.capabilities.media_units[0].persistence_mode=="volatile");
     endpoint.write_busy=true;const auto eject_at=endpoint.requests.size();
-    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).message=="FES GP command rejected with response 4");
+    const auto rejected_eject=fixture.runtime.EjectMedia(opened.package_id,gen,0);
+    assert(rejected_eject.code==mister::ErrorCode::busy&&rejected_eject.message=="media unit eject is busy");
     assert(endpoint.requests.size()==eject_at+1&&endpoint.unit(0).data==old_bytes&&endpoint.unit(0).state==3);
     assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].state==mister::MediaUnitState::ready);
     endpoint.write_busy=false;

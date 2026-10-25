@@ -499,12 +499,14 @@ func TestC64WithoutFirmwareIsLaunchable(t *testing.T) {
 func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
+		coreID     string
 		format     int64
 		abi        string
 		abiMinor   int64
 		role       string
 		interfaces []corepackage.Interface
 		needs      string
+		block      string
 		launchable bool
 	}{
 		{name: "new standalone application", format: 2, abi: "fes.application", needs: "none", launchable: true},
@@ -516,8 +518,9 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		{name: "blob requires host delivery", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "cartridge cannot substitute for required blob", format: 3, abi: "fes.application", role: "cartridge", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "computer empty drives", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
-		{name: "computer spectrum tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.spectrum-tape", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer spectrum tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.spectrum-tape", Major: 2, Required: true}}, needs: "none", launchable: true},
 		{name: "computer c64 disk starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.c64-disk", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "format-2 ZX81 requires a local machine ROM splice", coreID: "fes.zx81", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.zx81-tape", Major: 1, Required: true}}, needs: "firmware", block: "Needs machine ROM"},
 		{name: "computer st floppy starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.atari-st-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer st empty-drive extensions", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{
 			{ID: "fes.media.atari-st-floppy", Major: 1, Required: true},
@@ -536,13 +539,17 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		{name: "optional media", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := corepackage.Descriptor{Format: tc.format, Core: corepackage.Core{ID: "fes.new-core", Name: "New core"}, Target: corepackage.Target{ProgrammingProfile: "fes-gp-v1"}, ABI: corepackage.Contract{ID: tc.abi, Major: 1, Minor: tc.abiMinor}, Interfaces: tc.interfaces}
+			coreID := tc.coreID
+			if coreID == "" {
+				coreID = "fes.new-core"
+			}
+			d := corepackage.Descriptor{Format: tc.format, Core: corepackage.Core{ID: coreID, Name: "New core"}, Target: corepackage.Target{ProgrammingProfile: "fes-gp-v1"}, ABI: corepackage.Contract{ID: tc.abi, Major: 1, Minor: tc.abiMinor}, Interfaces: tc.interfaces}
 			if tc.role != "" {
 				d.ROM = &corepackage.ROM{Role: tc.role}
 			}
 			inspection := corepackage.Inspection{PackageID: fmt.Sprintf("%064x", 1), Descriptor: d}
 			got := FromInspection(inspection, "/installed/package")
-			if got.Needs != tc.needs || got.Launchable != tc.launchable || (got.Block == "") != tc.launchable || got.installPath != "/installed/package" || got.CoreID != d.Core.ID {
+			if got.Needs != tc.needs || got.Launchable != tc.launchable || (got.Block == "") != tc.launchable || (tc.block != "" && got.Block != tc.block) || got.installPath != "/installed/package" || got.CoreID != d.Core.ID {
 				t.Fatalf("%+v", got)
 			}
 		})

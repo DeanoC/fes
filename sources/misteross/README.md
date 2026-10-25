@@ -190,15 +190,17 @@ matching `toolchain-fes-<core>` target that provisions its
 SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. Without a
 cache, each producer reads the local install that its own target writes.
 Pong's lock pins nextpnr `552ba246`, ZX81's `1eecf877` and RISC-V's
-`8f453ebc`, so each has its own slot. Apple II, Atari ST, C64, Coleco and
-Spectrum use nextpnr `5fe55f3d` from nextpnr #276; their shell validators
-require that producer pin's exact F0/F1 `$ROUTETHRU` map. Apple II, C64 and
-Spectrum share one slot, and the Atari ST lock has its own. Coleco's lock also
-pins Yosys `5391eeb1`, so it has a separate toolchain slot. The Coleco
-development shell still uses nextpnr `9128800f`, whose exact route-through map
-is C/D. The validators select the map from each producer's lock; they do not
-broaden the reserved-boundary guard. The other five locks are byte copies of
-the repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses its
+`8f453ebc`, so each has its own slot. Apple II, Atari ST and C64 use nextpnr
+`5fe55f3d` from nextpnr #276; their shell validators require that producer
+pin's exact F0/F1 `$ROUTETHRU` map. Apple II and C64 share one slot, while the
+Atari ST lock has its own. Spectrum uses nextpnr main `bd7a1c0d`, which
+contains #276 as merged, and has its own slot. Coleco has its own slot at
+nextpnr `266e18b5`, which retains #276's exact F0/F1 `$ROUTETHRU` map; its
+lock also pins Yosys `5391eeb1`. The Coleco development shell still uses
+nextpnr `9128800f`, whose exact route-through map is C/D. The validators
+select the map from each producer's lock; they do not broaden the
+reserved-boundary guard. The other five locks are byte copies of the
+repository lock (nextpnr `9128800f`), so a shared `CACHE_ROOT` reuses its
 cached slot for them. The factory recipe stays HIP. The October kit notes do
 not accept a shared-pin seal. See [Cores](docs/cores.md).
 
@@ -235,8 +237,9 @@ This path does not seal `fes.zx81`.
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
 | `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
-| `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock`, `cores/fes-spectrum/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
-| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `5fe55f3d` pins; this lock has its own HIP cache slot |
+| `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
+| `cores/fes-spectrum/toolchain.lock` | Per-core lock using nextpnr main `bd7a1c0d` (#276 merged, same F0/F1 map) |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `266e18b5` pins; this lock has its own HIP cache slot |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

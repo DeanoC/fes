@@ -468,7 +468,7 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionHardwareTapes, rooms.ActionHardwareImportExpansion:
 			a.openHardwarePickerLocked(act)
 		case rooms.ActionLaunch:
-			a.launchFromRoomLocked(act.GameID)
+			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:
 			if a.roomSessionMatchesLocked(act) {
 				a.startStopLocked()
@@ -534,6 +534,10 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 }
 
 func (a *App) launchFromRoomLocked(gameID string) {
+	a.launchFromRoomWithPackageLocked(gameID, "", "")
+}
+
+func (a *App) launchFromRoomWithPackageLocked(gameID, packageID, expectedPackageID string) {
 	gameID = strings.TrimSpace(gameID)
 	if gameID == "" {
 		return
@@ -547,28 +551,30 @@ func (a *App) launchFromRoomLocked(gameID string) {
 		return
 	}
 	if game, ok := a.room.CachedGame(gameID); ok {
-		a.startLaunchGameLocked(game)
+		a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 		return
 	}
 	for _, game := range a.games {
 		if game.ID == gameID {
-			a.startLaunchGameLocked(game)
+			a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 			return
 		}
 	}
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
+	a.launchPackageID = packageID
+	a.launchExpectedPackageID = expectedPackageID
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{GameID: gameID, Phase: "launching", Message: "resolving " + gameID}
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.resolveRoomLaunch(ctx, gameID)
+	go a.resolveRoomLaunch(ctx, gameID, packageID, expectedPackageID)
 }
 
-func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
+func (a *App) resolveRoomLaunch(ctx context.Context, gameID, packageID, expectedPackageID string) {
 	game, err := a.client.Game(ctx, gameID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -582,7 +588,7 @@ func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
 	}
 	a.launchLeaseRefusal = false
 	a.launch = LaunchSnapshot{Phase: "idle"}
-	a.startLaunchGameLocked(game)
+	a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 }
 
 // tickRoomLocked advances the open room: session state, resume after play,

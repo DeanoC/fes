@@ -196,6 +196,7 @@ type apiError struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Phase     string `json:"phase,omitempty"`
+	NoChange  bool   `json:"no_change,omitempty"`
 	Expected  string `json:"expected,omitempty"`
 	Observed  string `json:"observed,omitempty"`
 }
@@ -1179,6 +1180,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		writeJSON(w, status, map[string]any{"error": apiError{
 			StopStage: fogcast.StopStage(err),
 			Code:      string(apiErr.Code), Message: message, Phase: phase,
+			NoChange: apiErr.NoChange,
 			Expected: apiErr.Expected, Observed: apiErr.Observed,
 		}})
 		return

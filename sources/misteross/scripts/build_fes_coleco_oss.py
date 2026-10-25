@@ -33,6 +33,7 @@ from scripts.fes_build_common import (
     _write_atomic,
     validate_timing_resources,
 )
+from scripts import fes_de10nano_evidence
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
@@ -113,7 +114,7 @@ RTL_SOURCES = (
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
-    "scripts/fes_build_common.py",
+    "scripts/fes_build_common.py", "scripts/fes_de10nano_evidence.py",
     ABI_DEFINITION,
     COLECO_TOOLCHAIN_LOCK,
     QSF,
@@ -159,6 +160,9 @@ FORBIDDEN_RESOURCES = frozenset(
     }
 )
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
+# The native shell's session-display plane adds its read-only DDR port and
+# the plane's three unsigned 9x9 blend products, and nothing else.
+SESSION_DISPLAY_RESOURCES = {"cyclonev_hps_interface_fpga2sdram": 1}
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
@@ -472,7 +476,8 @@ def _audio_evidence(design: dict) -> None:
 
 
 def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
-                            gpu_backend: str = COLECO_GPU_BACKEND) -> dict:
+                            gpu_backend: str = COLECO_GPU_BACKEND,
+                            session_display: bool = False) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -481,14 +486,22 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
     _i2c_evidence(routed, "routed")
     _audio_evidence(routed)
     counts = _cell_counts(synthesis)
-    for name, expected in REQUIRED_RESOURCES.items():
+    required = {**REQUIRED_RESOURCES, **(SESSION_DISPLAY_RESOURCES if session_display else {})}
+    forbidden = FORBIDDEN_RESOURCES - ({fes_de10nano_evidence.PLANE_DSP} if session_display else set())
+    for name, expected in required.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
     if counts.get("MISTRAL_M10K", 0) + counts.get("MISTRAL_M10K_TDP", 0) < 1:
         raise BuildError("synthesis must map COLECO RAM onto MISTRAL_M10K")
-    for name in FORBIDDEN_RESOURCES:
+    for name in forbidden:
         if counts.get(name, 0) != 0:
             raise BuildError(f"forbidden synthesis cell {name} is in use")
+    display = None
+    if session_display:
+        # Coleco's Yosys predates MISTRAL_MUL sign parameters.
+        fes_de10nano_evidence.plane_dsp_evidence(synthesis, sign_parameters=False)
+        fes_de10nano_evidence.session_display_evidence(synthesis, "synthesized", source_root)
+        display = fes_de10nano_evidence.session_display_evidence(routed, "routed", source_root)
     route_log = output / "nextpnr.log"
     if route_log.is_symlink() or not route_log.is_file():
         raise BuildError(f"missing route log: {route_log}")
@@ -508,12 +521,12 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
     if not audio_pll:
         raise BuildError("route log must prove the 12.288 MHz audio PLL")
     utilization = timing.get("utilization")
-    known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
+    known = ORDINARY_RESOURCES | set(required) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
     resources = validate_timing_resources(utilization, known)
     rbf = output / "core.rbf"
     if rbf.is_symlink() or not rbf.is_file() or not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
-    return {
+    evidence = {
         "status": "pass",
         "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
@@ -539,6 +552,9 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
         "synthesis_cells": {name: counts[name] for name in sorted(counts)},
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
     }
+    if display is not None:
+        evidence["session_display"] = display
+    return evidence
 
 
 def _manifest(

@@ -28,10 +28,9 @@ A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
 above 0 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
-`fes.media.apple2-floppy`, `fes.media.spectrum-tape`, `fes.media.zx81-tape`,
-`fes.media.c64-disk`
-and `fes.media.atari-st-floppy`, each 1.0; each must be declared required
-when present. A shell declares at
+`fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`
+and `fes.media.atari-st-floppy`, each 1.0, and `fes.media.spectrum-tape`
+2.0; each must be declared required when present. A shell declares at
 most one unit-0 medium. `fes.expansion.apple2-bus` 1.0,
 `fes.expansion.spectrum-bus` 1.0, `fes.expansion.c64-bus` 1.0 and
 `fes.expansion.atari-st-bus` 1.0 are manifest-only buses and must be optional.
@@ -50,7 +49,7 @@ persistence and changes the active persistence mode.
 Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":1,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
@@ -162,6 +161,10 @@ the unit.
 
 It realigns and re-identifies an ambiguous mailbox first, sends MediaEject for
 the unit, then confirms MediaInfo state empty. Eject is idempotent.
+If the eject exchange becomes ambiguous after the command is sent, the runtime
+returns its input-phase `io_failed` result after best-effort realignment; the
+core may already have accepted the eject. A completed loader rejection remains
+retryable `busy` and confirms that the media was not changed by that attempt.
 
 ### Status
 
@@ -227,8 +230,9 @@ object under `active_package.composition`:
 `fes.c64-bus.sockets/1` admits only socket 1 (ROM window) and socket 2 (I/O
 window), at most two cards. `fes.media.c64-disk` 1.0 is media unit 0, an
 exact 174,848-byte read-only D64. `fes.expansion.spectrum-bus` 1.0 uses the
-same operations. Its map `fes.spectrum-bus.sockets/1` admits sockets 1–4.
-`fes.media.spectrum-tape` 1.0 is media unit 0, a 1..65,536-byte `.tap`.
+same operations. Its map `fes.spectrum-bus.sockets/2` admits the one edge socket, 1.
+`fes.media.spectrum-tape` 2.0 is media unit 0, a 10..16,777,216-byte PZX
+stream; the host converts `.tzx`, `.tap`, `.csw` and `.pzx` images to it.
 `fes.media.zx81-tape` 1.0 is media unit 0, a 1..16,384-byte `.p`. Begin and
 Eject wait while that core reports the loader busy.
 

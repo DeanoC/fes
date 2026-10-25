@@ -87,10 +87,16 @@ module spectrum_video (
     reg [15:0] next_word = 16'd0;
     reg [14:0] read_address = 15'd0;
     reg [15:0] read_data = 16'd0;
+    reg [15:0] read_q = 16'd0;
     reg fetching = 1'b0;
     reg [4:0] fetch_phase = 5'd0;
     reg [5:0] fetch_word = 6'd0;
-    always @(posedge pixel_clk) read_data <= frames[read_address];
+    // The frame store spans many M10K blocks; read_q registers the word after
+    // their output mux, so the mux does not share a clock with next_word.
+    always @(posedge pixel_clk) begin
+        read_data <= frames[read_address];
+        read_q <= read_data;
+    end
 
     function [23:0] palette(input [3:0] colour);
         reg [7:0] level;
@@ -131,7 +137,7 @@ module spectrum_video (
         end
 
         // Word w is shown from h = LEFT + 24w. Its address is issued 8 clocks
-        // earlier and the data captured 6 clocks earlier.
+        // earlier and the data captured 5 clocks earlier.
         if (h == LEFT - 11'd9) begin
             fetching <= active_line;
             fetch_phase <= 5'd0;
@@ -139,8 +145,8 @@ module spectrum_video (
         end else if (fetching) begin
             if (fetch_phase == 5'd0)
                 read_address <= word_address(shown_bank, sy, fetch_word);
-            if (fetch_phase == 5'd2)
-                next_word <= read_data;
+            if (fetch_phase == 5'd3)
+                next_word <= read_q;
             if (fetch_phase == 5'd23) begin
                 fetch_phase <= 5'd0;
                 if (fetch_word == 6'd39) fetching <= 1'b0;

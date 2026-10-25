@@ -447,7 +447,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (home) {
 			// Admission requires every recognized operational interface to be
 			// required when declared; the bus and unknown optionals grant nothing.
-			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID)
 				capabilities |= FesComputerCapabilityVideoFixed720p60;
 			else if (interface.id == FesComputerInterfaceKeyboardHidID)
@@ -715,7 +715,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		// Identity already proved that the live capabilities equal these
 		// required declarations, so each one is an operational interface.
 		for (const auto& interface : context.descriptor->interfaces) {
-			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (!interface.required || !ComputerInterfaceCurrent(interface)) continue;
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceMouseRelativeID) mouse_relative_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
@@ -1093,7 +1093,10 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 			// tell a dead link from a busy loader.
 			if (ExchangeTransportGlitch(exchange)) {
 				(void)gp_.Realign(deadline);
-				return {ErrorCode::busy, "tape loader is busy", "input"};
+				// The eject command may have reached the core before its ACK was
+				// lost. Keep the transport error so callers do not claim that the
+				// current media is unchanged.
+				return exchange;
 			}
 			return MediaBusyOrIo(exchange);
 		}
@@ -1757,6 +1760,11 @@ Error FesGpCoreDriver::EjectMedia(std::uint8_t unit, std::uint64_t deadline)
 	error = ComputerCommand(FesComputerOpcodeMediaEject, unit, 0, deadline);
 	// A completed rejection changes no endpoint state; an ambiguous one might.
 	if (!error.ok()) {
+		// Invalid state is the completed busy rejection defined by the computer
+		// mailbox. Preserve it as busy so clients can distinguish this pre-eject
+		// no-op from a numeric rejection while confirming the post-eject state.
+		if (CommandRejected(error, FesSimpleComputerErrorInvalidState))
+			return {ErrorCode::busy, "media unit eject is busy", "input"};
 		if (gp_.Poisoned()) target->state = MediaUnitState::loading;
 		return error;
 	}

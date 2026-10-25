@@ -23,7 +23,7 @@ struct Bench {
         t.clk_sys=0; t.pixel_clk=0; t.reset_hold=1; t.gpo=0;
         t.force_media_busy=0; t.peek_addr=0x5000; t.eval();
         // The launcher draws opaque frames today.
-        t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__alpha=0xff;
+        t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__alpha=0xff;
         for(unsigned i=0;i<100;++i) tick();
         t.reset_hold=0;
         // The plane composites only after a whole frame confirms the raster.
@@ -59,7 +59,7 @@ struct Bench {
             check(full_frame_pixels>=921600, "frame ACK lacked a full frame");
         }
         last_sequence=t.displayed_sequence;
-        check(!t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__violation,
+        check(!t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__violation,
               "DDR bounds, writes or unused-port violation");
         last_ui=t.ui_active;
     }
@@ -71,23 +71,23 @@ struct Bench {
     }
     bool guard_busy() const {
         const auto *r=t.rootp;
-        return r->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__reads_owed ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__m_read ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__m_write ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__skid ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__beats_owed ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__finishing ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__returned ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__m_readdatavalid ||
-            r->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__readdatavalid;
+        return r->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__remaining ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__reads_owed ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_read ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_write ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__skid ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__beats_owed ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__finishing ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__returned ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_readdatavalid ||
+            r->zx81_session_harness__DOT__memory__DOT__port0__DOT__readdatavalid;
     }
     void finish_fault_close() {
         bool saw_hidden_return=false;
         for(unsigned i=0;i<2000000 && !acknowledged();++i) {
             tick();
-            saw_hidden_return |= bool(t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__returned);
-            check(!t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__readdatavalid,
+            saw_hidden_return |= bool(t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__returned);
+            check(!t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__readdatavalid,
                   "held guard exposed old responses to the reader");
             if(acknowledged()) check(!guard_busy(),"fault close ACK preceded physical DDR drain");
         }
@@ -166,34 +166,34 @@ int main(int argc,char **argv) {
     b.cycles(3);
     check((b.t.hdmi_word&0xffffff)==0x77,"slot 1 pixels missing from HDMI selection");
     // A held DDR response must postpone quiesce ACK and drain before return.
-    auto &remaining=b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining;
+    auto &remaining=b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__remaining;
     while(!remaining) b.tick();
-    b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
+    b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     b.begin_close();
     b.cycles(300);
     check(bool(b.t.gpi&0x800000)!=b.toggle,"quiesce ACK discarded outstanding reads");
-    b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
+    b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     for(unsigned i=0;i<2000000 && bool(b.t.gpi&0x800000)!=b.toggle;++i) b.tick();
     check(bool(b.t.gpi&0x800000)==b.toggle && !(b.t.gpi&0x400000),"quiesce did not drain");
     check(!b.t.ui_active && b.t.quiesced,"quiesce ACK preceded machine return");
     check(b.machine_output(),"return failed to select continuing ZX81 video");
     check(b.peek(0x5000)==0x5a,"closing altered retained RAM");
     b.cycles(50);
-    auto commands=b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__accepted;
+    auto commands=b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__accepted;
     b.cycles(1000);
-    check(commands==b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__accepted,
+    check(commands==b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__accepted,
           "closed UI continued DDR reads");
     check(b.command(20,0,1)==0,"reopen rejected");
     check(!b.t.ui_active,"reopen displayed a stale completed frame");
     b.submit(3,0); b.wait_sequence(3);
     check(b.peek(0x5000)==0x5a,"reopen reset retained state");
     // A visible-frame underrun disables only the plane, preserving the Z80.
-    b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
+    b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     for(unsigned i=0;i<1500000 && !b.t.faulted;++i) b.tick();
     check(b.t.faulted,"visible underflow did not contain the display");
     b.cycles(3);
     check(b.machine_output(),"display fault did not restore machine pixels");
-    b.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
+    b.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     check(b.command(20)==0,"faulted plane could not be closed");
     check(b.peek(0x5000)==0x5a,"display fault reset retained state");
     check(b.command(18,9)==25,"closed faulted plane did not report configured/quiesced/faulted");
@@ -205,7 +205,7 @@ int main(int argc,char **argv) {
     Bench hidden;
     check(hidden.command(19,0,1)==0 && hidden.command(2,0,1)==0,"hidden-underrun setup failed");
     hidden.watch_reset=true; hidden.cycles(200000);
-    hidden.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
+    hidden.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     check(hidden.command(20,0,1)==0,"hidden-underrun enable failed");
     hidden.submit(1,0);
     for(unsigned i=0;i<2000000 && !hidden.t.underflows;++i) hidden.tick();
@@ -213,7 +213,7 @@ int main(int argc,char **argv) {
           "hidden stalled frame became visible or faulted before completion");
     check(hidden.t.displayed_sequence==0,"hidden stalled frame acknowledged completion");
     auto hidden_writes=hidden.t.cpu_writes;
-    hidden.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
+    hidden.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     hidden.wait_sequence(1);
     auto hidden_misses=hidden.t.underflows;
     hidden.cycles(1300000);
@@ -230,9 +230,9 @@ int main(int argc,char **argv) {
     hard.watch_reset=true; hard.cycles(200000);
     check(hard.command(20,0,1)==0,"hard-fault enable failed");
     hard.submit(1,0); hard.wait_sequence(1);
-    while(!hard.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining)
+    while(!hard.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__remaining)
         hard.tick();
-    hard.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
+    hard.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     auto hard_writes=hard.t.cpu_writes;
     hard.t.reset_hold=1; hard.cycles(20);
     check(hard.t.faulted && hard.machine_output(),"PLL hold failed to contain the plane");
@@ -242,9 +242,9 @@ int main(int argc,char **argv) {
           "hard-fault close failed to restore machine video at the frame boundary");
     check(!hard.acknowledged() && !hard.t.quiesced && hard.guard_busy(),
           "hard-fault close acknowledged while accepted responses were stalled");
-    check(hard.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining!=0,
+    check(hard.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__remaining!=0,
           "hard-fault regression lost the stalled controller response");
-    hard.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
+    hard.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     hard.finish_fault_close();
     check(hard.command(18,9)==25,"hard-fault close/status failed");
     check(hard.t.cpu_writes>hard_writes && hard.peek(0x5000)==0x5a,
@@ -259,15 +259,15 @@ int main(int argc,char **argv) {
     Bench queued;
     check(queued.command(19,0,1)==0 && queued.command(2,0,1)==0,"queued-fault setup failed");
     queued.watch_reset=true; queued.cycles(200000);
-    queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__block_commands=1;
-    queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
+    queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__block_commands=1;
+    queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=1;
     check(queued.command(20,0,1)==0,"queued-fault enable failed");
     queued.submit(1,0);
-    for(unsigned i=0;i<2000000 && !queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__m_read;++i)
+    for(unsigned i=0;i<2000000 && !queued.t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_read;++i)
         queued.tick();
-    check(queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__m_read &&
-          queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__port0__DOT__reads_owed &&
-          queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__accepted==0,
+    check(queued.t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__m_read &&
+          queued.t.rootp->zx81_session_harness__DOT__memory__DOT__port0__DOT__reads_owed &&
+          queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__accepted==0,
           "queued-fault regression did not create an unaccepted guard command");
     queued.t.reset_hold=1; queued.cycles(20);
     check(queued.t.faulted && queued.command(2,0,0)==0x400004,
@@ -275,12 +275,12 @@ int main(int argc,char **argv) {
     queued.begin_close(); queued.cycles(300);
     check(!queued.acknowledged() && !queued.t.quiesced && queued.guard_busy(),
           "hard-fault close discarded a queued controller command");
-    queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__block_commands=0;
+    queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__block_commands=0;
     queued.cycles(300);
-    check(queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__remaining &&
+    check(queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__remaining &&
           !queued.acknowledged() && !queued.t.quiesced,
           "queued command close did not wait for its accepted response");
-    queued.t.rootp->zx81_session_harness__DOT__display__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
+    queued.t.rootp->zx81_session_harness__DOT__memory__DOT__f2sdram__DOT__pause_responses=0;
     queued.finish_fault_close();
     check(queued.command(18,9)==25 && queued.peek(0x5000)==0x5a,
           "queued hard fault close lost status or retained RAM");

@@ -992,6 +992,32 @@ func TestKitLocalStopDuringLoadWaitsForTheRunningCore(t *testing.T) {
 	}
 }
 
+func TestEvdevF12OpensZX81SelectorWithoutPFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a tape"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := startEmptyZX81Kit(t, dir)
+	_, poll := pollNative(t, nativeTestEvent(1, nativeKeyF12, 1))
+	poll(app)
+	assertEmptyLibrarySelector(t, app, dir)
+	_, repeat := pollNative(t, nativeTestEvent(1, nativeKeyF12, 2))
+	repeat(app)
+	if !app.Snapshot().TapePicker.Open {
+		t.Fatal("F12 key repeat dismissed the selector")
+	}
+}
+
+func TestIdleF12LeavesTheMenuAlone(t *testing.T) {
+	app := NewApp(nil, 1280, 720, 10)
+	_, poll := pollNative(t, nativeTestEvent(1, nativeKeyF12, 1), nativeTestEvent(1, nativeKeyF12, 0))
+	poll(app)
+	snap := app.Snapshot()
+	if snap.Settings.Open || snap.TapePicker.Open || snap.Session.ControlsOpen {
+		t.Fatalf("idle F12 opened chrome: settings=%v picker=%v controls=%v", snap.Settings.Open, snap.TapePicker.Open, snap.Session.ControlsOpen)
+	}
+}
+
 func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
 	if a.RequestLocalStop() {

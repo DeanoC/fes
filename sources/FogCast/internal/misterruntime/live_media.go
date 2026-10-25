@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
@@ -71,6 +72,12 @@ func liveMediaResponseMatches(response Protocol2Response, b protocol.Development
 // ReplaceLiveMedia stages caller bytes and fills the mailbox without hold-reset.
 // It does not restore the keyboard matrix; mid-session begin leaves it alone.
 func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
 		return protocol.LiveMediaRequestError()
 	}
@@ -131,13 +138,14 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 	if ctx.Err() != nil {
 		return &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "live media upload cancelled", Phase: "admission", Cause: ctx.Err()}
 	}
+	dispatched = true
 	response, dispatchErr := control.ReplaceLiveMedia(ctx, path, b.PackageID, b.Generation)
 	r.noteDispatch("replace_live_media", dispatchErr == nil)
 	if dispatchErr != nil {
 		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "live media delivery is unconfirmed; inspect the session before retrying", Phase: "transfer"}
 	}
 	if !response.OK || response.Error != nil {
-		return mapLiveMediaError(response.Error)
+		return mapLiveMediaInsertError(response.Error)
 	}
 	if !liveMediaResponseMatches(response, b) {
 		return unavailableError()
@@ -145,7 +153,13 @@ func (r *Runtime) ReplaceLiveMedia(ctx context.Context, size int64, body io.Read
 	return nil
 }
 
-func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMediaBinding) *protocol.APIError {
+func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMediaBinding) (apiErr *protocol.APIError) {
+	dispatched := false
+	defer func() {
+		if apiErr != nil && !dispatched {
+			apiErr.NoChange = true
+		}
+	}()
 	if !b.Valid() || b.Stream || b.Role == protocol.FirmwareRole {
 		return protocol.LiveMediaRequestError()
 	}
@@ -162,6 +176,7 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 	if !liveMediaResponseMatches(before, b) {
 		return protocol.LiveMediaIdentityError()
 	}
+	dispatched = true
 	response, err := control.ClearLiveMedia(ctx, b.PackageID, b.Generation)
 	r.noteDispatch("clear_media", err == nil)
 	if err != nil {
@@ -177,18 +192,35 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 }
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
-	// Loader invalid-state (GP error 4) is already "busy", including when the
-	// runtime still reports the raw Exchange rejection. A poisoned toggle,
-	// deadline, or unstable ACK may still arrive as phase=input io_failed;
-	// those transport glitches stay retryable. GP error 2 is invalid index.
-	// The runtime retries the legacy eject before that string is returned, so
-	// a leaked "response 2" is a hard mismatch, not loader contention. A hard
-	// MMIO failure or any other invalid clear acknowledgement stays
-	// unavailable, even when its phase is input.
-	if remote != nil && (remote.Code == "busy" || inputTransportGlitch(remote) || loaderInvalidState(remote)) {
+	// Loader invalid-state (GP error 4) is "busy". Other completed GP command
+	// rejections retain their unavailable classification and guarantee no media
+	// change for clear. Insert callers remove that guarantee because a completed
+	// rejection may follow a successful MediaBegin. A poisoned toggle, deadline,
+	// or unstable ACK may still arrive as phase=input io_failed and remains
+	// uncertain.
+	if remote != nil && (remote.Code == "busy" || loaderInvalidState(remote)) {
 		return protocol.LiveMediaBusyError()
 	}
-	return mapProtocol2Error(remote)
+	if inputTransportGlitch(remote) {
+		return protocol.LiveMediaInputUncertainError()
+	}
+	apiErr := mapProtocol2Error(remote)
+	if acknowledgedGPCommandRejection(remote) {
+		apiErr.NoChange = true
+	}
+	return apiErr
+}
+
+func mapLiveMediaInsertError(remote *Protocol2Error) *protocol.APIError {
+	apiErr := mapLiveMediaError(remote)
+	// TransferMediaBlob reports the same numeric rejection for MediaBegin,
+	// MediaData, and MediaCommit. A rejection after MediaBegin can leave the
+	// previous medium not ready, so an insert rejection is not guaranteed to
+	// have made no change.
+	if apiErr != nil && acknowledgedGPCommandRejection(remote) {
+		apiErr.NoChange = false
+	}
+	return apiErr
 }
 
 func loaderInvalidState(remote *Protocol2Error) bool {
@@ -196,6 +228,19 @@ func loaderInvalidState(remote *Protocol2Error) bool {
 		return false
 	}
 	return remote.Message == "FES GP command rejected with response 4"
+}
+
+func acknowledgedGPCommandRejection(remote *Protocol2Error) bool {
+	const prefix = "FES GP command rejected with response "
+	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" || !strings.HasPrefix(remote.Message, prefix) {
+		return false
+	}
+	response := strings.TrimPrefix(remote.Message, prefix)
+	if response == "" {
+		return false
+	}
+	_, err := strconv.ParseUint(response, 10, 32)
+	return err == nil
 }
 
 func inputTransportGlitch(remote *Protocol2Error) bool {
