@@ -1,16 +1,29 @@
 #!/bin/sh
-# Load the USB Bluetooth modules and create BlueZ storage on the FAT state
-# directory before bluetoothd starts. A missing adapter does not stop boot.
+# Load the USB Bluetooth modules and create BlueZ storage before bluetoothd
+# starts. /var/lib/bluetooth links to the ext4 appliance data partition
+# (mmcblk0p3 at /run/fogcast/fesdata3): BlueZ names entries after adapter and
+# device addresses, and the colons are invalid on the exFAT /media/fat. A
+# missing adapter does not stop boot.
 set -eu
 
-state=/media/fat/fogcast/state/bluetooth
+data=/run/fogcast/fesdata3
+state=$data/bluetooth
+old=/media/fat/fogcast/state/bluetooth
 mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
 
 case "${1:-start}" in
   start)
-    if [ -d /media/fat ]; then
-      /bin/mkdir -p "$state"
-      /bin/chmod 0700 "$state" 2>/dev/null || true
+    if ! /bin/grep -q " $data " /proc/mounts; then
+      printf %s
+ "S35fes-bluetooth: $data not mounted; pairings will not persist" >&2
+    fi
+    /bin/mkdir -p "$state"
+    /bin/chmod 0700 "$state" 2>/dev/null || true
+    # Earlier images kept storage on FAT. Nothing usable can live there, so
+    # carry over any entries and drop the old directory.
+    if [ -d "$old" ]; then
+      /bin/cp -a "$old"/. "$state"/ 2>/dev/null || true
+      /bin/rm -rf "$old" 2>/dev/null || true
     fi
     for name in btintel btbcm btrtl ath3k btusb; do
       ko=$mods/$name.ko

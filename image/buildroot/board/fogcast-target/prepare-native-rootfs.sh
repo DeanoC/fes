@@ -132,7 +132,7 @@ fi
 # S35 creates this directory on the FAT state partition.
 /bin/rm -rf "$target/var/lib/bluetooth"
 /bin/mkdir -p "$target/var/lib"
-/bin/ln -s /media/fat/fogcast/state/bluetooth "$target/var/lib/bluetooth"
+/bin/ln -s /run/fogcast/fesdata3/bluetooth "$target/var/lib/bluetooth"
 # dbus-uuidgen --ensure writes the machine id. Keep that write on /run.
 [ -L "$target/var/lib/dbus" ] && /bin/rm -f "$target/var/lib/dbus"
 /bin/mkdir -p "$target/var/lib/dbus"

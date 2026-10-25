@@ -3,48 +3,56 @@ package btagent
 import "testing"
 import "time"
 
-func TestIsController(t *testing.T) {
+func TestIsGamepad(t *testing.T) {
 	hid := []string{hidUUID}
 	hog := []string{hogUUID}
 	cases := []struct {
-		name  string
-		uuids []string
-		class uint32
-		want  bool
+		name string
+		dev  devInfo
+		want bool
 	}{
-		{"gamepad", nil, 0x508, true},
-		{"joystick", nil, 0x504, true},
-		{"keyboard", nil, 0x540, true},
-		{"pointing", nil, 0x580, true},
-		{"hid class 0", hid, 0, true},
-		{"hog class 0", hog, 0, true},
-		{"mixed case hid", []string{"00001124-0000-1000-8000-00805F9B34FB"}, 0, true},
-		{"class 0", nil, 0, false},
-		{"remote without hid", nil, 0x50C, false},
-		{"remote with hid", hid, 0x50C, true},
-		{"phone with hid", hid, 0x200, false},
-		{"computer", hid, 0x100, false},
-		{"audio", hog, 0x400, false},
+		{"gamepad class", devInfo{Class: 0x508}, true},
+		{"dualsense class", devInfo{Class: 0x002508, UUIDs: hid}, true},
+		{"joystick class", devInfo{Class: 0x504}, true},
+		{"gamepad appearance", devInfo{Appearance: 0x03C4, UUIDs: hog}, true},
+		{"joystick appearance", devInfo{Appearance: 0x03C3}, true},
+		{"sony hid class 0", devInfo{UUIDs: hid, Modalias: "usb:v054Cp0CE6d0100"}, true},
+		{"nintendo bluetooth modalias", devInfo{UUIDs: hid, Modalias: "bluetooth:v057Ep2009d0001"}, true},
+		{"sony without hid or peripheral", devInfo{Modalias: "usb:v054Cp0CE6d0100"}, false},
+		{"keyboard", devInfo{Class: 0x540, UUIDs: hid}, false},
+		{"pointing", devInfo{Class: 0x580, UUIDs: hid}, false},
+		{"unknown hid class 0", devInfo{UUIDs: hid}, false},
+		{"unknown hog class 0", devInfo{UUIDs: hog}, false},
+		{"keyboard appearance", devInfo{Appearance: 0x03C1, UUIDs: hog}, false},
+		{"unknown vendor hid", devInfo{UUIDs: hid, Modalias: "usb:v1234p0001d0001"}, false},
+		{"class 0", devInfo{}, false},
+		{"remote with hid", devInfo{Class: 0x50C, UUIDs: hid}, false},
+		{"sony phone", devInfo{Class: 0x200, UUIDs: hid, Modalias: "usb:v054Cp0001d0001"}, false},
+		{"computer", devInfo{Class: 0x100, UUIDs: hid}, false},
+		{"audio", devInfo{Class: 0x400, UUIDs: hog}, false},
 	}
 	for _, tc := range cases {
-		if got := isController(tc.uuids, tc.class); got != tc.want {
+		if got := isGamepad(tc.dev); got != tc.want {
 			t.Errorf("%s: got %v", tc.name, got)
 		}
 	}
 }
 
 func TestDecide(t *testing.T) {
-	if decide(false, false, []string{hidUUID}, 0) != actionPair {
-		t.Fatal("unpaired controller")
+	if decide(devInfo{Class: 0x508}) != actionPair {
+		t.Fatal("unpaired gamepad")
 	}
-	if decide(true, false, nil, 0x508) != actionConnect {
-		t.Fatal("paired controller")
+	if decide(devInfo{Paired: true, Class: 0x508}) != actionConnect {
+		t.Fatal("paired gamepad")
 	}
-	if decide(true, true, nil, 0x508) != actionIgnore {
-		t.Fatal("connected controller")
+	if decide(devInfo{Paired: true, Connected: true, Class: 0x508}) != actionIgnore {
+		t.Fatal("connected gamepad")
 	}
-	if decide(false, false, []string{hidUUID}, 0x200) != actionIgnore {
-		t.Fatal("phone")
+	if decide(devInfo{UUIDs: []string{hidUUID}, Class: 0x540}) != actionIgnore {
+		t.Fatal("keyboard must not be paired")
+	}
+	if decide(devInfo{UUIDs: []string{hidUUID}}) != actionIgnore {
+		t.Fatal("unclassified hid device must not be paired")
 	}
 }
 

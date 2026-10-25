@@ -368,7 +368,7 @@ test -x "$target/etc/init.d/S30dbus"
 test -x "$target/usr/libexec/bluetooth/bluetoothd"
 test -x "$target/usr/bin/dbus-daemon"
 test -L "$target/var/lib/bluetooth"
-test "$(readlink "$target/var/lib/bluetooth")" = /media/fat/fogcast/state/bluetooth
+test "$(readlink "$target/var/lib/bluetooth")" = /run/fogcast/fesdata3/bluetooth
 test -L "$target/var/lib/dbus/machine-id"
 test "$(readlink "$target/var/lib/dbus/machine-id")" = /run/dbus/machine-id
 for fw in rtl8821c_fw.bin rtl8821c_config.bin rtl8761bu_fw.bin rtl8761bu_config.bin LICENCE.rtlwifi_firmware.txt; do

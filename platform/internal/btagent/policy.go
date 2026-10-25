@@ -10,13 +10,15 @@ const (
 	hidUUID = "00001124-0000-1000-8000-00805f9b34fb"
 	hogUUID = "00001812-0000-1000-8000-00805f9b34fb"
 
-	majorComputer    = 1
-	majorPhone       = 2
-	majorAudio       = 4
-	majorPeripheral  = 5
-	minorJoystick    = 0x01
-	minorGamepad     = 0x02
-	minorKeyPointing = 0x30
+	majorComputer   = 1
+	majorPhone      = 2
+	majorAudio      = 4
+	majorPeripheral = 5
+	minorJoystick   = 0x01
+	minorGamepad    = 0x02
+
+	appearanceJoystick = 0x03C3
+	appearanceGamepad  = 0x03C4
 
 	attemptGap = 30 * time.Second
 	attemptMax = 3
@@ -30,25 +32,42 @@ const (
 	actionConnect
 )
 
-// isController reports whether a remote device is a gamepad, joystick,
-// keyboard or pointing device. Computers, phones and audio devices are
-// rejected even when they advertise HID. A class of zero is a controller
-// only when it carries the HID or HoG service UUID.
-func isController(uuids []string, class uint32) bool {
-	switch (class >> 8) & 0x1f {
+// isGamepad reports whether a remote device is a gamepad or joystick. Only
+// such devices are paired, trusted and connected; keyboards, mice, phones,
+// computers, audio and anything else nearby are ignored. A device qualifies
+// by its Class of Device (peripheral, joystick or gamepad minor), by its LE
+// appearance (joystick 0x03C3 or gamepad 0x03C4), or by a known pad vendor
+// in its modalias together with the HID/HoG service or a peripheral class.
+func isGamepad(dev devInfo) bool {
+	major := (dev.Class >> 8) & 0x1f
+	switch major {
 	case majorComputer, majorPhone, majorAudio:
 		return false
-	default:
-		if controllerUUID(uuids) {
+	}
+	if major == majorPeripheral {
+		kind := (dev.Class >> 2) & 0x0f
+		if kind == minorJoystick || kind == minorGamepad {
 			return true
 		}
-		if (class>>8)&0x1f != majorPeripheral {
-			return false
-		}
-		minor := (class >> 2) & 0x3f
-		kind := minor & 0x0f
-		return kind == minorJoystick || kind == minorGamepad || minor&minorKeyPointing != 0
 	}
+	if dev.Appearance == appearanceJoystick || dev.Appearance == appearanceGamepad {
+		return true
+	}
+	return padVendor(dev.Modalias) && (controllerUUID(dev.UUIDs) || major == majorPeripheral)
+}
+
+// padVendors are USB/Bluetooth vendor ids of game controller makers:
+// Sony, Microsoft, Nintendo and 8BitDo.
+var padVendors = map[string]bool{"054c": true, "045e": true, "057e": true, "2dc8": true}
+
+// padVendor parses a BlueZ modalias such as "usb:v054CpCE6Bd0100" or
+// "bluetooth:v057Ep2009d0001" and reports a known pad vendor.
+func padVendor(modalias string) bool {
+	_, rest, ok := strings.Cut(modalias, ":v")
+	if !ok || len(rest) < 4 {
+		return false
+	}
+	return padVendors[strings.ToLower(rest[:4])]
 }
 
 func controllerUUID(ids []string) bool {
@@ -64,11 +83,11 @@ func oneControllerUUID(id string) bool {
 	return strings.EqualFold(id, hidUUID) || strings.EqualFold(id, hogUUID)
 }
 
-func decide(paired, connected bool, uuids []string, class uint32) action {
-	if !isController(uuids, class) || connected {
+func decide(dev devInfo) action {
+	if !isGamepad(dev) || dev.Connected {
 		return actionIgnore
 	}
-	if paired {
+	if dev.Paired {
 		return actionConnect
 	}
 	return actionPair

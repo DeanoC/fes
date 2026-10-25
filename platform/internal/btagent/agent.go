@@ -47,13 +47,15 @@ func isName(err error, name string) bool {
 }
 
 type devInfo struct {
-	Path      string
-	Name      string
-	UUIDs     []string
-	Class     uint32
-	Paired    bool
-	Connected bool
-	Trusted   bool
+	Path       string
+	Name       string
+	UUIDs      []string
+	Class      uint32
+	Appearance uint16
+	Modalias   string
+	Paired     bool
+	Connected  bool
+	Trusted    bool
 }
 
 type bus struct {
@@ -426,7 +428,7 @@ func (a *agent) configure(ctx context.Context, path string) {
 }
 
 func (a *agent) act(ctx context.Context, dev devInfo) {
-	what := decide(dev.Paired, dev.Connected, dev.UUIDs, dev.Class)
+	what := decide(dev)
 	if what == actionIgnore {
 		return
 	}
@@ -463,6 +465,12 @@ func (a *agent) merge(path string, props map[string]any) {
 	}
 	if u, ok := props["Class"].(uint32); ok {
 		dev.Class = u
+	}
+	if u, ok := props["Appearance"].(uint16); ok {
+		dev.Appearance = u
+	}
+	if s, ok := props["Modalias"].(string); ok {
+		dev.Modalias = s
 	}
 	if b, ok := props["Paired"].(bool); ok {
 		dev.Paired = b
@@ -786,6 +794,12 @@ func applyProps(dev *devInfo, props map[string]any) {
 	}
 	if u, ok := props["Class"].(uint32); ok {
 		dev.Class = u
+	}
+	if u, ok := props["Appearance"].(uint16); ok {
+		dev.Appearance = u
+	}
+	if s, ok := props["Modalias"].(string); ok {
+		dev.Modalias = s
 	}
 	if b, ok := props["Paired"].(bool); ok {
 		dev.Paired = b

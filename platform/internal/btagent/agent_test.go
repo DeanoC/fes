@@ -30,7 +30,7 @@ func TestRunPairsGamepadAndRejectsPhone(t *testing.T) {
 
 func TestAuthorizeServiceDuringPairedControllerConnect(t *testing.T) {
 	path := gamepadPath
-	if decide(true, false, nil, 0x508) != actionConnect {
+	if decide(devInfo{Paired: true, Class: 0x508}) != actionConnect {
 		t.Fatal("paired controller did not select connect")
 	}
 	attempts := newAttempts()

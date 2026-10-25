@@ -427,8 +427,8 @@ EOF
       exit 1
     fi
     bluetooth_link=$(readlink "$root/var/lib/bluetooth" || true)
-    [ -L "$root/var/lib/bluetooth" ] && [ "$bluetooth_link" = /media/fat/fogcast/state/bluetooth ] || {
-      printf '%s\n' 'verify-target-image: bluetooth storage is not the FAT state link' >&2
+    [ -L "$root/var/lib/bluetooth" ] && [ "$bluetooth_link" = /run/fogcast/fesdata3/bluetooth ] || {
+      printf '%s\n' 'verify-target-image: bluetooth storage is not the ext4 appliance data link' >&2
       exit 1
     }
     machine_id_link=$(readlink "$root/var/lib/dbus/machine-id" || true)
