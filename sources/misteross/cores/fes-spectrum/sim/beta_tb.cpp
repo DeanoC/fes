@@ -116,6 +116,11 @@ public:
             if (t - start > limit_ms * T_PER_MS) fail(what + ": no INTRQ");
         return t - start;
     }
+    void wait_index(bool active, uint64_t limit_ms, const std::string &what) {
+        const uint64_t start = t;
+        while (((in(0x1f) & 0x02) != 0) != active)
+            if (t - start > limit_ms * T_PER_MS) fail(what + ": index state did not change");
+    }
     // A read loop as TR-DOS's: poll $FF, take the data on DRQ, end on INTRQ.
     std::vector<uint8_t> read_data(uint64_t limit_ms, const std::string &what, unsigned delay_t = 0) {
         std::vector<uint8_t> data;
@@ -316,6 +321,14 @@ int main(int argc, char **argv) {
     bench.out(0x1f, 0xd8);
     expect((bench.in(0xff) & 0x80) != 0, "force interrupt raises INTRQ");
     expect((bench.in(0x1f) & 0x01) == 0, "force interrupt ends the command");
+
+    // I2 fires at the start of the next index pulse, not its trailing edge.
+    bench.wait_index(true, 210, "current index pulse starts");
+    bench.wait_index(false, 20, "current index pulse ends");
+    bench.out(0x1f, 0xd4);
+    expect((bench.in(0xff) & 0x80) == 0, "I2 waits for the next index pulse");
+    bench.wait_intrq(210, "force interrupt I2");
+    expect((bench.in(0x1f) & 0x02) != 0, "I2 raises INTRQ at the next index pulse start");
 
     // Drive B is empty: its reads are not found.
     bench.out(0xff, 0x3d);

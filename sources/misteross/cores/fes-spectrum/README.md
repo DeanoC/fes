@@ -261,16 +261,16 @@ with varying delay: Restore and Seek with verify and their timing, Read
 Sector on both sides at 112 T a byte, Read Address, Read Track, multi-sector
 reads ending at the track's last sector, Record Not Found after five
 revolutions, Write Protect, Lost Data, a CRC error, a verify on the wrong
-track, Force Interrupt, an empty drive B, a Type II command on an unloaded
-head, the head unloading after 3 s and the launch image's boot pulse. The
-uPD765 simulation drives `spectrum_upd765` through `$2FFD` and `$3FFD` as
-+3DOS does, against a synthetic extended `.dsk`: the motor's ready delay,
-Specify, Recalibrate and Seek with Sense Interrupt Status, Sense Drive Status,
-Read ID, one sector and a run ending with End of Cylinder at 32 us a byte, a
-missing sector after two revolutions, Overrun, a data CRC error, a bad ID, a
-deleted sector, a weak sector, Read Diagnostic, Write Data on a protected
-disk, Version, invalid commands and the boot pulse. A
-mailbox simulation checks the two units of the Pentagon and +2A/+3: each
+track, Force Interrupt immediately and at the next index pulse, an empty drive
+B, a Type II command on an unloaded head, the head unloading after 3 s and the
+launch image's boot pulse. The uPD765 simulation drives `spectrum_upd765`
+through `$2FFD` and `$3FFD` as +3DOS does, against a synthetic extended `.dsk`:
+the motor's ready delay, Specify, Recalibrate and Seek with Sense Interrupt
+Status, Sense Drive Status, Read ID, one sector and a run ending with End of
+Cylinder at 32 us a byte, a missing sector after two revolutions, Overrun, a
+data CRC error, a bad ID, a deleted sector, a weak sector, Read Diagnostic,
+Write Data on a protected disk, Version, invalid commands and the boot pulse.
+A mailbox simulation checks the two units of the Pentagon and +2A/+3: each
 unit's Info, a transfer to each, transfers bound to their unit and one at a
 time, and an eject of one unit leaving the other alone. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
