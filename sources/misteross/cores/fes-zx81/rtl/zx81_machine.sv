@@ -189,7 +189,9 @@ module zx81_machine #(
     wire ram_e = addr[14];
 `ifdef ZX81_MODEL_ZX80
     // Raw image at $4000. The ZX81 .p loader adds eight bytes; ZX80 does not.
-    wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr} : {2'b01, addr[13:0]};
+    // tapewrite_we is registered with tape_addr's increment, so writes use
+    // the previous byte address.
+    wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr - 14'd1} : {2'b01, addr[13:0]};
 `else
     wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr + 4'd8} : {2'b01, addr[13:0]};
 `endif

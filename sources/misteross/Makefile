@@ -82,7 +82,7 @@ help:
 		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display" \
 		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for the 8 KiB BASIC image" \
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
-		"  sim-fes-zx81-variants  Probe ZX81, ZX80, TS1000 and TS1500 RAM, ROM window, video bit and NMI" \
+		"  sim-fes-zx81-variants  Probe family variants and verify the ZX80 tape load address" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
 		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
@@ -387,6 +387,22 @@ sim-fes-zx81-variants:
 			"$(CURDIR)/cores/fes-zx81/sim/variant_tb.cpp" || exit $$?; \
 		build/sim/fes-zx81-variant-$$name/Vzx81_machine $$name || exit $$?; \
 	done
+	@mkdir -p build/sim/fes-zx81-variant-zx80-load
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
+		-GEXTERNAL_RAM=1 \
+		-GFIRMWARE_INIT='"$(CURDIR)/cores/fes-zx81/sim/zx80_load_probe.hex"' \
+		-DZX81_MODEL_ZX80 \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-variant-zx80-load" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/tape_load_tb.cpp"
+	@build/sim/fes-zx81-variant-zx80-load/Vzx81_machine
 
 sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants
 	$(require_local_sim)
