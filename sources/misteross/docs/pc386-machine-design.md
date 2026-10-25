@@ -775,11 +775,14 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map; grant the
-  region, invalidate the HPS caches for it and read the dirty chunks; write and
-  sync each new chunk file; publish the new manifest with the existing
-  temporary-file, rename and directory-sync rule; send Saved; delete chunk
-  files no manifest names, under the namespace lock.
+- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
+  existing manifest (empty on the first save); grant the region, invalidate the
+  HPS caches for it and read the dirty chunks; write and sync each new chunk
+  file; replace those indices in the existing manifest, retaining entries for
+  unchanged chunks; publish the merged manifest with the existing
+  temporary-file, rename and directory-sync rule; send Saved to clear the dirty
+  bits; delete chunk files the published manifest does not name, under the
+  namespace lock.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 
