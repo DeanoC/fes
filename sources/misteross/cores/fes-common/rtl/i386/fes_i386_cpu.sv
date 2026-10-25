@@ -135,11 +135,11 @@ module fes_i386_cpu (
     assign d_eip_next = code32 ? d_eip + {28'd0, cur.length} : {16'd0, eip16[15:0]};
 
     uop_t        u;
-    logic        opsize32, lea, lea_early, branch, reads_seg, stop;
+    logic        opsize32, lea, lea_early, branch, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
     fes_i386_decode decode (
-        .q(cur), .code32, .wrap16, .uop(u), .opsize32, .lea, .lea_early, .lea_disp, .branch, .reads_seg,
+        .q(cur), .code32, .wrap16, .uop(u), .opsize32, .lea, .lea_early, .lea_disp, .branch, .consumes, .reads_seg,
         .seg_index, .stop
     );
 
@@ -209,7 +209,7 @@ module fes_i386_cpu (
     // reach EX's running copy a cycle after the shift leaves EX (fes_i386_ex).
     logic flag_hazard;
     assign flag_hazard = ag_s.valid && ag_s.uop.cls == fes_i386_pkg::UOP_SHIFT
-                      && (u.flags.read.cf || u.flags.read.oszap);
+                      && consumes;
 
     assign issue = cur_valid && !(lea && lea_stall) && !(reads_seg && seg_hazard) && !flag_hazard && !wb_flush;
 

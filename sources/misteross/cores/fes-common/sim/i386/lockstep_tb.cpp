@@ -399,9 +399,10 @@ struct Summary {
     // Cycles from one retirement to the next, by what retired: after a
     // branch, taken or not; otherwise an instruction with more than one
     // prefix (each but the last costs Q a cycle), an LEA, a selector read
-    // (MOV r/m, Sreg), or any other.
+    // (MOV r/m, Sreg); after a shift or rotate, an instruction that consumes
+    // the flags (D holds it a cycle) or one that does not; or any other.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
-        gap_after_not_taken;
+        gap_after_not_taken, gap_shift_consumer, gap_after_shift;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -411,6 +412,28 @@ void hash_state(Summary &summary, const State &s) {
     mix(s.eip);
     for (uint32_t r : s.gpr) mix(r);
     mix(s.eflags);
+}
+
+// A shift or rotate: group 2, SHLD or SHRD.
+bool is_shift(const uint8_t *code) {
+    unsigned i = 0;
+    while (i < 15 && is_prefix(code[i])) ++i;
+    const uint8_t op = code[i];
+    if (op == 0x0f) return code[i + 1] == 0xa4 || code[i + 1] == 0xa5 || code[i + 1] == 0xac || code[i + 1] == 0xad;
+    return op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3);
+}
+
+// An instruction whose result depends on the old flags: ADC, SBB, Jcc,
+// SETcc, LAHF, CMC, LOOPE, LOOPNE, RCL, RCR.
+bool consumes_flags(const uint8_t *code) {
+    unsigned i = 0;
+    while (i < 15 && is_prefix(code[i])) ++i;
+    const uint8_t op = code[i], reg = (code[i + 1] >> 3) & 7;
+    if (op == 0x0f) return (code[i + 1] & 0xe0) == 0x80;  // Jcc rel16/32, SETcc
+    if (op < 0x40 && (op & 7) < 6) return ((op >> 3) & 7) == 2 || ((op >> 3) & 7) == 3;
+    if (op >= 0x80 && op <= 0x83) return reg == 2 || reg == 3;
+    if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3)) return reg == 2 || reg == 3;
+    return (op >= 0x70 && op <= 0x7f) || op == 0x9f || op == 0xf5 || op == 0xe0 || op == 0xe1;
 }
 
 // A branch's opcode and whether it is taken from this state, as the 386
@@ -464,7 +487,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                  const Fields &label_corpus, uint64_t retire_limit, Summary &summary, Mismatches &out) {
     Outcome outcome;
     uint64_t last_retirement = 0;
-    bool retired_before = false, branch_before = false, taken_before = false;
+    bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
             outcome.limit = true;
@@ -513,11 +536,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : prefixes > 1 ? summary.gap_prefixed
                            : op == 0x8d ? summary.gap_lea
                            : op == 0x8c ? summary.gap_selector
+                           : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                                         : summary.gap_sequential;
                 ++gaps[rtl.cycles - last_retirement];
             }
             retired_before = true;
             branch_before = branch_taken(code, before, code32, taken_before);
+            shift_before = is_shift(code);
             last_retirement = rtl.cycles;
         }
 
@@ -1143,7 +1168,7 @@ int main(int argc, char **argv) {
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"retire_limits\": %llu, \"divergence_retirements\": {%s}, \"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
-                "\"after_taken\": %s, \"after_not_taken\": %s}}\n",
+                "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -1152,6 +1177,7 @@ int main(int argc, char **argv) {
                 divergences.c_str(), (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
                 histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
                 histogram(summary.gap_selector).c_str(), histogram(summary.gap_after_taken).c_str(),
-                histogram(summary.gap_after_not_taken).c_str());
+                histogram(summary.gap_after_not_taken).c_str(), histogram(summary.gap_shift_consumer).c_str(),
+                histogram(summary.gap_after_shift).c_str());
     return summary.failed ? 1 : 0;
 }
