@@ -1022,7 +1022,8 @@ keeps the other entries available. The room shows the entry's edition, saved
 sockets, and saved `.d64`. It starts through `session.launch` and opens the live
 disk picker only while that entry is running. A failed hardware refresh clears
 the observed live session and disables the session controls until a later read
-succeeds.
+succeeds. Launcher session-state changes invalidate the cached hardware session,
+request a fresh hardware read, and force the controls and Running label to redraw.
 
 Rooms access this projection through optional typed `rooms.HardwareServices`
 and `hostclient`, without arbitrary Lua networking. A room visited while

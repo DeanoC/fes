@@ -26,9 +26,10 @@ func TestHomeDrawHardBudgetStays48ms(t *testing.T) {
 
 type c64Host struct {
 	fakeServices
-	hardwareMu  sync.Mutex
-	snap        hostclient.HardwareSnapshot
-	hardwareErr error
+	hardwareMu    sync.Mutex
+	snap          hostclient.HardwareSnapshot
+	hardwareErr   error
+	hardwareReads int
 }
 
 type c64ServicesWithEmptyHardware struct {
@@ -46,7 +47,20 @@ func (c64ServicesWithEmptyHardware) SelectCoreEntryExpansion(context.Context, st
 func (h *c64Host) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
 	h.hardwareMu.Lock()
 	defer h.hardwareMu.Unlock()
+	h.hardwareReads++
 	return h.snap, h.hardwareErr
+}
+
+func (h *c64Host) setHardwareSnapshot(snap hostclient.HardwareSnapshot) {
+	h.hardwareMu.Lock()
+	defer h.hardwareMu.Unlock()
+	h.snap = snap
+}
+
+func (h *c64Host) hardwareReadCount() int {
+	h.hardwareMu.Lock()
+	defer h.hardwareMu.Unlock()
+	return h.hardwareReads
 }
 
 func (h *c64Host) setHardwareError(err error) {
@@ -196,6 +210,40 @@ func TestC64RoomChooseDiskUsesTheRunningSession(t *testing.T) {
 	if len(acts) != 1 || acts[0].Kind != ActionStop || acts[0].SessionID != "c64-session" {
 		t.Fatalf("stop %+v", acts)
 	}
+}
+
+func TestC64RoomRefreshesControlsWhenSessionStateChanges(t *testing.T) {
+	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
+	host := &c64Host{fakeServices: fakeServices{games: []hostclient.Game{game}}}
+	pack := examplePack(t, "example.c64")
+	r := newRoom(t, pack, Options{Services: host, Width: 1280, Height: 720})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Start machine") && strings.Contains(frameText(f), "Running: not running")
+	})
+
+	r.Activate("start")
+	if actions := r.TakeActions(); len(actions) != 1 || actions[0].Kind != ActionLaunch || actions[0].GameID != game.ID {
+		t.Fatalf("launch actions %+v", actions)
+	}
+	host.setHardwareSnapshot(hostclient.HardwareSnapshot{Session: c64DiskSession(game.ID)})
+	r.SetSessionState("active")
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Stop machine") && strings.Contains(frameText(f), "Running: this Commodore 64")
+	})
+
+	r.Activate("start")
+	if actions := r.TakeActions(); len(actions) != 1 || actions[0].Kind != ActionStop || actions[0].SessionID != "c64-session" {
+		t.Fatalf("stop actions %+v", actions)
+	}
+	host.setHardwareSnapshot(hostclient.HardwareSnapshot{})
+	r.SetSessionState("idle")
+	stepUntil(t, r, func(f Frame) bool {
+		return host.hardwareReadCount() >= 3 && strings.Contains(frameText(f), "Start machine") && strings.Contains(frameText(f), "Running: not running")
+	})
 }
 
 func TestC64RoomBlocksStartWhileAnotherTitleRuns(t *testing.T) {

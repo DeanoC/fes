@@ -37,6 +37,8 @@ local message = "Choose a Commodore 64 entry."
 local rev = 0
 local last_hw = 0
 local hw_busy = false
+local hw_refresh_pending = false
+local observed_session = session.state()
 local cmds, pool, sink = {}, {}, nil
 local heights = {}
 local scale, ox, oy = 1, 0, 0
@@ -44,6 +46,7 @@ local boot = 0
 local held_w, held_h, held_focus = -1, -1, ""
 local held_entry, held_edition, held_rev, held_overlay = -1, -1, -1, false
 local held_message = ""
+local held_session = ""
 
 local nav = store.get("navigation", {})
 local initial_game_id = room.initial_game_id or ""
@@ -207,10 +210,18 @@ local function place_selected(list)
   end)
 end
 local function read_hardware()
-  if hw_busy then return end
+  if hw_busy then
+    hw_refresh_pending = true
+    return
+  end
   hw_busy = true
   hardware.read(function(value, err)
     hw_busy = false
+    if hw_refresh_pending then
+      hw_refresh_pending = false
+      read_hardware()
+      return
+    end
     if value and not err then
       live = value.session
       hardware_unavailable = false
@@ -400,6 +411,7 @@ local function scene_same()
   if room.width ~= held_w or room.height ~= held_h then return false end
   if focus ~= held_focus or entry_i ~= held_entry or edition_i ~= held_edition then return false end
   if rev ~= held_rev or message ~= held_message then return false end
+  if session.state() ~= held_session then return false end
   if (room.overlay and true or false) ~= held_overlay then return false end
   return true
 end
@@ -409,6 +421,7 @@ local function remember_scene()
   held_entry, held_edition = entry_i, edition_i
   held_rev, held_message = rev, message
   held_overlay = overlay
+  held_session = session.state()
 end
 
 local warm_px, warm_at
@@ -532,6 +545,14 @@ function load()
 end
 
 function update()
+  local state = session.state()
+  if state ~= observed_session then
+    observed_session = state
+    live = nil
+    last_hw = room.time
+    rev = rev + 1
+    read_hardware()
+  end
   if room.time - last_hw >= 15 then
     last_hw = room.time
     read_hardware()
