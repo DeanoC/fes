@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
@@ -82,9 +83,9 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	}
 	result := make([]HardwareMachine, 0)
 	for _, entry := range entries {
-		// This room currently supports the one real ZX81 rear connector. Other
+		// ZX81, ZX80 and the Timex models share this rear connector. Other
 		// families use their own admitted topology when added to this projection.
-		if entry.CoreID != "fes.zx81" {
+		if !zx81family.Known(entry.CoreID) {
 			continue
 		}
 		machine := HardwareMachine{

@@ -1,0 +1,5 @@
+sshd-ok
+29835 (dropbear) S 719 719 719
+719 (dropbear) S 1 719 719
+
+exit 0
