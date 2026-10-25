@@ -28,8 +28,9 @@ open first.
 ## Proposals
 
 - [i386 CPU design](i386-cpu-design.md) — a first-party 386-compatible CPU
-  for era games. No RTL exists; it is not a build instruction.
-- [pc386 machine design](pc386-machine-design.md) — the `fes.pc386` AT-class
+  for era games. Phase 1 RTL slices exist, but no complete CPU RTL exists; it
+  is not a build instruction.
+- [pc386 machine design](pc386-machine-design.md) — the fes.pc386 AT-class
   machine around that CPU: chipset, VGA, audio, ATA disk in DDR, open BIOS.
   No RTL exists; it is not a build instruction.
 
@@ -42,6 +43,8 @@ those notes without checking [Cores](cores.md) and the producer script.
 
 | Record | What it recorded |
 | --- | --- |
+| [i386 Phase 1 cuts](validation/2026-10-25-i386-phase1-cuts.md) | L stage, Q next-start select, D forwarding and the cut AG built and re-checked (also on Yosys's netlist); spikes per stage. AG 96-102 MHz and M2 102-106 meet or reach 100 MHz; L 61-68, Q 65-71, F2 72-79 and D 79-85 miss. Host-only. |
+| [i386 Phase 1 first slice](validation/2026-10-25-i386-phase1-spikes.md) | Length decoders exhaustively equal to the Bochs oracle; one instruction per cycle without prefixes; front-end, AG and M2 timing spikes routed on two nextpnr pins. Front end and AG miss 100 MHz. Host-only. |
 | [RAM-test fixed-input controls](validation/2026-09-29-ramtest-fixed-input.md) | Cross-compiler baseline controls isolate BUILD_ID-driven mapping variation. Quartus DDR0 first-error locality and a truth-table-verified shallower zero detector provide the next lead; no new routed gain. Host-only. |
 | [RAM-test merged compiler diagnostic](validation/2026-09-29-ramtest-merged-compilers.md) | Merged pins and paired generic remap: memory 106.16→109.95 MHz, pixel 94.50→94.36. Conservative selector retains baseline; 130 MHz remains unresolved. Host-only. |
 | [RAM-test fixed-placement feedback-state copies](validation/2026-09-28-ramtest-feedback-local-copy.md) | Two legal same-LAB FF copies preserve all 20,014 original routed BELs but memory slips to 116.71 MHz; no gain stacked. Host-only. |

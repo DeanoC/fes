@@ -241,16 +241,19 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
-    def test_i386_oracle_runs_software_tests_without_simulations(self):
+    def test_i386_runs_software_tests_without_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
-                     'cores/fes-common/sim/i386/bochs/instrument.h', 'scripts/fes_i386_oracle.py',
-                     'scripts/test_fes_i386_vectors.py', 'scripts/test_fes_i386_test386.py'):
+                     'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
+                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
+                     'scripts/benchmark_fes_i386.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
                 self.assertTrue(result['lanes']['fpga'])
-        # A future i386 RTL directory is not swallowed by the oracle rule.
-        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/i386/top.sv'])['cores']), set(CORES))
+        # The rule is the i386 directory only: a new shared RTL unit still fails broad.
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',
