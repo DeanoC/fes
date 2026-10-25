@@ -25,8 +25,14 @@ immediate bytes; the later rounds route the corrected decoder. See the
 decode, caches, execute, whole-CPU lockstep, complete machine, package, RBF and
 kit evidence do not exist. Every clock, area, latency and performance figure
 below is a budget or estimate unless it names its measurement. Isolated spike
-results are not full-CPU timing or seal evidence, and a whole-CPU route is
-expected to come in lower.
+results are not full-CPU timing or seal evidence. The first whole-CPU routes
+(register-only core, [#1109](https://github.com/DeanoC/fes/pull/1109)) came in
+lower. A Quartus 17.0.2 oracle on the same Yosys netlist
+([#1112](https://github.com/DeanoC/fes/pull/1112)) shows the gap is mostly
+nextpnr's place and route
+([DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300)). After the
+EX cut ([#1115](https://github.com/DeanoC/fes/pull/1115)) the whole CPU routes
+at 96–101 MHz in Quartus and 63–65 MHz in nextpnr ([clock](#the-clock-on-each-flow)).
 
 **Owners:** misteross for the CPU RTL, microcode, test harness and producer.
 The machine around the CPU (AT chipset, VGA, audio, storage, firmware) is a
@@ -60,12 +66,13 @@ titles it must play ([first acceptance games](#first-acceptance-games)).
 comparison. Its README gives a 90 MHz default with L1 and L2 on and "486SX33
 performance (no-FPU)". It is a reference only; nothing here reuses its RTL.
 
-At the settled design point of about 80 MHz, the estimate is about 51 million
-instructions per second on cache-resident integer code
-([estimate](#performance-estimate)). That is about 1.5 times a 486DX2-66, which
-only just meets the target gate below, and about three times a 486SX-33. A
-whole-CPU route at about 70 MHz would miss the target and still clear the
-minimum.
+At about 80 MHz the estimate is about 51 million instructions per second on
+cache-resident integer code ([estimate](#performance-estimate)): about 1.5
+times a 486DX2-66, which just meets the target gate below. The product flow
+today routes the whole CPU at about 63 MHz ([clock](#the-clock-on-each-flow)),
+about 41 million: 1.2 times a 486DX2-66, which clears the minimum and misses
+the target. The RTL itself reaches about 100 MHz in Quartus, so the target
+depends on closing nextpnr's place-and-route gap.
 
 Gates, measured on the benchmark set in [verification](#verification) against
 published period-hardware results:
@@ -322,6 +329,31 @@ Rules that follow, checked in review and against every routed critical path:
    - The start-after-next idea for Q
      ([#1097](https://github.com/DeanoC/fes/issues/1097)) waits until a
      whole-CPU route shows the real limit.
+10. A Quartus 17.0.2 fit of the same Yosys netlist is the check that separates
+    RTL limits from OSS-flow limits. It is an oracle only, never the product
+    path ([#1112](https://github.com/DeanoC/fes/pull/1112)). An RTL cut is
+    worth making when it lifts the Quartus figure too; a gap that only nextpnr
+    shows belongs to the flow and goes to its fork.
+
+### The clock on each flow
+
+Whole-CPU spike of the register-only core, seeds 1–4, same Yosys netlist:
+
+| Round | nextpnr `bd7a1c0d` | Quartus 17.0.2 (oracle) | Limiter |
+| --- | --- | --- | --- |
+| Before the EX cut ([#1112](https://github.com/DeanoC/fes/pull/1112)) | 56.9–61.9 MHz | 86.8–88.8 MHz | EX on both |
+| After the EX cut ([#1115](https://github.com/DeanoC/fes/pull/1115)) | 62.6–64.8 MHz | 96.3–100.8 MHz | D on nextpnr; Q, D and EX within 4 MHz on Quartus |
+
+- **The RTL** now reaches about 100 MHz, the original design point, on a
+  mature place and route.
+- **The product flow** reaches about 63 MHz. Both flows have similar logic
+  depth on the worst paths; nextpnr spends 3–5 ns more on routing, and its gap
+  over Quartus grows from about 1.2× on isolated stages to about 1.5× on the
+  whole CPU. That is tracked as
+  [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300).
+- **The sealed clock** is the nextpnr figure (rule 4). The about 80 MHz design
+  point stands as the target the RTL must keep; the product reaches it when
+  nextpnr#300 closes enough of the gap.
 
 The area budget is in [budgets](#budgets).
 
@@ -389,7 +421,7 @@ without a timing endpoint are not built yet.
 | AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select | 91–96 MHz (address unit, D+AG route) |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain | — |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain | 102–106 MHz (tag check model) |
-| EX | Align and extend load data; late ALU, shifter and flags; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux | — |
+| EX | Align and extend load data; late ALU and shifter, with shift controls decoded and registered in M2 and shift flags applied a cycle later from WB; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux; the shifter stays off the flag path | In the whole CPU: 66.6–70.0 MHz on nextpnr, 97.2–105.5 on Quartus ([#1115](https://github.com/DeanoC/fes/pull/1115)) |
 | WB | Retire in order: registers, EFLAGS, stores to L1D and the write buffer, I/O and uncached accesses, exceptions and interrupts, self-modifying-code checks. | Control only | — |
 
 ### Latencies
@@ -407,6 +439,7 @@ without a timing endpoint are not built yet.
 | Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
 | Mispredict resolved at AG / at EX | +6 / +9 |
 | Redirect to the next instruction's issue | 5 cycles measured, 6 in 12 of 56 prefix-free runs |
+| Flag reader (ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE, LOOPNE) right after a shift or rotate | +1, held at D; shift flags apply from WB ([#1115](https://github.com/DeanoC/fes/pull/1115)) |
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
@@ -424,15 +457,16 @@ row once the RTL runs games.
 | Mispredicts: 18% branches, 10% mispredicted, 8 cycles on average | 0.14 |
 | Load-to-address and late-ALU-to-address stalls | 0.08 |
 | Late scaled-index stalls | 0.01 |
+| Flag readers right after a shift or rotate | 0.01 |
 | Microcoded instructions beyond their first uop | 0.10 |
 | L1 misses that hit L2: 0.5 accesses per instruction, 3% miss, 8 cycles | 0.12 |
 | L2 misses: 0.5% of accesses, about 400 ns, which is 32 cycles at 80 MHz | 0.08 |
-| Total | about 1.56 |
+| Total | about 1.57 |
 
-At the settled 80 MHz that is about 51 million instructions per second; at
-70 MHz, about 45 million. Taking about 2 CPI for a 486 on the same code, which
+At 80 MHz that is about 51 million instructions per second; at the 63 MHz
+nextpnr reaches today, with the L2-miss row at 25 cycles, about 41 million. Taking about 2 CPI for a 486 on the same code, which
 is also an estimate, a 486DX2-66 retires about 33 million. So 80 MHz just meets
-the 1.5× target gate, and 70 MHz meets only the minimum. The two L stages cost
+the 1.5× target gate, and 63 MHz meets only the minimum. The two L stages cost
 about 2% against the nine-stage pipeline first drawn.
 
 The L2-miss row is a budget. The bare DDR port's median first data is about
@@ -1053,6 +1087,13 @@ Settled on 2026-10-25:
   limiting endpoint at 76–86 MHz in the last pre-`mem_ready` front-end spike.
   The start-after-next idea for Q waits for a
   whole-CPU route ([#1097](https://github.com/DeanoC/fes/issues/1097)).
+- A Quartus fit of the same netlist is the oracle that separates RTL limits
+  from OSS-flow limits ([rule 10](#platform-constraints)). After the EX cut,
+  the whole CPU reaches about 100 MHz in Quartus and about 63 MHz in nextpnr;
+  the sealed clock is the nextpnr figure, and the gap is
+  [DeanoC/nextpnr#300](https://github.com/DeanoC/nextpnr/issues/300).
+- Shift and rotate flags apply a cycle late, from WB; a flag reader right after
+  one waits one cycle at D ([#1115](https://github.com/DeanoC/fes/pull/1115)).
 - A CPU reset keeps the L2's contents, and FLUSH completes in every CPU state
   ([commit](#commit-exceptions-and-interrupts)).
 
