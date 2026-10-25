@@ -106,16 +106,21 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
     ),
     'm2': (('M2', r'(.*\.)?load_'),),
-    # The whole CPU: front-end labels with any hierarchy prefix, then
-    # architectural state and the pipeline registers that feed each stage.
+    # The whole CPU: the front end's labels with any hierarchy prefix, then
+    # each pipeline register by its stage prefix. The architectural registers
+    # (WB) and the stage records come before D, whose forwarding tables take
+    # the register file and the records as ports.
     'cpu': (
-        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_ready|init_\w+)$|stimulus\.'),
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|init_\w+)$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)'),
         ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|trace_\w+|start|start_linear|arch_\w+)$'),
+        # A stage's output record passes most fields through, so they name
+        # the register feeding it: ag_out's are ag_s (D), ex_out's are ex_s
+        # (M2). ex.flags_in is EX's ex_flags.
         ('EX', r'(.*\.)?(wb_s|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
         ('M1', r'(.*\.)?m2_s$'),
