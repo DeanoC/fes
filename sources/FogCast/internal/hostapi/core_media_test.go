@@ -284,15 +284,17 @@ func TestCoreMediaErrorsAreReturnedWithoutReplay(t *testing.T) {
 	}
 }
 
-func TestCoreMediaEntryManagementIsHostOnly(t *testing.T) {
+func TestLauncherRejectsCoreMediaSelection(t *testing.T) {
 	s := &coreMediaAPIService{}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Collection POST is the setup-room create. Media reads and media
+	// selection stay off the launcher.
 	for _, tc := range []struct{ method, path string }{
 		{"GET", "/api/v1/core-media/" + strings.Repeat("a", 64)},
-		{"POST", "/api/v1/library/core-entries"}, {"PUT", "/api/v1/library/core-entries/core-test/media"},
+		{"PUT", "/api/v1/library/core-entries/core-test/media"},
 	} {
 		req := launcherRequest(tc.method, "http://192.0.2.1:8789"+tc.path, strings.NewReader("{}"))
 		out := httptest.NewRecorder()

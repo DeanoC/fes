@@ -956,13 +956,18 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. For named ROM
-selection it admits `GET /api/v1/library/core-entries/{game_id}` and
+IDs so uncached room selections can load their detail row. Setup-room Add game
+admits `POST /api/v1/library/core-entries` for one installed package and title.
+The listener forwards that body unchanged and pins the session target to the
+requesting kit so compatibility uses that kit. Other methods on that collection
+stay denied. For named ROM selection it admits
+`GET /api/v1/library/core-entries/{game_id}`,
+`GET /api/v1/library/core-entries/{game_id}/rom`, and
 `PUT /api/v1/library/core-entries/{game_id}/rom` for a strict game ID. It also
 admits `PUT /api/v1/library/core-entries/{game_id}/expansion` for the existing
-single-entry expansion selection. Both selection bodies are forwarded
-unchanged after paired-target checks; neither replaces the foreground target.
-Slot writes, presentation edits, other library PUTs and settings stay denied.
+single-entry expansion selection. Selection bodies are forwarded unchanged
+after paired-target checks; none of these writes replaces the foreground
+target. Slot writes, presentation edits, other library PUTs and settings stay denied.
 It does not expose full `/api/v1/library/settings`, which contains host
 filesystem roots. Tenfoot uses `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
