@@ -141,10 +141,11 @@ public:
             --waiting;
         }
         top.mem_valid = waiting == 0;
+        // Until the block arrives the port carries garbage.
         for (unsigned word = 0; word < 4; ++word) {
             uint32_t value = 0;
             for (unsigned i = 0; i < 4; ++i) value |= uint32_t(byte((address << 4) + 4 * word + i)) << (8 * i);
-            top.mem_data[word] = value;
+            top.mem_data[word] = waiting == 0 ? value : uint32_t((*latency)());
         }
         ++cycle;
         return handshake;

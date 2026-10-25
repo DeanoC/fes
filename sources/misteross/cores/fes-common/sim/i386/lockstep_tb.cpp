@@ -139,13 +139,14 @@ public:
             fetch.tick();
         }
         top.mem_valid = fetch.ready();
+        // Until the block arrives the port carries garbage.
         for (int word = 0; word < 4; ++word) {
             uint32_t value = 0;
             for (int i = 0; i < 4; ++i) {
                 uint64_t at = (uint64_t(address) << 4) + 4 * word + i;
                 value |= uint32_t(at < RAM_BYTES ? ram[at] : 0xff) << (8 * i);
             }
-            top.mem_data[word] = value;
+            top.mem_data[word] = fetch.ready() ? value : uint32_t((*fetch.random)());
         }
         ++cycles;
     }
