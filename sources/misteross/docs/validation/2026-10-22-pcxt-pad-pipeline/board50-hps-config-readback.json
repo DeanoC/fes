@@ -1,0 +1,97 @@
+{
+  "scope": "Read-only Kit A configuration diagnostic on its existing baseline; no PC/XT RBF upload, I2C transaction, software/image/boot/host change or physical timing acceptance. Status-file claim and target lease were held and released; final target lease is free.",
+  "hardware_class": "hardware configuration diagnostic; not exact-artifact PC/XT acceptance",
+  "capture_started_utc": "2026-10-25T09:13:08.184542+00:00",
+  "capture_finished_utc": "2026-10-25T09:13:09.140336+00:00",
+  "kernel_release": "5.15.1-MiSTer",
+  "boot_id": "5c42f5bc-bef0-4b51-8d55-c9913e19c25c",
+  "live_fdt_sha256": "b522f5cd56f68c5b073b3ff2d64ce6b988f94e030c6aaebda5c1b989773faa59",
+  "running_kernel_source_commit_verified": false,
+  "running_appliance_and_bundle_identity_verified": false,
+  "reference_kernel_commit_for_register_decode": "d7adb20b4ca595838289406c083fff78f004a8c3",
+  "reference_sources": {
+    "arch/arm/boot/dts/socfpga.dtsi": {
+      "sha256": "5401053b3a48944bf0fbb3152533b83aa8adfc37150709e470833166cc2a8ec6",
+      "url": "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/blob/d7adb20b4ca595838289406c083fff78f004a8c3/arch/arm/boot/dts/socfpga.dtsi"
+    },
+    "drivers/clk/socfpga/clk-pll.c": {
+      "sha256": "e7758cc9f302f51278b2b942c9dc75a570c5a2d680993cc2af8152bf1cc4dc6c",
+      "url": "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/blob/d7adb20b4ca595838289406c083fff78f004a8c3/drivers/clk/socfpga/clk-pll.c"
+    },
+    "drivers/clk/socfpga/clk-periph.c": {
+      "sha256": "3ac52bf89e3f1ebf3beb839ecdab0ec451b47419bf625f85abad573c23dc3dfb",
+      "url": "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/blob/d7adb20b4ca595838289406c083fff78f004a8c3/drivers/clk/socfpga/clk-periph.c"
+    },
+    "drivers/clk/socfpga/clk-gate.c": {
+      "sha256": "7a05c4c3f13886b9682a653a1920edc698a70a594b58fb7ec8e23de2092fe20b",
+      "url": "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/blob/d7adb20b4ca595838289406c083fff78f004a8c3/drivers/clk/socfpga/clk-gate.c"
+    },
+    "drivers/clk/socfpga/clk.h": {
+      "sha256": "fbe585af5568afcc80cad7269d8b2fbd587320a8f10c58d9ece54e57beb1fabf",
+      "url": "https://github.com/MiSTer-devel/Linux-Kernel_MiSTer/blob/d7adb20b4ca595838289406c083fff78f004a8c3/drivers/clk/socfpga/clk.h"
+    }
+  },
+  "raw_registers": {
+    "0xffc06000": "0x63",
+    "0xffc06014": "0x1ab",
+    "0xffc06018": "0x1f3",
+    "0xffc0601c": "0x57",
+    "0xffc06020": "0x9f",
+    "0xffc0607c": "0x1",
+    "0xffc060f8": "0x3132302a",
+    "0xffd04000": "0x4",
+    "0xffd04004": "0x0",
+    "0xffd04040": "0x1fa",
+    "0xffd0404c": "0x0",
+    "0xffd04060": "0x3ff",
+    "0xffd04064": "0x95",
+    "0xffd04070": "0x3",
+    "0xffd04080": "0x13a",
+    "0xffd04098": "0x4",
+    "0xffd040e4": "0x3"
+  },
+  "clock_decode": {
+    "reference": "live DT osc1 nominal25MHz; HPS peripheral PLL and L4 SP mux/divider register programming",
+    "osc1_nominal_hz": 25000000,
+    "parent": "per_base_clk",
+    "parent_select": 1,
+    "peripheral_PLL_feedback": 40,
+    "peripheral_PLL_reference_divider": 1,
+    "peripheral_PLL_nominal_vco_hz": 1000000000,
+    "per_base_divider": 5,
+    "l4_sp_divider_encoding": 1,
+    "l4_sp_divider": 2,
+    "l4_sp_nominal_programmed_hz": 100000000,
+    "nominal_period_ns": 10.0,
+    "no_declared_phase_relation_to_FPGA_clocks": true
+  },
+  "i2c_decode": {
+    "physical_controller_base": "0xffc06000",
+    "observed_linux_adapter": "i2c-1",
+    "device_tree_requested_bus_hz": 100000,
+    "mode": "standard",
+    "standard_high_count": 427,
+    "standard_low_count": 499,
+    "fast_high_count": 87,
+    "fast_low_count": 159,
+    "component_version": "0x3132302a",
+    "TX_SDA_HOLD_cycles": 1,
+    "RX_SDA_HOLD_cycles": 0,
+    "nominal_TX_hold_cycle_duration_ns": 10.0,
+    "physical_minimum_SDA_hold_qualified": false
+  },
+  "binding": {
+    "capture_stdout_sha256": "1853318848ef27a07c125c64e7e89d0786e2c2b9d8b98a95f12aedc26798a8e6",
+    "capture_receipt_sha256": "45b6a4d612cc6dead118fde62cc2bb3c72edf874062275d3b571a91f72299d43",
+    "capture_script_sha256": "c4ece056770a326ca749268fe044c85a112903c4f76353d9c0312c9e2722d647",
+    "earlier_successful_capture_receipt_sha256": "ee593059dad75d5f5940fa648a34cfa310122bef7f1a8e0bc445a1b5048a4f12"
+  },
+  "remaining": [
+    "Programmed rates/counts are a configuration snapshot; oscillator tolerances, clock jitter and future configuration invariance are not qualified.",
+    "Bind the actual native HPS primitive/output identities and characterize hard-IP source, OE, pad and feedback timing; no FPGA launch clock is manufactured.",
+    "One TX-hold cycle is nominally10ns before source/pad/board effects; it is not a proven physical minimum at the ADV7513.",
+    "Pull-up/RC/flight and input filtering still need bounds. Optional health identity query was unavailable; running appliance/bundle/source identity remains separate."
+  ],
+  "physical_qualified": false,
+  "exact_artifact_accepted": false
+}

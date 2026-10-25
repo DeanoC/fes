@@ -842,3 +842,56 @@ pack checks lower the actual clock block in both modes and reject deliberate
 nonzero-unused-frequency and nonzero-unused-phase mutations. The old and fixed
 experimental clock-block synthesis JSONs are entirely identical. Final-source
 producer and affected-regression verification follows this correction.
+
+### Final committed-source verification and HPS configuration readback
+
+Code `f24a255ad4` passes `make check` and the full selected
+`make test-changed TEST_CHANGED_ARGS='--base f925f35eeb'` run: 806 parent tests,
+1338 component tests and all 21 PC/XT suites. The component run has 64 optional
+tool-dependent skips. Thirty focused tests separately pass with pinned tools,
+including both native clock-block pack modes and the two rejected unused-output
+mutations. The four committed-source pixel proof cases and three reset audits
+also pass. The ordinary authenticated producer again reproduces the complete
+frozen timing-input JSON after directory-prefix normalization only, with all
+generated ROMs equal. The default-profile correction leaves the experimental
+mapped JSON unchanged. No further native searches run; the journal remains at
+130 receipts.
+
+A fresh two-output pixel-counter reference supplies explicit four-corner
+pixel-self uncertainty, with queried programmed PLL fields equal to the native
+cohort. Memory clock-event pairs retain the matching four-counter reference.
+All 17709 paired rows remain positive under the partial screen:
+
+| Seed | Adjusted setup minimum ns | Adjusted hold minimum ns |
+| --- | ---: | ---: |
+| 1 | +1.253 | +0.706 |
+| 2 | +1.736 | +0.772 |
+| 3 | +1.560 | +0.783 |
+
+Each screen still exits 1 on the nine unpaired rows. These reference budgets
+do not calibrate native fast-corner delays or grant physical acceptance.
+[Final verification](board50-hdmi-phase-verification.json) binds the source,
+tests, ordinary synthesis, proof/audit artifacts and reference screens.
+
+A later leased read-only Kit A diagnostic captures its live device-tree and
+HPS clock/controller programming. The peripheral PLL is nominally 1 GHz from
+the live 25 MHz reference; its base divider five and L4 SP divider two select
+100 MHz. This clock retains an independent phase from the FPGA clocks.
+Physical controller `0xffc06000` is Linux adapter `i2c-1`; its device tree
+requests 100 kHz. Standard high/low counts are 427/499 and TX SDA hold is one
+cycle, nominally 10 ns before hard-IP/pad/board effects. These are observed
+configuration values, not qualified source or external setup/hold bounds.
+
+[Configuration evidence](board50-hps-config-readback.json) retains the raw
+registers, live DTB digest, decode sources and limits. Clock debug files and
+the optional health identity query are unavailable, so running appliance,
+bundle and exact kernel-source binding remains incomplete. No PC/XT RBF is
+loaded and no I2C bus transaction, FPGA/software/image/boot/host change is
+performed. The target lease is confirmed free after the diagnostic.
+
+Next integration requires review of nextpnr #296, then its selected pin/recipe
+and a fresh ordinary route producer. Whole-board acceptance still requires
+HPS source/OE/pad/feedback bounds, native fast-corner and board/load/flight/skew
+qualification, reset/relock/pulse/MTBF and bundled-data checks, followed by
+exact-artifact hardware acceptance. No runtime/shared protocol or package is
+promoted by these results.
