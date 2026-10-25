@@ -15,8 +15,8 @@ Verilator testbenches in cores/fes-common/sim/i386:
   frontend_tb.cpp  The whole front end on sampled streams: random bytes,
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
-                   cycle, plus one cycle for each prefix before the last);
-                   then the same with random fetch latency, untimed.
+                   cycle, plus one cycle for each prefix before the last), plus
+                   a delayed fetch response while Q crosses buffer halves.
   dag_tb.cpp       D's address operands (the forwarding table, scaling, the
                    late operand and its stalls) and AG, cycle by cycle: every
                    memory ModRM and SIB in both address sizes as a uop stream
@@ -101,7 +101,7 @@ def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: st
         # a wrapper left as SystemVerilog still needs the package's types.
         design = [yosys_netlist(yosys, name, output), RTL / 'fes_i386_pkg.sv',
                   *(SIM / path for path in sim if Path(path).stem != synthesized)]
-        warnings = ['-Wno-fatal', '+define+FES_I386_NETLIST']
+        warnings = ['-Wno-fatal']
     else:
         design = [*(RTL / path for path in rtl), *(SIM / path for path in sim)]
         warnings = []
@@ -153,12 +153,14 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
     for record in frontend:
         line = (f"front end {record['stream']}, {record['default_size']}-bit: {record['instructions']} instructions, "
                 f"{record['compared']} compared, {record['too_long']} too long, {record['failures']} failures")
-        if record.get('fetch_latency'):
-            line += f"; Q left a half L2 held no block for {record['l2_empty_releases']} times"
         if record['issue_cycles']:
             latency = ', '.join(f'{cycles} cycles x{count}' for cycles, count in record['redirect_to_issue'].items())
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
                      f"{record['timing_failures']} timing failures; redirect to first issue: {latency}")
+        if record['stream'] == 'fetch-stalled':
+            line += (f"; {record['fetch_wait_cycles']} fetch wait cycles, "
+                     f"{record['boundary_wait_cycles']} at the cross-half instruction, "
+                     f"{record['cross_half_instructions']} cross-half instructions")
         lines.append(line)
     for record in dag:
         waits = record['wait_cycles']

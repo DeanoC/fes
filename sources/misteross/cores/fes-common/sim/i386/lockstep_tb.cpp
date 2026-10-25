@@ -122,7 +122,7 @@ public:
             set16(top.init_ar, n, s.seg[n].ar);
         }
         fetch.waiting = 0;
-        top.mem_valid = 1;
+        top.mem_ready = 1;
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
         top.reset = 0;
@@ -141,7 +141,7 @@ public:
         } else {
             fetch.tick();
         }
-        top.mem_valid = fetch.ready();
+        top.mem_ready = fetch.ready();
         // Until the block arrives the port carries garbage.
         for (int word = 0; word < 4; ++word) {
             uint32_t value = 0;

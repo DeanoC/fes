@@ -3,7 +3,7 @@
 // L1I model as spike_frontend: F1's block address loads the M10K address
 // registers of a 16 KiB 4-way L1I, F2 compares the four tags with an ITLB
 // page per two bytes and selects the hitting way. A miss passes zeros; there
-// is no refill, and mem_valid is a registered stimulus bit, so fetch stalls
+// is no refill, and mem_ready is a registered stimulus bit, so fetch stalls
 // without the L1I's own miss path (the L1I slice adds that). The stimulus
 // rewrites tags and data, so the CPU executes whatever arrives.
 //
@@ -23,7 +23,7 @@ module spike_cpu (
     logic [27:0]      mem_block;
     logic             mem_load;
     logic [15:0][7:0] mem_data;
-    logic             mem_valid;
+    logic             mem_ready;
 
     // L1I arrays, written by the stimulus, read with address stall.
     logic [127:0] l1i_data0 [0:255];
@@ -70,7 +70,7 @@ module spike_cpu (
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
     always_ff @(posedge clk) begin
-        mem_valid <= |noise[372:370];
+        mem_ready <= |noise[372:370];
         if (reset) begin
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
@@ -91,7 +91,7 @@ module spike_cpu (
 
     fes_i386_cpu dut (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
-        .mem_block, .mem_load, .mem_data, .mem_valid, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
+        .mem_block, .mem_load, .mem_data, .mem_ready, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
         .trace_unimplemented, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
