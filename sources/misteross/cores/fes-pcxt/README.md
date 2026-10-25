@@ -37,7 +37,12 @@ The default shell retains its existing common 100 MHz clock. A separate
 `HALF_RATE_BOARD=1` parameter keeps the MCL86 CPU and byte-bus adapter at
 100 MHz, and runs the motherboard, ISA cards, storage frontend/controller,
 firmware loader and framebuffer capture at 50 MHz. Pixel output remains
-74.25 MHz. The bridge holds each request and response until acknowledged,
+74.25 MHz. A fourth memory-PLL counter clocks the final SDRAM chip-select
+register at phase 18 ns, 2 ns before the other 50 MHz output registers. This gives
+the addon chip-select inverter more setup time while retaining the existing
+chip command/capture cycle. `EXTERNAL_CS_REGISTER` defaults to zero in the
+shared controller; only this experimental top owns that final CS register.
+The bridge holds each request and response until acknowledged,
 uses CPU falling-edge transfer registers, and transfers guest tick events
 without changing the nominal 4.772727 MHz guest clock. Coordinated reset
 cancels outstanding work in both domains. Display dot enables and 48 kHz
@@ -68,7 +73,16 @@ inputs for the selected kit before generating physical budgets:
 The operator identified Kit A as MiSTer Pi and Kit B as SuperStation One,
 both using standard MiSTer SDRAM (2026-10-20). Target Kit A first and retain
 separate qualification for Kit B. This identifies the platform family, not
-the fitted memory speed grade or measured board delays. The
+the fitted memory speed grade or measured board delays. The recovered
+[RetroRemake product photo](https://cdn.shopify.com/s/files/1/0713/7145/6535/files/ram1to1.png?v=1725021808)
+shows two Etron EM63B165TS-6SG chips; its
+[product page](https://retroremake.co/products/128mb-sdram-mister-fpga-compatible)
+describes an XS-DS v3.0-based addon. Use that photo-derived Etron -6 reference
+for Kit A investigation. The published manufacturer schematic instead lists
+Alliance AS4C32M16SB-6TIN; these are separate published populations. Their CL2
+access/setup/hold numbers match, but photo identification supplies no measured
+board bounds or fitted-kit inspection. [Recovery evidence](../../docs/validation/2026-10-22-pcxt-pad-pipeline/retroremake-sdram-photo-reference.json)
+retains the sources and the conditional inverter failure. The
 [MiSTer XSDS reference design](https://github.com/MiSTer-devel/Hardware_MiSTer/tree/master/Addons/SDRAM_xsds)
 provides board design files; equivalence to either fitted board still needs
 establishing before deriving board-specific bounds.

@@ -4,7 +4,7 @@
 // CPU/DMA share the motherboard port. Firmware writes require reset asserted.
 // Cold reset restarts SDRAM initialization; warm reset drains issued work,
 // suppresses its CPU response and preserves RAM/firmware and physical refresh.
-module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0) (
+module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTER = 0) (
     input wire clk, clk_pin, cold_reset, reset,
     output wire initialized,
     input wire memory_valid,
@@ -67,7 +67,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0) (
     // The existing controller mode delays command, address, data and OE
     // together and compensates its read-capture count for the extra cycle.
     sdram_addon_port #(.BYTE_MASK_ENABLED(1), .SINGLE_RANK_REFRESH(1),
-                       .IO_OUTPUT_REGISTERS(1),
+                       .IO_OUTPUT_REGISTERS(1), .EXTERNAL_CS_REGISTER(EXTERNAL_CS_REGISTER),
                        .REFRESH_INTERVAL_CYCLES(HALF_RATE_CONTROLLER ? 12'd349 : 12'd0)) controller (
         .clk(controller_clk), .clk_pin(clk_pin), .reset(controller_reset), .rate(2'd3),
         .refresh_window(1'b0), .refresh_pending(), .initialized(controller_initialized),

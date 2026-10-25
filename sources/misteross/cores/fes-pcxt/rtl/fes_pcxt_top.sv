@@ -14,13 +14,13 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     wire clk, clk_memory, clk_capture, clk_pixel, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [(HALF_RATE_BOARD ? 3 : 2)-1:0] clocks;
+    wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 3 : 2),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : 2),
         .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
-        .output_clock_frequency2("50.0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"), .phase_shift2("0 ps"),
-        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .operation_mode("direct"),
+        .output_clock_frequency2("50.0 MHz"), .output_clock_frequency3("50.0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"), .phase_shift2("0 ps"), .phase_shift3("18000 ps"),
+        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
     assign clk = clocks[0];
@@ -40,6 +40,16 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
         if (!locked) pixel_reset <= 2'b11;
         else pixel_reset <= {pixel_reset[0], 1'b0};
     wire board_reset_live;
+    wire controller_cs;
+    generate if (HALF_RATE_BOARD) begin: early_chip_select
+        // Source CS is ready a board cycle before the command pads. Capture
+        // it 2ns before their final stage, giving the addon inverter headroom.
+        reg cs;
+        always @(posedge clocks[3]) cs <= controller_cs;
+        assign SDRAM_nCS = cs;
+    end else begin: common_chip_select
+        assign SDRAM_nCS = controller_cs;
+    end endgenerate
     generate if (HALF_RATE_BOARD) begin: board_reset_domain
         (* async_reg = "true" *) reg [1:0] board_reset = 2'b11;
         always @(posedge clk_memory or negedge locked)
@@ -60,7 +70,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     wire [15:0] dq_out, dq_sample;
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD)) system (
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
         .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
         .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
@@ -68,7 +78,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
         .firmware_loaded(), .initialized(), .machine_reset(), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(),
         .video_request(video_request), .video_response(video_response),
-        .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(SDRAM_nCS),
+        .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),
         .sdram_nras(SDRAM_nRAS), .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A), .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_sample), .dq_fall(dq_sample)

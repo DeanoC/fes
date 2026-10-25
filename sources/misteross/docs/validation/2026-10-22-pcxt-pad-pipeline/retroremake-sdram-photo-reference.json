@@ -1,0 +1,96 @@
+{
+  "scope": "Recovered manufacturer-photo working reference after the operator identified RetroRemake as the earlier source. Product photographs and published schematic are distinct from fitted-kit inspection or measured board bounds.",
+  "product_url": "https://retroremake.co/products/128mb-sdram-mister-fpga-compatible",
+  "photo_observation": {
+    "memory_part": "Etron EM63B165TS-6SG",
+    "chips": 2,
+    "back_label": "MiSTER_Pi_SDRAM",
+    "actual_fitted_kit_confirmed": false,
+    "board_revision_readable_from_photo": null
+  },
+  "product_description": "Manufacturer describes the addon as based on SDRAM XS-DS v3.0.",
+  "source_metadata_sha256": "53e27a7b1e152d611c6dc26333e11675b5e8f26fd6177536aaf35325410df4cf",
+  "photos": [
+    {
+      "file": "sdram-photo-0.png",
+      "url": "https://cdn.shopify.com/s/files/1/0713/7145/6535/files/ram1to1.png?v=1725021808",
+      "sha256": "3f880864639fc7858a9b2939a22d5eff766df59fa31f3bceca98b808b9bcede6",
+      "bytes": 785039
+    },
+    {
+      "file": "sdram-photo-1.png",
+      "url": "https://cdn.shopify.com/s/files/1/0713/7145/6535/files/ramb1to1.png?v=1725032130",
+      "sha256": "d3ec3ffaad0a13b3e4527f65b6ca28feb3fb63e9bef6c57e18b8fd8c51397e88",
+      "bytes": 811502
+    },
+    {
+      "file": "sdram-photo-2.png",
+      "url": "https://cdn.shopify.com/s/files/1/0713/7145/6535/files/rammain1to1.png?v=1725032511",
+      "sha256": "096f0939085d1c7eeb8b133018b2f328602aa8de7cb387fcc19d29f501647a30",
+      "bytes": 666662
+    }
+  ],
+  "datasheets": [
+    {
+      "file": "etron-em63b165-rev2.4.pdf",
+      "url": "https://etron.com/wp-content/uploads/2022/04/EM63B165TSBM_Rev-2.4.pdf",
+      "sha256": "1a9139629c17a1b280f3d88ef1a7b3c0355812cd9933b73230ba733f36dbc7d2",
+      "bytes": 880990
+    },
+    {
+      "file": "ti-sn74lvc1g04.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/sn74lvc1g04.pdf",
+      "sha256": "5322c1ab3cd3bd3f7af9c9bfa1c6139dad799d0968d9eea3ee2d84648ffc2e9e",
+      "bytes": 2748842
+    }
+  ],
+  "published_schematic": {
+    "url": "https://github.com/Retro-Remake/Hardware_MiSTER-Pi/blob/787c33cd60fe0c1f3df9a369744b675022676c2d/Hardware/SDRAM/SDRAM.pdf",
+    "sha256": "4a240eb5fbd305a3dec853385c5c80ed1fa18b20cb6dd83c6fc0ea693a77100b",
+    "memory_part": "AS4C32M16SB-6TIN",
+    "inverter": "SN74LVC1G04DBVR",
+    "note": "Different published BOM; do not equate the pictured Etron chips with the Alliance schematic population."
+  },
+  "etron_cl2": {
+    "tCK_min_ns": 10,
+    "tAC_max_ns": 6,
+    "tOH_min_ns": 2.5,
+    "tIS_min_ns": 1.5,
+    "tIH_min_ns": 0.8,
+    "tCH_min_ns": 2,
+    "tCL_min_ns": 2,
+    "conditions": "Rev 2.4 table 16, commercial 0..70 C, 3.3 V +/-0.3 V, stated load/slew conditions. These interface numbers match the previous Alliance CL2 reference."
+  },
+  "conditional_inverter_reference": {
+    "part": "Published schematic SN74LVC1G04DBVR",
+    "VCC": "3.3V+/-0.3V",
+    "temperature_C": [
+      -40,
+      85
+    ],
+    "load_pF": 50,
+    "tpd_max_ns": 4.2,
+    "fitted_part_load_slew_verified": false
+  },
+  "previous_profile_cs2_replay": {
+    "CLI_exit_code": 1,
+    "final_analogue": true,
+    "chip_select_setup_ns": -1.0950000286102295,
+    "chip_select_hold_ns": 3.5230000019073486,
+    "rbf_unchanged": true,
+    "source_artifacts_sha256": {
+      "instrumented.json": "f493af560f06abe3743e6fa12b019adde3e94dc99f6b01c1f23abe5e819d8e74",
+      "cs2.sdc": "9b4d6ffa3a3daa9229ea044825a9d0e4204f0663e265d21edbf1a5f610a62013",
+      "timing.json": "ee0ac690b5bfd58b1f42965e7c3b8d54fa90887f2439b5359f435bd11ead5be1",
+      "nextpnr.log": "29def26908d90e61b3f959a3e015356c12098aff966c6932824881abf92547f1",
+      "diagnostic.rbf": "4017b155e0a9852efed3708d4f6a32323daaf5c466f41176fea7bb70be03fb56"
+    }
+  },
+  "remaining": [
+    "Confirm fitted Kit A matches this photo-derived reference; no repeated request to choose an unspecified memory model.",
+    "Actual board load/flight/skew and inverter input slew/output load remain unverified.",
+    "SuperStation One is a separate fitted design and inherits no qualification."
+  ],
+  "hardware": false,
+  "physical_qualified": false
+}

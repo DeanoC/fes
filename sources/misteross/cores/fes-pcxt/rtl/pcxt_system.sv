@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
-module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
+module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0, EXTERNAL_CS_REGISTER = 0) (
     input wire clk, clk_cpu, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     output wire firmware_ready, firmware_done,
@@ -69,7 +69,7 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) 
         .dma_owner(dma_owner), .refresh_done(refresh_done), .audio_valid(audio_valid), .audio_sample(audio_sample)
     );
     /* verilator lint_on PINCONNECTEMPTY */
-    pcxt_memory #(.HALF_RATE_CONTROLLER(HALF_RATE_BOARD)) storage (
+    pcxt_memory #(.HALF_RATE_CONTROLLER(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(EXTERNAL_CS_REGISTER)) storage (
         .clk(clk), .clk_pin(clk_pin), .cold_reset(cold_reset), .reset(machine_reset),
         .initialized(initialized), .memory_valid(memory_valid), .memory_ready(memory_ready),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .memory_done(memory_done), .memory_rdata(memory_rdata),

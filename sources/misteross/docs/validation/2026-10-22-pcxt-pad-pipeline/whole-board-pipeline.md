@@ -639,3 +639,54 @@ source/tool hashes and the three native audits. No fresh routes, kit operation,
 core lock, runtime/shared contract or hardware acceptance changes; the route
 journal remains at 121 receipts. Fitted SDRAM revision/chip identification is
 still needed to replace the optimistic physical IO assumptions.
+
+### Recovered module photos and earlier chip-select launch
+
+The operator pointed back to RetroRemake's product photographs. The retained
+[manufacturer photo](https://cdn.shopify.com/s/files/1/0713/7145/6535/files/ram1to1.png?v=1725021808)
+shows two Etron EM63B165TS-6SG devices; the product is described as based on
+XS-DS v3.0. The separately published MiSTer Pi schematic uses Alliance parts.
+These are different published populations. The Etron -6 CL2 values match the
+prior reference's 6/2.5 ns access/output hold and 1.5/0.8 ns input setup/hold.
+The [photo record](retroremake-sdram-photo-reference.json) binds the original
+images, primary datasheets and exact distinction from fitted-kit inspection.
+
+The published SN74LVC1G04 inverter reference has maximum propagation 4.2 ns
+at 3.3 V +/-0.3 V, CL 50 pF and -40..85 C. Adding that bound to the former zero-flight
+chip reference makes CS setup fail at -1.095 ns, versus +3.105 ns with no inverter.
+The failed host replay is retained, with its final analogue report and unchanged
+RBF; no failure override is used. Actual fitted inverter/load/slew is unverified.
+
+The experimental top now launches CS 2 ns earlier through a fourth 50 MHz PLL
+counter at phase 18 ns. Other board outputs remain at phase 0; CPU 100 MHz,
+board 50 MHz, capture 50 MHz/phase 10 ns and pixel 74.25 MHz targets are unchanged. The caller owns
+only the final CS register; the shared controller's default-zero parameter
+retains the original IO output stage. No command state-machine or SDRAM
+consumption cycle changes. A proof using the actual IO stage preserves all
+default samples, proves equal chip-capture values with the earlier CS stage,
+and rejects omitting that final register.
+
+Three fresh native routes use one fixed recipe on frozen source `320dbc51`,
+nextpnr `fdf0462d` and Mistral `9ab65220`, with harmonic clocks and the stricter
+clear reference. All 17709 paired identities match across this separate cohort;
+the same 9 unpaired rows remain. This does not combine the earlier recipe gates.
+
+| Seed | Raw native setup ns | Raw native hold ns | Conditional chip CS setup/hold ns |
+| --- | ---: | ---: | ---: |
+| 1 | +1.762 | +0.794 | +0.962 / +1.508 |
+| 2 | +0.685 | +0.761 | +0.962 / +1.508 |
+| 3 | +0.605 | +0.796 | +0.962 / +1.508 |
+
+Each conditional host replay covers 70 registered IO channels, including the
+inverter bound, and emits the identical native RBF. It declares FPGA load 30 pF,
+inverter load 50 pF and zero board flight/uncertainty. DQ capture setup/hold is
++6.506/+2.568 ns. Reloaded timing remains separate from the fresh native reports.
+There is no fresh four-corner uncertainty reference for this four-counter
+variant, fitted board acceptance, or physical reset/CDC/HDMI/HPS qualification.
+The normal experimental producer route remains gated on compiler integration.
+[Candidate evidence](board50-cslead-candidate.json) binds the recipe and all
+receipts. Journal entries 122-124 add 264.30493893800304 charged seconds; cumulative
+charged wall time is 100408.94542329385818741 seconds. The 121-entry prefix remains
+exact. The outer tool session reported 143 after the retained completion line;
+all three child receipts independently record exit 0 and immutable artifacts.
+No kit ran or runtime/shared contract changed.

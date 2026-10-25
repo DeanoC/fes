@@ -280,5 +280,16 @@
   ],
   "physical_qualified": false,
   "hardware": false,
-  "route_receipt_count_unchanged": 121
+  "route_receipt_count_unchanged": 121,
+  "stable_source_verification": {
+    "commit": "485165b3ec",
+    "make_check": "PASS: 21 consumers/37 fixtures",
+    "affected_run": "PASS on host:843 parent cases and 1323 component cases; 53 optional/tool/oracle skips.",
+    "focused_run": "PASS: 22 cases with pinned Yosys/ABC; includes four otherwise-skipped mailbox test methods.",
+    "logs_sha256": {
+      "board50-control-proof-test-changed-host.log": "cb594114d3e5e0a89259cc552537ba211ce0ef1daead2aac8524f71ccf1fc0d7",
+      "board50-control-proof-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+      "board50-control-proof-stable-focused.log": "1bafb550d3710410f0df55d8d136a0b7e69ceebd69c0fc5a4ddd12c0afa118fa"
+    }
+  }
 }
