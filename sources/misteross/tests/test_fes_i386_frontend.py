@@ -119,13 +119,17 @@ class HarnessReportTest(unittest.TestCase):
             'dut.fetch.sums.mb32_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [12], 'DATAIN': [13]}),
             # A stimulus register that took Q's port name stays envelope.
             'redirect_linear_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [14], 'DATAIN': [15]}),
+            # So does one whose input is named after Q's record.
+            'signature_MISTRAL_FF_Q': ('MISTRAL_FF', {'Q': [18], 'DATAIN': [19]}),
             'l1i_data0.0.0.0': ('MISTRAL_M10K', {'B1DATA': [16], 'B1ADDR': [17]}),
         }, {'dut.fetch.decoders.g_oplen[4].oplen.o': [10], 'dut.fetch.mem_data': [11],
-            'dut.fetch.sums.mb32': [12], 'redirect_linear': [14], 'dut.align.redirect_linear': [14]})
+            'dut.fetch.sums.mb32': [12], 'redirect_linear': [14], 'dut.align.redirect_linear': [14],
+            'dut.align.q': [19]})
         labels = benchmark.register_labels(netlist, 'top', benchmark.STAGES['frontend'])
         self.assertEqual(labels, {'dut.fetch.decoders.g_oplen[4].oplen.o_MISTRAL_FF_Q': 'F2',
                                   'dut.fetch.sums.mb32_MISTRAL_FF_Q': 'L1',
-                                  'redirect_linear_MISTRAL_FF_Q': 'envelope', 'l1i_data0.0.0.0': 'F1'})
+                                  'redirect_linear_MISTRAL_FF_Q': 'envelope', 'signature_MISTRAL_FF_Q': 'envelope',
+                                  'l1i_data0.0.0.0': 'F1'})
 
     def test_logic_depth_counts_luts_and_carry_cells(self):
         netlist = self.netlist({
