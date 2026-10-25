@@ -152,6 +152,11 @@ class HarnessReportTest(unittest.TestCase):
                     self.assertTrue((benchmark.ROOT / path).is_file(), path)
         self.assertTrue((benchmark.ROOT / benchmark.SPIKE / 'spike.qsf').is_file())
 
+    def test_spikes_default_to_the_i386_lock(self):
+        from scripts import lockfile
+        self.assertEqual(benchmark.LOCK, benchmark.RTL / 'toolchain.lock')
+        self.assertEqual(lockfile.validate_lock(benchmark.ROOT / benchmark.LOCK), [])
+
 
 @unittest.skipUnless(VERILATOR, 'Verilator not installed')
 class RtlTest(unittest.TestCase):
