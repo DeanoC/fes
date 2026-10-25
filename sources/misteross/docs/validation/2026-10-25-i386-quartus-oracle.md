@@ -50,7 +50,7 @@ data: [`2026-10-25-i386-quartus-oracle.jsonl`](2026-10-25-i386-quartus-oracle.js
   - Building the remaining stride multiply in logic, as Yosys does, lifts it
     to 91-99 MHz.
 
-The nextpnr gap is filed as DeanoC/nextpnr#TBD with this record as evidence.
+The nextpnr gap is filed as DeanoC/nextpnr#300 with this record as evidence.
 
 ## How Quartus reads the RTL
 
