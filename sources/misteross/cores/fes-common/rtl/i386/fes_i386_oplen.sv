@@ -25,20 +25,23 @@ module fes_i386_oplen (
         IMM_MOFFS   // 2 or 4 bytes by address size
     } imm_e;
 
-    // Each table sets the fields it needs on a cleared form_t. A function
-    // returning form_t, called from another function, reads as empty in Yosys
-    // 3a5accbd. The runner checks it with --bench lendec --yosys <yosys>.
     typedef struct packed {
         logic modrm;
         logic creg;   // ModRM present and always a register form
         imm_e imm;
     } form_t;
 
+    function automatic form_t form(input logic modrm, input logic creg, input imm_e imm);
+        form_t f;
+        f.modrm = modrm;
+        f.creg = creg;
+        f.imm = imm;
+        form = f;
+    endfunction
+
     function automatic form_t one_byte(input logic [7:0] op, input logic [2:0] reg_field);
         form_t f;
-        f.modrm = 1'b0;
-        f.creg = 1'b0;
-        f.imm = IMM_NONE;
+        f = form(1'b0, 1'b0, IMM_NONE);
         if (op[7:6] == 2'b00) begin
             // The ALU block: r/m forms, AL/eAX immediates, then one-byte
             // pushes, pops, prefixes and BCD adjusts.
@@ -52,13 +55,13 @@ module fes_i386_oplen (
             case (op)
                 8'h62, 8'h63: f.modrm = 1'b1;
                 8'h68: f.imm = IMM_Z;
-                8'h69: begin f.modrm = 1'b1; f.imm = IMM_Z; end
+                8'h69: f = form(1'b1, 1'b0, IMM_Z);
                 8'h6a: f.imm = IMM_B;
-                8'h6b: begin f.modrm = 1'b1; f.imm = IMM_B; end
+                8'h6b: f = form(1'b1, 1'b0, IMM_B);
                 8'h70, 8'h71, 8'h72, 8'h73, 8'h74, 8'h75, 8'h76, 8'h77,
                 8'h78, 8'h79, 8'h7a, 8'h7b, 8'h7c, 8'h7d, 8'h7e, 8'h7f: f.imm = IMM_B;
-                8'h80, 8'h82, 8'h83: begin f.modrm = 1'b1; f.imm = IMM_B; end
-                8'h81: begin f.modrm = 1'b1; f.imm = IMM_Z; end
+                8'h80, 8'h82, 8'h83: f = form(1'b1, 1'b0, IMM_B);
+                8'h81: f = form(1'b1, 1'b0, IMM_Z);
                 8'h84, 8'h85, 8'h86, 8'h87, 8'h88, 8'h89, 8'h8a, 8'h8b,
                 8'h8c, 8'h8d, 8'h8e, 8'h8f: f.modrm = 1'b1;
                 8'h9a, 8'hea: f.imm = IMM_AP;
@@ -67,8 +70,8 @@ module fes_i386_oplen (
                 8'ha9: f.imm = IMM_Z;
                 8'hb0, 8'hb1, 8'hb2, 8'hb3, 8'hb4, 8'hb5, 8'hb6, 8'hb7: f.imm = IMM_B;
                 8'hb8, 8'hb9, 8'hba, 8'hbb, 8'hbc, 8'hbd, 8'hbe, 8'hbf: f.imm = IMM_Z;
-                8'hc0, 8'hc1, 8'hc6: begin f.modrm = 1'b1; f.imm = IMM_B; end
-                8'hc7: begin f.modrm = 1'b1; f.imm = IMM_Z; end
+                8'hc0, 8'hc1, 8'hc6: f = form(1'b1, 1'b0, IMM_B);
+                8'hc7: f = form(1'b1, 1'b0, IMM_Z);
                 8'hc2, 8'hca: f.imm = IMM_W;
                 8'hc4, 8'hc5: f.modrm = 1'b1;
                 8'hc8: f.imm = IMM_WB;
@@ -77,8 +80,8 @@ module fes_i386_oplen (
                 8'hd8, 8'hd9, 8'hda, 8'hdb, 8'hdc, 8'hdd, 8'hde, 8'hdf: f.modrm = 1'b1;
                 8'he0, 8'he1, 8'he2, 8'he3, 8'he4, 8'he5, 8'he6, 8'he7, 8'heb: f.imm = IMM_B;
                 8'he8, 8'he9: f.imm = IMM_Z;
-                8'hf6: begin f.modrm = 1'b1; f.imm = reg_field[2:1] == 2'b00 ? IMM_B : IMM_NONE; end
-                8'hf7: begin f.modrm = 1'b1; f.imm = reg_field[2:1] == 2'b00 ? IMM_Z : IMM_NONE; end
+                8'hf6: f = form(1'b1, 1'b0, reg_field[2:1] == 2'b00 ? IMM_B : IMM_NONE);
+                8'hf7: f = form(1'b1, 1'b0, reg_field[2:1] == 2'b00 ? IMM_Z : IMM_NONE);
                 8'hfe, 8'hff: f.modrm = 1'b1;
                 default: ;
             endcase
@@ -91,18 +94,16 @@ module fes_i386_oplen (
     // #UD on the i386; they keep the ModRM length the oracle decodes.
     function automatic form_t two_byte(input logic [7:0] op);
         form_t f;
-        f.modrm = 1'b0;
-        f.creg = 1'b0;
-        f.imm = IMM_NONE;
+        f = form(1'b0, 1'b0, IMM_NONE);
         case (op)
             8'h00, 8'h01, 8'h02, 8'h03, 8'h0d, 8'hb9: f.modrm = 1'b1;
-            8'h20, 8'h21, 8'h22, 8'h23, 8'h24, 8'h26: begin f.modrm = 1'b1; f.creg = 1'b1; end
+            8'h20, 8'h21, 8'h22, 8'h23, 8'h24, 8'h26: f = form(1'b1, 1'b1, IMM_NONE);
             8'h80, 8'h81, 8'h82, 8'h83, 8'h84, 8'h85, 8'h86, 8'h87,
             8'h88, 8'h89, 8'h8a, 8'h8b, 8'h8c, 8'h8d, 8'h8e, 8'h8f: f.imm = IMM_Z;
             8'h90, 8'h91, 8'h92, 8'h93, 8'h94, 8'h95, 8'h96, 8'h97,
             8'h98, 8'h99, 8'h9a, 8'h9b, 8'h9c, 8'h9d, 8'h9e, 8'h9f: f.modrm = 1'b1;
             8'ha3, 8'ha5, 8'hab, 8'had, 8'haf: f.modrm = 1'b1;
-            8'ha4, 8'hac, 8'hba: begin f.modrm = 1'b1; f.imm = IMM_B; end
+            8'ha4, 8'hac, 8'hba: f = form(1'b1, 1'b0, IMM_B);
             8'hb0, 8'hb1, 8'hb2, 8'hb3, 8'hb4, 8'hb5, 8'hb6, 8'hb7,
             8'hbb, 8'hbc, 8'hbd, 8'hbe, 8'hbf, 8'hc0, 8'hc1: f.modrm = 1'b1;
             default: ;
