@@ -33,6 +33,9 @@
 //           forward between instructions and taken branches kill younger
 //           producers. A run stops at its HLT or after FES_I386_RETIRE_LIMIT
 //           retirements.
+//   unbuilt encodings this build does not execute, one per line on stdin as
+//           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
+//           anything retires. The RTL runs alone; the oracle is not stepped.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -1061,6 +1064,39 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     return 0;
 }
 
+// Every encoding the runner lists as outside the build must stop the CPU
+// before it retires, so no check passes over an unbuilt instruction.
+int run_unbuilt(Rtl &rtl, Summary &summary) {
+    State state;
+    for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0x1000);
+    state.eip = 0x100;
+    const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line.empty()) continue;
+        std::vector<uint8_t> code;
+        for (size_t i = 0; i + 1 < line.size(); i += 2) code.push_back(uint8_t(std::stoul(line.substr(i, 2), nullptr, 16)));
+        code.resize(16, 0);
+        code.push_back(0xf4);
+        for (size_t i = 0; i < code.size(); ++i) rtl.ram[base + i] = code[i];
+        rtl.start(state);
+        const Rtl::Event event = rtl.next();
+        ++summary.runs;
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        if (event == Rtl::Event::Unimplemented) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL unbuilt:" << line << ' '
+                      << (event == Rtl::Event::Retired ? "retired" : event == Rtl::Event::Fault ? "fault" : "timeout")
+                      << " 1 0\n";
+        }
+        for (size_t i = 0; i < code.size(); ++i) rtl.ram[base + i] = 0;
+    }
+    return 0;
+}
+
 uint64_t env(const char *name, uint64_t fallback) {
     const char *value = std::getenv(name);
     return value ? std::strtoull(value, nullptr, 0) : fallback;
@@ -1083,7 +1119,9 @@ int main(int argc, char **argv) {
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
-    if (mode == "random") {
+    if (mode == "unbuilt") {
+        run_unbuilt(rtl, summary);
+    } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
                    env("FES_I386_RETIRE_LIMIT", 2000));
     } else {

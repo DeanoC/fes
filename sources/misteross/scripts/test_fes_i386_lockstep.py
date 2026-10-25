@@ -25,6 +25,11 @@ An instruction that faults (#UD for LOCK, for example) must fault in the RTL
 with the same vector and nothing retired. Exception delivery is not built,
 so such a run ends there and its final state is not compared.
 
+Beside the lockstep, every one-byte and 0Fh opcode followed by every second
+byte that SCOPE leaves out must stop the RTL with FAULT_UNIMPLEMENTED before
+anything retires (the testbench's unbuilt mode), so the lockstep, which only
+runs what SCOPE names, cannot pass over an unbuilt instruction.
+
 With --yosys the CPU is first run through that Yosys (read, proc -norom,
 flatten, opt) and the netlist it writes is simulated instead of the RTL.
 
@@ -102,6 +107,43 @@ def in_scope(stem: str, test: vectors.MooTest) -> bool:
         index += 1
     two_byte = code[index] == 0x0F
     return code[index + (2 if two_byte else 1)] >> 6 == 3
+
+
+# Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
+# grouped().
+GROUPED_ONE = frozenset([0x80, 0x81, 0x82, 0x83, 0xC0, 0xC1, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF])
+
+
+def unbuilt_encodings() -> list[str]:
+    """Every opcode (one-byte, then 0Fh) and following byte SCOPE leaves out."""
+    lines = []
+    for two_byte in (False, True):
+        for opcode in range(256):
+            if not two_byte and (opcode in vectors.PREFIXES or opcode == 0x0F):
+                continue
+            for following in range(256):
+                code = bytes([0x0F, opcode, following] if two_byte else [opcode, following])
+                stem = ('0F' if two_byte else '') + f'{opcode:02X}'
+                if not two_byte and opcode in GROUPED_ONE or two_byte and opcode == 0xBA:
+                    stem += f'.{(following >> 3) & 7}'
+                test = vectors.MooTest(0, '', code + bytes(14) + b'\xf4', [], [], 0, {}, [], None, '')
+                # Every following byte, ModRM or not: a decoder that misreads
+                # one as ModRM must still stop.
+                if not in_scope(stem, test):
+                    lines.append(code.hex())
+    return lines
+
+
+def run_unbuilt(testbench: str, env: dict, lines: list[str]) -> dict:
+    env = dict(env, FES_I386_MODE='unbuilt', FES_I386_LATENCY='0')
+    result = subprocess.run([testbench], input=''.join(line + '\n' for line in lines), env=env,
+                            capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'unbuilt: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != len(lines):
+        raise LockstepError(f'unbuilt: testbench ran {summary["runs"]} of {len(lines)} encodings')
+    return {'summary': summary, 'failures': failures}
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
@@ -258,7 +300,11 @@ def main() -> int:
             # The same programs without latency must retire the same trace.
             steady = [executor.submit(run_random, testbench, env, args.seed + n, args.random_programs, False)
                       for n in range(min(2, args.random_seeds) if args.random_programs else 0)]
+            unbuilt_lines = unbuilt_encodings()
+            unbuilt_chunks = [unbuilt_lines[n::args.jobs] for n in range(args.jobs)]
+            unbuilt = [executor.submit(run_unbuilt, testbench, env, chunk) for chunk in unbuilt_chunks if chunk]
             corpus_results = [future.result() for future in files]
+            unbuilt_results = [future.result() for future in unbuilt]
             random_results = [future.result() for future in randoms]
             steady_results = [future.result() for future in steady]
     except (OSError, oracle.OracleError, frontend.FrontendError, vectors.CorpusError, LockstepError,
@@ -291,13 +337,16 @@ def main() -> int:
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken')}
-    if corpus_failures or random_failures or hash_mismatches:
+    unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
+    unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
+    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures:
         exit_code = 1
     report.update({
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
                    'failures': corpus_failures[:200]},
+        'unbuilt': {'encodings': unbuilt_runs, 'failures': unbuilt_failures[:200]},
         'random': {'seeds': [result['seed'] for result in random_results], 'programs_per_seed': args.random_programs,
                    'totals': dict(random_totals), 'latency_free_reruns': [result['seed'] for result in steady_results],
                    'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
@@ -322,7 +371,8 @@ def main() -> int:
               f"{sum(gaps['after_not_taken'].values())} after a branch not taken, "
               f"{share(gaps['after_not_taken'], 1)} one cycle apart; {sum(gaps['after_taken'].values())} after a "
               f"taken branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart")
-    for line in (corpus_failures + random_failures)[:40]:
+    print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
+    for line in (unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

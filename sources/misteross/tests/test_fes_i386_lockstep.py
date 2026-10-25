@@ -40,6 +40,16 @@ class ScopeTest(unittest.TestCase):
         self.assertFalse(lockstep.in_scope('F6.4', moo_test(bytes([0xf6, 0xe0, 0xf4]))))  # MUL comes later
         self.assertFalse(lockstep.in_scope('A0', moo_test(bytes([0xa0, 0x00, 0x00, 0xf4]))))
 
+    def test_unbuilt_encodings_cover_what_scope_leaves_out(self):
+        lines = lockstep.unbuilt_encodings()
+        self.assertEqual(len(lines), len(set(lines)))
+        for encoding in ('06c0', '27c0', '3fff', '0000', 'f6e0', 'a000', '0f0b00'):
+            with self.subTest(encoding=encoding):
+                self.assertIn(encoding, lines)
+        for encoding in ('00c0', '04ff', '8d00', '0fa4c0', 'f4c0'):
+            with self.subTest(encoding=encoding):
+                self.assertNotIn(encoding, lines)
+
     def test_scope_names_corpus_stems(self):
         for stem in lockstep.SCOPE:
             with self.subTest(stem=stem):
