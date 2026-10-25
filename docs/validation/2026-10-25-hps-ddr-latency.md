@@ -6,7 +6,11 @@ puts guest RAM in HPS DDR on `fes.memory.hps-ddr` port 0, behind an L2 with
 more than about 40 cycles at 100 MHz, or Linux activity makes it erratic,
 revisit the choice." This record measures it.
 
-**Verdict (Linux idle; the loaded run is pending):** TBD
+**Verdict, Linux idle only:** typical reads pass, the tail does not. DDR port
+0's first data takes 18-19 cycles at the median and 16-17 at best, well
+inside 40. Even with Linux idle, though, 1% of reads take 45-51 cycles and the
+worst read in each window 55-84. The second half of the check, whether Linux
+activity makes DDR erratic, is **not answered**: the loaded run was not done.
 
 This is a **hardware diagnostic** on Kit B with an exact sealed package. It is
 not package or image acceptance.
@@ -101,25 +105,57 @@ refresh takes 36-37 cycles longer.
 
 ### HPS CPU and memory load
 
-Pending.
+**Not done.** The driver started the load (two `dd` writers streaming 8 MiB
+buffers and a `cat` loop reading a 64 MiB tmpfs file), but a script bug
+aborted the step before any loaded frame was read. Its cleanup then stopped
+Kit B's sshd (see below). Deano chose not to power-cycle Kit B now, so no
+loaded numbers exist.
+
+What remains, once Kit B has had its power cycle (or on Kit A):
+
+1. Check the baseline on Kit B.
+2. Run the fixed `hil_lat.py`, which reads idle and then loaded frames in one
+   session.
+3. Add the loaded table and complete the verdict.
+
+The four frames read after the load was killed match the idle table. They
+show only that the latency mode kept running; the load lasted about five
+seconds and no frame was read during it.
 
 ## Incident
 
-Run 1's load step did not run. A parsing bug in the driver script read its
-own `exit 0` line as a fourth PID. The cleanup then ran
-`kill 3192 3193 3194 0` over ssh. The `0` signalled the ssh session's process
-group, which on this image includes the dropbear listener, so Kit B's sshd
-stopped. The agent still reported idle, lease free, and the same bundle and
-image. Kit B was logged HELD for a power cycle. The fixed driver
-([`hil_lat.py`](hps-ddr-latency-2026-10-25/hil_lat.py)) passes `kill` only
-PIDs above 1 from the PID file, one at a time.
+A parsing bug in the driver script read its own `exit 0` line as a fourth
+PID, so the load step aborted. Its cleanup then ran `kill 3192 3193 3194 0`
+over ssh. The `0` signalled the ssh session's process group, which on this
+image includes the dropbear listener. Kit B's sshd has refused connections
+since 00:33 EEST.
+
+After the private-host Stop, the agent API still reported Kit B idle and
+lease free, with bundle `35d58489` and image `4db74864` unchanged. The
+runtime session was stopped and the private host removed.
+
+Two things could not be checked without ssh:
+
+- whether the load processes exited. They got SIGTERM first.
+- the 64 MiB `/tmp/zbl-latload.bin` and its two small files, which are
+  still there. tmpfs clears at the next boot.
+
+Kit B is logged in `~/kit-status/kitB-STATUS.md` as needing a power cycle
+and unusable until then. No other recovery was attempted.
+
+The fixed driver ([`hil_lat.py`](hps-ddr-latency-2026-10-25/hil_lat.py))
+reads PIDs only from the PID file, keeps only those above 1, and kills them
+one at a time. It counts the cleanup as done only if ssh exits cleanly.
 
 ## Evidence
 
 [`hps-ddr-latency-2026-10-25/run1/`](hps-ddr-latency-2026-10-25/run1/):
 
 - `10-idle.json`: the 24 idle frames, as read.
+- `30-after-load.json`: the four frames read after the aborted load step.
 - `ocr-frames.txt`: the full text of every frame.
 - `05-wait-106.png` (the first frame with results) and `10-idle-05.png`.
 - `before-kit.txt`, `idle-top.txt`, `compat.json` and `launch.json`: kit
   state, load and package records.
+- `load-start.txt` and `load-stop.txt`: the load step's PIDs and the cleanup
+  that lost the ssh connection.
