@@ -106,19 +106,28 @@ removed, so only the address-size select follows the 32-bit chain.
 
 ## Synthesis notes
 
-The repository's Yosys parses a subset of SystemVerilog, and gets some of it
+The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
+here: the DeanoC Yosys fork's main at `d4ac300d9d`, with nextpnr `bd7a1c0d`
+and Mistral `8fcc4cb4`. The timing spikes default to it. The repository's
+shared lock stays at Yosys `3a5accbd`, which reads this RTL's per-byte
+records wrongly, so check and route the i386 RTL with this lock's Yosys.
+Each later Yosys fix is a small bump of this lock, the removal of its one
+workaround, the `--yosys` check and a re-measure.
+
+The locked Yosys still parses a subset of SystemVerilog, and gets some of it
 wrong without an error. This RTL stays inside what it reads correctly:
 
 - no `import`: ports name `fes_i386_pkg::` types, and a module may alias one
   with `typedef fes_i386_pkg::x x;` ([DeanoC/yosys#36](https://github.com/DeanoC/yosys/issues/36));
 - no `return` ([#37](https://github.com/DeanoC/yosys/issues/37)), and no
   assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
-- no packed arrays of structs, which Yosys sizes wrongly ([#34](https://github.com/DeanoC/yosys/issues/34));
 - no function returning a struct called from another function, which Yosys
   reads as empty ([#33](https://github.com/DeanoC/yosys/issues/33));
+- a field of an array element, `arr[i].field`, is read and written through a
+  whole-record copy: Yosys takes `arr[i]` for a generate block, which is an
+  error with a variable index and a silent, undriven wire with a constant one
+  ([#52](https://github.com/DeanoC/yosys/issues/52));
 - package functions do not use package constants ([#35](https://github.com/DeanoC/yosys/issues/35));
-- multi-dimensional packed arrays are declared at module scope, not inside
-  generate blocks ([#41](https://github.com/DeanoC/yosys/issues/41));
 - small sums are built from gates (`fes_i386_pkg::small_add`), since every `+`
   becomes an ALM carry chain ([#39](https://github.com/DeanoC/yosys/issues/39));
 - synthesis runs `proc -norom` first, or the length decoders' opcode tables

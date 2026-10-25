@@ -28,10 +28,7 @@ module fes_i386_qalign (
     input  logic [1:0]             half_valid,
     input  logic [1:0][27:0]       half_block,
     input  logic [31:0][7:0]       bytes,
-    input  logic [31:0]            dec_prefix,
-    input  logic [31:0]            dec_run,
-    input  logic [31:0][15:0]      dec_len,
-    input  logic [31:0][19:0]      dec_fin,
+    input  fes_i386_pkg::lbyte_t [31:0] dec,
     input  logic [31:0][3:0]       avail,
     input  logic [15:0][7:0]       fill_data,
     output logic [1:0]             release_half,
@@ -57,17 +54,14 @@ module fes_i386_qalign (
     for (genvar j = 0; j < 32; j++) begin : g_pos
         localparam int H = j / 16;
         localparam int K = j % 16;
-        logic [15:0] lengths;
-        logic [19:0] ends;
-        logic [3:0]  usable;
-        logic [4:0]  fin;  // where the instruction ends, counted as L counts
+        fes_i386_pkg::lbyte_t d;
+        logic [3:0]           usable;
+        logic [4:0]           fin;  // where the instruction ends, counted as L counts
 
-        assign lengths = dec_len[j];
-        assign ends = dec_fin[j];
+        assign d = dec[j];
         assign usable = avail[j];
-        assign len[j] = lengths[{variant, 2'b00} +: 4];
-        assign fin = variant[1] ? (variant[0] ? ends[19:15] : ends[14:10])
-                                : (variant[0] ? ends[9:5] : ends[4:0]);
+        assign len[j] = d.len[variant];
+        assign fin = d.fin[variant];
         // L2 wrote this byte while filling half (K < 12 ? H : 1 - H); its count
         // starts at the other half's byte 0.
         assign next[j] = {!(fin[4] ^ ((K < 12) == (H != 0))), fin[3:0]};
@@ -79,8 +73,10 @@ module fes_i386_qalign (
     logic       out_free, too_long_run, issue, consume, advance;
     logic [4:0] start_next;
 
-    assign run_here = dec_run[start];
-    assign prefix_here = dec_prefix[start];
+    fes_i386_pkg::lbyte_t at_start;  // a whole record: DeanoC/yosys#52
+    assign at_start = dec[start];
+    assign run_here = at_start.run;
+    assign prefix_here = at_start.prefix;
     assign out_free = !q_valid || d_ready;
     // A prefix run that reaches a 16th byte before its opcode cannot fit in
     // 15 bytes; issue it so D raises #GP(0) instead of consuming forever.

@@ -88,7 +88,7 @@ class HarnessReportTest(unittest.TestCase):
                                   for cell, slack, checked in endpoints]}
         report = {'detailed_net_timings': [
             net(('dut.fetch.l1_bytes_MISTRAL_FF_Q_3', 1.5, True), ('dut.align.start_MISTRAL_FF_Q', -0.5, True)),
-            net(('dut.align.fill_data_MISTRAL_FF_Q_9', 0.5, True), ('dut.align.dec_fin_MISTRAL_FF_Q_1', 2.0, True)),
+            net(('dut.align.fill_data_MISTRAL_FF_Q_9', 0.5, True), ('dut.align.dec_MISTRAL_FF_Q_1', 2.0, True)),
             net(('signature_MISTRAL_FF_Q', 4.0, True), ('dut.align.start_MISTRAL_ALUT6', -9.0, False)),
             net(('dut.align.redirect_linear_MISTRAL_FF_Q', 5.0, True)),
         ]}
@@ -97,7 +97,7 @@ class HarnessReportTest(unittest.TestCase):
         self.assertEqual(figures['L1'], {'setup_slack_ns': 0.5, 'fmax_mhz': 105.26, 'endpoint': 'dut.align.fill_data'})
         self.assertEqual(figures['F2']['endpoint'], 'dut.fetch.l1_bytes')
         self.assertEqual(figures['Q']['fmax_mhz'], 95.24)
-        self.assertEqual(figures['L2']['endpoint'], 'dut.align.dec_fin')
+        self.assertEqual(figures['L2']['endpoint'], 'dut.align.dec')
         self.assertEqual(figures['envelope']['endpoint'], 'signature')
         self.assertEqual([item['endpoint'] for item in benchmark.envelope_endpoints(report, stages)],
                          ['signature', 'dut.align.redirect_linear'])
@@ -188,6 +188,11 @@ class HarnessReportTest(unittest.TestCase):
                 for path in benchmark.sources(spike):
                     self.assertTrue((benchmark.ROOT / path).is_file(), path)
         self.assertTrue((benchmark.ROOT / benchmark.SPIKE / 'spike.qsf').is_file())
+
+    def test_spikes_default_to_the_i386_lock(self):
+        from scripts import lockfile
+        self.assertEqual(benchmark.LOCK, benchmark.RTL / 'toolchain.lock')
+        self.assertEqual(lockfile.validate_lock(benchmark.ROOT / benchmark.LOCK), [])
 
 
 @unittest.skipUnless(VERILATOR, 'Verilator not installed')

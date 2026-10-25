@@ -204,13 +204,14 @@ the test verifies that it does not issue until block 2 arrives.
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
-python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/locked/yosys
+python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/i386-locked/yosys
 ```
 
 `--yosys` runs every check on the netlist that Yosys writes from the RTL
 instead of the RTL itself. The spikes are built from Yosys's reading of the
-SystemVerilog, and the repository's Yosys has misread constructs without an
-error.
+SystemVerilog, and Yosys has misread constructs without an error. Use the
+Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
+the repository lock's older Yosys misreads the RTL's per-byte records.
 
 ## Timing spikes
 
@@ -224,7 +225,8 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
-authenticated Yosys (M10K and DSP allowed, no LUT RAM) and routes each seed
+authenticated Yosys, by default the i386 lock's (M10K and DSP allowed, no LUT
+RAM), and routes each seed
 with nextpnr's GPU router through `gpu-run`, CPU fallback rejected. Timing is
 allowed to fail so a miss is measured; it writes `summary.json` and
 `runs.jsonl` with each seed's fmax, critical path, a figure per pipeline
@@ -236,6 +238,10 @@ M10K cells. Each synthesis also records every stage's deepest logic path
 before placement: LUT levels, carry cells and the named nets on it.
 
 ```sh
+FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains \
+  FES_TOOLCHAIN_LOCKFILE="$PWD/cores/fes-common/rtl/i386/toolchain.lock" \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  scripts/bootstrap.sh   # provisions the i386 lock's toolchain once
 python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains \
     --version "phase 1 front-end fixes"
 ```

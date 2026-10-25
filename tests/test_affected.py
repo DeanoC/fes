@@ -245,6 +245,7 @@ class AffectedTests(unittest.TestCase):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
                      'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
                      'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
                      'scripts/benchmark_fes_i386.py'):
