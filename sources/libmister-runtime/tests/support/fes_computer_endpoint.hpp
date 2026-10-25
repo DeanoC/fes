@@ -282,7 +282,9 @@ public:
 		if (lose_request && lose_request(request)) return {};
 		requests.push_back(request);
 		toggle_ = toggle;
-		const auto result = Handle(request.opcode, request.index, request.argument);
+		const unsigned rejected = reject_request ? reject_request(request) : 0;
+		const auto result = rejected == 0 ? Handle(request.opcode, request.index, request.argument) :
+			std::make_pair(rejected, static_cast<std::uint16_t>(0));
 		error_ = result.first != 0;
 		response_ = error_ ? static_cast<std::uint16_t>(result.first) : result.second;
         if (fail_after_request && fail_after_request(request))
@@ -358,6 +360,8 @@ public:
     std::vector<unsigned> snapshot_words;
 	// Returning true drops that request before the endpoint sees it: no ACK.
 	std::function<bool(const Request&)> lose_request;
+	// Return a GP error code to model an acknowledged command rejection.
+	std::function<unsigned(const Request&)> reject_request;
     std::function<bool(const Request&)> fail_after_request;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;

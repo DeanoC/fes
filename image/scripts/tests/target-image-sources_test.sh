@@ -114,6 +114,66 @@ git -C "$cache/buildroot" checkout -q --detach "$buildroot_commit"
 sh "$repo/scripts/verify-target-image-source-cache.sh" "$lock" "$cache"
 grep -Fq '/work/scripts/verify-target-image-source-cache.sh' \
   "$repo/scripts/build-target-image.sh"
+grep -Fq 'publish_toolchain' "$repo/scripts/build-target-image.sh"
+grep -Fq -- '--ensure-kit-sdk' "$repo/scripts/build-target-image.sh"
+grep -Fq 'fetch-target-image-sources.sh kit-sdk' "$repo/scripts/build-target-image.sh"
+
+buildroot_cache=$fixture/buildroot-only
+TARGET_IMAGE_TEST_MODE=1 \
+TARGET_IMAGE_LOCK=$lock \
+TARGET_IMAGE_LOCK_BIN=$fixture/missing-lock-bin \
+TARGET_IMAGE_CACHE=$buildroot_cache \
+TARGET_IMAGE_BUILDROOT_REPO=$buildroot_upstream \
+  sh "$repo/scripts/fetch-target-image-sources.sh" buildroot
+test "$(git -C "$buildroot_cache/buildroot" rev-parse HEAD)" = "$buildroot_commit"
+test ! -e "$buildroot_cache/image-creator"
+test ! -e "$buildroot_cache/linux-kernel.git"
+sh "$repo/scripts/verify-target-image-source-cache.sh" "$lock" "$buildroot_cache" buildroot
+if sh "$repo/scripts/verify-target-image-source-cache.sh" "$lock" "$buildroot_cache" >/dev/null 2>&1; then
+  echo 'full source verifier accepted a toolchain-only cache' >&2
+  exit 1
+fi
+if sh "$repo/scripts/verify-target-image-source-cache.sh" "$lock" "$buildroot_cache" kit-sdk >/dev/null 2>&1; then
+  echo 'kit-sdk source verifier accepted a cache without the pinned Linux kernel' >&2
+  exit 1
+fi
+
+kit_sdk_cache=$fixture/kit-sdk
+TARGET_IMAGE_TEST_MODE=1 \
+TARGET_IMAGE_LOCK=$lock \
+TARGET_IMAGE_LOCK_BIN=$fixture/missing-lock-bin \
+TARGET_IMAGE_CACHE=$kit_sdk_cache \
+TARGET_IMAGE_BUILDROOT_REPO=$buildroot_upstream \
+TARGET_IMAGE_KERNEL_REPO=$kernel_upstream \
+  sh "$repo/scripts/fetch-target-image-sources.sh" kit-sdk
+test "$(git -C "$kit_sdk_cache/buildroot" rev-parse HEAD)" = "$buildroot_commit"
+test "$(git --git-dir="$kit_sdk_cache/linux-kernel.git" rev-parse refs/target-image/pinned)" = "$kernel_commit"
+test "$(git --git-dir="$kit_sdk_cache/linux-kernel.git" rev-parse --is-bare-repository)" = true
+test ! -e "$kit_sdk_cache/image-creator"
+sh "$repo/scripts/verify-target-image-source-cache.sh" "$lock" "$kit_sdk_cache" kit-sdk
+bad_kernel_lock=$fixture/wrong-kernel-pin.lock.toml
+sed "/^\[kernel\]/,\$s/^commit = .*/commit = '$buildroot_commit'/" "$lock" > "$bad_kernel_lock"
+if sh "$repo/scripts/verify-target-image-source-cache.sh" "$bad_kernel_lock" "$kit_sdk_cache" kit-sdk >/dev/null 2>&1; then
+  echo 'kit-sdk source verifier accepted the wrong Linux kernel pin' >&2
+  exit 1
+fi
+if TARGET_IMAGE_TEST_MODE=1 \
+  TARGET_IMAGE_LOCK=$lock \
+  TARGET_IMAGE_CACHE=$fixture/rejected-buildroot \
+  TARGET_IMAGE_BUILDROOT_REPO=$buildroot_upstream \
+    sh "$repo/scripts/fetch-target-image-sources.sh" image-creator >/dev/null 2>&1; then
+  echo 'fetch accepted an unknown mode' >&2
+  exit 1
+fi
+if TARGET_IMAGE_TEST_MODE=0 \
+  TARGET_IMAGE_LOCK=$lock \
+  TARGET_IMAGE_CACHE=$fixture/unpinned-buildroot \
+    sh "$repo/scripts/fetch-target-image-sources.sh" buildroot >/dev/null 2>&1; then
+  echo 'buildroot fetch accepted a lock that is not the image pin' >&2
+  exit 1
+fi
+test ! -e "$fixture/unpinned-buildroot/image-creator"
+test ! -e "$fixture/unpinned-buildroot/linux-kernel.git"
 
 bad_lock=$fixture/bad.lock.toml
 sed "s/rootfs_sha256 = '$rootfs_sha'/rootfs_sha256 = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'/" "$lock" > "$bad_lock"

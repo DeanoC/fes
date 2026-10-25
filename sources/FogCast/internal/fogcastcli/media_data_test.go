@@ -74,12 +74,9 @@ func TestSaveDiskAndStopCLIExposeSaveFailureWithoutRetry(t *testing.T) {
 					t.Fatalf("exit=%d mutations=%d stdout=%s stderr=%s", exit, posts.Load(), stdout.String(), stderr.String())
 				}
 				const message = "core data could not be durably written; inspect status before retrying"
+				// Session mutations preserve the host's typed error phase for
+				// both the explicit checkpoint and Stop paths.
 				phase, humanCode := "save", "SAVE_FAILED[save]"
-				if command == "save-disk" {
-					// The existing hostclient HTTP reader projects code/message;
-					// Stop's session HTTP reader also preserves the upstream phase.
-					phase, humanCode = "", "SAVE_FAILED"
-				}
 				if mode == "human" {
 					if stdout.Len() != 0 || stderr.String() != humanCode+": "+message+"\n" {
 						t.Fatalf("lost typed save diagnostic: stdout=%q stderr=%q", stdout.String(), stderr.String())

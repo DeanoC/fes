@@ -74,19 +74,21 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
-	ID          string                      `json:"id"`
-	Target      string                      `json:"target,omitempty"`
-	TargetID    string                      `json:"target_id,omitempty"`
-	Connection  *fogcast.TargetConnection   `json:"connection,omitempty"`
-	State       protocol.State              `json:"state"`
-	GameID      *string                     `json:"game_id,omitempty"`
-	System      *protocol.System            `json:"system,omitempty"`
-	Execution   string                      `json:"execution,omitempty"`
-	Media       string                      `json:"media,omitempty"`
-	Progress    *sessionProgress            `json:"progress,omitempty"`
-	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
-	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
-	FlightID    string                      `json:"flight_id,omitempty"`
+	ID           string                      `json:"id"`
+	Target       string                      `json:"target,omitempty"`
+	TargetID     string                      `json:"target_id,omitempty"`
+	Connection   *fogcast.TargetConnection   `json:"connection,omitempty"`
+	State        protocol.State              `json:"state"`
+	GameID       *string                     `json:"game_id,omitempty"`
+	System       *protocol.System            `json:"system,omitempty"`
+	Execution    string                      `json:"execution,omitempty"`
+	Media        string                      `json:"media,omitempty"`
+	MediaName    string                      `json:"media_name,omitempty"`
+	MediaEjected bool                        `json:"media_ejected,omitempty"`
+	Progress     *sessionProgress            `json:"progress,omitempty"`
+	Input        *host.RemoteInputStatus     `json:"input,omitempty"`
+	CorePackage  *protocol.CorePackageStatus `json:"core_package,omitempty"`
+	FlightID     string                      `json:"flight_id,omitempty"`
 }
 
 // sessionEvent is one public host session event. Protocol 1 fields are
@@ -120,6 +122,10 @@ type sessionCoordinator struct {
 	packageOwned      bool
 	nativeStoppedIdle bool // Soft-stopped non-package fpga_native label left set after idle cleanup
 	mediaState        string
+	liveMediaName     string
+	liveMediaBinding  protocol.DevelopmentMediaBinding
+	liveMediaFlightID string
+	liveMediaEjected  bool
 	terminalStatus    *protocol.Status
 	inputBinding      sessionInputBinding
 	mu                sync.Mutex
@@ -1811,6 +1817,7 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	result.ID = s.id
 	result.FlightID = s.flightID
 	execution := s.execution
+	name, binding, mediaFlightID, mediaEjected := s.liveMediaName, s.liveMediaBinding, s.liveMediaFlightID, s.liveMediaEjected
 	s.mu.Unlock()
 	if result.Execution == fogcast.ExecutionHostOnly || execution == fogcast.ExecutionHostOnly {
 		result.Target, result.TargetID = "", ""
@@ -1822,11 +1829,41 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 	} else if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
 		result.Target, result.TargetID = binder.SessionTarget()
 	}
+	mediaBindingMatches := result.FlightID == mediaFlightID &&
+		result.Target == binding.Target && result.TargetID == binding.TargetID &&
+		st.State == protocol.StateActive && st.CorePackage != nil &&
+		st.CorePackage.PackageID == binding.PackageID && st.CorePackage.Generation == binding.Generation
+	if mediaBindingMatches {
+		unit, observed := protocol.MediaUnit(st.CorePackage, 0)
+		if !observed {
+			result.MediaName = name
+			result.MediaEjected = mediaEjected
+		} else if unit.State == protocol.MediaUnitReady {
+			result.MediaName = name
+		}
+	} else if st.State != "" {
+		// A confirmed filename belongs only to the observed session flight and
+		// package binding, so a relaunch that reuses a generation cannot revive it.
+		s.mu.Lock()
+		if s.liveMediaName == name && s.liveMediaBinding == binding && s.liveMediaFlightID == mediaFlightID {
+			s.clearLiveMediaNameLocked()
+		}
+		s.mu.Unlock()
+	}
 	if s.remoteInput != nil {
 		input := s.remoteInput.Status()
 		result.Input = &input
 	}
 	return result
+}
+
+// clearLiveMediaNameLocked retires the complete identity of a cached filename.
+// The caller must hold s.mu.
+func (s *sessionCoordinator) clearLiveMediaNameLocked() {
+	s.liveMediaName = ""
+	s.liveMediaBinding = protocol.DevelopmentMediaBinding{}
+	s.liveMediaFlightID = ""
+	s.liveMediaEjected = false
 }
 
 func busyError() error {
