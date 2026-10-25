@@ -65,8 +65,9 @@ def video_shell_profile(fields):
     rom = fields.get("rom")
     coleco_format = type(fields.get("format")) is int and (
         fields["format"] == 2 or (
-            fields["format"] == 3 and isinstance(rom, dict) and rom.get("role") == "cartridge"
-            and type(rom.get("source_size")) is int and rom["source_size"] == 16384))
+            fields["format"] == 4 and fields.get("roms") == [
+                {"id": "coleco-bios", "role": "firmware", "source_size": 8192, "source_offset": 0},
+                {"id": "coleco-cart", "role": "cartridge", "source_size": 16384, "source_offset": 8192}]))
     if (len(markers) != 1 or not (st or coleco)
             or (st and (type(fields.get("format")) is not int or fields["format"] != 3))
             or (coleco and not coleco_format)
