@@ -15,26 +15,40 @@ data: [`2026-10-25-i386-quartus-oracle.jsonl`](2026-10-25-i386-quartus-oracle.js
 - **Mostly place and route.** Both flows got the same RTL. nextpnr routes
   Yosys's mapping of the whole CPU at **58-62 MHz**. Quartus fits Yosys's
   elaborated netlist of it at **85-89 MHz**. EX limits both.
+  - nextpnr's whole-CPU routes target 80 MHz, as in #1109, and Quartus's
+    target 100.
+  - Re-routed at 100 MHz, nextpnr gives 62.43, 59.78, 57.80 and 59.43, so the
+    target is not the gap.
 - **Not synthesis.** The two flows produce a similar number of logic levels.
   The worst paths carry 11-13 cells in nextpnr and 9-11 in Quartus. Where they
   differ is routing delay: 10.6-11.4 ns in nextpnr against 6.7-8.1 ns in
   Quartus.
 - **Part of the gap is constant, and part grows with design size.**
-  - On the small spikes Quartus is a steady **1.22-1.27×** faster. That holds
+  - On the small spikes Quartus is a steady **1.20-1.26×** faster. That holds
     for the front end's Q and L2, for D, AG and for M2. F2, behind an M10K
-    read, is 1.44×.
+    read, is 1.41×.
   - On the whole CPU the factor grows to **1.29-1.46×**, and to 1.45× on the
     limiting stage, EX.
   - The extra part is placement scaling. From spike to whole CPU, nextpnr's D
-    drops 24% and Quartus's only 11%.
+    drops 24% and Quartus's only 11%; Q drops 8% against 1%.
   - This record cannot tell how much of the constant 1.2× is nextpnr's timing
-    model and how much is the quality of its placement.
+    model and how much is the quality of its placement. The fork already
+    tracks model gaps against TimeQuest:
+    - DeanoC/nextpnr#232: Mistral's M10K clock-to-out reads about 1.5 ns
+      optimistic. F2 is the stage behind an M10K read, and its ratio is the
+      outlier.
+    - DeanoC/nextpnr#201: identical placement and routing report different
+      figures on different commits.
 - **The RTL still matters for 100 MHz.** Even Quartus stops at 85-89 MHz, on
   EX at 9-11 logic levels. D reaches 92-100 MHz and Q 91-99. So on any flow,
   100 MHz needs another cut in EX. On a better P&R the current RTL sits near
   87 MHz, not near 60.
 - **DeanoC/yosys#59 is real on Quartus too.** On the branch RTL, Q limits
-  Quartus at 74-78 MHz. The `at_start` copy lifts Q to 91-99 MHz.
+  Quartus at 74-78 MHz.
+  - With the same Quartus settings, the `at_start` copy alone lifts Q to
+    79-83 MHz.
+  - Building the remaining stride multiply in logic, as Yosys does, lifts it
+    to 91-99 MHz.
 
 The nextpnr gap is filed as DeanoC/nextpnr#TBD with this record as evidence.
 
@@ -115,16 +129,21 @@ spends 3-5 ns more on its worst path in every seed.
 
 ## Calibration: the same logic alone
 
-The spikes are the branch RTL. nextpnr's figures are from the
-[238eac9a49 record](2026-10-25-i386-yosys-238eac9a49.md). Quartus's front
-end is with multiplies in logic, because that spike's Yosys netlist has no
-DSP.
+The spikes are the branch RTL, routed for this record by nextpnr at 100 MHz,
+seeds 1-4.
+- **D+AG and M2.** They route identically to the
+  [238eac9a49 record](2026-10-25-i386-yosys-238eac9a49.md): their netlists
+  have not changed.
+- **Front end.** #1109's `mem_valid` changes it, and it routes at 81.23,
+  78.43, 81.20 and 82.24.
+- **Quartus's front end.** It is with multiplies in logic, because that
+  spike's Yosys netlist has no DSP.
 
 | Spike, stage | nextpnr | Quartus | Ratio |
 | --- | --- | --- | --- |
-| Front end, Q | 74.8-81.8 | 92.0-100.0 | 1.23 |
-| Front end, L2 | 85.3-90.2 | 105.3-110.6 | 1.23 |
-| Front end, F2 | 81.6-87.2 | 117.6-125.4 | 1.44 |
+| Front end, Q | 78.4-82.2 | 92.0-100.0 | 1.20 |
+| Front end, L2 | 85.6-93.5 | 105.3-110.6 | 1.21 |
+| Front end, F2 | 83.9-88.3 | 117.6-125.4 | 1.41 |
 | D+AG, D | 84.1-89.4 | 103.6-110.8 | 1.24 |
 | D+AG, AG | 86.8-95.7 | 108.2-121.5 | 1.26 |
 | M2 | 97.8-106.5 | 121.2-127.7 | 1.22 |
@@ -140,8 +159,8 @@ The same stage, spike to whole CPU:
 | Stage | nextpnr | Quartus |
 | --- | --- | --- |
 | D | 84-89 → 62-69 (−24%) | 104-111 → 92-100 (−11%) |
-| Q | 75-82 → 70-77 (−6%) | 92-100 → 91-99 (−1%) |
-| L2 | 85-90 → 74-84 (−10%) | 105-111 → 102-108 (−3%) |
+| Q | 78-82 → 70-77 (−8%) | 92-100 → 91-99 (−1%) |
+| L2 | 86-94 → 74-84 (−12%) | 105-111 → 102-108 (−3%) |
 
 ## Synthesis alone
 
@@ -187,8 +206,13 @@ record's fingerprints:
 | `9f48537e359b` | D+AG |
 | `64192a625b55` | M2 |
 
-The nextpnr routes ran through `scripts/benchmark_fes_i386.py --spike cpu`;
-the scratch run's fingerprint is `2435e5e75ca3`.
+The nextpnr routes ran through `scripts/benchmark_fes_i386.py`:
+
+| Fingerprint | Run |
+| --- | --- |
+| `6670a1dac014` | Branch spikes, `--spike frontend --spike dag --spike m2` |
+| `2435e5e75ca3` | Scratch whole CPU, `--spike cpu --target-mhz 80` |
+| `24484bd005f2` | Scratch whole CPU, `--spike cpu --target-mhz 100` |
 
 Each seed fits one shared synthesis. TimeQuest reports one worst setup path
 per register at the slow corner (1100 mV, 100 C). The script labels each path
