@@ -186,13 +186,18 @@ writes `build/sim/fes-i386-frontend/report.json`:
 
 | Testbench | Scope | Coverage |
 | --- | --- | --- |
-| [`lendec_tb.cpp`](lendec_tb.cpp) | The 16 per-byte length decoders | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
-| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly |
-| [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv) | Exhaustive over every memory ModRM, every SIB and both address sizes, with random register files and random producers in AG, M1, M2, EX and WB: D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset. Needs no oracle |
+| [`lendec_tb.cpp`](lendec_tb.cpp) | The per-byte length decode, L1's 16 decoders feeding L2's sums through [`lendec_tb_top.sv`](lendec_tb_top.sv) | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Each byte's length for all four prefix-accumulator variants, against the oracle's decode behind the variant's extra 66h and 67h; each variant's end and next-half bit. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
+| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly, as is each redirect's first issue |
+| [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv), cycle by cycle | Every memory ModRM, every SIB and both address sizes as a uop stream whose producers move through AG, M1, M2, EX and WB, most writing a register one of the next uops reads: each cycle D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset; a stalled uop is checked again until it leaves. Then each kind of result into the next uop's base, unscaled index and scaled index, timed against the design's latencies. Needs no oracle |
 
 A case is compared where the oracle defines the encoding; for LOCK, the
 encoding without LOCK, since LOCK's validity is D's check. An instruction the
 oracle cannot fit in 15 bytes must come out `too_long`.
+
+The memory model never stalls fetch, so after start-up L2 always holds the
+next block when Q leaves a half. Q's availability then never needs the term
+that assumes Q is releasing the next half; it starts to matter once F2 can
+miss, and these checks do not exercise it.
 
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
@@ -212,16 +217,21 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
 | --- | --- |
-| `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select), L, the buffer and Q |
-| `spike_dag.sv` | D's address operands (addressing decode, register file, forwarding by tag, scaling, segment select) and AG |
+| `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select with the hit signals replicated per two bytes), L1, L2, the buffer and Q |
+| `spike_dag.sv` | D's address operands (addressing decode, register file, the forwarding table, scaling, segment select) and AG, with the producers moving through AG-EX registers; D's opcode decode, not built, is stimulus |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
 authenticated Yosys (M10K and DSP allowed, no LUT RAM) and routes each seed
 with nextpnr's GPU router through `gpu-run`, CPU fallback rejected. Timing is
 allowed to fail so a miss is measured; it writes `summary.json` and
-`runs.jsonl` with each seed's fmax, critical path and a figure per pipeline
-stage (the worst setup slack among the registers the stage writes).
+`runs.jsonl` with each seed's fmax, critical path, a figure per pipeline
+stage (the worst setup slack among the registers the stage writes) and the
+envelope's worst endpoints. A register's stage comes from every name its
+output carries in the synthesized netlist, else its input's, since
+flattening can leave a register named only after a port it drives. Each
+synthesis also records every stage's deepest logic path before placement:
+LUT levels, carry cells and the named nets on it.
 
 ```sh
 python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains
