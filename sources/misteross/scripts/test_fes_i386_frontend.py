@@ -174,7 +174,7 @@ def main() -> int:
     for name in results:
         for line in report[name]['failures'][:40]:
             print(line)
-    print(('i386 front end FAILED' if exit_code else 'i386 front end passed') +
+    print(('i386 checks FAILED' if exit_code else 'i386 checks passed') +
           f' (host simulation only; report: {OUTPUT / "report.json"})')
     return exit_code
 
