@@ -6,8 +6,9 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
 (cores/fes-common/sim/i386/spike) with one clock, KEY0 and LED0 on pads.
 
   frontend  F1; F2 with a 4-way L1I model (M10K tags and data, compares
-            against a registered ITLB page, way select); L, the 16 length
-            decoders and next starts; the fetch buffer; and Q
+            against a registered ITLB page, way select); L1, the 16 length
+            decoders; L2, each byte's lengths and next starts; the fetch
+            buffer; and Q
   dag       D's address operands (addressing decode, register file,
             forwarding by tag, index scaling, segment select) and AG (one
             late operand, the 3:2 rows, the adders, the 16-bit-wrap select)
@@ -16,7 +17,10 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
 
 Each route reports the clock, its critical path, and a figure for every
 pipeline stage: the worst setup slack among the registers the stage writes,
-from nextpnr's per-endpoint timing.
+from nextpnr's per-endpoint timing, plus the envelope's worst endpoints so a
+mislabelled register shows. Each synthesis reports every stage's deepest
+logic path in the netlist before placement: LUT levels, carry cells and the
+named nets along it.
 
 Tools come from the selected toolchain lock's authenticated slot (default: the
 repository toolchain.lock). Synthesis permits M10K and DSP cells and forbids
@@ -65,13 +69,15 @@ SPIKES = {
 # Which stage writes each register, by the RTL signal a cell maps from. After
 # flattening a register may carry the name of any port it drives, so the
 # patterns match leaf names. The first match wins; a path belongs to the stage
-# that writes its end.
+# that writes its end. The envelope's redirect_linear register can take Q's
+# port name, so Q excludes it.
 STAGES = {
     'frontend': (
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
-        ('F2', r'(.*\.)?(l_valid|l_block|l_bytes|fill_bytes|fill_data)$'),
-        ('L', r'(.*\.)?(bytes|half_block|dec_\w+)$'),
-        ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.'),
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes)$'),
+        ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec_\w+)$'),
+        ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.(?!redirect_linear$)'),
     ),
     'dag': (
         ('D', r'(.*\.)?ag_|agu\.(row|last|disp|late|late_hi|seg_term|seg_hi|seg_hi_plus1|addr32)$'),
@@ -156,6 +162,22 @@ def stage_figures(data: dict, stages, target_mhz: float) -> dict:
             for label, (slack, owner) in sorted(worst.items())}
 
 
+def envelope_endpoints(data: dict, stages, count: int = 5) -> list[dict]:
+    """The envelope's worst setup endpoints, one per register name."""
+    worst: dict[str, float] = {}
+    for net in data.get('detailed_net_timings', []):
+        for endpoint in net.get('endpoints', []):
+            if not endpoint.get('setup_checked') or 'setup_slack_ns' not in endpoint:
+                continue
+            owner = _owner(endpoint['cell'])
+            if any(re.match(pattern, owner) for _, pattern in stages):
+                continue
+            slack = float(endpoint['setup_slack_ns'])
+            worst[owner] = min(slack, worst.get(owner, slack))
+    return [{'endpoint': owner, 'setup_slack_ns': round(slack, 3)}
+            for owner, slack in sorted(worst.items(), key=lambda item: item[1])[:count]]
+
+
 def timing_summary(report: Path, stages=(), target_mhz: float = 100.0) -> dict:
     data = json.loads(report.read_text())
     clocks = data.get('fmax', {})
@@ -164,7 +186,104 @@ def timing_summary(report: Path, stages=(), target_mhz: float = 100.0) -> dict:
         raise ValueError(f'{report} has no achieved clock frequency')
     return {'fmax_mhz': min(achieved), 'clocks': clocks, 'utilization': data.get('utilization', {}),
             'stages': stage_figures(data, stages, target_mhz),
+            'envelope_worst': envelope_endpoints(data, stages),
             'critical_paths': [path_summary(path) for path in data.get('critical_paths', [])]}
+
+
+_SOURCES = ('MISTRAL_FF', 'MISTRAL_M10K', 'MISTRAL_IB', 'MISTRAL_CLKBUF')
+_PASS = ('MISTRAL_NOT', 'MISTRAL_BUF')
+
+
+def logic_depth(netlist: dict, top: str, stages) -> dict:
+    """Each stage's deepest logic path in the synthesized netlist.
+
+    A level is one LUT. A carry chain counts one level where its operands
+    enter, and its carry cells are counted separately. Registers, M10K
+    outputs and pads start a path; a path ends at a register or M10K input and
+    belongs to the stage that writes it. The path lists the named nets it
+    passes, from its source.
+    """
+    module = netlist['modules'][top]
+    cells = module['cells']
+    driver: dict[int, str] = {}
+    for name, cell in cells.items():
+        for port, bits in cell['connections'].items():
+            if cell['port_directions'].get(port) == 'output':
+                for bit in bits:
+                    if isinstance(bit, int):
+                        driver[bit] = name
+    names: dict[int, str] = {}
+    for net, info in module['netnames'].items():
+        # Skip Yosys's generated names; they spell out the cells a net feeds.
+        if info.get('hide_name') or '$' in net or '_MISTRAL_' in net:
+            continue
+        for bit in info['bits']:
+            if isinstance(bit, int) and (bit not in names or len(net) < len(names[bit])):
+                names[bit] = net
+    memo: dict[int, tuple[int, int, int | None]] = {}
+
+    def inputs(cell: dict, skip=('CLK', 'CLK1', 'CLK2')) -> list[int]:
+        return [bit for port, bits in cell['connections'].items()
+                if cell['port_directions'].get(port) == 'input' and port not in skip
+                for bit in bits if isinstance(bit, int)]
+
+    def depth(bit: int) -> tuple[int, int, int | None]:
+        # (LUT levels, carry cells, the input bit on the deepest path)
+        if bit in memo:
+            return memo[bit]
+        stack = [bit]
+        while stack:
+            current = stack[-1]
+            if current in memo:
+                stack.pop()
+                continue
+            cell = cells.get(driver.get(current, ''))
+            if cell is None or cell['type'] in _SOURCES:
+                memo[current] = (0, 0, None)
+                stack.pop()
+                continue
+            if cell['type'] == 'MISTRAL_ALUT_ARITH':
+                operands = [b for port in ('A', 'B', 'C', 'D0', 'D1')
+                            for b in cell['connections'].get(port, []) if isinstance(b, int)]
+                carry = [b for b in cell['connections'].get('CI', []) if isinstance(b, int)]
+            else:
+                operands, carry = inputs(cell), []
+            pending = [b for b in operands + carry if b not in memo]
+            if pending:
+                stack.extend(pending)
+                continue
+            best = (0, 0, None)
+            for b in operands:
+                levels, carries, _ = memo[b]
+                step = 0 if cell['type'] in _PASS else 1
+                candidate = (levels + step, carries + (cell['type'] == 'MISTRAL_ALUT_ARITH'), b)
+                best = max(best, candidate, key=lambda item: item[:2])
+            for b in carry:
+                levels, carries, _ = memo[b]
+                best = max(best, (levels, carries + 1, b), key=lambda item: item[:2])
+            memo[current] = best
+            stack.pop()
+        return memo[bit]
+
+    result: dict[str, dict] = {}
+    for name, cell in cells.items():
+        if cell['type'] not in ('MISTRAL_FF', 'MISTRAL_M10K'):
+            continue
+        owner = _owner(name)
+        label = next((label for label, pattern in stages if re.match(pattern, owner)), 'envelope')
+        for bit in inputs(cell):
+            levels, carries, _ = depth(bit)
+            if label not in result or (levels, carries) > (result[label]['lut_levels'], result[label]['carry_cells']):
+                result[label] = {'lut_levels': levels, 'carry_cells': carries, 'endpoint': owner, '_bit': bit}
+    for record in result.values():
+        path, bit = [], record.pop('_bit')
+        while bit is not None:
+            net = names.get(bit)
+            if net and (not path or path[-1] != net):
+                path.append(net)
+            bit = memo.get(bit, (0, 0, None))[2]
+        record['path'] = path[::-1]
+    return dict(sorted(result.items()))
 
 
 def expected_backend(identity: str) -> str:
@@ -237,7 +356,11 @@ def main() -> int:
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
             record = {'top': top, 'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
-                      'synth_json_sha256': digest(work / 'synth.json'), 'runs': []}
+                      'synth_json_sha256': digest(work / 'synth.json'),
+                      'logic_depth': logic_depth(netlist, top, STAGES[spike]), 'runs': []}
+            print(f'{spike} logic depth: ' + ', '.join(f'{label} {depth["lut_levels"]} LUT'
+                                                      + (f' + {depth["carry_cells"]} carry' if depth['carry_cells'] else '')
+                                                      for label, depth in record['logic_depth'].items()), flush=True)
             summary['spikes'][spike] = record
             write_json(summary_path, summary)
 
