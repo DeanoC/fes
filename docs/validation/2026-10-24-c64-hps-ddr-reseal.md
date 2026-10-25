@@ -1,11 +1,12 @@
-# 2026-10-24: C64 0.5.0 resealed after the shell took the HPS DDR bridge
+# 2026-10-24: C64 0.5.0 resealed after the shell took the HPS DDR bridge, and a kit A check
 
 #1001 moved the HPS DDR bridge out of the shared display plane and into each
 shell: the plane is now a port-0 client of `fes_hps_ddr`. The C64 top gained
 that bridge in the same PR, so the bitstream sealed for #1032
 (`713b811056616b15…`, build `b7bf0ddbbf358a3b…`) is no longer what `main`
-builds. This record seals the C64 from `main` after #1001. It is not a kit
-check, an image or a release.
+builds. This record seals the C64 from `main` after #1001 and runs the
+sealed archive on kit A with kit software built from `main`. It is not an
+image or a release.
 
 ## Artifacts
 
@@ -33,9 +34,25 @@ On the #1001 branch, with the same C64 sources, every C64 simulation passed
 through the shell's `fes_hps_ddr` port 0 and returns exact machine pixels
 when the plane closes.
 
+## Kit A check
+
+Run `kswA1` (05:22 to 05:36 EET, 2026-10-25) ran this archive on kit A. Its
+running image `4db74864` was not changed. The kit SDK was published with
+`make kit-sdk` (#1063) from `main` `0f3b35c9`, and kit software built from
+that commit (bundle archive `0f1f757a…`, installed as `115494f3…`) was
+installed and activated over the baseline `35d58489`. The private host was
+built from the same commit. The archive was imported, checked for
+compatibility, linked to a 36 KiB firmware image composed in memory from
+locally held ROMs, launched, seen running on three status samples and
+stopped. The kit reported build `795666e322409e567db496b9b78c8c48`. HDMI showed the
+BASIC V2 start screen with 38911 bytes free, and a `PRINT 6` typed through
+the host's input path printed 6. A 20-second capture had no HDMI relock, and
+the ADV7513 `0xBA` delay read `0x20` (read only). The software was restored
+to `35d58489`, the image fingerprints matched before and after, and kit A
+was released at 05:36.
+
 ## Not established
 
-- This package on a kit. Kit software built from `main` needs the kit SDK
-  (#1062).
+- Disk loading and the live disk selector on this package.
 - Everything the [2026-10-23 session display record](2026-10-23-c64-session-display/README.md)
   established was established on the earlier package.
