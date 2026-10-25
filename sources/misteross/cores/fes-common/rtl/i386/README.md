@@ -153,7 +153,9 @@ Sreg) waits in D while an older uop writes that segment register.
 **AG** runs `fes_i386_agu` for LEA, or for a branch's target: CS.base + EIP +
 length + displacement in one carry chain, wrapped by operand size.
 
-**EX** (`fes_i386_ex`) has one adder for ADD, ADC, SUB, SBB, CMP, INC, DEC,
+**EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
+the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. It
+has one adder for ADD, ADC, SUB, SBB, CMP, INC, DEC,
 NEG and LOOP's count, with ZF from the operands; the logic unit; the funnel
 shifter (`fes_i386_shift`); and the result's merge into the destination's old
 value, so WB writes whole registers. It keeps a running EFLAGS: every uop that
