@@ -62,6 +62,33 @@ class RuntimeChecks(unittest.TestCase):
                 self.assertEqual(before, {p: p.stat().st_mtime_ns for p in before})
                 self.assertFalse((root / 'mutations').exists())
 
+    def test_real_header_rebuild_preserves_edges_without_rerunning_functional_cases(self):
+        for dependent in (True, False):
+            with self.subTest(dependent=dependent), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.fixture(root, dependent)
+                executable = '#!/bin/sh\necho ran >> executions\n'
+                (root / 'binary').write_text(executable)
+                (root / 'binary-source').write_text(executable)
+                os.utime(root / 'binary', (200, 200))
+                (root / 'Makefile').write_text(
+                    'binary: ' + (' '.join(HEADERS) if dependent else '') +
+                    '\n\tcp binary-source binary\n\tchmod +x binary\n' +
+                    '\t@echo rebuilt >> builds\n' +
+                    'run-tests: binary\n\t./binary\n')
+                subprocess.run(['make', 'run-tests'], cwd=root, check=True, capture_output=True)
+                before = {header: (root / header).stat().st_mtime_ns for header in HEADERS}
+                result = subprocess.run(['bash', str(SCRIPT), str(root), 'binary'],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, dependent, result.stdout + result.stderr)
+                self.assertEqual((root / 'executions').read_text().splitlines(), ['ran'])
+                self.assertEqual(before, {header: (root / header).stat().st_mtime_ns for header in HEADERS})
+                if dependent:
+                    self.assertEqual((root / 'builds').read_text().splitlines(), ['rebuilt'])
+                else:
+                    self.assertIn('did not rebuild test binary', result.stderr)
+                    self.assertFalse((root / 'builds').exists())
+
     def test_workflow_executes_shared_selection_and_propagates_make_failure(self):
         workflow = (ROOT / '.github/workflows/check.yml').read_text()
         runtime = workflow.split('  runtime:\n', 1)[1].split('  contracts:\n', 1)[0]
