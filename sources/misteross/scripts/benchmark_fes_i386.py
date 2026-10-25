@@ -76,10 +76,12 @@ SPIKES = {
 # public name of its output net in the synthesized netlist and its cell name;
 # if none matches, from the names of its data input. The first stage whose
 # pattern matches any name wins; a path belongs to the stage that writes its
-# end. The envelope's redirect_linear register can take Q's port name, so Q
-# excludes it.
+# end. The envelope's own registers are matched first, since some take a
+# stage's port name or have a stage's net at their input; the envelope's
+# redirect_linear register can also take Q's port name, so Q excludes it.
 STAGES = {
     'frontend': (
+        ('envelope', r'(.*\.)?(signature|noise|LED0|redirect|code32|d_ready)$|redirect_linear$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
         # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
@@ -156,7 +158,8 @@ def register_labels(netlist: dict, top: str, stages) -> dict[str, str]:
     module = netlist['modules'][top]
     aliases: dict[int, list[str]] = {}
     for net, info in module['netnames'].items():
-        if not info.get('hide_name'):
+        # Yosys's generated names spell out the cells a net feeds, not RTL signals.
+        if not info.get('hide_name') and '_MISTRAL_' not in net:
             for bit in info['bits']:
                 if isinstance(bit, int):
                     aliases.setdefault(bit, []).append(net)

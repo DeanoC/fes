@@ -97,10 +97,12 @@ as the clock that stage alone would allow. A register is now labelled from
 every name its output carries in the synthesized netlist, else from its
 input's. Flattening had left the F2 register named only as L1 decoder inputs,
 and the L1/L2 register named after L2's ports, so they fell outside every
-stage. Every route's worst envelope endpoints below are stimulus, signature
-or register-file model cells. The earlier round's labels were checked the
-same way: no envelope register there was slower than 118 MHz, so its stage
-figures stand.
+stage. The envelope's own registers are matched first, and Yosys's
+generated net names are ignored, so no stimulus register is pulled into a
+stage by a port or input it shares. Every route's worst envelope endpoints
+below are stimulus, signature or register-file model cells. The earlier
+round's labels were checked the same way: no envelope register there was
+slower than 118 MHz, so its stage figures stand.
 
 Routed fmax in MHz, seeds 1, 2, 3, 4:
 
