@@ -416,9 +416,11 @@ to force a new SDK and bypass image receipt reuse; see
 [image assembly](image-assembly.md#buildroot-cross-toolchain).
 
 For cross-worktree image reuse, set
-`FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`
-or `make dev`. The external directory holds `dl/`, `toolchains/<key>/` and
-`ccache/`; it does not change the shared compiler and package cache below.
+`FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` on `make build`, `make image`,
+`make dev`, `make kit-sdk` or `make kit-software`. The external directory holds
+`dl/`, `toolchains/<key>/` and `ccache/`; it does not change the shared compiler
+and package cache below. `make kit-sdk` fills `toolchains/<key>/` for the current
+image key without building an image.
 The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
 disables it so the two rootfs hashes still compare independent compiles. Stop
 builds before removing one of these cache directories; see
@@ -482,7 +484,9 @@ compiler overrides that FES normally removes for producer execution.
 
 ## Compatible kit software updates
 
-Use `make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
+Use `make kit-sdk` when the toolchain cache has no SDK for the current image
+key. It builds and publishes only that Buildroot SDK. Then use
+`make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
 KIT_SOFTWARE_BASE_SHA256=<reviewed-image-sha256> KIT_SOFTWARE_VERSION=<version>`
 to build the four kit executables and selected assets from committed HEAD using
 the retained base's pinned SDK. This publishes an immutable bundle plus receipt;

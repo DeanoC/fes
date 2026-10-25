@@ -1,9 +1,13 @@
 import hashlib
+import fcntl
 import json
+from concurrent.futures import ThreadPoolExecutor
+import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
+import threading
 import tomllib
 import unittest
 from unittest import mock
@@ -72,6 +76,71 @@ class ToolchainCacheTest(unittest.TestCase):
         record["key"] = "wrong"
         (directory / "receipt.json").write_text(json.dumps(record))
         self.assertIsNone(cache.validated_sha(directory, expected))
+
+    def test_extract_holds_shared_lock_after_validation(self):
+        host = self.image / "host"
+        (host / "bin").mkdir(parents=True)
+        (host / "bin" / (cache.PREFIX + "-gcc")).write_bytes(b"compiler")
+        directory = cache.cache_dir(self.image)
+        expected = cache.key(self.image)
+        archive_sha = cache.package(host, directory, expected)
+        destination = self.image / "extracted"
+        archive_opened = threading.Event()
+        continue_extracting = threading.Event()
+        original_open = cache.tarfile.open
+
+        def pause_archive_open(*args, **kwargs):
+            archive_opened.set()
+            if not continue_extracting.wait(timeout=10):
+                raise TimeoutError("test did not release archive extraction")
+            return original_open(*args, **kwargs)
+
+        with ThreadPoolExecutor(max_workers=1) as extractor:
+            with mock.patch.object(cache.tarfile, "open", pause_archive_open):
+                future = extractor.submit(cache.extract, directory, expected, destination)
+                self.assertTrue(archive_opened.wait(timeout=5), "extraction did not open the validated archive")
+                descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+                acquired = False
+                try:
+                    try:
+                        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        acquired = True
+                    except BlockingIOError:
+                        pass
+                    self.assertFalse(acquired, "exclusive publisher lock was available during extraction")
+                finally:
+                    if acquired:
+                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                    os.close(descriptor)
+                    continue_extracting.set()
+                self.assertEqual(future.result(timeout=10), archive_sha)
+
+        self.assertEqual((destination / "host" / "bin" / (cache.PREFIX + "-gcc")).read_bytes(), b"compiler")
+
+    def test_concurrent_publishers_leave_a_valid_cache_entry(self):
+        hosts = [self.image / "host-one", self.image / "host-two"]
+        for index, host in enumerate(hosts, start=1):
+            (host / "bin").mkdir(parents=True)
+            (host / "bin" / (cache.PREFIX + "-gcc")).write_bytes(b"compiler " + bytes([index]))
+            (host / "payload").write_bytes(bytes([index]) * (2 * 1024 * 1024))
+
+        directory = cache.cache_dir(self.image)
+        expected = cache.key(self.image)
+        publish_barrier = threading.Barrier(2)
+        original_publish = cache._publish
+
+        def synchronized_publish(*args):
+            publish_barrier.wait(timeout=10)
+            return original_publish(*args)
+
+        with mock.patch.object(cache, "_publish", synchronized_publish):
+            with ThreadPoolExecutor(max_workers=2) as publishers:
+                results = list(publishers.map(
+                    lambda host: cache.package(host, directory, expected), hosts))
+
+        self.assertTrue(all(len(result) == 64 for result in results))
+        self.assertIn(cache.validated_sha(directory, expected), results)
+        self.assertEqual({path.name for path in directory.iterdir()}, {"host.tar", "receipt.json"})
 
     def test_shared_paths_and_ccache_configuration(self):
         shared_temp = tempfile.TemporaryDirectory()

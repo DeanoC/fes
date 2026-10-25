@@ -762,15 +762,21 @@ fogcast --api http://127.0.0.1:8787 --json eject-tape
 media id uses the already stored object. Admission requires 1..16384 bytes and
 a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
 `{"media_id","name"}` and the same session/package/generation/target binding
-headers as development media. `eject-tape` posts
+headers as development media. The displayed filename is scoped to that launch
+flight as well as its target, package and generation, so a relaunch that reuses
+a package generation starts without the previous flight's name. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
 The CLI reads the session with a 30-second client. `change-tape` and
 `eject-tape` post through the mutation client, which does not impose that
 timeout, so an insert can finish inside the host's 150-second budget. A lost
 response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
-`POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
-A poisoned or unstable GP handshake is the same retryable `BUSY`. A hard MMIO
+`POST /v1/development/clear-media`. A confirmed loader rejection during eject
+maps to retryable `BUSY` with `no_change:true`. Numeric GP rejections during
+insert are treated as uncertain because `MediaBegin` may have succeeded and
+cleared readiness before a later data or commit rejection. An ambiguous or
+unstable GP handshake after eject dispatch maps to retryable `BUSY` without
+`no_change`, because the core may already have ejected the medium. A hard MMIO
 failure or an invalid clear acknowledgement stays `MISTER_UNAVAILABLE`, even
 when the runtime phase is `input`. The host retries phase-`input` busy and
 does not relabel that hard failure as loader contention. Unavailable eject
@@ -3424,6 +3430,28 @@ media imports of at most the largest image the media selector inserts
 (839,680 bytes, a declared-geometry Atari ST floppy) and live
 replace/clear/display operations. The unit still checks its exact format and
 size on insert. These do not change the library's next-start media selection.
+The Change media selector header shows `media_name` from the last confirmed
+live-media insert, retained by the target's session coordinator for that package
+generation. Eject, library disk insertion, and development-media loading clear
+it because they can replace unit 0 without providing a live-media filename; disk
+save preserves it. Preflight failures and explicit no-change rejections retain
+the confirmed name; an uncertain reply after dispatch clears the cached name
+and prior confirmed-eject marker rather than reporting old media state as
+current. Status clears the cached name and binding after
+it observes an inactive or changed session, preventing a restarted runtime from
+reviving a filename when it reuses a package generation. Existing launch
+selections and adopted sessions have no recorded original filename and display
+that the name is unavailable. A confirmed eject also carries `media_ejected` in
+the session projection for legacy `fes.simple-computer` media, so tenfoot can
+show no media without treating an unknown launch filename as an empty unit.
+Empty and loading units show their observed state. Numeric GP rejections from a
+dispatched insert do not retain the prior filename: the runtime cannot
+distinguish a `MediaBegin` rejection from a later data or commit rejection.
+Completed busy rejections from media-unit insert or eject retain the prior
+filename; a confirmed eject clears it.
+The name is presentation only; admission continues to use the captured session, target,
+package and generation.
+
 It also admits the core-entry list, installed core-package list and exact
 installed package descriptor/media-capability reads used by Workshop setup;
 package import and compatibility mutation remain outside the paired listener.

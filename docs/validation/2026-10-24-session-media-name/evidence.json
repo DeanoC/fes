@@ -1,0 +1,67 @@
+{
+  "base_commit": "4bd64a993f125d9fa56730631ed5097077102df4",
+  "software_source": "ac755a54e88fa3676d8a54c97b17467b6851c672",
+  "evidence_class": "exact-artifact hardware diagnostic",
+  "kit": "B",
+  "software_bundle": "b2113aeeca0f65d0e6d585b268c9580fc875fa7c59998714f6d4cff02e598b77",
+  "image": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+  "fixtures": {
+    "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+    "archive_sha256": "99d9df20547c1dfee02504ec393a32481067f9dcbe90f679c65ed6a13fa43e51",
+    "rom_sha256": "8cc3c2e86ed6ef24842dd67704f8a30280aabd48f1242c3ca17dc609cd0cc2ec",
+    "rom_size": 36864
+  },
+  "media": {
+    "sha256": "2ba3d30f6384121156d2b429ab8d464f437b6524fd0e459135e458dda41756a0",
+    "size": 174848
+  },
+  "observations": [
+    {
+      "step": "after-insert",
+      "state": "active",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+      "session_id": "eae3ac8e-0857-42c3-ba27-b473df0cfb60",
+      "game_id": "fpga-c64-media-filename-diagnostic-5fe2076e42da",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_name": "swap.d64",
+      "unit_state": "ready"
+    },
+    {
+      "step": "after-reopen",
+      "state": "active",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+      "session_id": "eae3ac8e-0857-42c3-ba27-b473df0cfb60",
+      "game_id": "fpga-c64-media-filename-diagnostic-5fe2076e42da",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_name": "swap.d64",
+      "unit_state": "ready"
+    },
+    {
+      "step": "after-eject",
+      "state": "active",
+      "target_id": "67c5f4e2-d288-49bb-9049-39ecf39cf6f6",
+      "session_id": "eae3ac8e-0857-42c3-ba27-b473df0cfb60",
+      "game_id": "fpga-c64-media-filename-diagnostic-5fe2076e42da",
+      "package_id": "713b811056616b153683a5f1c7e924c290bd6cdc0008c3cf69d7c27448f5af93",
+      "generation": 1,
+      "media_name": "",
+      "unit_state": "empty"
+    }
+  ],
+  "restoration": {
+    "bundle": "35d584898755b4c84b68cccf2e08838b4a371cbe550b5af457481f3d5e776f9b",
+    "generation": 54,
+    "boot": {
+      "boot_id": "18569994-46c7-4392-8e55-96190f63361d",
+      "image_sha256": "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26",
+      "trial": false
+    },
+    "runtime": "idle",
+    "lease": "free",
+    "hashes": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182  /media/fat/idle.rbf\n5d4ee551f9aa36be1e1970bd6f6f6a90932d5f9013e82e2dc20c0299f5814168  /media/fat/fogcast/launcher.json",
+    "quirk_preserved": true,
+    "fixtures_removed": true
+  }
+}
