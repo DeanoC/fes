@@ -1,9 +1,9 @@
 # Coleco production builds and seals
 
-Date: 2026-10-25  
-Evidence class: host production build and seal; Kit HIL is pending.  
-Source revision used for every artifact: `c1b21cb5bd744da1145648f0e116ecbef47c924d`.  
-Target: `5CSEBA6U23I7`.
+- **Date:** 2026-10-25
+- **Evidence class:** host production build and seal; Kit HIL is pending.
+- **Source revision used for every artifact:** `c1b21cb5bd744da1145648f0e116ecbef47c924d`
+- **Target:** `5CSEBA6U23I7`
 
 The Coleco toolchain lock SHA-256 is
 `cb2c2809dd1b9687fbb1f50d3c6ea3a8e01ebf328b1ea29c8d567854c93d0fdb`.
