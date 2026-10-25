@@ -137,6 +137,19 @@ func TestClearLiveMediaRetriesBusyAndPreservesHardUnavailable(t *testing.T) {
 	if !ok || apiErr.Code != protocol.CodeBusy || apiErr.Phase != "input" || client.clearCalls != before+4 {
 		t.Fatalf("exhausted busy err=%v calls=%d", err, client.clearCalls-before)
 	}
+	client.err = nil
+	client.clearErrs = []error{
+		protocol.LiveMediaInputUncertainError(),
+		protocol.LiveMediaBusyError(),
+		protocol.LiveMediaBusyError(),
+		protocol.LiveMediaBusyError(),
+	}
+	before = client.clearCalls
+	_, err = s.ClearLiveMedia(context.Background(), b)
+	apiErr, ok = err.(*protocol.APIError)
+	if !ok || apiErr.Code != protocol.CodeBusy || apiErr.Phase != "input" || apiErr.NoChange || client.clearCalls != before+4 {
+		t.Fatalf("uncertain outcome followed by no-op retries err=%v calls=%d", err, client.clearCalls-before)
+	}
 }
 
 func TestScopedMediaAdmissionUsesSessionTargetClient(t *testing.T) {

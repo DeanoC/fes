@@ -62,12 +62,22 @@ PINNED_INPUTS = tuple(dict.fromkeys((
 )))
 VIDEO_INPUTS = (*PINNED_INPUTS, "scripts/video_parts.py", video_parts.RTL,
                 "cores/fes-common/generated/fes_video_part.vh")
+# The native shell's HDMI word passes through the shared session-display
+# plane, which reads launcher frames from HPS DDR.
+DISPLAY_PLANE_SOURCES = (
+    "cores/fes-common/rtl/fes_display_cdc.v", "cores/fes-common/rtl/fes_display_plane.v",
+    "cores/fes-menu/rtl/fes_menu_control.v", "cores/fes-menu/rtl/fes_menu_video.v",
+    "cores/fes-menu/rtl/fes_menu_reader.v", "cores/fes-common/rtl/fes_hps_ddr.v",
+    "cores/fes-common/rtl/fes_hps_ddr_guard.v",
+)
 NATIVE_VIDEO_SOURCES = (
     "cores/fes-common/rtl/coleco_native_video.v",
     "cores/fes-common/rtl/fes_native_cdc.v", native_video_parts.RTL,
+    *DISPLAY_PLANE_SOURCES,
 )
 NATIVE_VIDEO_INPUTS = (*PINNED_INPUTS, *NATIVE_VIDEO_SOURCES,
-    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh")
+    "scripts/native_video_parts.py", "cores/fes-common/generated/fes_native_video.vh",
+    "cores/fes-common/generated/fes_display_plane.vh")
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log",
     "nextpnr.log", "build-inputs.json", "build-summary.json", "manifest.toml",
@@ -209,7 +219,8 @@ def build_commands(root: Path, output: Path, build_id: str,
         "-DFES_COLECO_EXPANSION_V2_DEV=1 "
         f"{video_define}-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(sources)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
-        "synth_intel_alm -nolutram -nodsp -top top; stat; "
+        # The native shell's plane blends with exactly three DSP products.
+        f"synth_intel_alm -nolutram {'' if native_video else '-nodsp '}-top top; stat; "
         f"write_json {relative.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", program)
@@ -251,7 +262,13 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
         fields["interfaces"].append({"id": profile.INTERFACE, "major": 1,
                                      "minor": 0, "required": False})
     if native_video:
+        fields["core"]["version"] = "1.4.0"
         fields["core"]["description"] = "ColecoVision native-pixel shell requiring a linked video part"
+        # The session plane after the part; software without it refuses the
+        # package before programming.
+        fields["interfaces"].extend({"id": interface, "major": 1, "minor": 0, "required": True}
+            for interface in ("fes.memory.hps-ddr", "fes.video.session-display",
+                              "fes.fabric.video.display-plane"))
     return encode_manifest(fields)
 
 
@@ -305,7 +322,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             profile.validate_boundary(
                 json.loads((output / "routed.json").read_bytes())["modules"]["top"],
                 routed=True, nextpnr_commit=pnr_recipe.nextpnr_pin("fes.coleco"))
-        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
+        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend,
+                                                   session_display=native_video)
         database_root = tools["mistral"].path.parents[2] / "src/mistral"
         database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
         mapping, map_evidence = rom_map.build_rom_map(

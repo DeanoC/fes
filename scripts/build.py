@@ -85,6 +85,24 @@ def run_stage(diagnostics, name, args, **kwargs):
         return run(args, **kwargs)
 
 
+def target_image_source_cache_lock_path(image):
+    """Return the host path shared with the target image container recipe."""
+    return Path(image) / "build/cache/.kit-sdk-sources.lock"
+
+
+@contextmanager
+def target_image_source_cache_lock(image):
+    """Serialize host source fetches with image and kit SDK cache operations."""
+    lock_path = target_image_source_cache_lock_path(image)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def digest(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -1883,8 +1901,9 @@ def main():
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
                 fetch_env.update(dict(argument.split("=", 1) for argument in package_args))
-                run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
-                     "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
+                with target_image_source_cache_lock(IMAGE):
+                    run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
+                         "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
                     "LIBMISTER_RUNTIME_DIR=" + (str(runtime) if runtime else ""), *package_args], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.

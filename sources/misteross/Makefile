@@ -88,6 +88,7 @@ help:
 		"  sim-fes-native-socket  Test both native parts through their physical socket wrapper" \
 		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
+		"  sim-fes-coleco-session  Test the Coleco mailbox, native part raster and live DDR session display" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
@@ -237,6 +238,11 @@ sim-fes-native-video:
 sim-fes-coleco-native:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_coleco_native.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-coleco-session
+sim-fes-coleco-session:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_coleco_session.py --verilator "$(VERILATOR)"
 
 synth-fes-native-video:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }

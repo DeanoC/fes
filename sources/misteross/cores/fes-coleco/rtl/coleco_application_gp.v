@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Application endpoint plus the console's bounded cartridge staging store.
 module coleco_application_gp #(
-    parameter bit ENABLE_FIRMWARE = 0
+    parameter bit ENABLE_FIRMWARE = 0,
+    // The native shell's fes.video.session-display plane, through HPS DDR.
+    parameter bit ENABLE_SESSION_DISPLAY = 0
 ) (
     input wire clk,
     input wire [31:0] gpo,
@@ -16,7 +18,13 @@ module coleco_application_gp #(
     output wire [7:0] media_q,
     output wire [12:0] firmware_write_addr,
     output wire [15:0] firmware_write_data,
-    output wire [1:0] firmware_write_enable
+    output wire [1:0] firmware_write_enable,
+    output wire display_request,
+    output wire [6:0] display_opcode,
+    output wire [7:0] display_index,
+    output wire [15:0] display_argument,
+    input wire display_response_valid, display_response_error, display_quiesced,
+    input wire [15:0] display_response_data
 );
     wire [14:0] write_addr;
     wire [15:0] write_data;
@@ -30,10 +38,12 @@ module coleco_application_gp #(
 `endif
     fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
                           .ENABLE_MEDIA(ENABLE_MEDIA_ENDPOINT), .ENABLE_MEDIA_STREAM(ENABLE_MEDIA_ENDPOINT),
-                          .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
-        .clk(clk), .gpo(gpo), .build_id(build_id), .menu_request(), .menu_opcode(), .menu_index(), .menu_argument(),
-        .menu_response_valid(1'b0), .menu_response_error(1'b0),
-        .menu_response_data(16'd0), .menu_quiesced(1'b1),
+                          .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE),
+                          .ENABLE_HPS_DDR(ENABLE_SESSION_DISPLAY), .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY)) endpoint (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .menu_request(display_request), .menu_opcode(display_opcode),
+        .menu_index(display_index), .menu_argument(display_argument),
+        .menu_response_valid(display_response_valid), .menu_response_error(display_response_error),
+        .menu_response_data(display_response_data), .menu_quiesced(display_quiesced),
         .gpi(gpi),
         .exec_reset(exec_reset), .buttons(),
         .controller_buttons(controller_buttons), .controller_keypad(controller_keypad),

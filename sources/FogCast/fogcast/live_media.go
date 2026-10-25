@@ -205,6 +205,7 @@ func (s *Service) clearLiveMediaLocked(ctx, owner context.Context, b protocol.De
 func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	var status protocol.Status
 	var err error
+	uncertain := false
 	waits := []time.Duration{0, 20 * time.Millisecond, 40 * time.Millisecond, 80 * time.Millisecond}
 	for attempt, wait := range waits {
 		if wait > 0 {
@@ -213,20 +214,23 @@ func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol
 			case <-ctx.Done():
 				timer.Stop()
 				if err != nil {
-					return status, err
+					return status, protocol.LiveMediaRetryError(err, uncertain)
 				}
 				return status, ctx.Err()
 			case <-timer.C:
 			}
 		}
 		status, err = loader.ClearLiveMedia(ctx, b)
+		if err != nil && !protocol.LiveMediaNoChange(err) {
+			uncertain = true
+		}
 		// Retry loader busy and transport glitches only. A hard input-phase
 		// unavailable report is the link, not loader contention.
 		if err == nil || !ejectRetryable(err) || attempt == len(waits)-1 {
-			return status, err
+			return status, protocol.LiveMediaRetryError(err, uncertain)
 		}
 	}
-	return status, err
+	return status, protocol.LiveMediaRetryError(err, uncertain)
 }
 
 func ejectRetryable(err error) bool {

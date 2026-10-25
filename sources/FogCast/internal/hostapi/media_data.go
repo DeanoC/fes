@@ -94,6 +94,13 @@ func (s *sessionCoordinator) mediaData(ctx context.Context, id string, b protoco
 		status, err = loader.SaveMedia(ctx, b.MediaUnitBinding)
 	} else {
 		status, err = loader.InsertLibraryDisk(ctx, b)
+		// Insertion can replace unit 0. Keep the confirmed name when the
+		// loader guarantees that a rejected operation made no change.
+		if err == nil || !protocol.LiveMediaNoChange(err) {
+			s.mu.Lock()
+			s.clearLiveMediaNameLocked()
+			s.mu.Unlock()
+		}
 	}
 	if err != nil {
 		return sessionResult{}, err
