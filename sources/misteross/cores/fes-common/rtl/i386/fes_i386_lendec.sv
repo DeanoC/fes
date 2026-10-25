@@ -8,10 +8,6 @@
 // opcode units, since a prefixed instruction at k is the unprefixed one at
 // k + 1 with one more byte. L2 (fes_i386_lstage) adds the classes up for each
 // size.
-//
-// The package is imported for its types; its functions are called by their
-// qualified names, since Yosys asserts on an imported function's bare name
-// (DeanoC/yosys#55).
 module fes_i386_lendec import fes_i386_pkg::*; (
     input  logic [19:0][7:0] w,
     output lclass_t [15:0]   cls
@@ -29,9 +25,9 @@ module fes_i386_lendec import fes_i386_pkg::*; (
 
     for (genvar k = 0; k < 16; k++) begin : g_byte
         logic prefix;
-        assign prefix = fes_i386_pkg::is_prefix(w[k]);
+        assign prefix = is_prefix(w[k]);
         assign cls[k].prefix = prefix;
-        assign cls[k].run = prefix && fes_i386_pkg::is_prefix(w[k + 1]);
+        assign cls[k].run = prefix && is_prefix(w[k + 1]);
         assign cls[k].opsize = w[k] == 8'h66;
         assign cls[k].adsize = w[k] == 8'h67;
         assign cls[k].head = prefix ? unit_head[k + 1] + (* no_carry *) 3'd1 : unit_head[k];

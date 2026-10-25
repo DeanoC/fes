@@ -102,7 +102,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     assign total = 5'(acc_count) + (* no_carry *) 5'(len[start]);
     assign prefix_count = 5'(acc_count) + (* no_carry *) 5'(prefix_here);
     assign acc_count_next = 5'(acc_count) + (* no_carry *) 5'd1;
-    assign prefixes = prefix_here ? fes_i386_pkg::add_prefix(acc, rotated[0]) : acc;
+    assign prefixes = prefix_here ? add_prefix(acc, rotated[0]) : acc;
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -117,7 +117,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
             acc <= '0;
             acc_count <= 4'd0;
         end else if (consume) begin
-            acc <= fes_i386_pkg::add_prefix(acc, rotated[0]);
+            acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
             if (acc_count == 4'd0) acc_linear <= linear_here;
         end
