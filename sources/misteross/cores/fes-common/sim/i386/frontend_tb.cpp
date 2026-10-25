@@ -20,6 +20,8 @@
 //                    one instruction every cycle
 //   prefix-free-long the same with every instruction 8 bytes or longer (5 in
 //                    16-bit code, where the longest is 6)
+// Timed streams also count the cycles from each run's redirect to its first
+// issue, the front end's share of a mispredict.
 // Random streams redirect to random addresses and, in half the runs, stall D
 // at random. Output: one JSON line per stream; exit status 1 on any failure.
 #include "Vfrontend_tb_top.h"
@@ -190,6 +192,7 @@ struct Report {
     std::vector<std::string> examples;
     uint64_t cycles = 0, timing_checked = 0, timing_failures = 0;
     uint64_t issue_cycles = 0;  // timed streams: first to last issue of each run, inclusive
+    std::map<unsigned, uint64_t> redirect_to_issue;  // timed streams: cycles from a redirect to its first issue
 
     void fail(const std::string &text) {
         ++failures;
@@ -197,18 +200,23 @@ struct Report {
     }
 
     void print() const {
-        std::string counts;
-        for (auto &[k, v] : by_prefixes) {
-            counts += (counts.empty() ? "" : ", ") + std::string("\"") + std::to_string(k) + "\": " + std::to_string(v);
-        }
+        auto histogram = [](const std::map<unsigned, uint64_t> &map) {
+            std::string text;
+            for (auto &[k, v] : map)
+                text += (text.empty() ? "" : ", ") + std::string("\"") + std::to_string(k) + "\": " + std::to_string(v);
+            return text;
+        };
+        std::string counts = histogram(by_prefixes), latency = histogram(redirect_to_issue);
         std::printf("{\"stream\": \"%s\", \"default_size\": %d, \"instructions\": %llu, \"compared\": %llu, "
                     "\"oracle_undefined\": %llu, \"too_long\": %llu, \"two_byte_opcode\": %llu, "
                     "\"by_prefix_count\": {%s}, \"cycles\": %llu, \"issue_cycles\": %llu, "
-                    "\"timing_checked\": %llu, \"timing_failures\": %llu, \"failures\": %llu}\n",
+                    "\"redirect_to_issue\": {%s}, \"timing_checked\": %llu, \"timing_failures\": %llu, "
+                    "\"failures\": %llu}\n",
                     stream.c_str(), code32 ? 32 : 16, (unsigned long long)instructions,
                     (unsigned long long)compared, (unsigned long long)undefined, (unsigned long long)too_long,
                     (unsigned long long)escape, counts.c_str(), (unsigned long long)cycles,
-                    (unsigned long long)issue_cycles, (unsigned long long)timing_checked, (unsigned long long)timing_failures,
+                    (unsigned long long)issue_cycles, latency.c_str(), (unsigned long long)timing_checked,
+                    (unsigned long long)timing_failures,
                     (unsigned long long)failures);
         for (auto &line : examples) std::printf("FAIL %s: %s\n", stream.c_str(), line.c_str());
     }
@@ -386,6 +394,7 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
 
         uint32_t next = start;
         bool redirect = true;
+        const uint64_t redirected = bench.cycle;  // the clock that carries the redirect
         uint64_t previous = bench.cycle, first = 0;
         size_t index = 0;
         while (index < expected_prefixes.size()) {
@@ -416,7 +425,10 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
                     report.fail(describe(bench, got, text));
                 }
             }
-            if (index == 0) first = got.cycle;
+            if (index == 0) {
+                first = got.cycle;
+                ++report.redirect_to_issue[unsigned(got.cycle - redirected)];
+            }
             previous = got.cycle;
             next = got.linear + got.length;
             ++index;

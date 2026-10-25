@@ -16,8 +16,8 @@
 // its own half (bytes 0-11) or with the next one (bytes 12-15), which fixes
 // how an end maps back to a buffer position.
 //
-// An instruction may use bytes of the next half in the cycle L writes them;
-// the aligner takes those bytes from L's register.
+// An instruction may use bytes of the next half in the cycle L2 writes them;
+// the aligner takes those bytes from L2's register.
 module fes_i386_qalign (
     input  logic                   clk,
     input  logic                   reset,
@@ -67,7 +67,7 @@ module fes_i386_qalign (
         assign len[j] = lengths[{variant, 2'b00} +: 4];
         assign fin = variant[1] ? (variant[0] ? ends[19:15] : ends[14:10])
                                 : (variant[0] ? ends[9:5] : ends[4:0]);
-        // L wrote this byte while filling half (K < 12 ? H : 1 - H); its count
+        // L2 wrote this byte while filling half (K < 12 ? H : 1 - H); its count
         // starts at the other half's byte 0.
         assign next[j] = {!(fin[4] ^ ((K < 12) == (H != 0))), fin[3:0]};
         assign ok[j] = half_valid[H] && (K < 12 || tail_ok[H])

@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Length of the x86 instruction whose opcode is o[0], with no prefix, for each
-// effective operand and address size: len[{os32, as32}]. o[0] may be the 0Fh
-// escape. Only the opcode, ModRM and SIB bytes decide a length, so four bytes
-// suffice. Lengths follow the i386: the ModRM of MOV to or from CR, DR and TR
-// is always a register form, and F6h/F7h carry an immediate for /0 and /1.
-// Encodings the i386 does not define get some length; D raises #UD for them.
-//
-// ends[{os32, as32}] is BASE plus that length, from the same adder tree: BASE
-// joins the opcode-byte count, which is a constant pair, so the sum is no
-// deeper than the length itself.
-module fes_i386_oplen #(
-    parameter int BASE = 0
-) (
+// The length classes of the x86 instruction whose opcode is o[0], with no
+// prefix. o[0] may be the 0Fh escape. Only the opcode, ModRM and SIB bytes
+// decide a length, so four bytes suffice. The length for an effective operand
+// and address size is
+//   head + modrm_bytes[as32] + (z ? (os32 ? 4 : 2) : 0) + (moffs ? (as32 ? 4 : 2) : 0)
+// which L2 adds (fes_i386_lstage); this unit, in L1, only classifies.
+// Lengths follow the i386: the ModRM of MOV to or from CR, DR and TR is always
+// a register form, and F6h/F7h carry an immediate for /0 and /1. Encodings
+// the i386 does not define get some length; D raises #UD for them.
+module fes_i386_oplen (
     input  logic [3:0][7:0] o,
-    output logic [3:0][3:0] len,
-    output logic [3:0][5:0] ends
+    output logic [2:0]      head,         // opcode bytes and fixed immediate bytes, 1-5
+    output logic            z,            // an immediate of 2 or 4 bytes by operand size
+    output logic            moffs,        // an offset of 2 or 4 bytes by address size
+    output logic [1:0][2:0] modrm_bytes   // ModRM, SIB and displacement bytes by as32
 );
     typedef enum logic [2:0] {
         IMM_NONE,   // no immediate
@@ -135,8 +134,6 @@ module fes_i386_oplen #(
     logic       escape;
     form_t      f;
     logic [7:0] modrm, sib;
-    logic [3:0] fixed;
-    logic [1:0][2:0] modrm_bytes;  // by as32
 
     assign escape = o[0] == 8'h0f;
     assign f = escape ? two_byte(o[1]) : one_byte(o[0], o[1][5:3]);
@@ -144,25 +141,15 @@ module fes_i386_oplen #(
     assign sib = escape ? o[3] : o[2];
     assign modrm_bytes[0] = !f.modrm ? 3'd0 : f.creg ? 3'd1 : modrm16(modrm);
     assign modrm_bytes[1] = !f.modrm ? 3'd0 : f.creg ? 3'd1 : modrm32(modrm, sib);
-    assign fixed = f.imm == IMM_B ? 4'd1
-                 : (f.imm == IMM_W || f.imm == IMM_AP) ? 4'd2
-                 : f.imm == IMM_WB ? 4'd3 : 4'd0;
-
-    for (genvar os32 = 0; os32 < 2; os32++) begin : g_os
-        for (genvar as32 = 0; as32 < 2; as32++) begin : g_as
-            logic [3:0] z, moffs;
-            assign z = (f.imm == IMM_Z || f.imm == IMM_AP) ? (os32 != 0 ? 4'd4 : 4'd2) : 4'd0;
-            assign moffs = f.imm == IMM_MOFFS ? (as32 != 0 ? 4'd4 : 4'd2) : 4'd0;
-            logic [4:0] sum;
-            logic [5:0] end_at;
-            assign sum = fes_i386_pkg::small_add(
-                fes_i386_pkg::small_add({3'b0, escape ? 2'd2 : 2'd1}, {2'b0, modrm_bytes[as32]}),
-                fes_i386_pkg::small_add({1'b0, fixed}, fes_i386_pkg::small_add({1'b0, z}, {1'b0, moffs})));
-            assign end_at = fes_i386_pkg::small_add6(
-                fes_i386_pkg::small_add6(escape ? 6'(BASE + 2) : 6'(BASE + 1), {3'b0, modrm_bytes[as32]}),
-                fes_i386_pkg::small_add6({2'b0, fixed}, fes_i386_pkg::small_add6({2'b0, z}, {2'b0, moffs})));
-            assign len[os32 * 2 + as32] = sum[3:0];
-            assign ends[os32 * 2 + as32] = end_at;
-        end
+    // A table, not an add: every + becomes a carry chain (DeanoC/yosys#39).
+    always_comb begin
+        case (f.imm)
+            IMM_B: head = escape ? 3'd3 : 3'd2;
+            IMM_W, IMM_AP: head = escape ? 3'd4 : 3'd3;
+            IMM_WB: head = escape ? 3'd5 : 3'd4;
+            default: head = escape ? 3'd2 : 3'd1;
+        endcase
     end
+    assign z = f.imm == IMM_Z || f.imm == IMM_AP;
+    assign moffs = f.imm == IMM_MOFFS;
 endmodule

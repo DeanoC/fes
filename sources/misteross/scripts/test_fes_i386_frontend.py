@@ -7,10 +7,11 @@ ignored build directory.
 
 Verilator testbenches in cores/fes-common/sim/i386:
 
-  lendec_tb.cpp    The 16 per-byte length decoders, exhaustively: no prefix or
-                   each of the eleven, every one- and two-byte opcode, every
-                   ModRM and every SIB byte, in 16- and 32-bit default size,
-                   against the oracle's decoder.
+  lendec_tb.cpp    The per-byte length decode, L1's 16 decoders and L2's sums,
+                   exhaustively: no prefix or each of the eleven, every one- and
+                   two-byte opcode, every ModRM and every SIB byte, in 16- and
+                   32-bit default size and for every prefix-accumulator
+                   variant, against the oracle's decoder.
   frontend_tb.cpp  The whole front end on sampled streams: random bytes,
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
@@ -51,13 +52,13 @@ ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 OUTPUT = ROOT / 'build/sim/fes-i386-frontend'
-LENDEC_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv')
-FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_lstage.sv', 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
+LENDEC_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv')
+FRONTEND_RTL = (*LENDEC_RTL, 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
 # testbench name -> (top module, RTL files, extra SystemVerilog under SIM, C++ source, links the oracle,
 #                    the module --yosys turns into a netlist)
 BENCHES = {
-    'lendec': ('fes_i386_lendec', LENDEC_RTL, (), 'lendec_tb.cpp', True, 'fes_i386_lendec'),
+    'lendec': ('lendec_tb_top', LENDEC_RTL, ('lendec_tb_top.sv',), 'lendec_tb.cpp', True, 'lendec_tb_top'),
     'frontend': ('frontend_tb_top', FRONTEND_RTL, ('frontend_tb_top.sv',), 'frontend_tb.cpp', True,
                  'fes_i386_frontend'),
     'dag': ('dag_tb_top', DAG_RTL, ('dag_tb_top.sv',), 'dag_tb.cpp', False, 'dag_tb_top'),
@@ -137,6 +138,7 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
         if 'default_size' in record:
             lines.append(f"length decoders, {record['default_size']}-bit: {record['cases']} cases, "
                          f"{record['compared']} compared, {record['oracle_undefined']} undefined in the oracle, "
+                         f"{record['variants_compared']} accumulator variants compared, "
                          f"{record['mismatches']} mismatches")
         else:
             lines.append(f"length decoders, directed: {record['directed']} checks, "
@@ -145,8 +147,9 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
         line = (f"front end {record['stream']}, {record['default_size']}-bit: {record['instructions']} instructions, "
                 f"{record['compared']} compared, {record['too_long']} too long, {record['failures']} failures")
         if record['issue_cycles']:
+            latency = ', '.join(f'{cycles} cycles x{count}' for cycles, count in record['redirect_to_issue'].items())
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
-                     f"{record['timing_failures']} timing failures")
+                     f"{record['timing_failures']} timing failures; redirect to first issue: {latency}")
         lines.append(line)
     for record in dag:
         lines.append(f"D and AG: {record['dag_cases']} cases, {record['addresses']} addresses "
