@@ -461,6 +461,10 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 	}
 }
 
+// Package switching inspects both installed archives in one request; allow
+// race-instrumented package reads more than the fixture's one-second default.
+const zx81PackageSwitchTestTimeout = 15 * time.Second
+
 func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -469,7 +473,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
-			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81")
+			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
 
 			var mediaID string
 			var firmware []byte
@@ -573,7 +577,7 @@ func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.
 	ctx := context.Background()
 	root := t.TempDir()
 	firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
-	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81")
+	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
 
 	initial, err := s.CoreCompositions(ctx, []string{entry.GameID})
 	if err != nil || !initial[entry.GameID].FirmwareReady || initial[entry.GameID].ROMMediaID == "" {
