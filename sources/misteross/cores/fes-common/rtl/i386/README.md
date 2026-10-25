@@ -207,7 +207,13 @@ what it reads correctly:
 - no assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
 - logic replicated to cut fanout merges back into one copy even on
   `(* keep *)` wires, so each replica needs its own kept input register
-  ([#51](https://github.com/DeanoC/yosys/issues/51)).
+  ([#51](https://github.com/DeanoC/yosys/issues/51));
+- read two or more fields of one variable-indexed record through a single
+  whole-record copy (`at_start = dec[start]`), not as `dec[start].a` and
+  `dec[start].b`: the selects share their `start * width` multiply, which
+  then maps to a DSP multiplier and a carry chain
+  ([#59](https://github.com/DeanoC/yosys/issues/59)). A constant index, as
+  in a generate loop, is fine.
 
 `dist` is a SystemVerilog keyword (the constraint operator); Verilator rejects
 it as a signal name, so the forwarding modules spell the distance `dist_a` or
@@ -216,7 +222,9 @@ it as a signal name, so the forwarding modules spell the distance `dist_a` or
 `scripts/test_fes_i386_frontend.py --yosys <yosys>` and
 `scripts/test_fes_i386_lockstep.py --yosys <yosys>` run every check on the
 netlist Yosys writes from this RTL, which is what the spikes route. Run them
-after any RTL change.
+after any RTL change. The front-end runner also synthesizes Q's aligner on its
+own and fails if any multiplier or carry cell appears there: Q has no wide sum,
+and the front-end spike does not show #59's multiplier.
 
 ## Checks
 
