@@ -20,6 +20,9 @@ REGION = "video"
 PLACEMENT = "video 5 23 38 38"
 CRAM = (124, 1800, 3906, 3442)
 CLOCK = "pixel_clk"
+# Seed 3 misses pixel_clk on the Scanlines part (70.5 MHz); seed 11 closes
+# both parts on the session-display shell (Direct 75.65, Scanlines 76.35 MHz).
+PLACER_SEED = 11
 PREFIX = "video_socket."
 REQUEST_BITS = 32
 RESPONSE_BITS = 28

@@ -45,10 +45,16 @@ def main():
                       "coleco_expansion_socket_v2.v", "coleco_expansion_ram.v", "coleco_audio_mix.v"]]
         if profile == "scanlines":
             selected += ["-DFES_NATIVE_SCANLINES=1"]
+        # Every native profile ends in the shared session-display plane.
+        plane = [] if profile == "legacy" else [ROOT / name for name in (
+            "cores/fes-common/rtl/fes_display_cdc.v", "cores/fes-common/rtl/fes_display_plane.v",
+            "cores/fes-menu/rtl/fes_menu_control.v", "cores/fes-menu/rtl/fes_menu_video.v",
+            "cores/fes-menu/rtl/fes_menu_reader.v", "cores/fes-common/rtl/fes_hps_ddr.v",
+            "cores/fes-common/rtl/fes_hps_ddr_guard.v", "cores/fes-menu/sim/ddr_model.v")]
         subprocess.run([args.verilator, "--lint-only", "--top-module", "top", *flags, *board_flags,
                         "-Wno-PINCONNECTEMPTY", "-DTV80_REFRESH=1", *selected,
                         "-I" + str(COLECO / "rtl"),
-                        *map(str, native + board + socket + [COMMON / "rtl/coleco_video_720p.v"])],
+                        *map(str, native + board + socket + plane + [COMMON / "rtl/coleco_video_720p.v"])],
                        cwd=ROOT, check=True)
     print("Coleco legacy, native inline and native socket board elaboration passed; no hardware exercised")
 
