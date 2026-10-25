@@ -188,6 +188,14 @@ and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
 small bump of this lock, the removal of its one workaround, the `--yosys`
 check and a re-measure.
 
+Synthesis runs `proc -norom` first, by choice: it keeps case tables in
+logic. Without it the length decoders' 0Fh opcode tables become M10K ROMs
+whose registered read takes in F2's byte register, which puts an M10K read in
+front of L1's decode, the shape [rule 7](../../../../docs/i386-cpu-design.md#platform-constraints)
+keeps out of the pipeline. Measured on the corrected model, F2 fell from
+86-91 to 73-77 MHz in the front-end spike. A `rom_style = "logic"` attribute
+on the table's case statement does not keep it in LUTs.
+
 Narrow sums (lengths, ends, counts) mark their `+` with `(* no_carry *)`, so
 the locked Yosys builds them from LUTs rather than an ALM carry chain
 ([DeanoC/yosys#44](https://github.com/DeanoC/yosys/pull/44); the attribute

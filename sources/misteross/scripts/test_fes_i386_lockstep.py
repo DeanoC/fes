@@ -25,7 +25,7 @@ An instruction that faults (#UD for LOCK, for example) must fault in the RTL
 with the same vector and nothing retired. Exception delivery is not built,
 so such a run ends there and its final state is not compared.
 
-With --yosys the CPU is first run through that Yosys (read, proc,
+With --yosys the CPU is first run through that Yosys (read, proc -norom,
 flatten, opt) and the netlist it writes is simulated instead of the RTL.
 
 Example:

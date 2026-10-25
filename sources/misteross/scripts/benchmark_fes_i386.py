@@ -16,6 +16,8 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
             a registered page number, way select
   cpu       fes_i386_cpu as built so far, F1 to WB, behind the frontend
             spike's L1I model: the register-only real-mode core
+  rom       a registered case-table ROM synthesized without proc -norom, so
+            it maps to an M10K: checks that it places and routes
 
 Each route reports the clock, its critical path, and a figure for every
 pipeline stage: the worst setup slack among the registers the stage writes,
@@ -73,6 +75,7 @@ SPIKES = {
     'dag': ('spike_dag', DAG_RTL),
     'm2': ('spike_m2', ()),
     'cpu': ('spike_cpu', CPU_RTL),
+    'rom': ('spike_rom', ()),
 }
 # Which stage writes each register, by the RTL signals around it. After
 # flattening a register's cell takes the name of any one port it drives, and
@@ -124,10 +127,17 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_s|late_m1)$'),
         ('D', r'(.*\.)?(skid|skid_valid|d_eip|d_stop|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
     ),
+    'rom': (('ROM', r'(.*\.)?q$'),),
 }
 # M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform
-# rules).
-SYNTHESIS = 'synth_intel_alm -family cyclonev -nolutram'
+# rules). proc -norom keeps case tables in logic, by choice: the length
+# decoders' opcode tables would otherwise become M10K ROMs that take in F2's
+# register, putting an M10K read in front of L1's decode (rule 7). That
+# costs F2 about 15% on the corrected model.
+SYNTHESIS = 'proc -norom; synth_intel_alm -family cyclonev -nolutram'
+# The ROM spike checks that a case-table ROM maps to an M10K and routes, so it
+# keeps proc's ROM inference.
+SPIKE_SYNTHESIS = {'rom': 'synth_intel_alm -family cyclonev -nolutram'}
 
 
 def digest(path: Path) -> str:
@@ -395,7 +405,7 @@ def main() -> int:
         selected[(SPIKE / 'spike.qsf').as_posix()] = (ROOT / SPIKE / 'spike.qsf').read_bytes()
         selected['scripts/benchmark_fes_i386.py'] = Path(__file__).read_bytes()
         identity = {'device': DEVICE, 'target_mhz': args.target_mhz, 'router': 'gpu', 'gpu_backend': backend,
-                    'synthesis': SYNTHESIS, 'lock': args.lock.as_posix(), 'lock_sha256': digest(ROOT / args.lock),
+                    'synthesis': SYNTHESIS, 'spike_synthesis': SPIKE_SYNTHESIS, 'lock': args.lock.as_posix(), 'lock_sha256': digest(ROOT / args.lock),
                     'sources': {path: hashlib.sha256(data).hexdigest() for path, data in sorted(selected.items())},
                     'tools': {name: tool.identity for name, tool in sorted(tools.items())}}
         fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
@@ -419,7 +429,8 @@ def main() -> int:
             work = output / spike
             work.mkdir(exist_ok=True)
             files = ' '.join(str(snapshot / path) for path in sources(spike))
-            program = f'read_verilog -sv {files}; hierarchy -top {top}; {SYNTHESIS} -top {top}; stat; write_json synth.json'
+            synthesis = SPIKE_SYNTHESIS.get(spike, SYNTHESIS)
+            program = f'read_verilog -sv {files}; hierarchy -top {top}; {synthesis} -top {top}; stat; write_json synth.json'
             (work / 'synth.ys').write_text(program + '\n')
             started = time.monotonic()
             with (work / 'yosys.log').open('w') as log:

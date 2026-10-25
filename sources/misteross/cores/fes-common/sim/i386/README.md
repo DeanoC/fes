@@ -261,11 +261,11 @@ python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
 ```
 
 `--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
-(after `proc; flatten; opt -purge`) instead of the RTL.
+(after `proc -norom; flatten; opt -purge`) instead of the RTL.
 
 ## Timing spikes
 
-[`spike/`](spike) holds four CPU-only routed spikes, each a block inside a
+[`spike/`](spike) holds five routed spikes, each a block inside a
 stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
@@ -274,6 +274,7 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 | `spike_dag.sv` | D's address operands (addressing decode, register file, the forwarding table, scaling, segment select) and AG, with the producers moving through AG-EX registers; D's opcode decode, not built, is stimulus |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
 | `spike_cpu.sv` | `fes_i386_cpu`, F1 to WB, behind `spike_frontend`'s L1I model, with a registered fetch-valid bit and the reset state from the stimulus |
+| `spike_rom.sv` | A registered case-table ROM, synthesized without `proc -norom` so it maps to an M10K: checks DeanoC/yosys#40's fix, since the i386 RTL keeps its own tables in logic |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
 authenticated Yosys, by default the i386 lock's (M10K and DSP allowed, no LUT
