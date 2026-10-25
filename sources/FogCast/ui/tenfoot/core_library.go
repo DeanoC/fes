@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
@@ -45,6 +46,12 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 		rows = append(rows, FirmwarePickerRow{Name: name, Kind: kind, Selectable: true})
 	}
 	if s.Ref == nil {
+		if s.InstalledSetup && s.FilterCoreID == "" {
+			for _, variant := range zx81family.Variants() {
+				add(variant.Label+" · "+variant.Detail, "variant:"+variant.CoreID)
+			}
+			return rows
+		}
 		add("Refresh systems", "refresh")
 		if s.InstalledSetup {
 			add("Browse published systems", "published")
@@ -115,6 +122,13 @@ func (a *App) coreLibrarySnapshotLocked() FirmwarePickerSnapshot {
 	}
 	if s.HardwareMode == "expansions" {
 		title = "Import expansion"
+	}
+	if s.InstalledSetup && s.Ref == nil {
+		if s.FilterCoreID == "" {
+			title = "ZX81 family"
+		} else if variant, ok := zx81family.ByID(s.FilterCoreID); ok {
+			title = variant.Label
+		}
 	}
 	if s.Ref != nil {
 		title = "Set up " + s.Label
@@ -261,6 +275,14 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 			s.Index = 0
 			return
 		}
+		if s.InstalledSetup && s.FilterCoreID != "" {
+			s.FilterCoreID = ""
+			s.Index = 0
+			s.Online = true
+			s.Status = "Choose a ZX81-family machine…"
+			s.Cores = nil
+			return
+		}
 		s.Open = false
 		s.Gen++
 		if a.room != nil {
@@ -297,8 +319,21 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		return
 	}
 	if row.Kind == "published" {
+		variant := s.FilterCoreID
 		a.openCoreLibraryLocked()
-		a.coreLibrary.FilterCoreID = "fes.zx81"
+		if variant != "" {
+			a.coreLibrary.FilterCoreID = variant
+		}
+		return
+	}
+	if strings.HasPrefix(row.Kind, "variant:") {
+		id := strings.TrimPrefix(row.Kind, "variant:")
+		if _, ok := zx81family.ByID(id); !ok {
+			return
+		}
+		s.FilterCoreID = id
+		s.Index = 0
+		a.refreshInstalledZX81Locked()
 		return
 	}
 	if row.Kind == "refresh" {

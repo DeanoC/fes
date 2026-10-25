@@ -259,6 +259,9 @@ func (a *App) openTapePickerLocked() {
 }
 
 func (a *App) fetchLiveTapeStarters(parent context.Context, gen int, gameID string) {
+	if gameID == "" {
+		return
+	}
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	tapes, err := a.client.ZX81TapesForGame(ctx, gameID)

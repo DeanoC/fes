@@ -97,7 +97,10 @@ is retired for day-to-day.
   and size; hold-reset **aborts an open** media transfer (`media_open <= 0`)
   and clears keyboard; it does not by itself clear a committed blob’s
   interpretation beyond the next begin.
-- misteross `zx81_machine.sv`: always intercepts LOAD at `$0347`. A committed
+- misteross `zx81_machine.sv`: the ZX81 compile intercepts LOAD at `$0347` and
+  stores the image at `tape_addr` plus eight. The ZX80 compile intercepts
+  `$0207` and stores the raw image at `tape_addr` with no +8. FES does not
+  admit `.o` files as a separate format. A committed
   mailbox blob is copied into RAM; with no blob, SCF so BASIC returns `0/0`
   instead of the original cassette waiter (black screen until BREAK). Raw
   `.p` bytes only — **no audio / TZX decode**.
@@ -362,7 +365,7 @@ are not open product picks.
 | [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md) | Phase 3 removable media vocabulary |
 | [`docs/core-media-evolution.md`](core-media-evolution.md) | Blob vs blob-stream; capacity |
 | [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | One sofa renderer; no kit catalog growth |
-| [`sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv`](../sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv) | `$0347` LOAD intercept / `0/0` |
+| [`sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv`](../sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv) | ZX81 `$0347` LOAD intercept; ZX80 `$0207` stores at `tape_addr` with no +8 |
 | [`sources/libmister-runtime/src/native/fes_gp.cpp`](../sources/libmister-runtime/src/native/fes_gp.cpp) | Today’s hold-reset `LoadMedia` |
 | [`sources/FogCast/fogcast/zx81_rom.go`](../sources/FogCast/fogcast/zx81_rom.go) | Launch-time ROM splice (not tape) |
 
