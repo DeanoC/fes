@@ -728,8 +728,10 @@ machine, with transparent pixels outside the opaque picker. The launch room
 is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. Spectrum `.z80` and `.sna` appear only when the active
-package reports `fes.media.spectrum-snapshot` 1.0. It applies the active
-interface and reported size limits before import; the host and runtime
+package reports `fes.media.spectrum-snapshot` 1.0. The runtime reports the
+matching optional package metadata as active; model-specific snapshot checks
+remain in the host converter. It applies the active interface and reported
+size limits before import; the host and runtime
 validate the object again. ZX81 also
 shows the existing starter-tape shelf only when its game entry identifies
 `fes.zx81`; saved programs remain scoped to that game. Files come from the launcher machine

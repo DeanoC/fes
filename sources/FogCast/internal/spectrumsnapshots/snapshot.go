@@ -162,8 +162,15 @@ func readSNA(data []byte) (*Snapshot, error) {
 	}
 	paged := int(s.Port7FFD & 7)
 	for i, bank := range []int{5, 2, paged} {
+		page := ram[i*bankBytes : (i+1)*bankBytes]
+		if previous := s.Banks[bank]; previous != nil {
+			if !bytes.Equal(previous[:], page) {
+				return nil, fmt.Errorf(".sna duplicate RAM bank %d differs", bank)
+			}
+			continue
+		}
 		s.Banks[bank] = newBank()
-		copy(s.Banks[bank][:], ram[i*bankBytes:])
+		copy(s.Banks[bank][:], page)
 	}
 	rest := tail[4:]
 	for bank := 0; bank < 8; bank++ {
@@ -226,6 +233,9 @@ func z80Machine(version int, mode, flags3, if1 byte) (Machine, error) {
 	case version == 3 && (mode == 3 || mode == 6):
 		return unsupported("an MGT interface")
 	case mode == 7 || mode == 8 || mode == 13:
+		if err := if1Paged(); err != nil {
+			return 0, err
+		}
 		return MachinePlus3, nil
 	case mode == 9 || mode == 12:
 		return Machine128K, nil
@@ -261,6 +271,9 @@ func readZ80(data []byte) (*Snapshot, error) {
 	s.Banks = map[int]*[bankBytes]byte{}
 	if s.PC != 0 {
 		// Version 1: 48K, one 48 KiB block.
+		if flags1&0x10 != 0 {
+			return nil, errors.New(".z80 version 1 snapshot has BASIC SamRom switched in")
+		}
 		s.Machine = Machine48K
 		ram := data[30:]
 		if flags1&0x20 != 0 {
@@ -372,7 +385,10 @@ func readZ80(data []byte) (*Snapshot, error) {
 func inflate(in []byte, size int) ([]byte, error) {
 	out := make([]byte, 0, size)
 	for i := 0; i < len(in); {
-		if i+3 < len(in) && in[i] == 0xed && in[i+1] == 0xed {
+		if i+1 < len(in) && in[i] == 0xed && in[i+1] == 0xed {
+			if len(in)-i < 4 {
+				return nil, errors.New(".z80 run-length token is truncated")
+			}
 			for n := 0; n < int(in[i+2]); n++ {
 				out = append(out, in[i+3])
 			}
