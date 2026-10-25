@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Content-addressed Buildroot SDK cache and generated Buildroot configurations."""
 import hashlib
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -65,7 +67,7 @@ def shared_root(image=IMAGE):
     return path
 
 
-def validated_sha(directory, expected_key):
+def _validated_sha_unlocked(directory, expected_key):
     try:
         record = json.loads((directory / "receipt.json").read_text())
         archive = directory / "host.tar"
@@ -77,14 +79,56 @@ def validated_sha(directory, expected_key):
     return None
 
 
+def validated_sha(directory, expected_key):
+    try:
+        with _cache_lock(directory, fcntl.LOCK_SH):
+            return _validated_sha_unlocked(directory, expected_key)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+@contextmanager
+def _cache_lock(directory, mode):
+    # The cache directory is stable for this key, so its inode can coordinate
+    # publishers and readers without leaving a lock sidecar behind.
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(descriptor, mode)
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+def _publish(directory, archive_temporary, archive_sha, expected_key):
+    receipt_temporary = None
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory,
+                                     delete=False) as stream:
+        receipt_temporary = Path(stream.name)
+        try:
+            stream.write(json.dumps({"key": expected_key, "sha256": archive_sha},
+                                    sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+            with _cache_lock(directory, fcntl.LOCK_EX):
+                archive_temporary.replace(directory / "host.tar")
+                receipt_temporary.replace(directory / "receipt.json")
+            return archive_sha
+        finally:
+            receipt_temporary.unlink(missing_ok=True)
+
+
 def package(host, directory, expected_key, epoch=EPOCH):
     host, directory = Path(host), Path(directory)
     if not (host / "bin" / (PREFIX + "-gcc")).exists():
         raise ValueError("SDK cross compiler is missing")
     directory.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
-        temporary = Path(stream.name)
-        try:
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
+            temporary = Path(stream.name)
             with tarfile.open(fileobj=stream, mode="w") as archive:
                 for path in (host, *sorted(host.rglob("*"))):
                     info = archive.gettarinfo(str(path), "host" if path == host else
@@ -100,35 +144,32 @@ def package(host, directory, expected_key, epoch=EPOCH):
             stream.flush()
             os.fsync(stream.fileno())
             archive_sha = file_sha(temporary)
-            temporary.replace(directory / "host.tar")
-            receipt = directory / "receipt.json.tmp"
-            receipt.write_text(json.dumps({"key": expected_key, "sha256": archive_sha},
-                                          sort_keys=True) + "\n")
-            receipt.replace(directory / "receipt.json")
-            return archive_sha
-        finally:
+        return _publish(directory, temporary, archive_sha, expected_key)
+    finally:
+        if temporary is not None:
             temporary.unlink(missing_ok=True)
 
 
 def extract(directory, expected_key, destination):
     directory, destination = Path(directory), Path(destination)
-    archive_sha = validated_sha(directory, expected_key)
-    if archive_sha is None:
-        raise ValueError("cached SDK key or sha256 mismatch")
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True)
-    with tarfile.open(directory / "host.tar") as archive:
-        for member in archive.getmembers():
-            if member.name != "host" and not member.name.startswith("host/"):
-                raise ValueError("unsafe SDK archive member")
-            if ".." in Path(member.name).parts or member.name.startswith("/"):
-                raise ValueError("unsafe SDK archive member")
-            if member.issym() or member.islnk():
-                target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
-                if member.linkname.startswith("/") or (target != "host" and not target.startswith("host/")):
-                    raise ValueError("unsafe SDK archive link")
-        archive.extractall(destination)
+    with _cache_lock(directory, fcntl.LOCK_SH):
+        archive_sha = _validated_sha_unlocked(directory, expected_key)
+        if archive_sha is None:
+            raise ValueError("cached SDK key or sha256 mismatch")
+        if destination.exists():
+            shutil.rmtree(destination)
+        destination.mkdir(parents=True)
+        with tarfile.open(directory / "host.tar") as archive:
+            for member in archive.getmembers():
+                if member.name != "host" and not member.name.startswith("host/"):
+                    raise ValueError("unsafe SDK archive member")
+                if ".." in Path(member.name).parts or member.name.startswith("/"):
+                    raise ValueError("unsafe SDK archive member")
+                if member.issym() or member.islnk():
+                    target = posixpath.normpath(posixpath.join(posixpath.dirname(member.name), member.linkname))
+                    if member.linkname.startswith("/") or (target != "host" and not target.startswith("host/")):
+                        raise ValueError("unsafe SDK archive link")
+            archive.extractall(destination)
     return archive_sha
 
 
