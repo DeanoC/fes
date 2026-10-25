@@ -68,7 +68,8 @@ module coleco_session_harness (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(reset_hold), .exec_reset(exec_reset),
         .request(request), .opcode(opcode), .index(index), .argument(argument),
         .response_valid(response_valid), .response_error(response_error), .response_data(response_data),
-        .quiesced_sys(quiesced), .machine(machine_word), .video(hdmi_word), .ui_active(ui_active), .locked(),
+        // As in top.v, the shell supplies the valid bit, not the part's CE.
+        .quiesced_sys(quiesced), .machine({1'b1, machine_word[26:0]}), .video(hdmi_word), .ui_active(ui_active), .locked(),
         .displayed_sequence(displayed_sequence), .underflows(underflows), .faulted(faulted),
         .ddr_hold(ddr_hold), .ddr_reset(ddr_reset), .ddr_drained(ddr_drained),
         .ddr_address(ddr_address), .ddr_burstcount(ddr_burstcount), .ddr_read(ddr_read),
