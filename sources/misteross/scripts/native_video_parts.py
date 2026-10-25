@@ -20,10 +20,10 @@ REGION = "video"
 PLACEMENT = "video 5 23 38 38"
 CRAM = (124, 1800, 3906, 3442)
 CLOCK = "pixel_clk"
-# Once the shell supplies the plane's valid bit, seed 11 misses pixel_clk on
-# the Scanlines part (69.64 MHz analogue). A HIP sweep of seeds 1-16 passes
-# ten; seed 1 has the most margin (Scanlines 77.84, Direct 79.53 MHz).
-PLACER_SEED = 1
+# On the valid-bit final shell, the completed Direct/Scanlines sweep selects
+# seed 13 for the highest shared pixel_clk result: 77.616/76.400 MHz. Seed 1
+# misses Scanlines at 71.129 MHz. See the dated host-route campaign record.
+PLACER_SEED = 13
 PREFIX = "video_socket."
 REQUEST_BITS = 32
 RESPONSE_BITS = 28
