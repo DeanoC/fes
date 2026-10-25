@@ -181,7 +181,7 @@ state. `trace_*` and `arch_*` show each retirement.
 ## Synthesis notes
 
 The i386 RTL has its own toolchain lock, [`toolchain.lock`](toolchain.lock)
-here: the DeanoC Yosys fork's main at `ca51238cb9`, with nextpnr `bd7a1c0d`
+here: the DeanoC Yosys fork's main at `238eac9a49`, with nextpnr `bd7a1c0d`
 and Mistral `8fcc4cb4`. The timing spikes default to it. The repository's
 shared lock stays at Yosys `3a5accbd`, which reads this RTL wrongly, so check
 and route the i386 RTL with this lock's Yosys. Each later Yosys fix is a
@@ -205,13 +205,6 @@ The locked Yosys still gets some SystemVerilog wrong. This RTL stays inside
 what it reads correctly:
 
 - no assignment patterns such as `'{a: ...}` ([#38](https://github.com/DeanoC/yosys/issues/38));
-- a field of an array element, `arr[i].field`, is read and written through a
-  whole-record copy: Yosys takes `arr[i]` for a generate block, which is an
-  error with a variable index and a silent, undriven wire with a constant one
-  ([#52](https://github.com/DeanoC/yosys/issues/52));
-- modules import `fes_i386_pkg` for its types but call its functions by their
-  qualified names: Yosys asserts on an imported function's bare name
-  ([#55](https://github.com/DeanoC/yosys/issues/55));
 - logic replicated to cut fanout merges back into one copy even on
   `(* keep *)` wires, so each replica needs its own kept input register
   ([#51](https://github.com/DeanoC/yosys/issues/51)).
