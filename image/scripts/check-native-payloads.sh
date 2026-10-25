@@ -6,9 +6,13 @@ root=$1
 verified_notice=$2
 if find "$root" -type f ! -path "$verified_notice" \
   ! -path "$root/usr/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
+  ! -path "$root/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
   ! -path "$root/usr/lib/firmware/rtl_bt/rtl8821c_config.bin" \
+  ! -path "$root/lib/firmware/rtl_bt/rtl8821c_config.bin" \
   ! -path "$root/usr/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
+  ! -path "$root/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
   ! -path "$root/usr/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
+  ! -path "$root/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
   \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \

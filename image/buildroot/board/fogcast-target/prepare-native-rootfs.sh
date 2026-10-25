@@ -182,9 +182,13 @@ fi
 # forbidden, including additional Markdown in or beside the notice directory.
 if find "$target" -type f ! -path "$verified_notice" \
   ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
   ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_config.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_config.bin" \
   ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
   ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
   \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \

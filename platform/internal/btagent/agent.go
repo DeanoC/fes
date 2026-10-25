@@ -528,7 +528,7 @@ func (a *agent) handleCall(call *Message) {
 		return
 	}
 	sig, body, errName := a.dispatch(call)
-	reply := &Message{Type: msgMethodReturn, ReplySerial: call.Serial, Signature: sig}
+	reply := &Message{Type: msgMethodReturn, ReplySerial: call.Serial, Dest: call.Sender, Signature: sig}
 	if errName != "" {
 		reply.Type = msgError
 		reply.ErrorName = errName

@@ -11,7 +11,6 @@ set -eu
 
 data=/run/fogcast/fesdata3
 state=$data/bluetooth
-old=/media/fat/fogcast/state/bluetooth
 mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
 log=/var/log/fes-bluetooth-storage.log
 
@@ -27,11 +26,6 @@ prepare_storage() {
   done
   /bin/mkdir -p "$state"
   /bin/chmod 0700 "$state"
-  # Earlier images pointed storage at FAT, where nothing usable can exist.
-  if [ -d "$old" ]; then
-    /bin/cp -a "$old"/. "$state"/ 2>/dev/null || true
-    /bin/rm -rf "$old" || true
-  fi
   echo "storage ready at $state"
   if [ -e /sys/class/bluetooth/hci0 ]; then
     echo "adapter registered before storage; restarting bluetoothd and agent"

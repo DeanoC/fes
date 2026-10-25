@@ -17,7 +17,12 @@ const (
 	minorJoystick   = 0x01
 	minorGamepad    = 0x02
 
+	appearanceKeyboard = 0x03C1
+	appearanceMouse    = 0x03C2
 	appearanceJoystick = 0x03C3
+	// classKeyPointing is the keyboard and pointing bits of a peripheral minor class.
+	classKeyPointing   = 0xC0
+	majorUncategorized = 0x1f
 	appearanceGamepad  = 0x03C4
 
 	attemptGap = 30 * time.Second
@@ -37,7 +42,7 @@ const (
 // computers, audio and anything else nearby are ignored. A device qualifies
 // by its Class of Device (peripheral, joystick or gamepad minor), by its LE
 // appearance (joystick 0x03C3 or gamepad 0x03C4), or by a known pad vendor
-// in its modalias together with the HID/HoG service or a peripheral class.
+// in its modalias with HID/HoG and no keyboard or pointing class or appearance.
 func isGamepad(dev devInfo) bool {
 	major := (dev.Class >> 8) & 0x1f
 	switch major {
@@ -53,7 +58,19 @@ func isGamepad(dev devInfo) bool {
 	if dev.Appearance == appearanceJoystick || dev.Appearance == appearanceGamepad {
 		return true
 	}
-	return padVendor(dev.Modalias) && (controllerUUID(dev.UUIDs) || major == majorPeripheral)
+	// A known pad vendor alone is not enough: these vendors also make
+	// keyboards and mice. Accept only HID devices that carry no keyboard or
+	// pointing class bits or appearance.
+	if !padVendor(dev.Modalias) || !controllerUUID(dev.UUIDs) {
+		return false
+	}
+	if major == majorPeripheral && dev.Class&classKeyPointing != 0 {
+		return false
+	}
+	if dev.Appearance == appearanceKeyboard || dev.Appearance == appearanceMouse {
+		return false
+	}
+	return major == majorPeripheral || major == majorUncategorized || dev.Class == 0
 }
 
 // padVendors are USB/Bluetooth vendor ids of game controller makers:
