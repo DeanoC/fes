@@ -284,8 +284,10 @@ producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
 
-The host seals of all four packages with snapshot loading, with their package
-identities, clock results and resources, and their kit A checks are in
+The host seals of all four packages with TR-DOS disks on the Pentagon, with
+their package identities, clock results and resources, and their kit checks
+are in [the TR-DOS record](../../../../docs/validation/2026-10-25-spectrum-trdos.md);
+snapshot loading is in
 [the snapshot record](../../../../docs/validation/2026-10-25-spectrum-snapshots.md);
 the tape path's design is in
 [the tape record](../../../../docs/validation/2026-10-22-spectrum-tape-ddr.md);
