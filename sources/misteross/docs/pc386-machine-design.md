@@ -165,8 +165,8 @@ Unclaimed ports read FFh and drop writes, like a floating ISA bus.
 | 0C0–0DF | DMA controller 2 | 16-bit channels; channel 4 is the cascade |
 | 0F0–0FF | x87 | Reads FFh until the x87 milestone |
 | 1F0–1F7, 3F6 | ATA primary channel | IRQ14 |
-| 220–22F | Sound Blaster | 226 reset, 228–229 OPL2, 22A read, 22C write and status, 22E read status and IRQ acknowledge |
-| 388–389 | OPL2 (AdLib) | Same chip as 228–229 |
+| 220–22F by default, or 240–24F | Sound Blaster, base set by the [setting](#sound-blaster-setting) | Base+6 reset, base+8–9 OPL2, base+A read, base+C write and status, base+E read status and IRQ acknowledge |
+| 388–389 | OPL2 (AdLib) | Same chip as base+8–9 |
 | 3B0–3DF | VGA | Mono or colour CRTC and status addresses follow misc output bit 0 |
 | 400–403, 500, E9 | Debug sink | Bochs BIOS and VGABIOS message ports; written to the trace, never guest-visible beyond FFh reads |
 
@@ -183,17 +183,61 @@ changes as 15 µs each, so bit 4 must follow channel 1 as the BIOS programs it.
 | IRQ | Source | IRQ | Source |
 | --- | --- | --- | --- |
 | 0 | PIT channel 0 | 8 | RTC |
-| 1 | 8042 keyboard | 9 | Free (redirected IRQ2) |
+| 1 | 8042 keyboard | 9 | Sound Blaster if set to IRQ 2 (the card's IRQ 2 line), else free |
 | 2 | Cascade | 10–11 | Free |
-| 3–4 | Free (no serial) | 12 | 8042 aux mouse |
-| 5 | Free | 13 | x87, later |
-| 6 | Free (no floppy) | 14 | ATA |
-| 7 | Sound Blaster | 15 | Free |
+| 3 | Sound Blaster if set to 3, else free (no serial) | 12 | 8042 aux mouse |
+| 4 | Free (no serial) | 13 | x87, later |
+| 5 | Sound Blaster if set to 5, else free | 14 | ATA |
+| 6 | Free (no floppy) | 15 | Free |
+| 7 | Sound Blaster by default | | |
 
-The Sound Blaster is fixed at 220h, IRQ 7 and DMA 1, advertised as
-`BLASTER=A220 I7 D1 T3`; there is no setting. These are SB 2.0 factory
-settings; confirming them against the CT1350 manual is a Phase M3 task. No
-other device uses DMA in this scope.
+DMA channel 1 is the Sound Blaster's. No other device uses DMA in this scope.
+
+### Sound Blaster setting
+
+On a real card the base port, IRQ and DMA channel were jumpers, and DOS games
+asked the player for them in their setup programs. pc386 makes them a machine
+setting, with the choices the SB 2.0's jumpers allowed. The CT1350B user
+reference manual (pages 1-7, 1-8 and 1-11, [scan](https://theretroweb.com/expansioncards/s/creative-sound-blaster-2-0-ct1350))
+gives them:
+
+| Resource | Choices | Default |
+| --- | --- | --- |
+| Base port | 220h or 240h ("Only two I/O addresses are selectable") | 220h |
+| IRQ | 2, 3, 5 or 7 | 7 |
+| DMA channel | 1 only ("You can not change the DMA channel") | 1 |
+
+The manual's factory line is `SET BLASTER=A220 I7 D1 T3`. Some secondary
+listings give other DMA choices (1, 3 or 5) or IRQ 9; the manual and the
+Total Hardware 99 jumper table for the CT1350 agree with the table above, so
+it stands. The setting keeps a DMA field so a later Pro-class card can widen
+it; for SB 2.0 it accepts only 1.
+
+- **Stored** in the per-game `fes.pc386.machine` record
+  ([persistence](#persistence)), written by FogCast's settings, like the speed
+  preset.
+- **Latched at Execution release.** The DSP's port decode and IRQ routing
+  follow the latched value until the next launch, as jumpers did until the PC
+  was switched off. The OPL2 follows the base (base+8–9) and also stays at
+  388h–389h.
+- **IRQ 2** drives the AT bus's IRQ 2 line, which the AT wires to IRQ 9 on the
+  slave PIC. The Bochs BIOS's INT 71h handler reflects IRQ 9 to INT 0Ah, so
+  software written for IRQ 2 works, as it did with an 8-bit card in an AT.
+- **Told to the guest.** The machine mirrors the latched setting into CMOS
+  60h–62h ([configuration bytes](#configuration-bytes)). The FogCast disk
+  builder's `AUTOEXEC.BAT` turns those bytes into `BLASTER` at every boot
+  ([FreeDOS in the builder](#freedos-in-the-fogcast-disk-builder)), so
+  `BLASTER` follows the setting without editing the disk. Games that saved
+  their own sound settings during setup need their setup run again after a
+  change, as with moved jumpers. Images made elsewhere set `BLASTER`
+  themselves.
+- **Conflicts.** No other device in this scope uses IRQ 2/9, 3, 5 or 7, DMA 1
+  or ports 220h–24Fh, so every choice is conflict-free. A device added later
+  (serial ports on IRQ 3 and 4, a parallel port on IRQ 7) shrinks the set: a
+  choice that collides with a fitted device's port, IRQ or DMA channel is not
+  offered. FogCast refuses it when saving, and the core's persistence commit
+  refuses any value outside the allowed set, so a conflict never reaches the
+  machine. There is no shared-line behaviour to define.
 
 ### HPS DDR window and ports
 
@@ -394,6 +438,10 @@ translation: none). It recomputes the checksum in 2Eh–2Fh over 10h–2Dh. The
 Bochs emulator writes these same bytes before its BIOS runs; the BIOS reads
 disk geometry from ATA IDENTIFY, not from CMOS.
 
+It also writes 60h–62h with the latched Sound Blaster setting: base port
+high byte (22h or 24h), IRQ (2, 3, 5 or 7) and DMA channel (1). The Bochs BIOS
+uses no CMOS byte above 3Fh except 5Bh–5Dh, so these are free.
+
 A user-linked BIOS with its own setup program would want those bytes left
 alone. That is a firmware-dependent policy for when user-linked firmware
 exists ([firmware](#firmware)).
@@ -422,11 +470,16 @@ path, in one per-game record with the machine's settings.
   | 1 | Preset frequency override in units of 100 kHz, or 0 for the preset's | FogCast settings |
   | 2 | Self-modifying-code profile: 0 `coherent`, 1 `queue16` | FogCast settings |
   | 3 | Turbo state at launch | FogCast settings |
-  | 4–7 | Reserved, zero | — |
+  | 4 | Sound Blaster base port: 220h or 240h | FogCast settings |
+  | 5 | Sound Blaster IRQ: 2, 3, 5 or 7 | FogCast settings |
+  | 6 | Sound Blaster DMA channel: 1 | FogCast settings |
+  | 7 | Reserved, zero | — |
   | 8–71 | CMOS bytes 00h–7Fh, two per word, low byte first | The machine |
 
-  Settings are read before release, so the governor and the CPU profile are
-  programmed at reset, as the CPU design requires.
+  Settings are read before release, so the governor, the CPU profile and the
+  Sound Blaster are set at reset, as the CPU design requires and as jumpers
+  were. A missing record starts with the defaults (`max`, `coherent`, 220h,
+  IRQ 7, DMA 1). Commit rejects a value outside a field's set.
 - **Per game.** The existing path keeps one record per core ID. The CPU design
   already makes speed a per-library-game setting, and each game has its own
   disk, so the record is keyed like [media data](../../mister-packages/docs/media-data.md):
@@ -624,7 +677,7 @@ imports fail.
 The import follows the PC/XT pattern: pinned commit, `source.json` with paths,
 hashes and local changes, licence retained. The machine's wrapper adds:
 
-- the port decode at 388h–389h and 228h–229h;
+- the port decode at 388h–389h and at the Sound Blaster's base+8–9;
 - the status register and both timers (80 µs and 320 µs units, start, mask and
   reset in register 04h), if the import's top level lacks them. AdLib detection
   routines depend on the timers;
@@ -643,7 +696,7 @@ cases the guide leaves open.
 
 | Command | Function |
 | --- | --- |
-| Reset (226h 1 then 0) | AAh in the read buffer about 100 µs later |
+| Reset (base+6: 1 then 0) | AAh in the read buffer about 100 µs later |
 | 10h | Direct 8-bit DAC |
 | 14h, 91h | Single-cycle 8-bit DMA playback, normal and high speed |
 | 1Ch, 90h, 48h | Auto-init 8-bit DMA, normal and high speed, block size |
@@ -658,8 +711,8 @@ cases the guide leaves open.
   as the real DSP does.
 - Write-status bit 7 reads busy for about 1 µs after each command byte
   (estimate), so detection code that waits for not-busy sees the edge.
-- DREQ on channel 1 at the sample rate; the IRQ at block end, acknowledged by
-  reading 22Eh.
+- DREQ on channel 1 at the sample rate; the IRQ at block end on the set line,
+  acknowledged by reading base+E.
 - The DAC holds the last sample, muted while the speaker is off.
 - ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the three
   games is known to use it. Unknown commands are consumed and ignored.
@@ -795,8 +848,13 @@ every archive's SHA-256. A later FreeDOS release is a deliberate lock change.
 | MEM | 1.12 | GPL v2 | The free-memory acceptance check |
 | Free FDISK: its master boot record code | 1.4.3 | GPL v2 | The MBR the builder writes |
 
-The builder writes `FDCONFIG.SYS`, `AUTOEXEC.BAT` (including `BLASTER`) and
-the partition table itself; those files are FogCast's own. Binaries ship
+The builder writes `FDCONFIG.SYS`, `AUTOEXEC.BAT` and the partition table
+itself; those files are FogCast's own. `BLASTER` follows the
+[Sound Blaster setting](#sound-blaster-setting): the builder adds `FESENV.COM`,
+a small FogCast program that reads CMOS 60h–62h and prints the matching
+`SET BLASTER=A… I… D… T3` line, and `AUTOEXEC.BAT` runs it into a batch file
+and calls that, so every boot gets the current setting. `FESENV.COM`'s
+source ships on the image beside it, under FogCast's licence. Binaries ship
 unmodified. If a component ever needs a patch, the source that ships is the
 patched source with the changes marked. Adding a component means adding a row
 here and to the lock, with its licence. The image is an aggregate of
@@ -1075,7 +1133,8 @@ own `toolchain.lock`.
   geometry inference with override, the 128 MiB storage limit for this role,
   staging by digest.
 - Per-game settings: speed preset, frequency override, turbo, self-modifying
-  code profile, written into the `fes.pc386.machine` record. The settings API
+  code profile, and the Sound Blaster's base port, IRQ and DMA channel,
+  written into the `fes.pc386.machine` record. The settings API
   follows Pong's (expected revision, next launch).
 - Save at Stop for the disk and the record; "reset disk"; later "save as new
   image".
@@ -1093,7 +1152,8 @@ or exact-artifact hardware acceptance.
 1. **Device benches.** Verilator benches per block against the data sheets:
    PIC cascade and acknowledge, 8254 read-back, DMA auto-init and page
    wrap, 8042 command set and translation, RTC update and interrupts, ATA
-   command set, SB DSP command and DMA timing. Imports keep their equivalence
+   command set, SB DSP command and DMA timing at every base port and IRQ
+   choice, IRQ 2 arriving as IRQ 9. Imports keep their equivalence
    tests for local changes.
 2. **Oracle CPU in the machine.** Before the CPU RTL exists, the Phase 0
    Bochs oracle ([#1071](https://github.com/DeanoC/fes/pull/1071)) drives the
@@ -1123,7 +1183,7 @@ the exact sealed package. Games are user-supplied.
 
 | Title | Checks |
 | --- | --- |
-| FreeDOS | Boots from the ATA image to a prompt. HIMEMX loads and its A20 test passes. CuteMouse finds the PS/2 mouse. `MEM` shows the free conventional memory each game needs. Date and time match the kit. A file written before Stop is there after relaunch. |
+| FreeDOS | Boots from the ATA image to a prompt. HIMEMX loads and its A20 test passes. CuteMouse finds the PS/2 mouse. `MEM` shows the free conventional memory each game needs. Date and time match the kit. A file written before Stop is there after relaunch. `BLASTER` matches the Sound Blaster setting, including after changing it to 240h and IRQ 5, and a game's sound still works at that setting once its setup has been rerun. |
 | Wolfenstein 3D | Sound Blaster and AdLib selected in setup. Title, menus with mouse and keyboard, a level played through. Digitised effects (single-cycle DMA) and AdLib music audible. Page flips without tearing; frame rate recorded from captured frames. A saved game loads after relaunch. |
 | Ultima VI | VGA and AdLib selected. Music plays; PC speaker effects play at the reference pitch under the 286-class preset; walking speed matches the reference. A saved game loads after relaunch. |
 | Ultima VII: The Black Gate | Voodoo memory manager starts: unreal mode, A20, 2 MiB XMS free with HIMEMX, no EMM386. Sound Blaster digitised speech and music. 386-class preset; NPC pace matches the reference. Save and load across relaunch. |
@@ -1169,8 +1229,12 @@ FreeDOS with its GPL obligations:
    ([write-back and persistence](#write-back-and-persistence)).
 6. **Persistence key.** One record per library game holds CMOS and the
    settings ([persistence](#persistence)).
-7. **Sound Blaster.** Fixed at 220h, IRQ 7, DMA 1, with no setting
-   ([interrupts and DMA](#interrupts-and-dma)).
+7. **Sound Blaster.** A per-game machine setting, as jumpers were: base 220h
+   or 240h, IRQ 2, 3, 5 or 7, DMA 1, defaulting to 220h, IRQ 7, DMA 1 and
+   latched at release; `BLASTER` on built images follows it. Deano first
+   accepted the fixed resources, then changed this on 2026-10-25 because a
+   setting was normal for DOS games
+   ([Sound Blaster setting](#sound-blaster-setting)).
 8. **Upper RAM.** C8000–EFFFF is RAM by default
    ([guest physical memory](#guest-physical-memory)).
 9. **FreeDOS.** FogCast's disk builder ships FreeDOS and meets its GPL source
