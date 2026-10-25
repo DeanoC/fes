@@ -71,19 +71,24 @@ class FrontendError(RuntimeError):
     pass
 
 
-def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
-    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
-    _, rtl, sim, _, _, synthesized = BENCHES[name]
-    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
-    netlist = output / f'{synthesized}.netlist.v'
-    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {synthesized}; '
+def synthesize_netlist(yosys: str, sources: list[Path], top: str, output: Path) -> Path:
+    """Write Yosys's reading of top, from sources, as a flat Verilog netlist."""
+    netlist = output / f'{top}.netlist.v'
+    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {top}; '
               f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
     log = output / 'yosys.log'
     with log.open('w') as stream:
         result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode:
-        raise FrontendError(f'yosys failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+        raise FrontendError(f'yosys failed for {top}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return netlist
+
+
+def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
+    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
+    _, rtl, sim, _, _, synthesized = BENCHES[name]
+    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
+    return synthesize_netlist(yosys, sources, synthesized, output)
 
 
 def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
