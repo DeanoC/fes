@@ -67,28 +67,6 @@ package fes_i386_pkg;
         endcase
     endfunction
 
-    // A sum of a few bits built from gates. Yosys maps every + to an ALM
-    // carry chain, and entering one costs about a nanosecond; for lengths and
-    // positions a LUT is faster.
-    function automatic logic [4:0] small_add(input logic [4:0] a, input logic [4:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 5; i++) begin
-            small_add[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
-    // The same for six bits.
-    function automatic logic [5:0] small_add6(input logic [5:0] a, input logic [5:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 6; i++) begin
-            small_add6[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
     // Fold prefix byte b into p; b must satisfy is_prefix.
     function automatic prefixes_t add_prefix(input prefixes_t p, input logic [7:0] b);
         prefixes_t r;

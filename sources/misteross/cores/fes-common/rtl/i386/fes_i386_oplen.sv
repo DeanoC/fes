@@ -142,15 +142,16 @@ module fes_i386_oplen (
     assign sib = escape ? o[3] : o[2];
     assign modrm_bytes[0] = !f.modrm ? 3'd0 : f.creg ? 3'd1 : modrm16(modrm);
     assign modrm_bytes[1] = !f.modrm ? 3'd0 : f.creg ? 3'd1 : modrm32(modrm, sib);
-    // A table, not an add: every + becomes a carry chain (DeanoC/yosys#39).
+    logic [2:0] fixed;  // fixed immediate bytes
     always_comb begin
         case (f.imm)
-            IMM_B: head = escape ? 3'd3 : 3'd2;
-            IMM_W, IMM_AP: head = escape ? 3'd4 : 3'd3;
-            IMM_WB: head = escape ? 3'd5 : 3'd4;
-            default: head = escape ? 3'd2 : 3'd1;
+            IMM_B: fixed = 3'd1;
+            IMM_W, IMM_AP: fixed = 3'd2;
+            IMM_WB: fixed = 3'd3;
+            default: fixed = 3'd0;
         endcase
     end
+    assign head = (escape ? 3'd2 : 3'd1) + (* no_carry *) fixed;
     assign z = f.imm == IMM_Z || f.imm == IMM_AP;
     assign moffs = f.imm == IMM_MOFFS;
 endmodule

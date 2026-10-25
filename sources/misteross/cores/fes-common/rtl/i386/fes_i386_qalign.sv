@@ -100,9 +100,10 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     end
     assign rotated = 104'({source, source} >> {start, 3'b000});
     assign linear_here = {half_block[start[4]], start[3:0]};
-    assign total = fes_i386_pkg::small_add({1'b0, acc_count}, {1'b0, len[start]});
-    assign prefix_count = fes_i386_pkg::small_add({1'b0, acc_count}, {4'b0, prefix_here});
-    assign acc_count_next = fes_i386_pkg::small_add({1'b0, acc_count}, 5'd1);
+    // Counts of a few bits: LUTs, not a carry chain.
+    assign total = 5'(acc_count) + (* no_carry *) 5'(len[start]);
+    assign prefix_count = 5'(acc_count) + (* no_carry *) 5'(prefix_here);
+    assign acc_count_next = 5'(acc_count) + (* no_carry *) 5'd1;
     assign prefixes = prefix_here ? fes_i386_pkg::add_prefix(acc, rotated[0]) : acc;
 
     always_ff @(posedge clk) begin

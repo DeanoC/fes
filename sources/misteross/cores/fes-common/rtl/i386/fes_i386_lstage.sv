@@ -40,11 +40,9 @@ module fes_i386_lstage import fes_i386_pkg::*; (
             assign as32 = code32 ^ ((v % 2) != 0 || c.adsize);
             assign mb = as32 ? c.mb32 : {1'b0, c.mb16};
             assign imm = c.z ? (os32 ? 3'd4 : 3'd2) : c.moffs ? (as32 ? 3'd4 : 3'd2) : 3'd0;
-            assign sum = fes_i386_pkg::small_add(
-                fes_i386_pkg::small_add({2'b0, c.head}, {2'b0, mb}), {2'b0, imm});
-            assign end_sum = fes_i386_pkg::small_add6(
-                fes_i386_pkg::small_add6(6'(12 + k), {3'b0, c.head}),
-                fes_i386_pkg::small_add6({3'b0, mb}, {3'b0, imm}));
+            // Lengths and ends are a few bits: LUTs, not a carry chain.
+            assign sum = 5'(c.head) + (* no_carry *) 5'(mb) + (* no_carry *) 5'(imm);
+            assign end_sum = 6'(12 + k) + (* no_carry *) 6'(c.head) + (* no_carry *) 6'(mb) + (* no_carry *) 6'(imm);
             assign end_at = c.run ? 6'(12 + k + 1) : end_sum;
             assign d.len[v] = sum[3:0];
             assign d.fin[v] = end_at[4:0];

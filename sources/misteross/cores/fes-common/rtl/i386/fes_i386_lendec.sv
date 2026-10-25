@@ -30,16 +30,14 @@ module fes_i386_lendec import fes_i386_pkg::*; (
     // A record is built whole and then stored: Yosys reads cls[k].field as a
     // generate-block name (DeanoC/yosys#52).
     for (genvar k = 0; k < 16; k++) begin : g_byte
-        lclass_t    c;
-        logic       prefix;
-        logic [4:0] with_prefix;
+        lclass_t c;
+        logic    prefix;
         assign prefix = fes_i386_pkg::is_prefix(w[k]);
-        assign with_prefix = fes_i386_pkg::small_add({2'b0, unit_head[k + 1]}, 5'd1);
         assign c.prefix = prefix;
         assign c.run = prefix && fes_i386_pkg::is_prefix(w[k + 1]);
         assign c.opsize = w[k] == 8'h66;
         assign c.adsize = w[k] == 8'h67;
-        assign c.head = prefix ? with_prefix[2:0] : unit_head[k];
+        assign c.head = prefix ? unit_head[k + 1] + (* no_carry *) 3'd1 : unit_head[k];
         assign c.mb16 = prefix ? unit_mb[k + 1][0][1:0] : unit_mb[k][0][1:0];
         assign c.mb32 = prefix ? unit_mb[k + 1][1] : unit_mb[k][1];
         assign c.z = prefix ? unit_z[k + 1] : unit_z[k];
