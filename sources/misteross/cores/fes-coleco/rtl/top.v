@@ -241,8 +241,9 @@ module top #(
     // CTA 720p60 word, blends launcher frames over it and delays RGB and sync
     // together. A vacant socket, a closed plane or a fault returns the part's
     // pixels and never stops or reprograms the machine. The shell supplies
-    // the plane's valid bit: the part's constant CE does not survive the
-    // socket boundary on hardware, and without it the plane never locks.
+    // the plane's valid bit: the cart merge drops the part's constant CE
+    // output and leaves the boundary at 0 (DeanoC/nextpnr#297), and without
+    // it the plane never locks.
     fes_display_plane #(
         .PICTURE_LEFT(16'd384), .PICTURE_TOP(16'd168),
         .PICTURE_WIDTH(16'd512), .PICTURE_HEIGHT(16'd384)
