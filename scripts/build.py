@@ -45,11 +45,12 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
-# The standalone bundle producer consumes an existing verified OS image; the
-# cold image build never consumes its implementation.
+# Media-owned scripts stay out of the generic build fingerprint. Cold-image
+# consumers are bound separately by image_recipe_files below.
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
                            if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)
                            and path != ROOT / "scripts/kit_software.py") + (REGISTRY_PATH,)
+IMAGE_RECIPE_SOURCE_FILES = ("scripts/platform.py",)
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",
@@ -57,7 +58,7 @@ IMAGE_RECIPE_NAMES = (
     "build/target-image-container-packages.sha256",
     "build/target-image-kernel-defconfig.sha256",
 )
-IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts", "licenses")
+IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts", "licenses", "firmware/rtl_bt")
 HOST_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/build.py", "scripts/environment.py"))
 
@@ -65,6 +66,7 @@ HOST_RECIPE_FILES = tuple(ROOT / name for name in (
 def image_recipe_files(root=ROOT):
     image = root / "image"
     paths = [image / name for name in IMAGE_RECIPE_NAMES if (image / name).is_file()]
+    paths.extend(root / name for name in IMAGE_RECIPE_SOURCE_FILES if (root / name).is_file())
     for directory in IMAGE_RECIPE_DIRS:
         base = image / directory
         if not base.is_dir():
@@ -72,8 +74,8 @@ def image_recipe_files(root=ROOT):
         paths.extend(path for path in sorted(base.rglob("*")) if path.is_file()
                      and "tests" not in path.parts)
     # scripts/platform.py builds target binaries from this Go module, including
-    # the Bluetooth agent; bind the image receipt to its compiled sources and
-    # module lock files as well as the Buildroot recipe.
+    # the Bluetooth agent; bind its implementation, compiled sources and module
+    # lock files to the image receipt alongside the Buildroot recipe.
     platform = root / "platform"
     if platform.is_dir():
         paths.extend(

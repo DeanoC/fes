@@ -13,6 +13,7 @@ data=/run/fogcast/fesdata3
 state=$data/bluetooth
 mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
 log=/var/log/fes-bluetooth-storage.log
+waiter_pid_file=/run/fes-bluetooth-storage.pid
 
 prepare_storage() {
   wait=600
@@ -35,9 +36,28 @@ prepare_storage() {
   fi
 }
 
+stop_storage_waiter() {
+  [ -f "$waiter_pid_file" ] || return 0
+  pid=
+  IFS= read -r pid < "$waiter_pid_file" || true
+  case "$pid" in
+    ''|*[!0-9]*) ;;
+    *) /bin/kill "$pid" 2>/dev/null || true ;;
+  esac
+  /bin/rm -f "$waiter_pid_file"
+}
+
 case "${1:-start}" in
   start)
-    (prepare_storage >>"$log" 2>&1 &)
+    (
+      trap '/bin/rm -f "$waiter_pid_file"' EXIT
+      prepare_storage
+    ) >>"$log" 2>&1 &
+    waiter=$!
+    printf '%s\n' "$waiter" > "$waiter_pid_file"
+    if ! /bin/kill -0 "$waiter" 2>/dev/null; then
+      /bin/rm -f "$waiter_pid_file"
+    fi
     for name in btintel btbcm btrtl ath3k btusb; do
       ko=$mods/$name.ko
       if [ -f "$ko" ]; then
@@ -45,7 +65,7 @@ case "${1:-start}" in
       fi
     done
     ;;
-  stop|restart) ;;
+  stop|restart) stop_storage_waiter ;;
   *)
     printf "%s\n" "usage: $0 start|stop|restart" >&2
     exit 2

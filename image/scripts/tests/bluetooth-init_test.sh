@@ -131,3 +131,55 @@ wait_for_start
 test ! -e "$BT_SIGNALS"
 test "$(cat "$BT_STARTS")" = start
 test "$(cat "$fixture/pid")" != 4242
+
+# S35's storage waiter must stop before a late mount can restart Bluetooth.
+cat > "$fixture/storage-sleep" <<'INNER'
+#!/bin/sh
+printf '%s\n' started > "$BT_STORAGE_SLEEP_STARTED"
+exec /bin/sleep 2
+INNER
+chmod +x "$fixture/storage-sleep"
+sed \
+  -e "s|/run/fes-bluetooth-storage.pid|$fixture/storage-pid|g" \
+  -e "s|/var/log/fes-bluetooth-storage.log|$fixture/storage-log|g" \
+  -e "s|/run/fogcast/fesdata3|$fixture/data|g" \
+  -e "s|/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth|$fixture/modules|g" \
+  -e "s|/proc/mounts|$fixture/mounts|g" \
+  -e "s|/sys/class/bluetooth/hci0|$fixture/hci0|g" \
+  -e "s|/bin/sleep|$fixture/storage-sleep|g" \
+  -e "s|/bin/kill|$fixture/storage-kill|g" \
+  -e "s|/bin/rm|$fixture/rm|g" \
+  "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S35fes-bluetooth" > "$fixture/storage-init"
+cat > "$fixture/storage-kill" <<'INNER'
+#!/bin/sh
+if [ "${1:-}" != -0 ]; then printf '%s\n' "$1" >> "$BT_STORAGE_SIGNALS"; fi
+exec /bin/kill "$@"
+INNER
+chmod +x "$fixture/storage-kill" "$fixture/storage-init"
+
+check_storage_waiter_cancelled() {
+  action=$1
+  rm -rf "$fixture/data" "$fixture/mounts"
+  rm -f "$fixture/storage-pid" "$fixture/storage-sleep-started" "$fixture/storage-signals"
+  : > "$fixture/mounts"
+  BT_STORAGE_SLEEP_STARTED=$fixture/storage-sleep-started \
+    BT_STORAGE_SIGNALS=$fixture/storage-signals "$fixture/storage-init" start
+  tries=0
+  while [ ! -s "$fixture/storage-sleep-started" ] && [ "$tries" -lt 30 ]; do
+    /bin/sleep 0.1
+    tries=$((tries + 1))
+  done
+  test -s "$fixture/storage-sleep-started"
+  test -s "$fixture/storage-pid"
+  waiter=$(cat "$fixture/storage-pid")
+  BT_STORAGE_SLEEP_STARTED=$fixture/storage-sleep-started \
+    BT_STORAGE_SIGNALS=$fixture/storage-signals "$fixture/storage-init" "$action"
+  grep -Fxq "$waiter" "$fixture/storage-signals"
+  test ! -e "$fixture/storage-pid"
+  printf 'device %s ext4 rw 0 0\n' "$fixture/data" > "$fixture/mounts"
+  /bin/sleep 2.2
+  test ! -e "$fixture/data/bluetooth"
+}
+
+check_storage_waiter_cancelled stop
+check_storage_waiter_cancelled restart
