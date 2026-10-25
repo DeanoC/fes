@@ -97,6 +97,10 @@ func c64DiskSession(gameID string) *hostclient.SessionResult {
 }
 
 func loadC64(t *testing.T, svc Services, initialGameID ...string) *Instance {
+	return loadC64WithSessionState(t, svc, "idle", initialGameID...)
+}
+
+func loadC64WithSessionState(t *testing.T, svc Services, state string, initialGameID ...string) *Instance {
 	t.Helper()
 	pack := examplePack(t, "example.c64")
 	if !pack.Valid() || pack.Title != "Commodore 64" {
@@ -110,6 +114,7 @@ func loadC64(t *testing.T, svc Services, initialGameID ...string) *Instance {
 		opts.InitialGameID = initialGameID[0]
 	}
 	r := newRoom(t, pack, opts)
+	r.SetSessionState(state)
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
@@ -260,6 +265,25 @@ func TestC64RoomBlocksStartWhileAnotherTitleRuns(t *testing.T) {
 	r.Activate("disk")
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("busy machine acted %+v", acts)
+	}
+}
+
+func TestC64RoomDisablesStartForLocalAndTransitioningSessions(t *testing.T) {
+	game := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
+	for _, state := range []string{"local", "launching", "stopping"} {
+		t.Run(state, func(t *testing.T) {
+			r := loadC64WithSessionState(t, &fakeServices{games: []hostclient.Game{game}}, state)
+			frame := stepUntil(t, r, func(f Frame) bool {
+				text := frameText(f)
+				return strings.Contains(text, game.Title) && strings.Contains(text, "Start machine")
+			})
+			assertRowContrast(t, frame)
+
+			r.Activate("start")
+			if actions := r.TakeActions(); len(actions) != 0 {
+				t.Fatalf("start acted while session state is %q: %+v", state, actions)
+			}
+		})
 	}
 }
 

@@ -374,7 +374,7 @@ local function picture(part)
   if part == "upper" then return end
 
   local state = play_state()
-  local can_start = game and game.launchable and state ~= "active" and not hardware_unavailable
+  local can_start = game and game.launchable and state == "idle" and not hardware_unavailable
   local label = "Start machine"
   local enabled = can_start and true or false
   local fn = function()
