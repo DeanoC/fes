@@ -331,6 +331,12 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodPut && launcherCoreMediaSelectionPath(r.URL.Path) {
+			// The body stays the caller's exact next-start media selection. This
+			// does not rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodPut && launcherCoreEntryPath(r.URL.Path) {
 			// The body stays the caller's exact package selection. Compatibility
 			// and persistence checks must use this kit, even when another target
@@ -568,6 +574,9 @@ func launcherOperation(method, path string) bool {
 	if method == http.MethodPut && launcherROMSelectionPath(path) {
 		return true
 	}
+	if method == http.MethodPut && launcherCoreMediaSelectionPath(path) {
+		return true
+	}
 	if method == http.MethodPut && launcherCoreEntryPath(path) {
 		return true
 	}
@@ -612,6 +621,15 @@ func launcherCorePackageReadPath(path string) bool {
 
 func launcherROMSelectionPath(path string) bool {
 	const prefix, suffix = "/api/v1/library/core-entries/", "/rom"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	return game != "" && !strings.Contains(game, "/") && protocol.ValidateGameID(game) == nil
+}
+
+func launcherCoreMediaSelectionPath(path string) bool {
+	const prefix, suffix = "/api/v1/library/core-entries/", "/media"
 	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
 		return false
 	}

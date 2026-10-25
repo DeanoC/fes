@@ -210,7 +210,8 @@ func TestLauncherAdmitsSetupRoomCoreEntryPost(t *testing.T) {
 		{http.MethodGet, "/api/v1/library/core-entries/Nope/rom"},
 		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/rom/extra"},
 		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/video"},
-		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media"},
+		{http.MethodPut, "/api/v1/library/core-entries/Nope/media"},
+		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media/extra"},
 		{http.MethodPost, "/api/v1/library/settings"},
 	} {
 		response := kitCall(handler, tc.method, tc.path, launcherTokenB, launcherIDB, `{}`)

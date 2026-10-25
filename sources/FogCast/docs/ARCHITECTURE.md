@@ -3457,9 +3457,12 @@ filename; a confirmed eject clears it.
 The name is presentation only; admission continues to use the captured session, target,
 package and generation.
 
-It also admits the core-entry list, installed core-package list and exact
-installed package descriptor/media-capability reads used by Workshop setup;
-package import and compatibility mutation remain outside the paired listener.
+It also admits the core-entry list, exact single-entry reads, and exact
+package, ROM, expansion and media selection routes used by setup. Core-entry
+routes require one validated game ID and the expected path suffix. Installed
+core-package inventory and exact descriptor/media-capability reads are
+available; package import and compatibility mutation remain outside the paired
+listener.
 Public and paired display/live-media mutations compare the captured target name
 and ID with the coordinator's current target before service dispatch. Rebinding
 a configured name to another kit rejects the old binding even if that kit has
