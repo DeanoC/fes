@@ -33,6 +33,7 @@
 #include "i386_oracle.h"
 #include "verilated.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -105,14 +106,20 @@ public:
     bool code32 = false;
     std::mt19937_64 *latency = nullptr;  // delays memory blocks when set
     uint64_t l2_empty_releases = 0;
+    uint64_t fetch_wait_cycles = 0;
+    bool last_fetch_waiting = false;
 
     uint8_t byte(uint32_t linear) const { return memory[linear % kMemoryBytes]; }
 
+    void delay_block(uint32_t block, unsigned cycles) { response_stalls[block] = cycles; }
+
     void reset() {
+        waiting = 0;
+        fetch_wait_cycles = 0;
+        address = 0;
         top.reset = 1;
         top.redirect = 0;
         top.d_ready = 1;
-        waiting = 0;
         top.mem_valid = 1;
         for (int n = 0; n < 3; ++n) clock(false);
         top.reset = 0;
@@ -128,6 +135,7 @@ public:
         top.eval();
         const bool load = top.mem_load;
         const uint32_t block = top.mem_block;
+        last_fetch_waiting = !top.mem_valid;
         const bool handshake = top.q_valid && d_ready && !redirect;
         if (handshake && taken) capture(*taken);
         l2_empty_releases += top.l2_empty_release;
@@ -136,16 +144,18 @@ public:
         if (load) {
             address = block;
             waiting = 0;
-            if (latency && (*latency)() % 2) waiting = unsigned((*latency)() % 12) + 1;
+            if (response_stalls.count(address)) waiting = response_stalls[address];
+            else if (latency && (*latency)() % 2) waiting = unsigned((*latency)() % 12) + 1;
         } else if (waiting) {
             --waiting;
         }
         top.mem_valid = waiting == 0;
+        if (last_fetch_waiting) ++fetch_wait_cycles;
         // Until the block arrives the port carries garbage.
         for (unsigned word = 0; word < 4; ++word) {
             uint32_t value = 0;
             for (unsigned i = 0; i < 4; ++i) value |= uint32_t(byte((address << 4) + 4 * word + i)) << (8 * i);
-            top.mem_data[word] = waiting == 0 ? value : uint32_t((*latency)());
+            top.mem_data[word] = waiting == 0 ? value : latency ? uint32_t((*latency)()) : ~value;
         }
         ++cycle;
         return handshake;
@@ -154,6 +164,7 @@ public:
 private:
     uint32_t address = 0;  // the memory model's registered block address
     unsigned waiting = 0;  // cycles until its block arrives
+    std::map<uint32_t, unsigned> response_stalls;  // fixed delays by block, ahead of latency
 
     void capture(Issued &out) {
         out.cycle = cycle;
@@ -213,6 +224,7 @@ struct Report {
     uint64_t cycles = 0, timing_checked = 0, timing_failures = 0;
     uint64_t issue_cycles = 0;  // timed streams: first to last issue of each run, inclusive
     std::map<unsigned, uint64_t> redirect_to_issue;  // timed streams: cycles from a redirect to its first issue
+    uint64_t fetch_wait_cycles = 0, boundary_wait_cycles = 0, cross_half_instructions = 0;
 
     void fail(const std::string &text) {
         ++failures;
@@ -232,6 +244,8 @@ struct Report {
                     "\"oracle_undefined\": %llu, \"too_long\": %llu, \"two_byte_opcode\": %llu, "
                     "\"by_prefix_count\": {%s}, \"cycles\": %llu, \"issue_cycles\": %llu, "
                     "\"redirect_to_issue\": {%s}, \"timing_checked\": %llu, \"timing_failures\": %llu, "
+                    "\"fetch_wait_cycles\": %llu, \"boundary_wait_cycles\": %llu, "
+                    "\"cross_half_instructions\": %llu, "
                     "\"failures\": %llu}\n",
                     stream.c_str(), code32 ? 32 : 16, fetch_latency ? "true" : "false",
                     (unsigned long long)l2_empty_releases, (unsigned long long)instructions,
@@ -239,6 +253,8 @@ struct Report {
                     (unsigned long long)escape, counts.c_str(), (unsigned long long)cycles,
                     (unsigned long long)issue_cycles, latency.c_str(), (unsigned long long)timing_checked,
                     (unsigned long long)timing_failures,
+                    (unsigned long long)fetch_wait_cycles, (unsigned long long)boundary_wait_cycles,
+                    (unsigned long long)cross_half_instructions,
                     (unsigned long long)failures);
         for (auto &line : examples) std::printf("FAIL %s: %s\n", stream.c_str(), line.c_str());
     }
@@ -468,6 +484,68 @@ Report timed_stream(const fes_i386::Oracle &oracle, Bench &bench, std::mt19937_6
     return report;
 }
 
+// Hold block 2 while Q releases half 0. The far CALL at byte 15 moves Q
+// directly to byte 23 in half 1; the 10-byte MOV there crosses into byte 32
+// in the delayed block. It must not issue using half 0's pre-edge valid bit.
+Report stallable_fetch_stream(const fes_i386::Oracle &oracle, Bench &bench) {
+    Report report;
+    report.stream = "fetch-stalled";
+    report.code32 = bench.code32;
+    std::fill(bench.memory.begin(), bench.memory.end(), 0x90);
+    const uint32_t long_start = 23;
+    bench.memory[15] = 0x2e;  // Segment override + 32-bit far CALL: 8 bytes total.
+    bench.memory[16] = 0x9a;
+    for (unsigned i = 0; i < 6; ++i) bench.memory[17 + i] = uint8_t(0x31 + i);
+    bench.memory[23] = 0xc7;  // MOV dword ptr [disp32], imm32: 10 bytes total.
+    bench.memory[24] = 0x05;
+    for (unsigned i = 0; i < 8; ++i) bench.memory[25 + i] = uint8_t(0x71 + i);
+
+    bench.latency = nullptr;
+    bench.delay_block(2, 100);
+    bench.reset();
+    const uint64_t begin = bench.cycle;
+    uint32_t next = 0;
+    bool redirect = true;
+    uint32_t target = 0;
+    uint64_t progress = bench.cycle;
+    while (next < long_start + 10 + 4) {
+        Issued got;
+        const uint32_t waiting_at = next;
+        const bool taken = bench.clock(true, redirect, target, &got);
+        redirect = false;
+        if (waiting_at == long_start && !taken && bench.last_fetch_waiting) {
+            ++report.boundary_wait_cycles;
+        }
+        if (!taken) {
+            if (bench.cycle - progress > 200) {
+                report.fail("front end stopped issuing after a delayed fetch");
+                break;
+            }
+            continue;
+        }
+        progress = bench.cycle;
+        if (got.linear != next) {
+            report.fail(describe(bench, got, "unexpected linear address"));
+            break;
+        }
+        Expected want = check(oracle, bench, got, report);
+        if (got.linear == long_start) {
+            ++report.cross_half_instructions;
+            if (bench.last_fetch_waiting)
+                report.fail(describe(bench, got, "issued across a half before the fetch response was ready"));
+            if (want.kind != Expected::Defined || got.length != 10)
+                report.fail(describe(bench, got, "expected 10-byte cross-half instruction"));
+        }
+        next = got.linear + got.length;
+    }
+    report.fetch_wait_cycles = bench.fetch_wait_cycles;
+    report.cycles = bench.cycle - begin;
+    if (!report.fetch_wait_cycles) report.fail("memory model did not stall a fetch response");
+    if (!report.boundary_wait_cycles) report.fail("Q did not wait at the cross-half instruction");
+    if (report.cross_half_instructions != 1) report.fail("cross-half instruction did not issue exactly once");
+    return report;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -500,6 +578,7 @@ int main(int argc, char **argv) {
         reports.push_back(timed_stream(*oracle, bench, random, "instructions-fetch-latency", 4, 0, count / 4, true));
         reports.push_back(timed_stream(*oracle, bench, random, "prefix-free-long-fetch-latency", 0, code32 ? 8 : 5,
                                        count / 4, true));
+        if (code32) reports.push_back(stallable_fetch_stream(*oracle, bench));
         for (const Report &report : reports) {
             report.print();
             failed |= report.failures != 0;

@@ -16,7 +16,8 @@ Verilator testbenches in cores/fes-common/sim/i386:
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
                    cycle, plus one cycle for each prefix before the last);
-                   then the same with random fetch latency, untimed.
+                   then the same with random fetch latency, untimed; and
+                   a delayed fetch response while Q crosses buffer halves.
   dag_tb.cpp       D's address operands (the forwarding table, scaling, the
                    late operand and its stalls) and AG, cycle by cycle: every
                    memory ModRM and SIB in both address sizes as a uop stream
@@ -159,6 +160,10 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
             latency = ', '.join(f'{cycles} cycles x{count}' for cycles, count in record['redirect_to_issue'].items())
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "
                      f"{record['timing_failures']} timing failures; redirect to first issue: {latency}")
+        if record['stream'] == 'fetch-stalled':
+            line += (f"; {record['fetch_wait_cycles']} fetch wait cycles, "
+                     f"{record['boundary_wait_cycles']} at the cross-half instruction, "
+                     f"{record['cross_half_instructions']} cross-half instructions")
         lines.append(line)
     for record in dag:
         waits = record['wait_cycles']
