@@ -1,6 +1,8 @@
 -- Computers: prepared ZX81 and Commodore 64 library entries.
--- Confirm stays here and calls session.launch. This room does not publish
--- a destination, add a socket, or name hardware the library did not return.
+-- Confirm stays here and calls session.launch. Set up opens that row's
+-- workbench: the ZX81 workbench or the Commodore 64 setup room.
+-- This room does not publish a destination or name hardware the library
+-- did not return.
 local List = require "widgets.list"
 local color = require "util.color"
 
@@ -16,6 +18,11 @@ local MACHINES = {
   ["fes.zx81"] = "ZX81",
   ["fes.c64"] = "Commodore 64",
 }
+local SETUP = {
+  ["fes.zx81"] = "example.hardware",
+  ["fes.c64"] = "example.c64",
+}
+local focus = "list"
 
 local list
 local rows
@@ -44,18 +51,18 @@ end
 local function add_rows(out, g)
   if not machine_of(g) or not g.launchable or not g.id or g.id == "" then return end
   local label = base_label(g)
-  out[#out + 1] = { id = g.id, label = label }
+  out[#out + 1] = { id = g.id, core_id = g.core_id, label = label }
   local seen = {}
   if g.expansion_id and g.expansion_id ~= "" then
     seen[g.expansion_id] = true
-    out[#out + 1] = { id = g.id, label = label .. "  ·  Expansion " .. short_id(g.expansion_id) }
+    out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Expansion " .. short_id(g.expansion_id) }
   end
   for _, slot in ipairs(g.slot_expansions or {}) do
     local eid = slot.expansion_id or ""
     if eid ~= "" and not seen[eid] then
       seen[eid] = true
       local n = slot.slot or 0
-      out[#out + 1] = { id = g.id, label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid) }
+      out[#out + 1] = { id = g.id, core_id = g.core_id, label = label .. "  ·  Slot " .. tostring(n) .. " " .. short_id(eid) }
     end
   end
 end
@@ -145,6 +152,16 @@ local function launch_selected()
   return true
 end
 
+local function open_setup()
+  if not list then return false end
+  local item = list:selected()
+  if type(item) ~= "table" then return false end
+  local room_id = SETUP[item.core_id or ""]
+  if not room_id then return false end
+  rooms.open(room_id, { game_id = item.id })
+  return true
+end
+
 function load()
   library.query({
     platform = "fpga",
@@ -163,17 +180,37 @@ function load()
 end
 
 function on_input(cmd)
+  if focus == "setup" then
+    if cmd == "left" or cmd == "up" or cmd == "down" then
+      focus = "list"
+      return true
+    end
+    if cmd == "select" then return open_setup() end
+    if cmd == "right" then return true end
+    return false
+  end
+  if cmd == "right" and rows and #rows > 0 then
+    focus = "setup"
+    return true
+  end
   if list and list:input(cmd) then return true end
   if cmd == "select" then return launch_selected() end
   return false
 end
 
 function on_hover(id)
-  if list then list:on_hover(id) end
+  if id == "setup" then focus = "setup" return end
+  if list and list:on_hover(id) then focus = "list" end
 end
 
 function on_activate(id)
+  if id == "setup" then
+    focus = "setup"
+    open_setup()
+    return
+  end
   if not list or not list:on_activate(id) then return end
+  focus = "list"
   launch_selected()
 end
 
@@ -187,8 +224,18 @@ function draw()
     note = load_err
   elseif rows and #rows == 0 and status == "" then
     note = "No prepared ZX81 or Commodore 64 entries yet."
+  elseif rows and #rows > 0 and status == "" then
+    note = "Confirm starts. Set up opens its workbench."
   end
   gfx.text(note, 64, 76, { size = 16, color = STATUS })
+  if rows and #rows > 0 then
+    local x, y, w, h = 980, 24, 180, 48
+    local fill = focus == "setup" and room.theme.accent or PLATE
+    local ink = focus == "setup" and FOCUS_INK or INK
+    gfx.rect(x, y, w, h, fill)
+    gfx.text("Set up", x + 16, y + 12, { size = 22, color = ink, bold = focus == "setup" })
+    gfx.hit("setup", x, y, w, h)
+  end
   if list then
     list:draw{
       label = function(item) return item.label end,

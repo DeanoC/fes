@@ -108,6 +108,28 @@ func TestGamesListAttachesCoreIDForCorePackages(t *testing.T) {
 		t.Fatalf("detail %+v", result)
 	}
 
+	service.entries = []catalog.CoreEntry{{
+		GameID: "fpga-c64-game", CoreID: "fes.c64",
+		PackageID: strings.Repeat("cd", 32),
+		MediaRole: "disk", MediaID: strings.Repeat("ab", 32),
+	}}
+	service.game = catalog.Game{}
+	service.variants = nil
+	service.fakeService.games = []catalog.Game{{
+		ID: "fpga-c64-game", Title: "Impossible Mission", System: catalog.CorePlatform,
+		Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
+	}}
+	media := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if media.Code != http.StatusOK {
+		t.Fatal(media.Body.String())
+	}
+	mediaBody := media.Body.String()
+	for _, want := range []string{`"core_id":"fes.c64"`, `"package_id":"` + strings.Repeat("cd", 32), `"media_role":"disk"`, `"media_id":"` + strings.Repeat("ab", 32)} {
+		if !strings.Contains(mediaBody, want) {
+			t.Fatalf("saved disk missing %s in %s", want, mediaBody)
+		}
+	}
+
 	service.entryErr = errors.New("core entries unavailable")
 	failed := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
 	if failed.Code != http.StatusOK || strings.Contains(failed.Body.String(), `"core_id"`) {
