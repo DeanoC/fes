@@ -192,6 +192,14 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
     return output / ('V' + TOP)
 
 
+def flag_hold_failures(gaps: dict) -> list[str]:
+    """D's flag hold, cycle-exactly: without latency a flag consumer right
+    after a shift or rotate retires two cycles after it, anything else one."""
+    return [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
+            for key, expected in (('shift_consumer', 2), ('after_shift', 1))
+            for gap, count in gaps[key].items() if gap != expected]
+
+
 def parse_output(text: str) -> tuple[dict, list[str]]:
     summary, failures = None, []
     for line in text.splitlines():
@@ -338,11 +346,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift')}
-    # D's flag hold, cycle-exactly: without latency a flag consumer right
-    # after a shift or rotate retires two cycles after it, anything else one.
-    hold_failures = [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
-                     for key, expected in (('shift_consumer', 2), ('after_shift', 1))
-                     for gap, count in gaps[key].items() if gap != expected]
+    hold_failures = flag_hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += hold_failures

@@ -93,6 +93,12 @@ class OutputTest(unittest.TestCase):
         with self.assertRaises(lockstep.LockstepError):
             lockstep.parse_output('Segmentation fault\n{"runs": 1}\n')
 
+    def test_flag_hold_is_checked_cycle_exactly(self):
+        self.assertEqual(lockstep.flag_hold_failures({'shift_consumer': {2: 5}, 'after_shift': {1: 7}}), [])
+        self.assertEqual(lockstep.flag_hold_failures({'shift_consumer': {1: 3, 2: 5}, 'after_shift': {2: 4}}),
+                         ['FAIL flag hold: 3 shift_consumer retirements 1 cycles apart',
+                          'FAIL flag hold: 4 after_shift retirements 2 cycles apart'])
+
     def test_cpu_sources_exist(self):
         for name in lockstep.CPU_RTL:
             with self.subTest(source=name):
