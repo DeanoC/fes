@@ -208,6 +208,10 @@ what it reads correctly:
 - logic replicated to cut fanout merges back into one copy even on
   `(* keep *)` wires, so each replica needs its own kept input register
   ([#51](https://github.com/DeanoC/yosys/issues/51)).
+- two field selects of one variably indexed record element (`dec[start].run`
+  and `dec[start].prefix`) share a multiply that maps to a DSP; qalign copies
+  the whole record first ([#59](https://github.com/DeanoC/yosys/issues/59),
+  fixed by [#60](https://github.com/DeanoC/yosys/pull/60), not yet in the lock).
 
 `dist` is a SystemVerilog keyword (the constraint operator); Verilator rejects
 it as a signal name, so the forwarding modules spell the distance `dist_a` or
