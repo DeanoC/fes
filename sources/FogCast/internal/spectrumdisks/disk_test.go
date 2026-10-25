@@ -163,9 +163,9 @@ func TestImagesMatchFuse(t *testing.T) {
 		data []byte
 		want string
 	}{
-		"trd 80x2": {trd(0x16, 160), "e5d21a5d29b2b1f1afea4dbf0069268b0634f4d42fabb50be45f49b4abcd1bc0"},
-		"trd 40x1": {trd(0x19, 40), "a8c9d83b77daa0038d7dbdb62279468b7bfbf6046af0a8d9c26381d298e5b897"},
-		"scl":      {scl(), "b5ba4d123024fa884d9967f1b93022bbf39796715d9b86521fb55037d222ffbd"},
+		"trd 80x2": {trd(0x16, 160), "93c538efd803dab656dc1885ec320ef4857b57a6f644e6ae13e7eb61a52cd67a"},
+		"trd 40x1": {trd(0x19, 40), "0d2158f59dbf0fbd743af67a6136dbb496582fad69df489e43dc1d4fe05f7e66"},
+		"scl":      {scl(), "3b85939ec889c8e37b211fe4d94934a73434612c93b3c8fdb201647c6b4200e8"},
 	} {
 		image, err := Convert(tc.data, false)
 		if err != nil {
@@ -184,7 +184,7 @@ func TestImageLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A single-sided disk ends at cylinder 79 side 0.
-	if len(image) != (1+2*79+1)*SlotBytes || !bytes.HasPrefix(image, []byte{'Z', 'X', 'D', 'K', Version, 80, 1, 2}) {
+	if len(image) != (1+2*79+1)*SlotBytes || !bytes.HasPrefix(image, []byte{'Z', 'X', 'D', 'K', Version, 80, 1, 2, 13}) {
 		t.Fatalf("%d bytes, header % x", len(image), image[:8])
 	}
 	d, _ := Read(trd(0x18, 80))
@@ -195,7 +195,7 @@ func TestImageLayout(t *testing.T) {
 		}
 		slot := image[(1+2*c)*SlotBytes:][:SlotBytes]
 		track := d.Tracks[c][0]
-		if binary.LittleEndian.Uint16(slot) != ddBytes || !bytes.Equal(slot[trackData:trackData+ddBytes], track.Bytes) {
+		if binary.LittleEndian.Uint16(slot) != ddBytes || !bytes.Equal(slot[SlotBytes/8:SlotBytes/8+ddBytes], track.Bytes) {
 			t.Fatalf("cylinder %d slot differs", c)
 		}
 		for i, clock := range track.Clocks {
@@ -276,5 +276,143 @@ func TestLaunchDiskGetsABootLoader(t *testing.T) {
 	swap, _ := Convert(data, false)
 	if bytes.Equal(launch[SlotBytes:], swap[SlotBytes:]) || launch[7] != 2 || swap[7] != 0 {
 		t.Fatal("launch and swapped images do not differ as expected")
+	}
+}
+
+type dskSector struct {
+	c, h, r, n, st1, st2 byte
+	data                 []byte // stored bytes: copies of a weak sector, or data with its gap tail
+}
+
+type dskTrack struct {
+	cylinder, side, mode byte // mode 2 MFM, 1 FM
+	sectors              []dskSector
+}
+
+func fill(n int, seed byte) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = byte(i*13) + seed
+	}
+	return b
+}
+
+// edsk writes an extended DSK image of the given tracks, in order.
+func edsk(cylinders, sides int, tracks []dskTrack) []byte {
+	hdr := make([]byte, 256)
+	copy(hdr, "EXTENDED CPC DSK File\r\nDisk-Info\r\n")
+	hdr[0x30], hdr[0x31] = byte(cylinders), byte(sides)
+	var body []byte
+	for i, t := range tracks {
+		info := make([]byte, 256)
+		copy(info, "Track-Info\r\n")
+		info[0x10], info[0x11], info[0x13] = t.cylinder, t.side, t.mode
+		info[0x14], info[0x15], info[0x16], info[0x17] = 2, byte(len(t.sectors)), 0x4e, 0xe5
+		var data []byte
+		for j, s := range t.sectors {
+			e := info[0x18+8*j:]
+			e[0], e[1], e[2], e[3], e[4], e[5] = s.c, s.h, s.r, s.n, s.st1, s.st2
+			e[6], e[7] = byte(len(s.data)), byte(len(s.data)>>8)
+			data = append(data, s.data...)
+		}
+		track := append(info, data...)
+		track = append(track, make([]byte, (256-len(track)%256)%256)...)
+		hdr[0x34+i] = byte(len(track) / 256)
+		body = append(body, track...)
+	}
+	return append(hdr, body...)
+}
+
+// plus3Format is a +3 data track: nine 512-byte sectors numbered from 1.
+func plus3Format(cylinder byte) dskTrack {
+	t := dskTrack{cylinder: cylinder, mode: 2}
+	for r := byte(1); r <= 9; r++ {
+		t.sectors = append(t.sectors, dskSector{c: cylinder, r: r, n: 2, data: fill(512, cylinder*9+r)})
+	}
+	return t
+}
+
+func dskCases() map[string][]byte {
+	weak := append(fill(512, 1), fill(512, 1)...)
+	for i := 100; i < 300; i++ {
+		weak[512+i] ^= 0x5a // the second copy differs over 200 bytes
+	}
+	protected := dskTrack{cylinder: 1, mode: 2, sectors: []dskSector{
+		{c: 1, r: 1, n: 2, data: fill(512, 9)},
+		{c: 1, r: 2, n: 2, st1: 0x20, st2: 0x20, data: fill(512, 8)}, // data CRC error
+		{c: 1, r: 3, n: 2, st1: 0x20, data: fill(512, 7)},            // ID CRC error
+		{c: 1, r: 4, n: 2, st2: 0x40, data: fill(512, 6)},            // deleted data
+		{c: 1, r: 5, n: 2, data: weak},                               // weak: two copies
+		{c: 1, r: 6, n: 1, data: fill(300, 5)},                       // 44 bytes in the gap
+	}}
+	fm := dskTrack{cylinder: 2, mode: 1, sectors: []dskSector{{c: 2, r: 1, n: 1, data: fill(256, 4)}}}
+	long := dskTrack{cylinder: 0, mode: 2}
+	for r := byte(1); r <= 13; r++ {
+		long.sectors = append(long.sectors, dskSector{c: 0, r: r, n: 2, data: fill(512, r)})
+	}
+	return map[string][]byte{
+		"plus3":     edsk(3, 1, []dskTrack{plus3Format(0), plus3Format(1), plus3Format(2)}),
+		"protected": edsk(3, 1, []dskTrack{plus3Format(0), protected, fm}),
+		"long":      edsk(1, 1, []dskTrack{long}),
+	}
+}
+
+// The .dsk cases below were compared track by track, with their clock and
+// weak bitmaps, against the raw tracks Fuse 1.6.0's disk.c builds for a +3
+// (open_cpc with DISK_FLAG_PLUS3_CPC); so were the 710 local .dsk images Fuse
+// opens (the 14 it refuses are refused here too).
+func TestDSKImagesMatchFuse(t *testing.T) {
+	want := map[string]string{
+		"plus3":     "f927495cf2f55b0a75069e0c314a87590daff5fed1ed64839e0502b174335264",
+		"protected": "f9467f5c3eefd4db512ef1a51683e4fab36e281d31737a6e2e43acc77d241ec2",
+		"long":      "89e67895b8b3a3127ad7ab0fb0c6cc5c5a3a3419aa6b45202579749d9c499e52",
+	}
+	for name, data := range dskCases() {
+		d, err := Read(data)
+		if err != nil || d.System != Plus3 {
+			t.Fatalf("%s: %v", name, err)
+		}
+		image, err := Convert(data, false)
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		sum := sha256.Sum256(image)
+		if got := hex.EncodeToString(sum[:]); got != want[name] {
+			t.Errorf("%s: image sha256 %s", name, got)
+		}
+	}
+}
+
+func TestDSKSlotLayout(t *testing.T) {
+	cases := dskCases()
+	image, _ := Convert(cases["protected"], true)
+	if image[8] != 13 || image[7] != 2 {
+		t.Fatalf("header % x", image[:9])
+	}
+	weak := image[3*SlotBytes:][:SlotBytes]
+	if start, n := binary.LittleEndian.Uint16(weak[SlotBytes/8-144:]), binary.LittleEndian.Uint16(weak[SlotBytes/8-142:]); n != 200 ||
+		binary.LittleEndian.Uint16(weak[SlotBytes/8-140:]) != 0 {
+		t.Fatalf("weak range %d+%d", start, n)
+	}
+	if image[5*SlotBytes+2] != 1 || image[3*SlotBytes+2] != 0 {
+		t.Fatal("FM track flag")
+	}
+	long, _ := Convert(cases["long"], false)
+	if long[8] != 14 || len(long) != 2*LargeSlotBytes || binary.LittleEndian.Uint16(long[LargeSlotBytes:]) != 10416 {
+		t.Fatalf("long track image: shift %d, %d bytes", long[8], len(long))
+	}
+	// A track the image cannot hold, and one with too many weak ranges.
+	d := newDisk(1, 1)
+	d.Tracks[0][0] = &Track{Bytes: make([]byte, MaxTrackBytes+1), Clocks: make([]bool, MaxTrackBytes+1)}
+	if _, err := d.Image(); err == nil {
+		t.Error("oversized track accepted")
+	}
+	w := make([]bool, 6250)
+	for i := 0; i < 2*(MaxWeakRanges+1); i += 2 {
+		w[i] = true
+	}
+	d.Tracks[0][0] = &Track{Bytes: make([]byte, 6250), Clocks: make([]bool, 6250), Weak: w}
+	if _, err := d.Image(); err == nil {
+		t.Error("too many weak ranges accepted")
 	}
 }

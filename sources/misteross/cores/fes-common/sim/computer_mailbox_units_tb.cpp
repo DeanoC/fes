@@ -31,7 +31,7 @@ constexpr uint32_t IDENTITY = 1, INFO = 5, BEGIN = 6, CHUNK = 7, DATA = 8, COMMI
 constexpr uint32_t E_INDEX = 2, E_ARGUMENT = 3, E_STATE = 4;
 constexpr uint32_t EMPTY = 1, LOADING = 2, READY = 3;
 constexpr uint32_t DISK_BIT = 0x8000u;
-constexpr uint32_t DISK_MIN = 8192, DISK_MAX = 1417216, TAPE_MIN = 10, TAPE_MAX = 16777216;
+constexpr uint32_t DISK_MIN = 8192, DISK_MAX = 2834432, TAPE_MIN = 10, TAPE_MAX = 16777216;
 
 uint32_t crc32(const std::vector<uint8_t>& bytes) {
     uint32_t c = 0xffffffffu;
