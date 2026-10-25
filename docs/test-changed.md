@@ -329,8 +329,8 @@ queries to prove it would rebuild. It changes no timestamps and compiles nothing
 Runtime Makefiles, shell scripts, third-party inputs, CI/policy changes and
 unknown inputs retain `make test`, which actually touches the representative
 headers and rebuilds every test binary, verifying its timestamp. The full
-functional suite runs once before those timestamp-only header changes. Scheduled/manual runs
-and `test-changed --full` retain this exhaustive mode. Direct `make test` remains
+functional suite runs once before those timestamp-only header changes.
+Scheduled/manual runs and `test-changed --full` retain this exhaustive mode. Direct `make test` remains
 exhaustive. Inspect selection with
 `python3 scripts/runtime_tests.py --plan-only --paths-json '["sources/libmister-runtime/src/native/input.cpp"]'`.
 
