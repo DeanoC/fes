@@ -47,7 +47,10 @@ The experimental video PLL also supplies a second 74.25 MHz output at phase
 8979 ps through a dedicated global buffer for `HDMI_TX_CLK`. Pixel registers
 stay on phase zero. The receiver samples between pixel updates, giving its
 hold requirement headroom without changing pixel order or rate. The default
-profile retains one video PLL output and forwards the pixel clock directly.
+profile retains one video PLL output and forwards the pixel clock directly;
+its unused second-output frequency and phase select zero. A focused native
+pack regression lowers the actual clock block in both profile settings and
+rejects nonzero settings on the unused output.
 The pixel-order proof and conditional external timing results are recorded
 with the native three-seed trial; physical board qualification remains open.
 

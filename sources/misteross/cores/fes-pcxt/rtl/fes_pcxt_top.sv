@@ -29,8 +29,8 @@ module top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 2 : 1),
-        .output_clock_frequency0("74.25 MHz"), .output_clock_frequency1("74.25 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1("8979 ps"), .duty_cycle0(50), .duty_cycle1(50),
+        .output_clock_frequency0("74.25 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "74.25 MHz" : "0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "8979 ps" : "0 ps"), .duty_cycle0(50), .duty_cycle1(50),
         .operation_mode("direct"), .fractional_vco_multiplier("true")
     ) video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(video_clocks), .locked(video_locked));
     assign clk_pixel = video_clocks[0];

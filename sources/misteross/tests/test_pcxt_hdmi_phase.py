@@ -44,8 +44,13 @@ def actual_pins():
         \s*end\s+else\s+begin:\s*common_hdmi_clock
         \s*assign\s+clk_hdmi\s*=\s*clk_pixel;\s*end\s+endgenerate''', source[start:end], re.VERBOSE):
         raise ValueError('HDMI clock selection changed; review the clock projection')
-    frequency = [float(re.search(r'output_clock_frequency' + str(n) + r'\("([\d.]+) MHz"\)', source[source.index('wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;'):]).group(1)) for n in [0, 1]]
-    phase = [float(re.search(r'phase_shift' + str(n) + r'\("([\d.]+) ps"\)', source[source.index('wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;'):]).group(1)) for n in [0, 1]]
+    pll = source[source.index('wire [(HALF_RATE_BOARD ? 2 : 1)-1:0] video_clocks;'):]
+    frequency = [float(re.search(pattern, pll).group(1)) for pattern in (
+        r'output_clock_frequency0\("([\d.]+) MHz"\)',
+        r'output_clock_frequency1\(HALF_RATE_BOARD \? "([\d.]+) MHz" : "0 MHz"\)')]
+    phase = [float(re.search(pattern, pll).group(1)) for pattern in (
+        r'phase_shift0\("([\d.]+) ps"\)',
+        r'phase_shift1\(HALF_RATE_BOARD \? "([\d.]+) ps" : "0 ps"\)')]
     if frequency != [74.25, 74.25] or phase[0] != 0 or not 0 < phase[1] < 1e6 / frequency[1]:
         raise ValueError('expected equal pixel rates with a distinct in-period HDMI edge')
     pins = re.findall(r'(?m)^\s*assign HDMI_TX_(?:CLK|D|DE|HS|VS)\s*=[^;]+;', source)

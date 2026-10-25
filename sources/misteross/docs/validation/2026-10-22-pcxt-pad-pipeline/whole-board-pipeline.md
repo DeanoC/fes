@@ -827,3 +827,18 @@ original failing HDMI contract remain retained as diagnostics. No kit ran;
 native fast-corner calibration, board/load/flight bounds, reset/CDC/HPS physical
 qualification and exact-artifact acceptance remain open. MDA/Scanlines inherit
 no routed acceptance from this CGA Direct cohort.
+
+The full affected run at `f925f35eeb` passes 843 parent tests, 1334 component
+tests and all 21 PC/XT suites. Its ordinary authenticated synthesis reproduces
+the complete frozen timing-input JSON after directory-prefix normalization
+only; generated ROMs match. The four committed-source pixel-order proof cases
+and all three reset-consumer audits also pass.
+
+Follow-up review catches a default-profile packing regression: the second
+video output is unused there, and the native PLL validator requires its
+frequency and phase to be zero. Those two parameters now select zero when
+`HALF_RATE_BOARD=0`; the experimental settings remain 74.25 MHz/8979 ps. Native
+pack checks lower the actual clock block in both modes and reject deliberate
+nonzero-unused-frequency and nonzero-unused-phase mutations. The old and fixed
+experimental clock-block synthesis JSONs are entirely identical. Final-source
+producer and affected-regression verification follows this correction.
