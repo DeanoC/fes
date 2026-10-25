@@ -186,24 +186,32 @@ writes `build/sim/fes-i386-frontend/report.json`:
 
 | Testbench | Scope | Coverage |
 | --- | --- | --- |
-| [`lendec_tb.cpp`](lendec_tb.cpp) | The 16 per-byte length decoders | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
-| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly |
-| [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv) | Exhaustive over every memory ModRM, every SIB and both address sizes, with random register files and random producers in AG, M1, M2, EX and WB: D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset. Needs no oracle |
+| [`lendec_tb.cpp`](lendec_tb.cpp) | The per-byte length decode, L1's 16 decoders feeding L2's sums through [`lendec_tb_top.sv`](lendec_tb_top.sv) | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Each byte's length for all four prefix-accumulator variants, against the oracle's decode behind the variant's extra 66h and 67h; each variant's end and next-half bit. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
+| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly, as is each redirect's first issue. A directed 32-bit case delays a fetch response after Q releases the first half; a 10-byte MOV crosses back into it. The check requires Q to wait for the response and then match Bochs. |
+| [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv), cycle by cycle | Every memory ModRM, every SIB and both address sizes as a uop stream whose producers move through AG, M1, M2, EX and WB, most writing a register one of the next uops reads: each cycle D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset; a stalled uop is checked again until it leaves. Then each kind of result into the next uop's base, unscaled index and scaled index, timed against the design's latencies. Needs no oracle |
 
 A case is compared where the oracle defines the encoding; for LOCK, the
 encoding without LOCK, since LOCK's validity is D's check. An instruction the
 oracle cannot fit in 15 bytes must come out `too_long`.
 
+The bench's `mem_ready` qualifies the response for the block at the registered
+memory address. The directed case withholds block 2 after block 1 has filled
+the other half, so the L2 pipeline empties while Q releases the first half.
+Q jumps from a far CALL at byte 15 to a 10-byte MOV at byte 23. The MOV's
+first bytes are in half 1 and its immediate crosses into the released half 0;
+the test verifies that it does not issue until block 2 arrives.
+
 ```sh
 python3 scripts/test_fes_i386_frontend.py --download
 python3 scripts/test_fes_i386_frontend.py --bench frontend --instructions 50000 --seed 7
-python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/locked/yosys
+python3 scripts/test_fes_i386_frontend.py --yosys /abs/path/to/i386-locked/yosys
 ```
 
 `--yosys` runs every check on the netlist that Yosys writes from the RTL
 instead of the RTL itself. The spikes are built from Yosys's reading of the
-SystemVerilog, and the repository's Yosys has misread constructs without an
-error.
+SystemVerilog, and Yosys has misread constructs without an error. Use the
+Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
+the repository lock's older Yosys misreads the RTL's per-byte records.
 
 ## Timing spikes
 
@@ -212,19 +220,30 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
 | --- | --- |
-| `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select), L, the buffer and Q |
-| `spike_dag.sv` | D's address operands (addressing decode, register file, forwarding by tag, scaling, segment select) and AG |
+| `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select with the hit signals replicated per two bytes), L1, L2, the buffer and Q |
+| `spike_dag.sv` | D's address operands (addressing decode, register file, the forwarding table, scaling, segment select) and AG, with the producers moving through AG-EX registers; D's opcode decode, not built, is stimulus |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
-authenticated Yosys (M10K and DSP allowed, no LUT RAM) and routes each seed
+authenticated Yosys, by default the i386 lock's (M10K and DSP allowed, no LUT
+RAM), and routes each seed
 with nextpnr's GPU router through `gpu-run`, CPU fallback rejected. Timing is
 allowed to fail so a miss is measured; it writes `summary.json` and
-`runs.jsonl` with each seed's fmax, critical path and a figure per pipeline
-stage (the worst setup slack among the registers the stage writes).
+`runs.jsonl` with each seed's fmax, critical path, a figure per pipeline
+stage (the worst setup slack among the registers the stage writes) and the
+envelope's worst endpoints. Each JSONL row joins the route to the lock, tool,
+source, synthesis, logic-depth, and cell-count identities from `summary.json`;
+`--version` supplies its run label. `cells_by_stage` counts the labeled FF and
+M10K cells. Each synthesis also records every stage's deepest logic path
+before placement: LUT levels, carry cells and the named nets on it.
 
 ```sh
-python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains
+FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains \
+  FES_TOOLCHAIN_LOCKFILE="$PWD/cores/fes-common/rtl/i386/toolchain.lock" \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  scripts/bootstrap.sh   # provisions the i386 lock's toolchain once
+python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains \
+    --version "phase 1 front-end fixes"
 ```
 
 ## Tests
