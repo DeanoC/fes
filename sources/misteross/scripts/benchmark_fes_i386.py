@@ -30,7 +30,7 @@ measured; nothing here is a signoff.
 
 Example:
   python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains \\
-      --spike ag --seed 1 --seed 2
+      --spike dag --seed 1 --seed 2
 
 Results describe the spike envelope. They are diagnostic place-and-route
 measurements, not packages or board acceptance.

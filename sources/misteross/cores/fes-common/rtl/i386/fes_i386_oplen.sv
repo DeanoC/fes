@@ -27,7 +27,7 @@ module fes_i386_oplen (
 
     // Each table sets the fields it needs on a cleared form_t. A function
     // returning form_t, called from another function, reads as empty in Yosys
-    // 3a5accbd; scripts/test_fes_i386_frontend.py --yosys checks the netlist.
+    // 3a5accbd. The runner checks it with --bench lendec --yosys <yosys>.
     typedef struct packed {
         logic modrm;
         logic creg;   // ModRM present and always a register form
