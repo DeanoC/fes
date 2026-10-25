@@ -129,6 +129,17 @@ class ReceiptTest(unittest.TestCase):
                 self.assertIn(name, before_info["image_recipe"])
                 self.assertIn(name, after_info["image_recipe"])
 
+            output = root / "out"
+            output.mkdir()
+            build.publish_action_inputs(output, "image", after_info)
+            with mock.patch.object(build, "git", return_value="a" * 40):
+                build.write_receipt(output, "image", after, ["inputs.json"])
+            receipt = json.loads((output / "image.json").read_text())
+            recorded_inputs = json.loads((output / "inputs.json").read_text())
+            self.assertEqual(receipt["inputs"], after)
+            self.assertEqual(receipt["files"]["inputs.json"], build.digest(output / "inputs.json"))
+            self.assertEqual(recorded_inputs["image_recipe"], after_info["image_recipe"])
+
     def test_host_fingerprint_excludes_unrelated_system_inputs_but_binds_host_inputs(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

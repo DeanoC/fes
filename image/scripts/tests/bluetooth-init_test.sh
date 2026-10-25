@@ -124,3 +124,10 @@ wait_for_start
 test ! -e "$BT_SIGNALS"
 test "$(cat "$BT_STARTS")" = start
 test "$(cat "$fixture/pid")" != 4242
+
+setup_old_agent
+BT_PROCESS_EXE=/usr/bin/sleep "$fixture/init" restart
+wait_for_start
+test ! -e "$BT_SIGNALS"
+test "$(cat "$BT_STARTS")" = start
+test "$(cat "$fixture/pid")" != 4242

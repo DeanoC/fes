@@ -775,12 +775,15 @@ func (a *agent) dispatch(call *Message) (string, []byte, string) {
 	case "RequestConfirmation":
 		// A NoInputNoOutput agent cannot compare or confirm a passkey. Just
 		// Works pairing does not require this callback.
+		log.Printf("bluetooth: rejecting passkey confirmation; NoInputNoOutput cannot verify passkeys")
 		return "", nil, "org.bluez.Error.Rejected"
 	case "RequestAuthorization":
 		path, err := bodyObject(call.Body)
 		if err != nil || !a.attempts.Has(path) {
 			return "", nil, "org.bluez.Error.Rejected"
 		}
+		// attempts.Start admits only policy-approved gamepads, and Has requires
+		// an in-flight Pair attempt. This is the Just Works authorization path.
 		return "", nil, ""
 	case "AuthorizeService":
 		path, uuid, err := bodyPathUUID(call.Body)

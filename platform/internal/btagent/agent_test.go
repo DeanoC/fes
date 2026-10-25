@@ -2,9 +2,11 @@ package btagent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"testing"
@@ -111,9 +113,12 @@ func TestPairingCallbacksMatchNoInputNoOutput(t *testing.T) {
 	}
 	a := &agent{attempts: attempts}
 	for _, passkey := range []uint32{0, 654321} {
-		if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirmPasskey(path, passkey)}); errName == "" {
-			t.Errorf("NoInputNoOutput agent confirmed passkey %d", passkey)
+		if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirmPasskey(path, passkey)}); errName != "org.bluez.Error.Rejected" {
+			t.Errorf("RequestConfirmation error = %q for passkey %d, want org.bluez.Error.Rejected", errName, passkey)
 		}
+	}
+	if _, _, errName := a.dispatch(&Message{Member: "RequestAuthorization", Body: bodyPath(path)}); errName != "" {
+		t.Fatalf("Just Works gamepad authorization rejected during Pair: %s", errName)
 	}
 	sig, pinBody, errName := a.dispatch(&Message{Member: "RequestPinCode", Body: bodyPath(path)})
 	if errName != "" || sig != "s" {
@@ -146,6 +151,28 @@ func TestPairingCallbacksMatchNoInputNoOutput(t *testing.T) {
 		if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirm(dev.Path)}); errName == "" {
 			t.Errorf("RequestConfirmation accepted non-gamepad %s", dev.Path)
 		}
+		if _, _, errName := a.dispatch(&Message{Member: "RequestAuthorization", Body: bodyPath(dev.Path)}); errName != "org.bluez.Error.Rejected" {
+			t.Errorf("RequestAuthorization error = %q for non-gamepad %s, want org.bluez.Error.Rejected", errName, dev.Path)
+		}
+	}
+	attempts.Finish(path, false, time.Unix(1_700_000_001, 0))
+	if _, _, errName := a.dispatch(&Message{Member: "RequestAuthorization", Body: bodyPath(path)}); errName != "org.bluez.Error.Rejected" {
+		t.Errorf("RequestAuthorization error = %q after Pair finished, want org.bluez.Error.Rejected", errName)
+	}
+}
+
+func TestRequestConfirmationRejectionIsLogged(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&output)
+	t.Cleanup(func() { log.SetOutput(previous) })
+
+	a := &agent{attempts: newAttempts()}
+	if _, _, errName := a.dispatch(&Message{Member: "RequestConfirmation", Body: bodyConfirmPasskey(gamepadPath, 654321)}); errName != "org.bluez.Error.Rejected" {
+		t.Fatalf("RequestConfirmation error = %q, want org.bluez.Error.Rejected", errName)
+	}
+	if !strings.Contains(output.String(), "rejecting passkey confirmation") {
+		t.Fatalf("RequestConfirmation rejection was not logged: %q", output.String())
 	}
 }
 
@@ -380,6 +407,13 @@ func fakeBlueZ(conn net.Conn) error {
 				return errors.New("paired " + msg.Path)
 			}
 			pairCount++
+			authorization, err := callAgent("RequestAuthorization", "o", bodyPath(gamepadPath))
+			if err != nil {
+				return err
+			}
+			if authorization.Type != msgMethodReturn {
+				return errors.New("Just Works gamepad authorization rejected")
+			}
 			pin, err := callAgent("RequestPinCode", "o", bodyPath(gamepadPath))
 			if err != nil {
 				return err
