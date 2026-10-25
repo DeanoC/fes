@@ -7,8 +7,10 @@
 // and $3FFD (0011) as the data register; $1FFD bit 3 is the drive motor. The
 // +3 wires only US0, so units 0 and 2 are drive A and 1 and 3 drive B; drive
 // A reads the fes.media.spectrum-disk raw track image through spectrum_fdd,
-// and drive B is absent. A drive is ready 400 ms after the motor starts with
-// a disk in it and the disk turns while the motor runs, as fdd.c has it.
+// and drive B is empty: write protected, with its own head, never ready, as
+// in Fuse's default +3. A drive is ready 400 ms after the motor starts with
+// a disk in it and the disk turns while the motor runs, as fdd.c has it. The
+// step, head load and head unload times count whole milliseconds.
 //
 // Commands follow upd_fdc.c: Read Data and Read Deleted Data (MT, the +3's
 // missing terminal count ending every read with End of Cylinder, Fuse's SK
@@ -116,9 +118,9 @@ module spectrum_upd765 #(
     reg [3:0] seek_queue;              // started, waiting for the stepper
     typedef enum logic [2:0] {I_NONE, I_RESULT, I_EXE, I_READY, I_SEEK} intrq_t;
     intrq_t intrq;
-    reg [23:0] step_t, hut_t, hld_t;
+    reg [9:0] step_t, hut_t, hld_t;    // in ms
     reg head_loaded;
-    reg [23:0] head_count;
+    reg [9:0] head_count;
     reg head_armed;
 
     // ------------------------------------------------------------- the drive
@@ -142,7 +144,7 @@ module spectrum_upd765 #(
         .fetch(fetch), .fetch_addr(fetch_addr), .fetch_ready(fetch_ready), .fetch_data(fetch_data),
         .boot(boot)
     );
-    // Drive B is absent: never ready, no track 0.
+    // Drive B is empty: never ready.
     wire ready = drive_ready && loaded;
 
     reg [7:0] result_byte;
@@ -154,8 +156,12 @@ module spectrum_upd765 #(
         else if (cycle == 4'd2) result_byte = st2;
         else result_byte = dr[cycle - 4'd2];
     end
-    assign rdata = !data_port ? {rqm, dio, exm, cb, seeking} :
-                   !(rqm && dio) ? 8'hff : phase == P_RES ? result_byte : data_r;
+    // A read of the data register keeps the byte it started with: the CPU
+    // samples it later in the cycle, after the read has moved the phase on.
+    wire [7:0] data_now = !(rqm && dio) ? 8'hff : phase == P_RES ? result_byte : data_r;
+    reg [7:0] data_held;
+    always @(posedge clk) if (read_strobe && data_port) data_held <= data_now;
+    assign rdata = !data_port ? {rqm, dio, exm, cb, seeking} : read_strobe ? data_now : data_held;
 
     function automatic [15:0] crc_step(input [15:0] crc, input [7:0] b);
         integer i;
@@ -175,7 +181,10 @@ module spectrum_upd765 #(
     exec_t xs;
     typedef enum logic [1:0] {K_IDLE, K_STEP, K_WAIT} seek_t;
     seek_t ks;
-    reg [23:0] wait_t, seek_t_count;
+    reg [9:0] wait_t, seek_t_count;    // in ms
+    // The step, head load and unload timers count milliseconds.
+    reg [11:0] ms_div;
+    wire ms_tick = tick && ms_div == 12'(T_PER_MS - 1);
     reg [1:0] revs;                    // index pulses in this search
     reg [2:0] id_count;
     reg [7:0] id_c, id_h, id_r, id_n;
@@ -313,9 +322,10 @@ module spectrum_upd765 #(
                 pcn[i] <= 8'd0;
                 seek_st[i] <= 3'd0;
             end
-            step_t <= 24'(16 * T_PER_MS);
-            hut_t <= 24'(240 * T_PER_MS);
-            hld_t <= 24'(254 * T_PER_MS);
+            step_t <= 10'd16;
+            hut_t <= 10'd240;
+            hld_t <= 10'd254;
+            ms_div <= 12'd0;
             head_loaded <= 1'b0;
             head_armed <= 1'b0;
             intrq <= I_NONE;
@@ -325,16 +335,17 @@ module spectrum_upd765 #(
             mf <= 1'b1;
             cmd <= C_INVALID;
             data_r <= 8'hff;
-            wait_t <= 24'd0;
-            seek_t_count <= 24'd0;
+            wait_t <= 10'd0;
+            seek_t_count <= 10'd0;
         end else begin
-            if (tick && wait_t != 24'd0) wait_t <= wait_t - 24'd1;
-            if (tick && seek_t_count != 24'd0) seek_t_count <= seek_t_count - 24'd1;
-            if (tick && head_armed) begin
-                if (head_count == 24'd0) begin
+            if (tick) ms_div <= ms_tick ? 12'd0 : ms_div + 12'd1;
+            if (ms_tick && wait_t != 10'd0) wait_t <= wait_t - 10'd1;
+            if (ms_tick && seek_t_count != 10'd0) seek_t_count <= seek_t_count - 10'd1;
+            if (ms_tick && head_armed) begin
+                if (head_count == 10'd0) begin
                     head_armed <= 1'b0;
                     head_loaded <= 1'b0;
-                end else head_count <= head_count - 24'd1;
+                end else head_count <= head_count - 10'd1;
             end
 
             // --------------------------------------------- seek_step stepper
@@ -377,7 +388,7 @@ module spectrum_upd765 #(
                         seek_busy <= 1'b0;
                     end
                 end
-                default: if (seek_t_count == 24'd0) ks <= K_STEP;
+                default: if (seek_t_count == 10'd0) ks <= K_STEP;
             endcase
 
             // ------------------------------------------------- the command
@@ -397,14 +408,17 @@ module spectrum_upd765 #(
                             result_phase();
                         end
                         C_SPECIFY: begin
-                            step_t <= 24'((16 - dr[0][7:4]) * 2 * T_PER_MS);
-                            hut_t <= dr[0][3:0] == 4'd0 ? 24'(256 * T_PER_MS) : 24'(dr[0][3:0] * 32 * T_PER_MS);
-                            hld_t <= dr[1][7:1] == 7'd0 ? 24'(512 * T_PER_MS) : 24'({dr[1][7:1], 1'b0} * 2 * T_PER_MS);
+                            // At 4 MHz: steps of (16 - SRT) * 2 ms, unload
+                            // HUT * 32 ms (0: 256), load HLT * 4 ms (0: 512).
+                            step_t <= {4'd0, 5'd16 - {1'b0, dr[0][7:4]}, 1'b0};
+                            hut_t <= dr[0][3:0] == 4'd0 ? 10'd256 : {1'b0, dr[0][3:0], 5'd0};
+                            hld_t <= dr[1][7:1] == 7'd0 ? 10'd512 : {1'b0, dr[1][7:1], 2'd0};
                             result_phase();
                         end
                         C_SENSE_DRIVE: begin
-                            // The +3 wires double sided to write protect.
-                            st3 <= {1'b0, !us[0], !us[0] && ready, !us[0] && tr00, 1'b0, hd, us};
+                            // The +3 wires double sided to write protect. Drive
+                            // B is an empty drive, write protected, as in Fuse.
+                            st3 <= {1'b0, 1'b1, !us[0] && ready, tr00, 1'b0, hd, us};
                             result_phase();
                         end
                         C_SENSE_INT: begin
@@ -442,14 +456,14 @@ module spectrum_upd765 #(
                             rlen <= dr[4] == 8'd0 && dr[7] < 8'd128 ? {6'd0, dr[7]} : dr_len;
                             first_rw <= 1'b1;
                             head_armed <= 1'b0;
-                            wait_t <= head_loaded ? 24'd0 : hld_t;
+                            wait_t <= head_loaded ? 10'd0 : hld_t;
                             head_loaded <= 1'b1;
                             xs <= X_HEAD;
                         end
                     endcase
                 end
                 // ------------------------------------------- head load wait
-                X_HEAD: if (wait_t == 24'd0) begin
+                X_HEAD: if (wait_t == 10'd0) begin
                     if (cmd == C_READ_DIAG) xs <= X_INDEX;
                     else if (cmd == C_READ_DATA) start_read();
                     else begin

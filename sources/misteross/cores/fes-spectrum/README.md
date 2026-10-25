@@ -206,7 +206,8 @@ the image use 16 KiB slots. The Beta 128 and the uPD765A share the drive,
 
 - `$2FFD` (A15:A12 `0010`, A1 low) reads the main status register and `$3FFD`
   (`0011`) is the data register; `$1FFD` bit 3 runs the motor. The +3 wires
-  only US0: drive A holds the disk, drive B is empty.
+  only US0: drive A holds the disk, and drive B is empty, write protected
+  and never ready, as in Fuse.
 - The controller follows Fuse's `upd_fdc.c` in non-DMA mode: Read Data and
   Read Deleted Data with multi-track and skip, Read Diagnostic, Read ID,
   Recalibrate (77 steps), Seek, Sense Interrupt Status, Specify, Sense Drive

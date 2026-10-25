@@ -13,7 +13,8 @@
 // ending with End of Cylinder, data bytes at 32 us, CRC and deleted-mark
 // results, a weak sector reading differently, a missing sector, Overrun,
 // Read Diagnostic, Write Data's Not Writable, Version, an invalid command, a
-// read with the motor off, drive B, and the launch image's boot pulse.
+// read with the motor off, the empty drive B, and the launch image's boot
+// pulse. Data bytes are sampled clocks after the read starts, as the CPU does.
 #include "Vspectrum_upd765.h"
 #include "verilated.h"
 
@@ -93,12 +94,14 @@ public:
         run_t(3);
         return v;
     }
+    // The CPU samples the data register clocks after the read starts.
     uint8_t in_data() {
         dut.data_port = 1;
-        dut.eval();
-        const uint8_t v = dut.rdata;
         dut.read_strobe = 1;
         clock();
+        for (int i = 0; i < 20; ++i) clock();
+        dut.eval();
+        const uint8_t v = dut.rdata;
         run_t(3);
         return v;
     }
@@ -222,7 +225,7 @@ int main(int argc, char **argv) {
     b.command({0x04, 0x00});
     expect((b.results()[0] & 0x70) == 0x70, "ready, write protected, track 0");
     b.command({0x04, 0x01});
-    expect((b.results()[0] & 0x70) == 0x00, "drive B is absent");
+    expect((b.results()[0] & 0x70) == 0x50, "drive B is empty: write protected at track 0");
 
     // Recalibrate, then seek.
     b.command({0x07, 0x00});
