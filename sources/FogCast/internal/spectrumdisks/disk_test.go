@@ -384,6 +384,52 @@ func TestDSKImagesMatchFuse(t *testing.T) {
 	}
 }
 
+// A dump's single copy of a Speedlock weak sector reads weak where Fuse's
+// Speedlock hack corrupts it: bytes 29 and 58 of an E5-filled sector, and
+// every 29th byte of another, the first eight of them.
+func TestSpeedlockSectorIsWeak(t *testing.T) {
+	for name, tc := range map[string]struct {
+		data []byte
+		weak int
+	}{
+		"E5 filler": {bytes.Repeat([]byte{0xe5}, 512), 2},
+		"data":      {fill(512, 3), MaxWeakRanges},
+	} {
+		track := plus3Format(0)
+		track.sectors[1] = dskSector{c: 0, r: 2, n: 2, st1: 0x20, st2: 0x20, data: tc.data}
+		d, err := Read(edsk(1, 1, []dskTrack{track}))
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		track0 := d.Tracks[0][0]
+		var weak []int
+		for i, w := range track0.Weak {
+			if w {
+				weak = append(weak, i)
+			}
+		}
+		if len(weak) != tc.weak {
+			t.Fatalf("%s: %d weak bytes", name, len(weak))
+		}
+		for k, i := range weak {
+			if k > 0 && i-weak[k-1] != 29 || track0.Bytes[i] != tc.data[28+29*k] {
+				t.Fatalf("%s: weak byte %d at %d", name, k, i)
+			}
+		}
+	}
+	// Only cylinder 0 sector 2 with a data CRC error is Speedlock's.
+	for _, tc := range []dskSector{{c: 0, r: 2, n: 2, data: fill(512, 3)}, {c: 0, r: 3, n: 2, st1: 0x20, st2: 0x20, data: fill(512, 3)}} {
+		track := plus3Format(0)
+		track.sectors[1] = tc
+		d, _ := Read(edsk(1, 1, []dskTrack{track}))
+		for _, w := range d.Tracks[0][0].Weak {
+			if w {
+				t.Fatalf("sector %d marked weak", tc.r)
+			}
+		}
+	}
+}
+
 func TestWrongSystem(t *testing.T) {
 	if _, err := Convert(trd(0x16, 160), Plus3, false); !errors.Is(err, ErrWrongSystem) {
 		t.Errorf(".trd for the +3: %v", err)

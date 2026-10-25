@@ -11,6 +11,13 @@ import (
 // with the uPD765 gap tables, every track the disk's common length, CRC
 // errors and deleted marks from the sector status bytes, bytes of a long
 // sector that fall in the gap, and weak sectors from their stored copies.
+//
+// A dump of a Speedlock disk keeps one copy of its weak sector: cylinder 0,
+// head 0, sector 2, 512 bytes, recorded with a data CRC error. Fuse's
+// Speedlock hack (plus3_detect_speedlock, on by default) corrupts every 29th
+// byte when the sector is read again: only bytes 29 and 58 when its first 64
+// bytes are E5 filler, else all of them. Those bytes are weak here, the first
+// MaxWeakRanges of them.
 
 var (
 	dskMagic  = []byte("MV - CPC")
@@ -429,6 +436,9 @@ func readDSK(data []byte) (*Disk, error) {
 						t.weak[k] = true
 					}
 					src.at += (copies - 1) * idlen
+				} else if ok && i == 0 && dataCRC && idlen == 512 &&
+					hdr[0x18+8*j] == 0 && hdr[0x19+8*j] == 0 && hdr[0x1a+8*j] == 2 {
+					speedlock(t, start)
 				}
 			}
 		}
@@ -438,4 +448,21 @@ func readDSK(data []byte) (*Disk, error) {
 		src.at = save + trackSize(i)
 	}
 	return disk, nil
+}
+
+// speedlock marks the bytes of a Speedlock weak sector at start that Fuse's
+// Speedlock hack corrupts: every 29th byte, counting the first as 1, in the
+// first 64 bytes when they are E5 filler and in the whole sector otherwise.
+func speedlock(t *fuseTrack, start int) {
+	end := 512
+	filler := true
+	for k := 0; k < 63; k++ {
+		filler = filler && t.b[(start+k)%len(t.b)] == 0xe5
+	}
+	if filler {
+		end = 64
+	}
+	for k, n := 28, 0; k < end && n < MaxWeakRanges; k, n = k+29, n+1 {
+		t.weak[(start+k)%len(t.b)] = true
+	}
 }
