@@ -14,15 +14,20 @@
 // shifts dst:src:src or src:src:dst, which is what the 386EX does (Phase 0
 // divergence double-shift-wide-count).
 //
+// M2 decodes the operation into c (fes_i386_exctl): each bit of x is an OR
+// of data bits, each gated by one registered select for its direction, size
+// and fill, so no opcode compare sits between the operands and the shift. At
+// a count of zero the shift returns a unchanged.
+//
 // The flags follow the 386EX where the manual leaves them undefined (Phase 0
 // divergences shift-rotate-of and shift-cf-wide-count): OF is the result's
 // top bit XOR CF after a left shift or rotate, and its top two bits XORed
 // after a right one, at every count; an 8-bit SHL or SHR by 16 or 24 sets CF
 // to the operand's bit 0 or bit 7. AF, SF, ZF and PF are the caller's.
 module fes_i386_shift (
-    input  logic [3:0]  op,      // fes_i386_pkg::shift_op_e
-    input  logic [1:0]  size,    // fes_i386_pkg::size_e
+    input  fes_i386_pkg::shctl_t c,
     input  logic [4:0]  count,
+    input  logic [4:0]  s,       // count, or 31 - count for a left shift
     input  logic [31:0] a,       // the destination, zero-extended
     input  logic [31:0] b,       // SHLD and SHRD's source, zero-extended
     input  logic        cf_in,
@@ -30,75 +35,60 @@ module fes_i386_shift (
     output logic        cf,
     output logic        of
 );
-    localparam logic [3:0] ROL = 4'd0, ROR = 4'd1, RCL = 4'd2, RCR = 4'd3, SHL = 4'd4, SHR = 4'd5,
-                           SAL = 4'd6, SAR = 4'd7, SHLD = 4'd8, SHRD = 4'd9;
+    localparam int DATA = 0, ROT = 1, RC = 2, SAR = 3, SHD = 4;
 
-    logic left;
-    assign left = op == ROL || op == RCL || op == SHL || op == SAL || op == SHLD;
-
-    // ---- The arrangement, per size --------------------------------------------
-    logic [2:0][63:0] xs;  // 8-, 16- and 32-bit
-    logic [2:0]       sign;
+    // ---- The arrangement ---------------------------------------------------------
+    // One 64-bit candidate per direction (0 right, 1 left), size and fill; x
+    // ORs them, each gated by its select.
+    logic [1:0][2:0][4:0][63:0] cand;
+    logic [2:0] sign;
     assign sign = {a[31], a[15], a[7]};
 
     for (genvar z = 0; z < 3; z++) begin : g_size
         localparam int N = 8 << z;
         always_comb begin
-            xs[z] = 64'd0;
-            if (left) begin
-                for (int i = 0; i < N; i++) xs[z][32 + i] = a[i];
-                for (int i = 0; i < 32; i++) begin
-                    case (op)
-                        ROL: xs[z][i] = a[i % N];
-                        RCL: xs[z][31 - i] = (i % (N + 1)) == 0 ? cf_in : a[N - (i % (N + 1))];
-                        SHLD: xs[z][i] = b[i % 16 + (N == 32 ? i - i % 16 : 0)];
-                        default: xs[z][i] = 1'b0;
-                    endcase
-                end
-            end else begin
-                for (int i = 0; i < N; i++) xs[z][1 + i] = a[i];
-                for (int k = N; k < 63; k++) begin
-                    case (op)
-                        ROR: xs[z][1 + k] = a[k % N];
-                        RCR: xs[z][1 + k] = (k % (N + 1)) == N ? cf_in : a[k % (N + 1)];
-                        SAR: xs[z][1 + k] = sign[z];
-                        SHRD: xs[z][1 + k] = N == 32 ? b[(k - 32) & 31] : k < 48 ? b[(k + 16) % 16] : 1'b0;
-                        default: xs[z][1 + k] = 1'b0;
-                    endcase
-                end
+            cand[1][z] = '0;
+            cand[0][z] = '0;
+            for (int i = 0; i < N; i++) cand[1][z][DATA][32 + i] = a[i];
+            for (int i = 0; i < 32; i++) begin
+                cand[1][z][ROT][i] = a[i % N];
+                cand[1][z][RC][31 - i] = (i % (N + 1)) == 0 ? cf_in : a[N - (i % (N + 1))];
+                cand[1][z][SHD][i] = b[i % 16 + (N == 32 ? i - i % 16 : 0)];
+            end
+            for (int i = 0; i < N; i++) cand[0][z][DATA][1 + i] = a[i];
+            for (int k = N; k < 63; k++) begin
+                cand[0][z][ROT][1 + k] = a[k % N];
+                cand[0][z][RC][1 + k] = (k % (N + 1)) == N ? cf_in : a[k % (N + 1)];
+                cand[0][z][SAR][1 + k] = sign[z];
+                cand[0][z][SHD][1 + k] = N == 32 ? b[(k - 32) & 31] : k < 48 ? b[(k + 16) % 16] : 1'b0;
             end
         end
     end
 
-    // ---- The shift ------------------------------------------------------------
     logic [63:0] x;
-    logic [4:0]  s;
-    logic [33:0] out;
-    assign x = xs[size];
-    assign s = left ? ~count : count;
-    assign out = 34'(x >> s);
+    always_comb begin
+        x = '0;
+        for (int d = 0; d < 2; d++)
+            for (int z = 0; z < 3; z++)
+                for (int k = 0; k < 5; k++)
+                    x = x | ({64{c.sel[d * 15 + z * 5 + k]}} & cand[d][z][k]);
+    end
 
-    // ---- Result and flags -----------------------------------------------------
-    logic [5:0] n;
-    logic       msb, msb2, cf_out, wide8;
-    always_comb begin
-        case (size)
-            2'd0: begin r = {24'b0, out[8:1]}; msb = out[8]; msb2 = out[7]; end
-            2'd1: begin r = {16'b0, out[16:1]}; msb = out[16]; msb2 = out[15]; end
-            default: begin r = out[32:1]; msb = out[32]; msb2 = out[31]; end
-        endcase
-    end
-    assign n = size == 2'd0 ? 6'd8 : size == 2'd1 ? 6'd16 : 6'd32;
-    assign cf_out = left ? out[n + 6'd1] : out[0];
-    assign wide8 = size == 2'd0 && (count == 5'd16 || count == 5'd24);
-    always_comb begin
-        case (op)
-            ROL: cf = r[0];
-            ROR: cf = msb;
-            SHL, SAL: cf = wide8 ? a[0] : cf_out;
-            SHR: cf = wide8 ? a[7] : cf_out;
-            default: cf = cf_out;
-        endcase
-    end
-    assign of = left ? msb ^ cf : msb ^ msb2;
+    // ---- The shift and result -------------------------------------------------
+    logic [33:0] out;
+    assign out = 34'(x >> s);
+    assign r = {{16{c.z32}} & out[32:17], {8{!c.z8}} & out[16:9], out[8:1]};
+
+    // ---- Flags ------------------------------------------------------------------
+    logic msb, msb2, cf_out, wide8;
+    assign msb = c.z8 ? out[8] : c.z16 ? out[16] : out[32];
+    assign msb2 = c.z8 ? out[7] : c.z16 ? out[15] : out[31];
+    assign cf_out = !c.left ? out[0] : c.z8 ? out[9] : c.z16 ? out[17] : out[33];
+    assign wide8 = c.z8 && (count == 5'd16 || count == 5'd24);
+    assign cf = c.cf_rol ? out[1]
+              : c.cf_ror ? msb
+              : c.cf_shl && wide8 ? a[0]
+              : c.cf_shr && wide8 ? a[7]
+              : cf_out;
+    assign of = c.left ? msb ^ cf : msb ^ msb2;
 endmodule

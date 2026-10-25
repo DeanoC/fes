@@ -8,9 +8,16 @@
 // result merges into it by size and byte lane, so EX hands WB the register's
 // whole new value. b is src2 or the immediate; c is ECX for a CL count. An
 // operand whose producer is one stage ahead comes from the WB result
-// register (wb) instead. flags_in is EFLAGS after every older uop (EX's
-// running copy), so Jcc, SETcc, ADC, SBB, RCL and RCR read it with no
-// forwarding. A faulting uop changes nothing.
+// register (wb) instead. flags_in is EX's running copy of EFLAGS, which Jcc,
+// SETcc, ADC, SBB, RCL, RCR and LAHF read with no forwarding; flags_keep is
+// EFLAGS after every older uop, which a uop passes on where it writes no
+// flag. They differ only in the cycle after a shift or rotate, when D holds
+// any flag reader (fes_i386_cpu). A faulting uop changes nothing.
+//
+// A shift's flags leave the shifter off the flag path: EX keeps the old flags
+// and hands WB the shifter's CF and OF and whether SF, ZF, AF and PF follow
+// the result (sh_cf, sh_of, def_co, def_szap); fes_i386_cpu applies them
+// from the WB register a cycle later.
 //
 // Every select here is a registered control from fes_i386_exctl, decoded in
 // M2, so the opcode decode is off the data paths (design rule 8): the
@@ -30,9 +37,14 @@ module fes_i386_ex (
     input  logic [31:0]          wb,          // the WB result register
     input  logic [31:0]          ag_result,   // LEA's offset
     input  logic [17:0]          flags_in,
+    input  logic [17:0]          flags_keep,
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
-    output logic                 taken
+    output logic                 taken,
+    output logic                 sh_cf,
+    output logic                 sh_of,
+    output logic                 def_co,      // CF and OF are sh_cf and sh_of
+    output logic                 def_szap     // SF, ZF and PF follow the result; AF is set
 );
     localparam int CF = 0, PF = 2, AF = 4, ZF = 6, SF = 7, IF = 9, DF = 10, OF = 11;
 
@@ -91,23 +103,24 @@ module fes_i386_ex (
     assign r_logic = exc.l_or ? an | bn : exc.l_xor ? an ^ bn : exc.l_not ? ~an & mask : an & bn;
 
     // ---- Shifter ----------------------------------------------------------------
-    logic [4:0]  count;
+    logic [4:0]  count, s;
     logic [31:0] r_shift;
-    logic        sh_cf, sh_of, rotate, shifted;
-    assign count = u.count_cl ? cf_val[4:0] : u.imm[4:0];
-    assign rotate = u.op[4:2] == 3'b000;  // ROL ROR RCL RCR
-    assign shifted = count != 5'd0;
+    logic        shifted;
+    assign count = exc.sh.count_cl ? cf_val[4:0] : u.imm[4:0];
+    assign s = exc.sh.count_cl ? cf_val[4:0] ^ {5{exc.sh.left}} : exc.sh.s_imm;
+    assign shifted = exc.sh.count_cl ? cf_val[4:0] != 5'd0 : !exc.sh.imm_zero;
     fes_i386_shift shifter (
-        .op(u.op[3:0]), .size(exc.size8 ? 2'd0 : exc.size16 ? 2'd1 : 2'd2), .count, .a(an), .b(bn),
-        .cf_in(flags_in[CF]), .r(r_shift), .cf(sh_cf), .of(sh_of)
+        .c(exc.sh), .count, .s, .a(an), .b(bn), .cf_in(flags_in[CF]), .r(r_shift), .cf(sh_cf), .of(sh_of)
     );
+    assign def_co = exc.ok && exc.f_shift && shifted;
+    assign def_szap = def_co && exc.sh.szap;
 
     // ---- Result -------------------------------------------------------------------
     logic [31:0] r_other, r;
     logic        cc_true;
     assign cc_true = cond(flags_in, u.ctl.cond);
     assign r_other = ({32{exc.r_logic}} & r_logic)
-                   | ({32{exc.r_shift}} & (shifted ? r_shift : an))
+                   | ({32{exc.r_shift}} & r_shift)
                    | ({32{exc.r_lea}} & ag_result)
                    | ({32{exc.r_ext}} & bs)
                    | ({32{exc.r_movsx}} & (exc.src8 ? {{24{bs[7]}}, bs[7:0]} : {{16{bs[15]}}, bs[15:0]}))
@@ -123,14 +136,13 @@ module fes_i386_ex (
 
     // ---- Flags ------------------------------------------------------------------
     // Each flag is an OR of its sources, each gated by a registered select,
-    // or the old flag.
-    logic       zf_r, sf_r, pf_r, sh_active, sh_szap, fl_cf, fl_set;
+    // or the old flag. SF, ZF and PF of a logic op come from the logic unit
+    // alone, not the result select.
+    logic       zf_l, sf_l, pf_l, fl_cf, fl_set;
     logic [3:0] fop;
-    assign zf_r = (r_other & mask) == 32'd0;
-    assign sf_r = exc.size8 ? r_other[7] : exc.size16 ? r_other[15] : r_other[31];
-    assign pf_r = ~^r_other[7:0];
-    assign sh_active = exc.f_shift && shifted;
-    assign sh_szap = sh_active && !rotate;
+    assign zf_l = (r_logic & mask) == 32'd0;
+    assign sf_l = exc.size8 ? r_logic[7] : exc.size16 ? r_logic[15] : r_logic[31];
+    assign pf_l = ~^r_logic[7:0];
     assign fop = u.imm[3:0];
     // The flag instructions: CLC STC CMC CLI STI CLD STD SAHF (LAHF writes none).
     logic f_cf, f_if, f_df, f_szap;
@@ -143,21 +155,21 @@ module fes_i386_ex (
 
     logic arith, any_cf, any_szap, any_of;
     assign arith = exc.f_add || exc.f_incdec;
-    assign any_cf = exc.f_add || exc.f_logic || sh_active || f_cf;
-    assign any_of = arith || exc.f_logic || sh_active;
-    assign any_szap = arith || exc.f_logic || sh_szap || f_szap;
+    assign any_cf = exc.f_add || exc.f_logic || f_cf;
+    assign any_of = arith || exc.f_logic;
+    assign any_szap = arith || exc.f_logic || f_szap;
     always_comb begin
-        flags_out = flags_in;
+        flags_out = flags_keep;
         flags_out[1] = 1'b1;
         if (exc.ok) begin
-            flags_out[CF] = any_cf ? (exc.f_add && add_cf) || (sh_active && sh_cf) || (f_cf && fl_cf) : flags_in[CF];
-            flags_out[OF] = any_of ? (arith && add_of) || (sh_active && sh_of) : flags_in[OF];
-            flags_out[AF] = any_szap ? (arith && add_af) || sh_szap || (f_szap && bn[4]) : flags_in[AF];
-            flags_out[ZF] = any_szap ? (arith ? add_zf : f_szap ? bn[6] : zf_r) : flags_in[ZF];
-            flags_out[SF] = any_szap ? (arith ? top_s : f_szap ? bn[7] : sf_r) : flags_in[SF];
-            flags_out[PF] = any_szap ? (arith ? ~^sum[7:0] : f_szap ? bn[2] : pf_r) : flags_in[PF];
-            flags_out[IF] = f_if ? fl_set : flags_in[IF];
-            flags_out[DF] = f_df ? fl_set : flags_in[DF];
+            flags_out[CF] = any_cf ? (exc.f_add && add_cf) || (f_cf && fl_cf) : flags_keep[CF];
+            flags_out[OF] = any_of ? arith && add_of : flags_keep[OF];
+            flags_out[AF] = any_szap ? (arith && add_af) || (f_szap && bn[4]) : flags_keep[AF];
+            flags_out[ZF] = any_szap ? (arith ? add_zf : f_szap ? bn[6] : zf_l) : flags_keep[ZF];
+            flags_out[SF] = any_szap ? (arith ? top_s : f_szap ? bn[7] : sf_l) : flags_keep[SF];
+            flags_out[PF] = any_szap ? (arith ? ~^sum[7:0] : f_szap ? bn[2] : pf_l) : flags_keep[PF];
+            flags_out[IF] = f_if ? fl_set : flags_keep[IF];
+            flags_out[DF] = f_df ? fl_set : flags_keep[DF];
         end
     end
 
