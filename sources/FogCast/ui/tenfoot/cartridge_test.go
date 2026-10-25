@@ -101,7 +101,7 @@ func TestKitCartridgeMachineSwapsCartridgeOverPlay(t *testing.T) {
 		}
 	}
 	selectTapeNamedRow(t, app, "game.col")
-	app.HandleCommand(CmdSelect, time.Now())
+	selectCartridgeFromPad(t, app)
 	waitFor(t, app, "cartridge changed", func(s Snapshot) bool {
 		return !s.TapePicker.Open && !s.Session.ControlsOpen && s.GPUParked && s.Status == "Cartridge changed."
 	})
@@ -120,6 +120,22 @@ func TestKitCartridgeMachineSwapsCartridgeOverPlay(t *testing.T) {
 	if len(visible) != 1 || !visible[0] {
 		t.Fatalf("display requests = %v", visible)
 	}
+}
+
+func selectCartridgeFromPad(t *testing.T, app *App) {
+	t.Helper()
+	now := time.Now()
+	e := remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton,
+		Code: remoteinput.ButtonSelect, Action: remoteinput.ActionPress}
+	if app.HandleLocalPad(e, now) {
+		t.Fatal("picker Select was consumed by the running keypad machine")
+	}
+	app.Press(app.localPadCommand(e), now)
+	e.Action = remoteinput.ActionRelease
+	if app.HandleLocalPad(e, now) {
+		t.Fatal("picker Select release was consumed by the running keypad machine")
+	}
+	app.Release(app.localPadCommand(e))
 }
 
 // A keypad machine keeps Select: it is the Coleco's keypad * key. Home or

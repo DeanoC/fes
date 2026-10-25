@@ -754,8 +754,10 @@ launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES
 A running `fes.application` machine with one linked cartridge (`rom_link` on
 its session package) and the kit session plane also opens **Change media**
 from Home or Guide, as a cartridge picker. Its Select stays the machine's
-keypad `*`. The cartridge is linked into the bitstream, so there is no
-eject and no live insert. The picker admits `.col`, `.rom` or `.bin` files of
+keypad `*` while the machine owns input. When launcher controls or a picker
+have focus, Select goes to that UI and is not forwarded to the machine. The
+cartridge is linked into the bitstream, so there is no eject and no live
+insert. The picker admits `.col`, `.rom` or `.bin` files of
 exactly the running cartridge's size. Choosing one imports it and posts
 `POST /api/v1/session/cartridge {media_id, name}` with the captured session
 and package-generation binding. The host relaunches the same title on the
@@ -2617,6 +2619,10 @@ a kit-local core. A `-input` node the classifier cannot place also takes a
 port. Keyboard
 connection or removal does not shift either controller. Keyboard disconnect
 releases its held keys independently.
+
+On a keypad session, a portless pad's Select reaches the focused launcher while
+its controls own input, including the cartridge picker. During play the
+portless pad cannot send Select to the machine or use it as a menu command.
 
 If an HDMI control transition leaves display ownership uncertain, a portless
 pad's B uses the same guarded return-to-play operation as a ported pad. Other
