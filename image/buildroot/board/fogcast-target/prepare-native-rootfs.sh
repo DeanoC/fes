@@ -134,6 +134,7 @@ fi
 /bin/mkdir -p "$target/var/lib"
 /bin/ln -s /media/fat/fogcast/state/bluetooth "$target/var/lib/bluetooth"
 # dbus-uuidgen --ensure writes the machine id. Keep that write on /run.
+[ -L "$target/var/lib/dbus" ] && /bin/rm -f "$target/var/lib/dbus"
 /bin/mkdir -p "$target/var/lib/dbus"
 /bin/rm -rf "$target/var/lib/dbus/machine-id"
 /bin/ln -s /run/dbus/machine-id "$target/var/lib/dbus/machine-id"
@@ -180,10 +181,10 @@ fi
 # All Markdown/game payloads except that exact verified source notice remain
 # forbidden, including additional Markdown in or beside the notice directory.
 if find "$target" -type f ! -path "$verified_notice" \
-  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
-  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_config.bin" \
-  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
-  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_config.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
   \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \
