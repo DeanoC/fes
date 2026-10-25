@@ -1,6 +1,6 @@
 // fes-spectrum-disk writes the raw track image that a Spectrum core's disk
-// unit reads for a TR-DOS .trd or .scl image, as the host does when the disk
-// is inserted. The Spectrum simulations use it.
+// unit reads for a TR-DOS .trd or .scl image or a +3 .dsk image, as the host
+// does when the disk is inserted. The Spectrum simulations use it.
 package main
 
 import (
@@ -21,7 +21,7 @@ func run(args []string, stderr io.Writer) int {
 		return 2
 	}
 	if *output == "" || flags.NArg() != 1 {
-		fmt.Fprintln(stderr, "usage: fes-spectrum-disk [-boot] -out disk.bin disk.trd")
+		fmt.Fprintln(stderr, "usage: fes-spectrum-disk [-boot] -out disk.bin disk.trd|disk.dsk")
 		return 2
 	}
 	data, err := os.ReadFile(flags.Arg(0))
@@ -29,7 +29,12 @@ func run(args []string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	image, err := spectrumdisks.Convert(data, *boot)
+	disk, err := spectrumdisks.Read(data)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	image, err := spectrumdisks.Convert(data, disk.System, *boot)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1

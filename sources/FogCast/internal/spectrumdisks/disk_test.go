@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"testing"
 )
 
@@ -167,7 +168,7 @@ func TestImagesMatchFuse(t *testing.T) {
 		"trd 40x1": {trd(0x19, 40), "0d2158f59dbf0fbd743af67a6136dbb496582fad69df489e43dc1d4fe05f7e66"},
 		"scl":      {scl(), "3b85939ec889c8e37b211fe4d94934a73434612c93b3c8fdb201647c6b4200e8"},
 	} {
-		image, err := Convert(tc.data, false)
+		image, err := Convert(tc.data, TRDOS, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,7 +180,7 @@ func TestImagesMatchFuse(t *testing.T) {
 }
 
 func TestImageLayout(t *testing.T) {
-	image, err := Convert(trd(0x18, 80), true)
+	image, err := Convert(trd(0x18, 80), TRDOS, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func TestRefusals(t *testing.T) {
 		"scl truncated": []byte("SINCLAIR\x02FILE    B"),
 		"scl too big":   sclOf(11, 255),
 	} {
-		if _, err := Convert(data, false); err == nil {
+		if _, err := Convert(data, TRDOS, false); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
@@ -272,8 +273,8 @@ func TestLaunchDiskGetsABootLoader(t *testing.T) {
 		t.Fatal("a disk without a BASIC program changed")
 	}
 	// Convert adds it only for a launch.
-	launch, _ := Convert(data, true)
-	swap, _ := Convert(data, false)
+	launch, _ := Convert(data, TRDOS, true)
+	swap, _ := Convert(data, TRDOS, false)
 	if bytes.Equal(launch[SlotBytes:], swap[SlotBytes:]) || launch[7] != 2 || swap[7] != 0 {
 		t.Fatal("launch and swapped images do not differ as expected")
 	}
@@ -372,7 +373,7 @@ func TestDSKImagesMatchFuse(t *testing.T) {
 		if err != nil || d.System != Plus3 {
 			t.Fatalf("%s: %v", name, err)
 		}
-		image, err := Convert(data, false)
+		image, err := Convert(data, Plus3, false)
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -383,9 +384,21 @@ func TestDSKImagesMatchFuse(t *testing.T) {
 	}
 }
 
+func TestWrongSystem(t *testing.T) {
+	if _, err := Convert(trd(0x16, 160), Plus3, false); !errors.Is(err, ErrWrongSystem) {
+		t.Errorf(".trd for the +3: %v", err)
+	}
+	if _, err := Convert(dskCases()["plus3"], TRDOS, false); !errors.Is(err, ErrWrongSystem) {
+		t.Errorf(".dsk for TR-DOS: %v", err)
+	}
+	if !Plus3.Admit("GAME.DSK") || Plus3.Admit("game.trd") || !TRDOS.Admit("game.scl") || TRDOS.Admit("game.dsk") {
+		t.Error("system extensions")
+	}
+}
+
 func TestDSKSlotLayout(t *testing.T) {
 	cases := dskCases()
-	image, _ := Convert(cases["protected"], true)
+	image, _ := Convert(cases["protected"], Plus3, true)
 	if image[8] != 13 || image[7] != 2 {
 		t.Fatalf("header % x", image[:9])
 	}
@@ -397,7 +410,7 @@ func TestDSKSlotLayout(t *testing.T) {
 	if image[5*SlotBytes+2] != 1 || image[3*SlotBytes+2] != 0 {
 		t.Fatal("FM track flag")
 	}
-	long, _ := Convert(cases["long"], false)
+	long, _ := Convert(cases["long"], Plus3, false)
 	if long[8] != 14 || len(long) != 2*LargeSlotBytes || binary.LittleEndian.Uint16(long[LargeSlotBytes:]) != 10416 {
 		t.Fatalf("long track image: shift %d, %d bytes", long[8], len(long))
 	}

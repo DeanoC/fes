@@ -8,7 +8,7 @@ This directory builds four described cores from one shell, each on the
 | --- | --- | --- | --- | --- | --- | --- |
 | `fes.spectrum` | 48K | `spectrum-firmware`, 16 KiB | 48 KiB | 224 x 312 = 69,888 T, 3.5 MHz | ULA, from T 14,335 | beeper |
 | `fes.spectrum128` | 128K / +2 | `spectrum128-firmware`, 32 KiB (editor, then 48 BASIC) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | ULA, from T 14,361, odd banks | beeper, AY |
-| `fes.spectrum-plus3` | +2A / +3 (no disk drive) | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
+| `fes.spectrum-plus3` | +2A / +3 with its disk drive | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
 | `fes.pentagon` | Pentagon 128 with Beta 128 | `pentagon-firmware`, 48 KiB (128, 48 BASIC, then TR-DOS) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
 
 It follows the Apple II pathfinder: late-bound firmware, removable media while
@@ -194,6 +194,35 @@ byte fetch port on DDR port 2.
   `boot` program gets Fuse's autoload loader, which runs its first BASIC
   program. A disk changed while the machine runs only changes the medium.
 
+## +3 disks
+
+The +2A/+3 has a uPD765A (`rtl/spectrum_upd765.sv`) on the same unit, with
+`fes.media.spectrum-disk-plus3` 1.0. FogCast converts standard and extended
+`.dsk` images as Fuse 1.6.0's `disk.c` opens them: the +3 gap layout,
+recorded CRC errors and deleted marks, data in the gaps, weak sectors from
+their multiple copies, and FM tracks. A track longer than 6,912 bytes makes
+the image use 16 KiB slots. The Beta 128 and the uPD765A share the drive,
+`rtl/spectrum_fdd.sv`.
+
+- `$2FFD` (A15:A12 `0010`, A1 low) reads the main status register and `$3FFD`
+  (`0011`) is the data register; `$1FFD` bit 3 runs the motor. The +3 wires
+  only US0: drive A holds the disk, drive B is empty.
+- The controller follows Fuse's `upd_fdc.c` in non-DMA mode: Read Data and
+  Read Deleted Data with multi-track and skip, Read Diagnostic, Read ID,
+  Recalibrate (77 steps), Seek, Sense Interrupt Status, Specify, Sense Drive
+  Status and Version, with the head load and unload times. Without a terminal
+  count, a read ends at its last sector with End of Cylinder, as on the +3. An
+  ID search gives up after two index pulses. Scan is an invalid command.
+- As on the Beta, the disk turns: one byte every 112 T, and one the CPU has
+  not read when the next arrives ends the read with Overrun. The drive is
+  ready 400 ms after the motor starts and stops 300 ms after it stops. A weak
+  byte reads differently each time, as Fuse mixes in random bits.
+- The disk is write protected: Write Data, Write Deleted Data and Format end
+  with Not Writable.
+- A launch disk resets the machine. Once the menu has read every keyboard
+  half-row in a frame, ENTER is held through the third frame after, so the
+  menu's Loader boots the disk, as Fuse's phantom typist does.
+
 ## Simulation
 
 ```sh
@@ -229,7 +258,14 @@ Sector on both sides at 112 T a byte, Read Address, Read Track, multi-sector
 reads ending at the track's last sector, Record Not Found after five
 revolutions, Write Protect, Lost Data, a CRC error, a verify on the wrong
 track, Force Interrupt, an empty drive B, a Type II command on an unloaded
-head, the head unloading after 3 s and the launch image's boot pulse. A
+head, the head unloading after 3 s and the launch image's boot pulse. The
+uPD765 simulation drives `spectrum_upd765` through `$2FFD` and `$3FFD` as
++3DOS does, against a synthetic extended `.dsk`: the motor's ready delay,
+Specify, Recalibrate and Seek with Sense Interrupt Status, Sense Drive Status,
+Read ID, one sector and a run ending with End of Cylinder at 32 us a byte, a
+missing sector after two revolutions, Overrun, a data CRC error, a bad ID, a
+deleted sector, a weak sector, Read Diagnostic, Write Data on a protected
+disk, Version, invalid commands and the boot pulse. A
 mailbox simulation checks the Pentagon's two units: each unit's Info, a
 transfer to each, transfers bound to their unit and one at a time, and an
 eject of one unit leaving the other alone. The video simulation
@@ -302,7 +338,7 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-The +3 disk drive, TR-DOS disk writes, Beta drives B-D, the Pentagon's
+Disk writes, the +3's drive B and Scan commands, Beta drives B-D, the Pentagon's
 magic NMI button, tape write-back, accelerated tape loading
 (#999), `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
 the IR-register snow effect. The previous TV80 shell is recorded in

@@ -70,13 +70,17 @@ const (
 // Magic starts every raw track image.
 var Magic = [4]byte{'Z', 'X', 'D', 'K'}
 
-// Extensions are the disk image names Convert reads.
+// Extensions are the disk image names Convert reads, for every system.
 var Extensions = []string{".trd", ".scl", ".dsk"}
 
 // Admit reports whether name has a disk image extension.
 func Admit(name string) bool {
+	return admit(Extensions, name)
+}
+
+func admit(extensions []string, name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
-	for _, e := range Extensions {
+	for _, e := range extensions {
 		if ext == e {
 			return true
 		}
@@ -121,6 +125,19 @@ const (
 	// Plus3 is a +3 disk (.dsk).
 	Plus3
 )
+
+// Extensions are the image names a disk of the system is read from.
+func (s System) Extensions() []string {
+	if s == Plus3 {
+		return []string{".dsk"}
+	}
+	return []string{".trd", ".scl"}
+}
+
+// Admit reports whether name has one of the system's extensions.
+func (s System) Admit(name string) bool {
+	return admit(s.Extensions(), name)
+}
 
 // Disk is a raw track disk.
 type Disk struct {
@@ -206,11 +223,18 @@ func (d *Disk) Image() ([]byte, error) {
 // ErrNotDisk reports data that is not a disk image this package reads.
 var ErrNotDisk = errors.New("spectrum disk: not a TR-DOS .trd or .scl, or +3 .dsk, image")
 
-// Convert reads a .trd or .scl image and returns its raw track image. A
-// launch image carries the boot flag, and a disk without a "boot" program
-// gets one that runs its first BASIC program, as Fuse's disk autoload adds.
-func Convert(data []byte, boot bool) ([]byte, error) {
+// ErrWrongSystem reports a disk image written for another disk system.
+var ErrWrongSystem = errors.New("spectrum disk: the image is for another disk system")
+
+// Convert reads a disk image written for system and returns its raw track
+// image. A launch image carries the boot flag, and a TR-DOS disk without a
+// "boot" program gets one that runs its first BASIC program, as Fuse's disk
+// autoload adds.
+func Convert(data []byte, system System, boot bool) ([]byte, error) {
 	if isDSK(data) {
+		if system != Plus3 {
+			return nil, ErrWrongSystem
+		}
 		d, err := readDSK(data)
 		if err != nil {
 			return nil, err
@@ -222,6 +246,9 @@ func Convert(data []byte, boot bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if system != TRDOS {
+		return nil, ErrWrongSystem
+	}
 	if boot {
 		t.addBootLoader()
 	}
@@ -230,7 +257,7 @@ func Convert(data []byte, boot bool) ([]byte, error) {
 	return d.Image()
 }
 
-// Read reads a .trd or .scl image as it is.
+// Read reads a .trd, .scl or .dsk image as it is.
 func Read(data []byte) (*Disk, error) {
 	if len(data) <= MaxInputBytes && isDSK(data) {
 		d, err := readDSK(data)

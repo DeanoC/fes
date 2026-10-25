@@ -139,19 +139,23 @@ func SpectrumDiskInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumDiskID, Major: generated.FesComputerInterfaceMediaSpectrumDiskMajor, Minor: generated.FesComputerInterfaceMediaSpectrumDiskMinor}
 }
 
-// SpectrumDiskTrdosInterfaceID names the disk unit's controller: a package
-// whose unit-1 disk is a Beta 128 running TR-DOS declares it as an optional
-// 1.0 interface, and the host then converts .trd and .scl images for it. It
-// adds no unit and no capability bit.
-const SpectrumDiskTrdosInterfaceID = "fes.media.spectrum-disk-trdos"
+// SpectrumDiskTrdosInterfaceID and SpectrumDiskPlus3InterfaceID name the
+// disk unit's controller: a package whose unit-1 disk is a Beta 128 running
+// TR-DOS, or the +3's uPD765A, declares one as an optional 1.0 interface, and
+// the host then converts .trd and .scl, or .dsk, images for it. They add no
+// unit and no capability bit.
+const (
+	SpectrumDiskTrdosInterfaceID = "fes.media.spectrum-disk-trdos"
+	SpectrumDiskPlus3InterfaceID = "fes.media.spectrum-disk-plus3"
+)
 
-// DeclaresTrdosDisk reports whether the descriptor's unit-1 Spectrum disk is
-// a TR-DOS drive.
-func DeclaresTrdosDisk(descriptor corepackage.Descriptor) bool {
+// SpectrumDiskSystem reports the disk system of the descriptor's unit-1
+// Spectrum disk: the one controller it declares beside the cassette.
+func SpectrumDiskSystem(descriptor corepackage.Descriptor) (spectrumdisks.System, bool) {
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
-		return false
+		return 0, false
 	}
-	tape, disk, trdos := false, false, false
+	tape, disk, trdos, plus3 := false, false, false, false
 	wantTape, wantDisk := SpectrumTapeInterface(), SpectrumDiskInterface()
 	for _, i := range descriptor.Interfaces {
 		if i.ID == wantTape.ID && i.Major == int64(wantTape.Major) && i.Minor == int64(wantTape.Minor) {
@@ -160,11 +164,18 @@ func DeclaresTrdosDisk(descriptor corepackage.Descriptor) bool {
 		if i.ID == wantDisk.ID && i.Major == int64(wantDisk.Major) && i.Minor == int64(wantDisk.Minor) && i.Required {
 			disk = true
 		}
-		if i.ID == SpectrumDiskTrdosInterfaceID && i.Major == 1 && i.Minor == 0 {
-			trdos = true
+		if i.Major == 1 && i.Minor == 0 {
+			trdos = trdos || i.ID == SpectrumDiskTrdosInterfaceID
+			plus3 = plus3 || i.ID == SpectrumDiskPlus3InterfaceID
 		}
 	}
-	return tape && disk && trdos
+	if !tape || !disk || trdos == plus3 {
+		return 0, false
+	}
+	if plus3 {
+		return spectrumdisks.Plus3, true
+	}
+	return spectrumdisks.TRDOS, true
 }
 
 // Zx81TapeInterface is the unit-0 ZX81 .p contract.
@@ -359,14 +370,20 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: extensions})
 		}
 		spectrumDisk := SpectrumDiskInterface()
+		system, declared := SpectrumDiskSystem(descriptor)
 		if contract.ID == spectrumDisk.ID && contract.Major == int64(spectrumDisk.Major) &&
-			contract.Minor == int64(spectrumDisk.Minor) && DeclaresTrdosDisk(descriptor) {
-			// The library holds .trd and .scl images; the host converts one
-			// to the unit's raw track image when it is inserted.
+			contract.Minor == int64(spectrumDisk.Minor) && declared {
+			// The library holds the system's .trd and .scl, or .dsk, images;
+			// the host converts one to the unit's raw track image when it is
+			// inserted.
 			unit := SpectrumDiskUnit
-			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "spectrum-disk-trdos",
+			format := "spectrum-disk-trdos"
+			if system == spectrumdisks.Plus3 {
+				format = "spectrum-disk-plus3"
+			}
+			result = append(result, CoreMediaCapability{Role: DiskRole, Format: format,
 				MinBytes: 1, MaxBytes: SpectrumDiskImageMaxBytes, Interface: spectrumDisk,
-				Transport: ComputerMediaTransport, Unit: &unit, Extensions: append([]string(nil), spectrumdisks.Extensions...)})
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: system.Extensions()})
 		}
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
@@ -479,7 +496,8 @@ func AdmitSpectrumCassetteName(name string) bool {
 	return spectrumtapes.Admit(name) || spectrumsnapshots.Admit(name)
 }
 
-// AdmitSpectrumDiskName accepts a TR-DOS .trd or .scl basename.
+// AdmitSpectrumDiskName accepts a TR-DOS .trd or .scl, or +3 .dsk, basename.
+// A .dsk is also an Apple II disk name; the active package decides which.
 func AdmitSpectrumDiskName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return false
@@ -487,7 +505,7 @@ func AdmitSpectrumDiskName(name string) bool {
 	return spectrumdisks.Admit(name)
 }
 
-// AdmitSpectrumDiskSize reports whether a .trd or .scl image may be converted.
+// AdmitSpectrumDiskSize reports whether a Spectrum disk image may be converted.
 func AdmitSpectrumDiskSize(size int64) bool {
 	return size >= 1 && size <= SpectrumDiskImageMaxBytes
 }
@@ -608,15 +626,15 @@ func CassetteConversionError(err error) *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "Spectrum tape image: " + err.Error(), Phase: "request"}
 }
 
-// SpectrumDiskRequestError is the live-media refusal for TR-DOS disks.
+// SpectrumDiskRequestError is the live-media refusal for Spectrum disks.
 func SpectrumDiskRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live TR-DOS disk media requires a .trd or .scl image of at most 1 MiB on a package with a TR-DOS drive", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live Spectrum disk media requires a .trd or .scl image on a package with a TR-DOS drive, or a .dsk image on one with a +3 drive, of at most 1 MiB", Phase: "request"}
 }
 
-// SpectrumDiskConversionError reports a .trd or .scl image the host could
-// not convert to the unit's raw track image.
+// SpectrumDiskConversionError reports a disk image the host could not
+// convert to the unit's raw track image.
 func SpectrumDiskConversionError(err error) *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "TR-DOS disk image: " + err.Error(), Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum disk image: " + err.Error(), Phase: "request"}
 }
 
 // SnapshotConversionError reports a Spectrum snapshot the host could not

@@ -399,6 +399,14 @@ class BuildFesSpectrumTests(unittest.TestCase):
                 self.assertEqual(required["fes.media.spectrum-tape"], 2)
                 self.assertTrue({"fes.memory.hps-ddr", "fes.video.session-display",
                                  "fes.fabric.video.display-plane"} <= set(required))
+                # The Pentagon and +2A/+3 add the unit-1 disk and name its
+                # controller; the others have neither.
+                optional = {item["id"] for item in manifest["interfaces"] if not item["required"]}
+                controllers = {"pentagon": "fes.media.spectrum-disk-trdos",
+                               "plus3": "fes.media.spectrum-disk-plus3"}
+                self.assertEqual("fes.media.spectrum-disk" in required, key in controllers)
+                self.assertEqual(optional & set(controllers.values()),
+                                 {controllers[key]} if key in controllers else set())
         self.assertEqual({model.core_id for model in producer.MODELS.values()},
                          {"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"})
 

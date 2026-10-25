@@ -270,8 +270,9 @@ func (s *Service) replaceLiveZx81TapeLocked(ctx context.Context, mediaID string,
 }
 
 // replaceLiveSpectrumDisk inserts a .trd or .scl image into the running
-// machine's TR-DOS drive, converted to the unit's raw track image without the
-// boot flag, so the running software sees a changed disk.
+// machine's TR-DOS drive, or a .dsk into its +3 drive, converted to the
+// unit's raw track image without the boot flag, so the running software sees
+// a changed disk.
 func (s *Service) replaceLiveSpectrumDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumDiskName(name) {
 		return protocol.Status{}, protocol.SpectrumDiskRequestError()
@@ -298,7 +299,8 @@ func (s *Service) replaceLiveSpectrumDisk(parent context.Context, mediaID, name 
 	if err != nil {
 		return protocol.Status{}, err
 	}
-	if !protocol.DeclaresTrdosDisk(inspection.Descriptor) {
+	system, ok := protocol.SpectrumDiskSystem(inspection.Descriptor)
+	if !ok || !system.Admit(name) {
 		return protocol.Status{}, protocol.SpectrumDiskRequestError()
 	}
 	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)
@@ -309,7 +311,7 @@ func (s *Service) replaceLiveSpectrumDisk(parent context.Context, mediaID, name 
 		reader.Close()
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
-	image, err := spectrumDiskImage(reader, info.Size, false)
+	image, err := spectrumDiskImage(reader, info.Size, system, false)
 	if err != nil {
 		return protocol.Status{}, err
 	}
