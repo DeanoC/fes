@@ -55,8 +55,11 @@ std::vector<uint8_t> read_file(const char* path) {
 
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
+    // --turbo runs every T state in turbo; the results must not change.
+    const bool turbo = argc > 1 && std::string(argv[1]) == "--turbo";
+    if (turbo) --argc, ++argv;
     const bool refuse = argc == 3 && std::string(argv[1]) == "--refuse";
-    require(argc == 4 || refuse, "usage: stream.bin expect.txt banks.bin | --refuse stream.bin");
+    require(argc == 4 || refuse, "usage: [--turbo] stream.bin expect.txt banks.bin | --refuse stream.bin");
     const std::vector<uint8_t> stream = read_file(argv[refuse ? 2 : 1]);
     const std::vector<uint8_t> banks = refuse ? std::vector<uint8_t>() : read_file(argv[3]);
     std::map<std::string, unsigned> expect;
@@ -109,6 +112,7 @@ int main(int argc, char** argv) {
     };
     dut.clk_sys = 0;
     dut.reset = 1;
+    dut.turbo_always = turbo;
     dut.matrix = 0xffffffffffULL;
     dut.kempston = 0;
     dut.tape_ready = 0;

@@ -78,7 +78,9 @@ def machine(verilator: str, key: str) -> None:
                       (f"{CORE}/sim/spectrum_sim_top.sv", *MACHINE_RTL, f"{CORE}/expansions/probe.v"),
                       f"{CORE}/sim/machine_tb.cpp", public=True,
                       defines=[*defines, f'SPECTRUM_MODEL_NAME="\\"{name}\\""', f"SPECTRUM_MARKER_T={marker}"])
-    subprocess.run([str(binary)], cwd=ROOT, check=True)
+    # The machine is the same in T states with every T state in turbo.
+    for turbo in ([], ["--turbo"]):
+        subprocess.run([str(binary), *turbo], cwd=ROOT, check=True)
 
 
 # Snapshot cases: (snapshot machine, .z80 v3 hardware mode, $7FFD, $1FFD,
@@ -161,7 +163,8 @@ def snapshot(verilator: str, key: str, go: str) -> None:
     stream = work / "stream.bin"
     subprocess.run([go, "run", "./cmd/fes-spectrum-restore", "-out", str(stream), str(z80)],
                    cwd=ROOT.parent / "FogCast", check=True)
-    subprocess.run([str(binary), str(stream), str(expect), str(banks)], cwd=ROOT, check=True)
+    for turbo in ([], ["--turbo"]):
+        subprocess.run([str(binary), *turbo, str(stream), str(expect), str(banks)], cwd=ROOT, check=True)
     # A model that cannot run a class leaves its stream to the deck.
     refused = {"48": "128", "128": "plus3", "pentagon": "plus3"}.get(key)
     if refused:

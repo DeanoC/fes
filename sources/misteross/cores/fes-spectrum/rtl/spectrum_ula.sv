@@ -7,6 +7,15 @@
 // state, a contention request suppresses ce_n and the following ce_p, exactly
 // as the real ULA stretches the high half of the CPU clock.
 //
+// A T state is 14 or 15 clocks at the model's speed, or 5 clocks in turbo:
+// tick_p, two clocks, tick_n, one clock. That is the shortest exact T state:
+// the CPU presents a new bus cycle two clocks after ce_p, the contention
+// decision registers it a clock before tick_n, and ce_n and ce_p may not be
+// on consecutive clocks. Turbo is chosen at each tick_p and changes only how
+// many clocks a T state lasts. Screen memory reads and CPU writes keep their
+// order in T states at either speed (see the screen port schedule), so the
+// machine is the same in T states.
+//
 // Each model's frame, interrupt and first paper pixel follow Fuse's
 // libspectrum timing table. hx/vy count T states within a line and lines
 // within a frame such that the first paper pixel is at hx=32, vy=0. A paper
@@ -21,7 +30,7 @@ module spectrum_ula #(
 ) (
     input  wire        clk,
     input  wire        reset,
-    // Per-clock T-state speed: the rational rate is PHASE_ADD/PHASE_MOD of clk.
+    input  wire        turbo,
     output reg         tick_p = 1'b0,
     output reg         tick_n = 1'b0,
     // Contention: the CPU's presented cycle asks to be stretched in this slot.
@@ -29,12 +38,13 @@ module spectrum_ula #(
     output wire        cpu_ce_p,
     output wire        cpu_ce_n,
     output wire        int_n,
-    // Screen memory read port: RAM bank and 14-bit offset. screen7 is the
-    // 128K-class shadow-screen select (port $7FFD bit 3).
+    // Screen memory read port: a 14-bit offset read in banks 5 and 7 at once,
+    // data three clocks after the address. screen7 is the 128K-class
+    // shadow-screen select (port $7FFD bit 3).
     input  wire        screen7,
-    output reg  [2:0]  screen_bank = 3'd5,
     output reg  [13:0] screen_addr = 14'd0,
-    input  wire [7:0]  screen_data,
+    input  wire [7:0]  screen5_data,
+    input  wire [7:0]  screen7_data,
     input  wire [2:0]  border,
     output reg  [7:0]  floating = 8'hff,
     // One 8-pixel chunk as the ULA sees it: {bitmap[7:0], ink[3:0],
@@ -69,22 +79,34 @@ module spectrum_ula #(
     localparam integer VY0 = LINES - LINE_BACK;
 
     // ---------------------------------------------------------------- clock
+    // At the model's speed the rational rate is PHASE_ADD/PHASE_MOD of clk and
+    // tick_n comes 7 clocks after tick_p; in turbo it comes 3 after. The phase
+    // holds through turbo T states, so the first T state after them is a full
+    // one.
     reg [17:0] phase = 18'd0;
     reg [3:0] since_p = 4'd0;
+    reg fast = 1'b0;
+    wire wrap = {1'b0, phase} + PHASE_ADD >= PHASE_MOD;
+    // The last clock of a T state; tick_p follows it.
+    wire slot_end = fast ? since_p == 4'd4 : wrap;
     always @(posedge clk) begin
         tick_p <= 1'b0;
         tick_n <= 1'b0;
         if (reset) begin
             phase <= 18'd0;
             since_p <= 4'd0;
-        end else if ({1'b0, phase} + PHASE_ADD >= PHASE_MOD) begin
-            phase <= phase + 18'(PHASE_ADD) - 18'(PHASE_MOD);
-            since_p <= 4'd0;
-            tick_p <= 1'b1;
+            fast <= 1'b0;
         end else begin
-            phase <= phase + 18'(PHASE_ADD);
-            if (since_p == 4'd6) tick_n <= 1'b1;
-            if (since_p != 4'd15) since_p <= since_p + 4'd1;
+            if (!fast) phase <= wrap ? phase + 18'(PHASE_ADD) - 18'(PHASE_MOD)
+                                     : phase + 18'(PHASE_ADD);
+            if (slot_end) begin
+                since_p <= 4'd0;
+                tick_p <= 1'b1;
+                fast <= turbo;
+            end else begin
+                if (since_p == (fast ? 4'd2 : 4'd6)) tick_n <= 1'b1;
+                if (since_p != 4'd15) since_p <= since_p + 4'd1;
+            end
         end
     end
 
@@ -118,6 +140,12 @@ module spectrum_ula #(
             end
         end
     end
+    // The counters of the next T state, before its tick_p updates them.
+    wire frame_last = t == 17'(FRAME - 1);
+    wire line_last = hx == 9'(T_LINE - 1);
+    wire [8:0] hx_next = frame_last ? 9'(HX0) : line_last ? 9'd0 : hx + 9'd1;
+    wire [8:0] vy_next = frame_last ? 9'(VY0) :
+                         !line_last ? vy : vy == 9'(LINES - 1) ? 9'd0 : vy + 9'd1;
     // The CPU samples INT at the ce_p that starts an instruction's last T
     // state, when t still names the slot before it. Asserting INT two slots
     // early accepts it exactly at instruction boundaries 0..INT_LEN-1, as
@@ -173,10 +201,16 @@ module spectrum_ula #(
         attr_offset = {4'b0110, y[7:3], column};
     endfunction
 
-    // Floating bus position: d is the T state relative to the paper start.
-    wire [8:0] d = hx - 9'd32;
-    wire [8:0] d_late = hx - 9'd33;   // Amstrad: one T state later
-    wire in_paper_t = paper_line && hx >= 9'd32 && hx < 9'd160;
+    // Floating bus position of the T state after next: d is its T state
+    // relative to the paper start.
+    wire line_last_next = hx_next == 9'(T_LINE - 1);
+    wire frame_last_next = t == 17'(FRAME - 2);
+    wire [8:0] hx_after = frame_last_next ? 9'(HX0) : line_last_next ? 9'd0 : hx_next + 9'd1;
+    wire [8:0] vy_after = frame_last_next ? 9'(VY0) : !line_last_next ? vy_next :
+                          vy_next == 9'(LINES - 1) ? 9'd0 : vy_next + 9'd1;
+    wire [8:0] d = hx_after - 9'd32;
+    wire [8:0] d_late = hx_after - 9'd33;   // Amstrad: one T state later
+    wire in_paper_t = vy_after < 9'd192 && hx_after >= 9'd32 && hx_after < 9'd160;
     wire [2:0] float_phase = FLOATING == 2 ? d_late[2:0] :
                              FLOATING == 3 ? d[2:0] + 3'd4 : d[2:0];
     wire float_live = in_paper_t && float_phase >= 3'd2 && float_phase <= 3'd5;
@@ -184,58 +218,68 @@ module spectrum_ula #(
     wire float_attr = float_phase[0];
 
     // A chunk's bitmap and attribute are read at the start of the T state
-    // two after the chunk begins (hx = 34 + 4c), so a write whose T1 began
-    // in the chunk's first T state is seen and a later one is not. 128K-class
+    // two after the chunk begins (hx = 34 + 4c), so a write whose T1 began in
+    // the chunk's first T state is seen and a later one is not. 128K-class
     // models read both screens then; the bank is chosen when the chunk ends,
     // so an OUT to $7FFD with T2 up to its last T state switches it.
-    // Screen port schedule, one read per clock from the clock after tick_p:
-    //   0 floating-bus byte, 1/2 bank 5 bitmap/attribute, 3/4 bank 7.
-    reg tick_p_d = 1'b0;
-    always @(posedge clk) tick_p_d <= tick_p;
+    // Screen port schedule, one address per clock from tick_p, each read
+    // landing a clock later: the floating-bus byte of the T state after this
+    // one, then the bitmap and the attribute. A CPU write lands two clocks
+    // after its T2's ce_n: clock 9 of that T state, or in turbo the end of
+    // the next T state's tick_p clock. So the reads, at the ends of clocks 1
+    // to 3, see memory as of the T state's start at either speed. The
+    // floating byte is read a T state early, which no IN can tell: a write or
+    // OUT is at least three T states before the IN samples the bus.
     wire [8:0] fetch_x = hx - 9'd34;
-    wire fetch_now = paper_line && hx >= 9'd34 && hx < 9'd162 && fetch_x[1:0] == 2'd0;
-    localparam [2:0] S_IDLE = 3'd0, S_FLOAT = 3'd1, S_B5 = 3'd2, S_A5 = 3'd3,
-                     S_B7 = 3'd4, S_A7 = 3'd5;
-    reg [2:0] step = S_IDLE;
-    reg [2:0] issued_d1 = S_IDLE, issued_d2 = S_IDLE, issued_d3 = S_IDLE;
-    reg [4:0] fetch_column = 5'd0;
-    reg [7:0] fetch_y = 8'd0;
+    wire fetch_now = vy < 9'd192 && hx >= 9'd34 && hx < 9'd162 && fetch_x[1:0] == 2'd0;
+    localparam [1:0] R_NONE = 2'd0, R_BITMAP = 2'd1, R_ATTR = 2'd2, R_FLOAT = 2'd3;
+    reg [1:0] issued_d1 = R_NONE, issued_d2 = R_NONE, issued_d3 = R_NONE;
+    reg float7_d1 = 1'b0, float7_d2 = 1'b0, float7_d3 = 1'b0;
+    reg tick_p_d = 1'b0;
+    reg attr_due = 1'b0;
+    reg [13:0] attr_addr = 14'd0;
     reg [7:0] bitmap5 = 8'd0, attr5 = 8'd0, bitmap7 = 8'd0, attr7 = 8'd0;
+    reg [7:0] float_next = 8'hff;
 
     always @(posedge clk) begin
-        issued_d1 <= S_IDLE;
+        tick_p_d <= tick_p;
+        issued_d1 <= R_NONE;
         issued_d2 <= issued_d1;
         issued_d3 <= issued_d2;
+        float7_d2 <= float7_d1;
+        float7_d3 <= float7_d2;
         if (reset) begin
-            step <= S_IDLE;
+            attr_due <= 1'b0;
             floating <= 8'hff;
+            float_next <= 8'hff;
         end else begin
-            if (tick_p_d) begin
-                // Counters for the new slot are visible the clock after tick_p.
-                fetch_column <= fetch_x[6:2];
-                fetch_y <= vy[7:0];
+            if (tick_p) begin
+                // hx/vy still name the last T state until this edge.
+                floating <= float_next;
                 if (float_live) begin
-                    screen_bank <= SHADOW && screen7 ? 3'd7 : 3'd5;
-                    screen_addr <= float_attr ? attr_offset(vy[7:0], float_column)
-                                              : bitmap_offset(vy[7:0], float_column);
-                    issued_d1 <= S_FLOAT;
-                end else floating <= 8'hff;
-                step <= fetch_now ? S_B5 : S_IDLE;
-            end else if (step != S_IDLE) begin
-                screen_bank <= step >= S_B7 ? 3'd7 : 3'd5;
-                screen_addr <= step[0] ? attr_offset(fetch_y, fetch_column)
-                                       : bitmap_offset(fetch_y, fetch_column);
-                issued_d1 <= step;
-                step <= step == S_A7 || (!SHADOW && step == S_A5) ? S_IDLE : step + 3'd1;
+                    screen_addr <= float_attr ? attr_offset(vy_after[7:0], float_column)
+                                              : bitmap_offset(vy_after[7:0], float_column);
+                    issued_d1 <= R_FLOAT;
+                    float7_d1 <= SHADOW && screen7;
+                end else float_next <= 8'hff;
+            end else if (tick_p_d) begin
+                attr_due <= fetch_now;
+                attr_addr <= attr_offset(vy[7:0], fetch_x[6:2]);
+                if (fetch_now) begin
+                    screen_addr <= bitmap_offset(vy[7:0], fetch_x[6:2]);
+                    issued_d1 <= R_BITMAP;
+                end
+            end else if (since_p == 4'd2 && attr_due) begin
+                screen_addr <= attr_addr;
+                issued_d1 <= R_ATTR;
             end
-            // The address register, block read and bank select take three
+            // The address register, block read and output register take three
             // clocks; capture on the fourth edge.
             case (issued_d3)
-                S_FLOAT: floating <= FLOATING == 2 ? (screen_data | 8'h01) : screen_data;
-                S_B5: bitmap5 <= screen_data;
-                S_A5: attr5 <= screen_data;
-                S_B7: bitmap7 <= screen_data;
-                S_A7: attr7 <= screen_data;
+                R_BITMAP: begin bitmap5 <= screen5_data; bitmap7 <= screen7_data; end
+                R_ATTR: begin attr5 <= screen5_data; attr7 <= screen7_data; end
+                R_FLOAT: float_next <= FLOATING == 2 ? ((float7_d3 ? screen7_data : screen5_data) | 8'h01)
+                                                     : (float7_d3 ? screen7_data : screen5_data);
                 default: ;
             endcase
         end
