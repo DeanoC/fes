@@ -27,7 +27,9 @@ Verilator testbenches in cores/fes-common/sim/i386:
 With --yosys, each bench first runs its RTL through that Yosys (read, proc,
 flatten, opt) and simulates the netlist Yosys wrote instead: the routed
 spikes are built from Yosys's reading of the SystemVerilog, and this shows
-it is the same design.
+it is the same design. The front-end bench also synthesizes Q's aligner on
+its own, as the spikes do, and fails if a multiplier or carry cell appears:
+Q has no wide sum (DeanoC/yosys#59).
 
 Example:
   python3 scripts/test_fes_i386_frontend.py --download
@@ -49,6 +51,7 @@ if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import fes_i386_oracle as oracle
+from scripts.benchmark_fes_i386 import SYNTHESIS
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = ROOT / 'cores/fes-common/rtl/i386'
@@ -84,6 +87,24 @@ def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
     if result.returncode:
         raise FrontendError(f'yosys failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return netlist
+
+
+def qalign_synthesis(yosys: str) -> dict[str, int]:
+    """Synthesize Q's aligner on its own; count its multiplier and carry cells."""
+    output = OUTPUT / 'qalign-synthesis'
+    output.mkdir(parents=True, exist_ok=True)
+    sources = ' '.join(str(RTL / path) for path in ('fes_i386_pkg.sv', 'fes_i386_qalign.sv'))
+    netlist = output / 'synth.json'
+    script = f'read_verilog -sv {sources}; hierarchy -top fes_i386_qalign; {SYNTHESIS}; write_json {netlist}'
+    log = output / 'yosys.log'
+    with log.open('w') as stream:
+        result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        raise FrontendError(f'yosys failed for qalign; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+    cells = json.loads(netlist.read_text())['modules']['fes_i386_qalign']['cells'].values()
+    types = [cell['type'] for cell in cells]
+    return {'cells': len(types), 'multipliers': sum(t.startswith('MISTRAL_MUL') for t in types),
+            'carry_cells': types.count('MISTRAL_ALUT_ARITH')}
 
 
 def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: str | None = None) -> Path:
@@ -220,6 +241,10 @@ def main() -> int:
             report[name] = {'records': records, 'failures': failures}
             if code or failures or failed(records):
                 exit_code = 1
+        if yosys and 'frontend' in selected:
+            report['qalign_synthesis'] = synthesis = qalign_synthesis(yosys)
+            if synthesis['multipliers'] or synthesis['carry_cells']:
+                exit_code = 1
     except (OSError, oracle.OracleError, FrontendError, json.JSONDecodeError) as error:
         print('i386 front-end check error:', error, file=sys.stderr)
         return 2
@@ -227,6 +252,10 @@ def main() -> int:
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     for line in summary(results.get('lendec', []), results.get('frontend', []), results.get('dag', [])):
         print(line)
+    if 'qalign_synthesis' in report:
+        synthesis = report['qalign_synthesis']
+        print(f"Q's aligner on its own: {synthesis['cells']} cells, {synthesis['multipliers']} multipliers, "
+              f"{synthesis['carry_cells']} carry cells")
     for name in results:
         for line in report[name]['failures'][:40]:
             print(line)
