@@ -5,8 +5,8 @@ for this machine. Every clock, area, bandwidth and latency figure below is a
 budget or an estimate unless it names a measurement. The milestone that
 measures one replaces it.
 
-**Depends on:** the [i386 CPU design](i386-cpu-design.md) (#1068). This page
-designs everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
+**Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
+everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
 and uses its [first acceptance games](i386-cpu-design.md#first-acceptance-games)
 as the scope.
 
