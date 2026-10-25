@@ -1,8 +1,9 @@
-# 2026-10-24: Spectrum timing margin after #1001
+# 2026-10-24: Spectrum timing margin after #1001, and a kit A check
 
 Record of the four Spectrum model packages after two timing changes on top
 of `main` `e93b15b2`. It records routed, timing-closed bitstreams and the
-host simulations behind them. It is not a kit check, an image or a release.
+host simulations behind them, and a kit A check of the sealed archives with
+kit software built from `main`. It is not an image or a release.
 
 ## Why
 
@@ -62,10 +63,33 @@ markers (48K 14950, 128K 14960, +2A/+3 14955, Pentagon 14946), the video
 check (31 source frames in 40 HDMI frames, no tearing), the board bench and
 both tape-deck reference expansions.
 
+## Kit A check
+
+Run `kswA1` (05:22 to 05:36 EET, 2026-10-25) ran the four archives sealed
+above on kit A. Its running image `4db74864` was not changed. The kit SDK
+was published with `make kit-sdk` (#1063) from `main` `0f3b35c9`, and kit
+software built from that commit (bundle archive `0f1f757a…`, installed as
+`115494f3…`) was installed and activated over the baseline `35d58489`. The
+private host, which converts tapes, was built from the same commit. Each
+archive was imported, checked for compatibility, linked to its locally held
+ROM, launched, seen running on three status samples and stopped. Each model
+loaded the turbo-loader `.tzx` of the
+[2026-10-22 record](2026-10-22-spectrum-tape-ddr.md) from DDR with `LOAD ""`
+(48K) or its menu's tape loader, and a grabbed frame was checked for the
+eight stripes. A 20-second capture then counted HDMI relocks, and `0xBA` was
+read without writing it.
+
+| Core | Archive | Build seen on kit | Session | Turbo `.tzx` (stripes 0–7) | HDMI relocks in 20 s | `0xBA` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fes.spectrum` 0.4.0 | `226617fe…` | `96d48311…` | pass | pass | 0 | `0x20` |
+| `fes.spectrum128` 0.2.0 | `c651c074…` | `f2467973…` | pass | pass | 0 | `0x20` |
+| `fes.spectrum-plus3` 0.2.0 | `15abb75c…` | `ce4de7da…` | pass | pass | 0 | `0x20` |
+| `fes.pentagon` 0.2.0 | `5e0cdec5…` | `60136f4d…` | pass | pass | 0 | `0x20` |
+
+The software was restored to `35d58489`, the image fingerprints matched
+before and after, and kit A was released at 05:36.
+
 ## Not established
 
-- These packages on a kit. The previous archives (`71731792…`,
-  `11241760…`, `c58dc83e…`, `8b4ce348…`) passed kit B run `c997i`
-  ([2026-10-22 record](2026-10-22-spectrum-tape-ddr.md)).
 - Routability: some seeds still do not finish routing in the 600-second
   lease.

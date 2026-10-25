@@ -463,12 +463,12 @@ byte per plane, so the four planes at one planar offset are one word. DDR
 port 1 is 64 bits wide and carries two VRAM words per beat.
 
 Address translation follows the sequencer memory mode and graphics misc
-register. Chain-4 uses plane `A & 3` at planar offset `A & ~3`, which is what
+register. Chain-4 uses plane `A & 3` at planar offset `A >> 2`, which is what
 mode 13h's dword-mode scanout reads and what DOSBox does. Odd/even uses plane
-`A & 1` (plus the page bit for planes 2 and 3) at `A & ~1`. Otherwise the
-offset is `A` and the map mask selects planes. Games that switch chain-4 off
-and read mode 13h data back unchained depend on this mapping, so the VGA
-trace replay checks it against the reference.
+`A & 1` (plus the page bit for planes 2 and 3) at planar offset `A >> 1`.
+Otherwise the offset is `A` and the map mask selects planes. Games that switch
+chain-4 off and read mode 13h data back unchained depend on this mapping, so
+the VGA trace replay checks it against the reference.
 
 Every CPU write arrives through the FIFO as a dword with byte enables. Each
 enabled byte is one VGA write, in address order:
@@ -831,11 +831,14 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map; grant the
-  region, invalidate the HPS caches for it and read the dirty chunks; write and
-  sync each new chunk file; publish the new manifest with the existing
-  temporary-file, rename and directory-sync rule; send Saved; delete chunk
-  files no manifest names, under the namespace lock.
+- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
+  existing manifest (empty on the first save); grant the region, invalidate the
+  HPS caches for it and read the dirty chunks; write and sync each new chunk
+  file; replace those indices in the existing manifest, retaining entries for
+  unchanged chunks; publish the merged manifest with the existing
+  temporary-file, rename and directory-sync rule; send Saved to clear the dirty
+  bits; delete chunk files the published manifest does not name, under the
+  namespace lock.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 

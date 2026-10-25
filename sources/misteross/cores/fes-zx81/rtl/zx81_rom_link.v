@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Eight empty 1024x10 lanes for the ZX81 machine ROM.
 // Address [12:10] selects the block and [9:0] selects the lane.
+// ZX81_ROM_4K (the ZX80) keeps the low four lanes, rows 73-76, and ties
+// the upper four to zero. The default compile still instantiates all eight.
 // The sealed OSS image leaves these lanes empty. Launch splices BASIC
 // into the RAM muxes; this file does not read zx8x.hex.
+`include "zx81_model.vh"
 //
 // Cyclone V M10K cannot do a true asynchronous read, so each lane registers
 // its address on clk (CFG_ASYNC_READ=0, live CLK1, B1EN held high). The bank
@@ -35,11 +38,24 @@ module zx81_rom_link (
     assign source_data = sim_stage;
 `else
     wire [9:0] lane_addr = address[9:0];
+`ifdef ZX81_ROM_4K
+    reg [1:0] bank_d;
+    always @(posedge clk) bank_d <= address[11:10];
+`else
     reg [2:0] bank_d;
     always @(posedge clk) bank_d <= address[12:10];
+`endif
     wire [9:0] q0, q1, q2, q3, q4, q5, q6, q7;
     reg [9:0] q;
     always @* begin
+`ifdef ZX81_ROM_4K
+        case (bank_d)
+            2'd0: q = q0;
+            2'd1: q = q1;
+            2'd2: q = q2;
+            default: q = q3;
+        endcase
+`else
         case (bank_d)
             3'd0: q = q0;
             3'd1: q = q1;
@@ -50,6 +66,7 @@ module zx81_rom_link (
             3'd6: q = q6;
             default: q = q7;
         endcase
+`endif
     end
     assign source_data = q[7:0];
     (* keep, BEL = "MISTRAL_M10K.5.73.0" *)
@@ -72,6 +89,7 @@ module zx81_rom_link (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q3), .ACLR0(1'b0), .ACLR1(1'b0)
     );
+`ifndef ZX81_ROM_4K
     (* keep, BEL = "MISTRAL_M10K.5.77.0" *)
     MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(10240'b0)) lane4 (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
@@ -92,6 +110,12 @@ module zx81_rom_link (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q7), .ACLR0(1'b0), .ACLR1(1'b0)
     );
+`else
+    assign q4 = 10'd0;
+    assign q5 = 10'd0;
+    assign q6 = 10'd0;
+    assign q7 = 10'd0;
+`endif
 `endif
     always @(posedge clk)
         data <= source_data;

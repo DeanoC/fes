@@ -21,6 +21,10 @@ type zx81SavedTapeLister interface {
 	ListZX81Saves(context.Context, string) ([]catalog.ZX81Save, error)
 }
 
+type zx81TapeCoreEntryReader interface {
+	CoreEntry(context.Context, string) (catalog.CoreEntry, error)
+}
+
 func registerZX81Tapes(mux *http.ServeMux, service Service) {
 	mux.HandleFunc("GET /api/v1/library/zx81-tapes", func(w http.ResponseWriter, r *http.Request) {
 		if rejectCoreLibraryBody(w, r) {
@@ -59,18 +63,33 @@ func registerZX81Tapes(mux *http.ServeMux, service Service) {
 
 func zx81TapeShelf(w http.ResponseWriter, service Service, r *http.Request) ([]zx81TapeView, bool) {
 	starters := zx81tapes.Entries()
+	gameID := r.URL.Query().Get("game_id")
+	if gameID != "" {
+		if protocol.ValidateGameID(gameID) != nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid game")
+			return nil, false
+		}
+		reader, ok := service.(zx81TapeCoreEntryReader)
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "UNSUPPORTED_OPERATION", "machine identity is unavailable")
+			return nil, false
+		}
+		entry, err := reader.CoreEntry(r.Context(), gameID)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return nil, false
+		}
+		if entry.CoreID != "fes.zx81" {
+			starters = nil
+		}
+	}
 	tapes := make([]zx81TapeView, 0, len(starters))
 	for _, entry := range starters {
 		entry.Data = nil
 		tapes = append(tapes, zx81TapeView{Entry: entry})
 	}
-	gameID := r.URL.Query().Get("game_id")
 	if gameID == "" {
 		return tapes, true
-	}
-	if protocol.ValidateGameID(gameID) != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "invalid game")
-		return nil, false
 	}
 	lister, ok := service.(zx81SavedTapeLister)
 	if !ok {

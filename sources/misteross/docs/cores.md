@@ -29,6 +29,9 @@ nothing by itself.
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `cores/fes-menu/toolchain.lock` | `make build-fes-menu-package` | bootstrap image; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `cores/fes-pong/toolchain.lock` | `make build-fes-pong` | supported |
 | `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx81` | supported |
+| `fes.zx80` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-zx80` | experimental; PAL, 4 KiB ROM, 1 KiB RAM, no NMI |
+| `fes.ts1000` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1000` | experimental; NTSC, 8 KiB ROM, 2 KiB RAM |
+| `fes.ts1500` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `cores/fes-zx81/toolchain.lock` | `make build-fes-ts1500` | experimental; NTSC, 8 KiB ROM, 16 KiB RAM |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` with session display and HPS DDR | `cores/fes-coleco/toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | supported; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `cores/fes-sms/toolchain.lock` | `make build-fes-sms` | supported |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `cores/fes-sg1000/toolchain.lock` | `make build-fes-sg1000` | supported |

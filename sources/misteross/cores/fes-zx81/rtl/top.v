@@ -112,7 +112,14 @@ module top #(
     wire [15:0] display_argument, display_response_data;
     fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_ZX81_TAPE(1), .ENABLE_ZX81_TAPE_WRITE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
+        .ENABLE_ZX81_TAPE(1),
+        // ZX80's cassette entry is the ZX81 SAVE completion address.
+`ifdef ZX81_MODEL_ZX80
+        .ENABLE_ZX81_TAPE_WRITE(0),
+`else
+        .ENABLE_ZX81_TAPE_WRITE(1),
+`endif
+        .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (
