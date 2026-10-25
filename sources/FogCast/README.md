@@ -10,6 +10,15 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 ## What works now
 
+- **Settings → BIOS & media drives** remembers USB volumes and SMB shares on
+  either the kit/launcher device or the FogCast host, with separate BIOS and
+  media folders. Saved drives appear in BIOS, core setup and live-media
+  pickers and reconnect when opened. Browser Settings manages host drives;
+  **From host drive** imports their files in FPGA library setup. See
+  [BIOS and media drives](docs/ARCHITECTURE.md#bios-and-media-drives). USB
+  discovery and mounting require Linux; non-Linux Tenfoot builds can still use
+  SMB shares.
+
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
@@ -55,10 +64,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   exact 174,848-byte `.d64`, Atari ST uses raw `.st` disks (legacy 737,280 bytes;
   packages requiring `fes.media.atari-st-floppy-geometry` also admit
   80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes), and
-  ZX Spectrum 48K is a 1..65,536-byte `.tap`.
+  the ZX Spectrum models take a `.tzx`, `.tap`, `.pzx` or `.csw` tape of up to
+  32 MiB, which the host converts to the unit's PZX stream.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
-  `fogcast eject-disk`. ZX Spectrum 48K uses `fogcast change-cassette` and
+  `fogcast eject-disk`. The ZX Spectrum models use `fogcast change-cassette` and
   `fogcast eject-cassette`. A stored media ID follows the active unit's
   size. See
   [removable disks](docs/ARCHITECTURE.md#removable-disks-fescomputer-media-units).
@@ -466,3 +476,27 @@ Writable disks use explicit library bindings and runtime-owned complete-image
 saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
 and the optional slot-1 CPU expansion together; every part binds the exact
 shell package. These extensions do not add Atari ST to the factory image.
+
+### Independent room updates
+
+First-party room directories use their public `example.*` identities directly.
+The existing `fogcast-tenfoot room-install PACK_DIRECTORY` command installs Lua,
+metadata and artwork under the same identity as the built-in room. Reopen Rooms
+and select it to trial the update in the running launcher, without rebuilding
+Go or restarting the agent. `room-rollback example.fes-cores` restores the
+previous selection; a first-install rollback reveals the built-in default.
+See [room delivery](docs/rooms.md#installing-and-opening-rooms). The binary's
+embedded snapshots remain offline recovery defaults, rather than a required
+route for delivering ordinary room updates.
+
+Portable room files use the same installer and rollback path:
+`fogcast-tenfoot room-export --output home.room.zip PACK_DIRECTORY`, then
+`fogcast-tenfoot room-install home.room.zip` on the launcher's machine. Export
+validates before publishing; import checks the bounded archive privately before
+changing the selected snapshot. No source checkout is needed to install it.
+See [room installation](docs/rooms.md#installing-and-opening-rooms).
+
+Tenfoot synchronizes held-direction repeat state between frame-loop input and
+asynchronous session-display handoffs. A failed surround transition can clear
+pending repeats without racing the frame tick; repeat delay and cadence are
+unchanged. The input helper releases its lock before command dispatch.

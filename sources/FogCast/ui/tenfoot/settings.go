@@ -22,6 +22,7 @@ const (
 	settingsRowHome
 	settingsRowReducedMotion
 	settingsRowSurround
+	settingsRowDrives
 	settingsRowFixedCount
 )
 
@@ -62,6 +63,7 @@ const (
 	settingsOSKTapePath
 	settingsOSKCorePath
 	settingsOSKCoreTitle
+	settingsOSKDriveField
 )
 
 type settingsTargetDraft struct {
@@ -201,6 +203,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
 		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
 		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
+		{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -480,6 +483,10 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.setSurroundLocked(!a.surround, true)
+		}
+	case settingsRowDrives:
+		if cmd == CmdSelect {
+			a.openDriveSettingsLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {
@@ -1153,6 +1160,8 @@ func (a *App) handleSettingsOSKLocked(cmd Command) {
 
 func (a *App) submitSettingsOSKLocked() {
 	switch a.settingsOSKKind {
+	case settingsOSKDriveField:
+		a.submitDriveFieldLocked()
 	case settingsOSKCorePath, settingsOSKCoreTitle:
 		a.submitCoreLibraryOSKLocked()
 	case settingsOSKLibraryPath:

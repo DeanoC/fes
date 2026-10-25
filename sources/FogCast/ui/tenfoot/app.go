@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/storage"
 	"image"
 	"io/fs"
 	"net"
@@ -275,6 +276,7 @@ type Snapshot struct {
 	DebugHUD        DebugHUDSnapshot
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
+	Storage         FirmwarePickerSnapshot
 	CoreLibrary     FirmwarePickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
 	TapePicker      TapePickerSnapshot
@@ -297,33 +299,40 @@ type DebugHUDSnapshot struct {
 
 // App owns catalog, focus, async covers, and host launch. SDL stays out.
 type App struct {
+	driveManager            *storage.Manager
+	localDrives, hostDrives []storage.Drive
+	driveRootsGen           int
+	driveSettings           driveSettingsState
+
 	coreLibrary coreLibraryState
 	client      *Client
 	ctx         context.Context
 	cancel      context.CancelFunc
 
-	mu                 sync.Mutex
-	games              []hostclient.Game
-	grid               Grid
-	covers             map[string]*coverSlot
-	inflight           map[string]workKind
-	status             string
-	statusLeaseRefusal bool
-	launchLeaseRefusal bool
-	loadErr            string
-	loading            bool
-	libraryRetrying    bool // catalog retry is in flight; independent of the Select gate
-	launch             LaunchSnapshot
-	gamepads           int
-	keyboards          int
-	mice               int
-	affinity           affinityTracker
-	repeat             Repeater
-	theme              theme.Theme
-	jobs               chan workItem
-	results            chan workResult
-	maxGames           int
-	pageLimit          int
+	mu                      sync.Mutex
+	games                   []hostclient.Game
+	grid                    Grid
+	covers                  map[string]*coverSlot
+	inflight                map[string]workKind
+	status                  string
+	statusLeaseRefusal      bool
+	launchLeaseRefusal      bool
+	loadErr                 string
+	loading                 bool
+	libraryRetrying         bool // catalog retry is in flight; independent of the Select gate
+	launch                  LaunchSnapshot
+	launchPackageID         string // pending Workshop package selection retained for retry
+	launchExpectedPackageID string
+	gamepads                int
+	keyboards               int
+	mice                    int
+	affinity                affinityTracker
+	repeat                  Repeater
+	theme                   theme.Theme
+	jobs                    chan workItem
+	results                 chan workResult
+	maxGames                int
+	pageLimit               int
 
 	platforms              []hostclient.Platform
 	platformID             string
@@ -968,6 +977,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 	}
 	a.localStatus = ""
+	if a.driveSettings.Open {
+		if a.settingsOSKOpenLocked() {
+			a.handleSettingsOSKLocked(cmd)
+		} else {
+			a.handleDriveSettingsLocked(cmd)
+		}
+		return
+	}
 	if a.coreLibrary.Open {
 		if a.settingsOSKOpenLocked() {
 			a.handleSettingsOSKLocked(cmd)
@@ -1794,6 +1811,7 @@ func (a *App) Snapshot() Snapshot {
 		DebugHUD:                a.debugHUDSnapshotLocked(),
 		Room:                    a.roomSnapshotLocked(true),
 		RoomPicker:              a.roomPickerSnapshotLocked(),
+		Storage:                 a.driveSettingsSnapshotLocked(),
 		CoreLibrary:             a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
 		TapePicker:              a.tapePickerSnapshotLocked(),
@@ -1906,6 +1924,12 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		snap := a.settingsOSKField.Snapshot()
 		snap.Open = true
 		switch a.settingsOSKKind {
+		case settingsOSKDriveField:
+			snap.Prompt = "SMB " + a.driveSettings.Status
+			if a.driveSettings.Status == "password" {
+				snap.Masked = true
+				snap.Buffer = shared.MaskSecret(a.settingsOSKField.Buffer)
+			}
 		case settingsOSKLibraryPath:
 			snap.Prompt = "Library path"
 		case settingsOSKTargetName:
@@ -1923,9 +1947,13 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 		case settingsOSKCorePath:
 			snap.Prompt = "ROM or media path"
 		case settingsOSKFirmwarePath:
-			snap.Prompt = "Coleco BIOS path"
+			if a.entryFirmwarePickerLocked() {
+				snap.Prompt = "Firmware ROM path"
+			} else {
+				snap.Prompt = "Coleco BIOS path"
+			}
 		case settingsOSKTapePath:
-			snap.Prompt = "ZX81 .p tape path"
+			snap.Prompt = "Media path"
 		}
 		return a.withOSKHintLocked(snap)
 	}
@@ -2294,6 +2322,10 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	a.startLaunchGameWithPackageLocked(game, "", "")
+}
+
+func (a *App) startLaunchGameWithPackageLocked(game hostclient.Game, packageID, expectedPackageID string) {
 	// Release kit may already have read an idle session and still be about
 	// to post an empty-body Stop. That Stop would end this game.
 	if a.leaseReleaseBusy {
@@ -2346,6 +2378,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		}
 		return
 	}
+	a.launchPackageID = packageID
+	a.launchExpectedPackageID = expectedPackageID
 	a.sessionTitle = game.Title
 	a.cancelPlayHIDLocked()
 	a.launchLeaseRefusal = false
@@ -2370,7 +2404,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		"game_id": game.ID,
 		"title":   game.Title,
 	})
-	go a.doLaunch(ctx, game, stamp)
+	go a.doLaunch(ctx, game, stamp, packageID, expectedPackageID)
 }
 
 // launchBlockReason maps hostclient catalog ineligibility to sofa copy.
@@ -2390,7 +2424,42 @@ func libraryPlayDestination(game hostclient.Game) rooms.Destination {
 	return d
 }
 
-func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp) {
+func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp, packageID, expectedPackageID string) {
+	if packageID != "" {
+		_, err := a.client.SelectCoreEntryPackage(ctx, game.ID, expectedPackageID, packageID)
+		if err != nil {
+			// The host may commit the compare-and-swap and lose its response.
+			// Confirm the saved entry before deciding that retry must remain
+			// pending or that another selection should stop this launch.
+			if current, readErr := a.client.CoreEntry(ctx, game.ID); readErr == nil {
+				switch {
+				case current.PackageID == packageID:
+					err = nil
+				case current.PackageID != expectedPackageID:
+					err = errors.New("saved package selection changed while launch was pending")
+				}
+			}
+		}
+		if err != nil {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.launch.GameID != game.ID {
+				return
+			}
+			a.bumpSessionGenLocked()
+			a.launch.Phase = "error"
+			a.launchLeaseRefusal = false
+			a.launch.Message = "package selection failed: " + err.Error()
+			a.launch.ErrorMessage = err.Error()
+			return
+		}
+		a.mu.Lock()
+		if a.launch.GameID == game.ID && a.launch.Phase == "launching" {
+			a.launchPackageID = ""
+			a.launchExpectedPackageID = ""
+		}
+		a.mu.Unlock()
+	}
 	result, err := a.client.LaunchStamped(ctx, game.ID, stamp)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -2738,11 +2807,51 @@ func (a *App) forwardsKeyboardHIDLocked() bool {
 // scancode is the Keyboard/Keypad usage). HID sessions forward the usage
 // without chrome keys or a character map; other sessions keep the named-key
 // path of HandlePlayHIDKey.
+// hidKeyboardF12 is the USB HID Keyboard/Keypad usage for F12.
+const hidKeyboardF12 = 0x45
+
+func mediaSelectorKey(name string, usage uint8) bool {
+	if usage == hidKeyboardF12 {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(name), "f12")
+}
+
+// openRunningMediaSelector opens the running machine's media selector.
+// An empty tape and a folder with no .p files still open: Eject and a typed
+// path stay available. A kit-local core keeps F12 as Stop, so this returns
+// false there.
+func (a *App) openRunningMediaSelector(down bool, now time.Time) bool {
+	a.mu.Lock()
+	offer := !a.localCoreBusyLocked() && a.playingHardwareRoomAvailableLocked() && a.sessionMediaOfferedLocked()
+	a.mu.Unlock()
+	if !offer {
+		return false
+	}
+	if down {
+		a.Press(CmdHome, now)
+	}
+	return true
+}
+
 func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now time.Time) bool {
 	if a == nil {
 		return false
 	}
 	if a.consumeSuppressedPlayKey(name, down) {
+		return true
+	}
+	if mediaSelectorKey(name, usage) {
+		// F12 is the running selector. A kit-local core keeps it as Stop.
+		// Every other session consumes the key, including an empty tape and
+		// a folder that has no .p files, so it is never forwarded.
+		if a.localCoreOwnsInput() {
+			if down {
+				a.RequestLocalStop()
+			}
+			return true
+		}
+		a.openRunningMediaSelector(down, now)
 		return true
 	}
 	if a.handlePlayingRoomKey(name, down, now) {

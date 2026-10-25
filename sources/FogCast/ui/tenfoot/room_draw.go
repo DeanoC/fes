@@ -390,6 +390,7 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		title = tapePickerTitle
 	}
 	drawLabel(dev, labels, used, "tape-title", x+16, y+12, panelW-32, 18, title)
+	drawLabel(dev, labels, used, "tape-current", x+16, y+34, panelW-32, 14, snap.TapePicker.Current)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {

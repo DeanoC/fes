@@ -184,16 +184,17 @@ func (a *App) retryLaunchOverlayLocked() {
 	if a.room != nil {
 		dest = a.roomDestinationLocked()
 	}
+	packageID, expectedPackageID := a.launchPackageID, a.launchExpectedPackageID
 	if game, ok := dest.Game(); ok {
-		a.startLaunchGameLocked(game)
+		a.startLaunchGameWithPackageLocked(game, packageID, expectedPackageID)
 		return
 	}
 	if id := strings.TrimSpace(a.launch.GameID); id != "" {
-		a.launchFromRoomLocked(id)
+		a.launchFromRoomWithPackageLocked(id, packageID, expectedPackageID)
 		return
 	}
 	if dest.GameID != "" {
-		a.launchFromRoomLocked(dest.GameID)
+		a.launchFromRoomWithPackageLocked(dest.GameID, packageID, expectedPackageID)
 	}
 }
 
@@ -209,4 +210,6 @@ func (a *App) dismissLaunchOverlayLocked() {
 	a.launch.ErrorMessage = ""
 	a.launch.HTTPStatus = 0
 	a.launch.State = ""
+	a.launchPackageID = ""
+	a.launchExpectedPackageID = ""
 }

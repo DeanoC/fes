@@ -56,8 +56,8 @@ class TestChangedTest(unittest.TestCase):
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["menu", "spectrum", "zx81"])
-        for target in ("sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81"):
+        self.assertEqual(result["impact"]["cores"], ["c64", "coleco", "menu", "spectrum", "zx81"])
+        for target in ("sim-fes-c64", "sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81", "sim-fes-coleco-session"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
     def setUp(self):
@@ -161,6 +161,40 @@ class TestChangedTest(unittest.TestCase):
             runtime = next(c for c in result['commands'] if c['lane'] == 'runtime')
             self.assertEqual(runtime['argv'], ['make', '-j2', target])
 
+    def test_runtime_test_edits_keep_runtime_and_parent_commands_without_host(self):
+        self.change('sources/libmister-runtime/tests/unit/native_hardware_test.cpp')
+        self.change('docs/development.md')
+        for full in (False, True):
+            result = test_changed.plan(self.root, self.base, full=full)
+            lanes = {c['lane'] for c in result['commands']}
+            self.assertEqual(lanes, {'always', 'parent', 'runtime'})
+            runtime = next(c for c in result['commands'] if c['lane'] == 'runtime')
+            self.assertEqual(runtime['argv'], ['make', '-j2', 'test' if full else 'test-routine'])
+        self.change('sources/libmister-runtime/src/daemon/protocol.cpp')
+        self.assertTrue(self.plan()['impact']['lanes']['host'])
+
+    def test_runtime_production_to_test_rename_keeps_host(self):
+        old = 'sources/libmister-runtime/src/native/example.cpp'
+        new = 'sources/libmister-runtime/tests/unit/example_test.cpp'
+        self.change(old, commit=True)
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+        (self.root / new).parent.mkdir(parents=True)
+        git(self.root, 'mv', old, new)
+        git(self.root, 'commit', '-qm', 'move production source into tests')
+        result = self.plan()
+        self.assertIn(old, result['impact']['paths'])
+        self.assertIn(new, result['impact']['paths'])
+        self.assertTrue(result['impact']['lanes']['host'])
+
+    def test_deleted_runtime_test_stays_runtime_only(self):
+        path = 'sources/libmister-runtime/tests/unit/deleted_test.cpp'
+        self.change(path, commit=True)
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+        (self.root / path).unlink()
+        result = self.plan()
+        self.assertEqual({k for k, v in result['impact']['lanes'].items() if v},
+                         {'parent', 'runtime'})
+
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")
         result = self.plan()
@@ -206,7 +240,7 @@ class TestChangedTest(unittest.TestCase):
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
                                       "sim-fes-native-video", "sim-fes-coleco-native",
-                                      "sim-fes-native-socket",
+                                      "sim-fes-native-socket", "sim-fes-coleco-session",
                                       "sim-fes-sg1000-oss", "sim-fes-sg1000-rom-link",
                                       "sim-fes-sg1000-gp-audio",
                                       "sim-fes-sms", "sim-fes-sms-oss"})

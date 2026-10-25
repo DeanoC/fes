@@ -13,6 +13,7 @@ import (
 	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -42,65 +43,44 @@ type TapePickerRow struct {
 
 // TapePickerSnapshot is renderer-facing state for the running media selector.
 type TapePickerSnapshot struct {
-	Open   bool
-	Title  string
-	Path   string
-	Index  int
-	Rows   []TapePickerRow
-	Status string
-	Busy   bool
-	Hint   string
+	Open    bool
+	Title   string
+	Current string
+	Path    string
+	Index   int
+	Rows    []TapePickerRow
+	Status  string
+	Busy    bool
+	Hint    string
 }
 
 func tapePickerHint(kind InputKind) string {
 	return selectWord(kind) + " insert  " + detailsWord(kind) + " info  " + backWord(kind) + " back"
 }
 
-// A linked cartridge has no eject: the machine always runs one.
-func tapePickerRoots(home string, libraries []hostclient.LibraryRoot, eject bool) []TapePickerRow {
-	var rows []TapePickerRow
-	if eject {
-		rows = append(rows, TapePickerRow{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true})
+func appendTapePickerFilesystemRoot(rows []TapePickerRow, name, path string) []TapePickerRow {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" || path == "." || blockprobe.Skips(path) {
+		return rows
 	}
-	rows = append(rows, TapePickerRow{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK})
-	seen := map[string]bool{}
-	addRoot := func(name, path string) {
-		path = filepath.Clean(strings.TrimSpace(path))
-		if path == "" || path == "." || seen[path] || blockprobe.Skips(path) {
-			return
+	for _, row := range rows {
+		if row.Kind == tapePickerKindRoot && row.Path == path {
+			return rows
 		}
-		info, err := os.Stat(path)
-		if err != nil || !info.IsDir() {
-			return
-		}
-		seen[path] = true
-		if strings.TrimSpace(name) == "" {
-			name = filepath.Base(path)
-		}
-		rows = append(rows, TapePickerRow{
-			Name: name,
-			Path: path,
-			Kind: tapePickerKindRoot,
-		})
 	}
-	addRoot("Home", home)
-	for _, lib := range libraries {
-		label := strings.TrimSpace(lib.System)
-		if label == "" {
-			label = strings.TrimSpace(lib.ID)
-		}
-		if label == "" {
-			label = "Library"
-		} else {
-			label = "Library · " + label
-		}
-		addRoot(label, lib.Root)
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return rows
 	}
-	for _, extra := range []string{"/Volumes", "/media", "/run/media"} {
-		addRoot(filepath.Base(extra), extra)
+	if strings.TrimSpace(name) == "" {
+		name = filepath.Base(path)
 	}
-	return rows
+	return append(rows, TapePickerRow{Name: name, Path: path, Kind: tapePickerKindRoot})
 }
+
+// tapePickerVolumeRoots supplements saved storage roots with local mounts.
+// Roots are included only when they exist on the device running tenfoot.
+var tapePickerVolumeRoots = []string{"/Volumes", "/media", "/run/media", "/mnt/emuhd"}
 
 func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePickerRow, error) {
 	path = filepath.Clean(strings.TrimSpace(path))
@@ -138,17 +118,33 @@ func listTapePickerDir(p *hostclient.SessionCorePackage, path string) ([]TapePic
 		if !info.Mode().IsRegular() {
 			continue
 		}
+		if !admitSessionMedia(p, name, info.Size()) {
+			continue
+		}
 		files = append(files, TapePickerRow{
 			Name:       name,
 			Path:       full,
 			Kind:       tapePickerKindFile,
 			Size:       info.Size(),
-			Selectable: admitSessionMedia(p, name, info.Size()),
+			Selectable: true,
 		})
 	}
 	sort.Slice(dirs, func(i, j int) bool { return strings.ToLower(dirs[i].Name) < strings.ToLower(dirs[j].Name) })
 	sort.Slice(files, func(i, j int) bool { return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name) })
-	return append(append(rows, dirs...), files...), nil
+	return tapePickerFolderActions(append(append(rows, dirs...), files...), !hostclient.CartridgeSwapCapable(p)), nil
+}
+
+// A linked cartridge has no eject: the machine always runs one.
+func tapePickerFolderActions(rows []TapePickerRow, eject bool) []TapePickerRow {
+	var actions []TapePickerRow
+	if eject {
+		actions = append(actions, TapePickerRow{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true})
+	}
+	actions = append(actions, TapePickerRow{Name: tapePickerOSKLabel, Kind: tapePickerKindOSK, Selectable: true})
+	if len(rows) != 0 && rows[0].Kind == tapePickerKindParent {
+		return append(append(append([]TapePickerRow(nil), rows[:1]...), actions...), rows[1:]...)
+	}
+	return append(actions, rows...)
 }
 
 func tapePickerRowLabel(row TapePickerRow) string {
@@ -162,6 +158,9 @@ func tapePickerRowLabel(row TapePickerRow) string {
 	case tapePickerKindEject:
 		return row.Name
 	case tapePickerKindStarter:
+		if row.Starter != nil && row.Starter.MediaID != "" {
+			return row.Name + "  ·  Saved program"
+		}
 		return row.Name + "  ·  Starter tape"
 	case tapePickerKindDir, tapePickerKindRoot, tapePickerKindParent:
 		return row.Name
@@ -192,14 +191,15 @@ func (a *App) tapePickerSnapshotLocked() TapePickerSnapshot {
 		status += " · " + a.roomSessionNotice
 	}
 	return TapePickerSnapshot{
-		Open:   true,
-		Title:  tapePickerTitle,
-		Path:   a.tapePickerPath,
-		Index:  a.tapePickerIndex,
-		Rows:   append([]TapePickerRow(nil), a.tapePickerRows...),
-		Status: status,
-		Busy:   a.tapePickerBusy,
-		Hint:   tapePickerHint(a.affinity.current.Kind),
+		Open:    true,
+		Title:   tapePickerTitle,
+		Current: currentMediaLabel(a.session),
+		Path:    a.pickerDisplayPathLocked(a.tapePickerPath),
+		Index:   a.tapePickerIndex,
+		Rows:    append([]TapePickerRow(nil), a.tapePickerRows...),
+		Status:  status,
+		Busy:    a.tapePickerBusy,
+		Hint:    tapePickerHint(a.affinity.current.Kind),
 	}
 }
 
@@ -270,20 +270,21 @@ func (a *App) openTapePickerLocked() {
 	a.tapePickerSession = a.session
 	a.tapePickerBusy = false
 	a.tapePickerGen++
+	a.refreshStorageRootsLocked()
 	a.showTapePickerRootsLocked(a.tapePickerPromptLocked())
 	if a.client != nil && hostclient.LiveMediaCapable(a.session.CorePackage) {
 		parent := a.ctx
 		if parent == nil {
 			parent = context.Background()
 		}
-		go a.fetchLiveTapeStarters(parent, a.tapePickerGen)
+		go a.fetchLiveTapeStarters(parent, a.tapePickerGen, a.tapePickerSession.GameID)
 	}
 }
 
-func (a *App) fetchLiveTapeStarters(parent context.Context, gen int) {
+func (a *App) fetchLiveTapeStarters(parent context.Context, gen int, gameID string) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
-	tapes, err := a.client.ZX81Tapes(ctx)
+	tapes, err := a.client.ZX81TapesForGame(ctx, gameID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err != nil || !a.tapePickerOpen || a.tapePickerGen != gen {
@@ -307,10 +308,18 @@ func (a *App) appendTapeStartersLocked() {
 }
 
 func (a *App) showTapePickerRootsLocked(status string) {
-	home, _ := os.UserHomeDir()
 	a.tapePickerAtRoots = true
 	a.tapePickerPath = ""
-	a.tapePickerRows = tapePickerRoots(home, a.hostSettings.Libraries, !a.sessionCartridgeLocked())
+	a.tapePickerRows = nil
+	if !a.sessionCartridgeLocked() {
+		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: tapePickerEjectLabel, Kind: tapePickerKindEject, Selectable: true})
+	}
+	for _, r := range a.storagePickerRootsLocked("media") {
+		a.tapePickerRows = append(a.tapePickerRows, TapePickerRow{Name: r.Name, Path: r.Path, Kind: r.Kind})
+	}
+	for _, path := range tapePickerVolumeRoots {
+		a.tapePickerRows = appendTapePickerFilesystemRoot(a.tapePickerRows, filepath.Base(path), path)
+	}
 	a.appendTapeStartersLocked()
 	a.tapePickerIndex = 0
 	a.tapePickerStatus = status
@@ -318,6 +327,14 @@ func (a *App) showTapePickerRootsLocked(status string) {
 }
 
 func (a *App) showTapePickerDirLocked(path, status string) {
+	if path == "" {
+		a.showTapePickerRootsLocked("")
+		return
+	}
+	if _, _, _, ok := splitDrivePath(path); ok {
+		a.loadDrivePickerDirLocked(path, "tape")
+		return
+	}
 	rows, err := listTapePickerDir(a.tapePickerSession.CorePackage, path)
 	if err != nil {
 		a.tapePickerStatus = err.Error()
@@ -472,7 +489,11 @@ func (a *App) openTapePathOSKLocked() {
 	a.settingsOSKKind = settingsOSKTapePath
 	a.settingsOSKIndex = 0
 	a.settingsOSKIsAdd = false
-	a.settingsOSKField = shared.TextField{Buffer: a.tapePickerPath}
+	path := a.tapePickerPath
+	if _, _, _, ok := splitDrivePath(path); ok {
+		path = ""
+	}
+	a.settingsOSKField = shared.TextField{Buffer: path}
 	a.settingsOSKField.OSK.Reset()
 	a.settingsOSKField.OSK.CyclePage(1)
 }
@@ -528,7 +549,7 @@ func (a *App) startTapeArmLocked(path string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	go a.doTapeArm(ctx, gen, a.tapePickerSession, path)
+	go a.doTapeArm(ctx, gen, a.tapePickerSession, path, a.driveManagerLocked())
 }
 
 func (a *App) startTapeEjectLocked() {
@@ -557,9 +578,9 @@ func (a *App) startTapeEjectLocked() {
 	go a.doTapeEject(ctx, gen, a.tapePickerSession)
 }
 
-func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string) {
-	result, err := importAndArmTape(ctx, a.client, prior, path)
-	a.finishTapeArm(gen, prior, result, err)
+func (a *App) doTapeArm(ctx context.Context, gen int, prior hostclient.SessionResult, path string, manager *storage.Manager) {
+	result, replacementDispatched, err := importAndArmTape(ctx, a.client, prior, path, manager)
+	a.finishTapeArm(gen, prior, result, replacementDispatched, err)
 }
 
 func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
@@ -576,16 +597,27 @@ func (a *App) startStarterTapeArmLocked(tape hostclient.HardwareTape) {
 		ctx = context.Background()
 	}
 	go func() {
-		media, err := a.client.ImportZX81Tape(ctx, tape)
-		var result hostclient.SessionResult
-		if err == nil {
-			result, err = a.client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, tape.Filename)
+		mediaID := tape.MediaID
+		if mediaID != "" && (protocol.ValidateDigest(mediaID) != nil || mediaID != tape.SHA256) {
+			a.finishTapeArm(gen, prior, hostclient.SessionResult{}, false, fmt.Errorf("invalid saved cassette identity"))
+			return
 		}
-		a.finishTapeArm(gen, prior, result, err)
+		if mediaID == "" {
+			media, err := a.client.ImportZX81Tape(ctx, tape)
+			if err != nil {
+				a.finishTapeArm(gen, prior, hostclient.SessionResult{}, false, err)
+				return
+			}
+			mediaID = media.MediaID
+		}
+		var result hostclient.SessionResult
+		replacementDispatched := true
+		result, err := a.client.ReplaceRemovableMediaForSession(ctx, prior, mediaID, tape.Filename)
+		a.finishTapeArm(gen, prior, result, replacementDispatched, err)
 	}()
 }
 
-func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result hostclient.SessionResult, err error) {
+func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result hostclient.SessionResult, replacementDispatched bool, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {
@@ -601,6 +633,10 @@ func (a *App) finishTapeArm(gen int, prior hostclient.SessionResult, result host
 		return
 	}
 	if err != nil {
+		if replacementDispatched && !protocol.LiveMediaNoChange(err) {
+			a.session.MediaName = ""
+			a.session.MediaEjected = false
+		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -634,7 +670,12 @@ func (a *App) doTapeEject(ctx context.Context, gen int, prior hostclient.Session
 		return
 	}
 	if err != nil {
-		// Eject failure leaves the active session alone. Unavailable is not Stop.
+		// Eject failure never stops the active session. Clear cached media state
+		// only when the mutation outcome is uncertain.
+		if !protocol.LiveMediaNoChange(err) {
+			a.session.MediaName = ""
+			a.session.MediaEjected = false
+		}
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -653,6 +694,7 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclie
 	}
 	var result hostclient.SessionResult
 	var err error
+	uncertain := false
 	waits := []time.Duration{0, 40 * time.Millisecond, 80 * time.Millisecond}
 	for _, wait := range waits {
 		if wait > 0 {
@@ -661,18 +703,21 @@ func clearLiveMediaWithRetry(ctx context.Context, client *Client, prior hostclie
 			case <-ctx.Done():
 				timer.Stop()
 				if err != nil {
-					return result, err
+					return result, protocol.LiveMediaRetryError(err, uncertain)
 				}
 				return result, ctx.Err()
 			case <-timer.C:
 			}
 		}
 		result, err = client.ClearRemovableMediaForSession(ctx, prior)
+		if err != nil && !protocol.LiveMediaNoChange(err) {
+			uncertain = true
+		}
 		if err == nil || !ejectRetryable(err) {
-			return result, err
+			return result, protocol.LiveMediaRetryError(err, uncertain)
 		}
 	}
-	return result, err
+	return result, protocol.LiveMediaRetryError(err, uncertain)
 }
 
 func ejectRetryable(err error) bool {
@@ -688,44 +733,31 @@ func ejectRetryable(err error) bool {
 	return api.Code == protocol.CodeMiSTerUnavailable
 }
 
-func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string) (hostclient.SessionResult, error) {
+func importAndArmTape(ctx context.Context, client *Client, prior hostclient.SessionResult, path string, manager *storage.Manager) (hostclient.SessionResult, bool, error) {
 	if client == nil {
-		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
+		return hostclient.SessionResult{}, false, fmt.Errorf("host API is unavailable")
 	}
-	file, size, name, err := openRemovableFile(prior.CorePackage, path)
+	file, size, name, err := openPickerFile(ctx, manager, client, path, storage.MaxFileBytes)
 	if err != nil {
-		return hostclient.SessionResult{}, err
+		return hostclient.SessionResult{}, false, err
 	}
 	defer file.Close()
+	if !admitSessionMedia(prior.CorePackage, name, size) {
+		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
+	}
 	media, err := client.ImportCoreMedia(ctx, size, io.LimitReader(file, size))
 	if err != nil {
-		return hostclient.SessionResult{}, err
+		return hostclient.SessionResult{}, false, err
 	}
 	if media.Size != size || !admitSessionMedia(prior.CorePackage, name, media.Size) {
-		return hostclient.SessionResult{}, protocol.LiveMediaRequestError()
+		return hostclient.SessionResult{}, false, protocol.LiveMediaRequestError()
 	}
 	if hostclient.CartridgeSwapCapable(prior.CorePackage) {
-		return client.ReplaceCartridgeForSession(ctx, prior, media.MediaID, name)
+		result, err := client.ReplaceCartridgeForSession(ctx, prior, media.MediaID, name)
+		return result, true, err
 	}
-	return client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
-}
-
-func openRemovableFile(p *hostclient.SessionCorePackage, path string) (*os.File, int64, string, error) {
-	file, err := os.Open(strings.TrimSpace(path))
-	if err != nil {
-		return nil, 0, "", err
-	}
-	info, err := file.Stat()
-	name := filepath.Base(path)
-	if err != nil {
-		file.Close()
-		return nil, 0, "", err
-	}
-	if !info.Mode().IsRegular() || !admitSessionMedia(p, name, info.Size()) {
-		file.Close()
-		return nil, 0, "", fmt.Errorf("media must match the running machine's format and size limits")
-	}
-	return file, info.Size(), name, nil
+	result, err := client.ReplaceRemovableMediaForSession(ctx, prior, media.MediaID, name)
+	return result, true, err
 }
 
 // A selector opened from play returns directly to the captured machine.
@@ -735,4 +767,24 @@ func (a *App) dismissMediaControlsLocked() {
 	if direct {
 		a.resumeRoomSessionLocked()
 	}
+}
+
+// currentMediaLabel prefers observed unit state to the host's last confirmed
+// filename. Original filenames cannot be recovered from a content digest.
+func currentMediaLabel(s hostclient.SessionResult) string {
+	if u, ok := hostclient.RemovableMediaUnit(s.CorePackage); ok {
+		if u.State == protocol.MediaUnitEmpty {
+			return "No media inserted"
+		}
+		if u.State == protocol.MediaUnitLoading {
+			return "Media loading…"
+		}
+	}
+	if s.MediaEjected {
+		return "No media inserted"
+	}
+	if s.MediaName != "" {
+		return "Inserted: " + s.MediaName
+	}
+	return "Inserted media name unavailable"
 }

@@ -109,12 +109,18 @@ Allowed operations are:
   A missing bearer is 401 and a token for another kit is 403.
 - `GET /api/v1/library/hardware` includes `expansion_selection` when this
   listener's service accepts the single-entry next-start write.
+- `GET /api/v1/library/core-entries/{game_id}` reads one entry for ROM
+  selection. The game ID is a strict slug.
+- `PUT /api/v1/library/core-entries/{game_id}/rom` saves one named ROM
+  selection. The body keeps `package_id`, `rom_id`, `expected_media_id` and
+  `media_id`, and the listener forwards it unchanged after the bearer and
+  paired-target checks. The game ID is a strict slug.
 - `PUT /api/v1/library/core-entries/{game_id}/expansion` saves that one
   selection. The game ID is a strict slug. The JSON body keeps
   `package_id`, `expected_expansion_id` and `expansion_id`, and the
   listener forwards it unchanged after the bearer and paired-target checks.
   A `target` query must name this kit. Slot writes, presentation edits and
-  every other library PUT stay unavailable.
+  all other library PUTs stay unavailable.
 - `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover

@@ -241,7 +241,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
     def test_synthesis_gate_requires_each_models_exact_blocks(self):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(producer, "_i2c_evidence"), \
-                patch.object(producer, "_session_display_evidence", return_value={"read_only": True}):
+                patch.object(producer, "_hps_ddr_evidence", return_value={"tape_port": 1}):
             output = Path(directory)
 
             def check(model, cells):
@@ -299,7 +299,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
             save()
             with patch.object(producer, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
                  patch.object(producer, "_i2c_evidence"), patch.object(producer, "validate_routed_shell"), \
-                 patch.object(producer, "_session_display_evidence", return_value={}), \
+                 patch.object(producer, "_hps_ddr_evidence", return_value={}), \
                  patch.object(producer, "_require_gpu_backend", return_value="hip"):
                 self.assertEqual(producer.validate_build_evidence(output, model="128")["status"], "pass")
                 for name in ("system", "pixel", "audio"):
@@ -336,7 +336,7 @@ class BuildFesSpectrumTests(unittest.TestCase):
 
             with patch.object(producer, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
                  patch.object(producer, "_i2c_evidence"), patch.object(producer, "validate_routed_shell"), \
-                 patch.object(producer, "_session_display_evidence", return_value={}), \
+                 patch.object(producer, "_hps_ddr_evidence", return_value={}), \
                  patch.object(producer, "_require_gpu_backend", return_value="hip"):
                 self.assertEqual(check(PLL_LOG)["status"], "pass")
                 for missing in (1, 2):
@@ -395,9 +395,10 @@ class BuildFesSpectrumTests(unittest.TestCase):
                 self.assertEqual(manifest["core"]["version"], model.version)
                 self.assertEqual(manifest["rom"]["id"], model.rom_id)
                 self.assertEqual(manifest["rom"]["source_size"], model.rom_bytes)
-                required = {item["id"] for item in manifest["interfaces"] if item["required"]}
-                self.assertTrue({"fes.media.spectrum-tape", "fes.memory.hps-ddr", "fes.video.session-display",
-                                 "fes.fabric.video.display-plane"} <= required)
+                required = {item["id"]: item["major"] for item in manifest["interfaces"] if item["required"]}
+                self.assertEqual(required["fes.media.spectrum-tape"], 2)
+                self.assertTrue({"fes.memory.hps-ddr", "fes.video.session-display",
+                                 "fes.fabric.video.display-plane"} <= set(required))
         self.assertEqual({model.core_id for model in producer.MODELS.values()},
                          {"fes.spectrum", "fes.spectrum128", "fes.spectrum-plus3", "fes.pentagon"})
 

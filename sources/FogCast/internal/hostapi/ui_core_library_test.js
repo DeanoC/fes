@@ -255,9 +255,10 @@ test('mounted panel uses literal text, locks controls and filters same-core vers
   }
   const ids=['open-core-library','core-library','core-library-close','core-library-refresh',
     'core-package-file','core-package-import','core-package-select','core-package-check','core-package-status',
-    'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
+    'core-media-file','core-media-drive','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
-    'core-entry-media-save','core-entry-media-clear','core-library-message'];
+    'core-entry-media-save','core-entry-media-clear','core-blank-disk-name','core-blank-disk-geometry',
+    'core-blank-disk','core-blank-disk-status','core-library-message'];
   ids.push('core-video-status','core-video-choices','core-video-profile','core-video-file','core-video-import','core-video-parts');
   const nodes=Object.fromEntries(ids.map(id=>[id,new Node()]));
   nodes['core-library'].querySelectorAll=()=>ids.filter(id=>!id.endsWith('status') && id!=='core-library').map(id=>nodes[id]);
@@ -418,9 +419,10 @@ test('video inventory failure disables install and names the outage', async () =
   }
   const ids = ['open-core-library','core-library','core-library-close','core-library-refresh',
     'core-package-file','core-package-import','core-package-select','core-package-check','core-package-status',
-    'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
+    'core-media-file','core-media-drive','core-media-import','core-media-discard','core-media-status','core-entry-title',
     'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
-    'core-entry-media-save','core-entry-media-clear','core-library-message',
+    'core-entry-media-save','core-entry-media-clear','core-blank-disk-name','core-blank-disk-geometry',
+    'core-blank-disk','core-blank-disk-status','core-library-message',
     'core-system-select','core-system-status','core-system-install','core-setup-create','core-setup-roms'];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
   nodes['core-library'].querySelectorAll = () => ids.filter(id => !id.endsWith('status') && id !== 'core-library').map(id => nodes[id]);
@@ -447,4 +449,41 @@ test('refresh and reopen keep uninstalled systems online and clear changed refer
  c.close();await c.open();assert.equal(c.snapshot().catalogOnline,true);
  pid=B;await c.refresh();assert.equal(c.snapshot().catalogOnline,true);assert.equal(c.snapshot().coreRef,null);assert.equal(c.snapshot().setup,null);
  await c.selectCore('source','fes.sms');assert.equal(c.snapshot().coreRef.package_id,B);
+});
+test('blank ST disk binds a title and stays pending for a new one', async () => {
+  const disk = 'e'.repeat(64);
+  const stCaps = id => ({package_id:id, source:'declared-contract', compatibility:'unknown', import_max_bytes:MAX_MEDIA_BYTES,
+    media:[{role:'disk', format:'atari-st-floppy', min_bytes:737280, max_bytes:737280, transport:'st'}]});
+  const f = fixture();
+  f.db.packages[0] = pkg(A, 'fes.atari-st');
+  f.db.entries[0] = {game_id:'entry', title:'Desk', core_id:'fes.atari-st', package_id:A};
+  let posted;
+  f.intercept((path, options) => {
+    if (path.endsWith('/media-capabilities')) return response(stCaps(path.split('/')[4]));
+    if (path === '/api/v1/library/atari-st-disks') {
+      posted = JSON.parse(options.body);
+      const entry = posted.bind ? {game_id:posted.game_id, title:'Desk', core_id:'fes.atari-st', package_id:posted.expected_package_id, media_role:'disk', media_id:disk} : undefined;
+      if (entry) f.db.entries[0] = {...f.db.entries[0], media_id:disk, media_role:'disk'};
+      return response({media_id:disk, size:737280, name:'WORK', tracks:80, heads:2, sectors:9, created:true, entry}, 201);
+    }
+    return undefined;
+  });
+  await f.controller.open();
+  await f.controller.selectPackage(A);
+  assert.match(await f.controller.createBlankDisk('bad/name', {tracks:80, heads:2, sectors:9}).then(s => s.message), /1–11/);
+  assert.equal(posted, undefined);
+  await f.controller.createBlankDisk('work', {tracks:80, heads:1, sectors:9});
+  assert.match(f.controller.snapshot().message, /size this package admits/);
+  const pending = await f.controller.createBlankDisk('work', {tracks:80, heads:2, sectors:9});
+  assert.equal(pending.media.media_id, disk);
+  assert.equal(posted.bind, undefined);
+  assert.deepEqual(f.changed, []);
+  await f.controller.selectEntry('entry');
+  const bound = await f.controller.createBlankDisk('work', {tracks:80, heads:2, sectors:9});
+  assert.equal(posted.bind, true);
+  assert.equal(posted.expected_media_id, '');
+  assert.equal(posted.game_id, 'entry');
+  assert.equal(bound.entries.find(entry => entry.game_id === 'entry').media_id, disk);
+  assert.match(bound.message, /drive A/);
+  assert.deepEqual(f.changed, [true]);
 });

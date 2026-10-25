@@ -25,6 +25,11 @@ open first.
 - [Media stream 1.0](contracts/media-stream-1.0.md) — stream contract used by
   cores that enable it. Not a place-and-route guide.
 
+## Proposals
+
+- [i386 CPU design](i386-cpu-design.md) — a first-party 386-compatible CPU
+  for era games. No RTL exists; it is not a build instruction.
+
 ## Dated records
 
 Files in [validation/](validation/) record a particular day's evidence. They

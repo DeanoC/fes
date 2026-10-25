@@ -88,13 +88,15 @@ millisecond and the wait continues. A clock that stays flat for that bound,
 or a deadline that cannot cover it, leaves the mailbox unchanged and returns
 retryable busy. The wait is not a `media_busy` sample: this bitstream does
 not return one, and clear does not hold reset because that restarts the CPU.
-Invalid
-state (GP error 4) on the eject-index or argument-0 attempt is retryable busy
-and does not reach that begin. A poisoned or unstable GP handshake after keyboard traffic
-is the same retryable busy: clear realigns from the live ACK and
-re-identifies before eject. Re-identify does not run for a completed
-rejection. A hard MMIO failure, or an invalid acknowledgement after these
-eject shapes, stays `io_failed`.
+Invalid state (GP error 4) on the eject-index or argument-0 attempt is
+retryable busy and does not reach that begin. If clear starts with a poisoned
+GP link from earlier keyboard traffic, it realigns from the live ACK and
+re-identifies before sending an eject; a failed preflight remains busy because
+this clear has not sent a media command. Once either eject command is sent, an
+ambiguous or unstable GP response remains `io_failed` after best-effort
+realignment because the core may already have accepted the eject. A hard MMIO
+failure, or an invalid acknowledgement after these eject shapes, also stays
+`io_failed`. Re-identify does not run for a completed rejection.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never
@@ -247,9 +249,12 @@ FPGA scanout waits for a complete submitted frame before switching HDMI pixels.
 Taking launcher focus neutralizes the keyboard first. Moving focus on a shown
 plane keeps its generation, grant and preparation. Close drains the plane
 without execution hold and revokes the display generation and preparation.
-Navigation key snapshots are suppressed while the launcher holds focus. The
-native adapter owns that gate: a close or failure that cannot prove the plane
-drained keeps launcher focus, and status reports it as `menu_display.focus`.
+Navigation key snapshots are suppressed while the launcher holds focus. For a
+single gamepad, button snapshots are muted as well; controls observed while the
+launcher has focus stay suppressed until they are released, so a later full
+snapshot cannot restore them. The native adapter owns that gate: a close or
+failure that cannot prove the plane drained keeps launcher focus, and status
+reports it as `menu_display.focus`.
 Stop/replacement drain the display before their existing execution hold.
 
 A failed session frame never enters `FinishLaunchFailure` or calls `LoadIdle`.
@@ -306,6 +311,14 @@ Physical controller acceptance remains pending.
 tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
 `fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum, ZX81 tape and
 Atari ST media interfaces are independent and must be required when declared.
+`fes.media.zx81-tape-write` 1.0 is admitted only with the base ZX81 tape
+interface. Its snapshot capture leaves a completed SAVE frozen and dirty until
+the host has durably stored the `.p` and issues a package/generation-bound
+acknowledgement. Before freezing, the runtime reads the snapshot flags: an
+all-clear word means that no SAVE completed, so capture returns empty and Stop
+does not issue the Freeze command that requires `save_ready`. Stop and other
+save-flushing transitions fail closed while a dirty snapshot remains. Host
+coverage does not establish exact-artifact hardware acceptance.
 Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
 core latched the port layout, including a kit without presentation adapters.
 Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is

@@ -395,6 +395,7 @@ public:
 		descriptors.push_back(open_calls);
 		return {};
 	}
+	void SetButtonDeliveryEnabled(bool) override {}
 	mister::Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, mister::Error)> callback) override
 	{
@@ -482,6 +483,10 @@ public:
 	{
 		writers.push_back(writer);
 		return native_.Open(identity, recipe, deadline, std::move(writer));
+	}
+	void SetButtonDeliveryEnabled(bool enabled) override
+	{
+		native_.SetButtonDeliveryEnabled(enabled);
 	}
 	mister::Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, mister::Error)> callback) override
@@ -1325,13 +1330,14 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer.id == "fes.computer" && computer.major == 1 && computer.minor == 0);
 	std::vector<std::string> computer_interfaces;
 	for (const auto& interface : computer.interfaces) {
-		assert(interface.major == 1 && interface.minor == 0);
+		// The Spectrum tape is 2.0, a PZX stream; every other interface is 1.0.
+		assert(interface.major == (interface.id == "fes.media.spectrum-tape" ? 2 : 1) && interface.minor == 0);
 		computer_interfaces.push_back(interface.id);
 	}
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape",
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
 		"fes.memory.hps-ddr", "fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
@@ -1739,6 +1745,160 @@ void TestApplicationSessionDisplayReleasesControllers()
  // Returning focus is local; the machine's controllers work again.
  assert(hardware.SetSessionDisplay(true,false).ok()&&mmio.writes.size()==writes);
  script.Reply();assert(hardware.SetController(1,0x20,0).ok()&&mmio.writes.size()>writes);
+}
+
+void TestApplicationSessionDisplayMutesSingleGamepad()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.application");
+ for(const char* id:{"fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());
+ mister_test::FakeInputDevice device;RetainingNativeInput input(device,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ fpga.boot_hps_ddr_layout=true;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;
+ script.Identity(FesApplicationCapabilityVideoFixed720p60|FesApplicationCapabilityGamepad|
+  FesApplicationCapabilityMemoryHpsDdr|FesApplicationCapabilityVideoSessionDisplay);
+ script.Info(8,0);script.Reply(); // configure
+ script.Reply(); // input neutralization
+ script.Reply(); // execution release
+ script.Info(9,0); // disabled, configured, drained
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"single-gamepad session activation: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&hardware.menu_display().session&&!hardware.menu_display().available);
+ assert(device.WaitUntilReading());
+
+ std::size_t input_reads=0;
+ auto push_report=[&](InputControl control,std::int32_t value) {
+  device.Push({control,value});
+  device.Push({InputControl::synchronize,0});
+  device.Push({InputControl::horizontal,0});
+  input_reads+=3;
+  assert(device.WaitForReads(input_reads));
+  // The worker's next blocking read proves Apply finished this report.
+  assert(device.WaitUntilReading());
+ };
+
+ const auto button_arguments=[&](std::size_t begin) {
+  std::vector<std::uint16_t> arguments;
+  for(std::size_t i=begin;i<mmio.writes.size();++i) {
+   const auto& write=mmio.writes[i];
+   if(write.offset!=kSpiGpoAddress||!(write.value&FesGpRequestMask)||
+    ((write.value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeButtons)continue;
+   arguments.push_back(static_cast<std::uint16_t>(write.value&FesGpArgumentMask));
+  }
+  return arguments;
+ };
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,false).ok());
+ auto writes=mmio.writes.size();script.Reply();
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus);
+ auto arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0);
+ push_report(InputControl::a,1);
+ assert(button_arguments(writes).size()==1); // A is held only for the launcher.
+
+ assert(hardware.SetSessionDisplay(true,false).ok()&&!hardware.menu_display().launcher_focus);
+ script.Reply();push_report(InputControl::b,1);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==2&&arguments[0]==0&&arguments[1]==0x20);
+ push_report(InputControl::a,0);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==2&&arguments[1]==0x20);
+ // NativeHardware joins the worker on teardown and sends its final neutral.
+ script.Reply();
+}
+
+void TestApplicationSessionDisplaySuppressesOppositeDirections()
+{
+ using namespace mister::native;using namespace mister::native::generated;
+ TempDirectory package;
+ auto manifest=ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+ ReplaceAll(&manifest,"fes.simple-game","fes.application");
+ for(const char* id:{"fes.memory.hps-ddr","fes.video.session-display","fes.fabric.video.display-plane"})
+  manifest+="\n[[interfaces]]\nid = \""+std::string(id)+"\"\nmajor = 1\nminor = 0\nrequired = true\n";
+ package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+ OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+ std::vector<std::string> events;RecordingOpener opener(events);RecordingFpga fpga(events);
+ mister_test::FakeMmio mmio;FixedClock clock(100);FesGp gp(mmio,clock);FesGpCoreDriver driver(gp);
+ MenuDisplayDriver display(gp,clock);MenuOperations operations;MenuWindow memory(operations);
+ RecordingI2c i2c(events);RecordingVideo idle_video(events);LedgerLog log(events);
+ FixedVideoBringup video(i2c,clock,log,Menu720p60Recipe());
+ mister_test::FakeInputDevice device;RetainingNativeInput input(device,clock);
+ TempDirectory splash;const auto idle=splash.File("idle.rbf","idle");
+ const InputDeviceIdentity identity={"test",0,0,0,0};
+ NativeHardware hardware(opener,fpga,idle_video,video,input,identity,clock,log,
+  idle,{30000,10000,10000},&driver,{"/tmp"},SplashIdle(),&display,&memory);
+ fpga.boot_hps_ddr_layout=true;
+ std::unique_ptr<mister::AdmittedCorePackage> admitted;
+ assert(hardware.AdmitCorePackage(package.path,opened.package_id,&admitted).ok());
+ MenuGpScript script{&mmio};script.session=true;
+ script.Identity(FesApplicationCapabilityVideoFixed720p60|FesApplicationCapabilityGamepad|
+  FesApplicationCapabilityMemoryHpsDdr|FesApplicationCapabilityVideoSessionDisplay);
+ script.Info(8,0);script.Reply(); // configure
+ script.Reply(); // input neutralization
+ script.Reply(); // execution release
+ script.Info(9,0); // disabled, configured, drained
+ auto loaded=hardware.LoadCore(std::move(admitted),17);
+ if(!loaded.error.ok())fprintf(stderr,"opposite-direction session activation: %s\n",loaded.error.message.c_str());
+ assert(loaded.error.ok()&&hardware.menu_display().session&&!hardware.menu_display().available);
+ assert(device.WaitUntilReading());
+
+ std::size_t input_reads=0;
+ auto push_report=[&](InputControl control,std::int32_t value) {
+  device.Push({control,value});
+  device.Push({InputControl::synchronize,0});
+  device.Push({InputControl::horizontal,0});
+  input_reads+=3;
+  assert(device.WaitForReads(input_reads));
+  // The worker's next blocking read proves Apply finished this report.
+  assert(device.WaitUntilReading());
+ };
+ const auto button_arguments=[&](std::size_t begin) {
+  std::vector<std::uint16_t> arguments;
+  for(std::size_t i=begin;i<mmio.writes.size();++i) {
+   const auto& write=mmio.writes[i];
+   if(write.offset!=kSpiGpoAddress||!(write.value&FesGpRequestMask)||
+    ((write.value&FesGpOpcodeMask)>>24)!=FesApplicationOpcodeButtons)continue;
+   arguments.push_back(static_cast<std::uint16_t>(write.value&FesGpArgumentMask));
+  }
+  return arguments;
+ };
+ script.Reply();script.Info(3,0);
+ assert(hardware.SetSessionDisplay(true,false).ok());
+ const auto writes=mmio.writes.size();script.Reply();
+ assert(hardware.SetSessionDisplay(true,true).ok()&&hardware.menu_display().launcher_focus);
+ auto arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0);
+
+ push_report(InputControl::left,1);
+ push_report(InputControl::right,1);
+ assert(button_arguments(writes).size()==1); // Opposite held directions stay muted.
+ assert(hardware.SetSessionDisplay(true,false).ok()&&!hardware.menu_display().launcher_focus);
+ script.Reply(); // Used by a leaked write on the failing implementation, or the fresh press below.
+ push_report(InputControl::right,0);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==1&&arguments[0]==0); // Releasing one side cannot restore the other.
+ push_report(InputControl::left,0);
+ assert(button_arguments(writes).size()==1);
+ push_report(InputControl::left,1);
+ arguments=button_arguments(writes);
+ assert(arguments.size()==2&&arguments[1]==FesGpButtonLeft);
+ script.Reply(); // NativeHardware joins the worker on teardown and sends its final neutral.
 }
 
 // A session package built before the shared plane (ZX81 1.5.0) declares no
@@ -3225,7 +3385,8 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     assert(unchanged.capabilities.media_units[0].state==mister::MediaUnitState::ready);
     assert(unchanged.capabilities.media_units[0].persistence_mode=="volatile");
     endpoint.write_busy=true;const auto eject_at=endpoint.requests.size();
-    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).message=="FES GP command rejected with response 4");
+    const auto rejected_eject=fixture.runtime.EjectMedia(opened.package_id,gen,0);
+    assert(rejected_eject.code==mister::ErrorCode::busy&&rejected_eject.message=="media unit eject is busy");
     assert(endpoint.requests.size()==eject_at+1&&endpoint.unit(0).data==old_bytes&&endpoint.unit(0).state==3);
     assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].state==mister::MediaUnitState::ready);
     endpoint.write_busy=false;
@@ -3917,6 +4078,44 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 	assert(production->EjectComputerMedia(0).message == "FES computer media unit is not active");
 }
 
+void TestZx81CleanMachineStopsWithoutFreeze()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const std::uint16_t capabilities = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityKeyboardHid | FesComputerCapabilityGamepadPorts |
+		FesComputerCapabilityAudioPcmS16Stereo48k | FesComputerCapabilityMediaZx81Tape |
+		FesComputerCapabilityMediaZx81TapeWrite;
+	mister_test::ComputerEndpoint endpoint(capabilities,
+		{{0, {1, FesComputerZx81TapeMaxBytes}}}, "0123456789abcdef0123456789abcdef");
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+
+	TempDirectory package;
+	std::string manifest = ComputerManifest();
+	ReplaceAll(&manifest, "fes.pong", "fes.zx81");
+	ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.zx81-tape");
+	ReplaceAll(&manifest, "fes.expansion.apple2-bus", "fes.expansion.zx81-bus");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+	assert(!endpoint.save_ready && !endpoint.dirty);
+
+	const std::size_t before_stop = endpoint.requests.size();
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.status().state == mister::State::idle);
+	for (std::size_t i = before_stop; i < endpoint.requests.size(); ++i)
+		assert(!(endpoint.requests[i].opcode == FesComputerOpcodeMediaSnapshotControl &&
+			endpoint.requests[i].argument == FesComputerMediaSnapshotFreeze));
+}
+
 void TestComputerSlotCompositionActivatesLinkedPayload()
 {
 	auto hash = [](const std::string& value) {
@@ -4005,6 +4204,7 @@ void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
 				"\n[[interfaces]]\nid = \"fes.gamepad.ports\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n"
+				"\n[[interfaces]]\nid = \"fes.media.zx81-tape-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
 				"\n[[interfaces]]\nid = \"fes.fabric.video.display-plane\"\nmajor = 1\nminor = 0\nrequired = true\n"
@@ -4095,12 +4295,15 @@ int main()
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();
  TestSessionDisplayRejectsPlaneWithoutBlend();
  TestApplicationSessionDisplayReleasesControllers();
+ TestApplicationSessionDisplayMutesSingleGamepad();
+ TestApplicationSessionDisplaySuppressesOppositeDirections();
  TestMenuInterfaceRecordsMatchMenuAdmission();
  TestNativeMenuActivationAndCompletion();
  TestNativeMenuBlitterPresent(0);
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestZx81CleanMachineStopsWithoutFreeze();
 	TestInitialSTDiskBeforeExecution();
     TestInitialSTDiskBeforeExecution(409600);
     TestInitialSTDiskBeforeExecution(839680);
@@ -4141,6 +4344,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 32 passed");
+	puts("native_hardware_test: 34 passed");
 	return 0;
 }

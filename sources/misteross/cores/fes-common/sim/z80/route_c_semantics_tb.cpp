@@ -71,6 +71,14 @@ class Cpu {
         const uint16_t address = dut.bus_addr;
         const uint8_t data = dut.bus_wdata;
         dut.bus_rdata = memory[address];
+        // The NMOS engine commits at least two clocks after its inputs settle,
+        // so an idle clock precedes each completing one.
+        dut.bus_ready = 0;
+        dut.eval();
+        dut.clk = 1;
+        dut.eval();
+        dut.clk = 0;
+        dut.bus_ready = 1;
         dut.eval();
         dut.clk = 1;
         dut.eval();

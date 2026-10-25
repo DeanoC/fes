@@ -326,6 +326,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		return
 	}
 	applyMeshReadiness(r.Context(), service, result.Games)
+	attachCoreIdentities(r.Context(), service, result.Games)
 	if shelfNoticeApplies(query) {
 		if notice, ok := service.(shelfNoticeService); ok {
 			result.Notice = notice.LocalShelfNotice(r.Context())
@@ -335,7 +336,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 }
 
 func shelfNoticeApplies(query catalog.Query) bool {
-	return query.Text == "" && query.Platform == "" && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
+	return query.Text == "" && query.Platform == "" && len(query.CoreIDs) == 0 && query.Collection == "" && query.Region == "" && query.Genre == "" && query.Year == "" && !query.HidePrerelease && !query.HideHacks && query.Cursor == "" && len(query.RestrictIDs) == 0 && len(query.ExcludeIDs) == 0
 }
 
 func parseGameQuery(r *http.Request) (catalog.Query, error) {
@@ -352,6 +353,11 @@ func parseGameQuery(r *http.Request) (catalog.Query, error) {
 		HideHacks:      queryFlag(values.Get("hide_hacks")),
 		Grouped:        true,
 		Cursor:         strings.TrimSpace(values.Get("cursor")),
+	}
+	for _, coreID := range values["core_id"] {
+		if coreID = strings.TrimSpace(coreID); coreID != "" {
+			query.CoreIDs = append(query.CoreIDs, coreID)
+		}
 	}
 	switch strings.TrimSpace(values.Get("grouped")) {
 	case "", "1", "true":
@@ -404,8 +410,32 @@ func fallbackGamePage(ctx context.Context, service Service, query catalog.Query)
 	if err != nil {
 		return catalog.Page{}, err
 	}
+	coreIDs := make(map[string]struct{}, len(query.CoreIDs))
+	for _, coreID := range query.CoreIDs {
+		coreIDs[coreID] = struct{}{}
+	}
+	coreByGame := map[string]string(nil)
+	if len(coreIDs) > 0 {
+		reader, ok := service.(coreIdentityService)
+		if !ok {
+			return catalog.Page{}, nil
+		}
+		entries, err := reader.CoreEntries(ctx)
+		if err != nil {
+			return catalog.Page{}, err
+		}
+		coreByGame = make(map[string]string, len(entries))
+		for _, entry := range entries {
+			coreByGame[entry.GameID] = entry.CoreID
+		}
+	}
 	filtered := make([]catalog.Game, 0, len(games))
 	for _, game := range games {
+		if len(coreIDs) > 0 {
+			if _, ok := coreIDs[coreByGame[game.ID]]; !ok {
+				continue
+			}
+		}
 		if !catalog.MatchesQueryFilters(game, query) {
 			continue
 		}
@@ -661,7 +691,73 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) (
 		return result, err
 	}
 	applyMeshReadiness(ctx, service, games)
+	attachCoreIdentities(ctx, service, games)
 	return games[0], nil
+}
+
+// coreIdentityService reads the catalog's core-entry rows. Games stay
+// listable when a service has no core entries.
+type coreIdentityService interface {
+	CoreEntries(context.Context) ([]catalog.CoreEntry, error)
+}
+
+// attachCoreIdentities stamps core_id from core_entries onto core-package
+// rows, including grouped editions. A missing reader or a failed read leaves
+// core_id empty and the catalog page intact.
+func attachCoreIdentities(ctx context.Context, service Service, games []gameResult) {
+	if !gamesNeedCoreIdentity(games) {
+		return
+	}
+	reader, ok := service.(coreIdentityService)
+	if !ok {
+		return
+	}
+	entries, err := reader.CoreEntries(ctx)
+	if err != nil {
+		return
+	}
+	byGame := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		gameID := strings.TrimSpace(entry.GameID)
+		coreID := strings.TrimSpace(entry.CoreID)
+		if gameID == "" || coreID == "" {
+			continue
+		}
+		byGame[gameID] = coreID
+	}
+	for i := range games {
+		stampCoreID(&games[i], byGame)
+		for j := range games[i].Variants {
+			stampCoreID(&games[i].Variants[j], byGame)
+		}
+	}
+}
+
+func gamesNeedCoreIdentity(games []gameResult) bool {
+	for i := range games {
+		if gameWantsCoreID(games[i]) {
+			return true
+		}
+		for _, variant := range games[i].Variants {
+			if gameWantsCoreID(variant) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func gameWantsCoreID(game gameResult) bool {
+	return game.Kind == catalog.SourceKindCorePackage || game.System == catalog.CorePlatform
+}
+
+func stampCoreID(game *gameResult, byGame map[string]string) {
+	if game == nil || !gameWantsCoreID(*game) {
+		return
+	}
+	if coreID := byGame[game.ID]; coreID != "" {
+		game.CoreID = coreID
+	}
 }
 
 type platformLaunchService interface {
@@ -788,6 +884,8 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		game.ROMReady = comp.ROMReady
 		game.ROMID = comp.ROMID
 		game.ROMMediaID = comp.ROMMediaID
+		game.ROMRole = comp.ROMRole
+		game.ROMSourceSize = comp.ROMSourceSize
 		game.ExpansionID = comp.ExpansionID
 		game.ExpansionReady = comp.ExpansionReady
 		game.SlotExpansions = append([]protocol.SlotExpansionStatus(nil), comp.SlotExpansions...)

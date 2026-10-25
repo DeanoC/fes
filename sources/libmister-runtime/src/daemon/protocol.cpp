@@ -1274,6 +1274,31 @@ Error ParseRequest(const std::string& line, Request* request)
 				return Invalid("invalid keyboard HID snapshot");
 			parsed.operation = Operation::set_keyboard_hid;
 			parsed.package_id = *package;
+		} else if (operation->string_value == "acknowledge_zx81_tape") {
+			const char* const fields[] = {"protocol", "operation",
+				"expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 4, &error)) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "expected_package_id", &package, &error)) return error;
+			if (!PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation))
+				return Invalid("invalid ZX81 tape acknowledgement");
+			parsed.operation = Operation::acknowledge_zx81_tape;
+			parsed.expected_package_id = *package;
+		} else if (operation->string_value == "capture_zx81_tape") {
+			const char* const fields[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 5, &error)) return error;
+			const std::string* path = nullptr;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "path", &path, &error) ||
+				!StringMember(root, "expected_package_id", &package, &error)) return error;
+			if (!Path(*path) || !PackageID(*package) ||
+				!Generation(Find(root, "expected_generation"), &parsed.expected_generation))
+				return Invalid("invalid ZX81 tape capture");
+			parsed.operation = Operation::capture_zx81_tape;
+			parsed.media_path = *path;
+			parsed.expected_package_id = *package;
 		} else if (operation->string_value == "insert_media" ||
 			operation->string_value == "eject_media" || operation->string_value == "insert_library_media" ||
             operation->string_value == "save_media") {

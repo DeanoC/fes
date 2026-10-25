@@ -430,10 +430,10 @@ async function browserSelect(harness, selector, value) {
 function assertNoLifecycle(harness) {
   assert.deepEqual(harness.fixtureEvidence().filter(r =>
     r.method !== 'GET' && r.path !== '/api/v1/debug/ui-events' &&
-    !/^\/api\/v1\/(core-packages|core-media|library\/core-entries)(\/|$)/.test(r.path)), []);
+    !/^\/api\/v1\/(core-packages|core-media|library\/(core-entries|atari-st-disks))(\/|$)/.test(r.path)), []);
 }
 
-test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t => {
+test('FogCast core library Chrome/CDP integration', { timeout: 90_000 }, async t => {
   const harness = new BrowserHarness();
   try {
     try {
@@ -509,6 +509,43 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
       });
     });
 
+    await t.test('core library creates a blank Atari ST disk and binds the title', async () => {
+      const disk = 'e'.repeat(64);
+      const entry = {game_id:'atari-desk', title:'Desk', core_id:'fes.atari-st', package_id:CORE_PACKAGE};
+      const bound = {...entry, media_role:'disk', media_id:disk};
+      const stPackage = {package_id:CORE_PACKAGE, descriptor:{core:{id:'fes.atari-st', version:'1.0.0'}}};
+      const stCaps = coreReply({package_id:CORE_PACKAGE, source:'declared-contract', compatibility:'unknown',
+        import_max_bytes:33554432, media:[{role:'disk', format:'atari-st-floppy', min_bytes:737280, max_bytes:737280,
+          transport:'fes-computer-media-unit-v1'}]});
+      await runScenario(harness, 'core-library-blank-st-disk', basePlan({
+        sessions:[fixture('session-idle.json')],
+        coreRoutes:{
+          'GET /api/v1/core-catalog': coreReply({cores:[]}),
+          'GET /api/v1/core-packages': coreReply({packages:[stPackage]}),
+          'GET /api/v1/library/core-entries': [coreReply({entries:[entry]}), coreReply({entries:[bound]})],
+          'GET /api/v1/library/video-parts': coreReply([]),
+          'GET /api/v1/library/core-entries/atari-desk/video': coreVideo(entry),
+          [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]: stCaps,
+          'POST /api/v1/library/atari-st-disks': coreReply({media_id:disk, size:737280, name:'WORK', tracks:80, heads:2, sectors:9, created:true,
+            entry:{...bound, title:'Desk'}}, 201),
+        },
+      }), async () => {
+        await harness.click('#open-core-library');
+        await harness.waitForSnapshot(s => s.coreLibrary.open && !s.coreLibrary.busy && s.coreLibrary.blankDisabled);
+        await browserSelect(harness, '#core-entry-select', entry.game_id);
+        await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.blankDisabled === false && s.coreLibrary.blankStatus.includes('1 size'));
+        await harness.evaluate("document.querySelector('#core-blank-disk-name').value = 'work'");
+        await harness.click('#core-blank-disk');
+        const done = await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.message.includes('drive A'));
+        assert.match(done.coreLibrary.current, new RegExp(disk));
+        const writes = harness.fixtureEvidence().filter(r => r.method === 'POST' && r.path !== '/api/v1/debug/ui-events');
+        assert.deepEqual(writes.map(r => r.path), ['/api/v1/library/atari-st-disks']);
+        assert.deepEqual(JSON.parse(writes[0].requestBody), {name:'work', tracks:80, heads:2, sectors:9, bind:true,
+          game_id:'atari-desk', expected_package_id:CORE_PACKAGE, expected_media_id:''});
+        assertNoLifecycle(harness);
+      });
+    });
+
     for (const stale of [false, true]) {
       await t.test(`core library package CAS ${stale ? 'conflict refreshes without replay' : 'selects preserving media then clears'}`, async () => {
         const entry = coreEntry({media_role:'blob', media_id:CORE_MEDIA});
@@ -551,6 +588,44 @@ test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t
         });
       });
     }
+
+    await t.test('host drives stay hidden until opened and remember a browsed media folder without revealing passwords',async () => {
+      const id='a'.repeat(24);
+      const drive={id,kind:'smb',source:'//nas/Games',label:'Demo SMB',username:'player',password_set:true,saved:true};
+      const saved={...drive,media_folder:'Disks'};
+      await runScenario(harness,'host-drive-folders',basePlan({storageRoutes:{
+        'GET /api/v1/storage/drives?discover=true':[coreReply({drives:[drive]}),coreReply({drives:[saved]})],
+        ['GET /api/v1/storage/drives/'+id+'/entries?path=.']:coreReply({entries:[{name:'Disks',directory:true,size:0}]}),
+        ['GET /api/v1/storage/drives/'+id+'/entries?path=Disks']:coreReply({entries:[]}),
+        'PUT /api/v1/storage/drives':coreReply(saved),
+      }}),async () => {
+        assert.equal(await harness.evaluate("getComputedStyle(document.querySelector('#storage-dialog')).display"),'none');
+        await harness.click('#open-settings');
+        await harness.click('#storage-manage');
+        await harness.waitForSnapshot(s => s.storageOpen&&s.storageText.includes('Demo SMB'));
+        const clickText=async text => harness.evaluate(`(() => {const b=Array.from(document.querySelectorAll('#storage-dialog button')).find(b => b.textContent.includes(${JSON.stringify(text)}));if(!b)throw Error('missing drive action');b.click();return true;})()`);
+        await clickText('Demo SMB');
+        assert.deepEqual(await harness.evaluate("(() => {const p=document.querySelector('#storage-dialog input[name=password]');return {type:p.type,value:p.value};})()"),{type:'password',value:''});
+        await clickText('Browse media folder');
+        await harness.waitForSnapshot(s => s.storageText.includes('Disks/'));
+        await clickText('Disks/');
+        await harness.waitForSnapshot(s => s.storageText.includes('Demo SMB / Disks'));
+        await clickText('Use this folder');
+        await harness.waitForSnapshot(s => s.storageText.includes('Media: /Disks'));
+        const writes=harness.fixtureEvidence().filter(r => r.method==='PUT'&&r.path==='/api/v1/storage/drives');
+        assert.equal(writes.length,1);
+        const raw=harness.fixtureServer.records.find(r => r.method==='PUT'&&r.path==='/api/v1/storage/drives');
+        const body=JSON.parse(raw.requestBody);
+        assert.equal(body.password_set,true);assert.equal(body.password,undefined);assert.equal(body.media_folder,'Disks');
+        await harness.click('#storage-dialog > button');
+        assert.equal(await harness.evaluate("getComputedStyle(document.querySelector('#storage-dialog')).display"),'none');
+        await harness.click('#storage-manage');
+        await harness.waitForSnapshot(s => s.storageOpen&&s.storageText.includes('Demo SMB'));
+        await clickText('Demo SMB');
+        assert.equal((await harness.snapshot()).storageText.includes('Media: /Disks'),true);
+        await harness.click('#storage-dialog > button');
+      });
+    });
 
     await t.test('settings Save stays disabled while household settings load', async () => {
       await runScenario(harness, 'settings-save-waits-for-load', basePlan({

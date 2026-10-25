@@ -16,9 +16,21 @@ import (
 // next-start PUT. Nil means an older host did not advertise it.
 type HardwareSnapshot struct {
 	Machines           []HardwareMachine `json:"machines"`
+	Computers          []ShelfComputer   `json:"computers,omitempty"`
 	Session            *SessionResult    `json:"session,omitempty"`
 	SessionError       string            `json:"session_error,omitempty"`
 	ExpansionSelection *bool             `json:"expansion_selection,omitempty"`
+}
+
+// ShelfComputer is a host catalog computer Home can launch with session.launch.
+// It is not a ZX81 workshop machine.
+type ShelfComputer struct {
+	GameID            string `json:"game_id"`
+	Title             string `json:"title"`
+	CoreID            string `json:"core_id"`
+	PackageID         string `json:"package_id"`
+	Ready             bool   `json:"ready"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
 }
 
 type HardwareMachine struct {
@@ -26,6 +38,7 @@ type HardwareMachine struct {
 	Title             string              `json:"title"`
 	CoreID            string              `json:"core_id"`
 	PackageID         string              `json:"package_id"`
+	LaunchPackageID   string              `json:"launch_package_id,omitempty"`
 	PackageReady      bool                `json:"package_ready"`
 	FirmwareReady     bool                `json:"firmware_ready"`
 	Ready             bool                `json:"ready"`
@@ -68,6 +81,7 @@ type CoreExpansionPresentation struct {
 func (c *Client) Hardware(ctx context.Context) (HardwareSnapshot, error) {
 	var wire struct {
 		Machines           []HardwareMachine `json:"machines"`
+		Computers          []ShelfComputer   `json:"computers"`
 		Session            json.RawMessage   `json:"session"`
 		SessionError       string            `json:"session_error"`
 		ExpansionSelection *bool             `json:"expansion_selection"`
@@ -75,7 +89,7 @@ func (c *Client) Hardware(ctx context.Context) (HardwareSnapshot, error) {
 	if err := c.getJSON(ctx, "/api/v1/library/hardware", &wire); err != nil {
 		return HardwareSnapshot{}, err
 	}
-	result := HardwareSnapshot{Machines: wire.Machines, SessionError: wire.SessionError, ExpansionSelection: wire.ExpansionSelection}
+	result := HardwareSnapshot{Machines: wire.Machines, Computers: wire.Computers, SessionError: wire.SessionError, ExpansionSelection: wire.ExpansionSelection}
 	if result.Machines == nil {
 		result.Machines = []HardwareMachine{}
 	}

@@ -34,6 +34,50 @@ The directory precedence is `-rooms DIR`, `tenfoot.json` `rooms_dir`,
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
+First-party source packs declare the same `example.*` ids as the built-in
+rooms, so installing one updates that room instead of creating a second entry.
+Use the already installed launcher binary, with the room source directory
+available on the same machine:
+
+```sh
+fogcast-tenfoot room-install --rooms /path/to/rooms /path/to/fes-cores
+```
+
+To distribute one file instead of a source directory, export a validated pack:
+
+```sh
+fogcast-tenfoot room-export --output home.room.zip /path/to/fes-cores
+fogcast-tenfoot room-install --rooms /path/to/rooms home.room.zip
+```
+
+The ZIP contains `room.toml`, Lua and assets directly at its root, without a
+wrapper directory. Export validates through the ordinary installer and publishes
+atomically; a failed export preserves an existing output. Unchanged source
+bytes produce the same archive bytes. Install accepts either a directory or a
+portable archive and uses the same installed revision and rollback format.
+Archives are extracted privately before selection; links, duplicate/unsafe
+paths, corrupt/truncated files, more than 2,048 entries, files over 16 MiB and
+expanded contents over 64 MiB are rejected. Compressed input is capped at 72 MiB.
+No archive permissions or executable bits are carried into the installed room.
+Transfer the file to the launcher's machine before installing it; remote catalog
+transport is separate from this local operation.
+
+On a kit, omit `--rooms` to use its configured room directory. Reopen Rooms
+and select Home (or the updated room) to trial the new Lua and artwork in the
+running launcher. No Go compilation, agent restart, MENU build or OS rebuild
+is needed. The current room stays pinned to its old snapshot until reopened.
+To undo an update:
+
+```sh
+fogcast-tenfoot room-rollback --rooms /path/to/rooms example.fes-cores
+```
+
+Reopen the room again. The previous installed snapshot returns; rolling back
+a first install reveals the built-in room. Invalid Lua is rejected before
+selection, and a failed runtime trial restores the previous selection.
+Built-in rooms remain the offline recovery defaults; refreshing those binary
+snapshots is a software update, separate from normal room-pack delivery.
+
 Open **Home** with **h** / **Home** on a keyboard, or **hold B** on a
 gamepad (a shortcut, not the only Home route). When `home` is `rooms`
 and `home_room` names a pack that can be opened, start and Home open
@@ -207,14 +251,19 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 
 | call | callback |
 | --- | --- |
-| `library.query({platform, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables. The query returns every matching catalog row, including titles that are not ready. |
+| `library.query({platform, core_ids, collection, q, sort, genre, year, region, hide_prerelease, hide_hacks, limit}, fn(games, err))` | `games` is an array of game tables. The query returns matching catalog rows, including titles that are not ready. `core_ids` restricts results to prepared core-package entries with those core IDs. |
 | `library.platforms(fn(platforms, err))` | `{id, label, game_count, online, launchable, tags}` |
 | `library.collections(fn(collections, err))` | `{id, name}` |
-| `library.game(id, fn(game, err))` | one game |
+| `library.game(id, fn(game, err))` | one game. A cached list row is returned immediately. When `variant_count` is greater than one and that row has no `variants`, the call loads the detail row so grouped editions are present. |
 
-Game tables: `id, title, system, genre, year, region, state, series,
+Game tables: `id, title, system, core_id, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
-played, completed, collections`. `played` is FES recorded play activity
+played, completed, collections, variant_count, expansion_id, expansion_ready,
+slot_expansions, variants`. `core_id` is set for an installed core-package
+row. `variant_count` is the grouped edition count. `variants` lists those
+editions as sibling rows. `expansion_id` and `slot_expansions` (`slot`,
+`expansion_id`, `ready`) are the composition the library already stored.
+`played` is FES recorded play activity
 (`play_count` or `last_played_at`). `completed` is an explicit completion
 record only and is false today (no household completion store). Returning
 from a launch is not Completed. Game ids are derived from library path and title, so resolve
@@ -358,7 +407,10 @@ An older agent omits `inputs`.
 ### `session`, `rooms`, `store`, `log`
 
 - `session.launch(game_id)` launches through the ordinary host path (the
-  same admission rules as the library); `session.state()` is the current
+  same admission rules as the library). The optional
+  `session.launch(game_id, package_id, expected_package_id)` first saves that
+  package for the entry with compare-and-swap, then launches it; the host still
+  checks package, media and persistence compatibility. `session.state()` is the current
   host session state.
 - `session.stop(snapshot.session)` requests the ordinary Stop/save path;
   `session.open_tape(snapshot.session)`
@@ -450,6 +502,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
+| `example.computers` | prepared ZX81 (`fes.zx81`) and Commodore 64 (`fes.c64`) library entries, filtered by core identity before paging. A row is shown when it is already launch-eligible. Grouped editions become variant rows. An `expansion_id` or `slot_expansions` entry becomes its own row and launches the same game id. Confirm stays in the room and calls `session.launch`. The room does not publish a destination, and it adds no sockets, cards, or another machine family |
 | `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:

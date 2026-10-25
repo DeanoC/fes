@@ -23,6 +23,8 @@
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_window.hpp"
 #include <thread>
+#include <fcntl.h>
+#include <unistd.h>
 #include <chrono>
 #include "native/video.hpp"
 
@@ -31,9 +33,12 @@
 #include <atomic>
 #include <cctype>
 #include <cerrno>
+#include <cstdlib>
+#include <limits.h>
 #include <limits>
 #include <memory>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 #include <utility>
 
@@ -61,6 +66,30 @@ bool RequiresFesGamepad(const CoreDescriptor& descriptor)
 		if (interface.id == generated::FesGpInterfaceGamepadID && interface.required)
 			return true;
 	return false;
+}
+
+bool Zx81CaptureDirectory(const std::string& path, std::string* directory)
+{
+	if (path.empty() || path.size() > 4095 || path.find('\0') != std::string::npos)
+		return false;
+	const std::size_t slash = path.rfind('/');
+	if (slash == std::string::npos || path.substr(slash + 1) != "program.p")
+		return false;
+	const std::string parent = path.substr(0, slash);
+	const std::size_t parent_slash = parent.rfind('/');
+	const std::string name = parent.substr(parent_slash == std::string::npos ? 0 : parent_slash + 1);
+	const std::string prefix = "fogcast-zx81-tape-";
+	if (name.compare(0, prefix.size(), prefix) != 0)
+		return false;
+	char resolved[PATH_MAX];
+	if (realpath(parent.c_str(), resolved) == nullptr || parent != resolved)
+		return false;
+	struct stat info;
+	if (stat(parent.c_str(), &info) != 0 || !S_ISDIR(info.st_mode) ||
+		info.st_uid != geteuid() || (info.st_mode & 0777) != 0700)
+		return false;
+	*directory = parent;
+	return true;
 }
 
 bool HasMenu(const CoreDescriptor& descriptor) {
@@ -287,14 +316,20 @@ void NativeHardware::ForwardInputFault(std::uint64_t generation, Error error)
 Error NativeHardware::StopInput(std::uint64_t deadline)
 {
 	if (!input_open_) {
+		if (input_identity_verified_)
+			input_identity_verified_->store(false);
 		if (input_delivery_enabled_)
 			input_delivery_enabled_->store(false);
+		input_identity_verified_.reset();
 		input_delivery_enabled_.reset();
 		return {};
 	}
 	const Error error = input_.Stop(deadline);
+	if (input_identity_verified_)
+		input_identity_verified_->store(false);
 	if (input_delivery_enabled_)
 		input_delivery_enabled_->store(false);
+	input_identity_verified_.reset();
 	input_delivery_enabled_.reset();
 	input_open_ = false;
 	return error;
@@ -302,6 +337,12 @@ Error NativeHardware::StopInput(std::uint64_t deadline)
 
 Error NativeHardware::FlushSave()
 {
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver != nullptr && driver->TapeWriteCapable()) {
+		const Error tape = driver->EnsureZx81TapeSaved(Deadline(clock_, timeouts_.media_io_ms));
+		if (!tape.ok()) return tape;
+	}
     const Error media = FlushMediaSave();
     if (!media.ok()) return media;
 	if (core_data_file_) {
@@ -389,19 +430,23 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 	}
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
-	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
+	const std::shared_ptr<std::atomic<bool>> identity_verified =
 		std::make_shared<std::atomic<bool>>(false);
+	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
+		std::make_shared<std::atomic<bool>>(!session_display_focused_);
 	Error error = input_.Open(input_identity_, active_input_recipe_,
 		Deadline(clock_, timeouts_.core_io_ms),
-		[driver, context, delivery_enabled](std::uint16_t map,
+		[driver, context, identity_verified, delivery_enabled](std::uint16_t map,
 			std::uint64_t deadline) {
-			if (!delivery_enabled->load()) return Error{};
+			if (!identity_verified->load() ||
+				(map != 0 && !delivery_enabled->load())) return Error{};
 			return driver->SetButtons(context, map, deadline).error;
 		});
 	if (!error.ok()) return WithPhase(std::move(error), "input");
 	input_open_ = true;
+	input_identity_verified_ = identity_verified;
 	input_delivery_enabled_ = delivery_enabled;
-	delivery_enabled->store(true);
+	identity_verified->store(true);
 	error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
 	if (error.ok()) {
 		error = input_.Start(generation,
@@ -788,6 +833,9 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaZx81TapeID,
 				generated::FesComputerInterfaceMediaZx81TapeMajor,
 				generated::FesComputerInterfaceMediaZx81TapeMinor},
+			{generated::FesComputerInterfaceMediaZx81TapeWriteID,
+				generated::FesComputerInterfaceMediaZx81TapeWriteMajor,
+				generated::FesComputerInterfaceMediaZx81TapeWriteMinor},
 			{kSpectrumExpansionBusID, 1, 0},
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
@@ -1004,6 +1052,64 @@ Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& 
         return {ErrorCode::save_failed,inserted.message,"media_data"};
     }
     return inserted;
+}
+
+Error NativeHardware::CaptureZx81Tape(const std::string& path)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->TapeWriteCapable())
+		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
+	std::string directory;
+	if (!Zx81CaptureDirectory(path, &directory))
+		return {ErrorCode::invalid_request, "invalid ZX81 tape capture destination", "request"};
+	std::vector<unsigned char> bytes;
+	Error error = driver->CaptureZx81Tape(clock_, Deadline(clock_, timeouts_.media_io_ms), &bytes);
+	if (!error.ok()) return error;
+	const int dir_fd = open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (dir_fd < 0) return {ErrorCode::save_failed, "cannot open ZX81 tape capture directory", "media_data"};
+	struct stat directory_info;
+	if (fstat(dir_fd, &directory_info) != 0 || !S_ISDIR(directory_info.st_mode) ||
+		directory_info.st_uid != geteuid() || (directory_info.st_mode & 0777) != 0700) {
+		close(dir_fd);
+		return {ErrorCode::invalid_request, "unsafe ZX81 tape capture directory", "request"};
+	}
+	const int fd = openat(dir_fd, "program.p",
+		O_CREAT | O_WRONLY | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (fd < 0) {
+		close(dir_fd);
+		return {ErrorCode::save_failed, "cannot create ZX81 tape capture", "media_data"};
+	}
+	std::size_t at = 0;
+	while (at < bytes.size()) {
+		const ssize_t wrote = write(fd, bytes.data() + at, bytes.size() - at);
+		if (wrote < 0 && errno == EINTR) continue;
+		if (wrote <= 0) {
+			close(fd);
+			unlinkat(dir_fd, "program.p", 0);
+			close(dir_fd);
+			return {ErrorCode::save_failed, "cannot write ZX81 tape", "media_data"};
+		}
+		at += static_cast<std::size_t>(wrote);
+	}
+	const bool file_synced = fsync(fd) == 0;
+	const bool file_closed = close(fd) == 0;
+	if (!file_synced || !file_closed || fsync(dir_fd) != 0) {
+		unlinkat(dir_fd, "program.p", 0);
+		close(dir_fd);
+		return {ErrorCode::save_failed, "cannot sync ZX81 tape", "media_data"};
+	}
+	close(dir_fd);
+	return {};
+}
+
+Error NativeHardware::AcknowledgeZx81Tape()
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ?
+		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (driver == nullptr || !driver->TapeWriteCapable())
+		return {ErrorCode::unsupported_interface, "ZX81 tape save is inactive", "request"};
+	return driver->AcknowledgeZx81Tape(Deadline(clock_, timeouts_.media_io_ms));
 }
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
@@ -1338,23 +1444,29 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		admitted->opened_.descriptor.core.id, "input_stop", error});
 	if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 	std::shared_ptr<std::atomic<bool>> identity_verified;
+	std::shared_ptr<std::atomic<bool>> input_delivery_enabled;
 	if (fes_gamepad) {
 		identity_verified = std::make_shared<std::atomic<bool>>(false);
+		input_delivery_enabled = std::make_shared<std::atomic<bool>>(true);
 		CoreDriver* const input_driver = admitted->driver_;
 		CoreDriverContext input_context;
 		input_context.generation = generation;
 		error = input_.Open(input_identity_, FesGpInputRecipe(),
 			Deadline(clock_, timeouts_.core_io_ms),
-			[input_driver, input_context, identity_verified](std::uint16_t map,
+			[input_driver, input_context, identity_verified, input_delivery_enabled](std::uint16_t map,
 				std::uint64_t deadline) {
-				if (!identity_verified->load()) return Error{};
+				// Identity admission gates every write. Focus suppresses nonzero
+				// snapshots but still permits neutralization.
+				if (!identity_verified->load() ||
+					(map != 0 && !input_delivery_enabled->load())) return Error{};
 				return input_driver->SetButtons(input_context, map, deadline).error;
 			});
 		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 			admitted->opened_.descriptor.core.id, "input_open", error});
 		if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 		input_open_ = true;
-		input_delivery_enabled_ = identity_verified;
+		input_identity_verified_ = identity_verified;
+		input_delivery_enabled_ = input_delivery_enabled;
 	}
 	const HardwareResult quiesced = QuiesceForReplacement("load_core",
 		admitted->opened_.descriptor.core.system,
@@ -1551,23 +1663,36 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
    // to the UI. There is no execution hold here: the machine keeps running.
    const std::string& abi=active_package_->info().descriptor.abi.id;
    Error error;
-   if(abi==generated::FesComputerABIID){
+   const bool gamepad=RequiresFesGamepad(active_package_->info().descriptor);
+   if(gamepad&&input_delivery_enabled_) {
+    input_delivery_enabled_->store(false);
+    input_.SetButtonDeliveryEnabled(false);
+    error=input_.Neutralize(deadline);
+   }
+   if(error.ok()&&abi==generated::FesComputerABIID){
     error=SetKeyboardHid({});
     if(error.code==ErrorCode::unsupported_interface)error={};
-   }else if(abi==generated::FesSimpleComputerABIID){
+   }else if(error.ok()&&abi==generated::FesSimpleComputerABIID){
     error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
    }
    if(error.ok())error=ReleaseControllers();
    // A shown plane stays up with the machine still holding input.
-   if(!error.ok())return menu_status_.available?error:FailMenuPresent(error);
+   if(!error.ok()) {
+    if(gamepad&&input_delivery_enabled_) {
+     const bool enabled=!session_display_focused_;
+     input_delivery_enabled_->store(enabled);
+     input_.SetButtonDeliveryEnabled(enabled);
+    }
+    return menu_status_.available?error:FailMenuPresent(error);
+   }
   }
   // Moving focus on a shown plane keeps its grant and frames.
-  if(menu_status_.available){session_display_focused_=launcher_focus;return {};}
+  if(menu_status_.available){SetSessionDisplayInputFocus(launcher_focus);return {};}
   // Hiding revoked the grant. The plane's slots keep their pixels.
   Error error=menu_window_->Activate(false,false);
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
-  session_display_focused_=launcher_focus;
+  SetSessionDisplayInputFocus(launcher_focus);
   MenuDisplayInfo info;error=menu_display_->ReadInfo(deadline,&info);
   if(error.ok()&&(!info.enabled||!info.configured||info.quiesced||info.pending||info.faulted||
    info.displayed_sequence!=menu_status_.displayed_sequence))
@@ -1580,9 +1705,9 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
  menu_status_.available=false;
- if(!error.ok()){menu_status_.error=error;session_display_focused_=true;return error;}
+ if(!error.ok()){menu_status_.error=error;SetSessionDisplayInputFocus(true);return error;}
  menu_status_.displayed_sequence=info.displayed_sequence;
- session_display_focused_=false;menu_underflow_streak_=0;
+ SetSessionDisplayInputFocus(false);menu_underflow_streak_=0;
  return {};
 }
 
@@ -1673,6 +1798,16 @@ HardwareResult NativeHardware::LoadSplashIdle()
 
 void NativeHardware::RevokeMenuWindow()
 {if(menu_window_)menu_window_->Revoke();}
+void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
+{
+ session_display_focused_=launcher_focus;
+ if(input_delivery_enabled_&&active_package_&&
+  RequiresFesGamepad(active_package_->info().descriptor)) {
+  const bool enabled=!launcher_focus;
+  input_delivery_enabled_->store(enabled);
+  input_.SetButtonDeliveryEnabled(enabled);
+ }
+}
 bool NativeHardware::MenuReactivationAllowed()
 {
  const auto now=clock_.NowMs();
@@ -1690,7 +1825,7 @@ Error NativeHardware::FailMenuPresent(const Error& error)
   MenuDisplayInfo info;
   const Error drained=menu_display_->Quiesce(Deadline(clock_,timeouts_.core_io_ms),
    active_package_?&active_package_->info().descriptor:nullptr,&info);
-  session_display_focused_=!drained.ok();
+  SetSessionDisplayInputFocus(!drained.ok());
   if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
   if(!drained.ok())menu_status_.error={error.code,error.message+"; session display quiesce failed: "+drained.message,"menu"};
   return menu_status_.error;

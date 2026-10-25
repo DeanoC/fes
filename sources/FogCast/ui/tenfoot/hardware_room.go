@@ -284,7 +284,10 @@ func (a *App) releasePlayHIDLocked() {
 }
 
 func hardwareRoomWord(kind InputKind) string {
-	if kind == InputKeyboard || kind == InputMouse {
+	if kind == InputKeyboard {
+		return "Home or F12"
+	}
+	if kind == InputMouse {
 		return "Home"
 	}
 	return "SELECT"

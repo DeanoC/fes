@@ -7,7 +7,7 @@ prelaunch cassette selection. **Set up ZX81** creates a library entry from an
 installed sealed package and an explicitly selected household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
-library is empty. The Amiga-themed `example.workbench` remains a separate room.
+library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a separate shelf of prepared ZX81 and Commodore 64 library entries. It launches them through `session.launch` and adds no sockets or a second workshop.
 
 ## Use the workbench
 
@@ -53,7 +53,14 @@ single HDMI output, a running ZX81 package that advertises
 cassette picker in its own shell. The launcher occupies the full screen while
 CPU execution, RAM, audio and the fitted expansion continue. A completed frame
 switches to the controls; closing them drains scanout and returns machine pixels.
-Older packages keep prelaunch selection. Idle rendering still uses MENU.
+When no compatible installed selector package is available, the workbench keeps
+prelaunch selection. Idle rendering still uses MENU.
+
+For a saved entry with no fitted expansion, Start uses an installed ZX81 package
+for the same target when it also declares session display, HPS DDR, the rear
+socket and live media. The host compares the saved package before changing it,
+then applies its ordinary media, firmware and persistence checks before launch.
+Entries with an exact-package expansion keep their selected package.
 
 On the capable kit display and on a separate host display, the live room is available. During play,
 the **Hardware room** button, keyboard **Home**, or a single controller
@@ -83,6 +90,11 @@ keeps the session and running machine. Enter `LOAD ""` on the ZX81 after
 arming a tape; there is no cassette transport, playhead or automatic LOAD.
 Busy, unavailable and failed operations retain their existing status and
 retry handling. Returning from the picker keeps the room and focus.
+
+In any browsed folder, including an empty one, **Eject media** and **Type a
+path** remain available. The list keeps directories and only shows files that
+match the active medium's format and size. Local mount roots appear only when
+they exist on the kit; saved FogCast host drives use the host's storage service.
 
 Pointer controls, directional keyboard/controller focus, Confirm, visible
 Back and Home all reach the same actions. Dragging, long presses and chords

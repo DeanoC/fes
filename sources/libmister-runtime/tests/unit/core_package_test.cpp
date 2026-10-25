@@ -890,6 +890,32 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	zx81.interfaces.push_back({"fes.fabric.video.display-plane", 1, 0, true});
 	zx81.interfaces.push_back({"fes.expansion.zx81-bus", 2, 0, false});
 	assert(check(zx81).ok());
+	// Sealed Spectrum producer manifest: its tape is the 2.0 PZX deck, so the
+	// 1.0 .tap unit, or a newer minor, is refused.
+	auto spectrum = video;
+	for (const char* id : {"fes.keyboard.hid", "fes.gamepad.ports", "fes.audio.pcm-s16-stereo-48k",
+		"fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane"})
+		spectrum.interfaces.push_back({id, 1, 0, true});
+	spectrum.interfaces.push_back({"fes.media.spectrum-tape", 2, 0, true});
+	spectrum.interfaces.push_back({"fes.expansion.spectrum-bus", 1, 0, false});
+	assert(check(spectrum).ok());
+	auto spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].major = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	spectrum_tape = spectrum;
+	spectrum_tape.interfaces[spectrum_tape.interfaces.size() - 2].minor = 1;
+	assert(check(spectrum_tape).code == mister::ErrorCode::unsupported_interface);
+	auto zx81_write = zx81;
+	zx81_write.interfaces.push_back({"fes.media.zx81-tape-write", 1, 0, true});
+	assert(check(zx81_write).ok());
+	auto write_without_tape = zx81_write;
+	for (auto it = write_without_tape.interfaces.begin(); it != write_without_tape.interfaces.end(); ++it) {
+		if (it->id == "fes.media.zx81-tape") {
+			write_without_tape.interfaces.erase(it);
+			break;
+		}
+	}
+	assert(check(write_without_tape).code == mister::ErrorCode::unsupported_interface);
 	auto plane_only = zx81;
 	plane_only.interfaces.erase(plane_only.interfaces.end() - 4);
 	assert(check(plane_only).code == mister::ErrorCode::unsupported_interface);
@@ -903,7 +929,7 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	}
 	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape"}) {
 		auto mixed = atari;
-		mixed.interfaces.push_back({medium, 1, 0, true});
+		mixed.interfaces.push_back({medium, static_cast<std::uint16_t>(std::string(medium) == "fes.media.spectrum-tape" ? 2 : 1), 0, true});
 		assert(check(mixed).code == mister::ErrorCode::unsupported_interface);
 	}
 	auto atari_optional = atari;

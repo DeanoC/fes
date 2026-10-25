@@ -12,6 +12,7 @@ if __package__ in (None, ''):
 from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import BuildError, cuda_toolchain_configuration, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, FES_TOOLCHAIN_CONFIGURATION, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
+from scripts.fes_de10nano_evidence import PLANE_DSP, plane_dsp_evidence as _plane_dsp_evidence, session_display_evidence as _session_display_evidence
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
@@ -48,12 +49,9 @@ PLACER_FIRST_PASS_WEIGHTS = tuple(PNR['timing_weights'])
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = pnr_recipe.required_clocks('fes.zx81')
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-common/rtl/fes_display_cdc.v', 'cores/fes-common/rtl/fes_display_plane.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
-PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
+PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'cores/fes-common/generated/fes_display_plane.vh', 'scripts/fes_de10nano_evidence.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
-# The session-display plane blends with three unsigned 9x9 products. Unsigned
-# 9x9 sets no DSP sign bits, so it does not depend on DeanoC/nextpnr#219.
-DSP_RESOURCES = frozenset({'MISTRAL_MUL9X9'})
-PLANE_PRODUCTS = 3
+DSP_RESOURCES = frozenset({PLANE_DSP})
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'}) | DSP_RESOURCES
 REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1, 'cyclonev_hps_interface_fpga2sdram': 1}
 AUDIO_PINS = {'HDMI_MCLK': 'PIN_U11', 'HDMI_SCLK': 'PIN_T12',
@@ -279,43 +277,6 @@ def _audio_evidence(design: dict) -> None:
                 or source != audio_nets[port]):
             raise BuildError(f'audio output {port} has incorrect routing or electrical constraints')
 
-def _session_display_evidence(design: dict, label: str, source_root: Path) -> dict:
-    from scripts import fes_de10nano_evidence, build_fes_menu
-    normalized = build_fes_menu.layout_graph_with_constants(design)
-    evidence = fes_de10nano_evidence.hps_ddr_layout_evidence(normalized, label, source_root, idle=False)
-    cells = normalized['modules'][TOP].get('cells', {})
-    memory = next(cell for cell in cells.values()
-                  if cell.get('type') == 'cyclonev_hps_interface_fpga2sdram')
-    ports = memory.get('connections', {})
-    unused = tuple(f'cmd_valid_{port}' for port in range(1, 6)) + tuple(
-        f'wr_valid_{port}' for port in range(4))
-    grounds = [['0']] + [cell.get('connections', {}).get('Q') for cell in cells.values()
-        if cell.get('type') == 'MISTRAL_CONST'
-        and set(str(cell.get('parameters', {}).get('LUT', ''))) == {'0'}
-        and isinstance(cell.get('connections', {}).get('Q'), list)
-        and len(cell['connections']['Q']) == 1]
-    if any(ports.get(port) not in grounds for port in unused) or ports.get('cmd_data_0', [])[1:2] not in grounds:
-        raise BuildError('session display DDR writes and unused ports must be tied low')
-    for name, cell in cells.items():
-        if (name.startswith('display.scanout.reader.') and cell.get('type') == 'MISTRAL_M10K'
-                and int(str(cell.get('parameters', {}).get('CFG_ASYNC_READ', '0')), 2)):
-            raise BuildError('session display FIFO requires synchronous M10K reads')
-    return {**evidence, 'read_only': True, 'unused_ports_disabled': True}
-
-
-def _plane_dsp_evidence(design: dict) -> None:
-    products = [(name, cell) for name, cell in design['modules'][TOP].get('cells', {}).items()
-                if cell.get('type') in DSP_RESOURCES]
-    if len(products) != PLANE_PRODUCTS or not all(name.startswith('display.') for name, _ in products):
-        raise BuildError(f'synthesis must contain exactly {PLANE_PRODUCTS} display-plane MISTRAL_MUL9X9 products')
-    for name, cell in products:
-        parameters = cell.get('parameters', {})
-        for sign in ('A_SIGNED', 'B_SIGNED'):
-            text = str(parameters.get(sign, '')).strip()
-            if not text or set(text) - {'0', '1'} or int(text, 2) != 0:
-                raise BuildError(f'display-plane product {name} must be unsigned ({sign}={text!r})')
-
-
 def validate_build_evidence(output: Path, source_root: Path=ROOT, *, gpu_backend: str=FES_GPU_BACKEND) -> dict:
     synthesis = _read_json(output / 'synth.json', 'synthesis evidence')
     routed = _read_json(output / 'routed.json', 'routed design')
@@ -375,7 +336,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     rbf = evidence['rbf']
     record_fields = json.loads(record)
     toolchain = '; '.join((f'{name} {tools[name]}' for name in sorted(tools)))
-    fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'Zx81', 'description': 'ZX81 on the FES computer ABI', 'version': '1.6.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.fabric.video.display-plane', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
+    fields = {'format': 2, 'core': {'id': 'fes.zx81', 'name': 'Zx81', 'description': 'ZX81 on the FES computer ABI', 'version': '1.7.0'}, 'target': {'platform': 'de10_nano', 'device': TARGET, 'programming_profile': 'fes-gp-v1'}, 'payload': {'file': 'core.rbf', 'size': rbf['size'], 'sha256': rbf['sha256']}, 'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0}, 'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.gamepad.ports', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.media.zx81-tape-write', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.memory.hps-ddr', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.video.session-display', 'major': 1, 'minor': 0, 'required': True}, {'id': 'fes.fabric.video.display-plane', 'major': 1, 'minor': 0, 'required': True}], 'build': {'id': evidence['build_id'], 'repository': repository, 'revision': revision, 'recipe_sha256': record_fields['recipe_sha256'], 'toolchain': toolchain}}
     if record_fields['parameters'].get('expansion_socket') == 'zx81-bus-v2':
         fields['interfaces'].append({'id': 'fes.expansion.zx81-bus', 'major': 2, 'minor': 0, 'required': False})
     fields['format'] = 3

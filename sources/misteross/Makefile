@@ -88,6 +88,7 @@ help:
 		"  sim-fes-native-socket  Test both native parts through their physical socket wrapper" \
 		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
+		"  sim-fes-coleco-session  Test the Coleco mailbox, native part raster and live DDR session display" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
@@ -128,6 +129,7 @@ help:
 		"  build-fes-apple2  Seal FES Apple II (format 3 firmware map, four slot sockets) with HIP (CACHE_ROOT=)" \
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
+		"  sim-fes-c64-session  Check actual C64 VIC raster and the shared DDR session plane" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
@@ -236,6 +238,11 @@ sim-fes-native-video:
 sim-fes-coleco-native:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_coleco_native.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-coleco-session
+sim-fes-coleco-session:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_coleco_session.py --verilator "$(VERILATOR)"
 
 synth-fes-native-video:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
@@ -371,6 +378,19 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
 	@build/sim/fes-zx81-machine/Vzx81_machine
+	@mkdir -p build/sim/fes-zx81-save
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-save" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/save_tb.cpp"
+	@build/sim/fes-zx81-save/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
@@ -972,7 +992,8 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
 	cores/fes-menu/rtl/fes_menu_control.v cores/fes-menu/rtl/fes_menu_video.v \
 	cores/fes-menu/rtl/fes_menu_reader.v cores/fes-common/rtl/fes_hps_ddr.v \
-	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-menu/sim/ddr_model.v
+	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-common/rtl/fes_media_ddr.v \
+	cores/fes-common/sim/hps_ddr_media_model.v
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 .PHONY: sim-fes-spectrum-contention sim-fes-spectrum-rom
@@ -996,14 +1017,21 @@ sim-fes-spectrum-contention:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --download
 
-sim-fes-spectrum-tape: spectrum-diagnostic
+# The PZX deck against a reference expansion; the 48K build also stops at
+# STOP blocks flagged 48K-only.
+sim-fes-spectrum-tape:
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-spectrum-tape
+	@mkdir -p build/sim/fes-spectrum-tape build/sim/fes-spectrum-tape-48k
 	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-tape" \
 		cores/fes-spectrum/rtl/spectrum_tape.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
+	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall -GIS_48K=1\'b1 \
+		-CFLAGS -DTAPE_IS_48K=1 --Mdir "$(CURDIR)/build/sim/fes-spectrum-tape-48k" \
+		cores/fes-spectrum/rtl/spectrum_tape.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
+	@build/sim/fes-spectrum-tape-48k/Vspectrum_tape
 
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)
@@ -1417,7 +1445,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-session sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-axs sim-fes-c64-axs-oracle sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-cadence sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2563,3 +2591,8 @@ toolchain-fes-pcxt:
 
 build-fes-pcxt:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pcxt.py$(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE), --cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",) --gpu-router "$(PCXT_GPU_ROUTER)" $(PCXT_BUILD_ARGS)
+
+.PHONY: sim-fes-c64-session
+sim-fes-c64-session:
+	$(require_local_sim)
+	$(PYTHON) -m scripts.sim_fes_c64_session --verilator "$(VERILATOR)"

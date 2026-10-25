@@ -72,7 +72,8 @@ firmware. It does not claim a compiler-free OS build.
 they can run MENU, Go and runtime producers and provide a fresh image from which
 to export artifacts. `make dev` remains the incremental source integration path.
 Use `make kit-software` for routine agent/runtime/UI engine updates and the room
-installer for Lua/art changes; neither requires this OS assembly step.
+installer for Lua/art changes; neither requires this OS assembly step. When the
+toolchain cache has no SDK for the current image key, run `make kit-sdk` first.
 
 OS assembly defaults to one pass, including CI. Use `IMAGE_PASSES=2` for an
 explicit two-build reproducibility comparison and the same setting for verification

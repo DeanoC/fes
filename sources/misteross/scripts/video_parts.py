@@ -13,6 +13,7 @@ REGION = "video"
 PLACEMENT = "video 24 23 28 38"
 CRAM = (1769, 1800, 2806, 3442)
 CLOCK = "pixel_clk"
+PLACER_SEED = 3
 PREFIX = "video_socket."
 REQUEST_BITS = 32
 RESPONSE_BITS = 28

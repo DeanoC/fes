@@ -288,6 +288,23 @@ class RealProducerEvidenceTests(unittest.TestCase):
             finally:
                 path.write_bytes(before)
 
+    def test_session_display_resource_cannot_be_owned_by_video_part(self):
+        if self.lane != "raster":
+            self.skipTest("Coleco raster fixture isolates the part ownership check")
+        directory = Path(self.cases["direct"]["directory"])
+        path = directory / "cart.json"
+        before = path.read_bytes()
+        try:
+            prepared = json.loads(before)
+            prepared["modules"]["cart"]["cells"]["session_display"] = {
+                "type": "cyclonev_hps_interface_fpga2sdram"
+            }
+            path.write_bytes(video.canonical(prepared))
+            with self.assertRaisesRegex(ValueError, "video part owns a forbidden resource"):
+                self.inspect("direct")
+        finally:
+            path.write_bytes(before)
+
 
 class NativeProducerEvidenceTests(RealProducerEvidenceTests):
     lane = "native"

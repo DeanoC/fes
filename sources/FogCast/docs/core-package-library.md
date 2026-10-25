@@ -443,23 +443,33 @@ Content-Type: application/json
 `GET` on the same path returns the selection. To replace or clear it, supply
 its current digest as `expected_media_id`; an empty `media_id` clears it.
 Selection verifies the binary's digest and exact declared source size. It
-binds the package ID and ROM name; replacing a title's package requires an
-explicit new ROM selection. Import alone does not select content. These
-endpoints use the existing host API and catalog; the browser management panel
-continues to manage ordinary media separately.
+binds the package ID and ROM name; replacing a title's package normally
+requires an explicit new ROM selection. For format-3 ZX81 packages, the host
+rebinds the existing media ID after a package switch only when the saved ROM ID
+and exact source size match the new `machine-rom` firmware requirement, using
+the media ID as the compare-and-swap value. Other mismatched selections remain
+stale and block launch. Import alone does not select content. These endpoints
+use the existing host API and catalog; the browser management panel continues
+to manage ordinary media separately.
 
-Library responses expose `rom_required`, `rom_ready`, `rom_id`, and
-`rom_media_id`. Missing, damaged, or stale selections block launch before core
-activation. A ROM selection is independent of ordinary tape/media selection
-and the legacy household Coleco firmware slot. Cartridge ROM bytes are consumed
-by linking and are never streamed a second time as media. Linked cartridge
+Library responses expose `rom_required`, `rom_ready`, `rom_id`, `rom_role`,
+`rom_source_size`, and `rom_media_id`. Missing, damaged, or contract-mismatched
+selections block launch before core activation; the supported ZX81 same-contract
+rebind above can repair a stale package binding. Cartridge selections report
+`rom_required` / `rom_ready`; firmware-role selections report
+`firmware_required` / `firmware_ready` and open the package-firmware picker.
+That picker binds the selected binary to the title's ROM requirement. This
+per-title firmware is independent of ordinary tape/media selection and the
+legacy household Coleco firmware slot. Cartridge ROM bytes are consumed by
+linking and are never streamed a second time as media. Linked cartridge
 exports must omit `fes.media.blob-stream` 1.0, `fes.firmware.blob` 1.0, and,
 under `fes.application` 1.x, `fes.media.blob` 1.0, including optional declarations.
 These startup endpoints wait for a separate media upload and
 would leave the linked cartridge in reset. The host reports such combinations
-as not ready and rejects launch before contacting the target. Firmware-role
-ROMs retain their ordinary tape/media behavior. The browser launch control
-also requires `rom_ready` whenever `rom_required` is true.
+as not ready and rejects launch before contacting the target. Selecting a
+firmware-role ROM through the API or tenfoot picker refreshes the same
+`firmware_ready` field. The browser launch control requires `rom_ready`
+whenever `rom_required` is true.
 
 The host sends a canonical `rom-link.json` source envelope containing the exact
 sealed package, selected ROM binary and optional selected expansion. It does
@@ -502,7 +512,8 @@ media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
 `fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
 `spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3`) or `pentagon-firmware`
 (32 KiB, `fes.pentagon`), and role `cassette` for `fes.media.spectrum-tape`
-1.0: 1..65,536 bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of up to 32 MiB, media unit 0,
+converted to the unit's PZX stream when it is inserted. `fes.zx81` on `fes.computer` uses the same
 role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
 unit 0. A previously saved `blob` selection for that package still launches.
 Persist a Spectrum or ZX81 selection with role `cassette`:
@@ -686,6 +697,28 @@ game/base headers) and `/v1/library/media/save` (empty body), under the current
 kit lease. The agent supplies `/media/fat/fogcast/core-data/media`; host callers
 cannot choose a storage path. Unit status reports the durable game/base binding
 and record revision; an absent revision means no checkpoint has been published.
+
+Create a blank formatted disk in the host library and bind it as the title's
+next drive A. The name is the volume label (1–11 letters, digits, spaces or
+hyphens). Omitted geometry is the 720 KiB disk. Tracks, heads and sectors, when
+set, must be one of the twelve admitted layouts. `expected-media` is `none`
+when the title has no disk yet. The same name and geometry store one
+content-addressed image; repeating the request binds that image again.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json create-blank-st-disk WORK
+fogcast --api http://127.0.0.1:8787 --json create-blank-st-disk WORK 80 2 9 bind GAME_ID PACKAGE_ID none
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"WORK","tracks":80,"heads":2,"sectors":9,"bind":true,"game_id":"GAME_ID","expected_package_id":"PACKAGE_ID","expected_media_id":""}' \
+  http://127.0.0.1:8787/api/v1/library/atari-st-disks
+```
+
+`GET /api/v1/library/atari-st-disks` lists those layouts and their byte sizes.
+The browser FPGA library and the tenfoot Systems setup expose the same action.
+Tenfoot setup creates the default 720 KiB disk named WORK and holds it until
+the game is added. The browser binds immediately when a title is selected.
+GEMDOS writes then follow the durable drive-A path below; the stored base image
+is not overwritten.
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol/internal/generated"
 )
 
@@ -28,12 +29,15 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a Spectrum .tap or ZX81 .p image.
+	// CassetteRole is the library media role of a Spectrum tape or ZX81 .p image.
 	CassetteRole = "cassette"
-	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape image.
+	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
-	// SpectrumTapeMaxBytes is the largest fes.media.spectrum-tape image.
+	// SpectrumTapeMaxBytes is the largest fes.media.spectrum-tape PZX stream.
 	SpectrumTapeMaxBytes int64 = int64(generated.FesComputerSpectrumTapeMaxBytes)
+	// SpectrumTapeImageMaxBytes is the largest .tzx, .tap, .pzx or .csw image
+	// the host converts into that stream.
+	SpectrumTapeImageMaxBytes int64 = spectrumtapes.MaxInputBytes
 	// SpectrumTapeUnit is the media unit fes.media.spectrum-tape occupies.
 	SpectrumTapeUnit uint8 = uint8(generated.FesComputerSpectrumTapeUnit)
 	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image.
@@ -84,6 +88,17 @@ func SpectrumTapeInterface() RuntimeContract {
 // Zx81TapeInterface is the unit-0 ZX81 .p contract.
 func Zx81TapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeID, Major: generated.FesComputerInterfaceMediaZx81TapeMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeMinor}
+}
+
+// Zx81TapeWriteInterface is the snapshot contract for a ROM SAVE .p.
+func Zx81TapeWriteInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeWriteID, Major: generated.FesComputerInterfaceMediaZx81TapeWriteMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeWriteMinor}
+}
+
+// Zx81TapeWriteCapable reports an active computer that can publish a SAVE image
+// even when the cassette unit itself is empty.
+func Zx81TapeWriteCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, Zx81TapeInterface()) && activeInterface(p, Zx81TapeWriteInterface())
 }
 
 // C64DiskInterface is the unit-0 Commodore D64 contract.
@@ -245,10 +260,13 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
+			// The library holds tape images; the host converts one to the
+			// unit's PZX stream when it is inserted.
 			unit := SpectrumTapeUnit
-			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tap",
-				MinBytes: SpectrumTapeMinBytes, MaxBytes: SpectrumTapeMaxBytes, Interface: tape,
-				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".tap"}})
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "spectrum-tape",
+				MinBytes: 1, MaxBytes: SpectrumTapeImageMaxBytes, Interface: tape,
+				Transport: ComputerMediaTransport, Unit: &unit,
+				Extensions: append([]string(nil), spectrumtapes.Extensions...)})
 		}
 		zx81 := Zx81TapeInterface()
 		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
@@ -275,7 +293,7 @@ func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
 // DeclaresSpectrumTape reports whether the descriptor has the Spectrum cassette unit.
 func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
-		if capability.Format == "spectrum-tap" {
+		if capability.Format == "spectrum-tape" {
 			return true
 		}
 	}
@@ -326,17 +344,19 @@ func AdmitDiskMediaName(name string) bool {
 	}
 }
 
-// AdmitSpectrumTapeName accepts a ZX Spectrum .tap basename.
+// AdmitSpectrumTapeName accepts a ZX Spectrum .tzx, .tap, .pzx or .csw
+// basename.
 func AdmitSpectrumTapeName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
 		return false
 	}
-	return strings.ToLower(filepath.Ext(name)) == ".tap"
+	return spectrumtapes.Admit(name)
 }
 
-// AdmitSpectrumTapeSize reports whether a .tap image fits the unit.
+// AdmitSpectrumTapeSize reports whether a Spectrum tape image may be
+// converted; the converted stream must then fit the unit.
 func AdmitSpectrumTapeSize(size int64) bool {
-	return size >= SpectrumTapeMinBytes && size <= SpectrumTapeMaxBytes
+	return spectrumtapes.AdmitSize(size)
 }
 
 // AdmitZx81TapeSize reports whether a .p image fits the ZX81 tape unit.
@@ -437,7 +457,13 @@ func DiskMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or raw .st (720 KiB, or a declared 80..82-track, 1..2-head, 9..10-sector layout)", Phase: "request"}
 }
 
-// CassetteMediaRequestError is the live-media refusal for Spectrum .tap images.
+// CassetteMediaRequestError is the live-media refusal for Spectrum tapes.
 func CassetteMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tap image of 1..65536 bytes", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB", Phase: "request"}
+}
+
+// CassetteConversionError reports a Spectrum tape image the host could not
+// convert to the unit's PZX stream.
+func CassetteConversionError(err error) *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "Spectrum tape image: " + err.Error(), Phase: "request"}
 }
