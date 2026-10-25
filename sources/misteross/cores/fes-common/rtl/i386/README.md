@@ -21,6 +21,7 @@ exception delivery yet.
 | `fes_i386_decode.sv` | D | The instruction to one uop, its #UD and #GP(0) checks, and LEA's displacement |
 | `fes_i386_dops.sv` | D | Data operands: the second forwarding table, pending operands and how far ahead their producers are |
 | `fes_i386_shift.sv` | EX | The 64-bit funnel shifter and the 386EX's shift flags |
+| `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects |
 | `fes_i386_ex.sv` | EX | The late ALU (one adder, ZF from the operands), the result's merge into its register, flags and branch resolution |
 | `fes_i386_cpu.sv` | F1-WB | The top: front end, the Q/D skid register, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
 

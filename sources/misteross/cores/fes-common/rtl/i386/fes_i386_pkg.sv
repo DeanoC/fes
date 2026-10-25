@@ -238,6 +238,23 @@ package fes_i386_pkg;
 
     // ---- Pipeline ---------------------------------------------------------------
 
+    // EX's controls, decoded from the uop in M2 (fes_i386_exctl) so that EX
+    // sees registered selects: one-hot where EX picks among sources.
+    typedef struct packed {
+        logic       ok;                        // no fault: EX changes nothing otherwise
+        logic       byp_a, byp_b, byp_c;       // the operand comes from the WB result register
+        logic       size8, size16;             // the operation's size (32 otherwise)
+        logic       src8, src16;               // src2's size for MOVZX, MOVSX and SIGN
+        logic       sub;                       // the adder subtracts
+        logic       x_zero;                    // NEG: 0 - a
+        logic       y_one, y_a;                // INC, DEC, LOOP add 1; NEG takes a
+        logic       cin_cf, cin_ncf;           // ADC, SBB; else the carry-in is sub
+        logic       r_add, r_logic, r_shift, r_lea, r_ext, r_movsx, r_setcc, r_lahf, r_sign, r_mov;
+        logic       l_or, l_xor, l_not;        // the logic unit; AND otherwise
+        logic       f_add, f_incdec, f_logic, f_shift, f_flagop;  // which flags change, from where
+        logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
+    } exctl_t;
+
     // A uop from D to WB. a, b and c are the values of src1, src2 (or imm)
     // and ECX for a CL count. An operand whose producer has not computed it
     // when D reads it is pending: it arrives from the WB result register when
@@ -261,6 +278,7 @@ package fes_i386_pkg;
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address
         logic [31:0] target_eip;  // ... and EIP
+        exctl_t      exc;         // M2: EX's controls
         logic [17:0] eflags;      // EX: EFLAGS after this uop
         logic        taken;       // EX: a branch that redirects fetch
     } pipe_t;

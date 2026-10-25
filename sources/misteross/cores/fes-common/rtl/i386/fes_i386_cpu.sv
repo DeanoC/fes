@@ -275,7 +275,7 @@ module fes_i386_cpu (
 
     // ---- AG -----------------------------------------------------------------------
     // A pending operand whose producer is now in WB is taken from the WB
-    // register (dist 4 at AG, 3 at M1, 2 at M2, 1 at EX).
+    // register (dist 4 at AG, 3 at M1, 2 at M2; at dist 1 EX selects it).
     function automatic pipe_t capture(input pipe_t s, input logic [2:0] at, input logic [31:0] wb_value);
         pipe_t t;
         t = s;
@@ -308,13 +308,22 @@ module fes_i386_cpu (
     end
 
     // ---- M1 and M2: no memory yet -------------------------------------------------
+    // M2 also decodes EX's controls (fes_i386_exctl).
+    pipe_t                m2_cap, m2_out;
+    fes_i386_pkg::exctl_t m2_exc;
+    assign m2_cap = capture(m2_s, 3'd2, wb_s.result);
+    fes_i386_exctl exctl (.s(m2_cap), .exc(m2_exc));
+    always_comb begin
+        m2_out = m2_cap;
+        m2_out.exc = m2_exc;
+    end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             m2_s.valid <= 1'b0;
             ex_s.valid <= 1'b0;
         end else begin
             m2_s <= capture(m1_s, 3'd3, wb_s.result);
-            ex_s <= capture(m2_s, 3'd2, wb_s.result);
+            ex_s <= m2_out;
         end
     end
 
@@ -322,20 +331,19 @@ module fes_i386_cpu (
     // EFLAGS after every uop that has passed EX: no younger uop changes it,
     // and a flush only kills uops younger than WB, which have not.
     logic [17:0] ex_flags, ex_flags_out;
-    logic [31:0] ex_a, ex_b, ex_c, ex_result;
+    logic [31:0] ex_result;
     logic        ex_taken;
-    pipe_t       ex_in, ex_out;
-    assign ex_in = capture(ex_s, 3'd1, wb_s.result);
-    assign ex_a = ex_in.a;
-    assign ex_b = ex_in.b;
-    assign ex_c = ex_in.c;
+    pipe_t       ex_out;
+    // An operand whose producer is one stage ahead (exc.byp_*) comes from the
+    // WB result register beside EX's operand.
     fes_i386_ex ex (
-        .u(ex_in.uop), .a(ex_a), .b(ex_b), .c(ex_c), .ag_result(ex_in.result), .flags_in(ex_flags),
-        .result(ex_result), .flags_out(ex_flags_out), .taken(ex_taken)
+        .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .b(ex_s.b), .c(ex_s.c), .wb(wb_s.result),
+        .ag_result(ex_s.result), .flags_in(ex_flags), .result(ex_result), .flags_out(ex_flags_out),
+        .taken(ex_taken)
     );
     always_comb begin
-        ex_out = ex_in;
-        ex_out.result = ex_in.early ? ex_in.result : ex_result;
+        ex_out = ex_s;
+        ex_out.result = ex_s.early ? ex_s.result : ex_result;
         ex_out.eflags = ex_flags_out;
         ex_out.taken = ex_taken;
     end
