@@ -18,7 +18,9 @@ module firmware_model (
         .controller_keypad(keypad), .media_ready(media_ready),
         .media_size(media_size), .media_addr(media_addr), .media_q(media_q),
         .firmware_write_addr(firmware_addr), .firmware_write_data(firmware_data),
-        .firmware_write_enable(firmware_we)
+        .firmware_write_enable(firmware_we), .display_request(), .display_opcode(),
+        .display_index(), .display_argument(), .display_response_valid(1'b0),
+        .display_response_error(1'b0), .display_quiesced(1'b0), .display_response_data(16'h0000)
     );
     coleco_machine machine (
         .clk_sys(clk), .reset(exec_reset), .controller_buttons(buttons),
