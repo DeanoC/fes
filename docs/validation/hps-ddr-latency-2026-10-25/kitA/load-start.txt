@@ -1,0 +1,20 @@
+sid 27748
+pid 27753
+pid 27754
+pid 27755
+
+dropbear 27745 (dropbear) S 719 719 719
+dropbear 719 (dropbear) S 1 719 719
+load 27753 (dd) R 1 27748 27748
+load 27754 (dd) R 1 27748 27748
+load 27755 (sh) S 1 27748 27748
+    2     0 kthreadd
+  719   719 dropbear
+27745   719 dropbear
+27746   719 sh
+27753 27748 dd
+27754 27748 dd
+27755 27748 sh
+27840 27748 cat
+
+exit 0
