@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "d4ac300d9d244c6bfa9da24c30fd9cff225c3405"
+commit = "238eac9a49002722cef800cacaa763911e01f240"
 order = 10
-rationale = "DeanoC/yosys main commit d4ac300d9d (squash merge of #49: width detection for multi-dimensional packed arrays declared in generate blocks, fixing #41). It also brings #43 (a packed array of packed structs elaborates to its full width, fixing #34), #31 (opt_merge keeps cells marked nomerge apart) and #32 (sat folds repeated high bits of $mul). It is 487 commits past 3a5accbd, the Yosys of the repository and per-core locks, and includes the upstream Yosys 0.70 merge with its name-storage rework. This lock covers the i386 CPU RTL only, its timing spikes first: the shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL keeps its workarounds for the issues still open (#33, #35-#40). Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4."
+rationale = "DeanoC/yosys main commit 238eac9a49. Since ca51238cb9, the previous i386 pin, it adds #48 (named assignment patterns for packed structs, fixing #38), #53 (a member select on an element of a packed struct array, arr[i].field, reads the element's field instead of a generate-block name, fixing #52) and #58 (a bare call to an imported package function no longer asserts, fixing #55). ca51238cb9 brought #42, #44-#47 and #50 (#33, #35-#37, #39, #40); d4ac300d9d brought #43, #49, #31, #32 and the upstream Yosys 0.70 merge, 487 commits past 3a5accbd. This lock covers the i386 CPU RTL only, its timing spikes first: the shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL still avoids assignment patterns and keeps its workaround for #51, still open. Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4. Previous pin ca51238cb9."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
