@@ -200,6 +200,13 @@ class HarnessReportTest(unittest.TestCase):
         self.assertEqual(lockfile.validate_lock(benchmark.ROOT / benchmark.LOCK), [])
 
 
+@unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+class SynthesisTest(unittest.TestCase):
+    def test_q_synthesizes_without_multipliers_or_carry_cells(self):
+        synthesis = frontend.qalign_synthesis(YOSYS)
+        self.assertEqual((synthesis['multipliers'], synthesis['carry_cells']), (0, 0), synthesis)
+
+
 @unittest.skipUnless(VERILATOR, 'Verilator not installed')
 class RtlTest(unittest.TestCase):
     def test_spikes_and_their_rtl_lint(self):
