@@ -106,6 +106,11 @@ below are stimulus, signature or register-file model cells. The earlier
 round's labels were checked the same way: no envelope register there was
 slower than 118 MHz, so its stage figures stand.
 
+These are historical route results, not measurements of the current RTL. The
+final `now` columns use source `137aa86b41`, before the fetch-response
+`mem_ready` qualifier and the later packed per-byte `lclass_t`/`lbyte_t`
+change. Neither later RTL change was routed again at the current HEAD.
+
 Routed fmax in MHz, seeds 1, 2, 3, 4:
 
 | Spike | `bd7a1c0d`, earlier round | `bd7a1c0d`, now | `9128800f`, earlier round | `9128800f`, now |
@@ -211,11 +216,11 @@ Options the paths point at, for a later decision. None is made here:
   well, leaving D the select by register number and the scaling.
 
 The checked-in route rows are emitted by the benchmark writer, including the
-tool, lock, source, synthesis, logic-depth and `cells_by_stage` fields. Re-run
-the documented command with `--version "round 3, split L only"` to label the
-rows with the version recorded here. The fetch-response qualifier was added
-after those routes; the frontend spike ties `mem_ready` high, but the routed
-measurements were not repeated for this follow-up.
+tool, lock, source, synthesis, logic-depth and `cells_by_stage` fields. They
+retain the labels recorded at run time: `round 3`, `round 3, split L only`,
+and `round 3, split L and availability`. The `--version` argument labels new
+rows. The frontend spike ties `mem_ready` high, so these routes do not measure
+the later fetch-response qualifier.
 
 ### Area
 
@@ -229,9 +234,11 @@ Earlier round in brackets.
 
 ### Sources
 
-The final routes are of `137aa86b41`. Since then the RTL has changed only in
-one comment, plus documentation and an example in the harness's help text.
-The split-L-only routes are of `aab085bc97`'s RTL with L1 and L2's instances
+The final routes are of `137aa86b41`. The fetch-response `mem_ready`
+qualifier and the later conversion to packed per-byte `lclass_t`/`lbyte_t`
+records followed those route inputs. Neither change was re-routed at the
+current HEAD. The split-L-only routes are of `aab085bc97`'s RTL with L1 and
+L2's instances
 renamed as at `8cb56e7a6c`, so the stage labels find them; the
 stored-availability routes are of `8cb56e7a6c`. All three used the harness at
 `8cb56e7a6c` or later; the `.jsonl` records each route's source digests.
