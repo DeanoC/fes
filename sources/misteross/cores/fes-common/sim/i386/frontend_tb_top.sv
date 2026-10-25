@@ -9,6 +9,7 @@ module frontend_tb_top (
     input  logic             code32,
     output logic [27:0]      mem_block,
     output logic             mem_load,
+    input  logic             mem_ready,
     input  logic [127:0]     mem_data,
     output logic             q_valid,
     input  logic             d_ready,
@@ -27,7 +28,7 @@ module frontend_tb_top (
     fes_i386_pkg::fetched_t q;
 
     fes_i386_frontend dut (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_ready,
         .mem_data(mem_data), .q_valid, .q, .d_ready
     );
 
