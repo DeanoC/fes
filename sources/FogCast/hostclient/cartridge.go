@@ -22,10 +22,12 @@ func CartridgeSwapCapable(p *SessionCorePackage) bool {
 func linkedCartridgeSize(p *SessionCorePackage) int64 {
 	switch {
 	case p.ROMLinks != nil:
-		if p.ROMLink != nil || len(p.ROMLinks.Sources) != 2 || p.ROMLinks.Sources[1].Role != "cartridge" {
+		sources := p.ROMLinks.Sources
+		if p.ROMLink != nil || len(sources) != 2 || sources[0].Role != protocol.FirmwareRole ||
+			sources[0].SourceSize <= 0 || sources[1].Role != "cartridge" {
 			return 0
 		}
-		return p.ROMLinks.Sources[1].SourceSize
+		return sources[1].SourceSize
 	case p.ROMLink != nil:
 		return p.ROMLink.SourceSize
 	}

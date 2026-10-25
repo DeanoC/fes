@@ -768,7 +768,9 @@ same kit with that cartridge for this one launch, the same way any launch
 replaces the running core. The title's own cartridge binding is unchanged,
 so the next ordinary launch uses its own cartridge again. The reply is the
 new generation; it retires the old plane and its focus, the picker closes,
-and play continues on the new load.
+and play continues on the new load. The host separately revalidates the saved
+package, firmware and cartridge snapshot, then checks the load against the
+explicit replacement ID; the temporary choice does not weaken those checks.
 
 Operator/diagnostics CLI:
 

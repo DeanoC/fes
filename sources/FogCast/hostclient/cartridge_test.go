@@ -33,11 +33,22 @@ func TestCartridgeSwapSizesTheLinkedCartridge(t *testing.T) {
 	firmwareOnly := base()
 	firmwareOnly.ROMLinks = &SessionROMLinks{Sources: []SessionROMSource{
 		{ID: "a", Role: "firmware", SourceSize: 8192}, {ID: "b", Role: "firmware", SourceSize: 16384}}}
+	wrongFirstRole := base()
+	wrongFirstRole.ROMLinks = &SessionROMLinks{Sources: []SessionROMSource{
+		{ID: "a", Role: "cartridge", SourceSize: 8192}, {ID: "b", Role: "cartridge", SourceSize: 16384}}}
+	missingFirmwareSize := base()
+	missingFirmwareSize.ROMLinks = &SessionROMLinks{Sources: []SessionROMSource{
+		{ID: "a", Role: "firmware"}, {ID: "b", Role: "cartridge", SourceSize: 16384}}}
+	missingCartridgeSize := base()
+	missingCartridgeSize.ROMLinks = &SessionROMLinks{Sources: []SessionROMSource{
+		{ID: "a", Role: "firmware", SourceSize: 8192}, {ID: "b", Role: "cartridge"}}}
 	both := base()
 	both.ROMLink, both.ROMLinks = single.ROMLink, linked.ROMLinks
 	short := base()
 	short.ROMLinks = &SessionROMLinks{Sources: linked.ROMLinks.Sources[1:]}
-	for name, p := range map[string]*SessionCorePackage{"no-rom": base(), "firmware-only": firmwareOnly, "both-forms": both, "one-source": short} {
+	for name, p := range map[string]*SessionCorePackage{"no-rom": base(), "firmware-only": firmwareOnly,
+		"wrong-first-role": wrongFirstRole, "missing-firmware-size": missingFirmwareSize, "missing-cartridge-size": missingCartridgeSize,
+		"both-forms": both, "one-source": short} {
 		if CartridgeSwapCapable(p) {
 			t.Fatalf("%s: admitted as a cartridge machine", name)
 		}

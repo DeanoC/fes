@@ -33,9 +33,12 @@ func CartridgeSwapCapable(p *CorePackageStatus) bool {
 		return false
 	}
 	if p.ROMLinks != nil {
-		return p.ROMLink == nil && len(p.ROMLinks.Sources) == 2 && p.ROMLinks.Sources[1].Role == "cartridge"
+		sources := p.ROMLinks.Sources
+		return p.ROMLink == nil && len(sources) == 2 &&
+			sources[0].Role == FirmwareRole && sources[0].SourceSize > 0 &&
+			sources[1].Role == "cartridge" && sources[1].SourceSize > 0
 	}
-	return p.ROMLink != nil
+	return p.ROMLink != nil && p.ROMLink.SourceSize > 0
 }
 
 // MatchesCartridgeSwap admits the request's binding only for the exact

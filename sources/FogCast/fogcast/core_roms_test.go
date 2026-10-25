@@ -878,7 +878,7 @@ func TestCartridgeSwapRelaunchPassesReplacementThroughTargetLinker(t *testing.T)
 // firmware slot and the title's own cartridge binding is unchanged.
 func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
 	ctx := context.Background()
-	s, _, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart swap", 2*time.Minute)
+	s, client, entry, inspection := newCoreEntryLaunchFixture(t, twoROMLibraryPackageFixture(t), "MegaCart swap", 2*time.Minute)
 	size := inspection.Descriptor.ROMs[1].SourceSize
 	own, _, err := s.ImportCoreMedia(ctx, size, bytes.NewReader(bytes.Repeat([]byte{0x34}, int(size))))
 	if err != nil {
@@ -895,12 +895,88 @@ func TestCartridgeSwapReplacesTheFormat4Cartridge(t *testing.T) {
 	if _, err = s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "coleco-cart", "", own.MediaID); err != nil {
 		t.Fatal(err)
 	}
-	selected, data, err := s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, other.MediaID), entry, inspection.Descriptor)
-	if err != nil || selected.MediaID != other.MediaID || !bytes.Equal(data, bytes.Repeat([]byte{0x78}, int(size))) {
-		t.Fatalf("format-4 swap read %+v %v", selected, err)
+	if _, err = s.SelectCoreFirmware(ctx, protocol.FirmwareRole, bios.MediaID); err != nil {
+		t.Fatal(err)
 	}
-	if _, _, err = s.readCoreEntryROM(WithCartridge(ctx, entry.GameID, bios.MediaID), entry, inspection.Descriptor); err == nil {
-		t.Fatal("BIOS-sized media admitted as the cartridge")
+
+	var linked *corepackage.ROMLinksIdentity
+	var targetLinkErr error
+	client.coreLoad = func(_ context.Context, transportSize int64, body io.Reader) (protocol.Status, error) {
+		if transportSize <= 0 {
+			return protocol.Status{}, errors.New("empty ROM-input-v2 transport")
+		}
+		transport, err := io.ReadAll(body)
+		if err != nil || int64(len(transport)) != transportSize || !corepackage.IsROMInputV2(transport) {
+			targetLinkErr = errors.New("target did not receive a complete ROM-input-v2 transport")
+			return protocol.Status{}, targetLinkErr
+		}
+		archive := tar.NewReader(bytes.NewReader(transport))
+		header, err := archive.Next()
+		if err != nil || header.Name != "rom-link-v2.json" {
+			targetLinkErr = errors.New("ROM-input-v2 receipt is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		var receipt struct {
+			Sources   []corepackage.ROMSourceIdentity `json:"sources"`
+			MapSHA256 string                          `json:"map_sha256"`
+		}
+		receiptBytes, err := io.ReadAll(archive)
+		if err != nil || json.Unmarshal(receiptBytes, &receipt) != nil {
+			targetLinkErr = errors.New("ROM-input-v2 receipt is invalid")
+			return protocol.Status{}, targetLinkErr
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "package.tar" {
+			targetLinkErr = errors.New("ROM-input-v2 package source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		if _, err = io.Copy(io.Discard, archive); err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "bios.bin" {
+			targetLinkErr = errors.New("ROM-input-v2 firmware source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		firmwareBytes, err := io.ReadAll(archive)
+		if err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if header, err = archive.Next(); err != nil || header.Name != "cartridge.bin" {
+			targetLinkErr = errors.New("ROM-input-v2 cartridge source is missing")
+			return protocol.Status{}, targetLinkErr
+		}
+		cartridgeBytes, err := io.ReadAll(archive)
+		if err != nil {
+			targetLinkErr = err
+			return protocol.Status{}, err
+		}
+		if len(receipt.Sources) != 2 || receipt.Sources[0].ID != "coleco-bios" || receipt.Sources[0].Role != "firmware" ||
+			receipt.Sources[0].SourceSHA256 != bios.MediaID || receipt.Sources[0].SourceSize != 8192 || !bytes.Equal(firmwareBytes, bytes.Repeat([]byte{0x12}, 8192)) ||
+			receipt.Sources[1].ID != "coleco-cart" || receipt.Sources[1].Role != "cartridge" || receipt.Sources[1].SourceSHA256 != other.MediaID ||
+			receipt.Sources[1].SourceSize != size || !bytes.Equal(cartridgeBytes, bytes.Repeat([]byte{0x78}, int(size))) {
+			targetLinkErr = errors.New("ROM-input-v2 sources are not firmware then replacement cartridge")
+			return protocol.Status{}, targetLinkErr
+		}
+		linked = &corepackage.ROMLinksIdentity{Sources: receipt.Sources, MapSHA256: receipt.MapSHA256,
+			ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: inspection.Descriptor.Payload.Size}
+		active := coreEntryActiveStatus(inspection, 8, false)
+		active.CorePackage.ActiveInterfaces = append(active.CorePackage.ActiveInterfaces,
+			protocol.RuntimeInterface{ID: "fes.gamepad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.keypad.ports", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.memory.hps-ddr", Major: 1},
+			protocol.RuntimeInterface{ID: "fes.video.session-display", Major: 1})
+		active.CorePackage.ROMLinks = linked
+		client.statusResult = active
+		return active, nil
+	}
+	if _, err = s.Launch(WithCartridge(ctx, entry.GameID, other.MediaID), entry.GameID, nil); err != nil {
+		t.Fatalf("format-4 cartridge swap launch: %v target link error=%v loads=%d", err, targetLinkErr, client.coreCalls)
+	}
+	if linked == nil || len(linked.Sources) != 2 ||
+		linked.Sources[0].ID != "coleco-bios" || linked.Sources[0].Role != "firmware" || linked.Sources[0].SourceSHA256 != bios.MediaID ||
+		linked.Sources[1].ID != "coleco-cart" || linked.Sources[1].Role != "cartridge" || linked.Sources[1].SourceSHA256 != other.MediaID || client.coreCalls != 1 {
+		t.Fatalf("format-4 swap linked sources=%+v core loads=%d", linked, client.coreCalls)
 	}
 	if binding, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID); err != nil || binding.MediaID != own.MediaID {
 		t.Fatalf("swap rewrote the title's binding: %+v %v", binding, err)
