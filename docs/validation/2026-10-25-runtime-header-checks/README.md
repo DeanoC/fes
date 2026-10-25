@@ -22,7 +22,7 @@ Each arm started without a build directory, in the same private worktree at
 `/home/deano/fes/out/dev/perf-runtime-ci-rebuilds`. Prior build outputs were
 preserved under that worktree's ignored `out/runtime-profile/` directory.
 The top-level stages use `-j2`; the existing header/version scripts retain
-`-j16`. The stage sequence is the same sequence used by `make test`.
+`-j16`. The stage sequence is the same sequence used by `make -j2 test`.
 
 | Stage | Baseline seconds | Candidate seconds |
 | --- | ---: | ---: |
@@ -40,10 +40,16 @@ these results do not establish a guaranteed GitHub CI wall-time reduction.
 The concrete reduction is from two functional executions to one, while every
 binary still undergoes the real header-triggered rebuild.
 
+The header-rebuild logs contain only the success marker because the script
+redirects Make output. Matching baseline and candidate `log_sha256` values for
+that stage are expected and do not show how many times the functional suite
+ran; the timings and regression test provide that evidence.
+
 `runs.jsonl` records exact arguments, results, commits, timings and log hashes.
-Logs are retained on Powerboat at the recorded paths and locally under
-`out/validation/2026-10-25-runtime-header-checks/`. To reproduce, use separate
-private checkouts at the two commits, each without existing build outputs:
+The original logs are retained on Powerboat at the recorded `/tmp/` paths.
+When run locally, the script writes logs under `/tmp` and does not copy them
+into the checkout. To reproduce, use separate private checkouts at the two
+commits, each without existing build outputs:
 
 ```sh
 python3 docs/validation/2026-10-25-runtime-header-checks/profile.py /absolute/fes baseline
