@@ -143,7 +143,7 @@ class HarnessReportTest(unittest.TestCase):
         synthesis = {
             'cells': {'MISTRAL_ALUT4': 3, 'MISTRAL_ALUT_ARITH': 2, 'MISTRAL_FF': 5, 'MISTRAL_M10K': 1},
             'cells_by_stage': {'F1': 1, 'F2': 5}, 'logic_depth': {'F1': {'lut_levels': 2}},
-            'synth_json_sha256': 'synth-sha',
+            'synth_json_sha256': 'synth-sha', 'synthesis': 'synth_intel_alm',
         }
         run = {
             'argv': ['nextpnr-mistral', '--seed', '2'], 'elapsed_seconds': 4.5, 'envelope_worst': [],
@@ -158,6 +158,8 @@ class HarnessReportTest(unittest.TestCase):
         self.assertEqual(row['critical_path'], {'from': 'a', 'to': 'b'})
         self.assertEqual((row['source_fingerprint'], row['synth_json_sha256'], row['version']),
                          ('fingerprint', 'synth-sha', 'round 4'))
+        # The spike's own recipe, not the default one
+        self.assertEqual(row['synthesis'], 'synth_intel_alm')
         self.assertIn('tools', row)
         self.assertNotIn('registers_by_stage', row)
         checked_record = json.loads((benchmark.ROOT / 'docs/validation/2026-10-25-i386-phase1-front-end-fixes.jsonl')
