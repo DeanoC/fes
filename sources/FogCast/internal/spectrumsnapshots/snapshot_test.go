@@ -3,6 +3,7 @@ package spectrumsnapshots
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -399,6 +400,15 @@ func TestZ80Version1On48K(t *testing.T) {
 	}
 }
 
+func TestZ80Version1RejectsSamRom(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(11)))
+	data := z80v1(s, false)
+	data[12] |= 0x10
+	if Recognize(data) {
+		t.Fatal("version-1 SamRom snapshot was recognized")
+	}
+}
+
 func Test48KSnapshotOnEveryModel(t *testing.T) {
 	s := sampleState(Machine48K, rand.New(rand.NewSource(2)))
 	s.IFF1, s.IFF2, s.IM, s.R = false, false, 2, 0x02
@@ -454,6 +464,21 @@ func TestSNAWithBank5Paged(t *testing.T) {
 	checkBanks(t, m, s, 0, 1, 2, 3, 4, 5, 6, 7)
 }
 
+func TestSNARejectsInconsistentDuplicatePagedBank(t *testing.T) {
+	for _, bank := range []int{2, 5} {
+		t.Run(fmt.Sprintf("bank_%d", bank), func(t *testing.T) {
+			s := sampleState(Machine128K, rand.New(rand.NewSource(int64(bank))))
+			s.Port7FFD = byte(bank)
+			data := sna(s)
+			thirdPage := 27 + 2*bankBytes
+			data[thirdPage] ^= 1
+			if Recognize(data) {
+				t.Fatalf("inconsistent duplicate bank %d was recognized", bank)
+			}
+		})
+	}
+}
+
 func TestPlus3Snapshot(t *testing.T) {
 	s := sampleState(MachinePlus3, rand.New(rand.NewSource(5)))
 	s.Port7FFD = 0x07
@@ -470,12 +495,28 @@ func TestPlus3Snapshot(t *testing.T) {
 func TestRefusedSnapshots(t *testing.T) {
 	s := sampleState(Machine48K, rand.New(rand.NewSource(6)))
 	for name, data := range map[string][]byte{
-		"16K":        func() []byte { d := z80v3(s, 0, 54); d[32+5] |= 0x80; return d }(),
-		"SamRam":     z80v3(s, 2, 54),
-		"MGT":        z80v3(s, 3, 54),
-		"Scorpion":   z80v3(s, 10, 54),
-		"Timex":      z80v3(s, 14, 54),
-		"IF1 paged":  func() []byte { d := z80v3(s, 1, 54); d[32+4] = 0xff; return d }(),
+		"16K":       func() []byte { d := z80v3(s, 0, 54); d[32+5] |= 0x80; return d }(),
+		"SamRam":    z80v3(s, 2, 54),
+		"MGT":       z80v3(s, 3, 54),
+		"Scorpion":  z80v3(s, 10, 54),
+		"Timex":     z80v3(s, 14, 54),
+		"IF1 paged": func() []byte { d := z80v3(s, 1, 54); d[32+4] = 0xff; return d }(),
+		"IF1 paged +3": func() []byte {
+			d := z80v3(sampleState(MachinePlus3, rand.New(rand.NewSource(12))), 7, 55)
+			d[32+4] = 0xff
+			return d
+		}(),
+		"IF1 paged +3 alias mode": func() []byte {
+			d := z80v3(sampleState(MachinePlus3, rand.New(rand.NewSource(13))), 8, 55)
+			d[32+4] = 0xff
+			return d
+		}(),
+		"IF1 paged +2A": func() []byte {
+			d := z80v3(sampleState(MachinePlus3, rand.New(rand.NewSource(14))), 13, 55)
+			d[32+4] = 0xff
+			return d
+		}(),
+		"SamRom":     func() []byte { d := z80v1(s, false); d[12] |= 0x10; return d }(),
 		"truncated":  z80v1(s, false)[:1000],
 		"bad marker": func() []byte { d := z80v1(s, true); d[len(d)-2] = 0; return d }(),
 		"TR-DOS": func() []byte {
@@ -488,6 +529,20 @@ func TestRefusedSnapshots(t *testing.T) {
 		if Recognize(data) {
 			t.Errorf("%s: recognized", name)
 		}
+	}
+}
+
+func TestInflateRejectsTruncatedRLEMarkers(t *testing.T) {
+	for name, marker := range map[string][]byte{
+		"missing count": {0xed, 0xed},
+		"missing value": {0xed, 0xed, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			input := append(bytes.Repeat([]byte{0}, bankBytes-len(marker)), marker...)
+			if _, err := inflate(input, bankBytes); err == nil {
+				t.Fatal("truncated RLE marker was accepted")
+			}
+		})
 	}
 }
 

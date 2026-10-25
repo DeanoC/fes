@@ -37,6 +37,11 @@ most one unit-0 medium. `fes.expansion.apple2-bus` 1.0,
 Unknown or unsupported-version optional declarations are ignored and grant nothing;
 unknown or unsupported required declarations fail admission.
 
+`fes.media.spectrum-snapshot`, `fes.media.spectrum-snapshot-128` and
+`fes.media.spectrum-snapshot-plus3` 1.0 are recognized optional package metadata.
+The runtime reports a declared matching version as active for the host media
+picker; these interfaces add no runtime operation, media unit or capability bit.
+
 Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 `cartridge` ROM and format 4 are rejected: this ABI releases execution right
 after identity and has no media gate that could hold a linked cartridge.
@@ -49,7 +54,7 @@ persistence and changes the active persistence mode.
 Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
