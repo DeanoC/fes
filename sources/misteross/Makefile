@@ -82,12 +82,14 @@ help:
 		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display" \
 		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for the 8 KiB BASIC image" \
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
+		"  sim-fes-zx81-variants  Probe family variants and verify the ZX80 tape load address" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
 		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
 		"  sim-fes-native-socket  Test both native parts through their physical socket wrapper" \
 		"  build-fes-coleco-native-video  Seal the native-pixel shell requiring a linked video part" \
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
+		"  sim-fes-coleco-session  Test the Coleco mailbox, native part raster and live DDR session display" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
 		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
@@ -102,6 +104,9 @@ help:
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
+		"  build-fes-zx80  Seal experimental Sinclair ZX80 (package-only; same lock as fes.zx81)" \
+		"  build-fes-ts1000  Seal experimental Timex Sinclair 1000 (package-only; same lock as fes.zx81)" \
+		"  build-fes-ts1500  Seal experimental Timex Sinclair 1500 (package-only; same lock as fes.zx81)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision v2 socket with HIP (CACHE_ROOT=)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
@@ -182,7 +187,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-zx81-variants sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -237,6 +242,11 @@ sim-fes-native-video:
 sim-fes-coleco-native:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_coleco_native.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-coleco-session
+sim-fes-coleco-session:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_coleco_session.py --verilator "$(VERILATOR)"
 
 synth-fes-native-video:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
@@ -357,7 +367,50 @@ sim-fes-zx81-rom:
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session
+.PHONY: sim-fes-zx81-variants
+sim-fes-zx81-variants:
+	$(require_local_sim)
+	@set -e; \
+	for spec in "zx81:" "zx80:-DZX81_MODEL_ZX80" "ts1000:-DZX81_MODEL_TS1000" "ts1500:-DZX81_MODEL_TS1500"; do \
+		name=$${spec%%:*}; \
+		define=$${spec#*:}; \
+		mkdir -p build/sim/fes-zx81-variant-$$name; \
+		extra=""; \
+		if [ -n "$$define" ]; then extra="$$define"; fi; \
+		$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+			-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+			-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
+			-GEXTERNAL_RAM=1 \
+			-GFIRMWARE_INIT='"$(CURDIR)/cores/fes-zx81/sim/variant_probe.hex"' \
+			$$extra \
+			--Mdir "$(CURDIR)/build/sim/fes-zx81-variant-$$name" \
+			cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+			$(FES_Z80_NMOS_RTL) \
+			cores/fes-zx81/rtl/zx81_dpram.v \
+			"$(CURDIR)/cores/fes-zx81/sim/variant_tb.cpp" || exit $$?; \
+		build/sim/fes-zx81-variant-$$name/Vzx81_machine $$name || exit $$?; \
+	done
+	@mkdir -p build/sim/fes-zx81-variant-zx80-load
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
+		-GEXTERNAL_RAM=1 \
+		-GFIRMWARE_INIT='"$(CURDIR)/cores/fes-zx81/sim/zx80_load_probe.hex"' \
+		-DZX81_MODEL_ZX80 \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-variant-zx80-load" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/tape_load_tb.cpp"
+	@build/sim/fes-zx81-variant-zx80-load/Vzx81_machine
+
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
@@ -365,7 +418,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
 		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
 		$(FES_Z80_NMOS_RTL) \
@@ -378,7 +431,7 @@ sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-display-plane sim-
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-save" \
 		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
 		$(FES_Z80_NMOS_RTL) \
@@ -898,6 +951,16 @@ build-fes-zx81-quartus:
 build-fes-zx81:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
 
+.PHONY: build-fes-zx80 build-fes-ts1000 build-fes-ts1500
+build-fes-zx80:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)" --model zx80$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-ts1000:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)" --model ts1000$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
+build-fes-ts1500:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)" --model ts1500$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
 build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
@@ -986,7 +1049,8 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \
 	cores/fes-menu/rtl/fes_menu_control.v cores/fes-menu/rtl/fes_menu_video.v \
 	cores/fes-menu/rtl/fes_menu_reader.v cores/fes-common/rtl/fes_hps_ddr.v \
-	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-menu/sim/ddr_model.v
+	cores/fes-common/rtl/fes_hps_ddr_guard.v cores/fes-common/rtl/fes_media_ddr.v \
+	cores/fes-common/sim/hps_ddr_media_model.v
 
 .PHONY: spectrum-diagnostic sim-fes-spectrum sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape
 .PHONY: sim-fes-spectrum-contention sim-fes-spectrum-rom
@@ -1010,14 +1074,21 @@ sim-fes-spectrum-contention:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum.py --verilator "$(VERILATOR)" --model 48 --download
 
-sim-fes-spectrum-tape: spectrum-diagnostic
+# The PZX deck against a reference expansion; the 48K build also stops at
+# STOP blocks flagged 48K-only.
+sim-fes-spectrum-tape:
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-spectrum-tape
+	@mkdir -p build/sim/fes-spectrum-tape build/sim/fes-spectrum-tape-48k
 	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-tape" \
 		cores/fes-spectrum/rtl/spectrum_tape.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
 	@build/sim/fes-spectrum-tape/Vspectrum_tape
+	$(VERILATOR) --cc --exe --build -O2 --top-module spectrum_tape -Wall -GIS_48K=1\'b1 \
+		-CFLAGS -DTAPE_IS_48K=1 --Mdir "$(CURDIR)/build/sim/fes-spectrum-tape-48k" \
+		cores/fes-spectrum/rtl/spectrum_tape.v \
+		"$(CURDIR)/cores/fes-spectrum/sim/tape_tb.cpp"
+	@build/sim/fes-spectrum-tape-48k/Vspectrum_tape
 
 sim-fes-spectrum-board: spectrum-diagnostic
 	$(require_local_sim)

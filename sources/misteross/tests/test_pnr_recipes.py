@@ -30,15 +30,18 @@ LOCK_SHA256 = {
     "fes.catch": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.pong": "e9c28e573a5037cc7a3acef7637097691bf5bfac6f1a0cdca3bace84b9383edc",
     "fes.zx81": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
-    "fes.coleco": "7edb6dbe917d5fce1e3c0acdc3ffa28cbda3d1ad9a35fa7206c00de77c241e21",
+    "fes.zx80": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.ts1000": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.ts1500": "27ceca798d9e7b24c8c770cba7b54794276398095c552217936d84c1a3c5312a",
+    "fes.coleco": "f6c21da362e2d7ae74c208af9ed773b3ec0bdebddd3cbcc1049dff37f2f49604",
     "fes.sms": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.sg1000": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.apple2": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
     "fes.c64": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
-    "fes.spectrum": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
-    "fes.spectrum128": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
-    "fes.spectrum-plus3": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
-    "fes.pentagon": "bd19d80345cae5f8cc106a9128b2ff71e2ec3711de968341cedfec721ff7f675",
+    "fes.spectrum": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.spectrum128": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.spectrum-plus3": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
+    "fes.pentagon": "213604b82009022085ea1bc504207da3c5b56db044d2e836fce8688d246afec3",
     "fes.riscv": "2669044d4d481c94cf6ba7127614077480fd65ba730a784ac26f747764e472cf",
     "fes.ramtest": "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8",
     "fes.atari-st": "e4a11eac287674e473ab33ae356595245d564d32623be5b90472740d02aaecdb",
@@ -62,6 +65,7 @@ FLAGS_SHA256 = {
     65: "38d02f4b8db3804837214ed9227bbac0b2b92f4687a3bb31a9d88d48d30ba5e6",
 }
 ZX81_FLAGS_SHA256 = "0d8e2411d19f74c2af22177bb9c5836ab7cb0e7713e5931f0eca7b0b11914d7e"
+ZX81_FAMILY = {"fes.zx81", "fes.zx80", "fes.ts1000", "fes.ts1500"}
 
 # The source-declared additions to the 105-option set, independently checked
 # against the pinned nextpnr declarations.
@@ -84,6 +88,9 @@ GOLDENS = {
     "fes.catch": ("2ca8900a129a4b954198e400c5939b8ff28ec3043302ce111f5fabfc9b5c5431", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
     "fes.pong": ("c7be1fd18e5fea4deb93dc7247e759409c802db3073e11659ac591ddb68b589b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.zx81": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.zx80": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1000": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
+    "fes.ts1500": ("9bc04386391dad1f1991315d44866f283758dfe5fe1d421af5eab848832c8340", "1a99f0e9f4026971913ec926e4836f3ed84f5cd1de3bc55e233beb3c677f0d95"),
     "fes.coleco": ("36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
     "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
     "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
@@ -106,6 +113,9 @@ ARGV_MATRIX_GOLDENS = {
     "fes.catch": "79b8ac93741f11b180132307a0b3261e6e41839e89240c6363f0087e03e75bc4",
     "fes.pong": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
     "fes.zx81": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.zx80": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.ts1000": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
+    "fes.ts1500": "949fc3d65ea57966453b12b924c229f30974afb83311d95e0d1cdd544d529a16",
     "fes.coleco": "7bde18f0254f40a680638a4476839141eaf65ffbf2a0bf7069cec059332f9439",
     "fes.sms": "f1c5c9118f716306b8493bccb3d24c1bec6ce5d20ea4c942b618c7aa728499bb",
     "fes.sg1000": "e67b5e8e63cf0c3ba560d58c04167361d95e2cf3d653d1d1ff42524fdea9d7fb",
@@ -153,7 +163,7 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
                         "--detailed-timing-report"))
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", "0"))
-    if core_id == "fes.zx81":
+    if core_id in ZX81_FAMILY:
         command.append("--arrival-pin-assignment")
     return command
 
@@ -229,7 +239,7 @@ class PnrRecipeTests(unittest.TestCase):
                 pin = load_lock(lock)["nextpnr"].commit
                 self.assertEqual(pnr_recipe.nextpnr_pin(core_id), pin)
                 option_count = 105 if core_id in {
-                    "fes.pong", "fes.riscv", "fes.zx81", "fes.atari-st"} else 96
+                    "fes.pong", "fes.riscv", "fes.atari-st"} | ZX81_FAMILY else 96
                 self.assertEqual(set(pnr_recipe.recipe_for(core_id)["flags"]),
                                  set(SCHEMAS_BY_OPTION_COUNT[option_count]))
 
@@ -459,7 +469,7 @@ class PnrRecipeTests(unittest.TestCase):
                 self.assertEqual(pnr_recipe.recipe_digest(core_id), recipe_sha)
                 flags_sha = hashlib.sha256(json.dumps(
                     recipe["flags"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-                self.assertEqual(flags_sha, ZX81_FLAGS_SHA256 if core_id == "fes.zx81" else FLAGS_SHA256[len(recipe["flags"])])
+                self.assertEqual(flags_sha, ZX81_FLAGS_SHA256 if core_id in ZX81_FAMILY else FLAGS_SHA256[len(recipe["flags"])])
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)

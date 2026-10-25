@@ -27,6 +27,23 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(any('/sim/' in root or root.endswith('/sim') for root in roots))
         self.assertFalse(any(root.startswith('cores/fes-common/sim') for root in roots))
 
+    def test_session_display_closures_exclude_menu_producer(self):
+        from scripts.closure_tools.manifest import required
+
+        manifest = load_manifest()
+        display_sources = {
+            'cores/fes-menu/rtl/fes_menu_control.v',
+            'cores/fes-menu/rtl/fes_menu_reader.v',
+            'cores/fes-menu/rtl/fes_menu_video.v',
+        }
+        for producer in ('build_fes_spectrum_oss', 'build_fes_zx81_oss'):
+            roots = manifest[producer]
+            self.assertNotIn('scripts/build_fes_menu.py', roots, producer)
+            self.assertTrue(display_sources <= required(producer), producer)
+            for source in display_sources:
+                self.assertTrue(any(source == root or source.startswith(root + '/') for root in roots),
+                                (producer, source))
+
     def test_manifest_rejects_unsorted_or_escaping_roots(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'manifest.json'

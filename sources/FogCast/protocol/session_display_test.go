@@ -92,7 +92,7 @@ func TestSessionDisplayAdmitsOnlyObservedSupportedComputerMedia(t *testing.T) {
 		{Apple2FloppyInterface(), 143360, 143360},
 		{C64DiskInterface(), 174848, 174848},
 		{AtariStFloppyInterface(), 737280, 737280},
-		{SpectrumTapeInterface(), 1, 65536},
+		{SpectrumTapeInterface(), uint32(SpectrumTapeMinBytes), uint32(SpectrumTapeMaxBytes)},
 	} {
 		t.Run(tc.contract.ID, func(t *testing.T) {
 			b := DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}

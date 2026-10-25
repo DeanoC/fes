@@ -79,10 +79,13 @@ def prepare_kernel_module(root, snapshot, env):
     image = snapshot / 'image'
     kernel = pinned_kernel(snapshot)
     commit = kernel['kernel_commit']
-    # Kit builds share the kernel source like the SDK; a checkout falls back to
-    # the target-image source cache that fetch-target-image-sources.sh fills.
+    # kit-sdk publishes the SDK to the shared cache, but fetches source into the
+    # worktree cache. Prefer a shared kernel repo when present; otherwise use
+    # the worktree repo. Both paths are checked against the source lock below.
     shared = env.get('FES_TARGET_IMAGE_SHARED_CACHE')
-    bare = (Path(shared) if shared else Path(root) / 'image/build/cache/target-image') / 'linux-kernel.git'
+    local_bare = Path(root) / 'image/build/cache/target-image/linux-kernel.git'
+    shared_bare = Path(shared) / 'linux-kernel.git' if shared else None
+    bare = shared_bare if shared_bare and shared_bare.exists() else local_bare
     # The provenance verify-target-image-source-cache.sh requires: the fetch pin
     # names the locked commit, and that commit object is present.
     pinned = subprocess.run(['git', '--git-dir', str(bare), 'rev-parse', '--verify', '--quiet',
@@ -145,7 +148,7 @@ def build_runtime(snapshot, cache, revision, env, driver):
     sdk_key = sdk.key(image)
     sdk_sha = sdk.validated_sha(cache, sdk_key)
     if sdk_sha is None:
-        raise ValueError('compatible cached SDK missing or corrupt; qualify/build its base image first')
+        raise ValueError('compatible cached SDK missing or corrupt; run make kit-sdk')
     local = image / 'build/cache/target-image/toolchains' / sdk_key
     local.mkdir(parents=True)
     shutil.copyfile(cache / 'host.tar', local / 'host.tar')
@@ -236,7 +239,7 @@ def publish(root, base, base_sha, version, output):
     sdk = load(root / 'image/scripts/toolchain_cache.py', 'kit_sdk_selection')
     cache = sdk.cache_dir(root / 'image')
     if sdk.validated_sha(cache, sdk.key(root / 'image')) is None:
-        raise ValueError('compatible cached SDK missing or corrupt; qualify/build its base image first')
+        raise ValueError('compatible cached SDK missing or corrupt; run make kit-sdk')
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as scratch, \
          tempfile.TemporaryDirectory(prefix='.kit-software-', dir=output.parent) as publication:

@@ -48,6 +48,9 @@ type gameResult struct {
 	Title            string              `json:"title"`
 	System           protocol.System     `json:"system"`
 	CoreID           string              `json:"core_id,omitempty"`
+	PackageID        string              `json:"package_id,omitempty"`
+	MediaID          string              `json:"media_id,omitempty"`
+	MediaRole        string              `json:"media_role,omitempty"`
 	Kind             catalog.SourceKind  `json:"kind"`
 	State            catalog.SourceState `json:"state"`
 	RootOnline       bool                `json:"root_online"`
@@ -193,6 +196,7 @@ type apiError struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Phase     string `json:"phase,omitempty"`
+	NoChange  bool   `json:"no_change,omitempty"`
 	Expected  string `json:"expected,omitempty"`
 	Observed  string `json:"observed,omitempty"`
 }
@@ -1176,6 +1180,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		writeJSON(w, status, map[string]any{"error": apiError{
 			StopStage: fogcast.StopStage(err),
 			Code:      string(apiErr.Code), Message: message, Phase: phase,
+			NoChange: apiErr.NoChange,
 			Expected: apiErr.Expected, Observed: apiErr.Observed,
 		}})
 		return

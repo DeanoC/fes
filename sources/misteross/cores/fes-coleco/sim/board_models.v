@@ -52,9 +52,11 @@ endmodule
 module pixel_pll (
     input wire refclk,
     input wire rst,
-    output reg outclk_0
+    output reg outclk_0,
+    output wire locked
 );
     initial outclk_0 = 1'b0;
+    assign locked = 1'b1;
 endmodule
 /* verilator lint_on UNUSEDSIGNAL */
 /* verilator lint_on DECLFILENAME */

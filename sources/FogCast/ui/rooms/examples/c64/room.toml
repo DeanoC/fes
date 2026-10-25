@@ -1,0 +1,10 @@
+id = "example.c64"
+title = "Commodore 64"
+author = "FES"
+description = "Choose a Commodore 64 entry, its edition, saved sockets and 1541 disk, then start."
+version = 1
+main = "main.lua"
+
+[theme]
+background = "#eee8dc"
+accent = "#235A46"

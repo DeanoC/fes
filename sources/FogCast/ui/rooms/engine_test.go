@@ -44,18 +44,20 @@ func memPack(t *testing.T, id, mainLua string, extra map[string]string) Pack {
 }
 
 type fakeServices struct {
-	mu        sync.Mutex
-	games     []hostclient.Game
-	details   map[string]hostclient.Game
-	platforms []hostclient.Platform
-	queries   []hostclient.GameListQuery
-	err       error
+	mu          sync.Mutex
+	games       []hostclient.Game
+	details     map[string]hostclient.Game
+	platforms   []hostclient.Platform
+	queries     []hostclient.GameListQuery
+	queryLimits []int
+	err         error
 }
 
 func (f *fakeServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queries = append(f.queries, q)
+	f.queryLimits = append(f.queryLimits, max)
 	games := f.games
 	if len(q.CoreIDs) > 0 {
 		wanted := make(map[string]struct{}, len(q.CoreIDs))
@@ -79,6 +81,11 @@ func (f *fakeServices) recorded() []hostclient.GameListQuery {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]hostclient.GameListQuery(nil), f.queries...)
+}
+func (f *fakeServices) recordedQueryLimits() []int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int(nil), f.queryLimits...)
 }
 func (f *fakeServices) Platforms(context.Context) ([]hostclient.Platform, error) {
 	return f.platforms, f.err
@@ -265,7 +272,7 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 		t.Error("back should not be handled")
 	}
 	acts := r.TakeActions()
-	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "snes-mario-abc123" {
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "snes-mario-abc123" || acts[0].PackageID != "" || acts[0].ExpectedPackageID != "" {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Activate("node:1")
@@ -295,6 +302,26 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	if !strings.Contains(string(data), "\"visits\": 2") {
 		t.Errorf("store contents %s", data)
 	}
+}
+
+func TestRoomLaunchCanSelectPackageWithCompareAndSwap(t *testing.T) {
+	current, next := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	script := fmt.Sprintf(`function on_input(cmd)
+  if cmd == "select" then session.launch("zx81-workshop", %q, %q) return true end
+  return false
+end`, next, current)
+	r := newRoom(t, memPack(t, "package-launch", script, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("select") {
+		t.Fatal("select was not handled")
+	}
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-workshop" || acts[0].PackageID != next || acts[0].ExpectedPackageID != current {
+		t.Fatalf("package launch action %+v", acts)
+	}
+	r.Close()
 }
 
 func TestStoreWriteFailureLogsOnceAndKeepsRoom(t *testing.T) {
@@ -1216,7 +1243,7 @@ function draw() end`
 
 func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	other := memPack(t, "other", "function draw() end", nil)
-	src := "function on_input(cmd)\n if cmd == 'right' then rooms.open('other') elseif cmd == 'left' then rooms.open('missing') elseif cmd == 'back' then rooms.back() end\n return true\nend\nfunction draw() end"
+	src := "function on_input(cmd)\n if cmd == 'right' then rooms.open('other', {game_id = 'selected-game'}) elseif cmd == 'left' then rooms.open('missing') elseif cmd == 'back' then rooms.back() end\n return true\nend\nfunction draw() end"
 	self := memPack(t, "self", src, nil)
 	r := newRoom(t, self, Options{Index: NewIndex([]Pack{self, other})})
 	if err := r.Load(); err != nil {
@@ -1225,7 +1252,7 @@ func TestRoomsOpenValidatesAgainstIndex(t *testing.T) {
 	r.Input("right")
 	r.Input("back")
 	acts := r.TakeActions()
-	if len(acts) != 2 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "other" || acts[1].Kind != ActionBack {
+	if len(acts) != 2 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "other" || acts[0].InitialGameID != "selected-game" || acts[1].Kind != ActionBack {
 		t.Fatalf("actions %+v", acts)
 	}
 	r.Input("left")

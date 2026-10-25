@@ -443,14 +443,19 @@ Content-Type: application/json
 `GET` on the same path returns the selection. To replace or clear it, supply
 its current digest as `expected_media_id`; an empty `media_id` clears it.
 Selection verifies the binary's digest and exact declared source size. It
-binds the package ID and ROM name; replacing a title's package requires an
-explicit new ROM selection. Import alone does not select content. These
-endpoints use the existing host API and catalog; the browser management panel
-continues to manage ordinary media separately.
+binds the package ID and ROM name; replacing a title's package normally
+requires an explicit new ROM selection. For format-3 ZX81 packages, the host
+rebinds the existing media ID after a package switch only when the saved ROM ID
+and exact source size match the new `machine-rom` firmware requirement, using
+the media ID as the compare-and-swap value. Other mismatched selections remain
+stale and block launch. Import alone does not select content. These endpoints
+use the existing host API and catalog; the browser management panel continues
+to manage ordinary media separately.
 
 Library responses expose `rom_required`, `rom_ready`, `rom_id`, `rom_role`,
-`rom_source_size`, and `rom_media_id`. Missing, damaged, or stale selections
-block launch before core activation. Cartridge selections report
+`rom_source_size`, and `rom_media_id`. Missing, damaged, or contract-mismatched
+selections block launch before core activation; the supported ZX81 same-contract
+rebind above can repair a stale package binding. Cartridge selections report
 `rom_required` / `rom_ready`; firmware-role selections report
 `firmware_required` / `firmware_ready` and open the package-firmware picker.
 That picker binds the selected binary to the title's ROM requirement. This
@@ -507,7 +512,8 @@ media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
 `fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
 `spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3`) or `pentagon-firmware`
 (32 KiB, `fes.pentagon`), and role `cassette` for `fes.media.spectrum-tape`
-1.0: 1..65,536 bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of up to 32 MiB, media unit 0,
+converted to the unit's PZX stream when it is inserted. `fes.zx81` on `fes.computer` uses the same
 role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
 unit 0. A previously saved `blob` selection for that package still launches.
 Persist a Spectrum or ZX81 selection with role `cassette`:

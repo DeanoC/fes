@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Machine simulation: Z80, ULA, memory, tape and probe cards in sockets 1 and
-// 3. The build model is the SPECTRUM_MODEL_* define, as in the producer.
+// Machine simulation: Z80, ULA, memory, tape and a probe card in the edge
+// socket. The build model is the SPECTRUM_MODEL_* define, as in the producer. The
+// bench plays the media store's part on the tape stream.
 `include "spectrum_bus.vh"
 `include "spectrum_model.vh"
 
@@ -9,8 +10,13 @@ module spectrum_sim_top (
     input  wire        reset,
     input  wire [39:0] matrix,
     input  wire [4:0]  kempston,
-    input  wire [1:0]  unit_state,
-    input  wire [31:0] unit_size,
+    input  wire        tape_ready,
+    input  wire [24:0] tape_size,
+    output wire        tape_stream_enable,
+    input  wire        tape_stream_valid,
+    input  wire [7:0]  tape_stream_data,
+    output wire        tape_stream_take,
+    output wire        tape_playing,
     output wire        pixel_we,
     output wire [7:0]  pixel_row,
     output wire [5:0]  pixel_chunk,
@@ -26,7 +32,7 @@ module spectrum_sim_top (
     output wire [15:0] cpu_pc
 );
     wire [`SP_BUS_REQ-1:0] bus_request;
-    wire [`SP_BUS_RSP-1:0] response1, response2, response3, response4;
+    wire [`SP_BUS_RSP-1:0] response1;
 
 `ifdef SPECTRUM_ROM_64K
     localparam ROM_FILE = "build/diagnostics/fes-spectrum/firmware-64k.hex";
@@ -37,11 +43,12 @@ module spectrum_sim_top (
 `endif
     spectrum_machine #(.ROM_FILE(ROM_FILE)) machine (
         .clk_sys(clk_sys), .reset(reset), .matrix(matrix), .kempston(kempston),
-        .unit_state(unit_state), .unit_size(unit_size),
-        .media_write_addr(16'h0000), .media_write_data(16'h0000), .media_write_enable(2'b00),
+        .tape_ready(tape_ready), .tape_size(tape_size),
+        .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
+        .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
+        .tape_playing(tape_playing),
         .bus_request(bus_request),
-        .response1(response1), .response2(response2),
-        .response3(response3), .response4(response4),
+        .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done), .tick(tick),
         .speaker(speaker), .mic(), .ear(ear), .ay_pcm(ay_pcm), .slot_audio(),
@@ -49,28 +56,13 @@ module spectrum_sim_top (
         .frame_int_n(frame_int_n), .cpu_pc(cpu_pc)
     );
 
-    wire [`SP_BUS_REQ-1:0] slot1_plug_request, slot3_plug_request;
-    wire [`SP_BUS_RSP-1:0] slot1_plug_response, slot3_plug_response;
+    wire [`SP_BUS_REQ-1:0] slot1_plug_request;
+    wire [`SP_BUS_RSP-1:0] slot1_plug_response;
     spectrum_slot_socket1 slot1 (
         .clock(clk_sys), .request(bus_request), .response(response1),
         .plug_request(slot1_plug_request), .plug_response(slot1_plug_response)
     );
-    spectrum_slot_socket2 slot2 (
-        .clock(clk_sys), .request(bus_request), .response(response2),
-        .plug_request(), .plug_response(`SP_BUS_RSP'd0)
-    );
-    spectrum_slot_socket3 slot3 (
-        .clock(clk_sys), .request(bus_request), .response(response3),
-        .plug_request(slot3_plug_request), .plug_response(slot3_plug_response)
-    );
-    spectrum_slot_socket4 slot4 (
-        .clock(clk_sys), .request(bus_request), .response(response4),
-        .plug_request(), .plug_response(`SP_BUS_RSP'd0)
-    );
-    cart #(.SOCKET(1)) probe1 (
+    cart probe1 (
         .FPGA_CLK1_50(clk_sys), .plug_addr(slot1_plug_request), .plug_rdata(slot1_plug_response)
-    );
-    cart #(.SOCKET(3)) probe3 (
-        .FPGA_CLK1_50(clk_sys), .plug_addr(slot3_plug_request), .plug_rdata(slot3_plug_response)
     );
 endmodule

@@ -88,13 +88,15 @@ millisecond and the wait continues. A clock that stays flat for that bound,
 or a deadline that cannot cover it, leaves the mailbox unchanged and returns
 retryable busy. The wait is not a `media_busy` sample: this bitstream does
 not return one, and clear does not hold reset because that restarts the CPU.
-Invalid
-state (GP error 4) on the eject-index or argument-0 attempt is retryable busy
-and does not reach that begin. A poisoned or unstable GP handshake after keyboard traffic
-is the same retryable busy: clear realigns from the live ACK and
-re-identifies before eject. Re-identify does not run for a completed
-rejection. A hard MMIO failure, or an invalid acknowledgement after these
-eject shapes, stays `io_failed`.
+Invalid state (GP error 4) on the eject-index or argument-0 attempt is
+retryable busy and does not reach that begin. If clear starts with a poisoned
+GP link from earlier keyboard traffic, it realigns from the live ACK and
+re-identifies before sending an eject; a failed preflight remains busy because
+this clear has not sent a media command. Once either eject command is sent, an
+ambiguous or unstable GP response remains `io_failed` after best-effort
+realignment because the core may already have accepted the eject. A hard MMIO
+failure, or an invalid acknowledgement after these eject shapes, also stays
+`io_failed`. Re-identify does not run for a completed rejection.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never

@@ -12,6 +12,9 @@ type Game struct {
 	Title        string   `json:"title"`
 	System       string   `json:"system"`
 	CoreID       string   `json:"core_id,omitempty"`
+	PackageID    string   `json:"package_id,omitempty"`
+	MediaID      string   `json:"media_id,omitempty"`
+	MediaRole    string   `json:"media_role,omitempty"`
 	Cover        string   `json:"cover,omitempty"`
 	Genre        string   `json:"genre,omitempty"`
 	Year         string   `json:"year,omitempty"`

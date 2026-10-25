@@ -1767,15 +1767,16 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 	}
 	{
 		ComputerClearFixture f;
-		// Launch release leaves the host toggle true, so eject waits for ack 0.
-		const std::uint32_t settled = FesGpSignature;
-		f.mmio.PushRead(kSpiGpiAddress, settled | FesGpAckMask);
-		f.mmio.PushRead(kSpiGpiAddress, settled);
-		f.mmio.PushRead(kSpiGpiAddress, settled + 1u);
+		const std::size_t start = f.mmio.writes.size();
+		// The direct eject index was sent, but its response becomes ambiguous.
+		// Preserve that outcome instead of reporting a definite no-op busy.
+		f.mmio.PushReadError(kSpiGpiAddress,
+			{mister::ErrorCode::io_failed, "FES GP exchange state is ambiguous"});
 		const auto error = f.driver.ClearMedia(100000);
-		assert(error.code == mister::ErrorCode::busy);
-		assert(error.message == "tape loader is busy");
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES GP exchange state is ambiguous");
 		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 2);
 	}
 	{
 		ComputerClearFixture f;
@@ -1815,6 +1816,22 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		PushCompleted(&f.mmio, true, 0);
 		const auto error = f.driver.ClearMedia(100000);
 		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 4);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// A legacy core rejects MediaEjectIndex with invalid-index, then its
+		// control-index eject is sent once. An unusable response on that
+		// fallback is uncertain too.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("invalid FES GP response signature") != std::string::npos);
+		assert(error.phase == "input");
 		assert(f.mmio.writes.size() == start + 4);
 		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
 		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
@@ -2430,6 +2447,36 @@ void TestComputerIdentityCapabilitiesAndDiscovery()
 		const auto result = f.driver.Identify(f.context, kComputerDeadline);
 		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
 	}
+	// The Spectrum tape is fes.media.spectrum-tape 2.0: its bit and unit 0 come
+	// from the 2.0 declaration, and a 1.0 declaration grants neither.
+	auto spectrum = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceGamepadPortsID,
+		FesComputerInterfaceAudioPcmS16Stereo48kID, FesComputerInterfaceMediaSpectrumTapeID});
+	spectrum.interfaces[4].major = FesComputerInterfaceMediaSpectrumTapeMajor;
+	const auto spectrum_live = static_cast<std::uint16_t>(
+		FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
+		FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
+		FesComputerCapabilityMediaSpectrumTape);
+	const std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> spectrum_units = {
+		{0, {FesComputerSpectrumTapeMinBytes, FesComputerSpectrumTapeMaxBytes}}};
+	{
+		ComputerFixture f(spectrum_live, spectrum_units, spectrum);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.media_units().size() == 1);
+		const auto& unit = f.driver.media_units()[0];
+		assert(unit.interface.id == FesComputerInterfaceMediaSpectrumTapeID &&
+			unit.interface.major == 2 && unit.interface.minor == 0);
+		assert(unit.min_bytes == FesComputerSpectrumTapeMinBytes &&
+			unit.max_bytes == FesComputerSpectrumTapeMaxBytes);
+	}
+	{
+		auto tape_v1 = spectrum;
+		tape_v1.interfaces[4].major = 1;
+		ComputerFixture f(spectrum_live, spectrum_units, tape_v1);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		assert(!result.error.ok() && result.error.code == mister::ErrorCode::core_mismatch);
+		assert(f.driver.media_units().empty());
+	}
 	// Another ABI tag is a different contract.
 	{
 		mister_test::FakeMmio mmio;
@@ -2800,6 +2847,35 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 	}
 }
 
+void TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure()
+{
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaApple2FloppyID});
+	ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	assert(f.Insert(ComputerPayload(1030)).ok());
+
+	// Invalid state on MediaEject is the known completed no-change result.
+	f.endpoint.write_busy = true;
+	const auto busy = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(busy.code == mister::ErrorCode::busy && busy.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateReady);
+	f.endpoint.write_busy = false;
+
+	// The same numeric code from the state read happens after the eject took
+	// effect, so it must stay an uncertain io_failed result.
+	f.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
+		return request.opcode == FesComputerOpcodeMediaInfo && request.index ==
+			FesComputerMediaInfoStateField ? FesSimpleComputerErrorInvalidState : 0;
+	};
+	const auto rejected_state = f.driver.EjectMedia(0, kComputerDeadline);
+	assert(rejected_state.code == mister::ErrorCode::io_failed &&
+		rejected_state.message == "FES GP command rejected with response 4" &&
+		rejected_state.phase == "input");
+	assert(f.endpoint.unit(0).state == FesComputerMediaStateEmpty);
+}
+
 void TestMediaSnapshotFrozenCaptureAndRecovery()
 {
  const auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaAtariStFloppyID,FesComputerInterfaceMediaAtariStFloppyWriteID});
@@ -2910,6 +2986,7 @@ int main()
 	TestZx81SaveStaysDirtyUntilAcknowledged();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
+	TestComputerEjectSeparatesBusyRejectionFromPostEjectReadFailure();
 	puts("fes_gp_test: all groups passed");
 	return 0;
 }

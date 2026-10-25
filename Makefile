@@ -36,6 +36,7 @@ help:
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
+	@printf '%s\n' 'make kit-sdk: build and publish the current image Buildroot SDK into the toolchain cache, without an image or core build.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 IMAGE_ARTIFACTS ?=
 doctor build host image verify rebuild dev:
@@ -122,6 +123,20 @@ status:
 .PHONY: core-catalog
 core-catalog:
 	$(PYTHON) scripts/core_catalog.py $(CORE_CATALOG_ARGS)
+
+.PHONY: kit-sdk
+kit-sdk:
+	@set -eu; \
+	  TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(TARGET_IMAGE_CONTAINER_RUNTIME),$(CONTAINER_RUNTIME),docker)"; \
+	  export TARGET_IMAGE_CONTAINER_RUNTIME; \
+	  output_volume="fogcast-kit-sdk-$$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"; \
+	  cleanup() { "$$TARGET_IMAGE_CONTAINER_RUNTIME" volume rm "$$output_volume" >/dev/null 2>&1 || :; }; \
+	  cleanup_once() { trap - EXIT INT TERM; cleanup; }; \
+	  trap cleanup_once EXIT; \
+	  trap 'exit 130' INT; \
+	  trap 'exit 143' TERM; \
+	  TARGET_IMAGE_OUTPUT_VOLUME="$$output_volume" \
+	    sh image/scripts/build-target-image.sh --ensure-kit-sdk
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)

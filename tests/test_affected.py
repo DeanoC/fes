@@ -146,6 +146,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-common/generated/fes_native_video.vh': {'coleco'},
             'scripts/sim_fes_native_video.py': {'coleco'},
             'scripts/sim_fes_coleco_native.py': {'coleco'},
+            'scripts/sim_fes_coleco_session.py': {'coleco'},
             'scripts/sim_fes_native_socket.py': {'coleco'},
             'cores/fes-common/rtl/coleco_vdp.sv': {'coleco', 'sg1000', 'sms'},
             'cores/fes-common/rtl/tv80/tv80_core.v': {'coleco', 'sms'},
@@ -165,18 +166,18 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-sg1000/diagnostic/generate.py': {'sg1000'},
             'cores/fes-sms/rtl/new_unit.sv': {'sms'},
             'scripts/sim_fes_demo.py': {'demo'},
-            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64'},
-            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64'},
-            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64'},
+            'cores/fes-menu/rtl/fes_menu_reader.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_control.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-menu/rtl/fes_menu_video.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-menu/rtl/fes_menu_ddr.v': {'menu'},
-            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'c64'},
+            'cores/fes-menu/sim/ddr_model.v': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'scripts/sim_fes_menu.py': {'menu'},
             'scripts/sim_fes_zx81_session.py': {'zx81'},
             'scripts/sim_fes_display_plane.py': {'zx81'},
-            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64'},
-            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64'},
+            'cores/fes-common/rtl/fes_display_plane.v': {'zx81', 'spectrum', 'c64', 'coleco'},
+            'cores/fes-common/rtl/fes_display_cdc.v': {'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-common/sim/display_plane_tb.cpp': {'zx81'},
-            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64'},
+            'cores/fes-common/generated/fes_display_plane.vh': {'menu', 'zx81', 'spectrum', 'c64', 'coleco'},
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
@@ -239,6 +240,20 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['fpga'])
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
+
+    def test_i386_runs_software_tests_without_simulations(self):
+        for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
+                     'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
+                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
+                     'scripts/benchmark_fes_i386.py'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(result['cores'], [])
+                self.assertTrue(result['lanes']['fpga'])
+        # The rule is the i386 directory only: a new shared RTL unit still fails broad.
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',

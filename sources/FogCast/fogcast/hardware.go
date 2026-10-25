@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/internal/zx81tapes"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
@@ -19,6 +20,7 @@ type HardwareMachine struct {
 	Title             string              `json:"title"`
 	CoreID            string              `json:"core_id"`
 	PackageID         string              `json:"package_id"`
+	LaunchPackageID   string              `json:"launch_package_id,omitempty"`
 	PackageReady      bool                `json:"package_ready"`
 	FirmwareReady     bool                `json:"firmware_ready"`
 	Ready             bool                `json:"ready"`
@@ -58,6 +60,19 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	if err != nil {
 		return nil, err
 	}
+	var packages []corepackage.Inspection
+	if s.corePackages != nil {
+		packages, err = s.corePackages.List(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, canonicalError(protocol.CodeInternal, safeContextError(ctx.Err()))
+			}
+			// The inventory is used only to suggest an optional selector package.
+			// A damaged unrelated archive must not hide an otherwise usable setup;
+			// the selected package is inspected independently below.
+			packages = nil
+		}
+	}
 	store, ok := s.catalog.(coreExpansionCatalog)
 	if !ok {
 		return nil, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -68,9 +83,9 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 	}
 	result := make([]HardwareMachine, 0)
 	for _, entry := range entries {
-		// This room currently supports the one real ZX81 rear connector. Other
+		// ZX81, ZX80 and the Timex models share this rear connector. Other
 		// families use their own admitted topology when added to this projection.
-		if entry.CoreID != "fes.zx81" {
+		if !zx81family.Known(entry.CoreID) {
 			continue
 		}
 		machine := HardwareMachine{
@@ -90,8 +105,20 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 			result = append(result, machine)
 			continue
 		}
+		selectorFirmwareReady := false
+		if selection.ExpansionID == "" {
+			for _, candidate := range zx81SessionDisplayCandidates(packages, entry.PackageID, inspection.Descriptor) {
+				if !s.zx81FirmwareReady(ctx, entry, candidate.Descriptor) ||
+					s.validateCoreEntryMedia(ctx, candidate.Descriptor, entry.MediaRole, entry.MediaID) != nil {
+					continue
+				}
+				machine.LaunchPackageID = candidate.PackageID
+				selectorFirmwareReady = true
+				break
+			}
+		}
 		machine.Socket.Supported = zx81RearSocket(inspection.Descriptor)
-		machine.FirmwareReady = s.zx81FirmwareReady(ctx, entry, inspection.Descriptor)
+		machine.FirmwareReady = s.zx81FirmwareReady(ctx, entry, inspection.Descriptor) || selectorFirmwareReady
 		if !machine.FirmwareReady {
 			machine.UnavailableReason = "The BASIC firmware for this setup is unavailable."
 		}
@@ -135,6 +162,61 @@ func (s *Service) Hardware(ctx context.Context) ([]HardwareMachine, error) {
 		result = append(result, machine)
 	}
 	return result, nil
+}
+
+// zx81SessionDisplayCandidates returns installed packages for the same ZX81
+// target that can open the running media selector. The caller checks firmware
+// and selected media for each candidate in order, continuing after rejection.
+func zx81SessionDisplayCandidates(packages []corepackage.Inspection, selected string, current corepackage.Descriptor) []corepackage.Inspection {
+	if zx81SessionDisplayDescriptor(current, nil) {
+		return nil
+	}
+	var candidates []corepackage.Inspection
+	for _, candidate := range packages { // CorePackageStore.List is sorted by package ID.
+		if candidate.PackageID == selected || candidate.Descriptor.Core.ID != "fes.zx81" || candidate.Descriptor.Target != current.Target ||
+			!zx81SessionDisplayDescriptor(candidate.Descriptor, nil) || !sameZX81MachineROM(current.ROM, candidate.Descriptor.ROM) {
+			continue
+		}
+		candidates = append(candidates, candidate)
+	}
+	return candidates
+}
+
+func sameZX81MachineROM(current, candidate *corepackage.ROM) bool {
+	if current == nil || candidate == nil {
+		return current == nil && candidate == nil
+	}
+	return current.ID == "machine-rom" && current.Role == "firmware" &&
+		candidate.ID == current.ID && candidate.Role == current.Role && candidate.SourceSize == current.SourceSize
+}
+
+func zx81SessionDisplayDescriptor(descriptor corepackage.Descriptor, activeInterfaces []protocol.RuntimeInterface) bool {
+	if descriptor.Core.ID != "fes.zx81" || !zx81RearSocket(descriptor) {
+		return false
+	}
+	interfaceAvailable := func(id string) bool {
+		for _, iface := range descriptor.Interfaces {
+			if iface.ID != id || iface.Major != 1 || iface.Minor != 0 {
+				continue
+			}
+			if iface.Required {
+				return true
+			}
+			for _, active := range activeInterfaces {
+				if active.ID == id && active.Major == 1 && active.Minor == 0 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	display := interfaceAvailable("fes.video.session-display")
+	ddr := interfaceAvailable("fes.memory.hps-ddr")
+	blob := interfaceAvailable("fes.media.blob")
+	tape := interfaceAvailable("fes.media.zx81-tape")
+	media := descriptor.ABI.Major == 1 && descriptor.ABI.Minor == 0 &&
+		((descriptor.ABI.ID == "fes.simple-computer" && blob) || (descriptor.ABI.ID == "fes.computer" && tape))
+	return display && ddr && media
 }
 
 func zx81RearSocket(descriptor corepackage.Descriptor) bool {

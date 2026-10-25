@@ -11,7 +11,7 @@ requires its own full-system timing and hardware qualification.
 
 | Entry point | Behavior | Interface |
 | --- | --- | --- |
-| `fes_z80_nmos` | Original Zilog NMOS instruction behavior, undocumented operations and flags, original machine-cycle timing | Active-low Z80 strobes; alternating `ce_p`/`ce_n` in one system clock domain |
+| `fes_z80_nmos` | Original Zilog NMOS instruction behavior, undocumented operations and flags, original machine-cycle timing | Active-low Z80 strobes; alternating `ce_p`/`ce_n` in one system clock domain, at least two clocks apart |
 | `fes_z80_fast` | Zilog UM008011-0816 documented instruction set; unsupported encodings trap | Request/completion transactions; no original T-state padding or physical refresh pulses |
 
 The shared `fes_z80_engine` handles base, CB, ED, DD, FD, DDCB and FDCB
@@ -32,7 +32,13 @@ maskable-interrupt parity behavior in `LD A,I` and `LD A,R`
 bits of R increment; DDCB/FDCB operations have two M1 fetches.
 
 The NMOS instruction controller uses explicit one-hot state bits to shorten
-control paths at the consumer system clock. The fast variant keeps its compact
+control paths at the consumer system clock. Its ALU result and extra T states
+are registered one clock after their inputs, and `fes_z80_nmos` registers its
+pins and presented cycle one clock after the bus unit. Every engine input
+settles at least half a T state before the commit that reads it, so with
+enables at least two clocks apart these registers change no T-state
+behaviour; Verilator builds stop if a consumer drives enables on consecutive
+clocks. The fast variant keeps its compact
 binary state encoding; this choice does not change instruction or pin timing.
 
 Register reads and ALU input/operation selection use parallel decoded terms.

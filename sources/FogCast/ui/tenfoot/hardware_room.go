@@ -81,7 +81,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if a.room == nil {
 		a.openRoomLocked(hardwareRoomID)
 	} else if a.room.ID() != hardwareRoomID {
-		a.openNestedRoomLocked(hardwareRoomID)
+		a.openNestedRoomLocked(hardwareRoomID, "")
 	} else {
 		// Reused rooms retain focus but must refresh their pre-launch snapshot.
 		a.room.SetOverlay(a.roomOverlayLocked())
@@ -284,7 +284,10 @@ func (a *App) releasePlayHIDLocked() {
 }
 
 func hardwareRoomWord(kind InputKind) string {
-	if kind == InputKeyboard || kind == InputMouse {
+	if kind == InputKeyboard {
+		return "Home or F12"
+	}
+	if kind == InputMouse {
 		return "Home"
 	}
 	return "SELECT"
