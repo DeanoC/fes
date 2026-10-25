@@ -284,7 +284,9 @@ class OracleSmokeTest(unittest.TestCase):
         regs.update({0: 0x7FFFFFF0, 2: 0x1234, 3: 0x0101, 9: 0xFFFE, 10: 0x1000, 11: 0x1000, 15: 0x1000,
                      16: 0x100, 17: 0x2, 18: 0xFFFF0FF0})
         code = [(0x10100, 0x01), (0x10101, 0xD8), (0x10102, 0xF4)]
-        good = moo_test(0, regs, {2: 0x1335, 16: 0x103, 17: 0x6}, code)  # PF set
+        # ADD changes EAX, but this vector does not list EAX in its final RG32.
+        good = moo_test(0, regs, {16: 0x103, 17: 0x6}, code)  # PF set
+        # EAX is listed here, so its wrong expected value must remain a failure.
         bad = moo_test(1, regs, {2: 0x1336, 16: 0x103, 17: 0x6}, code)
         # DIV BL with BL=0: #DE through vector 0 (handler 2000h:0000h holds HLT).
         divide = {**regs, 3: 0}

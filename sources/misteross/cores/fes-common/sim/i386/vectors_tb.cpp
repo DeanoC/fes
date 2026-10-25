@@ -176,6 +176,7 @@ std::vector<std::string> run(fes_i386::Oracle &oracle, CorpusBus &bus, const Tes
     if (!halted) mismatches.push_back("halt 1 0");
     Registers actual = from_state(oracle.get_state());
     for (size_t n = 0; n < actual.size(); ++n) {
+        if ((test.final_mask & (1u << n)) == 0) continue;
         uint32_t mask = n == 17 ? EFLAGS_MASK : 10 <= n && n <= 15 ? 0xffff : ~0u;
         if ((actual[n] & mask) != (test.final[n] & mask))
             mismatch(register_names[n], test.final[n] & mask, actual[n] & mask);
