@@ -61,12 +61,17 @@ cancels outstanding work in both domains. Display dot enables and 48 kHz
 speaker integration use the selected board frequency. The keyboard serializer
 is used only by the existing 100 MHz motherboard fixture.
 
-`python3 scripts/build_fes_pcxt.py --half-rate-board --synth-only` builds this
-experimental netlist with the pinned Yosys. The corresponding
+`python3 scripts/build_fes_pcxt.py --half-rate-board` builds and routes this
+experimental diagnostic with the pinned tools; add `--synth-only` to stop after
+mapping. The corresponding
 `constraints-board50.qsf` packs all sixteen SDRAM DQ input, data and output-enable
-registers. Routing this profile through the ordinary producer is deliberately
-rejected: its pinned nextpnr lacks the reviewed harmonic-clock timing support.
-The separate three-seed native trial and four-corner reference screen are
+registers. The core lock selects reviewed nextpnr main `2fa5ec4c`, including
+endpoint launch identities, harmonic-clock timing and the explicit FF clear
+reference. Only this experimental profile enables the harmonic/reset-reference
+options and fixes the cohort search budget at zero. Setup/hold failures remain
+fatal. The FF reference's source/deassertion validation gap remains open; these
+options do not supply physical reset qualification.
+The native trial and four-corner reference screen are
 [recorded here](../../docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md).
 They do not qualify the IO, reset chains, physical board or a runtime package.
 

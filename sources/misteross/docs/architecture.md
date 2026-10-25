@@ -2857,8 +2857,10 @@ nominal guest rate. The pixel clock remains 74.25 MHz. This experimental top
 forwards a second video PLL output at phase 8979 ps through a global buffer to
 HDMI; pixel state stays on phase zero and the receiver samples between updates.
 The default profile retains its common pixel/HDMI clock. Display dot and speaker
-sample generators use the board rate. The public build option is synthesis-only
-until the pinned native compiler has qualified harmonic-clock coverage; the
+sample generators use the board rate. The ordinary diagnostic producer selects
+the board50 pad constraints and explicit harmonic/FF-clear reference timing,
+with the cohort search budget fixed at zero. Timing failures remain fatal;
+the FF reference's source/deassertion validation gap remains open. The
 [core guide](../cores/fes-pcxt/README.md#experimental-cpu100--board50-diagnostic)
 describes the regression and remaining physical gates. No accepted package or
 hardware status follows from this profile.

@@ -57,6 +57,22 @@ def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False):
             '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
 
 
+def nextpnr_command(executable, seed, half_rate_board=False):
+    qsf = BOARD50_QSF if half_rate_board else QSF
+    command = [str(executable), '--json', 'synth.json',
+               '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / qsf), '--sdc', str(ROOT / SDC),
+               '--freq', '100', '--seed', str(seed), '--router', 'gpu',
+               '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
+               '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
+               '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
+               '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths',
+               '1024' if half_rate_board else '64']
+    if half_rate_board:
+        command += ['--phase-related-harmonic-clocks', '--mistral-ff-reset-reference',
+                    '--critical-cohort-budget', '0', '--critical-cohort-model-out', 'model.json']
+    return command
+
+
 def gpu_choice(gpu_router):
     backend = gpu_backend_for_router(gpu_router)
     if gpu_router == 'HIP':
@@ -83,7 +99,7 @@ def main():
     parser.add_argument('--scanlines', action='store_true')
     parser.add_argument('--synth-only', action='store_true')
     parser.add_argument('--half-rate-board', action='store_true',
-                        help='experimental CPU100/board50 profile; currently requires --synth-only')
+                        help='experimental CPU100/board50 diagnostic with explicit harmonic/reset-reference timing')
     parser.add_argument('--seed', type=int, default=3,
                         help='nextpnr seed (default: 3, passing CGA Direct diagnostic recipe)')
     parser.add_argument('--route-timeout', type=int, default=1800)
@@ -92,8 +108,6 @@ def main():
         parser.error('--seed must be an unsigned 64-bit integer')
     if args.route_timeout <= 0:
         parser.error('--route-timeout must be positive')
-    if args.half_rate_board and not args.synth_only:
-        parser.error('--half-rate-board currently requires --synth-only; pinned native clock coverage is not qualified')
     qsf = BOARD50_QSF if args.half_rate_board else QSF
     tools = authenticate_tools(ROOT, args.cache_root, args.gpu_router)
     gpu_backend, _architectures, _configuration = gpu_choice(args.gpu_router)
@@ -126,6 +140,8 @@ def main():
                           'no physical ISA containment', 'no sealed package or runtime ABI',
                           'Quartus qualification is a separate manual check',
                           'no hardware acceptance']}
+    if args.half_rate_board:
+        receipt['limits'].append('FF clear reference source/deassertion validation remains incomplete')
     def save():
         (output / 'diagnostic.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     save()
@@ -143,13 +159,7 @@ def main():
         receipt['status'] = 'synthesized'
         save()
         if not args.synth_only:
-            command = [str(tools['nextpnr-mistral'].path), '--json', 'synth.json',
-                       '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / QSF), '--sdc', str(ROOT / SDC),
-                       '--freq', '100', '--seed', str(args.seed), '--router', 'gpu',
-                       '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
-                       '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
-                       '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
-                       '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths', '64']
+            command = nextpnr_command(tools['nextpnr-mistral'].path, args.seed, args.half_rate_board)
             env = dict(os.environ)
             env['NEXTPNR_REQUIRE_GPU'] = '1'
             receipt['route_command'] = command

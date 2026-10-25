@@ -59,14 +59,40 @@ class PcxtToolchainTest(unittest.TestCase):
                 self.assertEqual(stopped.exception.code, 2)
                 authenticate.assert_not_called()
 
-    def test_board50_cannot_route_with_the_unqualified_pinned_compiler(self):
+    def test_board50_route_reaches_the_selected_tool_authentication(self):
+        class Stop(Exception):
+            pass
         with mock.patch.object(sys, 'argv', ['build_fes_pcxt.py', '--half-rate-board']), \
-                mock.patch.object(sys, 'stderr', io.StringIO()), \
-                mock.patch.object(builder, 'authenticate_tools') as authenticate:
-            with self.assertRaises(SystemExit) as stopped:
+                mock.patch.object(builder, 'authenticate_tools', side_effect=Stop) as authenticate:
+            with self.assertRaises(Stop):
                 builder.main()
-            self.assertEqual(stopped.exception.code, 2)
-            authenticate.assert_not_called()
+            self.assertEqual(authenticate.call_args.args, (builder.ROOT, None, 'HIP'))
+
+    def test_board50_routes_with_its_pad_constraints_and_explicit_timing_modes(self):
+        command = builder.nextpnr_command(Path('/tools/nextpnr-mistral'), 2, True)
+        value = lambda name: command[command.index(name) + 1]
+        self.assertEqual(value('--qsf'), str(builder.ROOT / builder.BOARD50_QSF))
+        self.assertEqual(value('--seed'), '2')
+        self.assertEqual(value('--freq'), '100')
+        self.assertIn('--phase-related-harmonic-clocks', command)
+        self.assertIn('--mistral-ff-reset-reference', command)
+        self.assertEqual(value('--critical-cohort-budget'), '0')
+        self.assertEqual(value('--timing-report-paths'), '1024')
+
+    def test_common_clock_recipe_keeps_the_normal_pad_and_timing_selection(self):
+        command = builder.nextpnr_command(Path('/tools/nextpnr-mistral'), 3)
+        self.assertEqual(command[command.index('--qsf') + 1], str(builder.ROOT / builder.QSF))
+        self.assertEqual(command[command.index('--timing-report-paths') + 1], '64')
+        for option in ('--phase-related-harmonic-clocks', '--mistral-ff-reset-reference',
+                       '--critical-cohort-budget'):
+            self.assertNotIn(option, command)
+
+    def test_neither_route_recipe_suppresses_timing_failures(self):
+        for half_rate in (False, True):
+            with self.subTest(half_rate=half_rate):
+                command = builder.nextpnr_command(Path('/tools/nextpnr-mistral'), 1, half_rate)
+                self.assertNotIn('--timing-allow-fail', command)
+                self.assertNotIn('--ignore-rel-clk', command)
 
     def test_board50_synthesis_is_explicit_and_default_stays_common_clock(self):
         default = builder.yosys_program(Path('/tmp/pcxt-fixture'), False, False, 'synth')
