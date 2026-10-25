@@ -213,7 +213,7 @@ the repository lock's older Yosys misreads the RTL's per-byte records.
 
 ## Timing spikes
 
-[`spike/`](spike) holds three CPU-only routed spikes, each a block inside a
+[`spike/`](spike) holds four CPU-only routed spikes, each a block inside a
 stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
@@ -221,6 +221,7 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 | `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select with the hit signals replicated per two bytes), L1, L2, the buffer and Q |
 | `spike_dag.sv` | D's address operands (addressing decode, register file, the forwarding table, scaling, segment select) and AG, with the producers moving through AG-EX registers; D's opcode decode, not built, is stimulus |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
+| `spike_rom.sv` | A registered case-table ROM, synthesized without `proc -norom` so it maps to an M10K: checks DeanoC/yosys#40's fix, since the i386 RTL keeps its own tables in logic |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
 authenticated Yosys, by default the i386 lock's (M10K and DSP allowed, no LUT
