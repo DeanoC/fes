@@ -1,0 +1,16 @@
+kit_time 12:56:21 boot_id 5c42f5bc-bef0-4b51-8d55-c9913e19c25c
+fat_idle 64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182
+launcher.json dbbb3ba7e175334b
+u-boot.txt b6fa037c1781413e
+uboot_quirk 
+boot.json md5 42cc31e3
+state.good "4db7486452057d8a77479125c8ee8e9a27db4f378a9d9735900e90f6f3fe7a26"
+state.previous "230eb8f5d5cc801bde3ab32b45adfe7a536e30c2cd659ce308d934614f12838d"
+state.pending ""
+state.trial_image ""
+state.confirmed_image ""
+cmdline_quirk 
+images 230eb8f5 4db74864 88e85ec5 
+LOCAL {"phase":"idle","package_id":"","running":false}
+fpgaportrst 0x00003FFF
+tmp_zbl 
