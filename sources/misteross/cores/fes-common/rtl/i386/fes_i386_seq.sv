@@ -38,6 +38,19 @@
 // SEQ_UCODE: a microcode routine. Its uops after the first come from the
 // ROM (fes_i386_ucode_rom, word w, at d.upc), each expanded here into dc
 // with the instruction's operand size, vector and memory operand kept.
+//
+// The moves through T1, each waiting for T1's load to retire (b_t1):
+//   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
+//              the register stored to it; the register from T1.
+//   SEQ_CALLI  (CALL r/m near): the target into T1; push the next EIP, which
+//              checks T1 against CS's limit first (far_chk); jump to T1.
+//   SEQ_PUSHM  (PUSH m): the operand into T1; push T1.
+//   SEQ_POPM   (POP m): the stack's slot into T1, ESP unmoved; T1 stored to
+//              the operand (its address fields restored from m_*); a pop
+//              into nothing, which steps ESP. A store that faults so leaves
+//              ESP as it was, as the 386EX does.
+// SEQ_XCHG (XCHG r, r): three XORs without flags, each into the register
+// the one before read.
 module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d,
     input  fes_i386_pkg::ucode_t   w,
@@ -66,6 +79,19 @@ module fes_i386_seq (
         q.uop.src_size = p.uop.size;
         q.uop.mem.bytes = p.opsize32 ? 4'd4 : 4'd2;
         q.push_eip = 1'b1;
+    endfunction
+    // A store's or a register move's size, from the access's bytes (the
+    // first uop's load into T1 is 32 bits).
+    function automatic fes_i386_pkg::size_e by_bytes(input logic [3:0] b);
+        by_bytes = b[0] ? fes_i386_pkg::SIZE_8 : b[1] ? fes_i386_pkg::SIZE_16 : fes_i386_pkg::SIZE_32;
+    endfunction
+    // A stack slot's address: ESP, no index.
+    function automatic void at_stack(inout fes_i386_pkg::decoded_t q);
+        q.uop.mem.seg = fes_i386_pkg::SEG_SS;
+        q.has_base = 1'b1;
+        q.base = 3'd4;
+        q.has_index = 1'b0;
+        q.scale = 2'd0;
     endfunction
     // The far jump that ends a far transfer.
     function automatic void to_far_jump(inout fes_i386_pkg::decoded_t q);
@@ -97,6 +123,7 @@ module fes_i386_seq (
         n.wseg = 6'd0;
         n.slot = 4'd0;
         n.a_t1 = 1'b0;
+        n.b_t1 = 1'b0;
         n.popad_esp = 1'b0;
         case (d.seq)
             fes_i386_pkg::SEQ_CALL: begin
@@ -215,6 +242,98 @@ module fes_i386_seq (
                 n.far_chk = w.far_chk;
                 n.far_t = w.far_t;
                 n.wseg = w.far_jmp ? 6'b000010 : 6'd0;
+            end
+            fes_i386_pkg::SEQ_XCHG: begin
+                n.uop.src1 = d.uop.src2;
+                n.uop.src2 = d.uop.src1;
+                n.uop.dst.index = d.uop.src2.index;
+                n.uop.dst.hi8 = d.uop.src2.hi8;
+                n.more = d.step == 3'd0;
+                n.uop.ctl.end_of_instruction = d.step != 3'd0;
+            end
+            fes_i386_pkg::SEQ_XCHGM: begin
+                // The first uop carries the register in src1, unread.
+                n.uop.size = by_bytes(d.uop.mem.bytes);
+                if (d.step == 3'd0) begin
+                    n.uop.src1.valid = 1'b0;
+                    n.uop.src2 = '{valid: 1'b1, space: fes_i386_pkg::RS_GPR, index: d.uop.src1.index,
+                                   hi8: d.uop.src1.hi8};
+                    n.uop.dst.valid = 1'b0;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                    n.uop.mem.in_a = 1'b1;
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.src1 = d.uop.src2;
+                    n.uop.src2 = '{valid: 1'b0, space: fes_i386_pkg::RS_GPR, index: 4'd0, hi8: 1'b0};
+                    n.uop.dst = d.uop.src2;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+                    n.b_t1 = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_CALLI: begin
+                if (d.step == 3'd0) begin
+                    n.uop.op = 5'd9;  // ALU_MOV
+                    n.uop.size = d.opsize32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16;
+                    n.uop.src_size = n.uop.size;
+                    n.uop.src2.valid = 1'b0;
+                    n.uop.dst.valid = 1'b0;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                    n.uop.mem.in_a = 1'b1;
+                    n.uop.mem.bytes = d.opsize32 ? 4'd4 : 4'd2;
+                    n.uop.sp_write = 1'b1;
+                    n.stk = fes_i386_pkg::STK_PUSH;
+                    at_stack(n);
+                    n.push_eip = 1'b1;
+                    n.far_chk = 1'b1;
+                    n.far_t = 1'b1;
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.cls = fes_i386_pkg::UOP_BRANCH;
+                    n.uop.op = 5'd11;  // BR_JMP_IND
+                    n.uop.sp_write = 1'b0;
+                    n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
+                    n.stk = fes_i386_pkg::STK_NONE;
+                    n.cs_base = 1'b1;
+                    n.b_t1 = 1'b1;
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
+            end
+            fes_i386_pkg::SEQ_PUSHM: begin
+                n.uop.size = d.opsize32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16;
+                n.uop.src_size = n.uop.size;
+                n.uop.dst.valid = 1'b0;
+                n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                n.uop.mem.in_a = 1'b1;
+                n.uop.sp_write = 1'b1;
+                n.stk = fes_i386_pkg::STK_PUSH;
+                at_stack(n);
+                n.b_t1 = 1'b1;
+                n.uop.ctl.end_of_instruction = 1'b1;
+            end
+            fes_i386_pkg::SEQ_POPM: begin
+                n.uop.size = d.opsize32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16;
+                n.uop.src_size = n.uop.size;
+                n.uop.dst.valid = 1'b0;
+                if (d.step == 3'd0) begin
+                    n.uop.mem.kind = fes_i386_pkg::MEM_STORE;
+                    n.uop.mem.in_a = 1'b1;
+                    n.uop.mem.seg = fes_i386_pkg::seg_e'(d.m_seg);
+                    n.stk = fes_i386_pkg::STK_NONE;
+                    n.has_base = d.m_has_base;
+                    n.base = d.m_base;
+                    n.has_index = d.m_has_index;
+                    n.scale = d.m_scale;
+                    n.b_t1 = 1'b1;
+                    n.more = 1'b1;
+                end else begin
+                    n.uop.mem.kind = fes_i386_pkg::MEM_LOAD;
+                    n.uop.mem.in_a = 1'b0;
+                    n.uop.sp_write = 1'b1;
+                    n.stk = fes_i386_pkg::STK_POP;
+                    at_stack(n);
+                    n.uop.ctl.end_of_instruction = 1'b1;
+                end
             end
             fes_i386_pkg::SEQ_LPTR: begin
                 n.uop.dst.space = fes_i386_pkg::RS_GPR;

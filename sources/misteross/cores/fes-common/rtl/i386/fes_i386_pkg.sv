@@ -286,12 +286,21 @@ package fes_i386_pkg;
         // unmoved (STK_PEEK).
         logic [3:0]  slot;
         logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as far_t does
+        logic        b_t1;       // src2's value is T1's, which waits the same way
         logic        popad_esp;  // the uop counts only for POPAD on a 16-bit stack
+        // The ModRM memory operand's address registers and segment, kept
+        // while a stack uop holds the address fields (POP r/m's store).
+        logic        m_has_base;
+        logic [2:0]  m_base;
+        logic        m_has_index;
+        logic [1:0]  m_scale;
+        logic [2:0]  m_seg;
+        logic        index8;     // the index is its register's low byte, zero-extended (XLAT's AL)
         // A microcode routine (SEQ_UCODE): the ROM address of its next uop.
         logic [7:0]  upc;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
-        logic [2:0]  seq;
+        logic [3:0]  seq;
         logic [2:0]  step;
         logic        more;
     } decoded_t;
@@ -303,7 +312,10 @@ package fes_i386_pkg;
     // slot of a far call's two pushes, or INT's three, only for its limit
     // check.
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
-    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE } seq_e;
+    typedef enum logic [3:0] {
+        SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
+        SEQ_XCHG, SEQ_XCHGM, SEQ_CALLI, SEQ_PUSHM, SEQ_POPM
+    } seq_e;
     typedef enum logic { PROBE_NONE, PROBE_INT } probe_e;
 
     // A microcode ROM word (fes_i386_ucode_rom, built by

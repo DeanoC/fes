@@ -137,9 +137,11 @@ module fes_i386_exctl (
     assign fop = u.imm[3:0];
     assign c.r_lahf = flagop && fop == 4'd8;
     assign c.r_flags = flagop && (fop == 4'd10 || fop == 4'd11);
-    assign c.f_add = arith;
-    assign c.f_arith = arith || incdec;
-    assign c.f_logic = logic_op;
+    // An arithmetic or logic op writes the flags its uop says it writes:
+    // XCHG's XORs and SALC's SBB write none.
+    assign c.f_add = arith && u.flags.write.cf;
+    assign c.f_arith = (arith || incdec) && u.flags.write.oszap;
+    assign c.f_logic = logic_op && u.flags.write.oszap;
     assign c.f_shift = cls == C_SHIFT;
     assign c.f_cf = flagop && (fop <= 4'd2 || fop == 4'd7);
     assign c.f_if = flagop && (fop == 4'd3 || fop == 4'd4);

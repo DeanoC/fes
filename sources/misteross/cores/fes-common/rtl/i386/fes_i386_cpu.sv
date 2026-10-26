@@ -180,35 +180,48 @@ module fes_i386_cpu (
     logic     dc_branch, dc_stack;  // dc_branch: not used yet
     logic     q_two;                // a two-byte opcode: the ModRM is byte 2
     assign q_two = q.bytes[0] == 8'h0f;
-    logic [2:0] q_stk, q_seq;       // dc_q.stk and .seq, apart so no field of dc_q reads another
-    logic       q_ivt;              // the interrupt vector's entry: no base or index
+    logic [2:0] q_stk;              // dc_q.stk and .seq, apart so no field of dc_q reads another
+    logic [3:0] q_seq;
+    logic       q_direct, q_xlat;   // no base or index (a moffs, the vector's entry); XLAT's [BX + AL]
     fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .ivt(q_ivt), .slot(dc_q.slot)
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .direct(q_direct), .xlat(q_xlat),
+        .m_seg(dc_q.m_seg), .slot(dc_q.slot)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
     logic       am_has_base, am_has_index;
-    logic [2:0] am_base;
+    logic [2:0] am_base, am_index;
     logic [1:0] am_scale;
     fes_i386_amode amode (
         .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(am_has_base),
-        .base(am_base), .has_index(am_has_index), .index(dc_q.index), .scale(am_scale), .stack(dc_stack)
+        .base(am_base), .has_index(am_has_index), .index(am_index), .scale(am_scale), .stack(dc_stack)
     );
     assign dc_q.stk = q_stk;
-    assign dc_q.has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base && !q_ivt;
-    assign dc_q.base = q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4 : am_base;
-    assign dc_q.has_index = q_stk == fes_i386_pkg::STK_NONE && am_has_index && !q_ivt;
-    assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE ? am_scale : 2'd0;
+    // XLAT's address is BX (or EBX) plus AL, zero-extended (index8).
+    assign dc_q.has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base && !q_direct || q_xlat;
+    assign dc_q.base = q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4
+                     : q_xlat ? 3'd3 : am_base;
+    assign dc_q.has_index = q_stk == fes_i386_pkg::STK_NONE && (am_has_index && !q_direct || q_xlat);
+    assign dc_q.index = q_xlat ? 3'd0 : am_index;
+    assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE && !q_xlat ? am_scale : 2'd0;
+    assign dc_q.index8 = q_xlat;
+    // The ModRM operand's address registers, kept for a later uop when a
+    // stack uop holds the fields above (POP r/m).
+    assign dc_q.m_has_base = am_has_base && !q_direct;
+    assign dc_q.m_base = am_base;
+    assign dc_q.m_has_index = am_has_index && !q_direct;
+    assign dc_q.m_scale = am_scale;
     assign dc_q.length = q.length;
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
     assign dc_q.far_t = 1'b0;
     assign dc_q.a_t1 = 1'b0;
+    assign dc_q.b_t1 = 1'b0;
     assign dc_q.popad_esp = 1'b0;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
@@ -365,7 +378,7 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = (dc.far_t || dc.a_t1) && t_busy;
+    assign t_wait = (dc.far_t || dc.a_t1 || dc.b_t1) && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
@@ -442,7 +455,7 @@ module fes_i386_cpu (
     assign d_sp = cur_valid && u.sp_write;
     fes_i386_dfwd dfwd (
         .clk, .reset(reset || wb_flush), .has_base(a_addr && dc.has_base), .base(dc.base),
-        .has_index(a_addr && dc.has_index), .index(dc.index), .scale(dc.scale),
+        .has_index(a_addr && dc.has_index), .index(dc.index), .index8(dc.index8), .scale(dc.scale),
         .addr32(a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(lea && lea_early ? EARLY : LATE), .d_sp,
         .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
         .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .sp_wait
@@ -538,7 +551,8 @@ module fes_i386_cpu (
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
-        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : u.src2.valid ? b_val : u.imm;
+        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1
+                : u.src2.valid ? b_val : u.imm;
         d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;
         d_out.pend_a = u.src1.valid && a_pend;
         d_out.pend_b = u.src2.valid && b_pend;
