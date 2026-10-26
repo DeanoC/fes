@@ -6,8 +6,12 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 notice=$fixture/usr/share/mister-runtime/core-notices/fes.ramtest/$(printf '%064d' 1)/SOURCE.md
 mkdir -p "$(dirname "$notice")"
 printf 'verified source notice\n' >"$notice"
+mkdir -p "$fixture/lib/firmware/rtl_bt"
+for fw in rtl8821c_fw.bin rtl8821c_config.bin rtl8761bu_fw.bin rtl8761bu_config.bin; do
+  printf '%s\n' firmware >"$fixture/lib/firmware/rtl_bt/$fw"
+done
 sh "$repo/scripts/check-native-payloads.sh" "$fixture" "$notice"
-for payload in game.md GAME.MD extra/SOURCE.md game.rom game.zip agent.toml debug-gdb.py; do
+for payload in game.md GAME.MD extra/SOURCE.md game.rom game.zip game.bin agent.toml debug-gdb.py rtl8821c_fw.bin; do
   mkdir -p "$fixture/extra"
   touch "$fixture/$payload"
   if sh "$repo/scripts/check-native-payloads.sh" "$fixture" "$notice"; then
