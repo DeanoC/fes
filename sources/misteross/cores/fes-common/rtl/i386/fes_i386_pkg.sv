@@ -247,8 +247,7 @@ package fes_i386_pkg;
         logic [2:0]  stk;
         logic        push_eip;
         logic        cs_base;
-        logic        two;     // a second uop follows, uop2 (CALL rel)
-        uop_t        uop2;
+        logic        two;     // JMP rel by uop.imm follows (CALL rel)
     } decoded_t;
 
     localparam logic [2:0] STK_NONE = 3'd0, STK_PUSH = 3'd1, STK_POP = 3'd2, STK_RET_IMM = 3'd3, STK_LEAVE = 3'd4;

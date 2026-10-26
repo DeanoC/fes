@@ -15,7 +15,8 @@
 // EBP- or ESP-based address (stack, fes_i386_amode), else DS. A stack
 // operation's memory operand is at SS:ESP (or SS:EBP for LEAVE), which D
 // sets up; it also writes ESP (stk says how). CALL rel is two uops: the
-// push of the next EIP, then JMP rel (uop2).
+// push of the next EIP, then JMP rel, which D builds from the push's
+// otherwise unused imm (the displacement).
 // Encodings the i386 rejects raise #UD (LOCK on anything but a read-modify-
 // write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC, MOV to CS
 // or to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
@@ -44,8 +45,7 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic                   two_uops,    // uop2 follows
-    output fes_i386_pkg::uop_t     uop2
+    output logic                   two_uops     // D issues JMP rel after this uop
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -218,16 +218,6 @@ module fes_i386_decode (
                     d_idx = 3'd5;
                     mkind = 2'd1;
                     stk = fes_i386_pkg::STK_LEAVE;
-                end
-                8'he8: begin
-                    // CALL rel16/32: push the next EIP, then JMP rel (uop2)
-                    op = 5'd9;
-                    m_in_a = 1'b1;
-                    mkind = 2'd2;
-                    push_eip = 1'b1;
-                    stk = fes_i386_pkg::STK_PUSH;
-                    two_uops = 1'b1;
-                    eoi = 1'b0;
                 end
                 // Group 1, r/m and accumulator forms: ADD OR ADC SBB AND SUB XOR CMP.
                 // Columns 6 and 7 hold segment PUSH and POP and the BCD adjusts.
@@ -510,12 +500,23 @@ module fes_i386_decode (
                     d_idx = 3'd1;
                     imm = rel8;
                 end
-                8'he9, 8'heb: begin
-                    // JMP rel16/32, rel8
-                    cls = C_BRANCH;
-                    op = 5'd1;  // BR_JMP
-                    branch = 1'b1;
+                8'he8, 8'he9, 8'heb: begin
+                    // JMP rel16/32, rel8; CALL rel16/32, which pushes the
+                    // next EIP, then D issues JMP rel by imm
                     imm = b0[1] ? rel8 : relz1;
+                    if (b0[0]) begin
+                        cls = C_BRANCH;
+                        op = 5'd1;  // BR_JMP
+                        branch = 1'b1;
+                    end else begin
+                        op = 5'd9;
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        push_eip = 1'b1;
+                        stk = fes_i386_pkg::STK_PUSH;
+                        two_uops = 1'b1;
+                        eoi = 1'b0;
+                    end
                 end
                 8'hf4: begin
                     cls = C_SPECIAL;
@@ -750,17 +751,4 @@ module fes_i386_decode (
     assign u.ctl.ilen = q.length;
     assign u.ctl.fault = fes_i386_pkg::fault_e'(fault);
     assign uop = u;
-
-    // CALL rel's second uop: JMP rel, as E9h.
-    always_comb begin
-        uop2 = '0;
-        uop2.cls = fes_i386_pkg::UOP_BRANCH;
-        uop2.op = 5'd1;  // BR_JMP
-        uop2.size = fes_i386_pkg::size_e'(osz);
-        uop2.src_size = fes_i386_pkg::size_e'(osz);
-        uop2.imm = relz1;
-        uop2.mem.addr32 = addr32;
-        uop2.ctl.end_of_instruction = 1'b1;
-        uop2.ctl.ilen = q.length;
-    end
 endmodule

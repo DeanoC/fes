@@ -132,7 +132,7 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_s|m1_out|late_m1)$'),
         # DC's buffer before D, since dfwd and dops take its fields as ports.
         ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid)$'),
-        ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
+        ('D', r'(.*\.)?(d_eip|d_stop|d_step|d_seg_busy|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }

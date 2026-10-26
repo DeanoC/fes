@@ -84,7 +84,8 @@ module fes_i386_dfwd (
     logic [7:0]      sp_wb_next, sp_wb;  // ESP from WB's sp_new, not its result
     logic [7:0][1:0] source_next, source_now;
     logic [7:0]      in_ag;  // the uop now in D writes this GPR
-    logic [7:0]      ag_early;  // ... and its value is early
+    logic            ag_early;  // ... and the destination's value is early
+    logic            ag_sp;     // ... and it writes ESP early, not as its destination
     logic            left;
 
     for (genvar r = 0; r < 8; r++) begin : g_table
@@ -162,9 +163,8 @@ module fes_i386_dfwd (
         end
         if (!hold) begin
             source_now <= source_next;
-            // The destination decides when it is the register; ESP from a
-            // stack operation is early.
-            for (int r = 0; r < 8; r++) ag_early[r] <= d_writes && d_dst == 3'(r) ? d_kind == EARLY : 1'b1;
+            ag_early <= d_kind == EARLY;
+            ag_sp <= d_sp && !(d_writes && d_dst == 3'd4);
         end
     end
 
@@ -186,10 +186,14 @@ module fes_i386_dfwd (
 
     assign base_ag = left && in_ag[base];
     assign index_ag = left && in_ag[index];
-    assign base_late = has_base && (base_ag ? ag_early[base] : late_now[base]);
-    assign index_late = has_index && (index_ag ? ag_early[index] : late_now[index]);
-    assign base_wait = has_base && (base_ag ? !ag_early[base] : wait_now[base]);
-    assign index_wait = has_index && (index_ag ? !ag_early[index] : wait_now[index]);
+    // ESP from a stack operation in AG is early, whatever its destination
+    // is; an index is never ESP.
+    logic base_early;
+    assign base_early = ag_early || base == 3'd4 && ag_sp;
+    assign base_late = has_base && (base_ag ? base_early : late_now[base]);
+    assign index_late = has_index && (index_ag ? ag_early : late_now[index]);
+    assign base_wait = has_base && (base_ag ? !base_early : wait_now[base]);
+    assign index_wait = has_index && (index_ag ? !ag_early : wait_now[index]);
     assign base_source = base_ag ? 2'd1 : source_now[base];
     assign index_source = index_ag ? 2'd1 : source_now[index];
     assign base_value = !has_base ? 32'd0 : addr32 ? value[base] : {16'b0, value[base][15:0]};

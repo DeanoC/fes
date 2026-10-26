@@ -154,16 +154,27 @@ module fes_i386_cpu (
     logic     dc_branch, dc_stack;  // dc_branch: not used yet
     logic     q_two;                // a two-byte opcode: the ModRM is byte 2
     assign q_two = q.bytes[0] == 8'h0f;
+    logic [2:0] q_stk;              // dc_q.stk, apart so no field of dc_q reads another
     fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
-        .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(dc_q.stk), .push_eip(dc_q.push_eip),
-        .cs_base(dc_q.cs_base), .two_uops(dc_q.two), .uop2(dc_q.uop2)
+        .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
+        .cs_base(dc_q.cs_base), .two_uops(dc_q.two)
     );
+    // A stack operation's address is ESP, or EBP for LEAVE, with no index:
+    // chosen here, so D's operand lookups start from dc's register.
+    logic       am_has_base, am_has_index;
+    logic [2:0] am_base;
+    logic [1:0] am_scale;
     fes_i386_amode amode (
-        .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(dc_q.has_base),
-        .base(dc_q.base), .has_index(dc_q.has_index), .index(dc_q.index), .scale(dc_q.scale), .stack(dc_stack)
+        .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(am_has_base),
+        .base(am_base), .has_index(am_has_index), .index(dc_q.index), .scale(am_scale), .stack(dc_stack)
     );
+    assign dc_q.stk = q_stk;
+    assign dc_q.has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base;
+    assign dc_q.base = q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4 : am_base;
+    assign dc_q.has_index = q_stk == fes_i386_pkg::STK_NONE && am_has_index;
+    assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE ? am_scale : 2'd0;
     assign dc_q.length = q.length;
     assign d_ready = !dc_skid_valid;
     // A two-uop instruction (CALL rel) stays in dc until its second uop issues.
@@ -211,15 +222,38 @@ module fes_i386_cpu (
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
-    assign ud = d_step ? dc.uop2 : dc.uop;
+    // A CALL's second uop (d_step): JMP rel, as E9h, by the displacement
+    // in the push's imm, which the push does not use. It names no
+    // registers, nor does the push: D's register lookups take the first
+    // uop's fields, with no select.
+    uop_t jmp_uop;
+    always_comb begin
+        jmp_uop = '0;
+        jmp_uop.cls = fes_i386_pkg::UOP_BRANCH;
+        jmp_uop.op = 5'd1;  // BR_JMP
+        jmp_uop.size = dc.opsize32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16;
+        jmp_uop.src_size = jmp_uop.size;
+        jmp_uop.imm = dc.uop.imm;
+        jmp_uop.mem.addr32 = dc.uop.mem.addr32;
+        jmp_uop.ctl.end_of_instruction = 1'b1;
+        jmp_uop.ctl.ilen = dc.length;
+        ud = d_step ? jmp_uop : dc.uop;
+        ud.src1 = dc.uop.src1;
+        ud.src2 = dc.uop.src2;
+        ud.dst = dc.uop.dst;
+        ud.count_cl = dc.uop.count_cl;
+    end
 
     // A stack operation addresses SS:ESP, or SS:EBP for LEAVE, at the stack's
     // width (SS.B), and writes ESP from AG: ESP less the size for a push, ESP
-    // plus it (and RET's imm16) for a pop, EBP plus it for LEAVE.
+    // plus it (and RET's imm16) for a pop, EBP plus it for LEAVE. A CALL's
+    // second uop (d_step) is a jump, with no memory operand: the address
+    // operands below are the first uop's, and d_step gates only whether
+    // they are used, so it adds no select ahead of them.
     logic [2:0]  stk;
     logic        ss32, stack_wait;
     logic [31:0] st_size, st_disp, st_sp_disp;
-    assign stk = d_step ? fes_i386_pkg::STK_NONE : dc.stk;
+    assign stk = dc.stk;
     assign ss32 = seg_ar[SEG_SS][14];
     assign st_size = dc.opsize32 ? 32'd4 : 32'd2;
     always_comb begin
@@ -230,7 +264,7 @@ module fes_i386_cpu (
                 st_disp = -st_size;
                 st_sp_disp = -st_size;
             end
-            fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + ud.imm;
+            fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
             default: ;
         endcase
         if (!ss32) begin
@@ -241,15 +275,19 @@ module fes_i386_cpu (
     // The memory operand: whether it reads and writes, its segment, and the
     // limit check's operands for its size. An expand-down data segment,
     // which a real-mode load keeps from protected mode, is not built yet.
-    logic        mem, mem_reads, mem_writes, addr_use, expand_down, d_unimpl;
+    logic        mem, mem_reads, mem_writes, addr_use, a_addr, a_addr32, expand_down, d_unimpl;
     logic [2:0]  mseg;
     logic [1:0]  msize;  // 1, 2 or 4 bytes as 0, 1, 2
-    assign mem = ud.mem.kind != fes_i386_pkg::MEM_NONE;
-    assign mem_reads = ud.mem.kind == fes_i386_pkg::MEM_LOAD || ud.mem.kind == fes_i386_pkg::MEM_RMW;
-    assign mem_writes = ud.mem.kind == fes_i386_pkg::MEM_STORE || ud.mem.kind == fes_i386_pkg::MEM_RMW;
-    assign addr_use = dc.lea || mem;
-    assign mseg = 3'(ud.mem.seg);
-    assign msize = ud.mem.bytes[2] ? 2'd2 : ud.mem.bytes[1] ? 2'd1 : 2'd0;
+    fes_i386_pkg::mem_kind_e mkind;
+    assign mkind = dc.uop.mem.kind;
+    assign a_addr = dc.lea || mkind != fes_i386_pkg::MEM_NONE;
+    assign a_addr32 = stk != fes_i386_pkg::STK_NONE ? ss32 : dc.uop.mem.addr32;
+    assign mem = mkind != fes_i386_pkg::MEM_NONE && !d_step;
+    assign mem_reads = (mkind == fes_i386_pkg::MEM_LOAD || mkind == fes_i386_pkg::MEM_RMW) && !d_step;
+    assign mem_writes = (mkind == fes_i386_pkg::MEM_STORE || mkind == fes_i386_pkg::MEM_RMW) && !d_step;
+    assign addr_use = a_addr && !d_step;
+    assign mseg = 3'(dc.uop.mem.seg);
+    assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
     assign d_unimpl = wrap16 || (mem && expand_down);
     always_comb begin
@@ -315,16 +353,11 @@ module fes_i386_cpu (
     logic [1:0]  late, late_hi;
     logic [31:0] row, last;
     logic [15:0] sp_hi;
-    logic        a_has_base, a_has_index;
-    logic [2:0]  a_base;
-    assign a_has_base = stk != fes_i386_pkg::STK_NONE || dc.has_base;
-    assign a_has_index = stk == fes_i386_pkg::STK_NONE && dc.has_index;
-    assign a_base = stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : stk != fes_i386_pkg::STK_NONE ? 3'd4 : dc.base;
     assign d_sp = cur_valid && u.sp_write;
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base(addr_use && a_has_base), .base(a_base),
-        .has_index(addr_use && a_has_index), .index(dc.index), .scale(stk == fes_i386_pkg::STK_NONE ? dc.scale : 2'd0),
-        .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(lea && lea_early ? EARLY : LATE), .d_sp,
+        .clk, .reset(reset || wb_flush), .has_base(a_addr && dc.has_base), .base(dc.base),
+        .has_index(a_addr && dc.has_index), .index(dc.index), .scale(dc.scale),
+        .addr32(a_addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(lea && lea_early ? EARLY : LATE), .d_sp,
         .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
         .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .sp_wait
     );
@@ -428,7 +461,7 @@ module fes_i386_cpu (
             ag_s <= d_out;
         end
         if (!freeze) begin
-            ag_stack <= stk != fes_i386_pkg::STK_NONE;
+            ag_stack <= stk != fes_i386_pkg::STK_NONE && !d_step;
             ag_ss32 <= ss32;
             ag_leave <= stk == fes_i386_pkg::STK_LEAVE;
             ag_sp_disp <= st_sp_disp;
