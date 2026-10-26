@@ -113,7 +113,7 @@ module spike_cpu (
         end
     end
 
-    logic             trace_retire, trace_halt, trace_fault, trace_unimplemented;
+    logic             trace_retire, trace_halt, trace_fault, trace_unimplemented, trace_issue;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
     logic [31:0]      arch_eflags, arch_eip;
@@ -124,7 +124,7 @@ module spike_cpu (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
         .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
         .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
-        .trace_unimplemented, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
+        .trace_unimplemented, .trace_issue, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;

@@ -44,6 +44,8 @@
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
+//   directed  out-of-limit CALL/RET/JMP faults, followed by a check that fetch,
+//             issue and data reads stay inactive after each fault.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -807,6 +809,105 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     }
 }
 
+void check_fault_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
+    bool fault_cleared = false, fetched = false, issued = false, read = false;
+    for (unsigned cycle = 0; cycle < 32; ++cycle) {
+        rtl.top.clk = 0;
+        rtl.top.eval();
+        fault_cleared = fault_cleared || !rtl.top.trace_fault;
+        fetched = fetched || rtl.top.mem_load;
+        issued = issued || rtl.top.trace_issue;
+        read = read || rtl.top.dmem_read;
+        rtl.clock();
+    }
+    if (fault_cleared) out.add(label + ".fault-held", 1, 0);
+    if (fetched) out.add(label + ".fetch-after-fault", 0, 1);
+    if (issued) out.add(label + ".issue-after-fault", 0, 1);
+    if (read) out.add(label + ".dmem-read-after-fault", 0, 1);
+}
+
+void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary,
+                    const std::string &label, const std::vector<uint8_t> &code, State state,
+                    uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr) {
+    const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = code[i];
+    oracle.invalidate(code_base, uint32_t(code.size()));
+    if (stack_value) {
+        for (unsigned i = 0; i < stack_value->size(); ++i)
+            bus.ram[stack_address + i] = rtl.ram[stack_address + i] = (*stack_value)[i];
+        oracle.invalidate(stack_address, 4);
+    }
+    oracle.set_state(state);
+    rtl.start(state);
+
+    Mismatches out;
+    Outcome outcome;
+    try {
+        const std::vector<Entry> no_divergences;
+        outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, summary, out,
+                           code_base, code_base + uint32_t(code.size()));
+    } catch (const std::exception &error) {
+        out.add(label + ".oracle-error:" + error.what(), 0, 1);
+        oracle.reset();
+    }
+    if (outcome.fault != 13) out.add(label + ".fault-vector", 13, outcome.fault < 0 ? 0xff : outcome.fault);
+    if (rtl.state().eip != state.eip) out.add(label + ".eip", state.eip, rtl.state().eip);
+    if (rtl.state().gpr[fes_i386::REG_ESP] != state.gpr[fes_i386::REG_ESP])
+        out.add(label + ".esp", state.gpr[fes_i386::REG_ESP], rtl.state().gpr[fes_i386::REG_ESP]);
+    if (!rtl.step_writes.empty()) out.add(label + ".fault-write", 0, *rtl.step_writes.begin());
+    if (rtl.top.trace_fault) check_fault_quiet(rtl, label, out);
+
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    rtl.load_waits = 0;
+    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = 0;
+    oracle.invalidate(code_base, uint32_t(code.size()));
+    if (stack_value) {
+        for (unsigned i = 0; i < stack_value->size(); ++i) bus.ram[stack_address + i] = rtl.ram[stack_address + i] = 0;
+        oracle.invalidate(stack_address, 4);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    if (out.items.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL directed:" << label;
+        for (const auto &item : out.items) std::cout << ' ' << item;
+        std::cout << '\n';
+    }
+}
+
+void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary) {
+    State call;
+    for (int k = 0; k < 6; ++k) call.seg[k] = fes_i386::real_mode_segment(0);
+    call.eip = 0;
+    // 66 E8 disp32=10000h: CALL's instruction fits, but its full-width target
+    // is outside the 16-bit CS limit. Bochs rolls back the speculative push.
+    run_fault_case(oracle, bus, rtl, summary, "call-rel32-cs-limit",
+                   {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, call);
+
+    State ret = call;
+    ret.gpr[fes_i386::REG_ESP] = 0x200;
+    ret.gpr[fes_i386::REG_ESI] = 0x300;
+    const std::array<uint8_t, 4> target = {0x00, 0x00, 0x01, 0x00};
+    // RET's 32-bit pop is outside CS; the following MOV [SI] is a younger
+    // data read that must never issue after the fault is raised.
+    run_fault_case(oracle, bus, rtl, summary, "ret-rel32-cs-limit",
+                   {0x66, 0xc3, 0x8b, 0x04, 0xf4}, ret, 0x200, &target);
+
+    State jump = call;
+    jump.gpr[fes_i386::REG_EBX] = 0x10000;
+    jump.gpr[fes_i386::REG_ESI] = 0x300;
+    // JMP EBX has the same rejected target; MOV [SI] follows it in memory.
+    run_fault_case(oracle, bus, rtl, summary, "jmp-rm-cs-limit",
+                   {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump);
+}
+
 // ---- SingleStepTests mode ---------------------------------------------------------------
 
 constexpr std::array<const char *, 20> MOO_REGISTERS = {
@@ -1543,6 +1644,8 @@ int main(int argc, char **argv) {
             ++summary.failed;
             std::cout << "FAIL reset-store reset-edge-write 0 1\n";
         }
+    } else if (mode == "directed") {
+        run_fault_regressions(*oracle, bus, rtl, summary);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "random") {
