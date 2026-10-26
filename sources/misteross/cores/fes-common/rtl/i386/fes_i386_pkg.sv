@@ -247,10 +247,15 @@ package fes_i386_pkg;
         logic [2:0]  stk;
         logic        push_eip;
         logic        cs_base;
-        logic        two;     // JMP rel by uop.imm follows (CALL rel)
+        // A fixed uop sequence (SEQ_*), the step dc holds, and whether
+        // another uop follows (fes_i386_seq).
+        logic [2:0]  seq;
+        logic [2:0]  step;
+        logic        more;
     } decoded_t;
 
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE } stk_e;
+    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL } seq_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0

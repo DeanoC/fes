@@ -45,7 +45,7 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic                   two_uops     // D issues JMP rel after this uop
+    output logic [2:0]             seq          // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -168,7 +168,7 @@ module fes_i386_decode (
         stk = fes_i386_pkg::STK_NONE;
         push_eip = 1'b0;
         cs_base = 1'b0;
-        two_uops = 1'b0;
+        seq = fes_i386_pkg::SEQ_NONE;
         eoi = 1'b1;
 
         if (!two) begin
@@ -502,7 +502,7 @@ module fes_i386_decode (
                 end
                 8'he8, 8'he9, 8'heb: begin
                     // JMP rel16/32, rel8; CALL rel16/32, which pushes the
-                    // next EIP, then D issues JMP rel by imm
+                    // next EIP, then JMP rel by imm (SEQ_CALL)
                     imm = b0[1] ? rel8 : relz1;
                     if (b0[0]) begin
                         cls = C_BRANCH;
@@ -514,7 +514,7 @@ module fes_i386_decode (
                         mkind = 2'd2;
                         push_eip = 1'b1;
                         stk = fes_i386_pkg::STK_PUSH;
-                        two_uops = 1'b1;
+                        seq = fes_i386_pkg::SEQ_CALL;
                         eoi = 1'b0;
                     end
                 end
