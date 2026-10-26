@@ -138,6 +138,8 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  sim-fes-pc386  Check the pc386 AT-core devices through their I/O port" \
+		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 AT core with the oracle CPU" \
 		"  build-fes-pcxt  Autonomous PC/XT board diagnostic (local toolchain-fes-pcxt, or CACHE_ROOT=)" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
@@ -2632,6 +2634,15 @@ sim-fes-c64-sprite-pal:
 sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot
+sim-fes-pc386:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
+
+sim-fes-pc386-boot:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite boot --download --verilator "$(VERILATOR)"
 
 .PHONY: synth-fes-pcxt-isa
 synth-fes-pcxt-isa:
