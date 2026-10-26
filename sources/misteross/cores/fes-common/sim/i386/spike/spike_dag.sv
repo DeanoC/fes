@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Timing spike (b): the D and AG stages for an address. D decodes the
 // address registers from ModRM and SIB (fes_i386_amode), reads the
-// flip-flop register file and forwards from the M1, M2, EX and WB result
-// registers by comparing their destination tags (fes_i386_dfwd), scales the
+// flip-flop register file, applies each GPR's forwarding select from the
+// table fes_i386_dfwd wrote last cycle, picks base and index, scales the
 // index, picks the segment, and registers AG's operands. AG takes at most one
 // late value from the M1, EX or WB register and runs fes_i386_agu into the
-// M1 register. The stimulus stands in for Q, the register file writes, the
-// segment caches and the uops behind AG; AG's result feeds the M1 register
-// as an early-ALU result would.
+// M1 register. The producers move through AG, M1, M2, EX and WB registers;
+// the uop in D enters AG when D does not stall. The stimulus stands in for Q,
+// D's opcode decode (the uop's destination GPR and when its result is ready),
+// the register file writes, the segment caches and the producers' results;
+// AG's result feeds the M1 register as an early-ALU result would.
 module spike_dag (
     input  wire  FPGA_CLK1_50,
     input  wire  KEY0_N,
@@ -27,8 +29,9 @@ module spike_dag (
     logic [7:0][31:0] gpr;
     logic [5:0][31:0] seg_base;
     logic [5:0][15:0] seg_hi_plus1;
-    logic [4:0]       prod_valid, prod_ready, prod_late;
-    logic [4:0][2:0]  prod_dst;
+    logic             d_writes;  // from D's opcode decode, which is not built
+    logic [2:0]       d_dst;
+    logic [1:0]       d_kind;
     // Result registers behind AG.
     logic [31:0]      m1_result, m2_result, ex_result, wb_result;
 
@@ -42,10 +45,9 @@ module spike_dag (
         gpr[noise[55:53]] <= noise[87:56];
         seg_base[noise[90:88] % 6] <= noise[122:91];
         seg_hi_plus1[noise[90:88] % 6] <= noise[122:107] + 16'd1;
-        prod_valid <= noise[127:123];
-        prod_ready <= noise[132:128];
-        prod_late <= noise[137:133];
-        prod_dst <= noise[152:138];
+        d_writes <= noise[123];
+        d_dst <= noise[126:124];
+        d_kind <= noise[128:127] == 2'd3 ? 2'd0 : noise[128:127];
     end
 
     // ---- D --------------------------------------------------------------------
@@ -57,11 +59,26 @@ module spike_dag (
     fes_i386_amode amode (
         .modrm, .sib, .addr32, .has_base, .base, .has_index, .index, .scale, .stack
     );
+    // The producers in AG, M1, M2 and EX: valid, destination, kind.
+    logic [3:0]      prod_valid;
+    logic [3:0][2:0] prod_dst;
+    logic [3:0][1:0] prod_kind;
+
     fes_i386_dfwd dfwd (
-        .has_base, .base, .has_index, .index, .scale, .addr32, .gpr, .prod_valid, .prod_dst,
-        .prod_ready, .prod_late, .stage_value({wb_result, ex_result, m2_result, m1_result}),
-        .row, .last, .late, .late_hi, .stall
+        .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes, .d_dst, .d_kind,
+        .advance(!stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
+        .stage_value({wb_result, ex_result, m2_result, m1_result}), .row, .last, .late, .late_hi, .stall
     );
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            prod_valid <= '0;
+        end else begin
+            prod_valid <= {prod_valid[2:0], d_writes && !stall};
+        end
+        prod_dst <= {prod_dst[2:0], d_dst};
+        prod_kind <= {prod_kind[2:0], d_kind};
+    end
     assign segment = seg_override ? (seg_named > 3'd5 ? 3'd3 : seg_named) : stack ? 3'd2 : 3'd3;
 
     // D/AG register.

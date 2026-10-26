@@ -4,8 +4,12 @@
 // one 16-byte block each (linear bits 11:4) and the tags of the 32-byte line
 // (linear bits 11:5, four ways of valid and a 20-bit page). In F2 the four
 // tags are compared with the ITLB page registered alongside, and the hitting
-// way's block goes into the front end's F2 register: M2's shape. A miss
-// passes zeros; there is no refill. The stimulus rewrites tags and data.
+// way's block goes into the front end's F2 register: M2's shape. The hit
+// signals are replicated, one set per two bytes of the block, so no hit
+// drives more than 16 of the way select's bits. Yosys merges identical logic
+// even on kept wires (DeanoC/yosys#51), so each set compares against its own
+// copy of the page register. A miss passes zeros; there is no refill. The
+// stimulus rewrites tags and data.
 // Redirects, CS.D and D's ready come from the stimulus. Every field Q hands
 // D feeds the signature.
 module spike_frontend (
@@ -36,7 +40,8 @@ module spike_frontend (
     logic [83:0]  l1i_tags [0:127];
     logic [127:0] way0, way1, way2, way3;
     logic [83:0]  tags;
-    logic [19:0]  itlb_page;  // the ITLB's physical page for the block in F2
+    // The ITLB's physical page for the block in F2, one copy per hit set.
+    (* keep *) logic [7:0][19:0] itlb_page;
 
     always_ff @(posedge clk)
         if (noise[0] && noise[9]) begin
@@ -54,14 +59,18 @@ module spike_frontend (
     always_ff @(posedge clk) if (mem_load) way2 <= l1i_data2[mem_block[7:0]];
     always_ff @(posedge clk) if (mem_load) way3 <= l1i_data3[mem_block[7:0]];
     always_ff @(posedge clk) if (mem_load) tags <= l1i_tags[mem_block[7:1]];
-    always_ff @(posedge clk) if (mem_load) itlb_page <= {noise[363:356], mem_block[27:16]};
+    always_ff @(posedge clk) if (mem_load) itlb_page <= {8{noise[363:356], mem_block[27:16]}};
 
-    logic [3:0] hit;
-    for (genvar w = 0; w < 4; w++) begin : g_way
-        assign hit[w] = tags[21 * w + 20] && tags[21 * w +: 20] == itlb_page;
+    logic [7:0][3:0] hit;  // hit[s][w] selects way w for bytes 2s and 2s + 1
+    for (genvar s = 0; s < 8; s++) begin : g_set
+        for (genvar w = 0; w < 4; w++) begin : g_way
+            assign hit[s][w] = tags[21 * w + 20] && tags[21 * w +: 20] == itlb_page[s];
+        end
+        for (genvar i = 16 * s; i < 16 * s + 16; i++) begin : g_bit
+            assign mem_data[i / 8][i % 8] = (way0[i] & hit[s][0]) | (way1[i] & hit[s][1])
+                                          | (way2[i] & hit[s][2]) | (way3[i] & hit[s][3]);
+        end
     end
-    assign mem_data = (way0 & {128{hit[0]}}) | (way1 & {128{hit[1]}})
-                    | (way2 & {128{hit[2]}}) | (way3 & {128{hit[3]}});
 
     always_ff @(posedge clk) begin
         redirect <= reset || noise[40:33] == 8'd0;
@@ -72,9 +81,10 @@ module spike_frontend (
         d_ready <= |noise[76:74];
     end
 
+    // Every access hits; a miss has no refill here, so the data is always valid.
     fes_i386_frontend dut (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
-        .mem_data, .q_valid, .q, .d_ready
+        .mem_data, .mem_valid(1'b1), .q_valid, .q, .d_ready
     );
 
     logic [31:0]  signature;

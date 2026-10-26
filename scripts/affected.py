@@ -102,7 +102,8 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # RTL checks and timing harness are test-only software; their unit tests run in
 # the FPGA software lane.
 I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
-                          'test_fes_i386_frontend.py', 'benchmark_fes_i386.py'})
+                          'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
+                          'quartus_fes_i386.py'})
 
 
 def fpga_cores(path):
