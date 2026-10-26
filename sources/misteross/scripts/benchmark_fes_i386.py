@@ -23,7 +23,8 @@ logic path in the netlist before placement: LUT levels, carry cells and the
 named nets along it.
 
 Tools come from the selected toolchain lock's authenticated slot (default: the
-repository toolchain.lock). Synthesis permits M10K and DSP cells and forbids
+i386 lock, cores/fes-common/rtl/i386/toolchain.lock, whose Yosys reads the RTL
+as written). Synthesis permits M10K and DSP cells and forbids
 LUT RAM, as the design's rules do. Every route uses the GPU router through
 gpu-run, with CPU fallback rejected. Timing is allowed to fail so a miss is
 measured; nothing here is a signoff.
@@ -58,6 +59,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RTL = Path('cores/fes-common/rtl/i386')
 SPIKE = Path('cores/fes-common/sim/i386/spike')
 DEVICE = '5CSEBA6U23I7'
+# The i386 RTL's own lock: the shared toolchain.lock's Yosys misreads it.
+LOCK = RTL / 'toolchain.lock'
 FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
                 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
@@ -83,7 +86,7 @@ STAGES = {
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
         # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|dut\.fetch\.sums\.'),
-        ('L2', r'(.*\.)?(bytes|half_block|dec_\w+|avail)$'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|dut\.align\.(?!redirect_linear$)'),
     ),
     'dag': (
@@ -385,8 +388,8 @@ def main() -> int:
     parser.add_argument('--spike', choices=tuple(SPIKES), action='append')
     parser.add_argument('--seed', type=int, action='append', help='placer/router seed; repeat (default 1-4)')
     parser.add_argument('--target-mhz', type=float, default=100.0)
-    parser.add_argument('--lock', type=Path, default=Path('toolchain.lock'),
-                        help='toolchain lock relative to sources/misteross (default: toolchain.lock)')
+    parser.add_argument('--lock', type=Path, default=LOCK,
+                        help=f'toolchain lock relative to sources/misteross (default: {LOCK})')
     parser.add_argument('--cache-root', type=Path, help='shared misteross-toolchains cache root')
     parser.add_argument('--gpu-device', type=int, default=0)
     parser.add_argument('--output', type=Path, help='diagnostic output directory')

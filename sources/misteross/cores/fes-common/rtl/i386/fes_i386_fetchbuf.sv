@@ -44,13 +44,12 @@ module fes_i386_fetchbuf (
     output logic [1:0][27:0]  half_block,
     output logic [31:0][7:0]  bytes,
     // Each buffer byte's decode from L2 (fes_i386_lstage), by accumulator variant.
-    output logic [31:0]       dec_prefix,
-    output logic [31:0]       dec_run,
-    output logic [31:0][15:0] dec_len,
-    output logic [31:0][19:0] dec_fin,
+    output fes_i386_pkg::lbyte_t [31:0] dec,
     output logic [31:0][3:0]  avail
 );
-    logic [31:0][3:0] dec_far;  // the instruction at the byte ends past its half
+    typedef fes_i386_pkg::lclass_t lclass_t;
+    typedef fes_i386_pkg::lbyte_t lbyte_t;
+
     logic [1:0]       tail_ok;  // the half's bytes 12-15 are decoded
     logic [1:0]       filling;  // L2 writes this half on this edge
     logic             active;       // F2 holds a block; idle from reset to the first redirect
@@ -62,9 +61,7 @@ module fes_i386_fetchbuf (
     logic             l2_valid;     // the L1/L2 register: the block and its length classes
     logic [27:0]      l2_block;
     logic [15:0][7:0] l2_bytes;
-    logic [15:0]      l2_prefix, l2_run, l2_opsize, l2_adsize, l2_z, l2_moffs;
-    logic [15:0][2:0] l2_head, l2_mb32;
-    logic [15:0][1:0] l2_mb16;
+    lclass_t [15:0]   l2_cls;
     logic             half, l2_fire, l1_advance, f2_advance;
 
     assign half = l2_block[0];
@@ -77,24 +74,14 @@ module fes_i386_fetchbuf (
     assign mem_block = redirect ? redirect_linear[31:4] : fetch_block;
 
     // L1: the decoders on F2's block behind the previous block's bytes 12-15.
-    logic [15:0]      new_prefix, new_run, new_opsize, new_adsize, new_z, new_moffs;
-    logic [15:0][2:0] new_head, new_mb32;
-    logic [15:0][1:0] new_mb16;
+    lclass_t [15:0] new_cls;
 
-    fes_i386_lendec decoders (
-        .w({l1_bytes, l2_bytes[15:12]}), .prefix(new_prefix), .run(new_run), .opsize(new_opsize),
-        .adsize(new_adsize), .head(new_head), .mb16(new_mb16), .mb32(new_mb32), .z(new_z), .moffs(new_moffs)
-    );
+    fes_i386_lendec decoders (.w({l1_bytes, l2_bytes[15:12]}), .cls(new_cls));
 
     // L2: lengths and next starts for every size variant.
-    logic [15:0][15:0] new_len;
-    logic [15:0][19:0] new_fin;
-    logic [15:0][3:0]  new_far;
+    lbyte_t [15:0] new_dec;
 
-    fes_i386_lstage sums (
-        .code32, .run(l2_run), .opsize(l2_opsize), .adsize(l2_adsize), .head(l2_head), .mb16(l2_mb16),
-        .mb32(l2_mb32), .z(l2_z), .moffs(l2_moffs), .len(new_len), .fin(new_fin), .far(new_far)
-    );
+    fes_i386_lstage sums (.code32, .cls(l2_cls), .dec(new_dec));
 
     // Next-cycle state as if Q released nothing.
     logic [1:0] valid_next, tail_next, hold_next;
@@ -115,11 +102,14 @@ module fes_i386_fetchbuf (
         localparam int SLOT = K < 12 ? K + 4 : K - 12;
         logic       here, next_ok, written;
         logic [3:0] far_next;
+        lbyte_t     stored, incoming;  // whole records: DeanoC/yosys#52
 
         assign here = valid_next[H] && (K < 12 || tail_next[H]);
         assign next_ok = hold_next[1 - H] || (q_half == (H != 0) && valid_next[1 - H]);
         assign written = l2_fire && (half == (H != 0)) == (K < 12);
-        assign far_next = written ? new_far[SLOT] : dec_far[j];
+        assign stored = dec[j];
+        assign incoming = new_dec[SLOT];
+        assign far_next = written ? incoming.past_half : stored.past_half;
         for (genvar v = 0; v < 4; v++) begin : g_variant
             assign avail_next[j][v] = here && (!far_next[v] || next_ok);
         end
@@ -176,15 +166,7 @@ module fes_i386_fetchbuf (
         if (l1_advance) begin
             l2_block <= l1_block;
             l2_bytes <= l1_bytes;
-            l2_prefix <= new_prefix;
-            l2_run <= new_run;
-            l2_opsize <= new_opsize;
-            l2_adsize <= new_adsize;
-            l2_head <= new_head;
-            l2_mb16 <= new_mb16;
-            l2_mb32 <= new_mb32;
-            l2_z <= new_z;
-            l2_moffs <= new_moffs;
+            l2_cls <= new_cls;
         end
 
         if (l2_fire) begin
@@ -193,18 +175,10 @@ module fes_i386_fetchbuf (
             // half's bytes 12-15.
             if (half) begin
                 bytes[31:16] <= l2_bytes;
-                {dec_prefix[27:16], dec_prefix[15:12]} <= l2_prefix;
-                {dec_run[27:16], dec_run[15:12]} <= l2_run;
-                {dec_len[27:16], dec_len[15:12]} <= new_len;
-                {dec_fin[27:16], dec_fin[15:12]} <= new_fin;
-                {dec_far[27:16], dec_far[15:12]} <= new_far;
+                {dec[27:16], dec[15:12]} <= new_dec;
             end else begin
                 bytes[15:0] <= l2_bytes;
-                {dec_prefix[11:0], dec_prefix[31:28]} <= l2_prefix;
-                {dec_run[11:0], dec_run[31:28]} <= l2_run;
-                {dec_len[11:0], dec_len[31:28]} <= new_len;
-                {dec_fin[11:0], dec_fin[31:28]} <= new_fin;
-                {dec_far[11:0], dec_far[31:28]} <= new_far;
+                {dec[11:0], dec[31:28]} <= new_dec;
             end
         end
     end

@@ -25,6 +25,30 @@ package fes_i386_pkg;
         logic       lock;
     } prefixes_t;
 
+    // L1's length classes for the instruction starting at one byte, its one
+    // prefix included (fes_i386_lendec). L2 adds them up for each size.
+    typedef struct packed {
+        logic       prefix;   // the byte is a prefix
+        logic       run;      // ... and so is the next byte
+        logic       opsize;   // the byte is 66h
+        logic       adsize;   // the byte is 67h
+        logic [2:0] head;     // prefix, opcode and fixed-immediate bytes, 1-6
+        logic [1:0] mb16;     // ModRM, SIB and displacement bytes, 16-bit addressing
+        logic [2:0] mb32;     // ... 32-bit addressing
+        logic       z;        // 2 or 4 more bytes by operand size
+        logic       moffs;    // 2 or 4 more bytes by address size
+    } lclass_t;
+
+    // One buffer byte's decode from L2 (fes_i386_lstage), per prefix-
+    // accumulator variant v = {66h seen, 67h seen}.
+    typedef struct packed {
+        logic            prefix;
+        logic            run;
+        logic [3:0][3:0] len;  // the instruction's length, its one prefix included
+        logic [3:0][4:0] fin;  // where it ends, counted as L counts, modulo 32
+        logic [3:0]      past_half;  // it ends past its own half ("far" is a C++ word)
+    } lbyte_t;
+
     // One x86 instruction from Q to D. bytes[0] is the opcode (0Fh for a
     // two-byte opcode); every prefix has been stripped into prefixes.
     typedef struct packed {

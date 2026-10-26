@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "d4ac300d9d244c6bfa9da24c30fd9cff225c3405"
+order = 10
+rationale = "DeanoC/yosys main commit d4ac300d9d (squash merge of #49: width detection for multi-dimensional packed arrays declared in generate blocks, fixing #41). It also brings #43 (a packed array of packed structs elaborates to its full width, fixing #34), #31 (opt_merge keeps cells marked nomerge apart) and #32 (sat folds repeated high bits of $mul). It is 487 commits past 3a5accbd, the Yosys of the repository and per-core locks, and includes the upstream Yosys 0.70 merge with its name-storage rework. This lock covers the i386 CPU RTL only, its timing spikes first: the shared toolchain.lock stays at 3a5accbd, since a pin bump there must rebuild every core it touches. The i386 RTL keeps its workarounds for the issues still open (#33, #35-#40). Pair with nextpnr bd7a1c0d and Mistral 8fcc4cb4."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
+order = 20
+rationale = "DeanoC fork master 8fcc4cb4, as cores/fes-spectrum/toolchain.lock pins it; required by nextpnr bd7a1c0d."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb"
+order = 30
+rationale = "DeanoC/nextpnr main commit bd7a1c0d (squash merge of #292), the newest authenticated nextpnr, with the corrected LUT-input and M10K timing models. The i386 design takes its timing figures from it (docs/i386-cpu-design.md, the compiler row). Pair with Mistral 8fcc4cb4 (required)."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

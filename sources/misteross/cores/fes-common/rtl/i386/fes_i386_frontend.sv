@@ -23,20 +23,18 @@ module fes_i386_frontend (
     logic [15:0][7:0]  fill_bytes;
     logic [1:0][27:0]  half_block;
     logic [31:0][7:0]  bytes;
-    logic [31:0]       dec_prefix, dec_run;
-    logic [31:0][15:0] dec_len;
-    logic [31:0][19:0] dec_fin;
+    fes_i386_pkg::lbyte_t [31:0] dec;
     logic [31:0][3:0]  avail;
 
     fes_i386_fetchbuf fetch (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_ready, .mem_data,
         .release_half, .q_half(start_half), .half_valid, .fill_bytes, .half_block,
-        .bytes, .dec_prefix, .dec_run, .dec_len, .dec_fin, .avail
+        .bytes, .dec, .avail
     );
 
     fes_i386_qalign align (
-        .clk, .reset, .redirect, .redirect_linear, .half_valid, .half_block, .bytes, .dec_prefix,
-        .dec_run, .dec_len, .dec_fin, .avail, .fill_data(fill_bytes), .release_half, .start_half,
+        .clk, .reset, .redirect, .redirect_linear, .half_valid, .half_block, .bytes, .dec, .avail,
+        .fill_data(fill_bytes), .release_half, .start_half,
         .q_valid, .q, .d_ready
     );
 endmodule
