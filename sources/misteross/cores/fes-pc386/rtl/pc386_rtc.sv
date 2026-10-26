@@ -77,8 +77,12 @@ module pc386_rtc #(
     // Hours: 24-hour, or 1-12 with bit 7 for PM.
     function automatic [7:0] encode_hour(input [4:0] value);
         reg [4:0] twelve;
-        twelve = value == 0 ? 5'd12 : value > 12 ? value - 5'd12 : value;
-        encode_hour = control_b[1] ? encode({2'b0, value}) : {value >= 12, encode({2'b0, twelve})[6:0]};
+        reg [7:0] coded;
+        begin
+            twelve = value == 0 ? 5'd12 : value > 12 ? value - 5'd12 : value;
+            coded = encode({2'b0, twelve});
+            encode_hour = control_b[1] ? encode({2'b0, value}) : {value >= 12, coded[6:0]};
+        end
     endfunction
     function automatic [4:0] decode_hour(input [7:0] value);
         reg [4:0] twelve;
