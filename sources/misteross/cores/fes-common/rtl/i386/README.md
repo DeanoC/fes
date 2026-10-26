@@ -20,9 +20,10 @@ exception delivery yet.
 | `fes_i386_agu.sv` | AG | The linear and offset adders: 3:2 rows, one carry chain each, the 16-bit-wrap and address-size select |
 | `fes_i386_decode.sv` | DC | The instruction to one uop, its #UD and #GP(0) checks, and LEA's displacement |
 | `fes_i386_dops.sv` | D | Data operands: the second forwarding table, pending operands and how far ahead their producers are |
-| `fes_i386_shift.sv` | EX | The 64-bit funnel shifter and the 386EX's shift flags |
-| `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects |
-| `fes_i386_ex.sv` | EX | The late ALU (one adder, ZF from the operands), the result's merge into its register, flags and branch resolution |
+| `fes_i386_shift.sv` | EX | The 64-bit funnel shifter |
+| `fes_i386_shflags.sv` | WB | The 386EX's shift CF and OF, from the result and the shifter bits EX keeps |
+| `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects, and its operands cut to size |
+| `fes_i386_ex.sv` | EX | The late ALU (one adder, a second chain for OF and SF, ZF from the operands), the result's merge into its register, flags and branch resolution |
 | `fes_i386_cpu.sv` | F1-WB | The top: front end, DC's decoded buffer, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
 
 ## Front end
@@ -159,15 +160,24 @@ Sreg) waits in D while an older uop writes that segment register.
 length + displacement in one carry chain, wrapped by operand size.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
-the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. It
-has one adder for ADD, ADC, SUB, SBB, CMP, INC, DEC,
-NEG and LOOP's count, with ZF from the operands; the logic unit; the funnel
-shifter (`fes_i386_shift`); and the result's merge into the destination's old
-value, so WB writes whole registers. It keeps a running EFLAGS: every uop that
-passes EX updates it, so Jcc, SETcc, ADC, SBB and RCL/RCR read it with no
-forwarding. Undefined flags follow the 386EX (the Phase 0 divergence list):
-logic ops clear AF, shifts by a nonzero count set it, and the shift OF and
-wide-count CF rules are in `fes_i386_shift`.
+the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. M2
+also prepares the operands: x and y cut to the operation's size with a high
+byte moved down, y inverted for a subtract, and an add's operands filled
+above its size so that its carry out is the chain's bit 32 at every size. An
+operand whose producer is one stage ahead joins x or y from the WB result
+register in one LUT level. EX has one adder for ADD, ADC, SUB, SBB, CMP, INC,
+DEC, NEG and LOOP's count, with ZF from the operands, and beside it a second
+chain whose carry out is the carry into the size's top bit, for OF and SF;
+the logic unit; the funnel shifter (`fes_i386_shift`); and the result's
+merge into the destination's old value by lane, so WB writes whole
+registers. It keeps a running EFLAGS: every uop that passes EX updates it,
+so Jcc, SETcc, ADC, SBB and RCL/RCR read it with no forwarding. A shift's
+flags reach it a cycle late, from the WB register: WB takes CF and OF from
+the result and the shifter bits EX keeps beside it (`fes_i386_shflags`), and
+D holds a flag reader one cycle behind a shift. Undefined flags follow the
+386EX (the Phase 0 divergence list): logic ops clear AF, shifts by a nonzero
+count set it, and the shift OF and wide-count CF rules are in
+`fes_i386_shflags`.
 
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding
