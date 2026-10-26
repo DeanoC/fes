@@ -201,6 +201,62 @@ func TestSpectrumSnapshotDeclarations(t *testing.T) {
 	}
 }
 
+func TestSpectrumDiskDeclarations(t *testing.T) {
+	tape := corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}
+	disk := corepackage.Interface{ID: "fes.media.spectrum-disk", Major: 1, Required: true}
+	trdos := corepackage.Interface{ID: SpectrumDiskTrdosInterfaceID, Major: 1}
+	optional := disk
+	optional.Required = false
+	for name, tc := range map[string]struct {
+		interfaces []corepackage.Interface
+		listed     bool
+	}{
+		"tape only":           {[]corepackage.Interface{tape}, false},
+		"TR-DOS drive":        {[]corepackage.Interface{tape, disk, trdos}, true},
+		"no controller":       {[]corepackage.Interface{tape, disk}, false},
+		"no cassette":         {[]corepackage.Interface{disk, trdos}, false},
+		"optional disk":       {[]corepackage.Interface{tape, optional, trdos}, false},
+		"controller, no unit": {[]corepackage.Interface{tape, trdos}, false},
+	} {
+		d := corepackage.Descriptor{Core: corepackage.Core{ID: "example.any-core"},
+			ABI: corepackage.Contract{ID: "fes.computer", Major: 1}, Interfaces: tc.interfaces}
+		if DeclaresTrdosDisk(d) != tc.listed {
+			t.Errorf("%s: TR-DOS drive = %v", name, !tc.listed)
+		}
+		var found *CoreMediaCapability
+		for _, m := range DeclaredCoreMediaCapabilities(d) {
+			if m.Role == DiskRole {
+				found = &m
+			}
+		}
+		if (found != nil) != tc.listed {
+			t.Fatalf("%s: disk role listed = %v", name, found != nil)
+		}
+		if found != nil && (*found.Unit != SpectrumDiskUnit || found.Interface != SpectrumDiskInterface() ||
+			strings.Join(found.Extensions, " ") != ".trd .scl" || found.MaxBytes != SpectrumDiskImageMaxBytes) {
+			t.Errorf("%s: disk capability %+v", name, *found)
+		}
+	}
+	for name, want := range map[string]bool{"game.trd": true, "GAME.SCL": true, "game.dsk": false, "a/game.trd": false} {
+		if AdmitSpectrumDiskName(name) != want || AdmitLiveMediaName(name) != (want || name == "game.dsk") {
+			t.Errorf("disk name %q admitted = %v", name, !want)
+		}
+	}
+	unit := MediaUnitStatus{Unit: SpectrumDiskUnit, Interface: SpectrumDiskInterface(),
+		MinBytes: uint32(SpectrumDiskMinBytes), MaxBytes: uint32(SpectrumDiskMaxBytes), ChunkBytes: 512, State: MediaUnitReady}
+	if !unit.Valid() {
+		t.Fatal("observed disk unit refused")
+	}
+	for _, bad := range []MediaUnitStatus{
+		{Unit: 0, Interface: unit.Interface, MinBytes: unit.MinBytes, MaxBytes: unit.MaxBytes, ChunkBytes: 512, State: MediaUnitReady},
+		{Unit: 1, Interface: unit.Interface, MinBytes: 1, MaxBytes: unit.MaxBytes, ChunkBytes: 512, State: MediaUnitReady},
+	} {
+		if bad.Valid() {
+			t.Errorf("disk unit %+v admitted", bad)
+		}
+	}
+}
+
 func computerStatus(units ...MediaUnitStatus) Status {
 	return Status{State: StateActive, Development: true, CorePackage: &CorePackageStatus{
 		PackageID: strings.Repeat("a", 64), Generation: 3, ABI: RuntimeContract{ID: "fes.computer", Major: 1},

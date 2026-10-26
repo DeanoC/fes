@@ -1337,7 +1337,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128", "fes.media.spectrum-snapshot-plus3", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-disk", "fes.media.spectrum-snapshot", "fes.media.spectrum-snapshot-128", "fes.media.spectrum-snapshot-plus3", "fes.media.spectrum-tape", "fes.media.zx81-tape", "fes.media.zx81-tape-write",
 		"fes.memory.hps-ddr", "fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");

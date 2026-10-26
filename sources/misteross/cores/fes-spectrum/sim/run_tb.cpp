@@ -2,7 +2,8 @@
 // Development runner for the Spectrum machine simulation. It loads a ROM and
 // optionally a machine state (registers, paging and RAM pages written by
 // scripts/spectrum_state.py from a .sna or .z80 snapshot) and a PZX tape
-// stream (from FogCast's internal/spectrumtapes), runs whole ULA frames,
+// stream (from FogCast's internal/spectrumtapes), a raw track disk image (from
+// internal/spectrumdisks, for the Pentagon's Beta 128), runs whole ULA frames,
 // presses keys and writes captured 320x240 frames as PNG. ROMs and programs
 // are read from files; none are stored in this repository.
 #include "Vspectrum_sim_top.h"
@@ -92,8 +93,9 @@ const std::map<std::string, int> &key_table() {
 struct KeyEvent { unsigned frame, length; uint64_t mask; };
 
 struct Options {
-    std::string rom, state, dump, tape;
+    std::string rom, state, dump, tape, disk;
     unsigned frames = 50;
+    long disk_frame = -1;   // insert the disk at this frame; -1 before reset
     std::vector<unsigned> dump_frames;
     std::vector<KeyEvent> keys;
     bool dump_all = false;
@@ -113,6 +115,11 @@ public:
     // after each take, from byte 0 again whenever the deck drops enable.
     std::vector<uint8_t> tape;
     size_t tape_pos = 0;
+    // The disk, presented as the DDR store's fetch port presents it: a byte
+    // some clocks after the request, held while the address stays put.
+    std::vector<uint8_t> disk;
+    unsigned fetch_wait = 0;
+    uint32_t fetch_seen = ~0u;
 
     Simulation() {
         dut.clk_sys = 0;
@@ -122,6 +129,9 @@ public:
         dut.tape_ready = 0;
         dut.tape_size = 0;
         dut.tape_stream_valid = 0;
+        dut.disk_ready = 0;
+        dut.disk_size = 0;
+        dut.disk_fetch_ready = 0;
         dut.eval();
     }
     void insert(const std::vector<uint8_t> &image) {
@@ -129,7 +139,18 @@ public:
         dut.tape_size = tape.size();
         dut.tape_ready = 1;
     }
+    void insert_disk(const std::vector<uint8_t> &image) {
+        disk = image;
+        dut.disk_size = disk.size();
+        dut.disk_ready = 1;
+    }
     void clock() {
+        if (!dut.disk_fetch || dut.disk_fetch_addr != fetch_seen) {
+            fetch_seen = dut.disk_fetch ? dut.disk_fetch_addr : ~0u;
+            fetch_wait = 12 + (clocks * 7) % 23;
+        } else if (fetch_wait) --fetch_wait;
+        dut.disk_fetch_ready = dut.disk_fetch && fetch_wait == 0;
+        dut.disk_fetch_data = dut.disk_fetch_addr < disk.size() ? disk[dut.disk_fetch_addr] : 0;
         if (!dut.tape_stream_enable) tape_pos = 0;
         dut.tape_stream_valid = dut.tape_stream_enable && tape_pos < tape.size();
         dut.tape_stream_data = tape_pos < tape.size() ? tape[tape_pos] : 0;
@@ -259,6 +280,8 @@ int main(int argc, char **argv) {
         if (arg == "--rom") options.rom = next();
         else if (arg == "--state") options.state = next();
         else if (arg == "--tape") options.tape = next();
+        else if (arg == "--disk") options.disk = next();
+        else if (arg == "--disk-frame") options.disk_frame = std::stol(next());
         else if (arg == "--frames") options.frames = std::stoul(next());
         else if (arg == "--dump") options.dump = next();
         else if (arg == "--dump-frame") options.dump_frames.push_back(std::stoul(next()));
@@ -285,6 +308,9 @@ int main(int argc, char **argv) {
 
     Simulation sim;
     if (!options.rom.empty()) sim.load_rom(read_file(options.rom));
+    // By default the disk is in before execution starts; --disk-frame inserts
+    // it later, as a host does after Start or while the machine runs.
+    if (!options.disk.empty() && options.disk_frame < 0) sim.insert_disk(read_file(options.disk));
     for (int i = 0; i < 16; ++i) sim.clock();
     sim.dut.reset = 0;
     if (!options.state.empty()) sim.load_state(options.state);
@@ -300,6 +326,8 @@ int main(int argc, char **argv) {
     unsigned last_t = 0;
     bool instruction_start = true;
     while (frames < options.frames) {
+        if (!options.disk.empty() && long(frames) == options.disk_frame && !sim.dut.disk_ready)
+            sim.insert_disk(read_file(options.disk));
         uint64_t held = 0;
         // A key for frame F is first seen by frame F+1's interrupt scan, as
         // in the Fuse libretro oracle's frame numbering.
@@ -327,8 +355,8 @@ int main(int argc, char **argv) {
             instruction_start = false;
             if (ula_frame >= options.trace_from && ula_frame <= options.trace_to) {
                 char line[64];
-                std::snprintf(line, sizeof line, "%lu %u %04x\n", ula_frame, t,
-                              unsigned(sim.dut.rootp->MACHINE(cpu_a)));
+                std::snprintf(line, sizeof line, "%lu %u %04x %04x\n", ula_frame, t,
+                              unsigned(sim.dut.rootp->MACHINE(cpu_a)), unsigned(sim.dut.cpu_pc));
                 trace << line;
             }
         }

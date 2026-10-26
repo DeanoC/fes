@@ -179,3 +179,19 @@ func TestSpectrumCassetteStreamRefusesSnapshotsThePackageDoesNotRun(t *testing.T
 		}
 	}
 }
+
+func TestSpectrumDiskImageCarriesTheLaunchBootFlag(t *testing.T) {
+	trd := make([]byte, 160*4096)
+	trd[8*256+227], trd[8*256+231] = 0x16, 0x10
+	for _, boot := range []bool{true, false} {
+		image, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(trd)), int64(len(trd)), boot)
+		if err != nil || !bytes.HasPrefix(image, []byte("ZXDK")) || (image[7]&2 != 0) != boot {
+			t.Fatalf("boot %v: % x %v", boot, image[:min(len(image), 8)], err)
+		}
+	}
+	_, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(tap())), int64(len(tap())), true)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest || !strings.Contains(api.Message, "TR-DOS disk image") {
+		t.Fatalf("a tape converted as a disk: %v", err)
+	}
+}

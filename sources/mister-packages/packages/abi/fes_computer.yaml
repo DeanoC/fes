@@ -265,6 +265,17 @@ constants:
     value: 0
   - name: FesComputerC64DiskBytes
     value: 174848
+  # fes.media.spectrum-disk 1.0: unit 1, a raw track image (FogCast
+  # internal/spectrumdisks): 8 KiB slots, a header and at most 86 cylinders
+  # of two sides. Capability bit 15. A Spectrum shell may declare it beside
+  # its unit-0 cassette; the package's optional sub-interfaces name the
+  # controller.
+  - name: FesComputerSpectrumDiskUnit
+    value: 1
+  - name: FesComputerSpectrumDiskMinBytes
+    value: 8192
+  - name: FesComputerSpectrumDiskMaxBytes
+    value: 1417216
   # fes.media.atari-st-floppy 1.0: unit 0, read-only 80x2x9x512 .st image.
   - name: FesComputerAtariStFloppyUnit
     value: 0
@@ -357,3 +368,8 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 14
+  # Removable disk on unit 1, beside a unit-0 cassette.
+  - id: fes.media.spectrum-disk
+    major: 1
+    minor: 0
+    capability_bit: 15

@@ -29,9 +29,10 @@ above 0 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
 `fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`
-and `fes.media.atari-st-floppy`, each 1.0, and `fes.media.spectrum-tape`
-2.0; each must be declared required when present. A shell declares at
-most one unit-0 medium. `fes.expansion.apple2-bus` 1.0,
+`fes.media.atari-st-floppy` and `fes.media.spectrum-disk`, each 1.0, and
+`fes.media.spectrum-tape` 2.0; each must be declared required when present. A
+shell declares at most one unit-0 medium, and `fes.media.spectrum-disk` only
+beside `fes.media.spectrum-tape` and `fes.memory.hps-ddr`. `fes.expansion.apple2-bus` 1.0,
 `fes.expansion.spectrum-bus` 1.0, `fes.expansion.c64-bus` 1.0 and
 `fes.expansion.atari-st-bus` 1.0 are manifest-only buses and must be optional.
 Unknown or unsupported-version optional declarations are ignored and grant nothing;
@@ -54,7 +55,7 @@ persistence and changes the active persistence mode.
 Native capabilities advertise the ABI with every recognized interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
@@ -74,7 +75,8 @@ then reads MediaInfo fields 0 through 5 for every declared media unit.
 `fes.media.apple2-floppy`, `fes.media.spectrum-tape`, `fes.media.zx81-tape`,
 `fes.media.c64-disk`
 and `fes.media.atari-st-floppy`
-are each unit 0, and a shell declares one of them. The unit must be present
+are each unit 0, and a shell declares one of them; `fes.media.spectrum-disk`
+is unit 1. Each declared unit must be present
 and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
 `FesComputerMediaMaxBytes` (32 MiB); otherwise activation fails as an identity
 mismatch. The runtime does not substitute interface sizes for live Info: an

@@ -1044,6 +1044,7 @@ SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rt
 	cores/fes-spectrum/rtl/spectrum_contention.sv cores/fes-spectrum/rtl/spectrum_ram.v \
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
 	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_snapshot.v \
+	cores/fes-spectrum/rtl/spectrum_beta.sv \
 	cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
 	cores/fes-zx81/expansions/zonx_ay.v $(FES_Z80_NMOS_RTL)

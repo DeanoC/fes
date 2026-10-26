@@ -33,6 +33,7 @@ removable media by unit.
 | fes.memory.hps-ddr | 12 | Reserved DDR window for launcher frames. Advertised only when the boot DDR layout and menu adapters exist |
 | fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
 | fes.media.zx81-tape-write | 14 | Writable extension to the ZX81 tape. Captures the BASIC SAVE image; it does not require a loaded cassette |
+| fes.media.spectrum-disk | 15 | Media unit 1, beside the Spectrum tape: one raw track disk image, 8192..1417216 bytes |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -45,7 +46,8 @@ Each recognized operational interface a core implements must be declared
 required by the manifest and advertised in live identity; live capabilities
 must equal the declared registered set. Unknown required interfaces and
 unsupported versions fail admission; unknown optional interfaces are ignored
-and grant nothing. A shell declares at most one unit-0 media interface.
+and grant nothing. A shell declares at most one unit-0 media interface, and
+the Spectrum disk on unit 1 only beside the Spectrum tape and HPS DDR.
 Expansion interfaces such as `fes.expansion.apple2-bus`,
 `fes.expansion.spectrum-bus`, `fes.expansion.c64-bus` and
 `fes.expansion.atari-st-bus` are manifest-only
@@ -266,6 +268,39 @@ from `.z80`, `.sna` and `.szx` snapshots; the FES Spectrum README describes the 
 
 A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
 floppy, or the ZX81 tape, and only one unit-0 media interface.
+
+### fes.media.spectrum-disk 1.0
+
+Unit 1, beside a `fes.media.spectrum-tape` cassette on unit 0; the shell
+must also declare `fes.memory.hps-ddr`, and keeps the image there. The unit
+accepts 8,192..1,417,216 bytes: a raw track image of 8 KiB slots, read by the
+core's floppy controller as a drive reads the disk under its head. Slot 0 is
+the header: `ZXDK`, version 1, cylinders (1..86), sides (1 or 2) and a flags
+byte (bit 0 write protect, bit 1 boot), zero to the end of the slot.
+Cylinder `c`, side `s` is slot `1 + 2c + s`. A track slot holds the track's
+length in bytes (little endian, 1..6912; 0 is unformatted) in bytes 0-1, a
+missing-clock bitmap from byte 16 (bit `i & 7` of byte `16 + i / 8` flags
+track byte `i`, the A1 sync bytes of every MFM address mark) and the track's
+bytes from byte 1024, starting at the index hole. An image may end after its
+last formatted slot; a slot past the end is unformatted.
+
+A host sets the boot flag on the image it inserts for a launch: a core that
+finds it when the disk becomes ready resets the machine into its disk system
+and boots the disk. A disk inserted while the machine runs leaves it clear and
+is only a new medium. FogCast's `internal/spectrumdisks` writes the image
+from `.trd` and `.scl` TR-DOS disks, building their tracks as Fuse 1.6.0's
+`disk.c` does.
+
+The interface says nothing about the controller. A package declares its
+controller with an optional interface that adds no unit and no capability
+bit: `fes.media.spectrum-disk-trdos` 1.0 for a Beta 128 running TR-DOS,
+which hosts feed `.trd` and `.scl` images.
+
+Begin, Chunk, Commit and Eject name the unit as for unit 0, and Info index
+`8..13` reports it. One transfer runs at a time: Begin is refused while a
+transfer to either unit is open, Chunk and Commit must name the unit of the
+open transfer, and Begin words may not change unit. Ejecting one unit leaves
+the other unit's image and open transfer alone.
 
 ### fes.media.zx81-tape 1.0
 

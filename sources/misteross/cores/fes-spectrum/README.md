@@ -9,7 +9,7 @@ This directory builds four described cores from one shell, each on the
 | `fes.spectrum` | 48K | `spectrum-firmware`, 16 KiB | 48 KiB | 224 x 312 = 69,888 T, 3.5 MHz | ULA, from T 14,335 | beeper |
 | `fes.spectrum128` | 128K / +2 | `spectrum128-firmware`, 32 KiB (editor, then 48 BASIC) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | ULA, from T 14,361, odd banks | beeper, AY |
 | `fes.spectrum-plus3` | +2A / +3 (no disk drive) | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
-| `fes.pentagon` | Pentagon 128 | `pentagon-firmware`, 32 KiB (128, then 48 BASIC) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
+| `fes.pentagon` | Pentagon 128 with Beta 128 | `pentagon-firmware`, 48 KiB (128, 48 BASIC, then TR-DOS) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
 
 It follows the Apple II pathfinder: late-bound firmware, removable media while
 the machine runs, and independently linked expansion cards. The original
@@ -161,10 +161,48 @@ a paged Multiface, DivIDE, DivMMC, +D or Opus; active Spectranet paging or its
 programmable trap; an Interface 2 cartridge; or a custom ROM, LEC, ZXATASP or
 ZXCF chunk.
 
+## TR-DOS disks
+
+The Pentagon has a Beta 128 disk interface (`rtl/spectrum_beta.sv`) on
+`fes.media.spectrum-disk` 1.0, media unit 1, beside the cassette, and declares
+`fes.media.spectrum-disk-trdos` 1.0. FogCast converts `.trd` and `.scl`
+images into the unit's raw track image (`internal/spectrumdisks`, also
+`cmd/fes-spectrum-disk`): every track's MFM bytes from the index hole, with
+TR-DOS gaps and 2:1 interleave, as Fuse 1.6.0's `disk.c` builds them. The
+image is kept at HPS DDR window offset 32 MiB, through `fes_media_ddr`'s
+byte fetch port on DDR port 2.
+
+- TR-DOS pages in over the ROM on an opcode fetch from `$3D00-$3DFF` and out on
+  one from `$4000` up, both only while `$7FFD` selects 48 BASIC, as Fuse does.
+  While it is paged, ports `$1F`, `$3F`, `$5F`, `$7F` and `$FF` are the Beta's,
+  over the Kempston port and the Pentagon's `$FF` video read.
+- The FD1793 follows Fuse's `wd_fdc.c` with the Beta wiring: READY and the
+  motor are the head load, which drops 3 s after a command ends; Restore,
+  Seek, Step, Step In/Out with update, 6/12/20/30 ms step rates, verify with a
+  15 ms settle and five revolutions; Read Sector single and multiple with the
+  30 ms E delay; Read Address; Read Track from index to index; Force
+  Interrupt (immediate and at the next index). A Type II or III command on an
+  unloaded head ends at once. The system register selects drive (only A holds
+  a disk; B-D are empty, each keeps its own head position), side, HLT and MFM.
+- Unlike Fuse, which hands the CPU the next byte whenever it reads the data
+  register, the disk turns: one track byte passes the head every 112 T (300
+  rpm on a 6250-byte track), with a 10 ms index pulse, and a byte the CPU has
+  not read when the next arrives sets Lost Data. The controller decodes
+  address marks from the image's missing-clock bits and checks every CRC.
+- The disk is write protected: Write Sector and Write Track end with Write
+  Protect.
+- A reset with a disk inserted selects 48 BASIC and pages TR-DOS in, so TR-DOS
+  boots the disk, as Fuse's disk autoload does; without one the 128 ROM
+  starts with TR-DOS out. The host inserts a launch disk after the machine
+  starts, with the image's boot flag set: when it becomes ready the Beta
+  resets the machine for 64 clocks into that boot. A launch disk without a
+  `boot` program gets Fuse's autoload loader, which runs its first BASIC
+  program. A disk changed while the machine runs only changes the medium.
+
 ## Simulation
 
 ```sh
-make sim-fes-spectrum              # every model's machine, video, board mailbox and DDR tape, deck
+make sim-fes-spectrum              # every model's machine, video, board mailbox and DDR tape, deck, Beta 128
 make sim-fes-spectrum-machine      # diagnostic firmware and snapshot restore on all four models, frame-bank video
 make sim-fes-spectrum-board
 make sim-fes-spectrum-tape
@@ -188,7 +226,18 @@ with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
 register, the paging ports, border, AY registers and all RAM at the first
 fetch from real memory, then that the restored program runs and restores
 again after a machine reset with the snapshot still inserted; each model also
-leaves a stream of a class it cannot run to the deck. The video simulation
+leaves a stream of a class it cannot run to the deck. The Beta 128 simulation
+drives `spectrum_beta` through its ports, as TR-DOS does, against a synthetic
+80-cylinder `.trd` converted with `cmd/fes-spectrum-disk`, from a fetch port
+with varying delay: Restore and Seek with verify and their timing, Read
+Sector on both sides at 112 T a byte, Read Address, Read Track, multi-sector
+reads ending at the track's last sector, Record Not Found after five
+revolutions, Write Protect, Lost Data, a CRC error, a verify on the wrong
+track, Force Interrupt immediately and as the next index pulse ends, an
+empty drive B, a Type II command on an unloaded head, the head unloading
+after 3 s and the launch image's boot pulse. A mailbox simulation checks the Pentagon's two units: each unit's Info, a
+transfer to each, transfers bound to their unit and one at a time, and an
+eject of one unit leaving the other alone. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
 `top.v` through the mailbox and a model of the fpga2sdram ports
@@ -211,7 +260,9 @@ ROM file, a machine state converted from a `.sna` or `.z80` snapshot by
 `sim/spectrum_state.py` and a PZX tape (`--tape`), reports when the tape
 starts and stops, presses keys by frame, writes captured frames as PNG
 and palette-index files and can print an instruction trace with frame T
-states. These are host simulations, not an RBF, timing or kit result.
+states. With `--disk` it inserts a raw track image (with `--disk-frame N`
+at frame N, as a host inserts a launch disk after Start or a disk while the
+machine runs). These are host simulations, not an RBF, timing or kit result.
 
 ## Build variants
 
@@ -231,15 +282,17 @@ after the 52.224, 74.25 and 12.288 MHz domains pass. Synthesis must keep the
 exact block counts per model (firmware lanes, three frame banks, the plane
 FIFO, the CPU-only RAM banks, the tape's prefetch ring and the deck's pulse
 tables as M10K; the screen banks as TDP blocks: 113/16 for the 48K, 193/32
-for the 128K and Pentagon, 225/32 for the +2A/+3), exactly three
+for the 128K, 209/32 for the Pentagon, 225/32 for the +2A/+3), exactly three
 unsigned display-plane DSP products, a read-only plane DDR port 0, the tape
-on port 1 and port 2 tied off. The
+on port 1, and port 2 the Pentagon's disk or tied off. The
 producer checks every pinned socket boundary and admits compiler-inserted
 route-through buffers only at the paired combinational half, with the exact
 physical pin map and a dedicated connection to the boundary flip-flop.
 
-The host seals of all four packages with snapshot loading, with their package
-identities, clock results and resources, and their kit A checks are in
+The host seals of all four packages with TR-DOS disks on the Pentagon, with
+their package identities, clock results and resources, and their kit checks
+are in [the TR-DOS record](../../../../docs/validation/2026-10-25-spectrum-trdos.md);
+snapshot loading is in
 [the snapshot record](../../../../docs/validation/2026-10-25-spectrum-snapshots.md);
 the tape path's design is in
 [the tape record](../../../../docs/validation/2026-10-22-spectrum-tape-ddr.md);
@@ -247,16 +300,17 @@ the models' Fuse timing comparisons are in
 [the models record](../../../../docs/validation/2026-10-22-spectrum-models-seal.md).
 
 Firmware lanes 0-15 are column 5 rows 32-47, 16-23 rows 48-55, 24-31 rows
-73-80 and 32-63 column 14 rows 32-63. Each is a blank 1024x10 M10K with a
+73-80 and 32-63 column 14 rows 32-63; the Pentagon uses lanes 0-47. Each is a blank 1024x10 M10K with a
 registered read address; the lane selector is registered alongside it and the
 output register is stage two. A define, not a generate block, selects the
 lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-The +3 disk drive, TR-DOS, tape write-back, accelerated tape loading
-(#999), saving snapshots, ULAplus, Timex video modes and the IR-register snow
-effect. The previous TV80 shell is recorded in
+The +3 disk drive, TR-DOS disk writes, Beta drives B-D, the Pentagon's
+magic NMI button, tape write-back, accelerated tape loading
+(#999), saving snapshots, ULAplus, Timex video modes and
+the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
 records and the 2026-10-03 native-CPU diagnostics do not accept these models.

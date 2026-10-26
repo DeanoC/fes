@@ -17,12 +17,16 @@ type liveMediaClient interface {
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
 // A .dsk/.do, .d64 or .st name selects the fes.computer disk unit instead; see
-// replaceLiveDisk. A Spectrum tape or snapshot name selects the cassette
-// unit; see replaceLiveCassette. So does no name: a Spectrum cassette
+// replaceLiveDisk. A .trd or .scl name selects the Spectrum disk unit; see
+// replaceLiveSpectrumDisk. A Spectrum tape or snapshot name selects the
+// cassette unit; see replaceLiveCassette. So does no name: a Spectrum cassette
 // inserted by digest, whose content decides between tape and snapshot.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if protocol.AdmitComputerDiskName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
+	}
+	if protocol.AdmitSpectrumDiskName(name) {
+		return s.replaceLiveSpectrumDisk(parent, mediaID, name, b)
 	}
 	if name == "" || protocol.AdmitSpectrumCassetteName(name) {
 		return s.replaceLiveCassette(parent, mediaID, name, b)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
 	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol"
@@ -194,6 +195,14 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		}
 		reader, size = io.NopCloser(bytes.NewReader(stream)), int64(len(stream))
 	}
+	if capability.Interface == protocol.SpectrumDiskInterface() {
+		// A launch disk carries the boot flag: the core boots it once it is in.
+		image, err := spectrumDiskImage(reader, media.Size, true)
+		if err != nil {
+			return nil, err
+		}
+		reader, size = io.NopCloser(bytes.NewReader(image)), int64(len(image))
+	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
 	return &coreEntryMedia{ReadCloser: reader, size: size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil
 }
@@ -233,6 +242,22 @@ func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, read
 		return nil, protocol.CassetteConversionError(err)
 	}
 	return pzx, nil
+}
+
+// spectrumDiskImage reads a stored .trd or .scl image and converts it to the
+// raw track image fes.media.spectrum-disk 1.0 reads, flagged to boot when a
+// launch inserts it. It closes reader.
+func spectrumDiskImage(reader io.ReadCloser, size int64, boot bool) ([]byte, error) {
+	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil || int64(len(data)) != size {
+		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
+	}
+	image, err := spectrumdisks.Convert(data, boot)
+	if err != nil {
+		return nil, protocol.SpectrumDiskConversionError(err)
+	}
+	return image, nil
 }
 
 var snapshotMachineNames = map[spectrumsnapshots.Machine]string{
