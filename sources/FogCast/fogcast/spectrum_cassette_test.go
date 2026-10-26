@@ -95,6 +95,17 @@ func TestSpectrumCassetteStreamPrioritizesValidSnapshotOverTAP(t *testing.T) {
 	}
 }
 
+func TestSpectrumCassetteStreamReportsInvalidSZXAsSnapshot(t *testing.T) {
+	data := szx48()
+	data[6] = 6 // unsupported +3e machine
+	_, err := cassette(t, spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID), data)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest ||
+		!strings.Contains(api.Message, "Spectrum snapshot: .szx snapshot is for the +3e") {
+		t.Fatalf("invalid ZXST error: %v", err)
+	}
+}
+
 func TestSpectrumCassetteStreamRefusesSnapshotsThePackageDoesNotRun(t *testing.T) {
 	for name, tc := range map[string]struct {
 		d    corepackage.Descriptor

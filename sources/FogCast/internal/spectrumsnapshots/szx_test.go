@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -153,6 +154,63 @@ func TestSZXIgnoresIdlePeripherals(t *testing.T) {
 		szxChunk{"TAPE", make([]byte, 40)})
 	m := restore(t, data, Model128K, Machine128K)
 	checkRegisters(t, m, s)
+}
+
+func TestSZXRejectsShortPeripheralFlagWords(t *testing.T) {
+	s := sampleState(Machine128K, rand.New(rand.NewSource(29)))
+	flagSizes := map[string]int{
+		"B128": 4, "IF1\x00": 2, "DIDE": 2, "DMMC": 2,
+		"SNET": 2, "PLSD": 4, "OPUS": 4,
+	}
+	for id, size := range flagSizes {
+		t.Run(strings.TrimRight(id, "\x00"), func(t *testing.T) {
+			data := szx(s, 2, false, szxChunk{id, make([]byte, size-1)})
+			_, err := Read(data)
+			if err == nil || !strings.Contains(err.Error(), "flags are truncated") {
+				t.Fatalf("short %q flags: got %v", id, err)
+			}
+		})
+	}
+}
+
+func TestSZXRejectsSpectranetProgrammableTrap(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(30)))
+	data := szx(s, 1, false, szxChunk{"SNET", binary.LittleEndian.AppendUint16(nil, 1<<2)})
+	_, err := Read(data)
+	if err == nil || !strings.Contains(err.Error(), "programmable trap") {
+		t.Fatalf("Spectranet programmable trap: got %v", err)
+	}
+}
+
+func TestSZXRejectsHaltedZ80R(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(31)))
+	data := szx(s, 1, false)
+	i := bytes.Index(data, []byte("Z80R"))
+	if i < 0 {
+		t.Fatal("missing test Z80R chunk")
+	}
+	data[i+8+34] |= 2 // ZXSTZF_HALTED
+	_, err := Read(data)
+	if err == nil || !strings.Contains(err.Error(), "snapshot is halted") {
+		t.Fatalf("halted Z80R: got %v", err)
+	}
+}
+
+func TestSZXValidatesExactPageZlibChecksum(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(32)))
+	data := szx(s, 1, true)
+	for i := 8; i+8 <= len(data); {
+		n := int(binary.LittleEndian.Uint32(data[i+4:]))
+		if string(data[i:i+4]) == "RAMP" && n >= 4 && binary.LittleEndian.Uint16(data[i+8:])&1 != 0 {
+			data[i+8+n-1] ^= 1 // corrupt the zlib Adler32 trailer
+			if _, err := Read(data); err == nil {
+				t.Fatal("accepted an exact-size RAM page with a bad Adler32 checksum")
+			}
+			return
+		}
+		i += 8 + n
+	}
+	t.Fatal("test snapshot has no compressed RAMP chunk")
 }
 
 func TestSZXRefused(t *testing.T) {

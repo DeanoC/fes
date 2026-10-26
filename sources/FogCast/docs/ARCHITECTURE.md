@@ -816,9 +816,11 @@ stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
 package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
 `-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80`, `.sna` and
 `.szx`;
-the host checks for a valid snapshot before probing tape blocks because TAP
-has no magic header, converts it by `internal/spectrumsnapshots` to the core's
-restore stream, and refuses a snapshot of a machine the package does not run. A shell
+the host checks valid snapshots before probing tape blocks because TAP has no
+magic header, and routes any `ZXST` signature through snapshot conversion even
+when it is invalid so its snapshot error is preserved. The host converts a
+snapshot by `internal/spectrumsnapshots` to the core's restore stream and
+refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are

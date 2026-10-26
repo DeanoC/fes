@@ -153,8 +153,13 @@ model), `fes.media.spectrum-snapshot-128` 1.0 (128K-class models) and
 `fes.media.spectrum-snapshot-plus3` 1.0 (+2A/+3); the host refuses a snapshot
 the package does not run, and the core leaves a stream of another class to
 the deck. IFF2 is restored only as a copy of IFF1, and the T state within the
-frame is not restored. 16K, SamRam, MGT, Scorpion, Didaktik and Timex
-snapshots, and those with the Interface 1 or TR-DOS ROM paged in, are refused.
+frame is not restored. 16K, SamRam, MGT, Scorpion, Didaktik, Timex and
+Spectrum SE snapshots are refused, as are snapshots with the Interface 1 or
+TR-DOS ROM paged in. The `.szx` reader also refuses +3e, 128Ke, Pentagon 512
+or 1024, and NTSC 48K snapshots; halted Z80 state; an enabled ULAplus palette;
+a paged Multiface, DivIDE, DivMMC, +D or Opus; active Spectranet paging or its
+programmable trap; an Interface 2 cartridge; or a custom ROM, LEC, ZXATASP or
+ZXCF chunk.
 
 ## Simulation
 
@@ -250,8 +255,8 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 ## Not implemented
 
 The +3 disk drive, TR-DOS, tape write-back, accelerated tape loading
-(#999), `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
-the IR-register snow effect. The previous TV80 shell is recorded in
+(#999), saving snapshots, ULAplus, Timex video modes and the IR-register snow
+effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
 records and the 2026-10-03 native-CPU diagnostics do not accept these models.

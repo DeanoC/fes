@@ -37,23 +37,24 @@ var szxMachines = map[byte]struct {
 // a ROM other than the machine's own in place, or memory the cores lack. Each
 // test reports whether the chunk's data has that state.
 var szxRefused = map[string]struct {
-	name    string
-	engaged func(data []byte) bool
+	name      string
+	flagsSize int
+	engaged   func(data []byte) bool
 }{
-	"B128":    {"the TR-DOS ROM paged in", func(d []byte) bool { return flags32(d)&4 != 0 }},
-	"IF1\x00": {"the Interface 1 ROM paged in", func(d []byte) bool { return flags16(d)&4 != 0 }},
-	"MFCE":    {"the Multiface ROM paged in", func(d []byte) bool { return len(d) >= 2 && d[1]&1 != 0 }},
-	"PLSD":    {"the +D ROM paged in", func(d []byte) bool { return flags32(d)&1 != 0 }},
-	"OPUS":    {"the Opus Discovery ROM paged in", func(d []byte) bool { return flags32(d)&1 != 0 }},
-	"DIDE":    {"the DivIDE memory paged in", func(d []byte) bool { return flags16(d)&2 != 0 }},
-	"DMMC":    {"the DivMMC memory paged in", func(d []byte) bool { return flags16(d)&2 != 0 }},
-	"SNET":    {"the Spectranet paged in", func(d []byte) bool { return flags16(d)&3 != 0 }},
-	"PLTT":    {"the ULAplus palette enabled", func(d []byte) bool { return len(d) >= 1 && d[0]&1 != 0 }},
-	"IF2R":    {"an Interface 2 cartridge", func([]byte) bool { return true }},
-	"ROM\x00": {"a custom ROM", func([]byte) bool { return true }},
-	"LEC\x00": {"an LEC memory expansion", func([]byte) bool { return true }},
-	"ZXAT":    {"a ZXATASP interface", func([]byte) bool { return true }},
-	"ZXCF":    {"a ZXCF interface", func([]byte) bool { return true }},
+	"B128":    {name: "the TR-DOS ROM paged in", flagsSize: 4, engaged: func(d []byte) bool { return flags32(d)&4 != 0 }},
+	"IF1\x00": {name: "the Interface 1 ROM paged in", flagsSize: 2, engaged: func(d []byte) bool { return flags16(d)&4 != 0 }},
+	"MFCE":    {name: "the Multiface ROM paged in", engaged: func(d []byte) bool { return len(d) >= 2 && d[1]&1 != 0 }},
+	"PLSD":    {name: "the +D ROM paged in", flagsSize: 4, engaged: func(d []byte) bool { return flags32(d)&1 != 0 }},
+	"OPUS":    {name: "the Opus Discovery ROM paged in", flagsSize: 4, engaged: func(d []byte) bool { return flags32(d)&1 != 0 }},
+	"DIDE":    {name: "the DivIDE memory paged in", flagsSize: 2, engaged: func(d []byte) bool { return flags16(d)&2 != 0 }},
+	"DMMC":    {name: "the DivMMC memory paged in", flagsSize: 2, engaged: func(d []byte) bool { return flags16(d)&2 != 0 }},
+	"SNET":    {name: "Spectranet paging or its programmable trap is engaged", flagsSize: 2, engaged: func(d []byte) bool { return flags16(d)&7 != 0 }},
+	"PLTT":    {name: "the ULAplus palette enabled", engaged: func(d []byte) bool { return len(d) >= 1 && d[0]&1 != 0 }},
+	"IF2R":    {name: "an Interface 2 cartridge", engaged: func([]byte) bool { return true }},
+	"ROM\x00": {name: "a custom ROM", engaged: func([]byte) bool { return true }},
+	"LEC\x00": {name: "an LEC memory expansion", engaged: func([]byte) bool { return true }},
+	"ZXAT":    {name: "a ZXATASP interface", engaged: func([]byte) bool { return true }},
+	"ZXCF":    {name: "a ZXCF interface", engaged: func([]byte) bool { return true }},
 }
 
 func flags16(d []byte) uint16 {
@@ -130,8 +131,13 @@ func readSZX(data []byte) (*Snapshot, error) {
 		}
 		body := rest[8 : 8+n]
 		rest = rest[8+n:]
-		if refused, ok := szxRefused[id]; ok && refused.engaged(body) {
-			return nil, fmt.Errorf(".szx snapshot has %s", refused.name)
+		if refused, ok := szxRefused[id]; ok {
+			if len(body) < refused.flagsSize {
+				return nil, fmt.Errorf(".szx chunk %q flags are truncated", id)
+			}
+			if refused.engaged(body) {
+				return nil, fmt.Errorf(".szx snapshot has %s", refused.name)
+			}
 		}
 		switch id {
 		case "CRTR":
@@ -150,6 +156,10 @@ func readSZX(data []byte) (*Snapshot, error) {
 	}
 	if len(regs) != 37 {
 		return nil, errors.New(".szx has no Z80R register chunk of 37 bytes")
+	}
+	// ZXSTZF_HALTED is not represented by the restore stream.
+	if regs[34]&2 != 0 {
+		return nil, errors.New(".szx snapshot is halted; the restore stream cannot preserve HALT")
 	}
 	if len(spcr) != 8 {
 		return nil, errors.New(".szx has no SPCR chunk of 8 bytes")
@@ -213,8 +223,20 @@ func readRAMP(s *Snapshot, body []byte) error {
 		if err != nil {
 			return fmt.Errorf(".szx RAM page %d: %w", page, err)
 		}
-		if raw, err = io.ReadAll(io.LimitReader(z, bankBytes+1)); err != nil {
+		if raw, err = io.ReadAll(io.LimitReader(z, bankBytes)); err != nil {
 			return fmt.Errorf(".szx RAM page %d: %w", page, err)
+		}
+		if len(raw) == bankBytes {
+			// Consume once beyond the page to force zlib to verify its Adler32
+			// trailer when decompression ended at exactly bankBytes.
+			var extra [1]byte
+			n, readErr := io.ReadFull(z, extra[:])
+			if n != 0 {
+				return fmt.Errorf(".szx RAM page %d holds more than 16384 bytes", page)
+			}
+			if readErr != io.EOF {
+				return fmt.Errorf(".szx RAM page %d: %w", page, readErr)
+			}
 		}
 	}
 	if len(raw) != bankBytes {
