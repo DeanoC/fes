@@ -224,7 +224,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   press and return to centre share one poll; d-pad input reaches a running
   local core while the menu is suppressed. Automatic gamepad discovery requires
   a readable physical bus and device name; it rejects unknown and virtual
-  gamepad identities. Build using
+  gamepad identities. A paired Bluetooth HID or HoG pad is an evdev node on
+  that bus: hold the controller pair button and the kit initiates pairing,
+  while its adapter stays non-pairable and non-discoverable to nearby devices.
+  BlueZ link keys live on the FESDATA3 ext4 partition at
+  `/run/fogcast/fesdata3/bluetooth`, not on FAT. Build using
   `CGO_ENABLED=0 go build ./cmd/fogcast-tenfoot`; see the
   [Linux framebuffer guide](docs/native-tenfoot-launcher/LINUX.md#framebuffer-without-sdl).
   `fogcast-tenfoot -gfx menu-display` runs that same app and evdev input through
