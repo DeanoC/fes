@@ -16,8 +16,13 @@
 //   WB  in-order commit, stores included
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
-// F1 from WB and flushes every younger uop, which costs 10 cycles. No stage
-// behind D holds, so D's forwarding tables only need clearing on a flush.
+// F1 from WB and flushes every younger uop, which costs 10 cycles.
+//
+// A load whose bytes have not arrived when it is in M2 freezes D to WB: every
+// stage behind DC keeps its uop, and nothing retires, until they do (freeze).
+// Nothing moves relative to anything else, so the forwarding distances, AG's
+// late operands, the store merge and D's forwarding tables all hold as they
+// are; the tables only need clearing on a flush.
 //
 // A fault (#UD, #GP(0), #SS(0)) or an encoding this build does not implement stops
 // the CPU at WB with nothing retired, and so does HLT after it retires;
@@ -44,13 +49,15 @@ module fes_i386_cpu (
     input  logic [15:0][7:0] mem_data,
     input  logic             mem_valid,
     // Data: the L1D's output for now, an M10K-like port. M1 drives a load's
-    // address, the port registers it on the edge, and the 8 bytes from the
-    // address's dword arrive in M2. A retiring store writes the bytes
-    // dmem_wmask names, from its address's dword, on the edge it retires.
-    // The port reads before it writes on the same edge.
+    // address, the port registers it on the edge M1 advances, and the 8 bytes
+    // from the address's dword, as memory held them on that edge, arrive in
+    // M2 once dmem_valid says so. A retiring store writes the bytes dmem_wmask
+    // names, from its address's dword, on the edge it retires. The port reads
+    // before it writes on the same edge.
     output logic [31:0]      dmem_addr,
     output logic             dmem_read,
     input  logic [7:0][7:0]  dmem_rdata,
+    input  logic             dmem_valid,
     output logic             dmem_write,
     output logic [31:0]      dmem_waddr,
     output logic [7:0][7:0]  dmem_wdata,
@@ -97,7 +104,15 @@ module fes_i386_cpu (
     // flushes everything younger.
     assign wb_stop = wb_s.valid && (wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                                     || (wb_s.uop.cls == fes_i386_pkg::UOP_SPECIAL && wb_s.uop.op == 5'd1));
-    assign wb_flush = wb_s.valid && wb_s.taken || wb_stop;
+
+    // A load in M2 waiting for its bytes freezes D to WB (m2_load: M2 holds a
+    // load, registered as it enters; one that fails the limit check in M1
+    // waits too, then faults). WB waits as well, so a taken branch or a fault
+    // there takes effect, and flushes, once the bytes arrive, even when the
+    // load is on the wrong path.
+    logic freeze, m2_load;
+    assign freeze = m2_load && !dmem_valid;
+    assign wb_flush = !freeze && (wb_s.valid && wb_s.taken || wb_stop);
 
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
@@ -114,7 +129,7 @@ module fes_i386_cpu (
         end
         start_linear <= seg_base[SEG_CS] + eip;
     end
-    assign redirect = start == 2'd2 || (wb_s.valid && wb_s.taken);
+    assign redirect = start == 2'd2 || (!freeze && wb_s.valid && wb_s.taken);
     assign redirect_linear = start == 2'd2 ? start_linear : wb_s.target;
     assign redirect_eip = start == 2'd2 ? eip : wb_s.target_eip;
 
@@ -253,7 +268,7 @@ module fes_i386_cpu (
     logic [2:0]  a_dist, b_dist, c_dist;
     fes_i386_dops dops (
         .clk, .reset(reset || wb_flush), .a_reg(u.src1.index[2:0]), .b_reg(u.src2.index[2:0]), .d_writes,
-        .d_dst(u.dst.index[2:0]), .d_early(lea && lea_early), .advance(issue), .prod_valid, .prod_dst,
+        .d_dst(u.dst.index[2:0]), .d_early(lea && lea_early), .advance(issue), .hold(freeze), .prod_valid, .prod_dst,
         .prod_early, .gpr, .stage_value, .a(a_val), .b(b_val), .c(c_val), .pend_a(a_pend), .pend_b(b_pend),
         .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist)
     );
@@ -265,7 +280,7 @@ module fes_i386_cpu (
     fes_i386_dfwd dfwd (
         .clk, .reset(reset || wb_flush), .has_base(addr_use && dc.has_base), .base(dc.base),
         .has_index(addr_use && dc.has_index), .index(dc.index), .scale(dc.scale), .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
-        .d_kind(lea && lea_early ? EARLY : LATE), .advance(issue), .prod_valid, .prod_dst, .prod_kind, .gpr,
+        .d_kind(lea && lea_early ? EARLY : LATE), .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .gpr,
         .stage_value, .row, .last, .late, .late_hi, .stall(lea_stall)
     );
 
@@ -300,12 +315,12 @@ module fes_i386_cpu (
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
     // fault or HLT stops the CPU.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard;
+                && !store_hazard && !flag_hazard && !freeze;
 
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             d_seg_busy <= 6'd0;
-        end else begin
+        end else if (!freeze) begin
             for (int k = 0; k < 6; k++)
                 d_seg_busy[k] <= (issue && u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k))
                                 || writes_seg(ag_s, k) || writes_seg(m1_s, k) || writes_seg(m2_s, k) || writes_seg(ex_s, k);
@@ -349,10 +364,12 @@ module fes_i386_cpu (
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             ag_s.valid <= 1'b0;
-        end else begin
+        end else if (!freeze) begin
             ag_s <= d_out;
         end
-        if (addr_use) begin
+        if (freeze) begin
+            // AG keeps its uop's operands.
+        end else if (addr_use) begin
             // LEA's offset, or a memory operand's address: its segment's
             // base, wrapped like the offset by address size.
             ag_addr32 <= u.mem.addr32;
@@ -410,7 +427,7 @@ module fes_i386_cpu (
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             m1_s.valid <= 1'b0;
-        end else begin
+        end else if (!freeze) begin
             m1_s <= ag_out;
         end
     end
@@ -435,7 +452,7 @@ module fes_i386_cpu (
                                                                            : fes_i386_pkg::FAULT_GP0;
     end
     assign dmem_addr = m1_s.maddr;
-    assign dmem_read = m1_s.valid && reads_mem(m1_s);
+    assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze;
 
     // Stores older than the load that have not written when the port reads:
     // the store now in EX, which will be in WB when the load is in M2, and
@@ -445,7 +462,7 @@ module fes_i386_cpu (
     // M1 takes each one's distance from the load's address; M2 decodes it.
     logic [31:0] m2_dw, m2_dr;  // the load's address less the store's
     logic        m2_vw, m2_vr;
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk) if (!freeze) begin
         m2_dw <= m1_s.maddr - ex_s.maddr;
         m2_dr <= m1_s.maddr - wb_s.maddr;
         m2_vw <= ex_s.valid && writes_mem(ex_s);
@@ -501,9 +518,11 @@ module fes_i386_cpu (
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             m2_s.valid <= 1'b0;
+            m2_load <= 1'b0;
             ex_s.valid <= 1'b0;
-        end else begin
+        end else if (!freeze) begin
             m2_s <= m1_out;
+            m2_load <= m1_s.valid && reads_mem(m1_s) && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
             ex_s <= m2_out;
         end
     end
@@ -567,6 +586,8 @@ module fes_i386_cpu (
     always_ff @(posedge clk) begin
         if (reset) begin
             ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
+        end else if (freeze) begin
+            // EX's running copy waits with the uops.
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
         end else begin
@@ -574,7 +595,7 @@ module fes_i386_cpu (
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
-        end else begin
+        end else if (!freeze) begin
             wb_s <= ex_out;
         end
     end
@@ -587,14 +608,14 @@ module fes_i386_cpu (
     // A store writes its bytes on the edge it retires: the result's low
     // bytes, moved to the address's place in its dword and the next.
     logic wb_store;
-    assign wb_store = wb_s.valid && !reset && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
+    assign wb_store = wb_s.valid && !reset && !freeze && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
     assign dmem_write = wb_store;
     assign dmem_waddr = wb_s.maddr;
     always_comb begin
         dmem_wdata = 64'(wb_s.result) << {wb_s.maddr[1:0], 3'b000};
         dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_s.maddr[1:0];
     end
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk) if (reset || !freeze) begin
         rt_valid <= wb_store;
         rt_data <= wb_s.result;
         rt_bytes <= wb_s.uop.mem.bytes;
@@ -622,7 +643,7 @@ module fes_i386_cpu (
             trace_fault <= 1'b0;
             trace_vector <= 8'd0;
             trace_unimplemented <= 1'b0;
-        end else if (wb_s.valid && !halted) begin
+        end else if (wb_s.valid && !halted && !freeze) begin
             if (wb_fault != 3'd0) begin
                 halted <= 1'b1;
                 trace_fault <= wb_fault != 3'd4;

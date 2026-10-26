@@ -341,7 +341,8 @@ def main() -> int:
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'retire_limits', 'smc_stops')}) for result in random_results), Counter())
+                                   'retire_limits', 'smc_stops', 'load_wait_cycles')}) for result in random_results),
+                         Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
@@ -379,7 +380,8 @@ def main() -> int:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
               f"faulting, {random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
-              f"store into their code), {random_totals['failed']} fail; "
+              f"store into their code; {random_totals['load_wait_cycles']} cycles waiting for a load's bytes), "
+              f"{random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
         def share(histogram: dict, cycles: int) -> str:

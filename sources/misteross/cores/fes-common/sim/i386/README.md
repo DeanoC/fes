@@ -237,11 +237,11 @@ oracle's exception frames included, is cleared after the run.
 The RTL starts each run from the state its `init_*` ports load at reset. Its
 memory model serves the fetch port with a random 0-12 cycle delay per block
 and garbage on the port until the block arrives
-(`FES_I386_LATENCY=1`, the default). The data port has a fixed latency for
-now: a load's bytes arrive the cycle after M1 sends its address, read before
-the store retiring on that edge writes. The model's `Latency` port class is
-what the data port takes once stages behind D can hold, and what later
-slices' MMIO and I/O ports take.
+(`FES_I386_LATENCY=1`, the default), and the data port the same per load:
+a load's bytes are memory as it was on the edge M1 sent the address, read
+before the store retiring on that edge writes, with garbage on the port until
+they arrive. The random runs report the cycles spent waiting for them. The
+model's `Latency` port class is what later slices' MMIO and I/O ports take.
 
 Where the oracle and SingleStepTests disagree, [`divergences.toml`](divergences.toml)
 says which side the FES CPU follows. For an entry that follows the corpus,

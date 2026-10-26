@@ -9,8 +9,10 @@
 //
 // The data port reads an L1D model: two M10K banks of even and odd dwords
 // (4 KiB), written by the stimulus and read with the address registered on
-// the edge, so a load's 8 bytes arrive in M2 as the L1D's data will. The
-// CPU's stores feed the signature.
+// the edge, so a load's 8 bytes arrive in M2 as the L1D's data will.
+// dmem_valid is a registered stimulus bit, as mem_valid is, so loads wait
+// and the CPU freezes without the L1D's own miss path. The CPU's stores feed
+// the signature.
 //
 // The reset state comes from the stimulus too, so CS's base and every
 // register stay variables as later far transfers will make them. Every
@@ -71,7 +73,7 @@ module spike_cpu (
 
     // L1D model.
     logic [31:0]      dmem_addr, dmem_waddr;
-    logic             dmem_read, dmem_write;
+    logic             dmem_read, dmem_write, dmem_valid;
     logic [7:0][7:0]  dmem_rdata, dmem_wdata;
     logic [7:0]       dmem_wmask;
     logic [31:0]      l1d_even [0:511];
@@ -99,6 +101,7 @@ module spike_cpu (
     logic [5:0][31:0] init_base, init_limit;
     always_ff @(posedge clk) begin
         mem_valid <= |noise[372:370];
+        dmem_valid <= |noise[375:373];
         if (reset) begin
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
@@ -119,7 +122,7 @@ module spike_cpu (
 
     fes_i386_cpu dut (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
-        .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_write, .dmem_waddr,
+        .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
         .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
         .trace_unimplemented, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );

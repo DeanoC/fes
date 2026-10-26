@@ -18,11 +18,10 @@
 // writes the opcode-class entries to FES_I386_DIVERGENCES, one per line:
 //   <id> <corpus|oracle> <stem,...|*> <predicate,...|-> <field,...>
 //
-// The memory model delays each fetch block by a random 0-12 cycles when
-// FES_I386_LATENCY=1 (the default); latency must never change a result. The
-// data port has a fixed latency for now: a load's bytes arrive the cycle
-// after M1 sends its address, read before the store retiring on that edge
-// writes.
+// The memory model delays each fetch block, and each load's bytes, by a
+// random 0-12 cycles when FES_I386_LATENCY=1 (the default); latency must
+// never change a result. A load's bytes are memory as it was on the edge M1
+// sent the address, read before the store retiring on that edge writes.
 //
 // Modes (FES_I386_MODE):
 //   corpus  SingleStepTests/80386 states on stdin, one per line, in the format
@@ -114,8 +113,9 @@ public:
 
     Vfes_i386_cpu top;
     std::vector<uint8_t> ram;
-    Latency fetch;
+    Latency fetch, data;
     uint64_t cycles = 0;
+    uint64_t load_waits = 0;  // cycles a load's bytes were late
     std::set<uint32_t> step_writes;  // bytes written since the last next()
     std::set<uint32_t> written;      // bytes either side wrote since the run began, to clear after it
 
@@ -131,7 +131,9 @@ public:
             set16(top.init_ar, n, s.seg[n].ar);
         }
         fetch.waiting = 0;
+        data.waiting = 0;
         top.mem_valid = 1;
+        top.dmem_valid = 1;
         step_writes.clear();
         top.reset = 1;
         for (int n = 0; n < 3; ++n) clock();
@@ -149,17 +151,25 @@ public:
         const uint8_t wmask = top.dmem_wmask;
         top.clk = 1;
         top.eval();
-        // The data port reads, then the retiring store writes.
+        // The data port reads, then the retiring store writes. Until a load's
+        // bytes arrive the port carries garbage.
         if (dread) {
             uint64_t value = 0;
             for (int i = 0; i < 8; ++i) {
                 const uint64_t at = uint64_t(daddr) + i;
                 value |= uint64_t(at < RAM_BYTES ? ram[at] : 0xff) << (8 * i);
             }
-            top.dmem_rdata = value;
+            loaded = value;
+            data.request();
             if (std::getenv("FES_I386_VERBOSE"))
                 std::fprintf(stderr, "  read %x -> %016llx\n", daddr, (unsigned long long)value);
         }
+        else {
+            data.tick();
+        }
+        top.dmem_valid = data.ready();
+        load_waits += !data.ready();
+        top.dmem_rdata = data.ready() ? loaded : (uint64_t((*data.random)()) << 32 | uint32_t((*data.random)()));
         if (dwrite && std::getenv("FES_I386_VERBOSE"))
             std::fprintf(stderr, "  write %x mask %02x data %016llx\n", waddr, wmask, (unsigned long long)wdata);
         if (dwrite) {
@@ -224,6 +234,7 @@ public:
 
 private:
     uint32_t address = 0;
+    uint64_t loaded = 0;  // the bytes the last load read
 
     template <typename W> static void set16(W &wide, int n, uint16_t value) {
         uint32_t &word = wide[n / 2];
@@ -481,6 +492,7 @@ struct Summary {
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
         gap_address, gap_after_segment;
     uint64_t smc = 0;  // runs stopped at a store into their own code
+    uint64_t load_waits = 0;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1298,6 +1310,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         }
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
+        summary.load_waits += rtl.load_waits;
+        rtl.load_waits = 0;
         for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = 0;
         oracle.invalidate(base, uint32_t(code.size()));
         for (uint32_t address : rtl.written) {
@@ -1370,7 +1384,7 @@ int main(int argc, char **argv) {
     VerilatedContext context;
     Rtl rtl(context);
     std::mt19937_64 latency_random(seed * 7919 + 17);
-    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = &latency_random;
+    if (env("FES_I386_LATENCY", 1)) rtl.fetch.random = rtl.data.random = &latency_random;
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
@@ -1404,7 +1418,8 @@ int main(int argc, char **argv) {
         divergences += (divergences.empty() ? "" : ", ") + std::string("\"") + id + "\": " + std::to_string(count);
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
-                "\"retire_limits\": %llu, \"smc_stops\": %llu, \"divergence_retirements\": {%s}, "
+                "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, "
+                "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
@@ -1414,7 +1429,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.limits,
-                (unsigned long long)summary.smc, divergences.c_str(), (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
+                (unsigned long long)summary.smc, (unsigned long long)summary.load_waits, divergences.c_str(),
+                (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
                 histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
                 histogram(summary.gap_selector).c_str(), histogram(summary.gap_after_taken).c_str(),
                 histogram(summary.gap_after_not_taken).c_str(), histogram(summary.gap_shift_consumer).c_str(),
