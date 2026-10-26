@@ -67,6 +67,7 @@ module fes_i386_cpu (
     output logic             trace_fault,          // ... a fault, which is not delivered yet
     output logic [7:0]       trace_vector,
     output logic             trace_unimplemented,  // ... on an encoding not built yet
+    output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
     output logic [31:0]      arch_eip,
@@ -101,7 +102,7 @@ module fes_i386_cpu (
 
     // ---- Pipeline registers -------------------------------------------------------
     pipe_t ag_s, m1_s, m2_s, ex_s, wb_s;
-    logic  wb_flush, wb_stop;
+    logic  wb_flush, wb_stop, halted;
     // A uop that retires, faults or stops in WB this cycle, and whether it
     // flushes everything younger.
     assign wb_stop = wb_s.valid && (wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
@@ -131,17 +132,19 @@ module fes_i386_cpu (
         end
         start_linear <= seg_base[SEG_CS] + eip;
     end
-    assign redirect = start == 2'd2 || (!freeze && wb_s.valid && wb_s.taken);
+    assign redirect = start == 2'd2 || (!freeze && wb_s.valid && wb_s.taken
+                                         && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE);
     assign redirect_linear = start == 2'd2 ? start_linear : wb_s.target;
     assign redirect_eip = start == 2'd2 ? eip : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
-    logic     q_valid, d_ready;
+    logic     q_valid, d_ready, fe_mem_load;
     fetched_t q;
     fes_i386_frontend frontend (
-        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load, .mem_data, .mem_valid,
+        .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load(fe_mem_load), .mem_data, .mem_valid,
         .q_valid, .q, .d_ready
     );
+    assign mem_load = fe_mem_load && !halted && !wb_stop;
 
     // ---- DC ---------------------------------------------------------------------
     // Q's output register is decoded into a two-entry buffer: dc holds the
@@ -227,6 +230,20 @@ module fes_i386_cpu (
     assign wrap16 = past && !seg_cs_ffff;
     assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {15'd0, eip16};
 
+    // A 32-bit near CALL in 16-bit code does not truncate its target. Check it
+    // on the first (push) uop so an out-of-limit target faults before WB can
+    // commit the return-address store or ESP update. The low-word carry feeds
+    // the high-word sum; the two sums run in parallel.
+    logic [16:0] call_target_low;
+    logic [15:0] call_target_high;
+    logic        call_target_past, call_target_gp, call_target_unimpl;
+    assign call_target_low = {1'b0, d_eip_next[15:0]} + {1'b0, dc.uop.imm[15:0]};
+    assign call_target_high = dc.uop.imm[31:16] + d_eip_next[31:16] + {15'd0, call_target_low[16]};
+    assign call_target_past = dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0 && dc.opsize32 && !code32
+                           && call_target_high != 16'd0;
+    assign call_target_gp = call_target_past && seg_cs_ffff;
+    assign call_target_unimpl = call_target_past && !seg_cs_ffff;
+
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
@@ -277,7 +294,7 @@ module fes_i386_cpu (
     assign mseg = 3'(dc.uop.mem.seg);
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
-    assign d_unimpl = wrap16 || (mem && expand_down);
+    assign d_unimpl = wrap16 || (mem && expand_down) || call_target_unimpl;
 
     // A far transfer's selector and offset, from the instruction or from T0
     // and T1. In 16-bit code an offset past CS's limit raises #GP(0) at the
@@ -296,7 +313,7 @@ module fes_i386_cpu (
         if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
         if (far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
-        if (cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+        if (cs_gp || call_target_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
     end
     assign opsize32 = dc.opsize32;
     assign lea = dc.lea;
@@ -308,7 +325,7 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || d_unimpl || cs_gp || far_bad;
+    assign stop = dc.stop || d_unimpl || cs_gp || far_bad || call_target_gp;
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -412,7 +429,8 @@ module fes_i386_cpu (
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
     // fault or HLT stops the CPU.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze;
+                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze && !halted && !wb_stop;
+    assign trace_issue = issue;
 
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -590,7 +608,7 @@ module fes_i386_cpu (
                                                                            : fes_i386_pkg::FAULT_GP0;
     end
     assign dmem_addr = m1_s.maddr;
-    assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze;
+    assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze && !halted && !wb_stop;
 
     // Stores older than the load that have not written when the port reads:
     // the store now in EX, which will be in WB when the load is in M2, and
@@ -714,7 +732,6 @@ module fes_i386_cpu (
         ex_out = ex_s;
         ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
-        ex_out.taken = ex_taken;
         // RET and JMP r/m: EX's adder gives the target.
         if (ex_s.exc.b_ind) begin
             ex_out.target = ex_ind_target;
@@ -726,6 +743,9 @@ module fes_i386_cpu (
         if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
             && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        // A faulting branch terminates the pipeline without redirecting to its
+        // rejected target. This also covers faults already found in M1.
+        ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
@@ -751,7 +771,6 @@ module fes_i386_cpu (
     end
 
     // ---- WB -----------------------------------------------------------------------
-    logic halted;
     logic [2:0] wb_fault;
     // The segment register WB writes: the destination, or a second one with
     // the selector in T0 (a far pointer load) or c.

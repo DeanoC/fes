@@ -20,8 +20,8 @@
 //
 // ESP has a second kind of producer: a stack operation writes it early from
 // AG (prod_sp), not as its destination. D does not read ESP as data while
-// such a producer is in AG (fes_i386_cpu), so the table needs no AG entry
-// for it.
+// such a producer is in AG (fes_i386_cpu). Once it reaches M1, prod_sp[0]
+// records it in this table as the early ESP value that will reach WB.
 //
 // The table follows the pipeline, as fes_i386_dfwd's does. D to WB only
 // ever hold together (hold), when nothing moves, so the table keeps its
