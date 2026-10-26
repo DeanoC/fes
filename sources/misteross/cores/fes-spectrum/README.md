@@ -121,8 +121,8 @@ end of the tape stops and rewinds it. MIC writes are not returned to the host.
 
 ## Snapshots
 
-The cassette unit also loads `.z80` (versions 1-3) and `.sna` (48K and 128K)
-snapshots. The host converts a snapshot into a restore stream (FogCast
+The cassette unit also loads `.z80` (versions 1-3), `.sna` (48K and 128K)
+and `.szx` (ZX-State 1.x, as Fuse writes it) snapshots. The host converts a snapshot into a restore stream (FogCast
 `internal/spectrumsnapshots`, also `cmd/fes-spectrum-restore`): an 8-byte
 header, `ZXRS`, version 1, the snapshot's class (0 48K, 1 128K, 2 +2A/+3)
 and two zero bytes, followed by Z80 code. `rtl/spectrum_snapshot.v` reads the

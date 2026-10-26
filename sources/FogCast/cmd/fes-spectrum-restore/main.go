@@ -1,4 +1,4 @@
-// fes-spectrum-restore writes the restore stream that loads a .z80 or .sna
+// fes-spectrum-restore writes the restore stream that loads a .z80, .sna or .szx
 // snapshot on a Spectrum core, as the host does when the snapshot is inserted.
 // The Spectrum simulations use it.
 package main

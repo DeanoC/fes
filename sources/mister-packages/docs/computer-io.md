@@ -262,7 +262,7 @@ bit: they say that this unit also runs restore streams for 48K, 128K and
 (0, 1 or 2) and two zero bytes; the core resets the machine and serves every
 CPU memory read from the stream's following bytes until the last one, then
 fetches from real memory. FogCast's `internal/spectrumsnapshots` writes it
-from `.z80` and `.sna` snapshots; the FES Spectrum README describes the code.
+from `.z80`, `.sna` and `.szx` snapshots; the FES Spectrum README describes the code.
 
 A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
 floppy, or the ZX81 tape, and only one unit-0 media interface.
