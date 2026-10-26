@@ -149,11 +149,14 @@ module fes_i386_cpu (
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
     // D's EIP is the faulting instruction's, cut to 16 bits: the IP the
-    // routine pushes, which D's CS-limit check then passes.
-    assign redirect = start == 2'd2 || exc_take || (!freeze && wb_s.valid && wb_s.taken
-                                                    && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE);
-    assign redirect_linear = start == 2'd2 || exc_take ? start_linear : wb_s.target;
-    assign redirect_eip = start == 2'd2 ? eip : exc_take ? {16'd0, eip[15:0]} : wb_s.target_eip;
+    // routine pushes, which D's CS-limit check then passes. The address
+    // selects key on WB's fault field, a register (a taken branch has none),
+    // so the fetch address stays off exc_take's path.
+    logic wb_faulted;
+    assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
+    assign redirect = start == 2'd2 || exc_take || (!freeze && wb_s.valid && wb_s.taken && !wb_faulted);
+    assign redirect_linear = start == 2'd2 || wb_faulted ? start_linear : wb_s.target;
+    assign redirect_eip = start == 2'd2 ? eip : wb_faulted ? {16'd0, eip[15:0]} : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
     logic     q_valid, d_ready, fe_mem_load;
@@ -763,8 +766,8 @@ module fes_i386_cpu (
     // and a flush only kills uops younger than WB, which have not. A shift
     // in WB still owes its flags (wb_flags): ex_flags lacks them for that
     // cycle, which no flag reader sees (flag_hazard), and takes them at its
-    // end. A faulting uop has passed EX too, but its flags never retire, so
-    // its delivery starts from WB's EFLAGS.
+    // end. A faulting uop changes nothing in EX (fes_i386_ex), so an
+    // exception's delivery starts from the flags before it.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
@@ -837,7 +840,7 @@ module fes_i386_cpu (
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
         end else begin
-            ex_flags <= exc_take ? eflags : flags_keep;
+            ex_flags <= flags_keep;
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
