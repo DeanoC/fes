@@ -29,6 +29,7 @@ module fes_i386_decode (
     output logic                   lea_early,   // ... and the offset is the whole result (32-bit LEA)
     output logic [31:0]            lea_disp,    // zero-extended from 16 bits when !addr32
     output logic                   branch,      // AG computes the target from EIP + length + imm
+    output logic                   consumes,    // the result depends on the old flags
     output logic                   reads_seg,   // b is the selector of segment seg_index
     output logic [2:0]             seg_index,
     output logic                   stop         // nothing after this uop can retire: HLT or a fault
@@ -54,6 +55,18 @@ module fes_i386_decode (
     assign opsize32 = code32 ^ q.prefixes.opsize;
     assign addr32 = code32 ^ q.prefixes.adsize;
     assign osz = opsize32 ? 2'd2 : 2'd1;
+
+    // A flag consumer: ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE,
+    // LOOPNE. Straight from the opcode and ModRM bytes, not through the
+    // decode below, because D's issue waits on it (fes_i386_cpu); a superset
+    // here would hold instructions needlessly, which the lockstep's gap check
+    // catches. by[1][5:4] == 01 is ModRM reg 2 or 3.
+    assign consumes = (b0[7:6] == 2'b00 && b0[2:1] != 2'b11 && b0[5:4] == 2'b01)  // ADC, SBB r/m and acc
+                   || (b0[7:2] == 6'b100000 && by[1][5:4] == 2'b01)               // ADC, SBB r/m, imm
+                   || ((b0[7:1] == 7'b1100000 || b0[7:2] == 6'b110100) && by[1][5:4] == 2'b01)  // RCL, RCR
+                   || b0[7:4] == 4'h7                                             // Jcc rel8
+                   || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
+                   || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000;        // LAHF, CMC, LOOPNE, LOOPE
 
     // Immediates: after ModRM in a register form, or straight after the opcode.
     logic [31:0] imm8_m, imm8s_m, immz_m, imm8_o, rel8, relz1, relz2, imm8_m2;

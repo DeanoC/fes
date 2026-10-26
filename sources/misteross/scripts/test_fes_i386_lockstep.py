@@ -192,6 +192,14 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
     return output / ('V' + TOP)
 
 
+def flag_hold_failures(gaps: dict) -> list[str]:
+    """D's flag hold, cycle-exactly: without latency a flag consumer right
+    after a shift or rotate retires two cycles after it, anything else one."""
+    return [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
+            for key, expected in (('shift_consumer', 2), ('after_shift', 1))
+            for gap, count in gaps[key].items() if gap != expected]
+
+
 def parse_output(text: str) -> tuple[dict, list[str]]:
     summary, failures = None, []
     for line in text.splitlines():
@@ -336,9 +344,12 @@ def main() -> int:
     # lockstep_tb.cpp's Summary).
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
-            for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken')}
+            for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
+                        'shift_consumer', 'after_shift')}
+    hold_failures = flag_hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
+    random_failures += hold_failures
     if corpus_failures or random_failures or hash_mismatches or unbuilt_failures:
         exit_code = 1
     report.update({
@@ -370,7 +381,10 @@ def main() -> int:
               f"instructions, {share(gaps['sequential'], 1)} one cycle apart; "
               f"{sum(gaps['after_not_taken'].values())} after a branch not taken, "
               f"{share(gaps['after_not_taken'], 1)} one cycle apart; {sum(gaps['after_taken'].values())} after a "
-              f"taken branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart")
+              f"taken branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart; "
+              f"{sum(gaps['after_shift'].values())} after a shift, {share(gaps['after_shift'], 1)} one cycle apart; "
+              f"{sum(gaps['shift_consumer'].values())} flag consumers after a shift, "
+              f"{share(gaps['shift_consumer'], 2)} two cycles apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
     for line in (unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)

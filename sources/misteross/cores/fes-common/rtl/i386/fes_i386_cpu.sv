@@ -135,11 +135,11 @@ module fes_i386_cpu (
     assign d_eip_next = code32 ? d_eip + {28'd0, cur.length} : {16'd0, eip16[15:0]};
 
     uop_t        u;
-    logic        opsize32, lea, lea_early, branch, reads_seg, stop;
+    logic        opsize32, lea, lea_early, branch, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
     fes_i386_decode decode (
-        .q(cur), .code32, .wrap16, .uop(u), .opsize32, .lea, .lea_early, .lea_disp, .branch, .reads_seg,
+        .q(cur), .code32, .wrap16, .uop(u), .opsize32, .lea, .lea_early, .lea_disp, .branch, .consumes, .reads_seg,
         .seg_index, .stop
     );
 
@@ -205,7 +205,13 @@ module fes_i386_cpu (
     assign seg_hazard = writes_seg(ag_s, seg_index) || writes_seg(m1_s, seg_index) || writes_seg(m2_s, seg_index)
                      || writes_seg(ex_s, seg_index) || writes_seg(wb_s, seg_index);
 
-    assign issue = cur_valid && !(lea && lea_stall) && !(reads_seg && seg_hazard) && !wb_flush;
+    // A flag reader waits one cycle behind a shift or rotate, whose flags
+    // reach EX's running copy a cycle after the shift leaves EX (fes_i386_ex).
+    logic flag_hazard;
+    assign flag_hazard = ag_s.valid && ag_s.uop.cls == fes_i386_pkg::UOP_SHIFT
+                      && consumes;
+
+    assign issue = cur_valid && !(lea && lea_stall) && !(reads_seg && seg_hazard) && !flag_hazard && !wb_flush;
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -329,29 +335,57 @@ module fes_i386_cpu (
 
     // ---- EX -----------------------------------------------------------------------
     // EFLAGS after every uop that has passed EX: no younger uop changes it,
-    // and a flush only kills uops younger than WB, which have not.
-    logic [17:0] ex_flags, ex_flags_out;
+    // and a flush only kills uops younger than WB, which have not. A shift
+    // in WB still owes its flags (wb_flags): ex_flags lacks them for that
+    // cycle, which no flag reader sees (flag_hazard), and takes them at its
+    // end.
+    logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
-    logic        ex_taken;
+    logic        ex_taken, ex_sh_cf, ex_sh_of, ex_def_co, ex_def_szap;
     pipe_t       ex_out;
+
+    logic [7:0] wb_r8;
+    assign wb_r8 = wb_s.uop.dst.hi8 ? wb_s.result[15:8] : wb_s.result[7:0];
+    always_comb begin
+        wb_flags = wb_s.eflags;
+        if (wb_s.def_co) begin
+            wb_flags[0] = wb_s.sh_cf;
+            wb_flags[11] = wb_s.sh_of;
+        end
+        if (wb_s.def_szap) begin
+            wb_flags[2] = ~^wb_r8;
+            wb_flags[4] = 1'b1;
+            wb_flags[6] = wb_s.exc.size8 ? wb_r8 == 8'd0 : wb_s.exc.size16 ? wb_s.result[15:0] == 16'd0
+                                                                            : wb_s.result == 32'd0;
+            wb_flags[7] = wb_s.exc.size8 ? wb_r8[7] : wb_s.exc.size16 ? wb_s.result[15] : wb_s.result[31];
+        end
+    end
+    assign flags_keep = wb_s.valid && (wb_s.def_co || wb_s.def_szap) ? wb_flags : ex_flags;
+
     // An operand whose producer is one stage ahead (exc.byp_*) comes from the
     // WB result register beside EX's operand.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .b(ex_s.b), .c(ex_s.c), .wb(wb_s.result),
-        .ag_result(ex_s.result), .flags_in(ex_flags), .result(ex_result), .flags_out(ex_flags_out),
-        .taken(ex_taken)
+        .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),
+        .taken(ex_taken), .sh_cf(ex_sh_cf), .sh_of(ex_sh_of), .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
     always_comb begin
         ex_out = ex_s;
         ex_out.result = ex_s.early ? ex_s.result : ex_result;
         ex_out.eflags = ex_flags_out;
         ex_out.taken = ex_taken;
+        ex_out.sh_cf = ex_sh_cf;
+        ex_out.sh_of = ex_sh_of;
+        ex_out.def_co = ex_def_co;
+        ex_out.def_szap = ex_def_szap;
     end
     always_ff @(posedge clk) begin
         if (reset) begin
             ex_flags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
+        end else begin
+            ex_flags <= flags_keep;
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
@@ -387,7 +421,7 @@ module fes_i386_cpu (
                 trace_vector <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7 : 8'd0;
             end else begin
                 trace_retire <= wb_s.uop.ctl.end_of_instruction;
-                eflags <= wb_s.eflags;
+                eflags <= wb_flags;
                 eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
                     gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;

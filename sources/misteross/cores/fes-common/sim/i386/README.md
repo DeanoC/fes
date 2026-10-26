@@ -254,8 +254,11 @@ corpus itself then checks those values.
 | Random programs | Register and immediate forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs and backward jumps, from random register states | Every retirement against the oracle; a run stops at its HLT, a fault or 2,000 retirements. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
 
 The latency-free reruns also give the cycles between retirements: in
-sequence, after an instruction with more than one prefix, and after a taken
-branch.
+sequence, after an instruction with more than one prefix, after a taken
+branch, and after a shift or rotate. That last one checks D's flag hold
+cycle-exactly: an instruction that consumes the flags (ADC, SBB, Jcc,
+SETcc, RCL, RCR, LAHF, CMC, LOOPE, LOOPNE) must retire two cycles after the
+shift, and anything else one, or the run fails.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison

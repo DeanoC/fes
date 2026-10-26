@@ -219,6 +219,21 @@ package fes_i386_pkg;
 
     // ---- Pipeline ---------------------------------------------------------------
 
+    // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
+    // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
+    // right, 1 left), size z (8, 16, 32 bits) and fill k (the operand alone,
+    // rotate, rotate through carry, sign, the SHLD/SHRD source).
+    typedef struct packed {
+        logic [29:0] sel;
+        logic        left;
+        logic        z8, z16, z32;
+        logic        count_cl;              // the count is CL, not imm
+        logic [4:0]  s_imm;                 // an immediate count's shift amount
+        logic        imm_zero;              // the immediate count is zero
+        logic        cf_rol, cf_ror, cf_shl, cf_shr;  // CF other than the last bit out
+        logic        szap;                  // SF, ZF, AF and PF change (not a rotate)
+    } shctl_t;
+
     // EX's controls, decoded from the uop in M2 (fes_i386_exctl) so that EX
     // sees registered selects: one-hot where EX picks among sources.
     typedef struct packed {
@@ -234,6 +249,7 @@ package fes_i386_pkg;
         logic       l_or, l_xor, l_not;        // the logic unit; AND otherwise
         logic       f_add, f_incdec, f_logic, f_shift, f_flagop;  // which flags change, from where
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
+        shctl_t     sh;
     } exctl_t;
 
     // A uop from D to WB. a, b and c are the values of src1, src2 (or imm)
@@ -262,6 +278,10 @@ package fes_i386_pkg;
         exctl_t      exc;         // M2: EX's controls
         logic [17:0] eflags;      // EX: EFLAGS after this uop
         logic        taken;       // EX: a branch that redirects fetch
+        logic        sh_cf;       // EX: a shift's CF and OF, applied at WB (def_co)
+        logic        sh_of;
+        logic        def_co;
+        logic        def_szap;    // EX: a shift's SF, ZF and PF follow the result; AF is set
     } pipe_t;
 
 endpackage

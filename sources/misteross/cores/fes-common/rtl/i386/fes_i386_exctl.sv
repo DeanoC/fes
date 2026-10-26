@@ -64,5 +64,37 @@ module fes_i386_exctl (
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;
     assign c.b_jcxz = cls == C_BRANCH && op == 5'd9;
+
+    // The shifter's selects (fes_i386_shift): direction, size and fill.
+    localparam logic [4:0] ROL = 5'd0, ROR = 5'd1, RCL = 5'd2, RCR = 5'd3, SHL = 5'd4, SHR = 5'd5, SAL = 5'd6,
+                           SAR = 5'd7, SHLD = 5'd8, SHRD = 5'd9;
+    logic       shift, left;
+    logic [2:0] z;
+    logic [4:0] kind;
+    assign shift = cls == C_SHIFT;
+    assign left = op == ROL || op == RCL || op == SHL || op == SAL || op == SHLD;
+    assign z = {u.size == fes_i386_pkg::SIZE_32, u.size == fes_i386_pkg::SIZE_16, u.size == fes_i386_pkg::SIZE_8};
+    // The operand alone, rotate, rotate through carry, sign, the source.
+    assign kind = {op == SHLD || op == SHRD, op == SAR, op == RCL || op == RCR, op == ROL || op == ROR, 1'b1};
+    logic [29:0] sel;
+    always_comb begin
+        for (int d = 0; d < 2; d++)
+            for (int k = 0; k < 3; k++)
+                for (int f = 0; f < 5; f++)
+                    sel[d * 15 + k * 5 + f] = shift && left == (d == 1) && z[k] && kind[f];
+    end
+    assign c.sh.sel = sel;
+    assign c.sh.left = left;
+    assign c.sh.z8 = z[0];
+    assign c.sh.z16 = z[1];
+    assign c.sh.z32 = z[2];
+    assign c.sh.count_cl = u.count_cl;
+    assign c.sh.s_imm = left ? ~u.imm[4:0] : u.imm[4:0];
+    assign c.sh.imm_zero = u.imm[4:0] == 5'd0;
+    assign c.sh.cf_rol = op == ROL;
+    assign c.sh.cf_ror = op == ROR;
+    assign c.sh.cf_shl = op == SHL || op == SAL;
+    assign c.sh.cf_shr = op == SHR;
+    assign c.sh.szap = op[4:2] != 3'b000;
     assign exc = c;
 endmodule
