@@ -69,6 +69,15 @@ def lock() -> dict:
     return json.loads(LOCK.read_text())
 
 
+def inputs_key() -> str:
+    """Identity of everything the image is built from: the lock (package
+    commits and file hashes), this builder and the assembler version."""
+    digest = hashlib.sha256()
+    for part in (LOCK.read_bytes(), Path(__file__).read_bytes(), test386.NASM_VERSION.encode()):
+        digest.update(hashlib.sha256(part).digest())
+    return digest.hexdigest()
+
+
 def package(name: str, spec: dict, download: bool) -> Path:
     """Return the pinned checkout of one FreeDOS package, its files verified."""
     tree = BUILD / f'{name}-{spec["commit"]}'
@@ -189,9 +198,21 @@ def build(download: bool = False, jobs: int = 4) -> Path:
         'packages': {name: {'commit': spec['commit'], 'version': spec['version'], 'license': spec['license']}
                      for name, spec in packages.items()},
         'distribution': 'simulation fixture only; never distributed',
+        'inputs': inputs_key(),
     }
     IMAGE.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
     return IMAGE
+
+
+def image(download: bool = False, jobs: int = 4) -> Path:
+    """The image, rebuilt unless the one in build/ came from the current inputs."""
+    record = IMAGE.with_suffix('.json')
+    if IMAGE.is_file() and record.is_file():
+        built = json.loads(record.read_text())
+        if (built.get('inputs') == inputs_key() and
+                built.get('sha256') == hashlib.sha256(IMAGE.read_bytes()).hexdigest()):
+            return IMAGE
+    return build(download, jobs)
 
 
 def main(argv=None) -> int:

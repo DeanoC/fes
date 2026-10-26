@@ -120,6 +120,12 @@ struct Bench {
         return size == 4 ? top.io_rdata : top.io_rdata & ((1u << (8 * size)) - 1);
     }
     uint8_t in(uint16_t port) { return uint8_t(io(false, port, 1)); }
+    // Polls the 8042 status for a full output buffer for up to `clocks`.
+    bool output_within(uint64_t clocks) {
+        for (uint64_t end = cycles + clocks; cycles < end;)
+            if (in(0x64) & 1) return true;
+        return false;
+    }
     uint16_t inw(uint16_t port) { return uint16_t(io(false, port, 2)); }
     void out(uint16_t port, uint8_t value) { io(true, port, 1, value); }
     void outw(uint16_t port, uint16_t value) { io(true, port, 2, value); }
@@ -403,9 +409,62 @@ void kbc(Bench &b) {
         total += (p[0] & 0x10) ? int(p[1]) - 256 : int(p[1]);
     }
     check("movement beyond 255 is carried into the next packet", total == 381, std::to_string(total));
+
+    auto move = [&](int dx) {
+        b.top.mouse_valid = 1; b.top.mouse_dx = int8_t(dx); b.top.mouse_dy = 0; b.top.mouse_buttons = 1;
+        b.clock();
+        b.top.mouse_valid = 0;
+    };
+    auto mouse_command = [&](uint8_t byte) {
+        b.out(0x64, 0xd4); b.out(0x60, byte);
+        b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
+        return b.in(0x60);
+    };
+    mouse_command(0xe8); mouse_command(0x00);  // resolution 0: a count is four host counts
+    move(-1);
+    bool quiet = !b.output_within(3000000);  // longer than a 10 ms sample period
+    move(1);
+    quiet &= !b.output_within(3000000);
+    move(-4);
+    uint8_t q[3] = {};
+    for (auto &byte : q) {
+        b.output_within(3000000);
+        byte = b.in(0x60);
+    }
+    check("at resolution 0 a quarter-count move and its reverse send nothing; four send -1",
+          quiet && q[0] == 0x19 && q[1] == 0xff, hex(q[0]) + " " + hex(q[1]));
+    mouse_command(0xe8); mouse_command(0x02);
+    mouse_command(0xf3); mouse_command(10);
+    std::vector<uint64_t> packets;
+    while (packets.size() < 2) {
+        move(4);
+        uint64_t polled = b.cycles;
+        if (b.output_within(20000)) {
+            packets.push_back(polled);
+            for (int n = 0; n < 3; ++n) {
+                b.output_within(300000);
+                b.in(0x60);
+            }
+        }
+        if (packets.empty() && b.cycles > 40000000) break;
+    }
+    uint64_t gap = packets.size() == 2 ? packets[1] - packets[0] : 0;
+    // Detected within one 20,000-clock poll window of the packet.
+    check("sample rate 10: stream packets 100 ms apart", gap >= 9980000 && gap < 10040000, std::to_string(gap));
+    mouse_command(0xf3); mouse_command(100);
     b.out(0x64, 0xa7);
     b.run(200000);
     while (b.in(0x64) & 1) b.in(0x60);
+
+    // A full scan-code queue still leaves room for a command's reply.
+    b.out(0x64, 0xad);
+    for (int n = 0; n < 20; ++n) if (b.top.key_ready) key(0x1c);
+    b.out(0x60, 0xf2);
+    std::vector<uint8_t> drained;
+    while (b.output_within(3000000)) drained.push_back(b.in(0x60));
+    size_t n = drained.size();
+    check("an F2 reply fits behind a full scan-code queue", n >= 3 && drained[n - 3] == 0xfa &&
+          drained[n - 2] == 0xab && drained[n - 1] == 0x41, std::to_string(n));
 }
 
 void rtc(Bench &b) {

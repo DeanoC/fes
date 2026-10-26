@@ -5,15 +5,16 @@ its prompt in simulation, and a command typed at that prompt runs.** The CPU is
 the Bochs level-3 oracle; every I/O port access, interrupt acknowledge, A20
 change and CPU reset goes through the Verilated AT-core RTL. `dir`, typed as set
 2 scan codes through the 8042, lists the disk and FreeDOS returns to `C:\>`.
-Every CPU I/O completed at exactly its timing class. The 59 directed device
+Every CPU I/O completed at exactly its timing class. The 62 directed device
 checks pass. This is a **host-only check**: no synthesis, routed result,
 package or kit is involved. It meets the exit of phase M1 in the
 [machine design](../../../sources/misteross/docs/pc386-machine-design.md#phases).
 
 ## Inputs
 
-- misteross tree as committed in `4315c9befb` (on FES base `28d4bd2e9f`), with
-  the AT core in [`cores/fes-pc386/`](../../../sources/misteross/cores/fes-pc386/README.md).
+- misteross tree as on the PR branch after the first review round (on FES base
+  `28d4bd2e9f`); the boot result is identical to the first run at `4315c9befb`.
+  The AT core is in [`cores/fes-pc386/`](../../../sources/misteross/cores/fes-pc386/README.md).
 - Firmware from `scripts/build_pc386_firmware.py`, matching `firmware.lock`:
   `pc386-bios.bin` (Bochs `rombios.c` at `REL_3_1_FINAL`, legacy build, PCI
   BIOS, APM and PnP off, INT 16h AH=03h added) SHA-256 `8caa3f2f…01eeda`;
@@ -116,7 +117,7 @@ these figures; the machine fixes the AT defaults.
 ## Device bench
 
 `python3 scripts/sim_fes_pc386.py --suite devices` ([`devices.log`](devices.log)),
-59 checks, all pass, about 10 s. Beyond what the boot exercises it checks:
+62 checks, all pass, about 12 s. Beyond what the boot exercises it checks:
 the timing classes for words and dwords; IRQ8 and IRQ14 arriving through
 master IR2 as vectors 70h and 76h, and EOI; PIT channel 0 at divisor 65536
 interrupting every 5,492,541 ± 90 clocks (54.925 ms); the 8254 read-back
@@ -127,7 +128,9 @@ with channel 1 at 18; a channel 1 DMA transfer through the CPU port at
 on through port 92h, DF and DD; CPU reset by FE and by port 92h, each only
 after FLUSH completes; keyboard reset pacing and BAT; set 2 to set 1
 translation with breaks and the translated F2 identify; the aux mouse's ACK,
-packet with dy negated, and movement over 255 carried; every CMOS
+packet with dy negated, movement over 255 carried, quarter counts carried
+toward zero at resolution 0, 100 ms between packets at 10 per second, and a
+command reply that fits behind a full scan-code queue; every CMOS
 configuration byte and the checksum; the wall-clock seed into BCD with the
 century; UIP before the update, the year rollover, binary and 12-hour forms;
 IDENTIFY; WRITE and READ SECTORS with the dirty chunk; READ MULTIPLE with an

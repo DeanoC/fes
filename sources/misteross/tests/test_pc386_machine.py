@@ -69,6 +69,22 @@ class FreedosImageTest(unittest.TestCase):
         # The last sector: cylinder 64, head 15, sector 63.
         self.assertEqual(freedos.chs(freedos.TOTAL_SECTORS - 1), bytes((15, 63, 64)))
 
+    def test_cached_image_is_used_only_when_its_inputs_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / 'freedos.img'
+            image.write_bytes(b'disk')
+            record = {'sha256': freedos.hashlib.sha256(b'disk').hexdigest(), 'inputs': freedos.inputs_key()}
+            image.with_suffix('.json').write_text(json.dumps(record))
+            with mock.patch.object(freedos, 'IMAGE', image), \
+                    mock.patch.object(freedos, 'build', return_value='rebuilt') as build:
+                self.assertEqual(freedos.image(), image)
+                image.with_suffix('.json').write_text(json.dumps({**record, 'inputs': 'old'}))
+                self.assertEqual(freedos.image(), 'rebuilt')
+                image.with_suffix('.json').write_text(json.dumps(record))
+                image.write_bytes(b'changed')
+                self.assertEqual(freedos.image(), 'rebuilt')
+                self.assertEqual(build.call_count, 2)
+
     def test_mbr_code_is_read_from_the_fdisk_array(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'bootnorm.c'
