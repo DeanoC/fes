@@ -427,9 +427,10 @@ module fes_i386_cpu (
 
     // A flush needs no term here: it clears AG and the forwarding tables, a
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
-    // fault or HLT stops the CPU.
+    // fault or HLT stops the CPU. Once it has (halted), D issues nothing; in
+    // the cycle the fault or HLT is in WB, its flush clears what D issues.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze && !halted && !wb_stop;
+                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze && !halted;
     assign trace_issue = issue;
 
     always_ff @(posedge clk) begin
