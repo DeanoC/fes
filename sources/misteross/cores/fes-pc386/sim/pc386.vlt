@@ -7,3 +7,13 @@ lint_off -rule VARHIDDEN -file "*/vendor/kf8253/*.sv"
 // The imported chips assert reset asynchronously; the AT core drives the
 // machine reset synchronously and holds it for several clocks.
 lint_off -rule SYNCASYNCNET -file "*/rtl/pc386_at_core.sv" -match "*reset*"
+// opl2_fpga is lint-clean only under Vivado's defaults.
+lint_off -rule WIDTH -file "*/vendor/opl2_fpga/*.sv"
+lint_off -rule UNUSEDPARAM -file "*/vendor/opl2_fpga/*.sv"
+lint_off -rule UNUSEDSIGNAL -file "*/vendor/opl2_fpga/*.sv"
+lint_off -rule GENUNNAMED -file "*/vendor/opl2_fpga/*.sv"
+lint_off -rule EOFNEWLINE -file "*/vendor/opl2_fpga/*.sv"
+lint_off -rule ASCRANGE -file "*/vendor/opl2_fpga/control_operators.sv"
+lint_off -rule PINCONNECTEMPTY -file "*/vendor/opl2_fpga/control_operators.sv"
+lint_off -rule LATCH -file "*/vendor/opl2_fpga/envelope_generator.sv"
+lint_off -rule UNOPTFLAT -file "*/vendor/opl2_fpga/channels.sv"

@@ -45,7 +45,9 @@ CORE = ROOT / 'cores/fes-pc386'
 COMMON = ROOT / 'cores/fes-common'
 OUTPUT = ROOT / 'build/sim/fes-pc386'
 TOP = 'pc386_at_core'
-RTL = (
+OPL2_VENDOR = CORE / 'vendor/opl2_fpga'
+NUKED = CORE / 'vendor/nuked-opl3'
+AT_RTL = (
     COMMON / 'vendor/kf8259/KF8259.sv',
     COMMON / 'vendor/kf8259/KF8259_Bus_Control_Logic.sv',
     COMMON / 'vendor/kf8259/KF8259_Control_Logic.sv',
@@ -65,6 +67,19 @@ RTL = (
     CORE / 'rtl/pc386_ata.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
+OPL2_RTL = (
+    OPL2_VENDOR / 'opl2_pkg.sv',
+    *(OPL2_VENDOR / f'{name}.sv' for name in (
+        'pipeline_sr', 'mem_simple_dual_port', 'mem_simple_dual_port_async_read', 'mem_single_bank',
+        'mem_single_bank_reset', 'opl2_log_sine_lut', 'opl2_exp_lut', 'ksl_add_rom', 'tremolo', 'vibrato',
+        'calc_phase_inc', 'calc_envelope_shift', 'calc_rhythm_phase', 'envelope_generator', 'phase_generator',
+        'operator', 'control_operators', 'dac_prep', 'channels')),
+    CORE / 'rtl/pc386_rate.sv',
+    CORE / 'rtl/pc386_opl2.sv',
+)
+AUDIO_RTL = (*OPL2_RTL, CORE / 'rtl/pc386_sb.sv', CORE / 'rtl/pc386_mixer.sv', CORE / 'rtl/pc386_audio.sv')
+OPL2_SEEDS = (1, 2, 3)
+OPL2_SAMPLES = 20000
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
@@ -83,23 +98,26 @@ class SimError(RuntimeError):
     pass
 
 
-def verilate(verilator: str, name: str, testbench: Path, linked: list[Path], jobs: int,
-             parameters: dict[str, int] | None = None) -> Path:
-    output = OUTPUT / name / 'obj'
+def verilate(verilator: str, name: str, testbench: Path | None, linked: list[Path], jobs: int,
+             parameters: dict[str, int] | None = None, top: str = TOP, rtl: tuple[Path, ...] = AT_RTL,
+             include: tuple[Path, ...] = ()) -> Path:
+    """Builds a model. Without a testbench it is a library for another model's bench to link."""
+    output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
-    command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
-               '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
-               str(CORE / 'sim/pc386.vlt'),
+    includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', NUKED, *include))
+    command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3',
+               '--top-module', top, '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
+               str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}',
                *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
-               '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3', '-CFLAGS', f'-std=c++17 -O2 -I{COMMON / "sim/i386"}', '-LDFLAGS', '-pthread',
-               *map(str, RTL), str(testbench), *map(str, linked)]
+               '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3', '-CFLAGS', f'-std=c++17 -O2 {includes}', '-LDFLAGS', '-pthread',
+               *map(str, rtl), *([str(testbench)] if testbench else []), *map(str, linked)]
     log = output / 'build.log'
     with log.open('w') as stream:
         result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode:
         raise SimError(f'verilator failed; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
-    return output / ('V' + TOP)
+    return output / ('V' + top) if testbench else output / f'V{top}__ALL.a'
 
 
 def parse_boot(text: str) -> dict:
@@ -181,9 +199,42 @@ def run_devices(args) -> dict:
     return {'checks': checks, 'failures': failures, 'exit': result.returncode}
 
 
+def run_checks(command: list[str], cwd: Path, log: Path) -> tuple[list[str], list[str], str]:
+    """Runs a bench that prints PASS/FAIL lines; returns (checks, failures, stdout)."""
+    cwd.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
+    with log.open('a') as stream:
+        stream.write(f'$ {" ".join(command)}\n{result.stdout}{result.stderr}')
+    checks = [line for line in result.stdout.splitlines() if line.startswith(('PASS', 'FAIL'))]
+    failures = [line for line in checks if line.startswith('FAIL')]
+    if result.returncode and not failures:
+        failures.append(f'{Path(command[0]).name} exited {result.returncode}: {result.stderr.strip()}')
+    return checks, failures, result.stdout
+
+
+def run_opl2(args) -> dict:
+    testbench = verilate(args.verilator, 'opl2', CORE / 'sim/opl2_tb.cpp', [NUKED / 'opl3.c'], args.jobs,
+                         top='pc386_opl2', rtl=OPL2_RTL)
+    log = OUTPUT / 'opl2/opl2.log'
+    log.write_text('')
+    report = {'checks': [], 'failures': [], 'runs': []}
+    runs = [['--random', str(seed), str(OPL2_SAMPLES)] for seed in OPL2_SEEDS]
+    runs += [['--log', str(path)] for path in sorted((CORE / 'sim/fixtures').glob('*-opl2.log'))]
+    for arguments in runs:
+        checks, failures, stdout = run_checks([str(testbench), *arguments], OUTPUT / 'opl2', log)
+        stats = re.search(r'OPL2 samples=(\d+) exact=(\d+) nonzero=(\d+) writes=(\d+)', stdout)
+        report['runs'].append({'arguments': [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg
+                                             for arg in arguments],
+                               **({key: int(value) for key, value in zip(('samples', 'exact', 'nonzero', 'writes'),
+                                                                          stats.groups())} if stats else {})})
+        report['checks'] += checks
+        report['failures'] += failures
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'boot', 'all'), default='all')
+    parser.add_argument('--suite', choices=('devices', 'opl2', 'boot', 'all'), default='all')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=8, help='simulated seconds before giving up')
@@ -197,8 +248,13 @@ def main() -> int:
         return 2
     failed = False
     try:
-        for suite in ('devices', 'boot') if args.suite == 'all' else (args.suite,):
-            report = run_devices(args) if suite == 'devices' else run_boot(args, oracle.link_inputs(args.jobs, args.download))
+        for suite in ('devices', 'opl2', 'boot') if args.suite == 'all' else (args.suite,):
+            if suite == 'devices':
+                report = run_devices(args)
+            elif suite == 'opl2':
+                report = run_opl2(args)
+            else:
+                report = run_boot(args, oracle.link_inputs(args.jobs, args.download))
             (OUTPUT / suite / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite == 'boot':
                 for row in report['screen']:
