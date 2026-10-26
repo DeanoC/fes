@@ -815,8 +815,10 @@ same unit 0. The library keeps the image as imported; at insertion
 stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
 package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
 `-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80` and `.sna`;
-the host checks for a valid snapshot before probing tape blocks because TAP
-has no magic header, converts it by `internal/spectrumsnapshots` to the core's
+a live insert's tape or snapshot name says which it is. Library media and
+inserts by digest have no name, and TAP has no magic header, so the host takes
+a valid snapshot as one unless every TAP block also passes the ROM loader's
+checksum. It converts a snapshot by `internal/spectrumsnapshots` to the core's
 restore stream, and refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
