@@ -229,13 +229,13 @@ two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
 0-17 and the six segment registers with their hidden caches. Memory writes
 are compared as each side reports them: each instruction must write the same
 bytes, with the same values, on both sides. An instruction that faults in
-the oracle must fault in the RTL with the same vector, nothing retired and
-nothing written; the RTL does not deliver exceptions yet, so the run ends
-there. Three directed fault cases cover 32-bit relative CALL, RET and JMP r/m
-targets outside the 16-bit CS limit, then check that fetch, issue and data
-reads remain inactive after each fault. HLT ends a run on both sides. Every
-byte either side writes, the oracle's exception frames included, is cleared
-after the run.
+the oracle must fault in the RTL with the same vector, nothing of it
+retired. Both deliver it, and the delivery is compared as a retirement, its
+frame included. A fault in a delivery, which the oracle shows as a second
+fault or a shutdown, must stop the RTL as not built (vector 8), with nothing
+of the instruction retired and nothing of the delivery written. HLT ends a
+run on both sides. Every byte either side writes is
+cleared after the run.
 
 The RTL starts each run from the state its `init_*` ports load at reset. Its
 memory model serves the fetch port with a random 0-12 cycle delay per block
@@ -261,8 +261,8 @@ outcome stands. The corpus itself then checks those values.
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, PUSHA and POPA, PUSHF/POPF pairs, and interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
-| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX to 10000h; each is followed by 32 monitored cycles | Bochs #GP(0), unchanged EIP/ESP and memory, and no fetch request, D issue or data read after the fault |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames, the far pointer loads, PUSHA and POPA, PUSHF/POPF pairs, and interrupt blocks (SS above the vector table, the vector's entry stored as the handler's CS:IP, INT n, INT3 or INTO, and a handler that IRETs), from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a delivered exception, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX to 10000h, with the #GP entry at a HLT; INT 20h at SP 1, and the 66 E8 case at SP 3, whose deliveries fault | Bochs throughout; #GP(0) delivered with the faulting CS:IP pushed, then the handler's HLT followed by 32 cycles with no fetch request, D issue or data read. The nested cases stop the RTL with nothing written |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -278,9 +278,10 @@ POPA, INT and IRET (several uops), LEAVE, PUSH and POP of (E)SP, which read
 ESP as data, and anything after POP (E)SP or POPA, which load ESP, are left
 out of that check.
 
-A software interrupt (INT n, INT3, INTO) is the corpus's exception: the run
-goes on into the handler, to its HLT, and the corpus's final state, the
-pushed frame included, is compared.
+A fault or a software interrupt (INT n, INT3, INTO) is the corpus's
+exception: the run goes on into the handler, to its HLT, and the corpus's
+final state, the pushed frame included, is compared. A random program stops
+once it has delivered an exception, after the delivery is compared.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison
