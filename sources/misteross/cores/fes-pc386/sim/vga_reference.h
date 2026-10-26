@@ -30,18 +30,17 @@ public:
     // latches it (at vertical retrace).
     virtual void latch_start() = 0;
     // One display update, as Bochs's VSYNC-paced timer makes it, with the
-    // blink toggling every eight updates. The frame is what Bochs's display
+    // blink toggling every eight updates; in text modes, further updates
+    // until Bochs's blink phase (cursor and blinking characters together) is
+    // cursor_on, the RTL's cursor phase. The frame is what Bochs's display
     // shows, 6-bit DAC values widened by replication; false when Bochs skips
     // the update (display or sequencer off).
-    virtual bool render(Frame &frame) = 0;
+    virtual bool render(Frame &frame, bool cursor_on) = 0;
     virtual bool text_mode() const = 0;
     // Bochs's update draws an 80 x 25, 16-line text screen while the CRTC's
     // display end or maximum scan line is still zero.
     virtual bool unprogrammed() const = 0;
     virtual bool blink_enabled() const = 0;
-    // Bochs blinks the cursor and blinking characters together: visible or
-    // not in the last render. Its counter stops in graphics modes.
-    virtual bool blink_visible() const = 0;
     virtual const uint8_t *vram() const = 0;   // 256 KiB: planar offset * 4 + plane
 };
 

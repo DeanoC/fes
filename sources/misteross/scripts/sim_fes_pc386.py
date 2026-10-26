@@ -14,10 +14,12 @@ docs/pc386-machine-design.md, "Verification" and phases M1 and M2.
            the RTL VGA) with the Bochs oracle as the CPU, types a command at
            the prompt, checks the answer read from VRAM and the I/O completion
            times, and replays the boot's VGA trace against Bochs's VGA.
-  vga      boots cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h,
-           mode Y, mode 12h), checks every marked picture's 720p frame from the
+  vga      runs the presenter and port 2 benches, boots
+           cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
+           mode 12h), checks every marked picture's 720p frame from the
            presenter and the plane against the presenter model, and replays
-           the VGA trace against Bochs's VGA (cores/fes-pc386/sim/vga_replay_tb.cpp).
+           the VGA trace against Bochs's VGA (cores/fes-pc386/sim/vga_replay_tb.cpp),
+           which must match frames of every marked picture.
 
 boot and vga need the oracle build, the firmware build, the FreeDOS fixture
 and NASM; --download fetches what is missing. Writes
@@ -359,6 +361,10 @@ def run_vga(args, linked: list[Path]) -> dict:
     print('Replaying the VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, 'vga', trace)
     report['failures'] += report['replay']['failures']
+    # The replay must have compared, and matched, frames of every picture.
+    for name in VGA_SNAPS:
+        if not report['replay']['counts'].get(f'frames-matched-at-{name}'):
+            report['failures'].append(f'trace replay matched no frame of {name}')
     report['benches'] = benches
     for bench in benches.values():
         report['failures'] += bench['failures']

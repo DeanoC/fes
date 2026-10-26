@@ -8,7 +8,7 @@
 // GUI. Here the bench owns time: Bochs's timers never fire, the bench applies
 // the start address latch when the RTL latches it and asks for one display
 // update per RTL frame, with Bochs's VSYNC update mode and a cursor blink of
-// eight frames. The GUI renders through Bochs's own text renderer
+// eight frames brought into phase with the RTL's. The GUI renders through Bochs's own text renderer
 // (bx_gui_c::text_update_common and draw_char_common) and tile copies into an
 // 8-bit index frame, mapped through the DAC.
 #include "vga_reference.h"
@@ -245,22 +245,12 @@ public:
     uint8_t mem_read(uint32_t address) override { return bx_vgacore_c::mem_read(address); }
     void latch_start() override { s.CRTC.start_addr = Bit16u((s.CRTC.reg[0x0c] << 8) | s.CRTC.reg[0x0d]); }
 
-    bool render(pc386::Frame &frame) override {
-        // Force a whole redraw: every tile, the character map and the text.
-        s.vga_mem_updated |= 0x07;
-        for (unsigned n = 0; n < unsigned(s.num_x_tiles) * s.num_y_tiles; ++n) s.vga_tile_updated[n] = true;
-        s.text_buffer_update = true;
-        std::memset(s.text_snapshot, 0, 0x20000);
-        s.blink_counter = BLINK_FRAMES;
-        // The blink counter in bx_vgacore_c::update() is a function static;
-        // this follows it, starting where it starts (1, not visible).
-        if (--blink_counter == 0) {
-            blink_counter = BLINK_FRAMES;
-            visible = (!s.graphics_ctrl.graphics_alpha || s.attribute_ctrl.mode_ctrl.blink_intensity) && !visible;
-        }
-        std::fill(gui_instance->indices.begin(), gui_instance->indices.end(), Bit8u(0));
-        bool skipped = skip_update();
-        update();
+    bool render(pc386::Frame &frame, bool cursor_on) override {
+        bool skipped = update_once();
+        // Bochs blinks the cursor and characters from one counter that stops
+        // in graphics modes; more updates bring its phase to the RTL cursor's.
+        for (unsigned n = 0; n < 2 * BLINK_FRAMES && text_mode() && !skipped && visible != cursor_on; ++n)
+            skipped = update_once();
         if (skipped) return false;
         frame.width = gui_instance->width();
         frame.height = gui_instance->height();
@@ -273,9 +263,26 @@ public:
         return true;
     }
     bool text_mode() const override { return !s.graphics_ctrl.graphics_alpha; }
+    // One whole redraw through bx_vgacore_c::update(); true when Bochs skips it.
+    bool update_once() {
+        s.vga_mem_updated |= 0x07;
+        for (unsigned n = 0; n < unsigned(s.num_x_tiles) * s.num_y_tiles; ++n) s.vga_tile_updated[n] = true;
+        s.text_buffer_update = true;
+        std::memset(s.text_snapshot, 0, 0x20000);
+        s.blink_counter = BLINK_FRAMES;
+        // The blink counter in update() is a function static; this follows
+        // it, starting where it starts (1, not visible).
+        if (--blink_counter == 0) {
+            blink_counter = BLINK_FRAMES;
+            visible = (!s.graphics_ctrl.graphics_alpha || s.attribute_ctrl.mode_ctrl.blink_intensity) && !visible;
+        }
+        std::fill(gui_instance->indices.begin(), gui_instance->indices.end(), Bit8u(0));
+        bool skipped = skip_update();
+        update();
+        return skipped;
+    }
     bool unprogrammed() const override { return s.CRTC.reg[1] == 0 || (s.CRTC.reg[9] & 0x1f) == 0; }
     bool blink_enabled() const override { return s.attribute_ctrl.mode_ctrl.blink_intensity; }
-    bool blink_visible() const override { return visible; }
     const uint8_t *vram() const override { return s.memory; }
 
 private:

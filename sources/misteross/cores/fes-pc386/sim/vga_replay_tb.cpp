@@ -19,8 +19,9 @@
 //     the next write.
 // Frames are not compared where the reference cannot show the RTL's picture,
 // each counted by name (sim/vga_divergences.toml lists every divergence with
-// its deciding case): text frames whose cursor or character blink phase
-// differs between the two (frames-blink-phase), and text frames before the
+// its deciding case): text frames with blinking characters on where the RTL's
+// character and cursor phases differ, since Bochs blinks both together
+// (frames-blink-phase), and text frames before the
 // CRTC is programmed, which Bochs draws as a default 80 x 25 screen
 // (frames-divergence-reference-unprogrammed). Any other difference fails.
 //
@@ -146,8 +147,7 @@ int main(int argc, char **argv) {
         auto reference = pc386::make_vga_reference();
         pc386::Frame reference_frame;
         bool reference_ok = false, reference_text = false, reference_blink = false, reference_unprogrammed = false;
-        bool reference_visible = false;
-        reference->render(reference_frame);   // frame 0: the cursor blink phase starts with the RTL's
+        reference->render(reference_frame, true);   // frame 0
         uint64_t last_write = 0, last_latch = 0, window_start = 0;
         bool any_write = false;
         unsigned frame_index = 0;
@@ -161,11 +161,11 @@ int main(int argc, char **argv) {
             if (bench.frame_start) {
                 frame_index = bench.top.frame_count;
                 window_start = last_latch;
-                reference_ok = reference->render(reference_frame);
+                // The RTL's cursor is on for frames 0-7 of every 16.
+                reference_ok = reference->render(reference_frame, !(frame_index & 8));
                 reference_text = reference->text_mode();
                 reference_blink = reference->blink_enabled();
                 reference_unprogrammed = reference->text_mode() && reference->unprogrammed();
-                reference_visible = reference->blink_visible();
             }
             if (!bench.frame_done) return;
             ++counts["frames"];
@@ -174,9 +174,9 @@ int main(int argc, char **argv) {
             if (!reference_ok) { ++counts["frames-reference-skipped"]; return; }
             if (reference_unprogrammed) { ++counts["frames-divergence-reference-unprogrammed"]; return; }
             // The RTL blinks the cursor every 8 frames and characters every 16;
-            // Bochs both every 8 updates, from its own phase.
+            // Bochs both with the cursor's phase.
             bool cursor_on = !(frame_index & 8), characters_on = !(frame_index & 16);
-            if (reference_text && (cursor_on != reference_visible || (reference_blink && characters_on != reference_visible))) {
+            if (reference_text && reference_blink && characters_on != cursor_on) {
                 ++counts["frames-blink-phase"];
                 return;
             }

@@ -31,7 +31,9 @@
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
-// with the presenter model's scaling of that capture. --frames writes both. --until-debug ends the run when a debug line
+// with the presenter model's scaling of that capture or of one published
+// after it (a blinking cursor changes the picture while it holds); it must
+// equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 #include "Vpc386_machine.h"
@@ -44,6 +46,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -170,6 +173,9 @@ public:
     bool pending_read = false;
     // Capture and 720p frame bookkeeping.
     unsigned frames_done = 0;
+    // Captures published while a marked picture waits for its 720p frame.
+    bool keep_captures = false;
+    std::deque<pc386::Frame> recent;
     pc386::Frame raster;            // 720p frame being assembled from the plane output
     unsigned raster_x = 0, raster_y = 0;
     bool raster_started = false, last_de = false, last_vs = false;
@@ -234,7 +240,13 @@ public:
         }
         if (top.debug_valid) debug(top.debug_port, top.debug_byte);
         if (top.cpu_reset) cpu_reset_seen = true;
-        if (top.frame_done) ++frames_done;
+        if (top.frame_done) {
+            ++frames_done;
+            if (keep_captures) {
+                recent.push_back(captured());
+                if (recent.size() > 4) recent.pop_front();
+            }
+        }
     }
 
     uint64_t word64(uint64_t index) const {
@@ -517,13 +529,22 @@ int main(int argc, char **argv) {
                 std::string file = options.frames.empty() ? "" : options.frames + "/" + snap_name + ".ppm";
                 if (!file.empty()) pc386::write_ppm(file, snap_frame);
                 std::printf("SNAP %s %u %u %s\n", snap_name.c_str(), snap_frame.width, snap_frame.height, file.c_str());
+                machine.recent.assign(1, snap_frame);
+                machine.keep_captures = true;
                 machine.start_pixel_clock();
             }
             if (!snap_name.empty() && snap_captured && machine.rasters_complete >= snap_rasters + 2) {
-                pc386::Frame expected = pc386::present_720p(snap_frame);
-                unsigned mismatches = 0;
-                for (size_t n = 0; n < expected.pixels.size(); ++n)
-                    mismatches += expected.pixels[n] != machine.last_raster.pixels[n];
+                // The fewest differing pixels against any capture published
+                // since the marked one: 0 when the raster is exactly one.
+                unsigned mismatches = ~0u;
+                for (const pc386::Frame &capture : machine.recent) {
+                    pc386::Frame expected = pc386::present_720p(capture);
+                    unsigned differing = 0;
+                    for (size_t n = 0; n < expected.pixels.size(); ++n)
+                        differing += expected.pixels[n] != machine.last_raster.pixels[n];
+                    mismatches = std::min(mismatches, differing);
+                }
+                machine.keep_captures = false;
                 std::string file = options.frames.empty() ? "" : options.frames + "/" + snap_name + "-720p.ppm";
                 if (!file.empty()) pc386::write_ppm(file, machine.last_raster);
                 std::printf("PRESENT %s %s %u\n", snap_name.c_str(), file.c_str(), mismatches);

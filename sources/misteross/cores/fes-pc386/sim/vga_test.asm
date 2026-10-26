@@ -6,8 +6,10 @@
 ; writes a frame at every SNAP marker.
 ;
 ; Each picture is announced on port E9h as "SNAP <name>" and then held for
-; HOLD_FRAMES vertical retraces, so the bench captures it and, with the pixel
-; clock running, sees it at 720p. "DONE" ends the run.
+; HOLD_FRAMES vertical retraces, so the bench captures it and sees it at 720p.
+; Text pictures with blinking characters hold for BLINK_HOLD_FRAMES: the RTL's
+; character and cursor blink phases differ for 16 frames of every 32, and the
+; trace replay compares only frames where they agree. "DONE" ends the run.
 ;
 ;   text          mode 03h: all 128 colour pairs, line-drawing characters
 ;                 C0h-DFh (9th dot), shading, blinking text, a block cursor,
@@ -32,6 +34,7 @@ cpu 386
 
 PROGRAM_SECTORS equ 32
 HOLD_FRAMES     equ 8
+BLINK_HOLD_FRAMES equ 26
 DEBUG_PORT      equ 0xe9
 
 section boot start=0 vstart=0x7c00
@@ -138,7 +141,7 @@ program:
     mov dx, 0x180a
     int 0x10
     mov si, name_text
-    call snap
+    call snap_blink
 
     ; Four characters 80h-83h from our own glyphs.
     push es
@@ -161,7 +164,7 @@ program:
     inc al
     stosw
     mov si, name_font
-    call snap
+    call snap_blink
 
     ; Blink off: attribute bit 7 selects bright backgrounds.
     mov ax, 0x1003
@@ -455,7 +458,7 @@ program:
     mov ah, 0x07
     call put_string
     mov si, name_final
-    call snap
+    call snap_blink
     mov si, done_text
     call debug_line
 .idle:
@@ -487,8 +490,14 @@ debug_line:
     out dx, al
     ret
 
-; "SNAP <name>" on port E9h, then hold for HOLD_FRAMES retraces.
+; "SNAP <name>" on port E9h, then hold for HOLD_FRAMES retraces, or for
+; BLINK_HOLD_FRAMES from snap_blink.
 snap:
+    mov word [hold], HOLD_FRAMES
+    jmp announce
+snap_blink:
+    mov word [hold], BLINK_HOLD_FRAMES
+announce:
     push si
     mov si, snap_prefix
     mov dx, DEBUG_PORT
@@ -501,7 +510,7 @@ snap:
 .name:
     pop si
     call debug_line
-    mov cx, HOLD_FRAMES
+    mov cx, [hold]
 .hold:
     push cx
     call wait_retrace
@@ -610,6 +619,7 @@ glyphs:
     db 0xff, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xff
     db 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01, 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
     db 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+hold:           dw 0
 compare_row:    times 80 db 0
 dac_buffer:     times 256 * 3 db 0
     times PROGRAM_SECTORS * 512 - ($ - $$) db 0
