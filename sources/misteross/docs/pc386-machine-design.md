@@ -581,11 +581,16 @@ are the benchmark).
 
 The CRTC runs the guest raster at the guest's own timing, from a 25.175 MHz or
 28.322 MHz dot-clock enable (misc output bits 3:2) and the sequencer's ÷2.
-Horizontal and vertical totals, display ends, blanking and retrace come from
-the CRTC registers, so 3DAh shows exactly the retrace the programmed mode
-produces: 70.09 Hz for 400-line modes, 59.94 Hz for 480-line modes, with
-31.47 kHz lines. Games that poll retrace or time page flips to it see what
-they would on a VGA.
+Horizontal and vertical totals, display ends, and vertical retrace start/end
+come from the CRTC registers. Input status 1 bit 3 follows that vertical
+retrace. Bit 0 is currently an approximation: it is set outside the CRTC
+display-end window (`hcount < CRTC 01h + 1`, `vcount < vertical display end`),
+and does not use horizontal blanking/retrace registers 02h-05h or vertical
+blanking registers 15h-16h. Those registers are stored but not connected to the
+raster yet. Modes whose blanking starts differ from display end can therefore
+report display enable incorrectly. For the standard 400- and 480-line modes,
+the generated raster remains about 70.09 Hz and 59.94 Hz with 31.47 kHz lines;
+status polling outside those programmed windows is not yet VGA-equivalent.
 
 - **Line prefetch.** During each scanline the scanout fetches the next line's
   VRAM words from port 1 into a two-line M10K buffer: character and attribute

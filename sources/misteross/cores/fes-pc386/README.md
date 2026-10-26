@@ -35,6 +35,7 @@ host-only check, plus diagnostic synthesis.
 | [`sim/vga_divergences.toml`](sim/vga_divergences.toml) | Every Bochs-versus-RTL VGA divergence with its deciding case |
 | [`sim/vga_test.asm`](sim/vga_test.asm) | The VGA test disk: VGA BIOS text, mode 13h, mode Y, mode 12h |
 | [`sim/presenter_tb.cpp`](sim/presenter_tb.cpp), [`sim/pc386_presenter_model.h`](sim/pc386_presenter_model.h) | The presenter against its bit-exact C++ model |
+| [`sim/capture_tb.cpp`](sim/capture_tb.cpp), [`sim/vga_capture_top.sv`](sim/vga_capture_top.sv) | Forces capture FIFO overflow and checks that the damaged frame is discarded and a later frame completes |
 | [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
 | [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation disk |
@@ -48,9 +49,9 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
-python3 scripts/sim_fes_pc386.py --suite benches        # presenter and display plane on port 2, under a minute
+python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
-python3 scripts/sim_fes_pc386.py --suite vga              # presenter and port 2 benches, VGA test disk, replay
+python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
 ```
 
@@ -140,13 +141,15 @@ suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every 
   twice the dot clock.
 - **Capture.** Up to 800 x 600 pixels a frame, every scan line (mode 13h is
   captured as 320 x 400), 256-colour modes at half the dot rate, into three
-  2 MiB buffers on port 2. The overscan border is not captured.
+  2 MiB buffers on port 2. A beat-FIFO or line-descriptor overflow invalidates
+  the in-progress frame; the writer drains before a capture buffer is reused.
+  The overscan border is not captured.
 - **Presenter.** The newest complete capture at each 720p frame, scaled to
   960 x 720 by the area-weighted filter in the RTL's header; DSP use is nine
   9 x 9 multipliers for the blends and two 27 x 27 for the weights.
 - **Divergences from Bochs's VGA** are listed in
-  [`sim/vga_divergences.toml`](sim/vga_divergences.toml); the RTL follows the
-  IBM behaviour in each.
+  [`sim/vga_divergences.toml`](sim/vga_divergences.toml), including current
+  M2 limitations against IBM VGA behavior.
 - **Not built:** the vertical retrace interrupt (CRTC 11h bits 4-5), graphics
   blink (attribute bit 3 in graphics modes), cursor skew, display enable skew,
   9-dot 256-colour modes.

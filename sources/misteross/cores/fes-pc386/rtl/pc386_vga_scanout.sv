@@ -455,12 +455,14 @@ module pc386_vga_scanout #(
     reg [31:0] low_pixel;
     reg pair;
     reg [8:0] line_beats;
-    reg beat_push, descriptor_push;
+    reg beat_push;
     reg [63:0] beat_data;
     wire beat_full, beat_empty;
     wire [63:0] beat_head;
     wire [7:0] beat_count;
     reg beat_pop;
+    wire beat_accepted = beat_push && !beat_full;
+    wire beat_dropped = beat_push && beat_full;
     pc386_fifo #(.WIDTH(64), .DEPTH(128)) beats (
         .clk(clk), .reset(reset), .push(beat_push && !beat_full), .din(beat_data), .full(beat_full),
         .pop(beat_pop), .dout(beat_head), .empty(beat_empty), .count(beat_count)
@@ -471,62 +473,102 @@ module pc386_vga_scanout #(
     wire [3:0] descriptor_count;
     reg descriptor_pop;
     reg [8:0] descriptor_data;
+    reg descriptor_pending, line_close_wait, line_abort_pending;
+    wire descriptor_push = descriptor_pending && !descriptor_full;
     pc386_fifo #(.WIDTH(9), .DEPTH(8)) descriptors (
         .clk(clk), .reset(reset), .push(descriptor_push), .din(descriptor_data), .full(descriptor_full),
         .pop(descriptor_pop), .dout(descriptor_head), .empty(descriptor_empty), .count(descriptor_count)
     );
     reg [1:0] capture_buffer;
     reg [9:0] capture_line, width_seen;
-    reg frame_end_pending;
+    reg frame_end_pending, frame_open, frame_valid, capture_active;
     wire line_capturing = capture_line < 10'd600;
     // Push side: on each pixel; at each display line's end, pad and describe.
     wire line_closing = dot && line_end && line_shown;
+    wire writer_idle = descriptor_empty && beat_empty && !cap_write && !descriptor_push && !beat_push &&
+                       !descriptor_pending && !line_close_wait;
     always @(posedge clk) begin
         beat_push <= 0;
-        descriptor_push <= 0;
         frame_done <= 0;
         if (reset) begin
             low_pixel <= 0; pair <= 0; line_beats <= 0; beat_data <= 0; descriptor_data <= 0;
             capture_buffer <= 0; capture_line <= 0; width_seen <= 0; pixel_x <= 0;
-            frame_end_pending <= 0; capture_drops <= 0;
+            frame_end_pending <= 0; frame_open <= 0; frame_valid <= 0; capture_active <= 0;
+            descriptor_pending <= 0; line_close_wait <= 0; line_abort_pending <= 0; capture_drops <= 0;
             frame_buffer <= 0; frame_width <= 0; frame_height <= 0; frame_sequence <= 0;
         end else begin
-            if (beat_push && beat_full) capture_drops <= capture_drops + 32'd1;
-            if (dot && b_valid && line_capturing && pixel_x < 10'd800) begin
+            if (descriptor_push) descriptor_pending <= 0;
+            if (beat_accepted) line_beats <= line_beats + 9'd1;
+            if (beat_dropped) begin
+                capture_drops <= capture_drops + 32'd1;
+                frame_valid <= 0;
+                capture_active <= 0;
+                if (!line_closing && !line_close_wait) line_abort_pending <= 1;
+            end
+            if (capture_active && !line_close_wait && !beat_dropped &&
+                dot && b_valid && line_capturing && pixel_x < 10'd800) begin
                 pixel_x <= pixel_x + 10'd1;
                 if (pair) begin
-                    beat_push <= 1; beat_data <= {pixel_word, low_pixel}; line_beats <= line_beats + 9'd1;
+                    beat_push <= 1; beat_data <= {pixel_word, low_pixel};
                 end else low_pixel <= pixel_word;
                 pair <= !pair;
             end
             // Pipeline latency: a line's last pixel leaves stage C two dots
             // after its last display dot, well before the line ends.
-            if (line_closing) begin
-                if (line_capturing) begin
-                    if (pair) begin beat_push <= 1; beat_data <= {32'd0, low_pixel}; end
-                    descriptor_push <= 1;
-                    descriptor_data <= line_beats + {8'd0, pair};
+            if (line_closing && frame_open) begin
+                if (line_capturing && (capture_active || line_abort_pending || beat_dropped)) begin
+                    if (capture_active && pair && !beat_dropped) begin
+                        beat_push <= 1;
+                        beat_data <= {32'd0, low_pixel};
+                    end
+                    // Resolve a final padded beat's accept/drop result on the
+                    // following clock before recording the accepted beat count.
+                    line_close_wait <= 1;
+                    if (line_abort_pending || beat_dropped) line_abort_pending <= 0;
                     if (capture_line == 0) width_seen <= pixel_x;
                     capture_line <= capture_line + 10'd1;
                 end
-                pair <= 0; line_beats <= 0; pixel_x <= 0;
+                pair <= 0; pixel_x <= 0;
                 if (vnext >= vde) frame_end_pending <= 1;
             end
+            if (line_close_wait) begin
+                descriptor_data <= line_beats + {8'd0, beat_accepted};
+                descriptor_pending <= 1;
+                line_beats <= 0;
+                line_close_wait <= 0;
+                if (descriptor_full) begin
+                    capture_drops <= capture_drops + 32'd1;
+                    frame_valid <= 0;
+                    capture_active <= 0;
+                end
+            end
             // Publish once every line of the frame is written.
-            if (frame_end_pending && descriptor_empty && beat_empty && !cap_write && !descriptor_push && !beat_push) begin
+            if (frame_end_pending && writer_idle) begin
                 frame_end_pending <= 0;
-                frame_done <= 1;
-                frame_buffer <= capture_buffer;
-                frame_width <= width_seen;
-                frame_height <= capture_line > 10'd600 ? 10'd600 : capture_line;
-                frame_sequence <= frame_sequence + 16'd1;
+                frame_open <= 0;
+                if (frame_valid) begin
+                    frame_done <= 1;
+                    frame_buffer <= capture_buffer;
+                    frame_width <= width_seen;
+                    frame_height <= capture_line > 10'd600 ? 10'd600 : capture_line;
+                    frame_sequence <= frame_sequence + 16'd1;
+                end
             end
             if (dot && line_end && vnext == 0) begin
-                capture_line <= 0;
-                // A buffer that is neither the newest complete one nor the
-                // presenter's.
-                capture_buffer <= (frame_buffer != 2'd0 && present_buffer != 2'd0) ? 2'd0 :
-                                  (frame_buffer != 2'd1 && present_buffer != 2'd1) ? 2'd1 : 2'd2;
+                if (writer_idle && !frame_open && !frame_end_pending) begin
+                    capture_line <= 0;
+                    width_seen <= 0;
+                    line_beats <= 0;
+                    pair <= 0;
+                    pixel_x <= 0;
+                    // A buffer that is neither the newest complete one nor
+                    // the presenter's; the old writer has fully drained.
+                    capture_buffer <= (frame_buffer != 2'd0 && present_buffer != 2'd0) ? 2'd0 :
+                                      (frame_buffer != 2'd1 && present_buffer != 2'd1) ? 2'd1 : 2'd2;
+                    frame_open <= 1;
+                    frame_valid <= 1;
+                    capture_active <= 1;
+                end else capture_active <= 0;
             end
         end
     end
@@ -547,7 +589,10 @@ module pc386_vga_scanout #(
         if (reset) begin
             cap_write <= 0; cap_address <= 0; cap_burstcount <= 0; write_line <= 0; write_beat <= 0; burst_left <= 0;
         end else begin
-            if (dot && line_end && vnext == 0) write_line <= 0;
+            if (dot && line_end && vnext == 0 && writer_idle) begin
+                write_line <= 0;
+                write_beat <= 0;
+            end
             if (descriptor_pop) begin write_line <= write_line + 10'd1; write_beat <= 0; end
             else if (can_burst) begin
                 cap_write <= 1;
