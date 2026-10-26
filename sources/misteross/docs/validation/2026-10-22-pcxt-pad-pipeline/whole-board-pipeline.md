@@ -1251,3 +1251,108 @@ clock-boundary models, a complete native fast-corner engine, HPS/pad/board
 bounds, reset/CDC and exact-artifact hardware acceptance remain unqualified.
 No RTL repair is justified by the old zero-hold sensitivity. No kit, GPU or
 new native search is used; all 133 search-journal entries remain unchanged.
+
+### Native GPIO and routed delay ranges, 26 October
+
+Base `8f6c7ef549`. This step changes compiler timing models and records
+frozen-layout diagnostics. RTL, physical routes, the FES toolchain lock and
+100/50/74.25 MHz clocks are unchanged. No kit or GPU is used.
+
+[Mistral #25](https://github.com/DeanoC/mistral/pull/25), `5e311528d8`, adds
+an explicit original-GPIO DATAIN.3 source-wave query. It verifies the
+routing-node identity through direct and HMC PHY bypass mappings; an
+ordinary HMC reverse lookup remains unsupported. All fourteen CTests pass.
+The query supplies excitation, not a clock-to-Q or board timing bound.
+
+[nextpnr #309](https://github.com/DeanoC/nextpnr/pull/309), `ed7248665b`, adds
+the default-off native-cut SDR GPIO reference. The retained Quartus fixture
+covers 38 package pins, 70 register roles, 1,376 local timing observations
+and 1,120 independent clock-prefix observations. Every role has both data
+transitions in setup/hold and both clock transitions in early/late analysis
+at all four retained corners. A fresh fit reproduces every local envelope,
+clock-prefix envelope and physical configuration. Sixteen focused C++ tests
+and seven CTests pass, including fifteen native-parser cases.
+
+Bare DDIO CELL differences omit local IO_RE/HMCPHY_RE segments. The native
+V12 Q envelope is 1.734--1.905 ns rising and 1.830--2.010 ns falling at
+slow100; AE23's HMC bypass reaches 4.389 ns. The new profile checks the
+physical pin/BEL, DQS selectors and net-owned GOUT/DCMUX/GIN cuts, preserves
+signed requirements and counts the terminal data/OE buffer once. The clock
+prefix remains inside the local reference. Existing pad and primitive-clock
+envelopes are translated to that same clock cut; this translation does not
+newly qualify the old envelopes or the board. Missing observations and
+uncovered registered fabric modes fail. Primitive-clock checks remain
+mandatory even without pad-profile attributes, while model discovery can
+precede clock inference. Constant DDR clock forwarding retains its separate
+legacy model.
+
+All six local GPIO controls/profile replays pass with complete endpoint
+retention and unchanged current-parent RBFs. The default reports reproduce
+the complete parent timing JSONs. An initial immediate-driver-only coverage
+check misses fifteen Q launches through identity buffers and fails; those
+receipts are retained unchanged. A complete native path/net/pin audit and a
+new end-to-end capture verify all 68 I/O/Q roles and all sixteen Q launch
+paths on every seed. Negative controls reject missing paths, wrong nets and
+wrong buffer identities. The [GPIO evidence](board50-gpio-native-model.json)
+binds both captures, source/tree/binary/library identities and tests.
+
+The full SDRAM/HDMI input conditions are also replayed as a new independent
+host diagnostic. The old historical compiler cache entry is missing, so
+its historical producer seal is not claimed to have been refreshed. The
+original failed revalidation is retained. The new experiment binds the exact
+retained input JSON/SDC fixtures to complete current source-bound tools and
+independently checks matched parent/default/profile controls. All nine runs
+pass with 17,806 paired/eleven unpaired rows, unchanged current-parent RBFs,
+70 SDRAM and 27 HDMI channels. Conditions remain Etron -6 CL2/TI 4.2 ns,
+FPGA 30 pF, inverter 50 pF and zero board flight/uncertainty. They are not
+measured-kit bounds. See [the combined diagnostic](board50-gpio-combined-diagnostic.json).
+
+Those runs expose a separate analysis-mode inconsistency: without external
+IO constraints, ordinary STA duplicates the maximum routed delay as its
+early value, except on declared primitive clocks. External IO mode retains
+full early/late intervals for all internal data and clocks. The larger
+internal-only hold margins therefore cannot stand in for whole-board timing.
+
+[nextpnr #311](https://github.com/DeanoC/nextpnr/pull/311), `60e8b050ff`, adds
+a separate default-off routed-delay-range option and a common architecture
+capability that defaults to false. It preserves supplied intervals without
+enabling external IO timing or adding constraints. Four focused C++ tests
+and the CLI CTest pass. The regression verifies a supplied 1--4 ns route,
+its hold effect, fixed-clock setup, IO-mode equivalence and re-entry.
+
+Nine more source-bound replays retain each complete inventory. All three
+ordinary native reports reproduce #309's complete reports exactly. With
+ranges enabled, every native endpoint record equals its counterpart in the
+complete full-IO report. The 99 additional IO/mirror records remain explicit;
+no intersection is used as an acceptance inventory. The three full-IO
+reports reproduce their complete previous reports exactly. Every RBF is
+byte-identical to its matched current parent.
+
+| Frozen seed | Internal setup minimum (ns) | Conditional whole-board setup (ns) | Hold minimum in both range modes (ns) |
+| --- | ---: | ---: | ---: |
+| 1 | +0.566 | +0.566 | +0.023 |
+| 2 | +1.410 | +0.650 | +0.084 |
+| 3 | +0.911 | +0.650 | +0.078 |
+
+The narrowest hold checks are internal CPU feedback paths. Conditional
+SDRAM setup/hold minima are +0.650/+1.259 ns; CS is +0.650/+1.508 ns on all
+three seeds. HDMI setup/hold minima are +1.340/+0.558, +1.162/+0.553 and
++0.999/+0.626 ns. These results identify the remaining margins; they do not
+qualify fast-corner models or justify waiving a check. The
+[range evidence](board50-routed-delay-ranges.json) retains limiting identities,
+complete replay receipts and cross-mode comparisons. The compressed
+[harness sources](board50-gpio-ranges-harness.json.gz) reconstruct the actual
+capture/audit scripts and round-trip to their recorded hashes.
+
+All bound inputs/artifacts and the harness reconstruction pass integrity
+checks. Parent `make test-changed`/`make check` cannot run in this retained
+FES checkout because 1,626 unrelated tracked root files, including its
+Makefile, are missing. Those deletions are left untouched and are not part
+of this evidence change. The 133-entry native search journal is unchanged.
+
+Whole-board closure remains open: compiler review/integration, fresh
+source-authenticated producers selecting the reviewed reference/range
+options, complete native fast-corner and clock qualification, actual
+HPS/pad/board/reset/CDC bounds, and observable exact-artifact acceptance are
+still required. No runtime/shared contract, package or factory image is
+promoted.
