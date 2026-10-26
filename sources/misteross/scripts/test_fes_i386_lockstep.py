@@ -200,7 +200,8 @@ def hold_failures(gaps: dict) -> list[str]:
     """D's flag and store holds, cycle-exactly where nothing else can hold:
     without latency a flag consumer right after a shift or rotate retires two
     cycles after it, and anything else one; a memory read right after a store
-    at least two, and any other instruction after a store one."""
+    at least two, any other instruction after a store one, and a push or pop
+    right after another one (lockstep_tb.cpp's Summary says which)."""
     failures = [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
                 for key, expected in (('shift_consumer', 2), ('after_shift', 1))
                 for gap, count in gaps[key].items() if gap != expected]
@@ -208,6 +209,8 @@ def hold_failures(gaps: dict) -> list[str]:
                  for gap, count in gaps['store_load'].items() if gap < 2]
     failures += [f'FAIL store hold: {count} after_store retirements {gap} cycles apart'
                  for gap, count in gaps['after_store'].items() if gap != 1]
+    failures += [f'FAIL stack hold: {count} stack_stack retirements {gap} cycles apart'
+                 for gap, count in gaps['stack_stack'].items() if gap != 1]
     return failures
 
 
@@ -358,7 +361,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack')}
+                        'after_stack', 'stack_stack')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)

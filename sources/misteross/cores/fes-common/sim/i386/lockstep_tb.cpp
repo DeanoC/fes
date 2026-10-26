@@ -487,13 +487,17 @@ struct Summary {
     // An instruction with a memory operand is an address one (as LEA, its
     // address may wait in D) unless it reads memory right after an
     // instruction that writes it (store_load: D holds it at least a cycle),
-    // or closely follows a segment load (it waits for the base). Any other
-    // instruction right after a push or pop is after_stack: it waits in D if
-    // it reads ESP. Any other after a store, not after a shift, is
+    // or closely follows a segment load (it waits for the base). A push or
+    // pop right after one is stack_stack: one cycle, as its ESP is early
+    // from AG. Left out: CALL (two uops), LEAVE (on a 16-bit stack it waits
+    // for ESP's high half), PUSH and POP of (E)SP, which read ESP as data,
+    // and anything after POP (E)SP, which loads ESP.
+    // Any other instruction right after a push or pop is after_stack: it
+    // waits in D if it reads ESP. Any other after a store, not after a shift, is
     // after_store: one cycle, as D's store hold must not catch it.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
-        gap_address, gap_after_segment, gap_after_stack;
+        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack;
     uint64_t smc = 0;  // runs stopped at a store into their own code
     uint64_t load_waits = 0;
 };
@@ -657,7 +661,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     Outcome outcome;
     uint64_t last_retirement = 0;
     bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
-    bool store_before = false, stack_before = false;
+    bool store_before = false, stack_before = false, pop_sp_before = false;
     unsigned since_segment = 99;  // retirements since a segment load
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
@@ -739,6 +743,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.any() && since_segment < 6 ? summary.gap_after_segment
                            : op == 0x8c ? summary.gap_selector
                            : use.reads && store_before ? summary.gap_store_load
+                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0xc9 &&
+                                     op != 0x54 && op != 0x5c ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
                            : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
@@ -748,6 +754,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             }
             store_before = use.writes;
             stack_before = stack_use(code).any();
+            pop_sp_before = op == 0x5c;
             since_segment = loads_segment(code) ? 0 : since_segment + 1;
             retired_before = true;
             branch_before = branch_taken(code, before, code32, taken_before);
@@ -1563,7 +1570,7 @@ int main(int argc, char **argv) {
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
-                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s}}\n",
+                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -1576,6 +1583,7 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_not_taken).c_str(), histogram(summary.gap_shift_consumer).c_str(),
                 histogram(summary.gap_after_shift).c_str(), histogram(summary.gap_store_load).c_str(),
                 histogram(summary.gap_after_store).c_str(), histogram(summary.gap_address).c_str(),
-                histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str());
+                histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
+                histogram(summary.gap_stack_stack).c_str());
     return summary.failed ? 1 : 0;
 }

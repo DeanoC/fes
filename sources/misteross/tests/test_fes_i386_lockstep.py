@@ -89,15 +89,17 @@ class OutputTest(unittest.TestCase):
             lockstep.parse_output('Segmentation fault\n{"runs": 1}\n')
 
     def test_holds_are_checked_cycle_exactly(self):
-        quiet = {'store_load': {}, 'after_store': {}}
+        quiet = {'store_load': {}, 'after_store': {}, 'stack_stack': {}}
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {2: 5}, 'after_shift': {1: 7}, **quiet}), [])
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {1: 3, 2: 5}, 'after_shift': {2: 4}, **quiet}),
                          ['FAIL flag hold: 3 shift_consumer retirements 1 cycles apart',
                           'FAIL flag hold: 4 after_shift retirements 2 cycles apart'])
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {}, 'after_shift': {},
-                                                 'store_load': {1: 2, 2: 6, 4: 1}, 'after_store': {1: 9, 2: 3}}),
+                                                 'store_load': {1: 2, 2: 6, 4: 1}, 'after_store': {1: 9, 2: 3},
+                                                 'stack_stack': {1: 8, 2: 1}}),
                          ['FAIL store hold: 2 store_load retirements 1 cycles apart',
-                          'FAIL store hold: 3 after_store retirements 2 cycles apart'])
+                          'FAIL store hold: 3 after_store retirements 2 cycles apart',
+                          'FAIL stack hold: 1 stack_stack retirements 2 cycles apart'])
 
     def test_cpu_sources_exist(self):
         for name in lockstep.CPU_RTL:
