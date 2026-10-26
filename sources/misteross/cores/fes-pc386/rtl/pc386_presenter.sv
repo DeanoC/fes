@@ -10,13 +10,13 @@
 // pixel or a blend of two by coverage:
 //
 //   r = o S mod N, s = o S div N; if r + S > N:
-//     w = ((r + S - N) * R + 2^15) >> 16 with R = (2^24 + S/2) div S,
+//     w = min(256, ((r + S - N) * R + 2^15) >> 16) with R = (2^24 + S/2) div S,
 //     out = a + (((b - a) w + 128) >> 8)   (arithmetic shift, 8-bit channels)
 //
 // with a = source s and b = source s + 1, horizontally in each of the two
 // source rows, then vertically. Most output pixels are unblended. The 6-bit
 // DAC values are kept as 18-bit pixels and widened by replication before the
-// blend. scripts/pc386_presenter_model.py holds the same arithmetic.
+// blend. sim/pc386_presenter_model.h holds the same arithmetic.
 //
 // The system-clock side reads source rows from DDR port 2 into two dual-clock
 // line buffers, one for even rows and one for odd, each with two row slots,
@@ -393,5 +393,5 @@ module pc386_presenter #(
     assign buffer_wdata = {narrow(ddr_readdata[63:32]), narrow(ddr_readdata[31:0])};
     assign buffer_write_even = ddr_readdatavalid && !f_row[0];
     assign buffer_write_odd = ddr_readdatavalid && f_row[0];
-    wire unused = ^{f_loaded, g1_rx, row_blank};
+    wire unused = ^{f_loaded, g1_rx};
 endmodule
