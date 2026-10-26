@@ -67,44 +67,49 @@ counts are unchanged.
 
 ## Artifacts
 
-Source FES `97012888` (`sources/misteross`), producers
+Source FES `9da56232` (`sources/misteross`), producers
 `scripts/build_fes_spectrum_oss.py --model {48,128,plus3,pentagon}`, lock
 `cores/fes-spectrum/toolchain.lock` (nextpnr main `bd7a1c0d`, unchanged), HIP
 router, first-pass placement search in each recipe's seed order. Every core
 is constrained to a 52.224 MHz system clock, the 74.25 MHz pixel clock and a
 12.288 MHz audio clock.
 
-These seals replace the first turbo seals, built from `a8e165fc`. That source
-had the Beta 128's Force Interrupt I2 raising INTRQ as the index pulse
-starts; Fuse 1.6.0 raises it as the pulse ends, and `97012888` does the same.
-That is the only change to the Spectrum RTL between the two sources.
+These seals replace the first turbo seals, built from `a8e165fc`. Two
+controller fixes came between the two sources, and they are the only
+changes to the Spectrum RTL:
+
+- The Beta 128's Force Interrupt I2 raised INTRQ as the index pulse started;
+  it now raises it as the pulse ends, as Fuse 1.6.0 does.
+- The uPD765's Sense Interrupt Status left the seek interrupt pending after
+  returning its status; it now clears it unless another unit still has a
+  completed seek, as Fuse does.
 
 | Core | Seed | System MHz | Pixel MHz | Audio MHz | COMB | FF | M10K | MUL9X9 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fes.spectrum` 0.6.0 | 4 | 63.49 | 95.00 | 169.61 | 9,395 | 4,821 | 129 (16 TDP) | 3 |
-| `fes.spectrum128` 0.4.0 | 5 | 63.01 | 84.58 | 184.43 | 10,500 | 5,092 | 225 (32 TDP) | 3 |
-| `fes.spectrum-plus3` 0.5.0 | 4 | 53.00 | 87.80 | 175.75 | 13,991 | 6,650 | 257 (32 TDP) | 3 |
-| `fes.pentagon` 0.5.0 | 2 | 59.24 | 84.57 | 199.56 | 12,098 | 6,273 | 241 (32 TDP) | 3 |
+| `fes.spectrum` 0.6.0 | 5 | 59.30 | 92.16 | 231.80 | 9,443 | 4,821 | 129 (16 TDP) | 3 |
+| `fes.spectrum128` 0.4.0 | 5 | 65.59 | 89.12 | 189.83 | 10,491 | 5,092 | 225 (32 TDP) | 3 |
+| `fes.spectrum-plus3` 0.5.0 | 4 | 58.85 | 95.95 | 229.89 | 14,712 | 6,650 | 257 (32 TDP) | 3 |
+| `fes.pentagon` 0.5.0 | 5 | 64.53 | 81.38 | 154.51 | 12,114 | 6,273 | 241 (32 TDP) | 3 |
 
-- `fes.spectrum` 0.6.0: package `1e23466daf87ca32864bcf7133465f4904d2a3b8b68190bfe70385e43af5d72b`, build `fe5e6141ed40ec7cf6c3e34ceb382052`, RBF sha256 `98e256135e56d3f0f0ff6639c3bd308503ce6c19f7dbc09272a497f8fa2391f1` (2,637,984 bytes)
-- `fes.spectrum128` 0.4.0: package `4a56eee238edb83566b2f8cd1118f7880a4966d29a8c6994a236e781a1636e4e`, build `0b93c88ce58f55d25aaa4a37de41cc53`, RBF sha256 `cc70ff8309fcd2015d60909a6790fc1957f492c4a73a57ecfe4b6c399cc817ac` (2,999,672 bytes)
-- `fes.spectrum-plus3` 0.5.0: package `9b653a2048ec27fc5c10347885e8b4e39d067799353d74aa52ab763f0ae8507d`, build `9299fb91e1b68d3b25888720c53d235c`, RBF sha256 `c68fa392387a4ccdf68a1a75e2f0f16ee35c0e513c4cc9b91266ed78ed445472` (3,207,104 bytes)
-- `fes.pentagon` 0.5.0: package `0e07c46e38f3f30a3413d9dc9d3d4cc79bb5b504ac7ae24bc9f3cecd7eb19ee6`, build `4a317ae75020cd8e11c97d9a2bc54ac8`, RBF sha256 `1223225a197621e9fb05c32c0a591d50ae24903843eb52fc8f2decae0a0938f9` (3,054,843 bytes)
+- `fes.spectrum` 0.6.0: package `057a422d1b7869608f122cd2c07b3615525be6d7ac9e9db776cf84c258e91acb`, build `6a69d61b0b453c7b45c928ecb340f2d3`, RBF sha256 `c24df2181fdac2060fb4733273f2a594fbe3771e5334f8f5a1aa81d9138b1e0d` (2,623,604 bytes)
+- `fes.spectrum128` 0.4.0: package `ee164e9f26ffb24ca3a3db8ac6274fe8e1b368a187f44561b1bc998b1db80015`, build `5c8f2002b38012ebed7125624679d0ea`, RBF sha256 `008f8435dd3242707cec788dc9f7f0d47340876130b4f9ba0abc9d7749dfeddb` (3,011,808 bytes)
+- `fes.spectrum-plus3` 0.5.0: package `a1fa87c585f87b8719cd566cb7f316d63bdfd2ca3246832cb22de1571c47e1a7`, build `9b0ab58102e38d9d281e6aed8039cbd0`, RBF sha256 `96d4ef62245904d329fda12a690e8739d6bf89143f5bcbb5566d46fe6558609f` (3,180,659 bytes)
+- `fes.pentagon` 0.5.0: package `effa14fb5abb77e4e47d9f69fcfb2760bda215857db24c3608fa91b430175f71`, build `b172d9cdc6529ea18c651c3bb4a7155a`, RBF sha256 `48103181e4506942c38c0d1b1bb6faec971bbefae9907c41e95ecf9069e8a3d0` (3,071,581 bytes)
 
 The system clock closed with less margin than the +3 disk seals (70.67,
 66.14, 61.27 and 57.81 MHz then). No system critical path runs through the
-ULA's clock or screen fetch: the 48K's is inside the CPU's state decode, the
-128K's the AY into the audio mix, the +2A/+3's the uPD765's CRC into its
-interrupt, the Pentagon's the tape deck's state into its pulse preset. No
-check was relaxed.
+ULA's clock or screen fetch: the 48K's, 128K's and +2A/+3's are inside the
+CPU's state decode, the Pentagon's the AY into the audio mix. No check was
+relaxed.
 
 ## Kit check
 
 The kit runs below were made on the first turbo seals from `a8e165fc`:
 `fes.spectrum` `eb002504`, `fes.spectrum128` `f07a38f5`, `fes.spectrum-plus3`
 `4d501a44` and `fes.pentagon` `0afd828c`. Their RTL differs from the seals
-above only in when the Pentagon's Beta 128 raises INTRQ for Force Interrupt
-I2, which TR-DOS 5.03 does not issue. The seals above were not run on a kit.
+above only in the two controller fixes: the Pentagon's Force Interrupt I2,
+which TR-DOS 5.03 does not issue, and the +2A/+3's Sense Interrupt after a
+seek. The seals above were not run on a kit.
 
 Kit B, on the running image `4db74864` with the stacked branches' kit
 software (bundle `c8b2a0c5`, built from `a5de9abb`; FogCast and the runtime
