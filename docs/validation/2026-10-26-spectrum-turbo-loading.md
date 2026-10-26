@@ -51,8 +51,9 @@ counts are unchanged.
   machine simulation now takes the marker from its write cycle's T2 on the
   bus; RAM changes a clock later, which in turbo falls in the next T state.
 - `run_tb` with the diagnostic firmware gives the same instruction trace (PC
-  and frame T state at every instruction, 61,267 lines over 8 frames on the
-  48K; 12 frames on the Pentagon) at the model's speed and with `--turbo`.
+  and frame T state at every instruction: 61,267 lines over 8 frames on the
+  48K, 89,633 over 12 frames on the Pentagon) at the model's speed and with
+  `--turbo`, on the final build.
   Those traces were matched to Fuse 1.6.0 at the model's speed, so the turbo
   machine follows Fuse the same way.
 - With the real 48K and 128K ROMs (held locally, never committed), Manic
@@ -106,9 +107,10 @@ and lease-free.
   the previous seals (the +3 disk record's packages). The time from `LOAD`
   being typed to the first frame showing its eight stripes was 10.5 s
   (48K), 9.7 s (128K), 15.7 s (+2A/+3) and 9.7 s (Pentagon). In that run each
-  turbo package failed to create its library entry (`STALE_REVISION`), as the
-  same host already held an entry for another package of the same core, so
-  run `tbB3` tested one package per core.
+  turbo package failed to create its library entry (`STALE_REVISION`). The
+  same host already held an entry for another package of the same core,
+  which appears to be the cause: run `tbB3`, one package per core and host,
+  created every entry.
 - Run `tbB2` was interrupted during its first session's setup; no session
   launched, and the kit was restored by hand and logged.
 - Run `tbB3` (06:14-06:38 EET), every automatic check passed
@@ -125,6 +127,23 @@ and lease-free.
   - `fes.spectrum128` 0.4.0 loaded Head Over Heels (Ocean, custom
     pulse-sequence loader, 244 s of tape) through its Tape Loader to the
     joystick menu in about 90 s.
+  - Bubble Bobble's menu has a black border, so the dropout count reads its
+    whole recording as black frames; `0xBA` and the recording show HDMI held.
+  - The deck's tape stream is read from DDR about three times as fast in
+    turbo. It has no underrun counter on the kit, so the evidence is that
+    every tape loaded.
+
+- Run `tbB4` (06:43-07:06 EET) repeated the +3 disk record's disk and
+  snapshot checks on these packages, and every automatic check passed
+  (`HIL_VERDICT PASS`):
+  - `fes.spectrum-plus3` 0.5.0 booted Bubble Bobble, Batman: The Caped
+    Crusader and Beyond the Ice Palace from `.dsk` to the same screens as
+    before, and Chase H.Q. II inserted live changed only the medium.
+  - `fes.pentagon` 0.5.0 booted `tetris.trd` and refused a `.dsk`.
+    `fes.spectrum` 0.6.0 refused a disk.
+  - Every model restored the same `.z80` and `.sna` games as before, live
+    inserts included, and the 48K, 128K and Pentagon refused a class they do
+    not run.
 
 ## Not established
 
