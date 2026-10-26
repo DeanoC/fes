@@ -1454,3 +1454,81 @@ default-off compiler correction is being implemented and tested separately;
 no corrected-mode timing or physical acceptance follows from this audit.
 RTL, clock frequencies/phases, FES locks, routes, runtime/shared contracts,
 packages, kits and the 133-entry search journal remain unchanged.
+
+### Opt-in clock-edge correction and matched egress reference, 26 October
+
+Base `0bc220719f`. Ready-for-review [nextpnr #313](https://github.com/DeanoC/nextpnr/pull/313),
+`519f7da079`, adds default-off `--mistral-clock-edge-ranges`, requiring full
+routed intervals. Registered launches/captures use their actual transition
+in arrival, required-time, unrelated-clock cancellation and native path sums.
+Early/late uncertainty within that transition remains intact. Manual bounds
+replace both transitions. Checkpoint/calibration identities bind the option;
+stale endpoint queries and cached STA after a mode change are rejected until
+routing delays are refreshed. Ordinary Mistral and other-backend defaults
+remain unchanged.
+
+All 55 focused C++ regressions and both CLI CTests pass. Fifteen source-bound
+frozen replays preserve complete clock/endpoint inventories and current-parent
+RBF bytes. Nine ordinary controls reproduce complete parent timing JSONs;
+six selected-mode captures preserve every paired endpoint's setup/hold or
+improve it. Native coverage stays 17,709 paired/nine unpaired; full IO stays
+17,806 paired/eleven unpaired. Every native selected-mode row equals its
+complete-IO counterpart, with all 99 additional IO/mirror rows explicit.
+The slow100 full-IO setup/hold minima become +0.566/+0.289,
++0.862/+0.341 and +0.862/+0.339 ns. A separate twelve-corner capture clears
+the cold-slow internal/SDRAM hold failures, retaining HDMI hold failures in
+all six fast-corner captures. The cache-guard follow-up reproduces every complete report from the
+initial correction. The completed earlier build is retained, with all recorded
+object/library/binary hashes unchanged through its original path.
+
+[The compiler record](board50-clock-edge-ranges.json) and
+[its harness](board50-clock-edge-ranges-harness.json.gz) retain those source,
+unit-test, complete-endpoint and corner checks. They do not qualify the
+remaining primitive, PLL, pad or board timing models.
+
+The HDMI contract explicitly included one native-slow100 clock-egress route
+interval. Its reference is the actual unregistered AG5 output, driven from a
+placed PLL clock buffer on `clk_hdmi`; its native cut is `GOUT.37.0.0`.
+Read-only observations on the unchanged RBFs reproduce that exact pad/net/BEL/
+source/cut identity and measure rising route delays of 1337 ps at slow100,
+1364 ps at slow/-40 C, 650 ps at fast/100 C and 607 ps at fast/-40 C. The old
+SDC used 1337 ps in every diagnostic corner. Wrong reference-clock, data-output
+and input-port declarations all reject without an estimated source.
+
+A separate conditional screen replaces only that explicitly baked interval.
+For each pin, `new_output_max = old_output_max + old_clock_early - new_clock_early`
+and `new_output_min = old_output_min + old_clock_late - new_clock_late`.
+Changed bounds receive an additional outward 1 ps guard. Receiver setup/hold,
+paired four-corner pad-tail differences, independent 0/30 pF load endpoints,
+reference uncertainty, zero board flight/skew and the existing clock phases
+remain fixed. This aligns the reference route with the native corner; it
+adds no manufactured clock or timing exception.
+
+All twelve matched-reference captures return success, retaining every
+17,806 paired/eleven unpaired row, identical RBF bytes and clock constraints.
+All non-HDMI endpoint records remain exactly equal to the failed-parent
+screen; all 27 HDMI setup/hold changes match the independent formula.
+The three slow100 controls reproduce their complete reports and SDC bytes
+exactly. Paired hold minima are:
+
+| Seed | Slow100 (ns) | Slow/-40 C (ns) | Fast/100 C (ns) | Fast/-40 C (ns) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | +0.289 | +0.244 | +0.143 | +0.076 |
+| 2 | +0.341 | +0.304 | +0.204 | +0.145 |
+| 3 | +0.339 | +0.302 | +0.180 | +0.110 |
+
+The minimum paired setup margin across the complete screen is +0.566 ns;
+the minimum hold margin is +0.076 ns. The original failed-corner captures
+remain untouched. [The matched-egress record](board50-matched-clock-egress.json)
+and [its harness](board50-matched-clock-egress-harness.json.gz) bind the twelve
+native observations, three rejection controls, derivation and every input/
+artifact hash.
+
+These are conditional host diagnostics with the retained partial corner
+models. They establish no physical whole-board acceptance: remaining cell/LUT/
+PLL/pad and continuous-load bounds, actual board/HPS/reset/CDC obligations,
+public multi-corner integration, fresh source-authenticated producers and
+observable exact-artifact hardware acceptance remain open. The historical
+producer seal is not refreshed. CPU/board/pixel clocks remain 100/50/74.25 MHz;
+RTL, PLL phases, FES locks, physical routes, runtime/shared contracts, packages,
+kits and the 133-entry native-search journal remain unchanged.
