@@ -46,7 +46,8 @@ func spectrumSnapshotsCapable(p *SessionCorePackage) bool {
 }
 
 // spectrumDiskCapable reports an active unit-1 Spectrum disk beside the
-// cassette; the host converts .trd and .scl images for its TR-DOS drive.
+// cassette; the host converts .trd and .scl images for a TR-DOS drive and
+// .dsk images for a +3 drive, and refuses one for the other.
 func spectrumDiskCapable(p *SessionCorePackage) bool {
 	if p == nil {
 		return false
@@ -59,9 +60,10 @@ func spectrumDiskCapable(p *SessionCorePackage) bool {
 // limits. A Spectrum tape image is converted to the unit's PZX stream on
 // insert, and a snapshot to its restore stream, so each is bounded as an
 // image and the host checks the stream and whether the package runs it. A
-// TR-DOS disk goes to the unit-1 disk beside the cassette.
+// Spectrum disk goes to the unit-1 disk beside the cassette; without that
+// unit a .dsk is an Apple II disk.
 func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
-	if protocol.AdmitSpectrumDiskName(name) {
+	if protocol.AdmitSpectrumDiskName(name) && (spectrumDiskCapable(p) || !protocol.AdmitComputerDiskName(name)) {
 		return spectrumDiskCapable(p) && protocol.AdmitSpectrumDiskSize(size)
 	}
 	u, ok := RemovableMediaUnit(p)

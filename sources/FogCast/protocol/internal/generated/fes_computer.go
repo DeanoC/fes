@@ -129,7 +129,7 @@ const (
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
 	FesComputerSpectrumDiskUnit                         uint32 = 0x1
 	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
-	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x15a000
+	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
 	FesComputerAtariStFloppyUnit                        uint32 = 0x0
 	FesComputerAtariStFloppyBytes                       uint32 = 0xb4000
 	FesComputerAtariStFloppyGeometryMinBytes            uint32 = 0x5a000

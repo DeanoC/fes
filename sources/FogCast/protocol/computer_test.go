@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
 	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 )
 
@@ -205,23 +206,27 @@ func TestSpectrumDiskDeclarations(t *testing.T) {
 	tape := corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}
 	disk := corepackage.Interface{ID: "fes.media.spectrum-disk", Major: 1, Required: true}
 	trdos := corepackage.Interface{ID: SpectrumDiskTrdosInterfaceID, Major: 1}
+	plus3 := corepackage.Interface{ID: SpectrumDiskPlus3InterfaceID, Major: 1}
 	optional := disk
 	optional.Required = false
 	for name, tc := range map[string]struct {
 		interfaces []corepackage.Interface
 		listed     bool
+		system     spectrumdisks.System
 	}{
-		"tape only":           {[]corepackage.Interface{tape}, false},
-		"TR-DOS drive":        {[]corepackage.Interface{tape, disk, trdos}, true},
-		"no controller":       {[]corepackage.Interface{tape, disk}, false},
-		"no cassette":         {[]corepackage.Interface{disk, trdos}, false},
-		"optional disk":       {[]corepackage.Interface{tape, optional, trdos}, false},
-		"controller, no unit": {[]corepackage.Interface{tape, trdos}, false},
+		"tape only":           {[]corepackage.Interface{tape}, false, 0},
+		"TR-DOS drive":        {[]corepackage.Interface{tape, disk, trdos}, true, spectrumdisks.TRDOS},
+		"+3 drive":            {[]corepackage.Interface{tape, disk, plus3}, true, spectrumdisks.Plus3},
+		"two controllers":     {[]corepackage.Interface{tape, disk, trdos, plus3}, false, 0},
+		"no controller":       {[]corepackage.Interface{tape, disk}, false, 0},
+		"no cassette":         {[]corepackage.Interface{disk, trdos}, false, 0},
+		"optional disk":       {[]corepackage.Interface{tape, optional, trdos}, false, 0},
+		"controller, no unit": {[]corepackage.Interface{tape, plus3}, false, 0},
 	} {
 		d := corepackage.Descriptor{Core: corepackage.Core{ID: "example.any-core"},
 			ABI: corepackage.Contract{ID: "fes.computer", Major: 1}, Interfaces: tc.interfaces}
-		if DeclaresTrdosDisk(d) != tc.listed {
-			t.Errorf("%s: TR-DOS drive = %v", name, !tc.listed)
+		if system, ok := SpectrumDiskSystem(d); ok != tc.listed || system != tc.system {
+			t.Errorf("%s: disk system %v, %v", name, system, ok)
 		}
 		var found *CoreMediaCapability
 		for _, m := range DeclaredCoreMediaCapabilities(d) {
@@ -233,12 +238,13 @@ func TestSpectrumDiskDeclarations(t *testing.T) {
 			t.Fatalf("%s: disk role listed = %v", name, found != nil)
 		}
 		if found != nil && (*found.Unit != SpectrumDiskUnit || found.Interface != SpectrumDiskInterface() ||
-			strings.Join(found.Extensions, " ") != ".trd .scl" || found.MaxBytes != SpectrumDiskImageMaxBytes) {
+			strings.Join(found.Extensions, " ") != strings.Join(tc.system.Extensions(), " ") ||
+			found.MaxBytes != SpectrumDiskImageMaxBytes) {
 			t.Errorf("%s: disk capability %+v", name, *found)
 		}
 	}
-	for name, want := range map[string]bool{"game.trd": true, "GAME.SCL": true, "game.dsk": false, "a/game.trd": false} {
-		if AdmitSpectrumDiskName(name) != want || AdmitLiveMediaName(name) != (want || name == "game.dsk") {
+	for name, want := range map[string]bool{"game.trd": true, "GAME.SCL": true, "game.dsk": true, "a/game.trd": false} {
+		if AdmitSpectrumDiskName(name) != want || AdmitLiveMediaName(name) != want {
 			t.Errorf("disk name %q admitted = %v", name, !want)
 		}
 	}

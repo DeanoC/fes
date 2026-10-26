@@ -94,6 +94,7 @@ struct KeyEvent { unsigned frame, length; uint64_t mask; };
 
 struct Options {
     std::string rom, state, dump, tape, disk;
+    bool turbo = false;   // every T state in turbo
     unsigned frames = 50;
     long disk_frame = -1;   // insert the disk at this frame; -1 before reset
     std::vector<unsigned> dump_frames;
@@ -286,6 +287,7 @@ int main(int argc, char **argv) {
         else if (arg == "--dump") options.dump = next();
         else if (arg == "--dump-frame") options.dump_frames.push_back(std::stoul(next()));
         else if (arg == "--dump-all") options.dump_all = true;
+        else if (arg == "--turbo") options.turbo = true;
         else if (arg == "--trace-int") options.trace_int = true;
         else if (arg == "--trace") options.trace = next();
         else if (arg == "--trace-from") options.trace_from = std::stoul(next());
@@ -307,6 +309,7 @@ int main(int argc, char **argv) {
     }
 
     Simulation sim;
+    sim.dut.turbo_always = options.turbo;
     if (!options.rom.empty()) sim.load_rom(read_file(options.rom));
     // By default the disk is in before execution starts; --disk-frame inserts
     // it later, as a host does after Start or while the machine runs.

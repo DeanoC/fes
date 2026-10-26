@@ -197,7 +197,8 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	}
 	if capability.Interface == protocol.SpectrumDiskInterface() {
 		// A launch disk carries the boot flag: the core boots it once it is in.
-		image, err := spectrumDiskImage(reader, media.Size, true)
+		system, _ := protocol.SpectrumDiskSystem(descriptor)
+		image, err := spectrumDiskImage(reader, media.Size, system, true)
 		if err != nil {
 			return nil, err
 		}
@@ -244,16 +245,16 @@ func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, read
 	return pzx, nil
 }
 
-// spectrumDiskImage reads a stored .trd or .scl image and converts it to the
-// raw track image fes.media.spectrum-disk 1.0 reads, flagged to boot when a
-// launch inserts it. It closes reader.
-func spectrumDiskImage(reader io.ReadCloser, size int64, boot bool) ([]byte, error) {
+// spectrumDiskImage reads a stored disk image written for the package's disk
+// system and converts it to the raw track image fes.media.spectrum-disk 1.0
+// reads, flagged to boot when a launch inserts it. It closes reader.
+func spectrumDiskImage(reader io.ReadCloser, size int64, system spectrumdisks.System, boot bool) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
 	if readErr != nil || closeErr != nil || int64(len(data)) != size {
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
 	}
-	image, err := spectrumdisks.Convert(data, boot)
+	image, err := spectrumdisks.Convert(data, system, boot)
 	if err != nil {
 		return nil, protocol.SpectrumDiskConversionError(err)
 	}

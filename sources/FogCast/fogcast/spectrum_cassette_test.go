@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
 	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 	"github.com/DeanoC/FogCast/internal/spectrumtapes"
 	"github.com/DeanoC/FogCast/protocol"
@@ -184,14 +185,19 @@ func TestSpectrumDiskImageCarriesTheLaunchBootFlag(t *testing.T) {
 	trd := make([]byte, 160*4096)
 	trd[8*256+227], trd[8*256+231] = 0x16, 0x10
 	for _, boot := range []bool{true, false} {
-		image, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(trd)), int64(len(trd)), boot)
+		image, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(trd)), int64(len(trd)), spectrumdisks.TRDOS, boot)
 		if err != nil || !bytes.HasPrefix(image, []byte("ZXDK")) || (image[7]&2 != 0) != boot {
 			t.Fatalf("boot %v: % x %v", boot, image[:min(len(image), 8)], err)
 		}
 	}
-	_, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(tap())), int64(len(tap())), true)
+	_, err := spectrumDiskImage(io.NopCloser(bytes.NewReader(tap())), int64(len(tap())), spectrumdisks.TRDOS, true)
 	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest || !strings.Contains(api.Message, "TR-DOS disk image") {
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest || !strings.Contains(api.Message, "Spectrum disk image") {
 		t.Fatalf("a tape converted as a disk: %v", err)
+	}
+	// A TR-DOS disk is refused by a +3 drive.
+	_, err = spectrumDiskImage(io.NopCloser(bytes.NewReader(trd)), int64(len(trd)), spectrumdisks.Plus3, true)
+	if !errors.As(err, &api) || !strings.Contains(api.Message, "another disk system") {
+		t.Fatalf("a TR-DOS disk converted for the +3: %v", err)
 	}
 }

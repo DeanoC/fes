@@ -728,8 +728,10 @@ machine, with transparent pixels outside the opaque picker. The launch room
 is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
 or Atari ST `.st`. Spectrum `.z80`, `.sna` and `.szx` appear only when the
-active package reports `fes.media.spectrum-snapshot` 1.0, and TR-DOS `.trd`
-and `.scl` only while a unit-1 `fes.media.spectrum-disk` is active. The runtime
+active package reports `fes.media.spectrum-snapshot` 1.0, and TR-DOS `.trd` and
+`.scl` and +3 `.dsk` only while a unit-1 `fes.media.spectrum-disk` is active
+(without it, a `.dsk` is an Apple II disk); the host refuses a disk written
+for the other drive. The runtime
 reports the matching optional snapshot metadata as active; model-specific
 snapshot checks remain in the host converter. It applies the active
 interface and reported size limits before import; the host and runtime
@@ -826,12 +828,15 @@ refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. A Spectrum shell that also declares
 `fes.media.spectrum-disk` 1.0 and the optional `fes.media.spectrum-disk-trdos`
 1.0 (the Pentagon's Beta 128) has role `disk`, format `spectrum-disk-trdos`,
-names `.trd` and `.scl` up to 1 MiB, on unit 1 beside the cassette;
-`internal/spectrumdisks` converts it at insertion to the unit's raw track
-image, built as Fuse 1.6.0's `disk.c` builds the disk. A launch sets the
-image's boot flag, so the core resets into TR-DOS and boots it, and gives a
-disk without a `boot` program Fuse's autoload loader; a live insert does
-neither. Library selection
+names `.trd` and `.scl` up to 1 MiB, on unit 1 beside the cassette; with
+`fes.media.spectrum-disk-plus3` 1.0 (the +3's uPD765A) instead, format
+`spectrum-disk-plus3` names `.dsk` up to 1 MiB. `internal/spectrumdisks`
+converts the disk at insertion to the unit's raw track image, built as Fuse
+1.6.0's `disk.c` builds the disk, and refuses one for the other drive. A
+launch sets the image's boot flag, so the core resets and boots it (into
+TR-DOS, or through the +3 menu's Loader), and gives a TR-DOS disk without a
+`boot` program Fuse's autoload loader; a live insert does neither. A live
+`.dsk` goes to the Spectrum disk when the active package has one. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are
 restored and inserted before CPU release; other home computers program the

@@ -9,11 +9,12 @@
 
 // DE10-Nano shell for the FES ZX Spectrum models (fes.computer 1.0). The
 // mailbox, machine, tape and edge sockets run at 52.224 MHz; the ULA derives
-// the model's T state from it. Complete 50 Hz frames are shown 3x in 720p60
+// the model's T state from it, 5 clocks per T state while a tape loads in
+// turbo, when the sound is muted. Complete 50 Hz frames are shown 3x in 720p60
 // through the shared session-display plane. Audio leaves through 48 kHz I2S.
 // Sockets 1-4 are physical and vacant here; a linked card replaces the
 // vacant response. HPS DDR port 0 feeds the plane; port 1 holds the tape and,
-// on the Pentagon, port 2 the Beta 128's disk (media unit 1).
+// on the Pentagon and +2A/+3, port 2 the disk (media unit 1).
 module top #(
     parameter [127:0] BUILD_ID = `FES_SPECTRUM_BUILD_ID
 ) (
@@ -64,7 +65,7 @@ module top #(
     wire [1:0] unit0_state, unit1_state;
     wire [31:0] unit0_size, unit1_size;
     wire media_write_unit;
-    localparam bit DISK = `SPECTRUM_MODEL == 3;
+    localparam bit DISK = `SPECTRUM_MODEL == 3 || `SPECTRUM_MODEL == 2;
     wire display_request, display_response_valid, display_response_error, display_quiesced;
     wire [6:0] display_opcode;
     wire [7:0] display_index;
@@ -150,10 +151,10 @@ module top #(
         .readdatavalid(ddr1_readdatavalid)
     );
 
-    // The Pentagon's disk image lives at window offset 32 MiB; the Beta 128
+    // The disk image lives at window offset 32 MiB; the disk controller
     // reads its tracks a byte at a time through the fetch port.
     wire disk_fetch, disk_fetch_ready;
-    wire [20:0] disk_fetch_addr;
+    wire [21:0] disk_fetch_addr;
     wire [7:0] disk_fetch_data;
     wire ddr2_reset, ddr2_read, ddr2_write, ddr2_waitrequest, ddr2_readdatavalid;
     wire [28:0] ddr2_address;
@@ -161,13 +162,13 @@ module top #(
     wire [63:0] ddr2_writedata, ddr2_readdata;
     generate if (DISK) begin : disk
         fes_media_ddr #(
-            .BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h02000000), .AW(21)
+            .BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE + 32'h02000000), .AW(22)
         ) disk_store (
             .clk(clk_sys), .reset(ddr2_reset),
-            .write_addr(media_write_addr[20:0]), .write_data(media_write_data),
+            .write_addr(media_write_addr[21:0]), .write_data(media_write_data),
             .write_enable(media_write_unit ? media_write_enable : 2'b00),
             .write_ready(disk_write_ready),
-            .stream_enable(1'b0), .stream_bytes(22'd0), .stream_valid(), .stream_data(),
+            .stream_enable(1'b0), .stream_bytes(23'd0), .stream_valid(), .stream_data(),
             .stream_take(1'b0),
             .fetch(disk_fetch), .fetch_addr(disk_fetch_addr),
             .fetch_ready(disk_fetch_ready), .fetch_data(disk_fetch_data),
@@ -190,7 +191,7 @@ module top #(
 
     wire [`SP_BUS_REQ-1:0] bus_request;
     wire [`SP_BUS_RSP-1:0] response1;
-    wire pixel_we, frame_done, tick, speaker, mic, ear;
+    wire pixel_we, frame_done, tick, turbo, speaker, mic, ear;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
     wire [15:0] pixel_data;
@@ -198,12 +199,12 @@ module top #(
     spectrum_machine machine (
         .clk_sys(clk_sys), .reset(exec_reset), .matrix(matrix), .kempston(kempston),
         .tape_ready(unit0_state == 2'd3), .tape_size(unit0_size[24:0]),
-        .disk_ready(unit1_state == 2'd3), .disk_size(unit1_size[21:0]),
+        .disk_ready(unit1_state == 2'd3), .disk_size(unit1_size[22:0]),
         .disk_fetch(disk_fetch), .disk_fetch_addr(disk_fetch_addr),
         .disk_fetch_ready(disk_fetch_ready), .disk_fetch_data(disk_fetch_data),
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
-        .tape_playing(),
+        .tape_playing(), .turbo_always(1'b0), .turbo(turbo),
         .bus_request(bus_request),
         .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
@@ -277,7 +278,7 @@ module top #(
 
     wire signed [15:0] audio_sample;
     spectrum_audio audio_mix (
-        .clk(clk_sys), .reset(exec_reset), .tick(tick), .speaker(speaker), .mic(mic),
+        .clk(clk_sys), .reset(exec_reset), .tick(tick), .mute(turbo), .speaker(speaker), .mic(mic),
         .ear(ear), .ay_pcm(ay_pcm), .slot_audio(slot_audio), .sample(audio_sample)
     );
     fes_audio_output audio (

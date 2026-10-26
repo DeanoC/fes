@@ -8,7 +8,7 @@ This directory builds four described cores from one shell, each on the
 | --- | --- | --- | --- | --- | --- | --- |
 | `fes.spectrum` | 48K | `spectrum-firmware`, 16 KiB | 48 KiB | 224 x 312 = 69,888 T, 3.5 MHz | ULA, from T 14,335 | beeper |
 | `fes.spectrum128` | 128K / +2 | `spectrum128-firmware`, 32 KiB (editor, then 48 BASIC) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | ULA, from T 14,361, odd banks | beeper, AY |
-| `fes.spectrum-plus3` | +2A / +3 (no disk drive) | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
+| `fes.spectrum-plus3` | +2A / +3 with its disk drive | `spectrum-plus3-firmware`, 64 KiB (ROMs 0-3) | 128 KiB | 228 x 311 = 70,908 T, 3.5469 MHz | gate array, from T 14,361, banks 4-7 | beeper, AY |
 | `fes.pentagon` | Pentagon 128 with Beta 128 | `pentagon-firmware`, 48 KiB (128, 48 BASIC, then TR-DOS) | 128 KiB | 224 x 320 = 71,680 T, 3.5 MHz | none | beeper, AY |
 
 It follows the Apple II pathfinder: late-bound firmware, removable media while
@@ -25,7 +25,8 @@ the selected firmware image into the blank ROM lanes at download time.
 - `rtl/spectrum_ula.sv` owns the T-state clock. It derives each model's CPU
   rate from the 52.224 MHz system clock by a rational enable (875/13056 for
   3.5 MHz, 11823/174080 for 3.5469 MHz) and stretches the CPU clock for
-  contended accesses exactly as the ULA holds its clock high.
+  contended accesses exactly as the ULA holds its clock high. While the tape
+  plays, T states run at turbo speed (see Cassette).
 - `rtl/spectrum_contention.sv` decides which T states may be stretched, from
   the CPU's presented bus cycle. A Sinclair ULA checks T1 of every memory or
   fetch cycle and every internal T state that keeps a contended address on
@@ -78,6 +79,9 @@ from its next frame start, so the 50 Hz picture repeats whole frames in
 and centred, and the shared session-display plane (`fes_display_plane`,
 backed by HPS DDR) blends launcher frames over it.
 
+While the tape loads in turbo, frames come about three times faster than
+HDMI shows them, so the picture skips frames, and the sound is muted.
+
 The beeper level is OUT bit 4 plus MIC low or an EAR input, filtered as a
 coupled speaker. The 128K-class AY-3-8912 (`zonx_ay` in AY mode) runs at half
 the CPU clock and is DC-blocked. Socket PCM is summed with saturation. Audio
@@ -118,6 +122,20 @@ start it, and 2 reads more than 1000 T apart or with B jumping stop it. A
 tape therefore waits at its start until a loader runs, and pauses when the
 program stops loading. STOP blocks stop it (flag 1 only on the 48K) and the
 end of the tape stops and rewinds it. MIC writes are not returned to the host.
+
+While the tape plays, the machine runs in turbo: each T state takes 5 system
+clocks instead of 14 or 15, so the CPU runs at 10.44 MHz and a tape loads
+about 3 times faster (2.98x on the 48K and Pentagon, 2.94x on the 128K-class
+models). Everything else is counted in T states, so software cannot tell:
+contention, the frame interrupt, the screen and floating bus, the tape
+pulses, the AY and the disk controllers' timers. The ULA reads screen memory
+in the first three clocks of a T state, after a CPU write from the T state
+before lands and before the next one can, and reads the floating-bus byte a T
+state ahead. 5 clocks is the shortest exact T state: the CPU presents a new
+bus cycle two clocks after ce_p, the contention decision registers it a clock
+before tick_n, and ce_n and ce_p may not be on consecutive clocks. The machine
+returns to its own speed at the T state after the deck stops, so a game that
+stops the tape runs at its own speed from then on.
 
 ## Snapshots
 
@@ -199,6 +217,39 @@ byte fetch port on DDR port 2.
   `boot` program gets Fuse's autoload loader, which runs its first BASIC
   program. A disk changed while the machine runs only changes the medium.
 
+## +3 disks
+
+The +2A/+3 has a uPD765A (`rtl/spectrum_upd765.sv`) on the same unit, with
+`fes.media.spectrum-disk-plus3` 1.0. FogCast converts standard and extended
+`.dsk` images as Fuse 1.6.0's `disk.c` opens them: the +3 gap layout,
+recorded CRC errors and deleted marks, data in the gaps, weak sectors from
+their multiple copies, and FM tracks. A dump's single copy of a Speedlock
+weak sector (cylinder 0, sector 2, with a data CRC error) reads weak in the
+bytes Fuse's Speedlock hack corrupts: bytes 29 and 58 of an E5-filled
+sector, otherwise every 29th byte, the first eight of them. A track longer than 6,912 bytes makes
+the image use 16 KiB slots. The Beta 128 and the uPD765A share the drive,
+`rtl/spectrum_fdd.sv`.
+
+- `$2FFD` (A15:A12 `0010`, A1 low) reads the main status register and `$3FFD`
+  (`0011`) is the data register; `$1FFD` bit 3 runs the motor. The +3 wires
+  only US0: drive A holds the disk, and drive B is empty, write protected
+  and never ready, as in Fuse.
+- The controller follows Fuse's `upd_fdc.c` in non-DMA mode: Read Data and
+  Read Deleted Data with multi-track and skip, Read Diagnostic, Read ID,
+  Recalibrate (77 steps), Seek, Sense Interrupt Status, Specify, Sense Drive
+  Status and Version, with the head load and unload times. Without a terminal
+  count, a read ends at its last sector with End of Cylinder, as on the +3. An
+  ID search gives up after two index pulses. Scan is an invalid command.
+- As on the Beta, the disk turns: one byte every 112 T, and one the CPU has
+  not read when the next arrives ends the read with Overrun. The drive is
+  ready 400 ms after the motor starts and stops 300 ms after it stops. A weak
+  byte reads differently each time, as Fuse mixes in random bits.
+- The disk is write protected: Write Data, Write Deleted Data and Format end
+  with Not Writable.
+- A launch disk resets the machine. Once the menu has read every keyboard
+  half-row in a frame, ENTER is held through the third frame after, so the
+  menu's Loader boots the disk, as Fuse's phantom typist does.
+
 ## Simulation
 
 ```sh
@@ -219,8 +270,10 @@ the deck's loader detection, see its 1200 T pilot and decode the four bytes of
 its 350/700 T turbo block. It also checks the
 frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
-attribute swaps ink and paper every 16 frames. The snapshot simulation
-writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
+attribute swaps ink and paper every 16 frames. The diagnostic tape plays in
+turbo, and each model runs again with every T state in turbo (`--turbo`),
+which must give the same results. The snapshot simulation repeats this check.
+It writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
 with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
 `cmd/fes-spectrum-restore` (Go), streams it with random gaps and checks every
 register, the paging ports, border, AY registers and all RAM at the first
@@ -235,9 +288,17 @@ reads ending at the track's last sector, Record Not Found after five
 revolutions, Write Protect, Lost Data, a CRC error, a verify on the wrong
 track, Force Interrupt immediately and as the next index pulse ends, an
 empty drive B, a Type II command on an unloaded head, the head unloading
-after 3 s and the launch image's boot pulse. A mailbox simulation checks the Pentagon's two units: each unit's Info, a
-transfer to each, transfers bound to their unit and one at a time, and an
-eject of one unit leaving the other alone. The video simulation
+after 3 s and the launch image's boot pulse. The uPD765 simulation drives
+`spectrum_upd765` through `$2FFD` and `$3FFD` as +3DOS does, against a synthetic
+extended `.dsk`: the motor's ready delay, Specify, Recalibrate and Seek with
+Sense Interrupt Status, Sense Drive Status, Read ID, one sector and a run
+ending with End of Cylinder at 32 us a byte, a missing sector after two
+revolutions, Overrun, a data CRC error, a bad ID, a deleted sector, a weak
+sector, Read Diagnostic, Write Data on a protected disk, Version, invalid
+commands and the boot pulse. A mailbox simulation checks both units of the
+Pentagon and +2A/+3: each unit's Info, a transfer to each, transfers bound to
+their unit and one at a time, and an eject of one unit leaving the other alone.
+The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame
 is one whole source frame at the 3x3 geometry. The board simulation drives
 `top.v` through the mailbox and a model of the fpga2sdram ports
@@ -307,9 +368,8 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 
 ## Not implemented
 
-The +3 disk drive, TR-DOS disk writes, Beta drives B-D, the Pentagon's
-magic NMI button, tape write-back, accelerated tape loading
-(#999), saving snapshots, ULAplus, Timex video modes and
+Disk writes, the +3's drive B and Scan commands, Beta drives B-D, the Pentagon's
+magic NMI button, tape write-back, a switch to load at the machine's own speed, saving snapshots, ULAplus, Timex video modes and
 the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
