@@ -49,7 +49,7 @@ module spectrum_fdd #(
     output wire          tr00,
     output wire          loaded,        // the selected drive holds a disk
     output wire          index_pulse,
-    output wire          index_start,   // one clock: the next index pulse starts
+    output wire          index_end,     // one clock: the index pulse ends
     output reg           byte_ev,
     output reg  [7:0]    byte_data,
     output reg           byte_clock,
@@ -80,7 +80,7 @@ module spectrum_fdd #(
     assign index_pulse = spin && pos < INDEX_BYTES;
     wire byte_strobe = tick && spin && byte_t == T_PER_BYTE - 7'd1;
     wire [13:0] pos_next = pos + 14'd1 >= turn_bytes ? 14'd0 : pos + 14'd1;
-    assign index_start = byte_strobe && pos_next == 14'd0;
+    assign index_end = byte_strobe && pos_next == INDEX_BYTES;
     // The byte under the head once this clock's strobe has moved it.
     wire [13:0] head_pos = byte_strobe ? pos_next : pos;
 

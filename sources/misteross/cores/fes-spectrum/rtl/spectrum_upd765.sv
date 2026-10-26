@@ -138,7 +138,7 @@ module spectrum_upd765 #(
     spectrum_fdd #(.AW(AW), .DRIVES(2)) drives (
         .clk(clk), .power_reset(power_reset), .tick(tick), .spin(spinning), .drive(fdd_drive),
         .side(hd), .mfm(mf), .step(step), .step_out(step_out), .home(1'b0),
-        .cylinder(cylinder), .tr00(tr00), .loaded(loaded), .index_pulse(index_pulse), .index_start(),
+        .cylinder(cylinder), .tr00(tr00), .loaded(loaded), .index_pulse(index_pulse), .index_end(),
         .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
         .byte_wrap(byte_wrap), .mark(mark), .disk_ready(disk_ready), .disk_bytes(disk_bytes),
         .fetch(fetch), .fetch_addr(fetch_addr), .fetch_ready(fetch_ready), .fetch_data(fetch_data),

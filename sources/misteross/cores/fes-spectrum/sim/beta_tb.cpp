@@ -322,13 +322,13 @@ int main(int argc, char **argv) {
     expect((bench.in(0xff) & 0x80) != 0, "force interrupt raises INTRQ");
     expect((bench.in(0x1f) & 0x01) == 0, "force interrupt ends the command");
 
-    // I2 fires at the start of the next index pulse, not its trailing edge.
+    // I2 fires as the next index pulse ends, as Fuse 1.6.0's fdd_event calls
+    // fdc_index only when the pulse falls: the index bit is clear by then.
     bench.wait_index(true, 210, "current index pulse starts");
-    bench.wait_index(false, 20, "current index pulse ends");
     bench.out(0x1f, 0xd4);
-    expect((bench.in(0xff) & 0x80) == 0, "I2 waits for the next index pulse");
-    bench.wait_intrq(210, "force interrupt I2");
-    expect((bench.in(0x1f) & 0x02) != 0, "I2 raises INTRQ at the next index pulse start");
+    expect((bench.in(0xff) & 0x80) == 0, "I2 waits for the index pulse to end");
+    bench.wait_intrq(30, "force interrupt I2");
+    expect((bench.in(0x1f) & 0x02) == 0, "I2 raises INTRQ as the index pulse ends");
 
     // Drive B is empty: its reads are not found.
     bench.out(0xff, 0x3d);

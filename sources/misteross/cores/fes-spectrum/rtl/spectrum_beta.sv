@@ -66,14 +66,14 @@ module spectrum_beta #(
     reg step;
     reg step_out;
 
-    wire disk_here, tr00, index_pulse, index_start, byte_ev, byte_clock, byte_wrap, mark_byte;
+    wire disk_here, tr00, index_pulse, index_end, byte_ev, byte_clock, byte_wrap, mark_byte;
     wire [6:0] head_cylinder;
     wire [7:0] byte_data;
     spectrum_fdd #(.AW(AW)) drives (
         .clk(clk), .power_reset(power_reset), .tick(tick), .spin(head_load), .drive(drive),
         .side(side), .mfm(mfm), .step(step), .step_out(step_out), .home(reset),
         .cylinder(head_cylinder), .tr00(tr00), .loaded(disk_here), .index_pulse(index_pulse),
-        .index_start(index_start), .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
+        .index_end(index_end), .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
         .byte_wrap(byte_wrap), .mark(mark_byte), .disk_ready(disk_ready), .disk_bytes(disk_bytes),
         .fetch(fetch), .fetch_addr(fetch_addr), .fetch_ready(fetch_ready), .fetch_data(fetch_data),
         .boot(boot)
@@ -183,7 +183,7 @@ module spectrum_beta #(
                     head_load <= 1'b0;
                 end else unload_count <= unload_count - 24'd1;
             end
-            if (index_irq && index_start) begin
+            if (index_irq && index_end) begin
                 index_irq <= 1'b0;
                 intrq <= 1'b1;
             end
@@ -340,8 +340,8 @@ module spectrum_beta #(
                         intrq <= 1'b0;
                         if (wdata[7:4] == 4'hd) begin
                             // Type IV: abandon the command; I3 interrupts
-                            // now, I2 at the next index. Fuse's spinup
-                            // without the h bit loads the head.
+                            // now, I2 as the next index pulse ends. Fuse's
+                            // spinup without the h bit loads the head.
                             busy <= 1'b0;
                             wrprot <= 1'b0;
                             crc_error <= 1'b0;
