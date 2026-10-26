@@ -122,7 +122,10 @@ class DeviceBenchTest(unittest.TestCase):
         class Args:
             verilator = VERILATOR
             jobs = min(os.cpu_count() or 2, 16)
-        report = sim.run_devices(Args())
+        # A private build directory: make sim-fes-pc386 may build the same
+        # bench in build/ at the same time.
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(sim, 'OUTPUT', Path(directory)):
+            report = sim.run_devices(Args())
         self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
         self.assertGreater(len(report['checks']), 50)
 

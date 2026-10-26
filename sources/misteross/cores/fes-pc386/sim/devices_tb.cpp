@@ -142,10 +142,14 @@ void timing(Bench &b) {
     uint64_t word = b.last_io;
     b.io(false, 0x61, 4);
     uint64_t dword = b.last_io;
+    b.io(false, 0x1f0, 4);
+    uint64_t sized = b.last_io;
     b.io(false, 0x3c4, 2);
     uint64_t vga = b.last_io;
     check("timing isa8 byte, word, dword = 72, 144, 288 clocks + 2", byte == 74 && word == 146 && dword == 290,
           std::to_string(byte) + " " + std::to_string(word) + " " + std::to_string(dword));
+    check("timing dword at 1F0h: a 16-bit cycle, then bytes at 1F2h and 1F3h (36 + 72 + 72 + 2)", sized == 182,
+          std::to_string(sized));
     check("timing vga word: two posted bytes, no ISA wait", vga == 5, std::to_string(vga));
     check("port 80h reads back the POST code", b.in(0x80) == 0x12);
     check("unclaimed port reads FFh at isa8", b.in(0x2f8) == 0xff && b.last_io == 74);

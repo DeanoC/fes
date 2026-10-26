@@ -5,7 +5,7 @@ its prompt in simulation, and a command typed at that prompt runs.** The CPU is
 the Bochs level-3 oracle; every I/O port access, interrupt acknowledge, A20
 change and CPU reset goes through the Verilated AT-core RTL. `dir`, typed as set
 2 scan codes through the 8042, lists the disk and FreeDOS returns to `C:\>`.
-Every CPU I/O completed at exactly its timing class. The 58 directed device
+Every CPU I/O completed at exactly its timing class. The 59 directed device
 checks pass. This is a **host-only check**: no synthesis, routed result,
 package or kit is involved. It meets the exit of phase M1 in the
 [machine design](../../../sources/misteross/docs/pc386-machine-design.md#phases).
@@ -92,8 +92,9 @@ Request clock to done clock, every CPU I/O of the boot:
 
 The two extra clocks are the decoder taking the request and reporting
 completion. Word and dword accesses to 8-bit ports (146 and 290 clocks) and the
-bus-sized dword at 1F0h are checked by the device bench, which the boot does
-not issue once the PCI BIOS is off. A full sector is 256 `isa16` words, 97 us
+bus-sized dword at 1F0h (182 clocks: the word cycle, then bytes at 1F2h and
+1F3h) are checked by the device bench; the boot issues none of them once the
+PCI BIOS is off. A full sector is 256 `isa16` words, 97 us
 of guest I/O.
 
 ### Against published figures
@@ -115,7 +116,7 @@ these figures; the machine fixes the AT defaults.
 ## Device bench
 
 `python3 scripts/sim_fes_pc386.py --suite devices` ([`devices.log`](devices.log)),
-58 checks, all pass, about 10 s. Beyond what the boot exercises it checks:
+59 checks, all pass, about 10 s. Beyond what the boot exercises it checks:
 the timing classes for words and dwords; IRQ8 and IRQ14 arriving through
 master IR2 as vectors 70h and 76h, and EOI; PIT channel 0 at divisor 65536
 interrupting every 5,492,541 ± 90 clocks (54.925 ms); the 8254 read-back

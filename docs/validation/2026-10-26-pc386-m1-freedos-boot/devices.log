@@ -1,4 +1,5 @@
 PASS timing isa8 byte, word, dword = 72, 144, 288 clocks + 2
+PASS timing dword at 1F0h: a 16-bit cycle, then bytes at 1F2h and 1F3h (36 + 72 + 72 + 2)
 PASS timing vga word: two posted bytes, no ISA wait
 PASS port 80h reads back the POST code
 PASS unclaimed port reads FFh at isa8
