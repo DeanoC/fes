@@ -15,15 +15,15 @@ exception delivery yet.
 | `fes_i386_lstage.sv` | L2 | Each byte's length, end and next-half bit for every prefix-accumulator variant |
 | `fes_i386_qalign.sv` | Q | Next-start select, prefix accumulator and aligner |
 | `fes_i386_frontend.sv` | F1-Q | The fetch side and Q together |
-| `fes_i386_amode.sv` | D | The address registers and scale a ModRM and SIB name |
+| `fes_i386_amode.sv` | DC | The address registers and scale a ModRM and SIB name |
 | `fes_i386_dfwd.sv` | D | The forwarding table written a cycle ahead, register file read, index scaling, the late operand and its stalls |
 | `fes_i386_agu.sv` | AG | The linear and offset adders: 3:2 rows, one carry chain each, the 16-bit-wrap and address-size select |
-| `fes_i386_decode.sv` | D | The instruction to one uop, its #UD and #GP(0) checks, and LEA's displacement |
+| `fes_i386_decode.sv` | DC | The instruction to one uop, its #UD and #GP(0) checks, and LEA's displacement |
 | `fes_i386_dops.sv` | D | Data operands: the second forwarding table, pending operands and how far ahead their producers are |
 | `fes_i386_shift.sv` | EX | The 64-bit funnel shifter and the 386EX's shift flags |
 | `fes_i386_exctl.sv` | M2 | EX's controls, decoded a stage ahead into registered one-hot selects |
 | `fes_i386_ex.sv` | EX | The late ALU (one adder, ZF from the operands), the result's merge into its register, flags and branch resolution |
-| `fes_i386_cpu.sv` | F1-WB | The top: front end, the Q/D skid register, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
+| `fes_i386_cpu.sv` | F1-WB | The top: front end, DC's decoded buffer, D, AG, M1, M2, EX, WB, the register file, segment registers, reset state and retirement trace |
 
 ## Front end
 
@@ -113,15 +113,17 @@ removed, so only the address-size select follows the 32-bit chain.
 
 ## D to WB
 
-`fes_i386_cpu` puts D, AG, M1, M2, EX and WB behind the front end. M1 and M2
-carry uops through; the memory slice fills them.
+`fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end. M1
+and M2 carry uops through; the memory slice fills them.
 
-**Q to D.** A one-entry skid register sits between Q's output and D. Q may
-load its output whenever the skid is empty, and an instruction D cannot take
-that cycle moves into the skid, so D's stall never reaches Q's loop as
-`d_ready`. D decodes from the skid or Q's output.
+**DC** decodes Q's output register into a two-entry buffer of decoded
+instructions: `dc` holds the instruction D issues, and `dc_skid` takes Q's
+instruction when `dc` cannot. Q may load its output whenever `dc_skid` is
+empty, so D's stall never reaches Q's loop as `d_ready`, and everything D's
+issue waits on starts from a register. The decode costs one cycle on every
+redirect.
 
-**D** decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
+DC decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
 DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
@@ -130,10 +132,13 @@ forms only (LEA's memory forms access nothing). LOCK on any of them, MOV to
 CS or to segment register 6 or 7, LEA of a register and C6h/C7h with reg != 0
 raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes as
 `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
-one. D keeps the instruction's EIP with an incrementer beside the decode;
-in 16-bit code an instruction whose next EIP passes FFFFh is also
-unimplemented, since fetch would have to wrap and the CS-limit check is not
-built.
+one. DC also registers the address registers and scale a memory ModRM names
+(`fes_i386_amode`).
+
+**D** keeps the instruction's EIP with an incrementer; in 16-bit code an
+instruction whose next EIP passes FFFFh is also unimplemented, since fetch
+would have to wrap and the CS-limit check is not built. D applies that
+fault, since only D knows the EIP.
 
 The uop's src1 is always its destination's register: a byte or word result
 merges into the old value, an implicit source. src2 is the second register
