@@ -1571,3 +1571,57 @@ is unchanged and inherits no new qualification from these primitive fits.
 No XT route attempt, lock, RTL, clock frequency/phase, shared contract, kit
 or hardware-acceptance change is made here. The native-search journal remains
 133 entries with its existing digest.
+
+### Guarded Boolean LUT profile and native source gaps (27 October)
+
+[nextpnr #317](https://github.com/DeanoC/nextpnr/pull/317), runtime source
+`5a7117de139543b1aaa2972a92442c39ead8caeb`, adds the explicit
+`--mistral-lut-core-reference` diagnostic profile. Its base is the #315
+reference corpus at `80a2e3006dfc104cf864c36f1cdab7625462e08c`.
+PR head `1c7f20e` only documents the discovered source-coverage limits.
+The generated table covers 440 physical input classes, distinguishing block,
+native L5/L6 mode, ALM, half and input. It preserves independent early/late
+transition envelopes with an outward 1 ps guard. Configured timing checks
+actual CRAM selectors and net-owned native cuts, charges the observed GOUT
+input buffer once, and rejects missing identity or analogue evidence.
+Checkpoints require explicit acknowledgement; calibration binds mode and
+reference data. Carry and other primitive timing models are unchanged.
+
+All 54 focused C++ regressions pass, including 17 LUT cases and calibration
+mode/data rejection. Both generated-data and real CLI/checkpoint CTests pass.
+Six frozen default controls reproduce every parent timing-report field and
+RBF byte, preserving native 17,709 paired/nine unpaired and full-IO 17,806
+paired/eleven unpaired inventories and their existing clock constraints.
+
+All six selected-profile runs stop before producing a complete endpoint
+inventory. Seed 1 rejects 1,753 M10K-to-LUT arcs and two PLL-lock-to-LUT arcs.
+The linked Mistral source-wave API has no M10K data-output or FPLL lock-output
+implementation. A separate direct library probe confirms 24 empty waveform
+queries across both transitions and all four corners for an actual M10K
+data cut and both PLL-lock cuts. Eight LAB positive controls produce ten
+finite samples each. These are missing native timing observations; they do
+not establish a physical frequency failure. No failed row is waived, and
+none of the selected-profile runs supplies whole-board timing acceptance.
+
+An audit of separate continued-carry fits retains 24 intrinsic CI-to-COUT
+observations across LAB/MLAB and all corners. The selected Quartus paths
+conceal the cross-LAB source behind an optimized node. In the LAB graph
+probe, the named source COUT pin has no timing fanout. A preserved tap
+intended to expose that cut fails
+Quartus placement because the constrained carry-chain ALM becomes illegal.
+Both original fits and the failed tap trial remain retained. The bridge
+prefix is not independently qualified, and no native carry model is added.
+
+[The profile record](board50-lut-core-reference.json) and
+[its harness](board50-lut-core-reference-harness.json.gz) bind the runtime
+source/build, complete default comparisons, rejected runs, source-wave probe
+and carry investigation. The next model prerequisite is measured M10K source
+waveforms; PLL-lock control semantics and the continued-carry cut remain
+separate obligations. The public profile selects slow100 only. The earlier
+conditional four-corner screen inherits no additional qualification.
+
+These are host-only diagnostics. No producer seal, production lock, RTL,
+clock frequency/phase, physical route, runtime/shared contract, package, kit
+or hardware-acceptance change is made. CPU/board/pixel clocks remain
+100/50/74.25 MHz. The native-search journal remains 133 entries with digest
+`2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585`.
