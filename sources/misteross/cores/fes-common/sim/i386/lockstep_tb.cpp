@@ -48,7 +48,7 @@
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
-//   directed  out-of-limit CALL/RET/JMP faults, delivered to a handler that
+//   directed  out-of-limit CALL rel and r/m, RET and JMP faults, delivered to a handler that
 //             HLTs, then a check that fetch, issue and data reads stay inactive
 //             after the HLT; and an INT and a fault whose delivery faults,
 //             which must stop the RTL with nothing written.
@@ -1026,6 +1026,9 @@ void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, S
     // JMP EBX has the same rejected target; MOV [SI] follows it in memory.
     run_fault_case(oracle, bus, rtl, summary, "jmp-rm-cs-limit",
                    {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump, false);
+
+    // CALL EBX to the same target: #GP(0) before its push.
+    run_fault_case(oracle, bus, rtl, summary, "call-rm32-cs-limit", {0x66, 0xff, 0xd3, 0xf4}, jump, false);
 
     // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
     // the same way.

@@ -170,8 +170,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 5:
-        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 5 cases')
+    if summary['runs'] != 6:
+        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 6 cases')
     return {'summary': summary, 'failures': failures}
 
 
