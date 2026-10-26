@@ -47,6 +47,8 @@ module fes_i386_ex (
     output logic [31:0]          result,
     output logic [17:0]          flags_out,
     output logic                 taken,
+    output logic [31:0]          ind_target,  // RET, JMP r/m: the target's linear address and EIP
+    output logic [31:0]          ind_eip,
     output logic                 sh_out0,
     output logic                 sh_outn,
     output logic                 sh_cfw,
@@ -194,7 +196,9 @@ module fes_i386_ex (
     logic count_one, count_zero;
     assign count_one = x == 32'd1;
     assign count_zero = x == 32'd0;
-    assign taken = exc.ok && ((exc.b_jcc && cc_true) || exc.b_jmp
+    assign ind_target = sum[31:0];
+    assign ind_eip = y;
+    assign taken = exc.ok && ((exc.b_jcc && cc_true) || exc.b_jmp || exc.b_ind
                               || ((exc.b_loop || (exc.b_loope && flags_in[ZF]) || (exc.b_loopne && !flags_in[ZF]))
                                   && !count_one)
                               || (exc.b_jcxz && count_zero));

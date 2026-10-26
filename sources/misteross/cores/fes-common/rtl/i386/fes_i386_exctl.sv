@@ -66,16 +66,21 @@ module fes_i386_exctl (
     assign c.size16 = size16;
     assign c.src8 = src8;
     assign c.src16 = src16;
-    assign sub = (alu && (op == 5'd3 || op == 5'd5 || op == 5'd7 || op == 5'd11 || op == 5'd12)) || cls == C_BRANCH;
+    // RET and JMP r/m add CS's base, all of it, to the target EIP at the
+    // operation's size: no subtract, no fill above the size.
+    logic ind;
+    assign ind = cls == C_BRANCH && (op == 5'd10 || op == 5'd11);
+    assign sub = (alu && (op == 5'd3 || op == 5'd5 || op == 5'd7 || op == 5'd11 || op == 5'd12))
+              || (cls == C_BRANCH && !ind);
     assign c.sub = sub;
     assign c.cin_cf = alu && op == 5'd2;
     assign c.cin_ncf = alu && op == 5'd3;
 
     // ---- Operands -------------------------------------------------------------
     assign mask = size8 ? 32'h0000_00ff : size16 ? 32'h0000_ffff : 32'hffff_ffff;
-    assign an = extract(s.a, size8, size16, u.src1.hi8);
+    assign an = ind ? s.a : extract(s.a, size8, size16, u.src1.hi8);
     assign bn = extract(s.b, w8, w16, u.src2.hi8);
-    assign y_one = incdec || cls == C_BRANCH;
+    assign y_one = incdec || (cls == C_BRANCH && !ind);
     assign ya = neg;                       // y is src1
     assign fill = arith || incdec;
     assign x = (neg || byp_a ? 32'd0 : an) | ({32{fill}} & ~mask);
@@ -149,6 +154,7 @@ module fes_i386_exctl (
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;
     assign c.b_jcxz = cls == C_BRANCH && op == 5'd9;
+    assign c.b_ind = ind;
 
     // The shifter's selects (fes_i386_shift): direction, size and fill.
     localparam logic [4:0] ROL = 5'd0, ROR = 5'd1, RCL = 5'd2, RCR = 5'd3, SHL = 5'd4, SHR = 5'd5, SAL = 5'd6,

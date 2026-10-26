@@ -86,6 +86,11 @@ SCOPE: frozenset[str] = frozenset([
     'F4', 'F5', 'F8', 'F9', 'FA', 'FB', 'FC', 'FD',
     *(f'{opcode:02X}' for opcode in [*range(0x70, 0x80), *range(0xB0, 0xC0)]),
     *(f'0F{opcode:02X}' for opcode in range(0x80, 0x90)),
+    # The stack: PUSH and POP of registers, immediates and segment registers,
+    # CALL rel, RET, LEAVE and JMP r/m.
+    *(f'{opcode:02X}' for opcode in range(0x50, 0x60)),
+    '06', '07', '0E', '16', '17', '1E', '1F', '0FA0', '0FA1', '0FA8', '0FA9',
+    '68', '6A', 'C2', 'C3', 'C9', 'E8', 'FF.4',
 ])
 
 
@@ -352,7 +357,8 @@ def main() -> int:
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
-                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment')}
+                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
+                        'after_stack')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)

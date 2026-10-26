@@ -202,8 +202,11 @@ package fes_i386_pkg;
     // src1 is the destination's register whenever there is one: a byte or
     // word write merges into its old value, an implicit source. src2 is the
     // second register source, or imm when it is not valid; count_cl takes a
-    // shift count from CL, a third source.
+    // shift count from CL, a third source. A stack operation also writes ESP
+    // (sp_write), from the value AG computes (pipe_t sp_new): a second
+    // destination, which the main one overrides when it is ESP too (POP ESP).
     typedef struct packed {
+        logic        sp_write;
         uop_class_e  cls;
         logic [4:0]  op;
         reg_ref_t    src1;
@@ -238,7 +241,17 @@ package fes_i386_pkg;
         logic        has_index;
         logic [2:0]  index;
         logic [1:0]  scale;
+        // The stack: what the instruction does to ESP (STK_*), and what D
+        // puts in its uop: the next instruction's EIP as src2 (a CALL's push),
+        // CS's base as src1 (RET and JMP r/m, whose EX adds the target).
+        logic [2:0]  stk;
+        logic        push_eip;
+        logic        cs_base;
+        logic        two;     // a second uop follows, uop2 (CALL rel)
+        uop_t        uop2;
     } decoded_t;
+
+    localparam logic [2:0] STK_NONE = 3'd0, STK_PUSH = 3'd1, STK_POP = 3'd2, STK_RET_IMM = 3'd3, STK_LEAVE = 3'd4;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
@@ -286,6 +299,7 @@ package fes_i386_pkg;
         logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
         logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
+        logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
         shctl_t     sh;
     } exctl_t;
 
@@ -309,6 +323,7 @@ package fes_i386_pkg;
         logic [2:0]  dist_b;
         logic [2:0]  dist_c;
         logic        early;       // the result is ready at the end of AG (LEA)
+        logic [31:0] sp_new;      // AG: ESP after a stack operation (uop sp_write)
         logic [31:0] maddr;       // AG: the memory operand's linear address
         logic [31:0] moff;        // ... its offset
         logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one

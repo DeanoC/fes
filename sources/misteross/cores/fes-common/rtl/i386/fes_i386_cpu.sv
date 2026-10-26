@@ -81,7 +81,7 @@ module fes_i386_cpu (
     typedef fes_i386_pkg::decoded_t decoded_t;
 
     localparam logic [1:0] EARLY = 2'd0, LATE = 2'd2;
-    localparam int SEG_CS = 1;
+    localparam int SEG_CS = 1, SEG_SS = 2;
 
     // ---- Architectural state, written at WB -------------------------------------
     logic [7:0][31:0] gpr;
@@ -157,7 +157,8 @@ module fes_i386_cpu (
     fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
-        .seg_index(dc_q.seg_index), .stop(dc_q.stop)
+        .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(dc_q.stk), .push_eip(dc_q.push_eip),
+        .cs_base(dc_q.cs_base), .two_uops(dc_q.two), .uop2(dc_q.uop2)
     );
     fes_i386_amode amode (
         .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(dc_q.has_base),
@@ -165,7 +166,9 @@ module fes_i386_cpu (
     );
     assign dc_q.length = q.length;
     assign d_ready = !dc_skid_valid;
-    assign dc_load = !dc_valid || issue;
+    // A two-uop instruction (CALL rel) stays in dc until its second uop issues.
+    logic d_step;  // D issues the instruction's second uop
+    assign dc_load = !dc_valid || (issue && !(dc.two && !d_step));
     always_ff @(posedge clk) begin
         if (reset || redirect) begin
             dc_valid <= 1'b0;
@@ -204,27 +207,55 @@ module fes_i386_cpu (
     assign wrap16 = past && !seg_cs_ffff;
     assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {15'd0, eip16};
 
-    uop_t        u;
+    uop_t        u, ud;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
+    assign ud = d_step ? dc.uop2 : dc.uop;
+
+    // A stack operation addresses SS:ESP, or SS:EBP for LEAVE, at the stack's
+    // width (SS.B), and writes ESP from AG: ESP less the size for a push, ESP
+    // plus it (and RET's imm16) for a pop, EBP plus it for LEAVE.
+    logic [2:0]  stk;
+    logic        ss32, stack_wait;
+    logic [31:0] st_size, st_disp, st_sp_disp;
+    assign stk = d_step ? fes_i386_pkg::STK_NONE : dc.stk;
+    assign ss32 = seg_ar[SEG_SS][14];
+    assign st_size = dc.opsize32 ? 32'd4 : 32'd2;
+    always_comb begin
+        st_disp = 32'd0;
+        st_sp_disp = st_size;
+        case (stk)
+            fes_i386_pkg::STK_PUSH: begin
+                st_disp = -st_size;
+                st_sp_disp = -st_size;
+            end
+            fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + ud.imm;
+            default: ;
+        endcase
+        if (!ss32) begin
+            st_disp = {16'b0, st_disp[15:0]};
+            st_sp_disp = {16'b0, st_sp_disp[15:0]};
+        end
+    end
     // The memory operand: whether it reads and writes, its segment, and the
     // limit check's operands for its size. An expand-down data segment,
     // which a real-mode load keeps from protected mode, is not built yet.
     logic        mem, mem_reads, mem_writes, addr_use, expand_down, d_unimpl;
     logic [2:0]  mseg;
     logic [1:0]  msize;  // 1, 2 or 4 bytes as 0, 1, 2
-    assign mem = dc.uop.mem.kind != fes_i386_pkg::MEM_NONE;
-    assign mem_reads = dc.uop.mem.kind == fes_i386_pkg::MEM_LOAD || dc.uop.mem.kind == fes_i386_pkg::MEM_RMW;
-    assign mem_writes = dc.uop.mem.kind == fes_i386_pkg::MEM_STORE || dc.uop.mem.kind == fes_i386_pkg::MEM_RMW;
+    assign mem = ud.mem.kind != fes_i386_pkg::MEM_NONE;
+    assign mem_reads = ud.mem.kind == fes_i386_pkg::MEM_LOAD || ud.mem.kind == fes_i386_pkg::MEM_RMW;
+    assign mem_writes = ud.mem.kind == fes_i386_pkg::MEM_STORE || ud.mem.kind == fes_i386_pkg::MEM_RMW;
     assign addr_use = dc.lea || mem;
-    assign mseg = 3'(dc.uop.mem.seg);
-    assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
+    assign mseg = 3'(ud.mem.seg);
+    assign msize = ud.mem.bytes[2] ? 2'd2 : ud.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
     assign d_unimpl = wrap16 || (mem && expand_down);
     always_comb begin
-        u = dc.uop;
-        if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        u = ud;
+        if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
+        if (d_unimpl && ud.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
         if (cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
     end
     assign opsize32 = dc.opsize32;
@@ -234,10 +265,10 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || d_unimpl || cs_gp;
+    assign stop = (dc.stop && !d_step) || d_unimpl || cs_gp;
 
     // The producers in AG, M1, M2 and EX.
-    logic [3:0]       prod_valid, prod_early;
+    logic [3:0]       prod_valid, prod_early, prod_sp;
     logic [3:0][2:0]  prod_dst;
     logic [3:0][1:0]  prod_kind;
     logic [3:0][31:0] stage_value;
@@ -258,6 +289,12 @@ module fes_i386_cpu (
                      prod_m1.early ? EARLY : LATE, prod_ag.early ? EARLY : LATE};
         stage_value = {wb_s.result, ex_s.result, m2_s.result, m1_s.result};
     end
+    // ESP from a stack operation, unless its destination is ESP too (POP ESP).
+    function automatic logic writes_sp(input pipe_t s);
+        writes_sp = s.valid && s.uop.sp_write
+                 && !(s.uop.dst.valid && s.uop.dst.space == fes_i386_pkg::RS_GPR && s.uop.dst.index[2:0] == 3'd4);
+    endfunction
+    assign prod_sp = {writes_sp(prod_ex), writes_sp(prod_m2), writes_sp(prod_m1), writes_sp(prod_ag)};
 
     logic d_writes;
     assign d_writes = cur_valid && u.dst.valid && u.dst.space == fes_i386_pkg::RS_GPR;
@@ -269,20 +306,36 @@ module fes_i386_cpu (
     fes_i386_dops dops (
         .clk, .reset(reset || wb_flush), .a_reg(u.src1.index[2:0]), .b_reg(u.src2.index[2:0]), .d_writes,
         .d_dst(u.dst.index[2:0]), .d_early(lea && lea_early), .advance(issue), .hold(freeze), .prod_valid, .prod_dst,
-        .prod_early, .gpr, .stage_value, .a(a_val), .b(b_val), .c(c_val), .pend_a(a_pend), .pend_b(b_pend),
+        .prod_early, .prod_sp, .gpr, .stage_value, .wb_sp(wb_s.sp_new), .a(a_val), .b(b_val), .c(c_val), .pend_a(a_pend), .pend_b(b_pend),
         .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist)
     );
 
-    // A memory operand's or LEA's address.
-    logic        lea_stall;
+    // A memory operand's or LEA's address; a stack operation's is ESP or EBP.
+    logic        lea_stall, sp_wait, d_sp;
     logic [1:0]  late, late_hi;
     logic [31:0] row, last;
+    logic [15:0] sp_hi;
+    logic        a_has_base, a_has_index;
+    logic [2:0]  a_base;
+    assign a_has_base = stk != fes_i386_pkg::STK_NONE || dc.has_base;
+    assign a_has_index = stk == fes_i386_pkg::STK_NONE && dc.has_index;
+    assign a_base = stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : stk != fes_i386_pkg::STK_NONE ? 3'd4 : dc.base;
+    assign d_sp = cur_valid && u.sp_write;
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base(addr_use && dc.has_base), .base(dc.base),
-        .has_index(addr_use && dc.has_index), .index(dc.index), .scale(dc.scale), .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
-        .d_kind(lea && lea_early ? EARLY : LATE), .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .gpr,
-        .stage_value, .row, .last, .late, .late_hi, .stall(lea_stall)
+        .clk, .reset(reset || wb_flush), .has_base(addr_use && a_has_base), .base(a_base),
+        .has_index(addr_use && a_has_index), .index(dc.index), .scale(stk == fes_i386_pkg::STK_NONE ? dc.scale : 2'd0),
+        .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]), .d_kind(lea && lea_early ? EARLY : LATE), .d_sp,
+        .advance(issue), .hold(freeze), .prod_valid, .prod_dst, .prod_kind, .prod_sp, .gpr, .stage_value,
+        .wb_sp(wb_s.sp_new), .row, .last, .late, .late_hi, .stall(lea_stall), .sp_hi, .sp_wait
     );
+
+    // ESP as data waits while a stack operation that writes it is in AG: its
+    // value reaches the M1 register next cycle. LEAVE on a 16-bit stack waits
+    // for ESP's high half, which it keeps.
+    logic sp_hazard;
+    assign sp_hazard = writes_sp(ag_s) && (u.src1.valid && u.src1.index[2:0] == 3'd4
+                                           || u.src2.valid && u.src2.index[2:0] == 3'd4);
+    assign stack_wait = stk == fes_i386_pkg::STK_LEAVE && !ss32 && sp_wait;
 
     // A selector read waits for an older write of that segment register, and
     // a memory operand for its segment's base, which a real-mode load sets
@@ -315,7 +368,7 @@ module fes_i386_cpu (
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
     // fault or HLT stops the CPU.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard && !freeze;
+                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !freeze;
 
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -327,12 +380,15 @@ module fes_i386_cpu (
         end
         if (reset) begin
             d_stop <= 1'b0;
+            d_step <= 1'b0;
         end else if (redirect) begin
             d_stop <= 1'b0;
+            d_step <= 1'b0;
             d_eip <= redirect_eip;
         end else if (issue) begin
             d_stop <= stop;
-            d_eip <= d_eip_next;
+            d_step <= dc.two && !d_step;
+            if (!(dc.two && !d_step)) d_eip <= d_eip_next;
         end
     end
 
@@ -341,6 +397,9 @@ module fes_i386_cpu (
     logic [31:0] ag_row, ag_last, ag_disp, ag_seg_term;
     logic [15:0] ag_seg_hi, ag_seg_hi_plus1;
     logic [1:0]  ag_late, ag_late_hi;
+    logic        ag_stack, ag_ss32, ag_leave;
+    logic [31:0] ag_sp_disp;
+    logic [15:0] ag_sp_hi;
     pipe_t       d_out;
     always_comb begin
         d_out = '0;
@@ -348,8 +407,9 @@ module fes_i386_cpu (
         d_out.uop = u;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
-        d_out.a = a_val;
-        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : u.src2.valid ? b_val : u.imm;
+        d_out.a = dc.cs_base && !d_step ? seg_base[SEG_CS] : a_val;
+        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip && !d_step ? d_eip_next
+                : u.src2.valid ? b_val : u.imm;
         d_out.c = c_val;
         d_out.pend_a = u.src1.valid && a_pend;
         d_out.pend_b = u.src2.valid && b_pend;
@@ -367,6 +427,13 @@ module fes_i386_cpu (
         end else if (!freeze) begin
             ag_s <= d_out;
         end
+        if (!freeze) begin
+            ag_stack <= stk != fes_i386_pkg::STK_NONE;
+            ag_ss32 <= ss32;
+            ag_leave <= stk == fes_i386_pkg::STK_LEAVE;
+            ag_sp_disp <= st_sp_disp;
+            ag_sp_hi <= sp_hi;
+        end
         if (freeze) begin
             // AG keeps its uop's operands.
         end else if (addr_use) begin
@@ -377,7 +444,7 @@ module fes_i386_cpu (
             ag_last <= last;
             ag_late <= late;
             ag_late_hi <= late_hi;
-            ag_disp <= lea_disp;
+            ag_disp <= stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
             ag_seg_term <= lea ? 32'd0 : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
             ag_seg_hi <= lea ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea ? 16'd0 : seg_hi1[mseg];
@@ -408,17 +475,38 @@ module fes_i386_cpu (
         capture = t;
     endfunction
 
-    logic [31:0] linear, offset;
+    logic [31:0] linear, offset, base_op;
     fes_i386_agu agu (
         .addr32(ag_addr32), .seg_term(ag_seg_term), .seg_hi(ag_seg_hi), .seg_hi_plus1(ag_seg_hi_plus1),
         .row(ag_row), .last(ag_last), .disp(ag_disp), .late(ag_late), .late_hi(ag_late_hi),
-        .late_m1(m1_s.result), .late_ex(ex_s.result), .late_wb(wb_s.result), .linear, .offset
+        .late_m1(m1_s.result), .late_ex(ex_s.result), .late_wb(wb_s.result), .linear, .offset, .base_op
     );
+
+    // A stack operation's new ESP: a third chain beside the AGU's two, on the
+    // stack register as the AGU takes it (its low half on a 16-bit stack, a
+    // late value included). A 16-bit stack keeps ESP's high half: the late
+    // value's, else D's register value. LEAVE's is ESP's, not EBP's.
+    logic [31:0] sp_sum, sp_new;
+    logic [15:0] sp_hi_ag;
+    assign sp_sum = base_op + ag_sp_disp;
+    always_comb begin
+        case (ag_late)
+            2'd1: sp_hi_ag = m1_s.result[31:16];
+            2'd2: sp_hi_ag = ex_s.result[31:16];
+            2'd3: sp_hi_ag = wb_s.result[31:16];
+            default: sp_hi_ag = ag_sp_hi;
+        endcase
+        if (ag_leave) sp_hi_ag = ag_sp_hi;
+    end
+    assign sp_new = ag_ss32 ? sp_sum : {sp_hi_ag, sp_sum[15:0]};
 
     pipe_t ag_out;
     always_comb begin
         ag_out = capture(ag_s, 3'd4, wb_s.result);
-        ag_out.result = offset;
+        // A stack operation's result until EX is its new ESP, so ESP forwards
+        // from the M1, M2 and EX registers like any early result.
+        ag_out.result = ag_stack ? sp_new : offset;
+        ag_out.sp_new = sp_new;
         ag_out.target = linear;
         ag_out.target_eip = offset;
         ag_out.maddr = linear;
@@ -536,6 +624,7 @@ module fes_i386_cpu (
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
+    logic [31:0] ex_ind_target, ex_ind_eip;
     pipe_t       ex_out;
 
     logic [7:0] wb_r8;
@@ -568,7 +657,7 @@ module fes_i386_cpu (
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),
-        .taken(ex_taken), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
+.taken(ex_taken), .ind_target(ex_ind_target), .ind_eip(ex_ind_eip), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
     always_comb begin
@@ -576,6 +665,17 @@ module fes_i386_cpu (
         ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
         ex_out.taken = ex_taken;
+        // RET and JMP r/m: EX's adder gives the target.
+        if (ex_s.exc.b_ind) begin
+            ex_out.target = ex_ind_target;
+            ex_out.target_eip = ex_ind_eip;
+        end
+        // In 16-bit code a RET or JMP r/m past offset FFFFh raises #GP(0)
+        // at the branch, under CS's real-mode limit (FAULT_UNIMPLEMENTED
+        // under a larger one, as wrap16 in D). A fault M1 found stands.
+        if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
+            && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
@@ -654,6 +754,8 @@ module fes_i386_cpu (
                 trace_retire <= wb_s.uop.ctl.end_of_instruction;
                 eflags <= wb_flags;
                 eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
+                // A stack operation's ESP, which a destination of ESP overrides.
+                if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
                     gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG) begin

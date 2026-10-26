@@ -28,20 +28,20 @@ def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
 
 class ScopeTest(unittest.TestCase):
     def test_scope_takes_every_form_of_a_stem(self):
-        for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95'):
+        for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95', '6650', '0FA9', 'C2', 'FF.4'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
-        for stem in ('F6.4', 'A0', 'FF.2', '8F', '0FA3'):  # MUL, moffs, CALL, POP, BT come later
+        for stem in ('F6.4', 'A0', 'FF.2', 'FF.6', '8F', 'C8', '0FA3'):  # MUL, moffs, CALL r/m, PUSH and POP r/m, ENTER, BT
             with self.subTest(stem=stem):
                 self.assertFalse(lockstep.in_scope(stem))
 
     def test_unbuilt_encodings_cover_what_scope_leaves_out(self):
         lines = lockstep.unbuilt_encodings()
         self.assertEqual(len(lines), len(set(lines)))
-        for encoding in ('06c0', '27c0', '3fff', 'f6e0', 'a000', 'ff10', '0f0b00'):
+        for encoding in ('c8c0', '27c0', 'ff30', '3fff', 'f6e0', 'a000', 'ff10', '0f0b00'):
             with self.subTest(encoding=encoding):
                 self.assertIn(encoding, lines)
-        for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0'):
+        for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, lines)
 
