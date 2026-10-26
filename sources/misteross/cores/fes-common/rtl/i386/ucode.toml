@@ -1,0 +1,27 @@
+# The i386 microcode routines (scripts/fes_i386_ucode.py builds
+# fes_i386_ucode.sv from this). A routine's first uop is decoded by DC, with
+# the instruction; the ROM holds the rest, from its entry (UC_<NAME>) on. Each
+# uop sets fields of fes_i386_pkg's ucode_t; the rest default to zero, and
+# whatever the routine does not set comes from the instruction in dc (operand
+# size, the vector, the ModRM operand). Sizes "osz" follow the operand size.
+#
+# Registers: s1, s2 and d name GPRs; d also names t0 and t1 (the
+# temporaries) or a segment register. b = "t1" takes the value stored from
+# T1, "sel" the selector of segment seg, "eip" the next instruction's EIP.
+
+# PUSHA and PUSHAD. DC decodes the probe of all eight slots (probe =
+# "pusha"); the ROM keeps the original ESP in T1 and pushes EAX, ECX, EDX,
+# EBX, that ESP, EBP, ESI and EDI.
+[[routine]]
+name = "pusha"
+uops = [
+    { cls = "alu", op = "mov", s2 = "esp", d = "t1", size = "32" },
+    { cls = "alu", op = "mov", s2 = "eax", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "ecx", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "edx", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "ebx", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", b = "t1", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "ebp", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "esi", mkind = "store", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", s2 = "edi", mkind = "store", in_a = true, stk = "push" },
+]

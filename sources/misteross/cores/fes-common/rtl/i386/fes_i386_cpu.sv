@@ -165,7 +165,7 @@ module fes_i386_cpu (
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg)
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -186,11 +186,22 @@ module fes_i386_cpu (
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
     assign dc_q.far_t = 1'b0;
+    assign dc_q.slot = 2'd0;
+    assign dc_q.b_t1 = 1'b0;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
     // issues, dc takes the next (fes_i386_seq).
+    // A microcode routine's next uop is the ROM's word at dc.upc, read as an
+    // M10K with a registered output: it is there the cycle after dc settles
+    // (rom_ok: dc held over the last edge), so D waits a cycle for each
+    // (uc_wait). Both are registers, off the M10K's pins.
     decoded_t dc_next;
-    fes_i386_seq seq (.d(dc), .n(dc_next));
+    fes_i386_pkg::ucode_t rom_q;
+    logic       rom_ok, uc_wait;
+    fes_i386_ucode_rom ucode (.clk, .addr(dc.upc), .q(rom_q));
+    always_ff @(posedge clk) rom_ok <= dc_valid && !issue;
+    assign uc_wait = dc.seq == fes_i386_pkg::SEQ_UCODE && dc.more && !rom_ok;
+    fes_i386_seq seq (.d(dc), .w(rom_q), .n(dc_next));
     assign dc_load = !dc_valid || (issue && !dc.more);
     always_ff @(posedge clk) begin
         if (reset || redirect) begin
@@ -223,7 +234,7 @@ module fes_i386_cpu (
     // and D issues nothing after it (d_stop).
     logic [31:0] d_eip, d_eip_next;
     logic [16:0] eip16;
-    logic        past, wrap16, cs_gp, seg_cs_ffff;
+    logic        past, wrap16, cs_gp, seg_cs_ffff, seg_ss_ffff;
     assign eip16 = {1'b0, d_eip[15:0]} + {13'd0, dc.length};
     assign past = !code32 && (d_eip[31:16] != 16'd0 || eip16 > 17'h1_0000);
     assign cs_gp = past && seg_cs_ffff;
@@ -267,9 +278,17 @@ module fes_i386_cpu (
                 st_sp_disp = -st_size;
             end
             fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
-            fes_i386_pkg::STK_PEEK: st_disp = dc.sel_part ? st_size : 32'd0;
-            fes_i386_pkg::STK_PROBE: st_disp = -(st_size << 1);
-            fes_i386_pkg::STK_RETF: st_sp_disp = (st_size << 1) + dc.uop.imm;
+            fes_i386_pkg::STK_PEEK: st_disp = dc.slot[1] ? st_size << 1 : dc.slot[0] ? st_size : 32'd0;
+            // A probe reads its routine's lowest slot: a far call's two
+            // pushes below ESP, INT's three words, PUSHA's eight, POPA's at ESP.
+            fes_i386_pkg::STK_PROBE:
+                case (dc.uop.probe)
+                    fes_i386_pkg::PROBE_INT: st_disp = -32'd6;
+                    fes_i386_pkg::PROBE_PUSHA: st_disp = -(st_size << 3);
+                    fes_i386_pkg::PROBE_POPA: st_disp = 32'd0;
+                    default: st_disp = -(st_size << 1);
+                endcase
+            fes_i386_pkg::STK_RETF: st_sp_disp = (dc.slot[0] ? st_size * 32'd3 : st_size << 1) + dc.uop.imm;
             default: ;
         endcase
         if (!ss32) begin
@@ -294,7 +313,10 @@ module fes_i386_cpu (
     assign mseg = 3'(dc.uop.mem.seg);
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
-    assign d_unimpl = wrap16 || (mem && expand_down) || call_target_unimpl;
+    // A routine's probe assumes SS's real-mode limit, FFFFh, under which only
+    // a slot that straddles the 64 KiB wrap faults.
+    assign d_unimpl = wrap16 || (mem && expand_down) || call_target_unimpl
+                   || (dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_ffff);
 
     // A far transfer's selector and offset, from the instruction or from T0
     // and T1. In 16-bit code an offset past CS's limit raises #GP(0) at the
@@ -306,7 +328,7 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = dc.far_t && t_busy;
+    assign t_wait = (dc.far_t || dc.b_t1) && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
@@ -430,7 +452,8 @@ module fes_i386_cpu (
     // fault or HLT stops the CPU. Once it has (halted), D issues nothing; in
     // the cycle the fault or HLT is in WB, its flush clears what D issues.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze && !halted;
+                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !freeze
+                && !halted;
     assign trace_issue = issue;
 
     always_ff @(posedge clk) begin
@@ -473,7 +496,7 @@ module fes_i386_cpu (
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : a_val;
-        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next
+        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1
                 : u.src2.valid ? b_val : u.imm;
         d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;
         d_out.pend_a = u.src1.valid && a_pend;
@@ -483,8 +506,10 @@ module fes_i386_cpu (
         d_out.dist_b = b_dist;
         d_out.dist_c = c_dist;
         d_out.early = lea && lea_early;
-        d_out.mlimit = seg_lim[mseg][msize];
-        d_out.mtiny = seg_tiny[mseg][msize];
+        // The interrupt vector's entry (mem.system): IDTR's real-mode base 0
+        // and limit 3FFh, which a vector's entry never passes.
+        d_out.mlimit = dc.uop.mem.system ? 32'hffff_ffff : seg_lim[mseg][msize];
+        d_out.mtiny = !dc.uop.mem.system && seg_tiny[mseg][msize];
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -513,10 +538,10 @@ module fes_i386_cpu (
             ag_late <= late;
             ag_late_hi <= late_hi;
             ag_disp <= dc.far_jmp ? far_off : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
-            ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : lea ? 32'd0
+            ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : lea || dc.uop.mem.system ? 32'd0
                          : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
-            ag_seg_hi <= lea ? 16'd0 : seg_base[mseg][31:16];
-            ag_seg_hi_plus1 <= lea ? 16'd0 : seg_hi1[mseg];
+            ag_seg_hi <= lea || dc.uop.mem.system ? 16'd0 : seg_base[mseg][31:16];
+            ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
             // wrapped by operand size.
@@ -601,9 +626,25 @@ module fes_i386_cpu (
     endfunction
     pipe_t m1_out;
     logic  m1_limit;
+    // A routine's probe reads its lowest slot. Under SS's limit of FFFFh a
+    // slot faults only by straddling the 64 KiB wrap, which some slot does
+    // when the slots wrap and start misaligned to their size: then the
+    // probe faults, before the routine writes anything. M1 records it
+    // (pbad) and M2 raises #SS(0) from that register, off M1's fault path;
+    // a probe writes nothing and never branches, so a stage later is as good.
+    // The slots wrap when the lowest is past 10000h less their bytes: 6 for
+    // INT's three words, 16 or 32 for PUSHA's and POPA's eight.
+    logic m1_probe_bad, m1_wraps;
+    assign m1_wraps = !m1_s.uop.mem.addr32
+                   && (m1_s.uop.probe == fes_i386_pkg::PROBE_INT ? m1_s.moff[15:0] > 16'hfffa
+                       : m1_s.uop.size == fes_i386_pkg::SIZE_32 ? m1_s.moff[15:0] > 16'hffe0 : m1_s.moff[15:0] > 16'hfff0);
+    assign m1_probe_bad = m1_s.uop.probe != fes_i386_pkg::PROBE_NONE && m1_wraps
+                       && (m1_s.uop.probe != fes_i386_pkg::PROBE_INT && m1_s.uop.size == fes_i386_pkg::SIZE_32
+                           ? m1_s.moff[1:0] != 2'd0 : m1_s.moff[0]);
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && (m1_s.moff > m1_s.mlimit || m1_s.mtiny);
     always_comb begin
         m1_out = capture(m1_s, 3'd3, wb_s.result);
+        m1_out.pbad = m1_probe_bad;
         if (m1_limit && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             m1_out.uop.ctl.fault = m1_s.uop.mem.seg == fes_i386_pkg::SEG_SS ? fes_i386_pkg::FAULT_SS0
                                                                            : fes_i386_pkg::FAULT_GP0;
@@ -671,6 +712,7 @@ module fes_i386_cpu (
         m2_out.x = m2_x;
         m2_out.y = m2_y;
         m2_out.ld = ld_bytes;
+        if (m2_cap.pbad && m2_cap.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) m2_out.uop.ctl.fault = fes_i386_pkg::FAULT_SS0;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -811,6 +853,7 @@ module fes_i386_cpu (
             seg_ar <= init_ar;
             for (int k = 0; k < 6; k++) seg_hi1[k] <= init_base[k][31:16] + 16'd1;
             seg_cs_ffff <= init_limit[SEG_CS] == 32'h0000_ffff;
+            seg_ss_ffff <= init_limit[SEG_SS] == 32'h0000_ffff;
             for (int k = 0; k < 6; k++) begin
                 seg_lim[k][0] <= init_limit[k];
                 seg_lim[k][1] <= init_limit[k] - 32'd1;

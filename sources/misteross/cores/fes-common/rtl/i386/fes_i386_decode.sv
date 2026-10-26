@@ -50,7 +50,8 @@ module fes_i386_decode (
     output logic                   far_jmp,     // a far jump by far_sel:imm
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
     output logic [15:0]            far_sel,
-    output logic [5:0]             wseg         // the segment registers the uop writes, one-hot
+    output logic [5:0]             wseg,        // the segment registers the uop writes, one-hot
+    output logic [7:0]             upc          // SEQ_UCODE: the ROM address of the routine's second uop
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -135,6 +136,7 @@ module fes_i386_decode (
     logic        lptr;      // LES and its kin (SEQ_LPTR)
     logic        fptr;      // JMP and CALL m16:16/32 (SEQ_JMPFM, SEQ_CALLFM)
     logic        d_t1;      // the destination is T1, not T0
+    logic [1:0]  probe;     // probe_e: the uop probes a routine's stack slots
     logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
@@ -167,6 +169,8 @@ module fes_i386_decode (
         lptr = 1'b0;
         fptr = 1'b0;
         d_t1 = 1'b0;
+        probe = fes_i386_pkg::PROBE_NONE;
+        upc = 8'd0;
         d_idx = 3'd0;
         d_hi8 = 1'b0;
         imm = 32'd0;
@@ -549,6 +553,17 @@ module fes_i386_decode (
                     seg2_idx = 3'd1;
                     seg2_t = 1'b0;
                 end
+                8'h60: begin
+                    // PUSHA, PUSHAD (SEQ_UCODE): a probe of all eight slots,
+                    // then the ROM's routine
+                    op = 5'd9;  // ALU_MOV
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PROBE;
+                    probe = fes_i386_pkg::PROBE_PUSHA;
+                    seq = fes_i386_pkg::SEQ_UCODE;
+                    upc = fes_i386_ucode_pkg::UC_PUSHA;
+                    eoi = 1'b0;
+                end
                 8'h9a: begin
                     // CALL ptr16:16 or ptr16:32 (SEQ_CALLF): a read of the
                     // return address's lower slot, which checks the offset and
@@ -816,6 +831,7 @@ module fes_i386_decode (
     assign wseg = (u.dst.valid && d_seg ? 6'(1) << d_idx : 6'd0) | (u.seg2 ? 6'(1) << seg2_idx : 6'd0);
     // A far pointer's selector follows its offset.
     assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
+    assign u.probe = probe;
     assign u.sp_add = 1'b0;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);

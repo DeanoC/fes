@@ -34,10 +34,20 @@
 // push of CS checks the higher slot.
 // A uop that takes the selector and offset from T0 and T1 (far_t) waits in
 // D until the loads have retired.
+//
+// SEQ_UCODE: a microcode routine. Its uops after the first come from the
+// ROM (fes_i386_ucode_rom, word w, at d.upc), each expanded here into dc
+// with the instruction's operand size, vector and memory operand kept.
 module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d,
+    input  fes_i386_pkg::ucode_t   w,
     output fes_i386_pkg::decoded_t n
 );
+    // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
+    function automatic fes_i386_pkg::size_e uc_size(input logic [1:0] s, input logic osz32);
+        uc_size = s == 2'd0 ? (osz32 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_16)
+                : s == 2'd1 ? fes_i386_pkg::SIZE_16 : s == 2'd2 ? fes_i386_pkg::SIZE_32 : fes_i386_pkg::SIZE_8;
+    endfunction
     // A push of CS, from the probe before it.
     function automatic void to_push_cs(input fes_i386_pkg::decoded_t p, inout fes_i386_pkg::decoded_t q);
         q.uop.sp_write = 1'b1;
@@ -84,6 +94,8 @@ module fes_i386_seq (
         n.push_eip = 1'b0;
         n.reads_seg = 1'b0;
         n.wseg = 6'd0;
+        n.slot = 2'd0;
+        n.b_t1 = 1'b0;
         case (d.seq)
             fes_i386_pkg::SEQ_CALL: begin
                 n.uop.sp_write = 1'b0;
@@ -110,7 +122,7 @@ module fes_i386_seq (
                     // slot is read whole, so its limit check is operand-sized,
                     // as the 386EX's is.
                     n.uop.dst.index = 4'd0;
-                    n.sel_part = 1'b1;
+                    n.slot = 2'd1;
                     n.more = 1'b1;
                 end else begin
                     to_far_jump(n);
@@ -153,6 +165,54 @@ module fes_i386_seq (
                     to_push_eip(d, n);
                     n.more = 1'b1;
                 end
+            end
+            fes_i386_pkg::SEQ_UCODE: begin
+                n.more = !w.last;
+                n.upc = d.upc + 8'd1;
+                n.uop.cls = fes_i386_pkg::uop_class_e'(w.cls);
+                n.uop.op = w.op;
+                n.uop.imm = {28'd0, w.imm};
+                n.uop.size = uc_size(w.size, d.opsize32);
+                n.uop.src_size = uc_size(w.src_size, d.opsize32);
+                n.uop.count_cl = 1'b0;
+                n.uop.src1 = '{valid: w.s1, space: fes_i386_pkg::RS_GPR, index: {1'b0, w.s1_idx}, hi8: 1'b0};
+                n.uop.src2 = '{valid: w.s2, space: fes_i386_pkg::RS_GPR, index: {1'b0, w.s2_idx}, hi8: 1'b0};
+                n.uop.dst = '{valid: w.d, space: fes_i386_pkg::reg_space_e'(w.d_space), index: w.d_idx, hi8: 1'b0};
+                n.uop.mem.kind = fes_i386_pkg::mem_kind_e'(w.mkind);
+                n.uop.mem.bytes = w.mbytes == 2'd0 ? (d.opsize32 ? 4'd4 : 4'd2)
+                                : w.mbytes == 2'd1 ? 4'd2 : w.mbytes == 2'd2 ? 4'd4 : 4'd1;
+                n.uop.mem.in_a = w.in_a;
+                n.uop.mem.system = w.ivt;
+                if (w.stk != 3'd0) n.uop.mem.seg = fes_i386_pkg::SEG_SS;
+                n.uop.probe = w.probe;
+                n.uop.sp_write = w.stk == 3'(fes_i386_pkg::STK_PUSH) || w.stk == 3'(fes_i386_pkg::STK_POP);
+                n.uop.sp_add = w.sp_add;
+                n.uop.seg2 = w.far_jmp;
+                n.uop.seg2_idx = 3'd1;  // CS
+                n.uop.seg2_t = 1'b0;
+                n.uop.flags = '{read: '{oszap: w.rd_oszap, cf: w.rd_cf}, write: '{oszap: w.wr_oszap, cf: w.wr_cf}};
+                n.uop.ctl.end_of_instruction = w.last;
+                n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
+                n.stk = w.stk;
+                n.slot = w.slot;
+                n.sel_part = w.sel_part;
+                n.consumes = w.rd_cf || w.rd_oszap;
+                n.lea = 1'b0;
+                // A stack operation's address is ESP; the vector's entry
+                // has neither base nor index.
+                n.has_base = w.stk != 3'd0;
+                n.base = 3'd4;
+                n.has_index = 1'b0;
+                n.scale = 2'd0;
+                if (w.ivt) n.lea_disp = {d.lea_disp[31:2], w.sel_part, 1'b0};
+                n.push_eip = w.b == 2'd1;
+                n.b_t1 = w.b == 2'd2;
+                n.reads_seg = w.b == 2'd3;
+                n.seg_index = w.seg;
+                n.far_jmp = w.far_jmp;
+                n.far_chk = w.far_chk;
+                n.far_t = w.far_t;
+                n.wseg = w.far_jmp ? 6'b000010 : 6'd0;
             end
             fes_i386_pkg::SEQ_LPTR: begin
                 n.uop.dst.space = fes_i386_pkg::RS_GPR;
