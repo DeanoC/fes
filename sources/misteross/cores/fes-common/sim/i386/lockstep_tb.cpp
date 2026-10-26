@@ -42,6 +42,7 @@
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
+//   reset-store a store waiting in WB must not write memory on a reset edge.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -231,6 +232,38 @@ private:
     }
     template <typename W> static uint16_t get16(const W &wide, int n) { return uint16_t(wide[n / 2] >> (16 * (n % 2))); }
 };
+
+bool reset_store_regression(Rtl &rtl) {
+    State state;
+    for (int n = 0; n < 6; ++n) state.seg[n] = fes_i386::real_mode_segment(0);
+    state.gpr[fes_i386::REG_EAX] = 0x5aa5;
+    state.gpr[fes_i386::REG_EBX] = 0x100;
+
+    const std::array<uint8_t, 3> code = {0x89, 0x07, 0xf4};  // MOV [BX+DI], AX; HLT
+    std::copy(code.begin(), code.end(), rtl.ram.begin());
+    rtl.ram[0x100] = 0x12;
+    rtl.ram[0x101] = 0x34;
+    rtl.start(state);
+
+    bool pending = false;
+    for (int n = 0; n < EVENT_CYCLES; ++n) {
+        rtl.top.clk = 0;
+        rtl.top.eval();
+        if (rtl.top.dmem_write) {
+            pending = rtl.top.dmem_waddr == 0x100 && rtl.top.dmem_wmask == 0x03;
+            break;
+        }
+        rtl.clock();
+    }
+    if (!pending) return false;
+
+    rtl.top.reset = 1;
+    rtl.top.clk = 0;
+    rtl.top.eval();
+    const bool write_on_reset = rtl.top.dmem_write;
+    rtl.clock();
+    return !write_on_reset && rtl.ram[0x100] == 0x12 && rtl.ram[0x101] == 0x34 && rtl.step_writes.empty();
+}
 
 // ---- Divergences -------------------------------------------------------------------
 
@@ -624,6 +657,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
         const bool oracle_faulted = !result.events.empty() && !result.retired;
         if (skip.all && event == Rtl::Event::Fault && !oracle_faulted) {
+            if (!rtl.step_writes.empty()) out.add(at + "fault-write", *rtl.step_writes.begin(), 0);
+            compare(before, rtl.state(), Fields{}, at, out);
             outcome.fault = rtl.top.trace_vector;
             return outcome;
         }
@@ -1339,7 +1374,15 @@ int main(int argc, char **argv) {
 
     Summary summary;
     const std::vector<Entry> entries = load_entries(std::getenv("FES_I386_DIVERGENCES"));
-    if (mode == "unbuilt") {
+    if (mode == "reset-store") {
+        ++summary.runs;
+        if (reset_store_regression(rtl)) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL reset-store reset-edge-write 0 1\n";
+        }
+    } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),

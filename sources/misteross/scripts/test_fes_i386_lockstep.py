@@ -134,6 +134,17 @@ def run_unbuilt(testbench: str, env: dict, lines: list[str]) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
+def run_reset_store(testbench: str, env: dict) -> dict:
+    env = dict(env, FES_I386_MODE='reset-store', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'reset-store: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 1:
+        raise LockstepError(f'reset-store: testbench ran {summary["runs"]} checks, expected one')
+    return {'summary': summary, 'failures': failures}
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -281,6 +292,7 @@ def main() -> int:
         linked = oracle.link_inputs(args.jobs, args.download)
         testbench = str(verilate(verilator, linked, args.jobs, yosys))
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
+        reset_store = run_reset_store(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
         if args.download:
@@ -344,9 +356,11 @@ def main() -> int:
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
-    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures:
+    reset_store_failures = reset_store['failures']
+    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures:
         exit_code = 1
     report.update({
+        'reset_store': reset_store,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
@@ -384,7 +398,8 @@ def main() -> int:
               f"{share(gaps['store_load'], 2)} two cycles apart; "
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
-    for line in (unbuilt_failures + corpus_failures + random_failures)[:40]:
+    print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
+    for line in (reset_store_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

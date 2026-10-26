@@ -587,7 +587,7 @@ module fes_i386_cpu (
     // A store writes its bytes on the edge it retires: the result's low
     // bytes, moved to the address's place in its dword and the next.
     logic wb_store;
-    assign wb_store = wb_s.valid && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
+    assign wb_store = wb_s.valid && !reset && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
     assign dmem_write = wb_store;
     assign dmem_waddr = wb_s.maddr;
     always_comb begin
@@ -595,7 +595,7 @@ module fes_i386_cpu (
         dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_s.maddr[1:0];
     end
     always_ff @(posedge clk) begin
-        rt_valid <= wb_store && !reset;
+        rt_valid <= wb_store;
         rt_data <= wb_s.result;
         rt_bytes <= wb_s.uop.mem.bytes;
     end
