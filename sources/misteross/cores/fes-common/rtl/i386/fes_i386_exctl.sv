@@ -10,7 +10,9 @@
 // size an add's x is ones and y zeros, so its carry out reaches bit 32 at every
 // size. An operand still pending with its producer one stage ahead is left
 // out (its inversion stays in): EX ORs it into x, or XORs it into y, from the
-// WB result register through the bypass selects (fes_i386_dops).
+// WB result register through the bypass selects (fes_i386_dops). A memory
+// operand is left out the same way, and EX takes it from the loaded value M2
+// registers (pipe_t ld) through the same selects (xl, yl).
 module fes_i386_exctl (
     input  fes_i386_pkg::pipe_t    s,
     output fes_i386_pkg::exctl_t   exc,
@@ -51,9 +53,14 @@ module fes_i386_exctl (
     logic sub, y_one, fill, byp_a, byp_b, ya, h8;
     logic [31:0] mask, an, bn;
     assign c.ok = u.ctl.fault == fes_i386_pkg::FAULT_NONE;
-    assign byp_a = s.pend_a && s.dist_a == 3'd1;
-    assign byp_b = s.pend_b && s.dist_b == 3'd1;
-    assign c.byp_a = byp_a;
+    logic lda, ldb;  // the memory operand is src1, src2
+    assign lda = (u.mem.kind == fes_i386_pkg::MEM_LOAD || u.mem.kind == fes_i386_pkg::MEM_RMW) && u.mem.in_a;
+    assign ldb = u.mem.kind == fes_i386_pkg::MEM_LOAD && !u.mem.in_a;
+    assign byp_a = s.pend_a && s.dist_a == 3'd1 || lda;
+    assign byp_b = s.pend_b && s.dist_b == 3'd1 || ldb;
+    assign c.byp_a = s.pend_a && s.dist_a == 3'd1;
+    assign c.xl = lda;
+    assign c.yl = ya ? lda : ldb;
     assign c.byp_c = s.pend_c && s.dist_c == 3'd1;
     assign c.size8 = size8;
     assign c.size16 = size16;

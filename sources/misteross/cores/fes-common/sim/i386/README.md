@@ -227,38 +227,47 @@ the repository lock's older Yosys misreads the RTL's per-byte records.
 The oracle steps one instruction and the RTL runs until it retires one; the
 two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
 0-17 and the six segment registers with their hidden caches. Memory writes
-are compared as each side reports them. An instruction that faults in the
-oracle must fault in the RTL with the same vector and nothing retired; the
-RTL does not deliver exceptions yet, so the run ends there. HLT ends a run on
-both sides.
+are compared as each side reports them: each instruction must write the same
+bytes, with the same values, on both sides. An instruction that faults in
+the oracle must fault in the RTL with the same vector, nothing retired and
+nothing written; the RTL does not deliver exceptions yet, so the run ends
+there. HLT ends a run on both sides. Every byte either side writes, the
+oracle's exception frames included, is cleared after the run.
 
 The RTL starts each run from the state its `init_*` ports load at reset. Its
 memory model serves the fetch port with a random 0-12 cycle delay per block
 and garbage on the port until the block arrives
-(`FES_I386_LATENCY=1`, the default); the model's `Latency` port class is
-what later slices' data, MMIO and I/O ports take.
+(`FES_I386_LATENCY=1`, the default). The data port has a fixed latency for
+now: a load's bytes arrive the cycle after M1 sends its address, read before
+the store retiring on that edge writes. The model's `Latency` port class is
+what the data port takes once stages behind D can hold, and what later
+slices' MMIO and I/O ports take.
 
 Where the oracle and SingleStepTests disagree, [`divergences.toml`](divergences.toml)
 says which side the FES CPU follows. For an entry that follows the corpus,
 each retirement it applies to leaves the fields it names out of the
 comparison with the oracle, and the oracle takes the RTL's values so both run
-on from the same state; the testbench works out each entry's opcode stem and
-`when` predicates from the instruction, as the vectors runner does. The
-corpus itself then checks those values.
+on from the same state, memory included; the testbench works out each
+entry's opcode stem and `when` predicates from the instruction, as the
+vectors runner does. An entry that leaves every field to the corpus also
+decides whether the instruction faults and with which vector: the RTL's
+outcome stands. The corpus itself then checks those values.
 
 `scripts/test_fes_i386_lockstep.py` drives it two ways:
 
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register and immediate forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs and backward jumps, from random register states | Every retirement against the oracle; a run stops at its HLT, a fault or 2,000 retirements. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs and backward jumps, from random register states and zeroed memory | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
-branch, and after a shift or rotate. That last one checks D's flag hold
-cycle-exactly: an instruction that consumes the flags (ADC, SBB, Jcc,
-SETcc, RCL, RCR, LAHF, CMC, LOOPE, LOOPNE) must retire two cycles after the
-shift, and anything else one, or the run fails.
+branch, after a shift or rotate, and after a store. These check D's holds
+cycle-exactly, or the run fails: an instruction that consumes the flags
+(ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE, LOOPNE) must retire two
+cycles after a shift and anything else one; an instruction that reads memory
+must retire at least two cycles after a store, and any other instruction
+without a memory operand one.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison

@@ -40,6 +40,7 @@ module fes_i386_ex (
     input  logic [31:0]          xr,          // M2's x and y
     input  logic [31:0]          yr,
     input  logic [31:0]          wb,          // the WB result register
+    input  logic [31:0]          ld,          // the loaded value (M2)
     input  logic [31:0]          ag_result,   // LEA's offset
     input  logic [17:0]          flags_in,
     input  logic [17:0]          flags_keep,
@@ -73,10 +74,13 @@ module fes_i386_ex (
     // ---- Operands -----------------------------------------------------------------
     logic [31:0] af, x, y, mask;
     assign af = exc.byp_a ? wb : a;
-    assign x = xr | {{16{exc.xw32}} & wb[31:16], {8{exc.xw16}} & wb[15:8],
-                     {8{exc.xw_lo}} & wb[7:0] | {8{exc.xw_hi}} & wb[15:8]};
-    assign y = yr ^ {{16{exc.yw32}} & wb[31:16], {8{exc.yw16}} & wb[15:8],
-                     {8{exc.yw_lo}} & wb[7:0] | {8{exc.yw_hi}} & wb[15:8]};
+    logic [31:0] xs, ys;  // what x and y take in: the WB result or the loaded value
+    assign xs = exc.xl ? ld : wb;
+    assign ys = exc.yl ? ld : wb;
+    assign x = xr | {{16{exc.xw32}} & xs[31:16], {8{exc.xw16}} & xs[15:8],
+                     {8{exc.xw_lo}} & xs[7:0] | {8{exc.xw_hi}} & xs[15:8]};
+    assign y = yr ^ {{16{exc.yw32}} & ys[31:16], {8{exc.yw16}} & ys[15:8],
+                     {8{exc.yw_lo}} & ys[7:0] | {8{exc.yw_hi}} & ys[15:8]};
     assign mask = exc.size8 ? 32'h0000_00ff : exc.size16 ? 32'h0000_ffff : 32'hffff_ffff;
 
     // ---- Adder ----------------------------------------------------------------

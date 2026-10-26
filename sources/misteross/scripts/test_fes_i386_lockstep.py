@@ -70,43 +70,32 @@ CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i3
            'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv', 'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
-# What the CPU executes, by MOO stem without 66h/67h prefixes. 'register'
-# takes the stem's register forms (ModRM mod == 3); 'all' takes every test,
-# including LEA's memory forms, which compute an address and access nothing.
-# Each later slice adds its stems and forms here.
+# What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
+# each, memory forms included. Each later slice adds its stems here.
 _ALU = [f'{row + column:02X}' for row in range(0, 0x40, 8) for column in range(6)]
-SCOPE: dict[str, str] = {
-    **{stem: 'register' if int(stem, 16) & 7 < 4 else 'all' for stem in _ALU},
-    **{f'{opcode}.{reg}': 'register' for opcode in ('80', '81', '82', '83', 'C0', 'C1', 'D0', 'D1', 'D2', 'D3')
-       for reg in range(8)},
-    **{f'{opcode:02X}': 'all' for opcode in range(0x40, 0x50)},
-    **{f'{opcode}.{reg}': 'register' for opcode in ('F6', 'F7') for reg in range(4)},
-    **{stem: 'register' for stem in ('FE.0', 'FE.1', 'FF.0', 'FF.1', '84', '85', '88', '89', '8A', '8B', '8C', '8E',
-                                     'C6', 'C7', '0FA4', '0FA5', '0FAC', '0FAD', '0FB6', '0FB7', '0FBE', '0FBF')},
-    **{f'0F{opcode:02X}': 'register' for opcode in range(0x90, 0xA0)},
-    **{stem: 'all' for stem in ('8D', '90', '98', '99', '9E', '9F', 'A8', 'A9', 'E0', 'E1', 'E2', 'E3', 'E9', 'EB',
-                                'F4', 'F5', 'F8', 'F9', 'FA', 'FB', 'FC', 'FD')},
-    **{f'{opcode:02X}': 'all' for opcode in [*range(0x70, 0x80), *range(0xB0, 0xC0)]},
-    **{f'0F{opcode:02X}': 'all' for opcode in range(0x80, 0x90)},
-}
+SCOPE: frozenset[str] = frozenset([
+    *_ALU,
+    *(f'{opcode}.{reg}' for opcode in ('80', '81', '82', '83', 'C0', 'C1', 'D0', 'D1', 'D2', 'D3')
+      for reg in range(8)),
+    *(f'{opcode:02X}' for opcode in range(0x40, 0x50)),
+    *(f'{opcode}.{reg}' for opcode in ('F6', 'F7') for reg in range(4)),
+    'FE.0', 'FE.1', 'FF.0', 'FF.1', '84', '85', '88', '89', '8A', '8B', '8C', '8E', 'C6', 'C7',
+    '0FA4', '0FA5', '0FAC', '0FAD', '0FB6', '0FB7', '0FBE', '0FBF',
+    *(f'0F{opcode:02X}' for opcode in range(0x90, 0xA0)),
+    '8D', '90', '98', '99', '9E', '9F', 'A8', 'A9', 'E0', 'E1', 'E2', 'E3', 'E9', 'EB',
+    'F4', 'F5', 'F8', 'F9', 'FA', 'FB', 'FC', 'FD',
+    *(f'{opcode:02X}' for opcode in [*range(0x70, 0x80), *range(0xB0, 0xC0)]),
+    *(f'0F{opcode:02X}' for opcode in range(0x80, 0x90)),
+])
 
 
 class LockstepError(RuntimeError):
     pass
 
 
-def in_scope(stem: str, test: vectors.MooTest) -> bool:
-    """Whether this build executes the test's instruction form."""
-    form = SCOPE.get(vectors.base_opcode(stem))
-    if form is None:
-        return False
-    if form == 'all':
-        return True
-    code, index = test.instruction, 0
-    while code[index] in vectors.PREFIXES:
-        index += 1
-    two_byte = code[index] == 0x0F
-    return code[index + (2 if two_byte else 1)] >> 6 == 3
+def in_scope(stem: str) -> bool:
+    """Whether this build executes the stem's instructions."""
+    return vectors.base_opcode(stem) in SCOPE
 
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
@@ -126,10 +115,9 @@ def unbuilt_encodings() -> list[str]:
                 stem = ('0F' if two_byte else '') + f'{opcode:02X}'
                 if not two_byte and opcode in GROUPED_ONE or two_byte and opcode == 0xBA:
                     stem += f'.{(following >> 3) & 7}'
-                test = vectors.MooTest(0, '', code + bytes(14) + b'\xf4', [], [], 0, {}, [], None, '')
                 # Every following byte, ModRM or not: a decoder that misreads
                 # one as ModRM must still stop.
-                if not in_scope(stem, test):
+                if not in_scope(stem):
                     lines.append(code.hex())
     return lines
 
@@ -143,6 +131,17 @@ def run_unbuilt(testbench: str, env: dict, lines: list[str]) -> dict:
     summary, failures = parse_output(result.stdout)
     if summary['runs'] != len(lines):
         raise LockstepError(f'unbuilt: testbench ran {summary["runs"]} of {len(lines)} encodings')
+    return {'summary': summary, 'failures': failures}
+
+
+def run_reset_store(testbench: str, env: dict) -> dict:
+    env = dict(env, FES_I386_MODE='reset-store', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'reset-store: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 1:
+        raise LockstepError(f'reset-store: testbench ran {summary["runs"]} checks, expected one')
     return {'summary': summary, 'failures': failures}
 
 
@@ -192,12 +191,19 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
     return output / ('V' + TOP)
 
 
-def flag_hold_failures(gaps: dict) -> list[str]:
-    """D's flag hold, cycle-exactly: without latency a flag consumer right
-    after a shift or rotate retires two cycles after it, anything else one."""
-    return [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
-            for key, expected in (('shift_consumer', 2), ('after_shift', 1))
-            for gap, count in gaps[key].items() if gap != expected]
+def hold_failures(gaps: dict) -> list[str]:
+    """D's flag and store holds, cycle-exactly where nothing else can hold:
+    without latency a flag consumer right after a shift or rotate retires two
+    cycles after it, and anything else one; a memory read right after a store
+    at least two, and any other instruction after a store one."""
+    failures = [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
+                for key, expected in (('shift_consumer', 2), ('after_shift', 1))
+                for gap, count in gaps[key].items() if gap != expected]
+    failures += [f'FAIL store hold: {count} store_load retirements {gap} cycles apart'
+                 for gap, count in gaps['store_load'].items() if gap < 2]
+    failures += [f'FAIL store hold: {count} after_store retirements {gap} cycles apart'
+                 for gap, count in gaps['after_store'].items() if gap != 1]
+    return failures
 
 
 def parse_output(text: str) -> tuple[dict, list[str]]:
@@ -218,8 +224,7 @@ def run_file(path: str, testbench: str, env: dict, revoked: frozenset[str], entr
              limit: int | None) -> dict:
     stem = Path(path).name[:-len('.MOO.gz')]
     moo = vectors.parse_moo(gzip.decompress(Path(path).read_bytes()))
-    tests = [test for test in (moo.tests[:limit] if limit else moo.tests)
-             if test.hash not in revoked and in_scope(stem, test)]
+    tests = [test for test in (moo.tests[:limit] if limit else moo.tests) if test.hash not in revoked]
     lines = []
     for test in tests:
         corpus, oracle_side = label_fields(entries, stem, test)
@@ -287,6 +292,7 @@ def main() -> int:
         linked = oracle.link_inputs(args.jobs, args.download)
         testbench = str(verilate(verilator, linked, args.jobs, yosys))
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
+        reset_store = run_reset_store(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
         if args.download:
@@ -335,7 +341,7 @@ def main() -> int:
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
     random_totals = sum((Counter({key: result['summary'][key] for key in
                                   ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'retire_limits')}) for result in random_results), Counter())
+                                   'retire_limits', 'smc_stops')}) for result in random_results), Counter())
     random_failures = [line for result in random_results + steady_results for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
@@ -345,14 +351,16 @@ def main() -> int:
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
-                        'shift_consumer', 'after_shift')}
-    hold_failures = flag_hold_failures(gaps)
+                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment')}
+    held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
-    random_failures += hold_failures
-    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures:
+    random_failures += held
+    reset_store_failures = reset_store['failures']
+    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures:
         exit_code = 1
     report.update({
+        'reset_store': reset_store,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
@@ -370,7 +378,8 @@ def main() -> int:
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
-              f"faulting, {random_totals['retire_limits']} at the retirement limit), {random_totals['failed']} fail; "
+              f"faulting, {random_totals['retire_limits']} at the retirement limit, {random_totals['smc_stops']} at a "
+              f"store into their code), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
         def share(histogram: dict, cycles: int) -> str:
@@ -384,9 +393,13 @@ def main() -> int:
               f"taken branch, {share(gaps['after_taken'], common) if common else '-'} {common} cycles apart; "
               f"{sum(gaps['after_shift'].values())} after a shift, {share(gaps['after_shift'], 1)} one cycle apart; "
               f"{sum(gaps['shift_consumer'].values())} flag consumers after a shift, "
-              f"{share(gaps['shift_consumer'], 2)} two cycles apart")
+              f"{share(gaps['shift_consumer'], 2)} two cycles apart; "
+              f"{sum(gaps['store_load'].values())} memory reads after a store, "
+              f"{share(gaps['store_load'], 2)} two cycles apart; "
+              f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
-    for line in (unbuilt_failures + corpus_failures + random_failures)[:40]:
+    print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
+    for line in (reset_store_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: MIT
-// D: the x86 instruction Q aligned (fes_i386_pkg::fetched_t) to one uop
-// (docs/i386-cpu-design.md, "Decode and microcode"). Phase 1's register-only
-// slice decodes the one-uop register and immediate forms:
+// DC: the x86 instruction Q aligned (fes_i386_pkg::fetched_t) to one uop
+// (docs/i386-cpu-design.md, "Decode and microcode"). Phase 1 decodes the
+// one-uop forms:
 //   ALU group 1, INC, DEC, NEG, NOT, TEST, MOV (including to and from a
 //   segment register in real mode), LEA, shifts and rotates, SHLD and SHRD,
 //   SETcc, MOVZX and MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and
 //   clear instructions, NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE
-//   and JCXZ.
-// Encodings the i386 rejects raise #UD (LOCK on any of these, MOV to CS or
-// to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
-// an instruction over 15 bytes raises #GP(0). Everything else, memory forms
-// included, decodes as FAULT_UNIMPLEMENTED. In 16-bit code an instruction
+//   and JCXZ;
+// with a ModRM memory operand where they take one. The memory operand is a
+// load (src2, or src1 for CMP and TEST), a store, or both in one uop
+// (read-modify-write), and replaces the register it stands for: no GPR is
+// read or written for it. Its segment is the override, else SS for a BP-,
+// EBP- or ESP-based address (stack, fes_i386_amode), else DS.
+// Encodings the i386 rejects raise #UD (LOCK on anything but a read-modify-
+// write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC, MOV to CS
+// or to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
+// an instruction over 15 bytes raises #GP(0). Everything else decodes as
+// FAULT_UNIMPLEMENTED. In 16-bit code an instruction
 // whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED too, but D applies
 // that, since only D knows the instruction's EIP (fes_i386_cpu, wrap16).
 //
@@ -20,6 +26,7 @@
 module fes_i386_decode (
     input  fes_i386_pkg::fetched_t q,
     input  logic                   code32,      // CS.D
+    input  logic                   stack,       // the address is BP-, EBP- or ESP-based (fes_i386_amode)
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
     output logic                   lea,         // address operands go to AG
@@ -34,6 +41,7 @@ module fes_i386_decode (
     typedef fes_i386_pkg::uop_t uop_t;
 
     logic [10:0][7:0] by;
+    logic [14:0][7:0] byx;  // by, then zeros, so an immediate's select stays in range
     logic [7:0]       b0, op2, modrm;
     logic [1:0]       mode;
     logic [2:0]       reg_f, rm;
@@ -41,6 +49,7 @@ module fes_i386_decode (
     logic [1:0]       osz;  // a size_e: SIZE_16 or SIZE_32
 
     assign by = q.bytes;
+    assign byx = {32'b0, by};
     assign b0 = by[0];
     assign two = b0 == 8'h0f;
     assign op2 = by[1];
@@ -65,12 +74,30 @@ module fes_i386_decode (
                    || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
                    || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000;        // LAHF, CMC, LOOPNE, LOOPE
 
-    // Immediates: after ModRM in a register form, or straight after the opcode.
-    logic [31:0] imm8_m, imm8s_m, immz_m, imm8_o, rel8, relz1, relz2, imm8_m2;
-    assign imm8_m = {24'b0, by[2]};
-    assign imm8s_m = {{24{by[2][7]}}, by[2]};
-    assign immz_m = opsize32 ? {by[5], by[4], by[3], by[2]} : {16'b0, by[3], by[2]};
-    assign imm8_m2 = {24'b0, by[3]};
+    // Where the displacement is: after the ModRM and, in 32-bit addressing
+    // with r/m 100b, a SIB byte.
+    logic       sib_form;
+    logic [2:0] mpos, dpos, dlen;  // ModRM and displacement positions, displacement bytes
+    assign sib_form = addr32 && !reg_form && rm == 3'd4;
+    assign mpos = two ? 3'd2 : 3'd1;
+    assign dpos = mpos + 3'd1 + 3'(sib_form);
+    always_comb begin
+        if (reg_form) dlen = 3'd0;
+        else if (mode == 2'b01) dlen = 3'd1;
+        else if (!addr32) dlen = mode == 2'b10 || rm == 3'd6 ? 3'd2 : 3'd0;
+        else dlen = mode == 2'b10 || (sib_form ? by[dpos - 3'd1][2:0] == 3'd5 : rm == 3'd5) ? 3'd4 : 3'd0;
+    end
+
+    // Immediates. One after a ModRM's operand bytes is the instruction's last
+    // bytes, so its place comes from the length, beside the decode; one
+    // straight after the opcode is at byte 1.
+    logic [3:0]  blen;  // the instruction's bytes after its prefixes
+    logic [31:0] imm8_m, imm8s_m, immz_m, imm8_o, rel8, relz1, relz2;
+    assign blen = q.length - q.prefix_count;
+    assign imm8_m = {24'b0, byx[blen - 4'd1]};
+    assign imm8s_m = {{24{byx[blen - 4'd1][7]}}, byx[blen - 4'd1]};
+    assign immz_m = opsize32 ? {byx[blen - 4'd1], byx[blen - 4'd2], byx[blen - 4'd3], byx[blen - 4'd4]}
+                             : {16'b0, byx[blen - 4'd1], byx[blen - 4'd2]};
     assign imm8_o = {24'b0, by[1]};
     // Branch displacements, as AG's disp: 32 bits, or zero-extended from 16
     // when the operand size is 16 (the target wraps at 64 KiB).
@@ -89,6 +116,10 @@ module fes_i386_decode (
     logic [3:0]  cond;
     logic        rd_cf, rd_oszap, wr_cf, wr_oszap;
     logic        known, undefined;
+    logic [1:0]  mkind;     // a mem_kind_e
+    logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
+    logic [2:0]  mbytes;    // the access's bytes, when not the operation's size
+    logic        lockable;  // LOCK is valid on the memory form
 
     localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_BRANCH = 3'd4, C_SEGMENT = 3'd5, C_SPECIAL = 3'd7;
 
@@ -120,6 +151,10 @@ module fes_i386_decode (
         seg_index = 3'd0;
         known = 1'b1;
         undefined = 1'b0;
+        mkind = 2'd0;  // MEM_NONE
+        m_in_a = 1'b0;
+        mbytes = 3'd0;  // by size
+        lockable = 1'b0;
 
         if (!two) begin
             casez (b0)
@@ -137,11 +172,16 @@ module fes_i386_decode (
                         s1_valid = 1'b1;
                         imm = b0[0] ? (opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]}) : imm8_o;
                     end else begin
-                        known = known && reg_form;
                         s1_valid = 1'b1;
                         s1_idx = b0[1] ? reg_f : rm;
                         s2_valid = 1'b1;
                         s2_idx = b0[1] ? rm : reg_f;
+                        if (!reg_form) begin
+                            // r/m, r: CMP loads, the rest read-modify-write; r, r/m loads.
+                            m_in_a = !b0[1];
+                            mkind = b0[1] || b0[5:3] == 3'd7 ? 2'd1 : 2'd3;
+                            lockable = !b0[1] && b0[5:3] != 3'd7;
+                        end
                     end
                     s1_hi8 = !b0[0] && s1_idx[2];
                     s2_hi8 = !b0[0] && s2_idx[2];
@@ -175,8 +215,10 @@ module fes_i386_decode (
                 end
                 8'b100000??: begin
                     // Group 1, r/m, imm: 80h, 81h, 82h (80h's alias), 83h (sign-extended imm8)
-                    known = reg_form;
                     op = {2'b00, reg_f};
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : reg_f == 3'd7 ? 2'd1 : 2'd3;
+                    lockable = reg_f != 3'd7;
                     size = b0[0] ? osz : 2'd0;
                     rd_cf = reg_f == 3'd2 || reg_f == 3'd3;
                     wr_cf = 1'b1;
@@ -191,8 +233,9 @@ module fes_i386_decode (
                 end
                 8'b1000010?: begin
                     // TEST r/m, r
-                    known = reg_form;
                     op = 5'd8;  // ALU_TEST
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd1;
                     size = b0[0] ? osz : 2'd0;
                     wr_cf = 1'b1;
                     wr_oszap = 1'b1;
@@ -204,9 +247,10 @@ module fes_i386_decode (
                     s2_hi8 = !b0[0] && reg_f[2];
                 end
                 8'b100010??: begin
-                    // MOV r/m, r and MOV r, r/m
-                    known = reg_form;
+                    // MOV r/m, r (a store) and MOV r, r/m (a load)
                     op = 5'd9;  // ALU_MOV
+                    m_in_a = !b0[1];
+                    mkind = reg_form ? 2'd0 : b0[1] ? 2'd1 : 2'd2;
                     size = b0[0] ? osz : 2'd0;
                     s1_valid = 1'b1;
                     s1_idx = b0[1] ? reg_f : rm;
@@ -223,9 +267,12 @@ module fes_i386_decode (
                     d_hi8 = s1_hi8;
                 end
                 8'h8c: begin
-                    // MOV r/m, Sreg: the selector, zero-extended to a 32-bit register
-                    known = reg_form;
+                    // MOV r/m, Sreg: the selector, zero-extended to a 32-bit
+                    // register, or stored as a word
                     undefined = reg_f > 3'd5;
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd2;
+                    mbytes = 3'd2;
                     op = 5'd15;  // ALU_MOVZX
                     src_size = 2'd1;
                     s1_valid = 1'b1;
@@ -247,7 +294,7 @@ module fes_i386_decode (
                 end
                 8'h8e: begin
                     // MOV Sreg, r/m16 (real mode): not CS, not 6 or 7
-                    known = reg_form;
+                    mkind = reg_form ? 2'd0 : 2'd1;
                     undefined = reg_f == 3'd1 || reg_f > 3'd5;
                     cls = C_SEGMENT;
                     op = 5'd0;  // SEGOP_LOAD_REAL
@@ -324,8 +371,9 @@ module fes_i386_decode (
                 end
                 8'b1100000?, 8'b110100??: begin
                     // Group 2: C0h, C1h by imm8; D0h, D1h by 1; D2h, D3h by CL
-                    known = reg_form;
                     cls = C_SHIFT;
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd3;
                     op = {2'b00, reg_f};
                     size = b0[0] ? osz : 2'd0;
                     rd_cf = 1'b1;
@@ -342,8 +390,9 @@ module fes_i386_decode (
                 end
                 8'b1100011?: begin
                     // MOV r/m, imm (reg 0 only)
-                    known = reg_form;
                     undefined = reg_f != 3'd0;
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd2;
                     op = 5'd9;  // ALU_MOV
                     size = b0[0] ? osz : 2'd0;
                     s1_valid = 1'b1;
@@ -395,8 +444,11 @@ module fes_i386_decode (
                 end
                 8'b1111011?: begin
                     // Group 3: TEST r/m, imm (/0, /1); NOT; NEG. MUL, IMUL, DIV, IDIV later.
-                    known = reg_form && !reg_f[2];
+                    known = !reg_f[2];
                     op = reg_f[1] ? (reg_f[0] ? 5'd12 : 5'd13) : 5'd8;  // NEG, NOT, TEST
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : reg_f[1] ? 2'd3 : 2'd1;
+                    lockable = reg_f[1];
                     size = b0[0] ? osz : 2'd0;
                     wr_cf = reg_f != 3'd2;
                     wr_oszap = reg_f != 3'd2;
@@ -410,8 +462,11 @@ module fes_i386_decode (
                 end
                 8'b1111111?: begin
                     // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32
-                    known = reg_form && reg_f[2:1] == 2'b00;
+                    known = reg_f[2:1] == 2'b00;
                     op = reg_f[0] ? 5'd11 : 5'd10;
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd3;
+                    lockable = 1'b1;
                     size = b0[0] ? osz : 2'd0;
                     rd_cf = 1'b1;
                     wr_oszap = 1'b1;
@@ -438,8 +493,9 @@ module fes_i386_decode (
                 end
                 8'b1001????: begin
                     // SETcc r/m8
-                    known = reg_form;
                     op = 5'd17;  // ALU_SETCC
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd2;
                     cond = op2[3:0];
                     size = 2'd0;
                     rd_cf = 1'b1;
@@ -453,8 +509,9 @@ module fes_i386_decode (
                 end
                 8'b1010?10?: begin
                     // SHLD, SHRD r/m, r by imm8 (A4h, ACh) or by CL (A5h, ADh)
-                    known = reg_form;
                     cls = C_SHIFT;
+                    m_in_a = 1'b1;
+                    mkind = reg_form ? 2'd0 : 2'd3;
                     op = op2[3] ? 5'd9 : 5'd8;  // SHIFT_SHRD, SHIFT_SHLD
                     wr_cf = 1'b1;
                     wr_oszap = 1'b1;
@@ -465,12 +522,13 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                     d_idx = rm;
                     count_cl = op2[0];
-                    imm = imm8_m2;
+                    imm = imm8_m;
                 end
                 8'b1011?11?: begin
                     // MOVZX (B6h, B7h), MOVSX (BEh, BFh)
-                    known = reg_form;
                     op = op2[3] ? 5'd16 : 5'd15;
+                    mkind = reg_form ? 2'd0 : 2'd1;
+                    mbytes = op2[0] ? 3'd2 : 3'd1;
                     src_size = op2[0] ? 2'd1 : 2'd0;
                     s1_valid = 1'b1;
                     s1_idx = reg_f;
@@ -483,33 +541,42 @@ module fes_i386_decode (
                 default: known = 1'b0;
             endcase
         end
+
+        // The memory operand replaces the register it stands for.
+        if (mkind != 2'd0) begin
+            if (m_in_a) begin
+                s1_valid = 1'b0;
+                s1_hi8 = 1'b0;
+                d_valid = 1'b0;
+                d_hi8 = 1'b0;
+            end else begin
+                s2_valid = 1'b0;
+                s2_hi8 = 1'b0;
+            end
+        end
     end
 
-    // ---- LEA's displacement -----------------------------------------------------
-    logic        sib_form, disp32_no_base;
-    logic [2:0]  dpos;   // the displacement's first byte
+    // ---- The address's displacement ---------------------------------------------
     logic [31:0] d8, d16, d32;
-    assign sib_form = addr32 && rm == 3'd4;
-    assign disp32_no_base = mode == 2'b00 && (sib_form ? by[2][2:0] == 3'd5 : rm == 3'd5);
-    assign dpos = sib_form ? 3'd3 : 3'd2;
-    assign d8 = {{24{by[dpos][7]}}, by[dpos]};
-    assign d16 = {16'b0, by[3], by[2]};
-    assign d32 = {by[dpos + 3'd3], by[dpos + 3'd2], by[dpos + 3'd1], by[dpos]};
+    assign d8 = {{24{byx[dpos][7]}}, byx[dpos]};
+    assign d16 = {16'b0, byx[dpos + 3'd1], byx[dpos]};
+    assign d32 = {byx[dpos + 3'd3], byx[dpos + 3'd2], byx[dpos + 3'd1], byx[dpos]};
     always_comb begin
-        if (!addr32) begin
-            lea_disp = mode == 2'b01 ? {16'b0, d8[15:0]} : mode == 2'b10 || (mode == 2'b00 && rm == 3'd6) ? d16 : 32'd0;
-        end else begin
-            lea_disp = mode == 2'b01 ? d8 : mode == 2'b10 || disp32_no_base ? d32 : 32'd0;
-        end
+        if (dlen == 3'd1) lea_disp = addr32 ? d8 : {16'b0, d8[15:0]};
+        else if (dlen == 3'd2) lea_disp = d16;
+        else if (dlen == 3'd4) lea_disp = d32;
+        else lea_disp = 32'd0;
     end
     assign lea_early = osz == 2'd2;
 
     // ---- Faults and the uop ---------------------------------------------------
-    // LOCK is invalid on every instruction here; it is checked before the
-    // 15-byte limit (Phase 0 divergence lock-ud-before-length-gp).
+    // LOCK is checked before the 15-byte limit (Phase 0 divergence
+    // lock-ud-before-length-gp).
     logic [2:0] fault;
+    logic       lock_ok;
+    assign lock_ok = lockable && mkind == 2'd3;
     assign fault = !known ? 3'd4                                      // FAULT_UNIMPLEMENTED
-                 : undefined || q.prefixes.lock ? 3'd1                // FAULT_UD
+                 : undefined || (q.prefixes.lock && !lock_ok) ? 3'd1  // FAULT_UD
                  : q.too_long ? 3'd2 : 3'd0;                          // FAULT_GP0
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
@@ -532,9 +599,10 @@ module fes_i386_decode (
     assign u.src_size = fes_i386_pkg::size_e'(src_size);
     assign u.count_cl = count_cl;
     assign u.imm = imm;
-    assign u.mem.kind = fes_i386_pkg::MEM_NONE;
-    assign u.mem.bytes = 4'd0;
-    assign u.mem.seg = fes_i386_pkg::SEG_DS;
+    assign u.mem.kind = fes_i386_pkg::mem_kind_e'(mkind);
+    assign u.mem.bytes = mbytes != 3'd0 ? 4'(mbytes) : size == 2'd0 ? 4'd1 : size == 2'd1 ? 4'd2 : 4'd4;
+    assign u.mem.seg = q.prefixes.seg_valid ? fes_i386_pkg::seg_e'(q.prefixes.seg)
+                     : stack ? fes_i386_pkg::SEG_SS : fes_i386_pkg::SEG_DS;
     assign u.mem.base = '0;
     assign u.mem.index = '0;
     assign u.mem.scale = 2'd0;
@@ -542,6 +610,7 @@ module fes_i386_decode (
     assign u.mem.addr32 = addr32;
     assign u.mem.lock = q.prefixes.lock;
     assign u.mem.system = 1'b0;
+    assign u.mem.in_a = m_in_a;
     assign u.flags.read.cf = rd_cf;
     assign u.flags.read.oszap = rd_oszap;
     assign u.flags.write.cf = wr_cf;

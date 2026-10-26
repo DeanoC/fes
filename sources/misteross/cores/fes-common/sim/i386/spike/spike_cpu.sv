@@ -7,6 +7,11 @@
 // without the L1I's own miss path (the L1I slice adds that). The stimulus
 // rewrites tags and data, so the CPU executes whatever arrives.
 //
+// The data port reads an L1D model: two M10K banks of even and odd dwords
+// (4 KiB), written by the stimulus and read with the address registered on
+// the edge, so a load's 8 bytes arrive in M2 as the L1D's data will. The
+// CPU's stores feed the signature.
+//
 // The reset state comes from the stimulus too, so CS's base and every
 // register stay variables as later far transfers will make them. Every
 // trace and architectural output feeds the signature.
@@ -64,6 +69,29 @@ module spike_cpu (
         end
     end
 
+    // L1D model.
+    logic [31:0]      dmem_addr, dmem_waddr;
+    logic             dmem_read, dmem_write;
+    logic [7:0][7:0]  dmem_rdata, dmem_wdata;
+    logic [7:0]       dmem_wmask;
+    logic [31:0]      l1d_even [0:511];
+    logic [31:0]      l1d_odd [0:511];
+    logic [31:0]      even_q, odd_q;
+    logic             odd_first;
+    logic [9:0]       dword;
+    logic [8:0]       even_index;
+    assign dword = dmem_addr[11:2];
+    assign even_index = dword[9:1] + 9'(dword[0]);
+    always_ff @(posedge clk)
+        if (noise[3] && noise[4]) begin
+            if (noise[5]) l1d_even[noise[44:36]] <= noise[95:64];
+            else l1d_odd[noise[44:36]] <= noise[95:64];
+        end
+    always_ff @(posedge clk) if (dmem_read) even_q <= l1d_even[even_index];
+    always_ff @(posedge clk) if (dmem_read) odd_q <= l1d_odd[dword[9:1]];
+    always_ff @(posedge clk) if (dmem_read) odd_first <= dword[0];
+    assign dmem_rdata = odd_first ? {even_q, odd_q} : {odd_q, even_q};
+
     // The reset state, held while reset is.
     logic [7:0][31:0] init_gpr;
     logic [31:0]      init_eflags, init_eip;
@@ -91,13 +119,15 @@ module spike_cpu (
 
     fes_i386_cpu dut (
         .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
-        .mem_block, .mem_load, .mem_data, .mem_valid, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
+        .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_write, .dmem_waddr,
+        .dmem_wdata, .dmem_wmask, .trace_retire, .trace_halt, .trace_fault, .trace_vector,
         .trace_unimplemented, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
-        observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_fault, trace_unimplemented, trace_vector};
+        observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_fault, trace_unimplemented, trace_vector}
+                 ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
     end

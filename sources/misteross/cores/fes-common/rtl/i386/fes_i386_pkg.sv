@@ -172,6 +172,7 @@ package fes_i386_pkg;
         logic        addr32;
         logic        lock;
         logic        system;
+        logic        in_a;   // the operand is src1 (x), else src2 (y)
     } mem_t;
 
     // Flags are tracked as two groups: CF, and OF/SF/ZF/AF/PF together.
@@ -188,7 +189,7 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED } fault_e;
+    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0 } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -265,6 +266,7 @@ package fes_i386_pkg;
         // its bits 15:8 (w16) and 31:16 (w32) in place.
         logic       xw_lo, xw_hi, xw16, xw32;
         logic       yw_lo, yw_hi, yw16, yw32;
+        logic       xl, yl;                    // ... the load data (pipe_t ld) instead of WB's
         logic       size8, size16;             // the operation's size (32 otherwise)
         logic       src8, src16;               // src2's size for MOVSX and SIGN
         logic       sub;                       // the adder subtracts
@@ -307,6 +309,11 @@ package fes_i386_pkg;
         logic [2:0]  dist_b;
         logic [2:0]  dist_c;
         logic        early;       // the result is ready at the end of AG (LEA)
+        logic [31:0] maddr;       // AG: the memory operand's linear address
+        logic [31:0] moff;        // ... its offset
+        logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one
+        logic        mtiny;       // D: ... which is below zero: every access faults
+        logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address
         logic [31:0] target_eip;  // ... and EIP
