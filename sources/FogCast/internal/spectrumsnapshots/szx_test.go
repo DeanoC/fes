@@ -75,6 +75,29 @@ func TestSZX48KOnEveryModel(t *testing.T) {
 	}
 }
 
+func TestSZX48KWithMelodik(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(29)))
+	s.HasAY, s.AYSelect = true, 9
+	for i := range s.AY {
+		s.AY[i] = uint8(0x40 + 3*i)
+	}
+	data := szx(s, 1, true)
+	i := bytes.Index(data, []byte("AY\x00\x00")) + 8
+	data[i] = 2 // Melodik
+	for _, model := range []Model{Model128K, ModelPlus3, ModelPentagon} {
+		m := restore(t, data, model, Machine48K)
+		if m.ay != s.AY || m.ayIndex != s.AYSelect {
+			t.Errorf("model %d: AY % x select %d", model, m.ay, m.ayIndex)
+		}
+	}
+	for _, flags := range []byte{0, 1, 3} {
+		data[i] = flags
+		if got, err := Read(data); err != nil || got.HasAY {
+			t.Errorf("flags %d: AY restored (%v)", flags, err)
+		}
+	}
+}
+
 func TestSZX128KClasses(t *testing.T) {
 	s := sampleState(Machine128K, rand.New(rand.NewSource(22)))
 	// 128K, +2 and Pentagon 128 snapshots all run as 128K ones.

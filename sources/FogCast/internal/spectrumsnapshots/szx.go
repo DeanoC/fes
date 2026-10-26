@@ -178,14 +178,16 @@ func readSZX(data []byte) (*Snapshot, error) {
 	s.Border = spcr[0] & 7
 	if s.Machine != Machine48K {
 		s.Port7FFD = spcr[1]
-		if ay != nil {
-			if len(ay) != 18 {
-				return nil, errors.New(".szx AY chunk is not 18 bytes")
-			}
-			s.HasAY = true
-			s.AYSelect = ay[1] & 0x0f
-			copy(s.AY[:], ay[2:])
-		}
+	}
+	if ay != nil && len(ay) != 18 {
+		return nil, errors.New(".szx AY chunk is not 18 bytes")
+	}
+	// A 48K snapshot's AY is restored when it is a Melodik, on the 128K ports
+	// (flag 2); a Fuller box (flag 1) sits on other ports.
+	if ay != nil && (s.Machine != Machine48K || ay[0]&3 == 2) {
+		s.HasAY = true
+		s.AYSelect = ay[1] & 0x0f
+		copy(s.AY[:], ay[2:])
 	}
 	if s.Machine == MachinePlus3 {
 		s.Port1FFD = spcr[2]
