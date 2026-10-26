@@ -184,8 +184,9 @@ class HilPlanTest(unittest.TestCase):
 
     def test_simulation_only_commands_are_none(self):
         plan = hil_module()
-        row = plan.classify_path('sources/FogCast/cmd/fes-spectrum-restore/main.go')
-        self.assertEqual(row['class'], 'none')
+        for command in ('fes-spectrum-restore', 'fes-spectrum-disk'):
+            row = plan.classify_path(f'sources/FogCast/cmd/{command}/main.go')
+            self.assertEqual(row['class'], 'none', command)
         # Other unmapped commands still fail closed as a full image.
         self.assertEqual(plan.classify_path('sources/FogCast/cmd/fes-parts/main.go')['class'], 'full')
 
