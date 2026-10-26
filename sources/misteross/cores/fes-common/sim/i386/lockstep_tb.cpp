@@ -550,7 +550,8 @@ MemUse mem_use(const uint8_t *code) {
     if (two) {
         if ((op & 0xf0) == 0x90) m.writes = true;
         else if (op == 0xa4 || op == 0xa5 || op == 0xac || op == 0xad) m.reads = m.writes = true;
-        else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf) m.reads = true;
+        else if (op == 0xb6 || op == 0xb7 || op == 0xbe || op == 0xbf || op == 0xb2 || op == 0xb4 || op == 0xb5)
+            m.reads = true;
         return m;
     }
     if (op < 0x40 && (op & 7) < 4) {
@@ -559,7 +560,7 @@ MemUse mem_use(const uint8_t *code) {
     } else if (op >= 0x80 && op <= 0x83) {
         m.reads = true;
         m.writes = reg != 7;
-    } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e) {
+    } else if (op == 0x84 || op == 0x85 || op == 0x8a || op == 0x8b || op == 0x8e || op == 0xc4 || op == 0xc5) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
@@ -574,12 +575,16 @@ MemUse mem_use(const uint8_t *code) {
     return m;
 }
 
-// A segment load (MOV Sreg, r/m or POP Sreg).
+// A segment load (MOV Sreg, r/m, POP Sreg, or a far pointer's: LES and its
+// kin).
 bool loads_segment(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
-    if (code[i] == 0x0f) return code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
-    return code[i] == 0x8e || code[i] == 0x07 || code[i] == 0x17 || code[i] == 0x1f;
+    if (code[i] == 0x0f)
+        return code[i + 1] == 0xa1 || code[i + 1] == 0xa9 || code[i + 1] == 0xb2 || code[i + 1] == 0xb4 ||
+               code[i + 1] == 0xb5;
+    return code[i] == 0x8e || code[i] == 0x07 || code[i] == 0x17 || code[i] == 0x1f || code[i] == 0xc4 ||
+           code[i] == 0xc5;
 }
 
 // A shift or rotate: group 2, SHLD or SHRD.
@@ -1021,7 +1026,8 @@ private:
             bool os32;
             prefixes(out, os32);
             const unsigned z = os32 ? 4 : 2;
-            const unsigned form = pick(20);
+            const unsigned form = pick(21);
+            bool memory = pick(3) == 0;  // the r/m operand becomes a memory one
             unsigned dst = 8;  // the GPR it writes (8: none or checked below)
             bool dst_byte = false;
             switch (form) {
@@ -1183,6 +1189,20 @@ private:
                 out.push_back(ops[pick(8)]);
                 break;
             }
+            case 18: {  // LES, LDS, LSS, LFS, LGS: memory only
+                static const uint8_t two_byte[] = {0xb2, 0xb4, 0xb5};
+                const unsigned which = pick(5);
+                if (which < 2) {
+                    out.push_back(uint8_t(0xc4 + which));
+                } else {
+                    out.push_back(0x0f);
+                    out.push_back(two_byte[which - 2]);
+                }
+                dst = pick(8);
+                out.push_back(uint8_t(0xc0 | (dst << 3)));
+                memory = true;
+                break;
+            }
             default: {  // MOV r, imm32 keeps values wide
                 out.push_back(uint8_t(0xb8 + pick(8)));
                 dst = out.back() & 7;
@@ -1190,13 +1210,13 @@ private:
                 break;
             }
             }
-            if (pick(3) == 0) to_memory(out, dst);
+            if (memory) to_memory(out, dst);
             if (keep_ecx && dst != 8 && (dst_byte ? (dst & 3) == 1 : dst == 1)) continue;
             if (keep_stack) {
                 unsigned i = 0;
                 while (i < out.size() && is_prefix(out[i])) ++i;
                 if ((!dst_byte && dst == 4) || mem_use(out.data()).writes ||
-                    (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2))
+                    (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2) || (out[i] == 0x0f && out[i + 1] == 0xb2))
                     continue;
             }
             return out;

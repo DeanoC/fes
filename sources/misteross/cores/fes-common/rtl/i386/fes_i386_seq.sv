@@ -12,6 +12,9 @@
 // SEQ_CALL (CALL rel): the push of the next EIP, then JMP rel by the
 // displacement the push carries in its imm, which a push does not use. The
 // push already has the jump's sizes, EIP length and address size.
+//
+// SEQ_LPTR (LES, LDS, LSS, LFS, LGS): the selector's word into T0, then the
+// offset into the register, with the segment written from T0 at WB.
 module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d,
     output fes_i386_pkg::decoded_t n
@@ -29,6 +32,13 @@ module fes_i386_seq (
                 n.uop.ctl.end_of_instruction = 1'b1;
                 n.stk = fes_i386_pkg::STK_NONE;
                 n.push_eip = 1'b0;
+            end
+            fes_i386_pkg::SEQ_LPTR: begin
+                n.uop.dst.space = fes_i386_pkg::RS_GPR;
+                n.uop.mem.bytes = d.opsize32 ? 4'd4 : 4'd2;
+                n.uop.seg2 = 1'b1;
+                n.uop.ctl.end_of_instruction = 1'b1;
+                n.sel_part = 1'b0;
             end
             default: ;
         endcase

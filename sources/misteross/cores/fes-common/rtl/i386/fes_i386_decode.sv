@@ -45,7 +45,8 @@ module fes_i386_decode (
     output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
-    output logic [2:0]             seq          // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
+    output logic [2:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
+    output logic                   sel_part     // the uop reads a far pointer's selector
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -119,12 +120,14 @@ module fes_i386_decode (
     logic [4:0]  op;
     logic [1:0]  size, src_size;
     logic        count_cl;
-    logic        s1_valid, s1_hi8, s2_valid, s2_hi8, d_valid, d_seg, d_hi8;
+    logic        s1_valid, s1_hi8, s2_valid, s2_hi8, d_valid, d_seg, d_temp, d_hi8;
+    logic [2:0]  seg2_idx;  // a far pointer's segment register
     logic [2:0]  s1_idx, s2_idx, d_idx;
     logic [31:0] imm;
     logic [3:0]  cond;
     logic        rd_cf, rd_oszap, wr_cf, wr_oszap;
     logic        known, undefined;
+    logic        lptr;      // LES and its kin (SEQ_LPTR)
     logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
@@ -147,6 +150,10 @@ module fes_i386_decode (
         s2_hi8 = 1'b0;
         d_valid = 1'b0;
         d_seg = 1'b0;
+        d_temp = 1'b0;
+        seg2_idx = 3'd0;
+        sel_part = 1'b0;
+        lptr = 1'b0;
         d_idx = 3'd0;
         d_hi8 = 1'b0;
         imm = 32'd0;
@@ -518,6 +525,12 @@ module fes_i386_decode (
                         eoi = 1'b0;
                     end
                 end
+                8'b1100010?: begin
+                    // LES (C4h), LDS (C5h): SEQ_LPTR
+                    undefined = reg_form;
+                    seg2_idx = b0[0] ? 3'd3 : 3'd0;
+                    lptr = 1'b1;
+                end
                 8'hf4: begin
                     cls = C_SPECIAL;
                     op = 5'd1;  // SPECIAL_HLT
@@ -652,6 +665,12 @@ module fes_i386_decode (
                     count_cl = op2[0];
                     imm = imm8_m;
                 end
+                8'b10110010, 8'b1011010?: begin
+                    // LSS (B2h), LFS (B4h), LGS (B5h): SEQ_LPTR
+                    undefined = reg_form;
+                    seg2_idx = op2[2] ? (op2[0] ? 3'd5 : 3'd4) : 3'd2;
+                    lptr = 1'b1;
+                end
                 8'b1011?11?: begin
                     // MOVZX (B6h, B7h), MOVSX (BEh, BFh)
                     op = op2[3] ? 5'd16 : 5'd15;
@@ -668,6 +687,22 @@ module fes_i386_decode (
                 end
                 default: known = 1'b0;
             endcase
+        end
+
+        // A far pointer load's first uop: the selector's word into T0, with
+        // the register as the destination it keeps for the second.
+        if (lptr) begin
+            op = 5'd9;  // ALU_MOV
+            mkind = reg_form ? 2'd0 : 2'd1;
+            mbytes = 3'd2;
+            s1_valid = 1'b1;
+            s1_idx = reg_f;
+            d_valid = 1'b1;
+            d_temp = 1'b1;
+            d_idx = reg_f;
+            sel_part = 1'b1;
+            seq = fes_i386_pkg::SEQ_LPTR;
+            eoi = 1'b0;
         end
 
         // The memory operand replaces the register it stands for.
@@ -709,6 +744,9 @@ module fes_i386_decode (
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
+    assign u.seg2 = 1'b0;
+    assign u.seg2_idx = seg2_idx;
+    assign u.seg2_t = 1'b1;
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
     assign u.op = op;
@@ -721,7 +759,7 @@ module fes_i386_decode (
     assign u.src2.index = {1'b0, s2_idx};
     assign u.src2.hi8 = s2_hi8;
     assign u.dst.valid = d_valid && fault == 3'd0;
-    assign u.dst.space = d_seg ? fes_i386_pkg::RS_SEG : fes_i386_pkg::RS_GPR;
+    assign u.dst.space = d_seg ? fes_i386_pkg::RS_SEG : d_temp ? fes_i386_pkg::RS_TEMP : fes_i386_pkg::RS_GPR;
     assign u.dst.index = {1'b0, d_idx};
     assign u.dst.hi8 = d_hi8;
     assign u.size = fes_i386_pkg::size_e'(size);

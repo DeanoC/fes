@@ -205,7 +205,13 @@ package fes_i386_pkg;
     // shift count from CL, a third source. A stack operation also writes ESP
     // (sp_write), from the value AG computes (pipe_t sp_new): a second
     // destination, which the main one overrides when it is ESP too (POP ESP).
+    // A segment register can be a second destination too (seg2: LES and its
+    // kin), written at WB with the selector in T0 (seg2_t) or in c. A
+    // destination in RS_TEMP is T0, which WB writes and no forwarding sees.
     typedef struct packed {
+        logic        seg2;
+        logic [2:0]  seg2_idx;
+        logic        seg2_t;
         logic        sp_write;
         uop_class_e  cls;
         logic [4:0]  op;
@@ -247,6 +253,10 @@ package fes_i386_pkg;
         logic [2:0]  stk;
         logic        push_eip;
         logic        cs_base;
+        // The uop reads a far pointer's selector, past its offset by the
+        // operand size. Each part is checked against the limit on its own,
+        // the selector's offset wrapped by address size, as the 386EX does.
+        logic        sel_part;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
         logic [2:0]  seq;
@@ -255,7 +265,7 @@ package fes_i386_pkg;
     } decoded_t;
 
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE } stk_e;
-    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL } seq_e;
+    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR } seq_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0

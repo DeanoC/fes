@@ -159,7 +159,7 @@ module fes_i386_cpu (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
-        .cs_base(dc_q.cs_base), .seq(q_seq)
+        .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -280,7 +280,10 @@ module fes_i386_cpu (
     assign opsize32 = dc.opsize32;
     assign lea = dc.lea;
     assign lea_early = dc.lea_early;
-    assign lea_disp = dc.lea_disp;
+    // A far pointer's selector is past its offset by the operand size,
+    // wrapped by address size.
+    assign lea_disp = !dc.sel_part ? dc.lea_disp
+                    : dc.uop.mem.addr32 ? dc.lea_disp + st_size : {16'b0, dc.lea_disp[15:0] + st_size[15:0]};
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
@@ -357,8 +360,8 @@ module fes_i386_cpu (
     // registered from what will be there next cycle, so each wait is one
     // select.
     function automatic logic writes_seg(input pipe_t s, input int seg);
-        writes_seg = s.valid && s.uop.dst.valid && s.uop.dst.space == fes_i386_pkg::RS_SEG
-                  && s.uop.dst.index[2:0] == 3'(seg);
+        writes_seg = s.valid && (s.uop.dst.valid && s.uop.dst.space == fes_i386_pkg::RS_SEG
+                                 && s.uop.dst.index[2:0] == 3'(seg) || s.uop.seg2 && s.uop.seg2_idx == 3'(seg));
     endfunction
     logic [5:0] d_seg_busy;
     logic       seg_hazard, mseg_hazard;
@@ -389,7 +392,8 @@ module fes_i386_cpu (
             d_seg_busy <= 6'd0;
         end else if (!freeze) begin
             for (int k = 0; k < 6; k++)
-                d_seg_busy[k] <= (issue && u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k))
+                d_seg_busy[k] <= (issue && (u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k)
+                                            || u.seg2 && u.seg2_idx == 3'(k)))
                                 || writes_seg(ag_s, k) || writes_seg(m1_s, k) || writes_seg(m2_s, k) || writes_seg(ex_s, k);
         end
         if (reset) begin
@@ -714,6 +718,14 @@ module fes_i386_cpu (
     // ---- WB -----------------------------------------------------------------------
     logic halted;
     logic [2:0] wb_fault;
+    // The segment register WB writes: the destination, or a second one with
+    // the selector in T0 (a far pointer load) or c.
+    logic        seg_w;
+    logic [2:0]  seg_w_idx;
+    logic [15:0] seg_w_sel, t0;
+    assign seg_w = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG || wb_s.uop.seg2;
+    assign seg_w_idx = wb_s.uop.seg2 ? wb_s.uop.seg2_idx : wb_s.uop.dst.index[2:0];
+    assign seg_w_sel = !wb_s.uop.seg2 ? wb_s.result[15:0] : wb_s.uop.seg2_t ? t0 : wb_s.c[15:0];
     assign wb_fault = 3'(wb_s.uop.ctl.fault);
 
     // A store writes its bytes on the edge it retires: the result's low
@@ -764,16 +776,19 @@ module fes_i386_cpu (
             end else begin
                 trace_retire <= wb_s.uop.ctl.end_of_instruction;
                 eflags <= wb_flags;
-                eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
+                // EIP moves at an instruction's last uop, so a sequence that
+                // faults part way leaves it at the instruction.
+                if (wb_s.uop.ctl.end_of_instruction) eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
                 // A stack operation's ESP, which a destination of ESP overrides.
                 if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
                     gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
-                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG) begin
+                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) t0 <= wb_s.result[15:0];
+                if (seg_w) begin
                     // Real mode: the base is selector * 16; limit and attributes stay.
-                    seg_sel[wb_s.uop.dst.index[2:0]] <= wb_s.result[15:0];
-                    seg_base[wb_s.uop.dst.index[2:0]] <= {12'd0, wb_s.result[15:0], 4'd0};
-                    seg_hi1[wb_s.uop.dst.index[2:0]] <= {11'd0, 5'(wb_s.result[15:12]) + (* no_carry *) 5'd1};
+                    seg_sel[seg_w_idx] <= seg_w_sel;
+                    seg_base[seg_w_idx] <= {12'd0, seg_w_sel, 4'd0};
+                    seg_hi1[seg_w_idx] <= {11'd0, 5'(seg_w_sel[15:12]) + (* no_carry *) 5'd1};
                 end
                 if (wb_stop) halted <= 1'b1;
             end
