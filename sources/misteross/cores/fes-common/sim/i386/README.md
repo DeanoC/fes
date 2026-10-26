@@ -268,7 +268,8 @@ cycle-exactly, or the run fails: an instruction that consumes the flags
 cycles after a shift and anything else one; an instruction that reads memory
 must retire at least two cycles after a store, and any other instruction
 without a memory operand one; a push or pop right after another must retire
-one cycle behind it, as its ESP is early from AG. CALL (two uops), LEAVE,
+one cycle behind it, as its ESP is early from AG, unless it is a pop after a
+push (a load after a store) or follows a segment load. CALL (two uops), LEAVE,
 PUSH and POP of (E)SP, which read ESP as data, and anything after POP (E)SP,
 which loads ESP, are left out of that check.
 

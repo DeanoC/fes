@@ -250,7 +250,7 @@ package fes_i386_pkg;
         logic        two;     // JMP rel by uop.imm follows (CALL rel)
     } decoded_t;
 
-    localparam logic [2:0] STK_NONE = 3'd0, STK_PUSH = 3'd1, STK_POP = 3'd2, STK_RET_IMM = 3'd3, STK_LEAVE = 3'd4;
+    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE } stk_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
