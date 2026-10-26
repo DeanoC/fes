@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Test wrapper for dag_tb.cpp: D's address operands (fes_i386_amode,
-// fes_i386_dfwd) feeding AG (fes_i386_agu) directly. The D/AG register is
-// left out, so late_m1, late_ex and late_wb carry the values those registers
-// hold one cycle later, when the uop is in AG.
+// fes_i386_dfwd) feeding AG (fes_i386_agu) directly. fes_i386_dfwd keeps its
+// forwarding table across cycles, so dag_tb.cpp clocks this wrapper and moves
+// the producers through AG, M1, M2, EX and WB itself. The D/AG register is left
+// out, so late_m1, late_ex and late_wb carry the values those registers hold
+// one cycle later, when the uop is in AG. The uop in D leaves when D holds one
+// and does not stall.
 module dag_tb_top (
+    input  logic              clk,
+    input  logic              reset,
+    input  logic              d_valid,
     input  logic [7:0]        modrm,
     input  logic [7:0]        sib,
     input  logic              addr32,
+    input  logic              d_writes,
+    input  logic [2:0]        d_dst,
+    input  logic [1:0]        d_kind,
     input  logic [31:0]       seg_base,
     input  logic [31:0]       disp,
     input  logic [7:0][31:0]  gpr,
-    input  logic [4:0]        prod_valid,
-    input  logic [4:0][2:0]   prod_dst,
-    input  logic [4:0]        prod_ready,
-    input  logic [4:0]        prod_late,
+    input  logic [3:0]        prod_valid,
+    input  logic [3:0][2:0]   prod_dst,
+    input  logic [3:0][1:0]   prod_kind,
     input  logic [3:0][31:0]  stage_value,
     input  logic [31:0]       late_m1,
     input  logic [31:0]       late_ex,
@@ -32,8 +40,9 @@ module dag_tb_top (
         .modrm, .sib, .addr32, .has_base, .base, .has_index, .index, .scale, .stack
     );
     fes_i386_dfwd dfwd (
-        .has_base, .base, .has_index, .index, .scale, .addr32, .gpr, .prod_valid, .prod_dst,
-        .prod_ready, .prod_late, .stage_value, .row, .last, .late, .late_hi, .stall
+        .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes(d_valid && d_writes),
+        .d_dst, .d_kind, .advance(d_valid && !stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
+        .stage_value, .row, .last, .late, .late_hi, .stall
     );
     fes_i386_agu agu (
         .addr32, .seg_term(addr32 ? seg_base : {16'b0, seg_base[15:0]}), .seg_hi(seg_base[31:16]),

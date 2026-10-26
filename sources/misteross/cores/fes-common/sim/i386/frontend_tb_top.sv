@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Test wrapper for frontend_tb.cpp: fes_i386_frontend with Q's instruction
-// record split into plain ports.
+// record split into plain ports. l2_empty_release marks the case Q's
+// next-half availability term decides: Q leaves a half while L2 will hold no
+// block for it. It reads the fetch buffer's internals, so a run on Yosys's
+// netlist (FES_I386_NETLIST) leaves it at zero.
 module frontend_tb_top (
     input  logic             clk,
     input  logic             reset,
@@ -10,6 +13,8 @@ module frontend_tb_top (
     output logic [27:0]      mem_block,
     output logic             mem_load,
     input  logic [127:0]     mem_data,
+    input  logic             mem_valid,
+    output logic             l2_empty_release,
     output logic             q_valid,
     input  logic             d_ready,
     output logic [31:0]      q_linear,
@@ -28,8 +33,14 @@ module frontend_tb_top (
 
     fes_i386_frontend dut (
         .clk, .reset, .redirect, .redirect_linear, .code32, .mem_block, .mem_load,
-        .mem_data(mem_data), .q_valid, .q, .d_ready
+        .mem_data(mem_data), .mem_valid, .q_valid, .q, .d_ready
     );
+
+`ifdef FES_I386_NETLIST
+    assign l2_empty_release = 1'b0;
+`else
+    assign l2_empty_release = |(dut.release_half & ~dut.fetch.hold_next);
+`endif
 
     assign q_linear = q.linear;
     assign q_length = q.length;
