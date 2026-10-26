@@ -163,6 +163,14 @@ func (b *bus) call(ctx context.Context, msg *Message, body []byte) (*Message, er
 		b.mu.Unlock()
 		return nil, ctx.Err()
 	case <-b.done:
+		// readLoop may deliver the final reply and then observe EOF. In that
+		// case both ch and done are ready, and select can choose done even
+		// though the reply was already received.
+		select {
+		case reply := <-ch:
+			return reply, nil
+		default:
+		}
 		b.mu.Lock()
 		err = b.err
 		b.mu.Unlock()
@@ -610,6 +618,9 @@ func adapterNeedsSetup(props map[string]any) bool {
 func (a *agent) act(ctx context.Context, dev devInfo) {
 	what := decide(dev)
 	if what == actionIgnore {
+		return
+	}
+	if what == actionPair && a.adapterHasPendingPairing(path.Dir(dev.Path)) {
 		return
 	}
 	if !a.attempts.Start(dev, time.Now(), what) {

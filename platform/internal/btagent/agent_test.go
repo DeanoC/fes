@@ -283,6 +283,7 @@ func TestPendingPairingCleanupKeepsPairableUntilCancellationCompletes(t *testing
 	a := &agent{
 		bus:                  newBus(bufio.NewReader(client), client),
 		configuredAdapters:   map[string]struct{}{},
+		logged:               map[string]time.Time{},
 		pendingPairingCancel: map[string]struct{}{gamepadPath: {}},
 	}
 	go a.bus.readLoop()
@@ -302,6 +303,29 @@ func TestPendingPairingCleanupKeepsPairableUntilCancellationCompletes(t *testing
 	}
 	if err := <-peerErr; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPendingPairingCancellationBlocksPairAttemptsOnAdapter(t *testing.T) {
+	for name, devicePath := range map[string]string{
+		"same device":    gamepadPath,
+		"another device": "/org/bluez/hci0/dev_12_34_56_78_90_AC",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dev := devInfo{Path: devicePath, Class: 0x508}
+			a := &agent{
+				attempts:             newAttempts(),
+				pendingPairingCancel: map[string]struct{}{gamepadPath: {}},
+			}
+
+			// No D-Bus call is expected while cancellation and pairability
+			// restoration for this adapter are unresolved.
+			a.act(context.Background(), dev)
+			if !a.attempts.Start(dev, time.Now(), actionPair) {
+				t.Fatal("blocked Pair attempt consumed the device attempt slot")
+			}
+			a.attempts.Finish(dev.Path, false, time.Now())
+		})
 	}
 }
 
