@@ -375,15 +375,18 @@ def run_opl2(args) -> dict:
 
 # Games: the eXoDOS zip, the folder in it that is the game, the directory on
 # C:, what to type at the prompt, keys as (seconds, keys) and the time limit.
+# A game with 'shell' is FreeDOS's shell instead of COMMAND.COM, its files in
+# C:\: the fixture has no HIMEMX, so DOS cannot load high, and Wolfenstein 3D
+# says there is not enough memory beside a resident FreeCOM.
 # Wolfenstein 3D's keys go through the signon's "press a key", the PG-13 and
 # title screens and the menus into E1M1 (Enter each 1.5 s), then fire the
 # pistol (Ctrl) and open doors (space): digitized sounds through the DSP.
 GAMES_DIR = Path(os.environ.get('FES_PC386_GAMES',
                                 '/mnt/emuhd/Games/PC DOS/Collections/eXoDOS 6.04 Full/eXoDOS/eXo/eXoDOS'))
 GAMES = {
-    'wolf3d': {'zip': 'Wolfenstein 3D (1992).zip', 'folder': 'Wolf3D/WOLF3D/WOLF3D/', 'directory': 'WOLF3D',
-               'type': 'cd wolf3d|wolf3d|', 'limit': 24.0,
-               'keys': [(5.0 + 1.5 * n, '|') for n in range(8)] + [(17.0 + 0.8 * n, '^ ') for n in range(8)]},
+    'wolf3d': {'zip': 'Wolfenstein 3D (1992).zip', 'folder': 'Wolf3D/WOLF3D/WOLF3D/', 'directory': '',
+               'shell': 'WOLF3D.EXE', 'type': '', 'limit': 24.0,
+               'keys': [(4.0 + 1.5 * n, '|') for n in range(9)] + [(17.5 + 0.8 * n, '^ ') for n in range(8)]},
     'ultima6': {'zip': 'Ultima VI - The False Prophet (1990).zip', 'folder': 'ultima6/', 'directory': 'ULTIMA6',
                 'type': 'cd ultima6|ultima6|', 'limit': 16.0, 'keys': []},
 }
@@ -409,7 +412,11 @@ def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
     shutil.copyfile(freedos.image(args.download, args.jobs), disk)
     env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
     volume = f'{disk}@@{freedos.PARTITION_START * 512}'
-    result = subprocess.run(['mcopy', '-s', '-m', '-i', volume, str(files), '::' + game['directory']],
+    if game.get('shell'):
+        (files / 'FDCONFIG.SYS').write_bytes(
+            f'FILES=20\r\nBUFFERS=20\r\nSHELL=C:\\{game["shell"]}\r\n'.encode())
+    sources = sorted(files.iterdir()) if not game['directory'] else [files]
+    result = subprocess.run(['mcopy', '-s', '-m', '-o', '-i', volume, *map(str, sources), '::' + game['directory']],
                             capture_output=True, text=True, env=env)
     if result.returncode:
         raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
