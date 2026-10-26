@@ -9,6 +9,8 @@
 #include "Vpc386_at_core.h"
 #include "verilated.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -48,6 +50,7 @@ struct Bench {
     std::vector<uint8_t> dma_device_bytes;         // bytes DACKed to the device
     bool pending_read = false, dma_pending = false, ack_pending = false, vga_answered = false;
     uint64_t pending_address = 0;
+    int64_t held_read_lba = -1;
     std::function<void()> each_clock;
 
     Bench() {
@@ -66,11 +69,14 @@ struct Bench {
     }
 
     void clock() {
-        top.disk_rvalid = pending_read;
-        if (pending_read) std::memcpy(&top.disk_rdata, &image[pending_address * 8], 8);
-        pending_read = false;
+        top.disk_rvalid = pending_read &&
+                          (held_read_lba < 0 || pending_address / 64 != uint64_t(held_read_lba));
+        if (top.disk_rvalid) {
+            std::memcpy(&top.disk_rdata, &image[pending_address * 8], 8);
+            pending_read = false;
+        }
         top.disk_ready = top.disk_valid;
-        if (top.disk_valid) {
+        if (top.disk_valid && top.disk_ready) {
             if (top.disk_write) {
                 uint64_t value = top.disk_wdata;
                 std::memcpy(&image[size_t(top.disk_address) * 8], &value, 8);
@@ -369,6 +375,49 @@ void kbc(Bench &b) {
     }
     check("keyboard F2 identifies as AB 83, translated to AB 41", id[0] == 0xfa && id[1] == 0xab && id[2] == 0x41,
           hex(id[0]) + " " + hex(id[1]) + " " + hex(id[2]));
+
+    // Keep the scan-code FIFO near full, then require the three-byte F2 reply
+    // to arrive intact after the queued make codes.
+    int queued_keys = 0;
+    while (queued_keys < 32 && b.top.key_ready) {
+        b.top.key_valid = 1; b.top.key_code = 0x1c; b.clock(); b.top.key_valid = 0;
+        ++queued_keys;
+    }
+    bool fifo_near_full = !b.top.key_ready;
+    bool reply_seen = false;
+    std::vector<uint8_t> tail;
+    b.out(0x60, 0xf2);
+    for (int n = 0; n < 24 && !reply_seen; ++n) {
+        if (!b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000)) break;
+        tail.push_back(b.in(0x60));
+        if (tail.size() > 3) tail.erase(tail.begin());
+        reply_seen = tail.size() == 3 && tail[0] == 0xfa && tail[1] == 0xab && tail[2] == 0x41;
+    }
+    check("keyboard keeps F2 reply intact with scan-code FIFO nearly full", queued_keys > 0 && fifo_near_full && reply_seen,
+          std::to_string(queued_keys) + " " + std::to_string(fifo_near_full) + " " + std::to_string(reply_seen));
+
+    queued_keys = 0;
+    while (queued_keys < 32 && b.top.key_ready) {
+        b.top.key_valid = 1; b.top.key_code = 0x1c; b.clock(); b.top.key_valid = 0;
+        ++queued_keys;
+    }
+    b.out(0x60, 0xf2);
+    b.run(8);                   // fill the last three FIFO slots with the reply
+    b.out(0x60, 0xee);          // its response waits while the FIFO is full
+    std::vector<uint8_t> full_reply;
+    for (int n = 0; n < queued_keys + 4; ++n) {
+        if (!b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000)) break;
+        full_reply.push_back(b.in(0x60));
+    }
+    bool full_reply_intact = full_reply.size() == size_t(queued_keys + 4) &&
+                             std::all_of(full_reply.begin(), full_reply.begin() + queued_keys,
+                                         [](uint8_t byte) { return byte == 0x1e; }) &&
+                             full_reply[queued_keys] == 0xfa && full_reply[queued_keys + 1] == 0xab &&
+                             full_reply[queued_keys + 2] == 0x41 && full_reply.back() == 0xee;
+    std::string full_reply_detail = std::to_string(queued_keys) + " " + std::to_string(full_reply.size());
+    if (!full_reply.empty()) full_reply_detail += " " + hex(full_reply.back());
+    check("keyboard reply waits for FIFO space instead of dropping bytes", full_reply_intact,
+          full_reply_detail);
     b.out(0x21, 0xff);
 
     // Aux mouse: enable, then one movement packet with dy negated.
@@ -403,6 +452,65 @@ void kbc(Bench &b) {
         total += (p[0] & 0x10) ? int(p[1]) - 256 : int(p[1]);
     }
     check("movement beyond 255 is carried into the next packet", total == 381, std::to_string(total));
+
+    auto mouse_command = [&](uint8_t command) {
+        b.out(0x64, 0xd4); b.out(0x60, command);
+        if (!b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000)) return uint8_t(0);
+        return b.in(0x60);
+    };
+    auto mouse_packet = [&] {
+        uint8_t result[3] = {};
+        for (auto &byte : result) {
+            b.wait([&] { return (b.in(0x64) & 1) != 0; }, 3000000);
+            byte = b.in(0x60);
+        }
+        return std::array<uint8_t, 3>{result[0], result[1], result[2]};
+    };
+    b.out(0x64, 0xa8);
+    uint8_t mouse_reset = mouse_command(0xff);
+    uint8_t reset_id = 0, reset_type = 0;
+    b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
+    reset_id = b.in(0x60);
+    b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
+    reset_type = b.in(0x60);
+    mouse_command(0xe8); mouse_command(0x00);  // resolution 0: one quarter count per host count
+    mouse_command(0xf0);                      // remote mode; EB asks for each packet
+    b.top.mouse_valid = 1; b.top.mouse_dx = -1; b.top.mouse_dy = 1; b.top.mouse_buttons = 1;
+    b.clock(); b.top.mouse_valid = 0;
+    uint8_t eb_ack = mouse_command(0xeb);
+    auto negative = mouse_packet();
+    b.top.mouse_valid = 1; b.top.mouse_dx = 1; b.top.mouse_dy = -1; b.top.mouse_buttons = 1;
+    b.clock(); b.top.mouse_valid = 0;
+    mouse_command(0xeb);
+    auto cancelled = mouse_packet();
+    check("resolution 0 carries negative dx/dy fractions without early packets",
+          mouse_reset == 0xfa && reset_id == 0xaa && reset_type == 0x00 && eb_ack == 0xfa &&
+          (negative[0] & 0x30) == 0 && negative[1] == 0 && negative[2] == 0 &&
+          (cancelled[0] & 0x30) == 0 && cancelled[1] == 0 && cancelled[2] == 0,
+          hex(negative[0]) + " " + hex(negative[1]) + " " + hex(negative[2]) + "; " +
+          hex(cancelled[0]) + " " + hex(cancelled[1]) + " " + hex(cancelled[2]));
+
+    mouse_command(0xf6);
+    b.run(11000000);  // let any preceding sample interval expire
+    mouse_command(0xf3); mouse_command(10); mouse_command(0xf4);
+    while (b.in(0x64) & 1) b.in(0x60);  // discard any earlier device reply before timing packets
+    b.top.mouse_valid = 1; b.top.mouse_dx = 1; b.top.mouse_dy = 0; b.top.mouse_buttons = 1;
+    b.clock(); b.top.mouse_valid = 0;
+    auto first_rate_packet = mouse_packet();
+    uint64_t first_packet_read = b.cycles;
+    b.top.mouse_valid = 1; b.top.mouse_dx = 1; b.top.mouse_dy = 0; b.top.mouse_buttons = 1;
+    b.clock(); b.top.mouse_valid = 0;
+    bool early_rate_packet = b.wait([&] { return (b.in(0x64) & 1) != 0; }, 90000);
+    uint64_t early_elapsed = b.cycles - first_packet_read;
+    bool low_rate_packet = early_rate_packet || b.wait([&] { return (b.in(0x64) & 1) != 0; }, 50000);
+    uint64_t second_packet_arrival = b.cycles;
+    auto second_rate_packet = low_rate_packet ? mouse_packet() : std::array<uint8_t, 3>{0, 0, 0};
+    check("10 Hz mouse sampling waits at least 100 ms", first_rate_packet[1] == 1 && !early_rate_packet &&
+          low_rate_packet && second_rate_packet[1] == 1 && second_packet_arrival - first_packet_read >= 9500000,
+          std::to_string(early_rate_packet) + " " + std::to_string(early_elapsed) + " " +
+          std::to_string(low_rate_packet) + " " + std::to_string(second_packet_arrival - first_packet_read) + " " +
+          hex(second_rate_packet[1]));
+
     b.out(0x64, 0xa7);
     b.run(200000);
     while (b.in(0x64) & 1) b.in(0x60);
@@ -446,7 +554,24 @@ void rtc(Bench &b) {
     check("binary mode reads the same time in binary", b.cmos(0x07) == 1 && b.cmos(0x09) == 0);
     b.cmos_write(0x0b, 0x00);  // BCD, 12-hour
     check("12-hour mode reads midnight as 12 AM", b.cmos(0x04) == 0x12);
-    b.cmos_write(0x0b, 0x02);
+    b.cmos_write(0x0b, 0x06);  // binary, 24-hour for the divider-restart check
+
+    b.cmos(0x0c);  // clear any prior update flags
+    b.cmos_write(0x0a, 0x70);  // hold divider chain in reset
+    b.run(1000);
+    b.cmos_write(0x0a, 0x26);  // release DV=010 at periodic rate 6
+    uint64_t restart = b.cycles;
+    uint8_t before = b.cmos(0x00);
+    b.run(RTC_SECOND / 2 - 2048);
+    uint8_t early_flags = b.cmos(0x0c);
+    uint8_t early_second = b.cmos(0x00);
+    bool first_update = b.wait([&] { return (b.cmos(0x0c) & 0x10) != 0; }, 4096);
+    uint64_t elapsed = b.cycles - restart;
+    uint8_t after = b.cmos(0x00);
+    check("RTC divider restart makes its first update after 500 ms",
+          (early_flags & 0x10) == 0 && early_second == before && first_update &&
+          after == uint8_t((before + 1) % 60) && elapsed >= RTC_SECOND / 2 && elapsed < RTC_SECOND / 2 + 4096,
+          std::to_string(elapsed) + " " + hex(before) + " " + hex(early_second) + " " + hex(after));
 }
 
 void ata(Bench &b) {
@@ -520,6 +645,56 @@ void ata(Bench &b) {
     b.out(0x3f6, 0x02);
     b.out(0xa1, 0xff); b.out(0x21, 0xff);
 
+    auto fill_sector = [&](uint32_t lba) {
+        for (size_t n = 0; n < 512; ++n) b.image[size_t(lba) * 512 + n] = uint8_t(lba + n);
+    };
+    auto issue_lba = [&](uint8_t lba, uint8_t count, uint8_t opcode) {
+        b.out(0x1f2, count); b.out(0x1f3, lba); b.out(0x1f4, 0); b.out(0x1f5, 0); b.out(0x1f6, 0xe0);
+        b.out(0x1f7, opcode);
+    };
+    auto read_matches = [&](uint32_t lba) {
+        bool matches = true;
+        for (int n = 0; n < 256; ++n) {
+            uint16_t expected = uint16_t(b.image[size_t(lba) * 512 + size_t(n) * 2]) |
+                                uint16_t(b.image[size_t(lba) * 512 + size_t(n) * 2 + 1]) << 8;
+            matches &= b.inw(0x1f0) == expected;
+        }
+        return matches;
+    };
+    b.out(0x1f2, 2); b.out(0x1f7, 0xc6); b.in(0x1f7);  // READ MULTIPLE block size 2
+    for (uint32_t lba = 240; lba <= 242; ++lba) fill_sector(lba);
+    b.held_read_lba = 241;
+    issue_lba(240, 2, 0xc4);
+    bool old_block_ready = b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 20000);
+    bool old_prefetch_held = b.wait([&] { return b.pending_read && b.pending_address / 64 == 241; }, 20000);
+    issue_lba(242, 1, 0x20);  // replace the command while the second sector is in flight
+    b.held_read_lba = -1;
+    bool new_read_ready = b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 20000);
+    bool new_read_matches = read_matches(242);
+    check("new ATA command drains an old prefetch before filling its buffer",
+          old_block_ready && old_prefetch_held && new_read_ready && new_read_matches,
+          std::to_string(old_block_ready) + " " + std::to_string(old_prefetch_held) + " " +
+          std::to_string(new_read_ready) + " " + std::to_string(new_read_matches));
+
+    for (uint32_t lba = 250; lba <= 252; ++lba) fill_sector(lba);
+    b.held_read_lba = 251;
+    issue_lba(250, 2, 0xc4);
+    old_block_ready = b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 20000);
+    old_prefetch_held = b.wait([&] { return b.pending_read && b.pending_address / 64 == 251; }, 20000);
+    b.out(0x3f6, 0x06);  // assert SRST with a prefetched beat outstanding
+    b.out(0x3f6, 0x02);
+    bool reset_finished = b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 10000);
+    b.held_read_lba = -1;
+    b.run(512);          // let the stale response drain
+    issue_lba(252, 1, 0x20);
+    new_read_ready = b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 20000);
+    new_read_matches = read_matches(252);
+    check("ATA SRST drains an old prefetch without wrapping or mixing the next read",
+          old_block_ready && old_prefetch_held && reset_finished && new_read_ready && new_read_matches,
+          std::to_string(old_block_ready) + " " + std::to_string(old_prefetch_held) + " " +
+          std::to_string(reset_finished) + " " + std::to_string(new_read_ready) + " " +
+          std::to_string(new_read_matches));
+
     // CHS through the default translation: cylinder 1, head 2, sector 3.
     uint32_t lba = (1 * HEADS + 2) * SPT + 2;
     b.image[lba * 512] = 0x77;
@@ -529,6 +704,21 @@ void ata(Bench &b) {
     uint16_t first = b.inw(0x1f0);
     for (int n = 1; n < 256; ++n) b.inw(0x1f0);
     check("CHS addressing through the IDENTIFY geometry", (first & 0xff) == 0x77, hex(first));
+
+    b.out(0x1f2, 2); b.out(0x1f3, SPT); b.out(0x1f4, 1); b.out(0x1f5, 0); b.out(0x1f6, 0xa2);
+    b.out(0x1f7, 0x40);  // READ VERIFY from cylinder 1, head 2, sector 17
+    bool verify_done = b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 1000);
+    check("CHS READ VERIFY leaves the task file at the last verified sector",
+          verify_done && b.in(0x1f2) == 0 && b.in(0x1f3) == 1 && b.in(0x1f4) == 1 &&
+          b.in(0x1f5) == 0 && b.in(0x1f6) == 0xa3 && (b.in(0x1f7) & 0x41) == 0x40,
+          hex(b.in(0x1f6)) + " " + hex(b.in(0x1f4)) + " " + hex(b.in(0x1f3)));
+
+    issue_lba(80, 2, 0x40);
+    verify_done = b.wait([&] { return (b.in(0x1f7) & 0x80) == 0; }, 1000);
+    check("LBA READ VERIFY leaves the task file at the last verified sector",
+          verify_done && b.in(0x1f2) == 0 && b.in(0x1f3) == 81 && b.in(0x1f4) == 0 &&
+          b.in(0x1f5) == 0 && b.in(0x1f6) == 0xe0 && (b.in(0x1f7) & 0x41) == 0x40,
+          hex(b.in(0x1f6)) + " " + hex(b.in(0x1f5)) + " " + hex(b.in(0x1f4)) + " " + hex(b.in(0x1f3)));
 
     b.out(0x1f2, 1); b.out(0x1f3, 0xff); b.out(0x1f4, 0xff); b.out(0x1f5, 0); b.out(0x1f6, 0xe0);
     b.out(0x1f7, 0x20);

@@ -288,7 +288,8 @@ module pc386_rtc #(
                 7'h0c, 7'h0d: begin end
                 default: ram[index] <= wdata;
             endcase
-            if (divider[2:1] == 2'b11) chain <= 0;
+            if (divider[2:1] == 2'b11 &&
+                !(selected_register && write && index == 7'h0a && wdata[6:4] == 3'b010)) chain <= 0;
         end
     end
 endmodule

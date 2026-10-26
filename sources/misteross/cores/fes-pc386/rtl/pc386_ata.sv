@@ -66,11 +66,13 @@ module pc386_ata #(
 
     // Command state
     localparam IDLE = 4'd0, DRAIN = 4'd1, ADDRESS = 4'd2, ADDRESS2 = 4'd3, CHECK = 4'd4,
-               READ = 4'd5, WRITE = 4'd6, IDENTIFY = 4'd7, DIVIDE = 4'd8, RESETTING = 4'd9;
+               READ = 4'd5, WRITE = 4'd6, IDENTIFY = 4'd7, DIVIDE = 4'd8, RESETTING = 4'd9,
+               VERIFY = 4'd10;
     reg [3:0] phase;
     reg [7:0] opcode;
     reg busy, drq, err, pending_interrupt;
     reg [8:0] left;                      // sectors left for the guest
+    reg [8:0] verify_left;               // sectors to advance over after READ VERIFY
     reg [4:0] block_left;
     reg announce;                        // interrupt when the next block's data is ready
     reg [7:0] pointer;                   // word within the current sector
@@ -85,7 +87,7 @@ module pc386_ata #(
     reg [8:0] fetch_left;
     reg [27:0] fetch_lba, store_lba;
     reg fetch_half, store_half;
-    localparam ENGINE_IDLE = 2'd0, ENGINE_ISSUE = 2'd1, ENGINE_WAIT = 2'd2;
+    localparam ENGINE_IDLE = 2'd0, ENGINE_ISSUE = 2'd1, ENGINE_WAIT = 2'd2, ENGINE_ABORT = 2'd3;
     reg [1:0] fetch_state, store_state;
     reg [5:0] fetch_word, store_word;
     reg [15:0] dirty [0:127];
@@ -177,6 +179,9 @@ module pc386_ata #(
     wire guest_read = data_access && !write;
     wire guest_write = data_access && write;
     wire last_word = pointer == 8'd255;
+    wire abort_fetch = access && present && write &&
+                       ((!command_block && wdata[2]) ||
+                        (command_block && register == 3'd7 && !busy && !srst && !device1));
 
     integer n;
     always @(posedge clk) begin
@@ -185,7 +190,7 @@ module pc386_ata #(
             error <= 8'h01; nien <= 0; srst <= 0;
             logical_cylinders <= 0; logical_heads <= 0; logical_spt <= 0; multiple <= 0;
             phase <= IDLE; opcode <= 0; busy <= 0; drq <= 0; err <= 0; pending_interrupt <= 0;
-            left <= 0; block_left <= 0; announce <= 0; pointer <= 0; half <= 0;
+            left <= 0; verify_left <= 0; block_left <= 0; announce <= 0; pointer <= 0; half <= 0;
             start <= 0; guest_lba <= 0; track <= 0; reset_timer <= 0;
             loaded <= 0; queued <= 0; fetch_left <= 0; fetch_lba <= 0; store_lba <= 0;
             fetch_half <= 0; store_half <= 0; fetch_state <= ENGINE_IDLE; store_state <= ENGINE_IDLE;
@@ -209,7 +214,7 @@ module pc386_ata #(
                     disk_address <= {fetch_lba[17:0], fetch_word};
                     fetch_state <= ENGINE_WAIT;
                 end
-                default: begin
+                ENGINE_WAIT: begin
                     if (disk_valid && disk_ready) disk_valid <= 0;
                     if (disk_rvalid) begin
                         buffer[{fetch_half, fetch_word}] <= disk_rdata;
@@ -223,6 +228,16 @@ module pc386_ata #(
                         end else fetch_state <= ENGINE_ISSUE;
                     end
                 end
+                ENGINE_ABORT: begin
+                    // Keep an unaccepted request stable until the image port
+                    // accepts it, then drain its response without using it.
+                    if (disk_valid && disk_ready) disk_valid <= 0;
+                    if (disk_rvalid) begin
+                        fetch_state <= ENGINE_IDLE;
+                        fetch_word <= 0;
+                    end
+                end
+                default: begin end
             endcase
 
             // Store engine: half store_half to sector store_lba.
@@ -311,9 +326,10 @@ module pc386_ata #(
                         error <= IDNF; err <= 1; busy <= 0; pending_interrupt <= 1; phase <= IDLE;
                     end else if (opcode == 8'h40 || opcode == 8'h41) begin
                         // READ VERIFY: the range is valid; no data moves.
-                        {drive_head[3:0], cylinder_high, cylinder_low, number} <=
-                            lba_mode ? start + 28'(total) - 28'd1 : {drive_head[3:0], cylinder_high, cylinder_low, number};
-                        count <= 0; busy <= 0; pending_interrupt <= 1; phase <= IDLE;
+                        // Advance one sector per clock to leave the task file
+                        // at the final verified address in either addressing mode.
+                        verify_left <= total - 1'b1;
+                        phase <= VERIFY;
                     end else begin
                         left <= total;
                         block_left <= {4'b0, block} > total ? 5'(total) : block;
@@ -331,6 +347,12 @@ module pc386_ata #(
                 READ: if (busy && loaded[half]) begin
                     busy <= 0; drq <= 1;
                     if (announce) pending_interrupt <= 1;
+                end
+                VERIFY: if (verify_left != 0) begin
+                    advance_address();
+                    verify_left <= verify_left - 1'b1;
+                end else begin
+                    count <= 0; busy <= 0; pending_interrupt <= 1; phase <= IDLE;
                 end
                 WRITE: if (busy && !queued[half]) begin
                     busy <= 0; drq <= 1;
@@ -414,6 +436,34 @@ module pc386_ata #(
             end
             if (access && present && !write && (register == 3'd7 && command_block) && !device1)
                 pending_interrupt <= 0;
+
+            if (abort_fetch) begin
+                loaded <= 0;
+                fetch_left <= 0;
+                case (fetch_state)
+                    ENGINE_ISSUE: begin
+                        // No request has been presented yet.
+                        fetch_state <= ENGINE_IDLE;
+                        fetch_word <= 0;
+                        disk_valid <= 0;
+                    end
+                    ENGINE_WAIT: begin
+                        if (disk_rvalid) begin
+                            // The response already arrived this cycle.
+                            fetch_state <= ENGINE_IDLE;
+                            fetch_word <= 0;
+                        end else fetch_state <= ENGINE_ABORT;
+                    end
+                    ENGINE_ABORT: if (disk_rvalid) begin
+                        fetch_state <= ENGINE_IDLE;
+                        fetch_word <= 0;
+                    end
+                    default: begin
+                        fetch_state <= ENGINE_IDLE;
+                        fetch_word <= 0;
+                    end
+                endcase
+            end
         end
     end
     wire unused = ^{features, word, wdata[15:8], sectors[31:28], left[8], guest_lba};

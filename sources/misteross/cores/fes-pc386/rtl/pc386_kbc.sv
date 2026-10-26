@@ -290,10 +290,13 @@ module pc386_ps2_keyboard #(
     reg [7:0] queue [0:2];
     wire [4:0] space;
     // One response of up to three bytes is pushed a byte per clock. Host
-    // codes wait while it is; a keyboard that is not scanning drops them.
+    // codes leave room for the largest response; a keyboard that is not
+    // scanning drops them.
     reg [1:0] pushing;
-    assign key_ready = pushing == 0 && !rx_valid && space != 0;
-    wire push = pushing != 0 || (key_valid && key_ready && scanning);
+    // Require four free slots before accepting a host byte, leaving three
+    // for a command reply after the key is queued.
+    assign key_ready = pushing == 0 && !rx_valid && space >= 4;
+    wire push = (pushing != 0 && space != 0) || (key_valid && key_ready && scanning);
     wire [7:0] push_byte = pushing != 0 ? queue[3 - pushing] : key_code;
     pc386_ps2_fifo fifo (.clk(clk), .clear(clear || reset), .push(push), .push_byte(push_byte),
                          .pop(tx_take), .valid(tx_valid), .head(tx_byte), .space(space));
@@ -310,7 +313,7 @@ module pc386_ps2_keyboard #(
         if (reset) begin
             scanning <= 1; argument <= 0; last_sent <= 8'hfa; bat <= 0; pushing <= 0;
         end else begin
-            if (pushing != 0) pushing <= pushing - 1'b1;
+            if (pushing != 0 && space != 0) pushing <= pushing - 1'b1;
             if (tx_take) last_sent <= tx_byte;
             if (bat != 0 && us_tick) begin
                 bat <= bat - 1'b1;
@@ -368,7 +371,7 @@ module pc386_ps2_mouse #(
     reg [1:0] buttons;
     reg buttons_changed;
     reg signed [19:0] x, y;              // quarter counts
-    reg [15:0] sample_timer;
+    reg [16:0] sample_timer;
     reg [2:0] pushing;
     reg [7:0] queue [0:3];
     reg clear, read_data;
@@ -377,7 +380,11 @@ module pc386_ps2_mouse #(
                          .pop(tx_take), .valid(tx_valid), .head(tx_byte), .space(space));
 
     // This packet's counts: whole counts, clamped to +-255.
-    wire signed [19:0] whole_x = x >>> 2, whole_y = y >>> 2;
+    // Arithmetic right shift rounds negative fractions down. Add one back
+    // when a negative quarter-count has a remainder, giving truncation
+    // toward zero and keeping the fraction for a later packet.
+    wire signed [19:0] whole_x = (x >>> 2) + ((x < 0 && x[1:0] != 0) ? 20'sd1 : 20'sd0);
+    wire signed [19:0] whole_y = (y >>> 2) + ((y < 0 && y[1:0] != 0) ? 20'sd1 : 20'sd0);
     wire signed [9:0] report_x = whole_x > 255 ? 10'sd255 : whole_x < -255 ? -10'sd255 : 10'(whole_x);
     wire signed [9:0] report_y = whole_y > 255 ? 10'sd255 : whole_y < -255 ? -10'sd255 : 10'(whole_y);
     function automatic signed [9:0] scale21(input signed [9:0] value);
@@ -394,9 +401,9 @@ module pc386_ps2_mouse #(
     wire signed [9:0] sent_x = scaling && !read_data ? scale21(report_x) : report_x;
     wire signed [9:0] sent_y = scaling && !read_data ? scale21(report_y) : report_y;
     wire moved = report_x != 0 || report_y != 0 || buttons_changed;
-    wire [15:0] sample_us = sample_rate >= 200 ? 16'd5000 : sample_rate >= 100 ? 16'd10000 :
-                            sample_rate >= 80 ? 16'd12500 : sample_rate >= 60 ? 16'd16667 :
-                            sample_rate >= 40 ? 16'd25000 : sample_rate >= 20 ? 16'd50000 : 16'd65535;
+    wire [16:0] sample_us = sample_rate >= 200 ? 17'd5000 : sample_rate >= 100 ? 17'd10000 :
+                            sample_rate >= 80 ? 17'd12500 : sample_rate >= 60 ? 17'd16667 :
+                            sample_rate >= 40 ? 17'd25000 : sample_rate >= 20 ? 17'd50000 : 17'd100000;
 
     task automatic respond(input [2:0] count, input [7:0] b0, input [7:0] b1, input [7:0] b2, input [7:0] b3);
         // queue[4 - pushing] is pushed while pushing counts down from count.
@@ -427,7 +434,9 @@ module pc386_ps2_mouse #(
                 buttons <= move_buttons;
             end
             // Stream packets at the sample rate; EB (read_data) reports once.
-            if (pushing == 0 && !rx_valid && !move_valid && space >= 3 &&
+            // A stream packet uses three slots; keep four for the largest
+            // command reply (E9) that may arrive before the guest reads it.
+            if (pushing == 0 && !rx_valid && !move_valid && space >= 7 &&
                 (read_data || (enabled && !remote && !wrap && sample_timer == 0 && moved))) begin
                 respond(3'd3, packet_head, sent_x[7:0], sent_y[7:0], 8'h00);
                 x <= x - (20'(report_x) <<< 2);

@@ -3,6 +3,7 @@
 the boot report parser and its I/O timing checks, and (with Verilator) the
 directed device benches. No network access; the oracle boot itself runs from
 scripts/sim_fes_pc386.py --suite boot."""
+import hashlib
 import json
 import os
 import shutil
@@ -79,6 +80,21 @@ class FreedosImageTest(unittest.TestCase):
             source.write_text('const unsigned char bootnormal_code[512] = {1, 2};')
             with self.assertRaises(freedos.ImageError):
                 freedos.mbr_code(source)
+
+    def test_image_cache_checks_input_and_image_digests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / 'freedos.img'
+            image.write_bytes(b'fixture image')
+            sidecar = image.with_suffix('.json')
+            image_digest = hashlib.sha256(image.read_bytes()).hexdigest()
+            sidecar.write_text(json.dumps({'sha256': image_digest, 'inputs_sha256': 'inputs-a'}))
+            with mock.patch.object(freedos, 'input_sha256', return_value='inputs-a'):
+                self.assertTrue(freedos.image_is_current(image))
+            with mock.patch.object(freedos, 'input_sha256', return_value='inputs-b'):
+                self.assertFalse(freedos.image_is_current(image))
+            sidecar.write_text(json.dumps({'sha256': '0' * 64, 'inputs_sha256': 'inputs-a'}))
+            with mock.patch.object(freedos, 'input_sha256', return_value='inputs-a'):
+                self.assertFalse(freedos.image_is_current(image))
 
 
 BOOT_OUTPUT = """POST 00 11397
