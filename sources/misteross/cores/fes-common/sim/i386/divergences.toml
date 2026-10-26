@@ -252,19 +252,8 @@ follow = "corpus"
 [[vectors]]
 id = "stack-wrap-partial-transfer"
 title = "PUSHAD and POPA/POPAD that wrap the stack fault part way"
-cases = [
-    ["6660#302", "cfa9a2b884f6d4818ad75098bddab2a79e85cbb3"],
-    ["6660#704", "368405bf0153cdf2ab72e4e214c3fc3d53e7fe28"],
-    ["6660#875", "e3dba2cf41260e669633a369786d07647fc9cf5b"],
-    ["6660#949", "0157f9b6874d8e3ac951f2d9c15e5c7a25bf4626"],
-    ["6660#956", "dcdccc3287fe549d424a362423e24537e7846921"],
-    ["6660#1205", "3235953e3b82fe31dbda4b77b0d08d50395ffbc1"],
-    ["6660#1847", "d3644a7421a5c95621496fd6a5fbfd1a04203b64"],
-    ["6660#1900", "9e91448ef2fda3ec92132d7dc4a96a32588d8603"],
-    ["61#681", "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"],
-    ["6661#681", "af594cf83f0969a083096b6c1a38102363c18a8e"],
-    ["6661#1181", "dfa50db2235a7fdc8579ab9de69b96183e4c01b7"],
-]
+opcodes = ["60", "61"]
+when = ["slot-straddles-wrap"]
 fields = ["*"]
 deciding_case = "61#681"
 deciding_hash = "b5ba6eb2b4fbce54a1c8cc367a1635a6228e24b7"
@@ -276,13 +265,8 @@ follow = "corpus"
 [[vectors]]
 id = "interrupt-vector-before-push"
 title = "A real-mode interrupt reads its vector before pushing"
-cases = [
-    ["62#1752", "a19a3795eb2ce05998222f3d573de35023293c0b"],
-    ["6662#1752", "05367456ff18b99bd3721744b91397d6c6c21b32"],
-    ["6762#1752", "cc2a29147c4a39015af6a5afdfcbaa16aa1f6929"],
-    ["F6.6#1403", "9324b97e69a76c93ecf0d3b2575e55fe7676a46e"],
-    ["F7.6#701", "64ac534a31921ec2dc9ab15f564d3bbcfe9972ec"],
-]
+opcodes = ["*"]
+when = ["frame-over-vector"]
 fields = ["*"]
 deciding_case = "62#1752"
 deciding_hash = "a19a3795eb2ce05998222f3d573de35023293c0b"

@@ -6,9 +6,11 @@
 // the six segment registers (selector, base, limit, attributes). Memory writes
 // are compared as each side reports them: the bytes each instruction writes
 // must be the same bytes, with the same values, on both sides. An instruction
-// that faults in the oracle must fault in the RTL with the same vector,
-// nothing retired and nothing written; the RTL does not deliver exceptions
-// yet, so the run ends there. HLT ends a run on both sides.
+// that faults in the oracle must fault in the RTL with the same vector, with
+// nothing of it retired; both deliver it, and the delivery, its frame
+// included, is compared as a retirement. A fault while an exception is
+// delivered (a double fault, then shutdown) stops the RTL as not built,
+// with nothing written. HLT ends a run on both sides.
 //
 // Where the oracle and SingleStepTests/80386 disagree, divergences.toml names
 // the side the FES CPU follows. For an entry that follows the corpus, the
@@ -28,24 +30,28 @@
 //           of vectors_tb.cpp followed by two lists the runner works out from
 //           the label-scoped entries: <n> <field>... compared with the corpus
 //           only (follow corpus), <n> <field>... with the oracle only (follow
-//           oracle). After the run the RTL's final state must equal the
-//           corpus's final state, undefined flags included.
+//           oracle). A state that faults, or takes a software interrupt, runs
+//           on into its handler, to its HLT. After the run the RTL's final
+//           state must equal the corpus's final state, undefined flags and
+//           the pushed frame included.
 //   random  FES_I386_PROGRAMS random programs from FES_I386_SEED: register,
 //           immediate and 16-bit-addressed memory forms of the slice's
 //           instructions with prefixes, forward branches, bounded LOOPs,
 //           backward jumps, pushes and pops, CALLs to subroutines that RET
 //           and PUSH BP / MOV BP, SP / LEAVE frames, so results forward
 //           between instructions and taken branches kill younger producers.
-//           A run stops at its HLT, after
-//           FES_I386_RETIRE_LIMIT retirements, or at a store into its own
-//           code, which needs self-modifying-code detection the RTL does not
-//           have yet.
+//           A run stops at its HLT, once it has delivered an exception,
+//           after FES_I386_RETIRE_LIMIT retirements, or at a store into its
+//           own code, which needs self-modifying-code detection the RTL does
+//           not have yet.
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
-//   directed  out-of-limit CALL/RET/JMP faults, followed by a check that fetch,
-//             issue and data reads stay inactive after each fault.
+//   directed  out-of-limit CALL/RET/JMP faults, delivered to a handler that
+//             HLTs, then a check that fetch, issue and data reads stay inactive
+//             after the HLT; and an INT and a fault whose delivery faults,
+//             which must stop the RTL with nothing written.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -204,9 +210,10 @@ public:
         ++cycles;
     }
 
-    enum class Event { Retired, Fault, Unimplemented, Timeout };
+    enum class Event { Retired, Unimplemented, Timeout };
 
-    // Run until the next retirement or stop.
+    // Run until the next retirement, an exception's delivery included
+    // (trace_exception), or stop.
     Event next() {
         step_writes.clear();
         for (int n = 0; n < EVENT_CYCLES; ++n) {
@@ -216,7 +223,6 @@ public:
             if (top.trace_halt) break;
         }
         if (top.trace_unimplemented) return Event::Unimplemented;
-        if (top.trace_fault) return Event::Fault;
         return Event::Timeout;
     }
 
@@ -321,7 +327,8 @@ struct Facts {
     std::set<std::string> predicates;
 };
 
-Facts facts(const uint8_t *code, bool code32, uint32_t ecx) {
+Facts facts(const uint8_t *code, bool code32, const State &before, int vector) {
+    const uint32_t ecx = before.gpr[fes_i386::REG_ECX];
     Facts f;
     unsigned i = 0;
     bool os32 = code32, as32 = code32;
@@ -365,6 +372,23 @@ Facts facts(const uint8_t *code, bool code32, uint32_t ecx) {
         }
     } else if (!two && (op == 0xd4 || op == 0xd5) && code[at] == 0) {
         f.predicates.insert("imm8=0");
+    }
+    // PUSHA's or POPA's eight slots wrap the 16-bit stack misaligned, so one
+    // straddles FFFFh.
+    if (!two && (op == 0x60 || op == 0x61) && !(before.seg[fes_i386::SEG_SS].ar & 0x4000)) {
+        const uint32_t size = os32 ? 4 : 2, sp = before.gpr[fes_i386::REG_ESP] & 0xffff;
+        const uint32_t start = op == 0x60 ? (sp - 8 * size) & 0xffff : sp;
+        if (start + 8 * size > 0x10000 && start % size) f.predicates.insert("slot-straddles-wrap");
+    }
+    // The frame of the exception or interrupt the step takes (vector), its
+    // three words below ESP, overlaps the vector's entry.
+    if (vector >= 0) {
+        const auto &ss = before.seg[fes_i386::SEG_SS];
+        const uint32_t esp = before.gpr[fes_i386::REG_ESP];
+        for (uint32_t k = 1; k <= 6; ++k) {
+            const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - k : (esp - k) & 0xffff);
+            if (at >= uint32_t(vector) * 4 && at < uint32_t(vector) * 4 + 4) f.predicates.insert("frame-over-vector");
+        }
     }
     return f;
 }
@@ -478,8 +502,12 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
 // ---- One lockstep run ---------------------------------------------------------------
 
 struct Summary {
-    uint64_t runs = 0, passed = 0, failed = 0, retirements = 0, cycles = 0, faults = 0, halts = 0, limits = 0;
+    uint64_t runs = 0, passed = 0, failed = 0, retirements = 0, cycles = 0, halts = 0, limits = 0;
     uint64_t interrupts = 0;  // corpus runs that took a software interrupt, then halted in its handler
+    // Runs that delivered an exception: in the corpus, then halted in its
+    // handler; in random programs, stopped there. double_faults: stopped at a
+    // fault in a delivery.
+    uint64_t faults = 0, double_faults = 0;
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
@@ -496,7 +524,8 @@ struct Summary {
     // from AG. Left out: CALL rel and ptr and RETF (several uops), LEAVE (on
     // a 16-bit stack it waits for ESP's high half), PUSH and POP of (E)SP,
     // which read ESP as data, and anything after POP (E)SP or POPA, which
-    // load ESP (POPAD's high word).
+    // load ESP (POPAD's high word). An exception's delivery is no
+    // instruction: neither it nor the handler's first is counted.
     // Any other instruction right after a push or pop is after_stack: it
     // waits in D if it reads ESP. Any other after a store, not after a shift, is
     // after_store: one cycle, as D's store hold must not catch it.
@@ -583,13 +612,6 @@ MemUse mem_use(const uint8_t *code) {
     return m;
 }
 
-// Where the opcode is, past the prefixes.
-unsigned fact_at(const uint8_t *code) {
-    unsigned i = 0;
-    while (i < 15 && is_prefix(code[i])) ++i;
-    return i;
-}
-
 // A segment load (MOV Sreg, r/m, POP Sreg, or a far pointer's: LES and its
 // kin).
 bool loads_segment(const uint8_t *code) {
@@ -669,7 +691,8 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
 
 struct Outcome {
     bool halted = false;   // both sides reached HLT
-    int fault = -1;        // the vector both sides raised
+    int exception = -1;    // the last exception both sides delivered
+    bool double_fault = false;  // stopped at a fault in a delivery (no double fault is built)
     bool limit = false;    // stopped at the retirement limit
     bool smc = false;      // stopped at a store into [code_lo, code_hi)
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
@@ -679,8 +702,8 @@ struct Outcome {
 // Run from the state both sides hold now. label_corpus and label_oracle hold
 // label-scoped divergence fields.
 Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
-                 const Fields &label_corpus, uint64_t retire_limit, Summary &summary, Mismatches &out,
-                 uint32_t code_lo = 0, uint32_t code_hi = 0) {
+                 const Fields &label_corpus, uint64_t retire_limit, bool stop_at_exception, Summary &summary,
+                 Mismatches &out, uint32_t code_lo = 0, uint32_t code_hi = 0) {
     Outcome outcome;
     uint64_t last_retirement = 0;
     bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
@@ -705,11 +728,21 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         const Rtl::Event event = rtl.next();
         const std::string at = "@" + hex(before.eip) + ".";
 
+        // The oracle's first exception, and the vector the step takes: that,
+        // or a software interrupt's.
+        unsigned oracle_exceptions = 0;
+        int vector = -1, taken = -1;
+        for (const auto &e : result.events) {
+            if (e.kind == fes_i386::EventKind::Exception && oracle_exceptions++ == 0) vector = e.vector;
+            if (e.kind == fes_i386::EventKind::SoftwareInterrupt && taken < 0) taken = e.vector;
+        }
+        if (vector >= 0) taken = vector;
+
         // Fields this instruction leaves to the corpus. An entry that leaves it
         // every field also decides whether it faults: the RTL's outcome stands,
         // and the oracle takes the RTL's state and memory.
         Fields skip = label_corpus;
-        const Facts fact = facts(code, code32, before.gpr[fes_i386::REG_ECX]);
+        const Facts fact = facts(code, code32, before, taken);
         for (const Entry &e : entries) {
             if (!e.corpus || (!e.stems.empty() && !e.stems.count(fact.stem))) continue;
             bool holds = true;
@@ -719,33 +752,39 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             ++summary.divergences[e.id];
         }
 
-        // Every byte the oracle writes is cleared after the run, its exception
-        // frames included, which the RTL does not write yet.
+        // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)
             for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
-        const bool oracle_faulted = !result.events.empty() && !result.retired;
-        if (skip.all && event == Rtl::Event::Fault && !oracle_faulted) {
-            if (!rtl.step_writes.empty()) out.add(at + "fault-write", *rtl.step_writes.begin(), 0);
-            compare(before, rtl.state(), Fields{}, at, out);
-            outcome.fault = rtl.top.trace_vector;
+        const bool delivered = event == Rtl::Event::Retired && rtl.top.trace_exception;
+        if (oracle_exceptions > 1 || result.shutdown) {
+            // A fault in an exception's delivery (or in an INT's, then in
+            // the exception's): a double fault, then shutdown. The RTL stops
+            // at the second fault, as not built, with nothing of the
+            // instruction retired and nothing of the delivery written. An
+            // entry that leaves every field to the corpus may let the
+            // instruction transfer part way first (a PUSHA or POPA whose
+            // slots straddle the wrap).
+            if (event != Rtl::Event::Unimplemented || rtl.top.trace_vector != 8)
+                out.add(at + "double-fault", 8, event == Rtl::Event::Unimplemented ? rtl.top.trace_vector : 0xffu);
+            if (!skip.all) {
+                if (!rtl.step_writes.empty()) out.add(at + "fault-write", *rtl.step_writes.begin(), 0);
+                compare(before, rtl.state(), Fields{}, at, out);
+            }
+            outcome.double_fault = true;
             return outcome;
         }
-        if (oracle_faulted && !(skip.all && event == Rtl::Event::Retired)) {
-            // An exception: the RTL must raise it with nothing retired.
-            // An exception in an INT n, INT3 or INTO's delivery follows the
-            // interrupt it raised: the RTL raises the exception.
-            const bool raises = (code[fact_at(code)] & 0xfc) == 0xcc && code[fact_at(code)] != 0xcf;
-            int vector = result.events.size() > 1 && raises ? result.events[1].vector : result.events.front().vector;
-            if (event != Rtl::Event::Fault) {
+        // An entry that leaves every field to the corpus decides whether the
+        // instruction faults: the RTL's outcome, a delivery or a retirement,
+        // stands, and the oracle takes its state and memory below.
+        if (vector >= 0 && !skip.all) {
+            if (!delivered) {
                 out.add(at + (event == Rtl::Event::Unimplemented ? "unimplemented" : "exception"), uint32_t(vector),
                         event == Rtl::Event::Retired ? 0xffu : 0xfeu);
                 return outcome;
             }
-            if (!skip.all && rtl.top.trace_vector != vector) out.add(at + "vector", uint32_t(vector), rtl.top.trace_vector);
-            if (skip.all) vector = rtl.top.trace_vector;
-            if (!rtl.step_writes.empty()) out.add(at + "fault-write", *rtl.step_writes.begin(), 0);
-            compare(before, rtl.state(), Fields{}, at, out);
-            outcome.fault = vector;
+            if (rtl.top.trace_vector != vector) out.add(at + "vector", uint32_t(vector), rtl.top.trace_vector);
+        } else if (delivered && !skip.all) {
+            out.add(at + "unexpected-exception", 0, rtl.top.trace_vector);
             return outcome;
         }
         if (event == Rtl::Event::Unimplemented) {
@@ -753,12 +792,13 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             return outcome;
         }
         if (event != Rtl::Event::Retired) {
-            out.add(at + (event == Rtl::Event::Fault ? "unexpected-fault" : "timeout"), 0,
-                    event == Rtl::Event::Fault ? rtl.top.trace_vector : 0);
+            out.add(at + "timeout", 0, 0);
             return outcome;
         }
         ++summary.retirements;
-        {
+        if (delivered) {
+            retired_before = false;
+        } else {
             unsigned prefixes = 0;
             while (prefixes < 15 && is_prefix(code[prefixes])) ++prefixes;
             const uint8_t op = code[prefixes];
@@ -833,37 +873,54 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         for (const auto &e : result.events)
             if (e.kind == fes_i386::EventKind::SoftwareInterrupt) outcome.interrupt = e.vector;
+        if (delivered) {
+            outcome.exception = rtl.top.trace_vector;
+            if (stop_at_exception) return outcome;
+        }
         if (outcome.smc) return outcome;
     }
 }
 
-void check_fault_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
-    bool fault_cleared = false, fetched = false, issued = false, read = false;
+// After a HLT the CPU stays stopped: no fetch request, D issue or data read.
+void check_halt_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
+    bool resumed = false, fetched = false, issued = false, read = false;
     for (unsigned cycle = 0; cycle < 32; ++cycle) {
         rtl.top.clk = 0;
         rtl.top.eval();
-        fault_cleared = fault_cleared || !rtl.top.trace_fault;
+        resumed = resumed || !rtl.top.trace_halt;
         fetched = fetched || rtl.top.mem_load;
         issued = issued || rtl.top.trace_issue;
         read = read || rtl.top.dmem_read;
         rtl.clock();
     }
-    if (fault_cleared) out.add(label + ".fault-held", 1, 0);
-    if (fetched) out.add(label + ".fetch-after-fault", 0, 1);
-    if (issued) out.add(label + ".issue-after-fault", 0, 1);
-    if (read) out.add(label + ".dmem-read-after-fault", 0, 1);
+    if (resumed) out.add(label + ".halt-held", 1, 0);
+    if (fetched) out.add(label + ".fetch-after-halt", 0, 1);
+    if (issued) out.add(label + ".issue-after-halt", 0, 1);
+    if (read) out.add(label + ".dmem-read-after-halt", 0, 1);
 }
 
+// A directed case runs its code with the vector table's #SS and #GP entries
+// at a HLT. A fault case must deliver #GP(0), pushing the faulting
+// instruction's IP and CS, then halt in the handler and stay stopped. A
+// nested case must stop at a fault in its delivery, with nothing written.
+constexpr uint32_t HANDLER = 0x800;  // 0000:0800
+
 void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary,
-                    const std::string &label, const std::vector<uint8_t> &code, State state,
+                    const std::string &label, const std::vector<uint8_t> &code, State state, bool nested,
                     uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr) {
     const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
-    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = code[i];
-    oracle.invalidate(code_base, uint32_t(code.size()));
-    if (stack_value) {
-        for (unsigned i = 0; i < stack_value->size(); ++i)
-            bus.ram[stack_address + i] = rtl.ram[stack_address + i] = (*stack_value)[i];
-        oracle.invalidate(stack_address, 4);
+    std::vector<std::pair<uint32_t, uint8_t>> image;
+    for (size_t i = 0; i < code.size(); ++i) image.emplace_back(code_base + uint32_t(i), code[i]);
+    image.emplace_back(HANDLER, 0xf4);
+    for (uint32_t vector : {12u, 13u}) {
+        image.emplace_back(vector * 4, uint8_t(HANDLER));
+        image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
+    }
+    if (stack_value)
+        for (unsigned i = 0; i < stack_value->size(); ++i) image.emplace_back(stack_address + i, (*stack_value)[i]);
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.ram[address] = value;
+        oracle.invalidate(address, 1);
     }
     oracle.set_state(state);
     rtl.start(state);
@@ -872,27 +929,36 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary 
     Outcome outcome;
     try {
         const std::vector<Entry> no_divergences;
-        outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, summary, out,
+        outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, false, summary, out,
                            code_base, code_base + uint32_t(code.size()));
     } catch (const std::exception &error) {
         out.add(label + ".oracle-error:" + error.what(), 0, 1);
         oracle.reset();
     }
-    if (outcome.fault != 13) out.add(label + ".fault-vector", 13, outcome.fault < 0 ? 0xff : outcome.fault);
-    if (rtl.state().eip != state.eip) out.add(label + ".eip", state.eip, rtl.state().eip);
-    if (rtl.state().gpr[fes_i386::REG_ESP] != state.gpr[fes_i386::REG_ESP])
-        out.add(label + ".esp", state.gpr[fes_i386::REG_ESP], rtl.state().gpr[fes_i386::REG_ESP]);
-    if (!rtl.step_writes.empty()) out.add(label + ".fault-write", 0, *rtl.step_writes.begin());
-    if (rtl.top.trace_fault) check_fault_quiet(rtl, label, out);
+    if (nested) {
+        if (!outcome.double_fault) out.add(label + ".double-fault", 1, 0);
+    } else {
+        if (outcome.exception != 13)
+            out.add(label + ".exception", 13, outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        if (!outcome.halted) out.add(label + ".halt", 1, 0);
+        // The frame below the faulting instruction's SP: its IP, then CS.
+        const uint32_t sp = (state.gpr[fes_i386::REG_ESP] - 6) & 0xffff;
+        const uint32_t frame = state.seg[fes_i386::SEG_SS].base + sp;
+        const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+        const uint32_t cs = rtl.ram[frame + 2] | uint32_t(rtl.ram[frame + 3]) << 8;
+        if (ip != (state.eip & 0xffff)) out.add(label + ".pushed-ip", state.eip & 0xffff, ip);
+        if (cs != state.seg[fes_i386::SEG_CS].selector) out.add(label + ".pushed-cs", state.seg[fes_i386::SEG_CS].selector, cs);
+        if ((rtl.state().gpr[fes_i386::REG_ESP] & 0xffff) != sp)
+            out.add(label + ".esp", sp, rtl.state().gpr[fes_i386::REG_ESP] & 0xffff);
+        if (rtl.top.trace_halt) check_halt_quiet(rtl, label, out);
+    }
 
     summary.cycles += rtl.cycles;
     rtl.cycles = 0;
     rtl.load_waits = 0;
-    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = 0;
-    oracle.invalidate(code_base, uint32_t(code.size()));
-    if (stack_value) {
-        for (unsigned i = 0; i < stack_value->size(); ++i) bus.ram[stack_address + i] = rtl.ram[stack_address + i] = 0;
-        oracle.invalidate(stack_address, 4);
+    for (auto [address, value] : image) {
+        bus.ram[address] = rtl.ram[address] = 0;
+        oracle.invalidate(address, 1);
     }
     for (uint32_t address : rtl.written) {
         if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
@@ -913,27 +979,41 @@ void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary 
 void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary) {
     State call;
     for (int k = 0; k < 6; ++k) call.seg[k] = fes_i386::real_mode_segment(0);
+    call.seg[fes_i386::SEG_CS] = fes_i386::real_mode_segment(0x100);
     call.eip = 0;
     // 66 E8 disp32=10000h: CALL's instruction fits, but its full-width target
     // is outside the 16-bit CS limit. Bochs rolls back the speculative push.
     run_fault_case(oracle, bus, rtl, summary, "call-rel32-cs-limit",
-                   {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, call);
+                   {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, call, false);
 
     State ret = call;
     ret.gpr[fes_i386::REG_ESP] = 0x200;
     ret.gpr[fes_i386::REG_ESI] = 0x300;
     const std::array<uint8_t, 4> target = {0x00, 0x00, 0x01, 0x00};
     // RET's 32-bit pop is outside CS; the following MOV [SI] is a younger
-    // data read that must never issue after the fault is raised.
+    // data read, which the delivery discards.
     run_fault_case(oracle, bus, rtl, summary, "ret-rel32-cs-limit",
-                   {0x66, 0xc3, 0x8b, 0x04, 0xf4}, ret, 0x200, &target);
+                   {0x66, 0xc3, 0x8b, 0x04, 0xf4}, ret, false, 0x200, &target);
 
     State jump = call;
     jump.gpr[fes_i386::REG_EBX] = 0x10000;
     jump.gpr[fes_i386::REG_ESI] = 0x300;
     // JMP EBX has the same rejected target; MOV [SI] follows it in memory.
     run_fault_case(oracle, bus, rtl, summary, "jmp-rm-cs-limit",
-                   {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump);
+                   {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump, false);
+
+    // INT 20h with SP 1: its probe raises #SS, whose delivery's probe faults
+    // the same way.
+    State wrap = call;
+    wrap.gpr[fes_i386::REG_ESP] = 1;
+    run_fault_case(oracle, bus, rtl, summary, "int-stack-wrap", {0xcd, 0x20, 0xf4}, wrap, true);
+
+    // The CALL's #GP with SP 3: the delivery's push of CS would straddle
+    // the 64 KiB wrap.
+    State gp_wrap = call;
+    gp_wrap.gpr[fes_i386::REG_ESP] = 3;
+    run_fault_case(oracle, bus, rtl, summary, "gp-stack-wrap",
+                   {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, gp_wrap, true);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -1041,31 +1121,31 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         Mismatches out;
         Outcome outcome;
         try {
-            outcome = lockstep(oracle, bus, rtl, entries, test.corpus_only, 64, summary, out);
+            outcome = lockstep(oracle, bus, rtl, entries, test.corpus_only, 64, false, summary, out);
         } catch (const std::exception &error) {
             out.add(std::string("oracle-error:") + error.what(), 0, 0);
             oracle.reset();
         }
         if (out.items.empty()) {
-            if (outcome.fault >= 0) {
-                if (outcome.fault != test.exception) out.add("corpus.exception", uint32_t(test.exception), outcome.fault);
-            } else if (!outcome.halted) {
+            if (!outcome.halted) {
                 out.add("halt", 1, 0);
             } else {
-                // A software interrupt is the corpus's exception: the run goes
-                // on into the handler, to its HLT.
-                if (test.exception >= 0 && outcome.interrupt != test.exception)
-                    out.add("corpus.exception", uint32_t(test.exception),
-                            outcome.interrupt >= 0 ? uint32_t(outcome.interrupt) : 0xffffffffu);
+                // An exception or a software interrupt is the corpus's
+                // exception: the run goes on into the handler, to its HLT.
+                const int taken = outcome.exception >= 0 ? outcome.exception : outcome.interrupt;
+                if (taken != test.exception)
+                    out.add("corpus.exception", test.exception >= 0 ? uint32_t(test.exception) : 0xffffffffu,
+                            taken >= 0 ? uint32_t(taken) : 0xffffffffu);
                 compare_corpus(test, rtl.state(), rtl, out);
             }
         }
-        if (outcome.fault >= 0) {
-            ++summary.faults;
-            ++summary.fault_vectors[outcome.fault];
-        } else if (outcome.halted) {
+        if (outcome.halted) {
             ++summary.halts;
             summary.interrupts += outcome.interrupt >= 0;
+            if (outcome.exception >= 0) {
+                ++summary.faults;
+                ++summary.fault_vectors[outcome.exception];
+            }
         }
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
@@ -1755,20 +1835,22 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         Mismatches out;
         Outcome outcome;
         try {
-            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, summary, out, base,
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, retire_limit, true, summary, out, base,
                                base + uint32_t(code.size()));
         } catch (const std::exception &error) {
             out.add(std::string("oracle-error:") + error.what(), 0, 0);
             oracle.reset();
         }
-        if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.fault < 0)
+        if (out.items.empty() && !outcome.halted && !outcome.limit && !outcome.smc && outcome.exception < 0 &&
+            !outcome.double_fault)
             out.add("halt", 1, 0);
         summary.limits += outcome.limit;
         summary.smc += outcome.smc;
         summary.halts += outcome.halted;
-        if (outcome.fault >= 0) {
+        summary.double_faults += outcome.double_fault;
+        if (outcome.exception >= 0) {
             ++summary.faults;
-            ++summary.fault_vectors[outcome.fault];
+            ++summary.fault_vectors[outcome.exception];
         }
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
@@ -1820,7 +1902,7 @@ int run_unbuilt(Rtl &rtl, Summary &summary) {
         } else {
             ++summary.failed;
             std::cout << "FAIL unbuilt:" << line << ' '
-                      << (event == Rtl::Event::Retired ? "retired" : event == Rtl::Event::Fault ? "fault" : "timeout")
+                      << (event != Rtl::Event::Retired ? "timeout" : rtl.top.trace_exception ? "exception" : "retired")
                       << " 1 0\n";
         }
         for (size_t i = 0; i < code.size(); ++i) rtl.ram[base + i] = 0;
@@ -1885,6 +1967,7 @@ int main(int argc, char **argv) {
     std::cout.flush();
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
                 "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
+                "\"double_faults\": %llu, "
                 "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, "
                 "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
@@ -1896,7 +1979,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
                 (unsigned long long)summary.interrupts,
-                (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.limits,
+                (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.double_faults,
+                (unsigned long long)summary.limits,
                 (unsigned long long)summary.smc, (unsigned long long)summary.load_waits, divergences.c_str(),
                 (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),
                 histogram(summary.gap_prefixed).c_str(), histogram(summary.gap_lea).c_str(),
