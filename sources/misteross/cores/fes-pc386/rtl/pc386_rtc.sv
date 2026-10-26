@@ -15,6 +15,12 @@
 // are written from the config inputs (10h, 12h, 14h-18h, 19h-23h, 2Dh,
 // 30h-31h, 34h-35h, 38h-3Dh, 3Fh, 60h-62h), then the 10h-2Dh checksum into
 // 2Eh-2Fh. busy is high until that has finished.
+//
+// CMOS is an M10K of 64 byte pairs with registered reads: 71h reads the pair
+// at the index, re-read every clock, and the checksum reads one pair ahead.
+// It has one write port: setup first (a guest write while busy is lost), then
+// the guest, then the century byte, which waits for a free clock and gives way
+// to a guest write of 32h.
 module pc386_rtc #(
     parameter integer RTC_N = 256,       // 32,768 Hz as N/D of the system clock
     parameter integer RTC_D = 781250
@@ -37,7 +43,6 @@ module pc386_rtc #(
     input wire [15:0] wall_year,
     input wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday
 );
-    reg [7:0] ram [0:127];
     reg [6:0] index;
     reg [5:0] second, minute;
     reg [4:0] hour, day;
@@ -149,6 +154,51 @@ module pc386_rtc #(
     end
 
     wire selected_register = access && a0;
+    wire guest_store = selected_register && write && index >= 7'h0e;
+    reg century_store;
+    reg [7:0] century_byte;
+    // CMOS: the clear, configuration and checksum writes, then the guest's,
+    // then the century byte's.
+    reg ram_write;
+    reg [5:0] ram_waddress, ram_raddress;
+    reg [15:0] ram_wdata;
+    reg [1:0] ram_lanes;
+    wire [15:0] ram_pair;
+    wire [7:0] ram_byte = ram_pair[8 * index[0] +: 8];
+    pc386_ram #(.WIDTH(16), .DEPTH(64), .BYTES(2)) ram (
+        .clk(clk), .write(ram_write), .waddress(ram_waddress), .wdata(ram_wdata), .wbyteenable(ram_lanes),
+        .read(1'b1), .raddress(ram_raddress), .rdata(ram_pair)
+    );
+    always @* begin
+        ram_write = 1;
+        ram_waddress = step[6:1];
+        ram_wdata = 16'h0000;
+        ram_lanes = 2'b11;
+        case (setup)
+            CLEAR: begin end
+            CONFIGURE: begin
+                ram_write = !config_address[7];
+                ram_waddress = config_address[6:1];
+                ram_wdata = {2{config_value}};
+                ram_lanes = config_address[0] ? 2'b10 : 2'b01;
+            end
+            CHECKSUM: begin
+                ram_write = step > 7'h2d;
+                ram_waddress = 6'h17;                // 2Eh high byte, 2Fh low
+                ram_wdata = {sum[7:0], sum[15:8]};
+            end
+            default: begin
+                ram_write = guest_store || century_store;
+                ram_waddress = guest_store ? index[6:1] : 6'h19;
+                ram_wdata = guest_store ? {2{wdata}} : {2{century_byte}};
+                ram_lanes = guest_store ? (index[0] ? 2'b10 : 2'b01) : 2'b01;
+            end
+        endcase
+        // The checksum's first pair is read on the last configuration clock.
+        ram_raddress = index[6:1];
+        if (setup == CONFIGURE && step == 7'd30) ram_raddress = 6'h08;
+        else if (setup == CHECKSUM) ram_raddress = 6'(7'(step + 1'b1) >> 1);
+    end
     wire [7:0] wall_second_b = wall_second, unused_wall = wall_second_b;
     reg [15:0] century_rest;
     reg [6:0] century;
@@ -171,7 +221,7 @@ module pc386_rtc #(
             7'h0b: rdata = control_b;
             7'h0c: rdata = {irqf, pf, af, uf, 4'b0};
             7'h0d: rdata = 8'h80;  // VRT: the battery is good
-            default: rdata = ram[index];
+            default: rdata = ram_byte;
         endcase
     end
 
@@ -184,42 +234,41 @@ module pc386_rtc #(
             pf <= 0; af <= 0; uf <= 0; chain <= 0;
             setup <= CLEAR; step <= 0; sum <= 0;
             century_rest <= 0; century <= 0; century_pending <= 0;
+            century_store <= 0; century_byte <= 0;
         end else begin
             case (setup)
                 CLEAR: begin
-                    ram[step] <= 0;
                     step <= step + 1'b1;
                     if (step == 7'd127) begin setup <= CONFIGURE; step <= 0; end
                 end
                 CONFIGURE: begin
-                    if (!config_address[7]) ram[config_address[6:0]] <= config_value;
                     step <= step + 1'b1;
                     if (step == 7'd30) begin setup <= CHECKSUM; step <= 7'h10; sum <= 0; end
                 end
                 CHECKSUM: begin
                     if (step <= 7'h2d) begin
-                        sum <= sum + {8'b0, ram[step]};
+                        sum <= sum + {8'b0, ram_pair[8 * step[0] +: 8]};
                         step <= step + 1'b1;
-                    end else begin
-                        ram[7'h2e] <= sum[15:8];
-                        ram[7'h2f] <= sum[7:0];
-                        setup <= READY;
-                    end
+                    end else setup <= READY;
                 end
                 default: begin end
             endcase
 
+            if (setup == READY && !guest_store) century_store <= 0;  // written this clock
             // The century byte (32h, BCD) from a wall-clock year.
             if (century_pending) begin
                 if (century_rest >= 16'd100) begin
                     century_rest <= century_rest - 16'd100;
                     century <= century + 1'b1;
                 end else begin
-                    ram[7'h32] <= to_bcd(century);
+                    century_store <= 1;
+                    century_byte <= to_bcd(century);
                     year <= century_rest[6:0];
                     century_pending <= 0;
                 end
             end
+
+            if (guest_store && index == 7'h32) century_store <= 0;
 
             // Divider chain, periodic flag and the once-a-second update.
             if (tick && running) begin
@@ -289,8 +338,7 @@ module pc386_rtc #(
                     else if (wdata[6:5] == 2'b11) chain <= 0;
                 end
                 7'h0b: control_b <= wdata[7] ? {wdata[7:5], 1'b0, wdata[3:0]} : wdata;  // SET clears UIE
-                7'h0c, 7'h0d: begin end
-                default: ram[index] <= wdata;
+                default: begin end
             endcase
             if (divider[2:1] == 2'b11 &&
                 !(selected_register && write && index == 7'h0a && wdata[6:4] == 3'b010)) chain <= 0;
