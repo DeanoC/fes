@@ -521,17 +521,20 @@ struct Summary {
     // instruction that writes it (store_load: D holds it at least a cycle),
     // or closely follows a segment load (it waits for the base). A push or
     // pop right after one is stack_stack: one cycle, as its ESP is early
-    // from AG. Left out: CALL rel and ptr and RETF (several uops), LEAVE (on
-    // a 16-bit stack it waits for ESP's high half), PUSH and POP of (E)SP,
-    // which read ESP as data, and anything after POP (E)SP or POPA, which
-    // load ESP (POPAD's high word). An exception's delivery is no
-    // instruction: neither it nor the handler's first is counted.
+    // from AG. Left out: CALL rel, r/m and ptr, PUSH and POP r/m and RETF
+    // (several uops), LEAVE (on a 16-bit stack it waits for ESP's high
+    // half), PUSH and POP of (E)SP, which read ESP as data, and anything
+    // after POP (E)SP or POPA, which load ESP (POPAD's high word). An
+    // exception's delivery is no instruction: neither it nor the handler's
+    // first is counted. XCHG of registers, three uops, is several.
     // Any other instruction right after a push or pop is after_stack: it
-    // waits in D if it reads ESP. Any other after a store, not after a shift, is
-    // after_store: one cycle, as D's store hold must not catch it.
+    // waits in D if it reads ESP. Any other after a store, not after a shift,
+    // is after_store: one cycle, as D's store hold must not catch it. A store
+    // counts only as an instruction's last uop, which XCHG's and POP m's are
+    // not.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
-        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack;
+        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack, gap_several;
     uint64_t smc = 0;  // runs stopped at a store into their own code
     uint64_t load_waits = 0;
 };
@@ -552,14 +555,19 @@ struct MemUse {
     bool any() const { return reads || writes; }
 };
 
-// A push (PUSH r, imm or Sreg, CALL rel or ptr) or a pop (POP r or Sreg,
-// RET, RETF, LEAVE): the forms without a ModRM.
+// A push (PUSH r, r/m, imm or Sreg, CALL rel, r/m or ptr) or a pop (POP r,
+// r/m or Sreg, RET, RETF, LEAVE).
 MemUse stack_use(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
     MemUse m;
     const uint8_t op = code[i];
-    if (op == 0x0f) {
+    const unsigned reg = (code[i + 1] >> 3) & 7;
+    if (op == 0xff && (reg == 2 || reg == 6)) {
+        m.writes = true;
+    } else if (op == 0x8f) {
+        m.reads = true;
+    } else if (op == 0x0f) {
         m.writes = code[i + 1] == 0xa0 || code[i + 1] == 0xa8;
         m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
     } else {
@@ -573,14 +581,24 @@ MemUse stack_use(const uint8_t *code) {
 }
 
 MemUse mem_use(const uint8_t *code) {
-    if (stack_use(code).any()) return stack_use(code);
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
-    MemUse m;
+    MemUse m = stack_use(code);
     const bool two = code[i] == 0x0f;
     const uint8_t op = two ? code[i + 1] : code[i];
     const uint8_t modrm = code[i + (two ? 2 : 1)];
     const unsigned reg = (modrm >> 3) & 7;
+    // PUSH, POP and CALL of r/m have a ModRM operand besides the stack.
+    if (m.any() && !(op == 0x8f || (op == 0xff && (reg == 2 || reg == 6)))) return m;
+    if (!two && op >= 0xa0 && op <= 0xa3) {  // MOV with a direct offset
+        m.reads = !(op & 2);
+        m.writes = op & 2;
+        return m;
+    }
+    if (!two && op == 0xd7) {  // XLAT
+        m.reads = true;
+        return m;
+    }
     if ((modrm >> 6) == 3) return m;
     if (two) {
         if ((op & 0xf0) == 0x90) m.writes = true;
@@ -599,8 +617,12 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
-    } else if (op == 0xff && (reg == 4 || reg == 5)) {  // JMP r/m, JMP m16:16/32
+    } else if (op == 0xff && (reg == 2 || reg == 4 || reg == 5 || reg == 6)) {  // CALL, JMP, PUSH r/m, JMP m16:16/32
         m.reads = true;
+    } else if (op == 0x8f) {  // POP r/m
+        m.writes = true;
+    } else if (op == 0x86 || op == 0x87) {  // XCHG
+        m.reads = m.writes = true;
     } else if (op == 0xff && reg == 3) {  // CALL m16:16/32: the pointer, then the stack
         m.reads = m.writes = true;
     } else if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3) || op == 0xfe || op == 0xff) {
@@ -634,7 +656,7 @@ bool is_shift(const uint8_t *code) {
 }
 
 // An instruction whose result depends on the old flags: ADC, SBB, Jcc,
-// SETcc, LAHF, CMC, LOOPE, LOOPNE, RCL, RCR.
+// SETcc, LAHF, CMC, LOOPE, LOOPNE, RCL, RCR, SALC.
 bool consumes_flags(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
@@ -643,7 +665,7 @@ bool consumes_flags(const uint8_t *code) {
     if (op < 0x40 && (op & 7) < 6) return ((op >> 3) & 7) == 2 || ((op >> 3) & 7) == 3;
     if (op >= 0x80 && op <= 0x83) return reg == 2 || reg == 3;
     if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3)) return reg == 2 || reg == 3;
-    return (op >= 0x70 && op <= 0x7f) || op == 0x9f || op == 0xf5 || op == 0xe0 || op == 0xe1;
+    return (op >= 0x70 && op <= 0x7f) || op == 0x9f || op == 0xf5 || op == 0xe0 || op == 0xe1 || op == 0xd6;
 }
 
 // A branch's opcode and whether it is taken from this state, as the 386
@@ -680,7 +702,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea || op == 0x9a ||
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
-    else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 3 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -803,6 +825,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             while (prefixes < 15 && is_prefix(code[prefixes])) ++prefixes;
             const uint8_t op = code[prefixes];
             const MemUse use = mem_use(code);
+            const bool xchg = op == 0x86 || op == 0x87 || (op >= 0x91 && op <= 0x97);
             if (retired_before) {
                 auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
                            : prefixes > 1 ? summary.gap_prefixed
@@ -811,18 +834,20 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.reads && store_before ? summary.gap_store_load
                            : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0x9a &&
                                      op != 0xca && op != 0xcb && op != 0xc9 && op != 0x54 && op != 0x5c &&
-                                     op != 0x60 && op != 0x61 && (op < 0xcc || op > 0xcf)
+                                     op != 0x60 && op != 0x61 && (op < 0xcc || op > 0xcf) && op != 0xff &&
+                                     op != 0x8f
                                ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
+                           : xchg ? summary.gap_several
                            : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                            : store_before ? summary.gap_after_store
                                           : summary.gap_sequential;
                 ++gaps[rtl.cycles - last_retirement];
             }
-            store_before = use.writes;
+            store_before = use.writes && !xchg && op != 0x8f;
             stack_before = stack_use(code).any();
-            pop_sp_before = op == 0x5c || op == 0x61;
+            pop_sp_before = op == 0x5c || op == 0x61 || (op == 0x8f && code[prefixes + 1] == 0xc4);
             since_segment = loads_segment(code) ? 0 : since_segment + 1;
             retired_before = true;
             branch_before = branch_taken(code, before, code32, taken_before);
@@ -1185,15 +1210,19 @@ public:
         unsigned rel_size = 0;
         // A far transfer to target: rel_at holds a far pointer (its offset,
         // rel_size bytes, then the selector), or the offset or selector a
-        // MOV stores for an indirect one.
-        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL } far = NEAR;
+        // MOV stores for an indirect one. NEAR_ABS: the target's EIP, which a
+        // MOV loads or stores for a CALL r/m.
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS } far = NEAR;
     };
 
-    // base: the program's linear address, which far targets need.
-    std::vector<uint8_t> program(unsigned count, uint32_t base) {
+    // base: the program's linear address, which far targets need; eip: its
+    // first instruction's EIP, which near absolute targets need.
+    std::vector<uint8_t> program(unsigned count, uint32_t base, uint32_t eip) {
         items.clear();
         fence = 0;
+        cs_moved = false;
         program_base = base;
+        program_eip = eip;
         while (items.size() < count) {
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
@@ -1214,7 +1243,10 @@ private:
     std::mt19937_64 &rng;
     std::vector<Item> items;
     int fence = 0;  // no backward jump lands before here: inside a subroutine
-    uint32_t program_base = 0;
+    // A far transfer has run code under another CS, where a target's EIP
+    // is not program_eip plus its offset.
+    bool cs_moved = false;
+    uint32_t program_base = 0, program_eip = 0;
 
     unsigned pick(unsigned n) { return unsigned(rng() % n); }
     uint8_t byte() { return uint8_t(rng()); }
@@ -1244,10 +1276,11 @@ private:
             bool os32;
             prefixes(out, os32);
             const unsigned z = os32 ? 4 : 2;
-            const unsigned form = pick(21);
+            const unsigned form = pick(23);
             bool memory = pick(3) == 0;  // the r/m operand becomes a memory one
             unsigned dst = 8;  // the GPR it writes (8: none or checked below)
             bool dst_byte = false;
+            unsigned dst2 = 8;  // a second GPR it writes (XCHG), of the same size
             switch (form) {
             case 0: case 1: case 2: {  // ALU r/m, r and r, r/m
                 const uint8_t op = uint8_t((pick(8) << 3) | pick(4));
@@ -1421,6 +1454,37 @@ private:
                 memory = true;
                 break;
             }
+            case 19: {  // XCHG r/m, r, and eAX, r
+                if (pick(3)) {
+                    out.push_back(uint8_t(0x86 + pick(2)));
+                    out.push_back(uint8_t(0xc0 | pick(64)));
+                    dst = out.back() & 7;
+                    dst2 = (out.back() >> 3) & 7;
+                    dst_byte = out[out.size() - 2] == 0x86;
+                } else {
+                    out.push_back(uint8_t(0x91 + pick(7)));
+                    dst = 0;
+                    dst2 = out.back() & 7;
+                }
+                break;
+            }
+            case 20: {  // MOV with a direct offset, XLAT, SALC: 16-bit addressing, no CS override, no ModRM
+                out.erase(std::remove_if(out.begin(), out.end(), [](uint8_t b) { return b == 0x67 || b == 0x2e; }),
+                          out.end());
+                memory = false;
+                const unsigned which = pick(4);
+                if (which < 2) {
+                    out.push_back(uint8_t(0xa0 + pick(4)));
+                    if (!(out.back() & 2)) dst = 0;
+                    dst_byte = !(out.back() & 1);
+                    imm(out, 2);
+                } else {
+                    out.push_back(which == 2 ? 0xd7 : 0xd6);
+                    dst = 0;
+                    dst_byte = true;
+                }
+                break;
+            }
             default: {  // MOV r, imm32 keeps values wide
                 out.push_back(uint8_t(0xb8 + pick(8)));
                 dst = out.back() & 7;
@@ -1429,11 +1493,12 @@ private:
             }
             }
             if (memory) to_memory(out, dst);
-            if (keep_ecx && dst != 8 && (dst_byte ? (dst & 3) == 1 : dst == 1)) continue;
+            auto writes_ecx = [&](unsigned r) { return r != 8 && (dst_byte ? (r & 3) == 1 : r == 1); };
+            if (keep_ecx && (writes_ecx(dst) || writes_ecx(dst2))) continue;
             if (keep_stack) {
                 unsigned i = 0;
                 while (i < out.size() && is_prefix(out[i])) ++i;
-                if ((!dst_byte && dst == 4) || mem_use(out.data()).writes ||
+                if ((!dst_byte && (dst == 4 || dst2 == 4)) || mem_use(out.data()).writes ||
                     (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2) || (out[i] == 0x0f && out[i + 1] == 0xb2))
                     continue;
             }
@@ -1474,16 +1539,33 @@ private:
         if (mem_use(out.data()).writes) dst = 8;
     }
 
-    // PUSH r, imm or Sreg, or POP r or Sreg, with 66h when os32. keep_stack
-    // (a subroutine's body) pops into neither ESP, EBP nor SS.
+    // PUSH r, r/m, imm or Sreg, or POP r, r/m or Sreg, with 66h when os32.
+    // keep_stack (a subroutine's body) pops into neither ESP, EBP, SS nor
+    // memory. A memory r/m is 16-bit addressed, without a CS override.
     std::vector<uint8_t> stack_op(bool push, bool os32, bool keep_stack) {
         static const uint8_t harmless[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65, 0xf2, 0xf3};
         std::vector<uint8_t> out;
-        if (pick(6) == 0) out.push_back(harmless[pick(8)]);
-        if (pick(6) == 0) out.push_back(0x67);
+        const unsigned form = pick(5);
+        if (pick(6) == 0) {
+            const uint8_t prefix = harmless[pick(8)];
+            if (form != 4 || prefix != 0x2e) out.push_back(prefix);
+        }
+        if (pick(6) == 0 && form != 4) out.push_back(0x67);
         if (os32) out.push_back(0x66);
-        const unsigned form = pick(4);
-        if (push && form == 2) {
+        if (form == 4) {
+            // FF /6 or 8F /0: a register, or memory unless a body pops.
+            const bool memory = pick(2) && (push || !keep_stack);
+            unsigned r = pick(8);
+            while (!push && keep_stack && (r == 4 || r == 5)) r = pick(8);
+            out.push_back(push ? 0xff : 0x8f);
+            if (memory) {
+                const unsigned mod = pick(3), rm = pick(8);
+                out.push_back(uint8_t((mod << 6) | (push ? 0x30 : 0) | rm));
+                imm(out, mod == 1 ? 1 : mod == 2 || (mod == 0 && rm == 6) ? 2 : 0);
+            } else {
+                out.push_back(uint8_t(0xc0 | (push ? 0x30 : 0) | r));
+            }
+        } else if (push && form == 2) {
             const bool wide = pick(2);
             out.push_back(wide ? 0x68 : 0x6a);
             imm(out, wide ? (os32 ? 4 : 2) : 1);
@@ -1506,18 +1588,49 @@ private:
     // address alone, or pushes and pops the same size back; it may call
     // another, two deep, which returns with a plain RET so the outer return
     // address stays where its RET pops.
-    // A third are far: CALL ptr, or CALL m16:16/32 through a pointer stored
-    // just before, returning with RETF or RETF imm16.
+    // A quarter are far: CALL ptr, or CALL m16:16/32 through a pointer
+    // stored just before, returning with RETF or RETF imm16. A quarter are
+    // CALL r/m near, through a register a MOV loads or a word or dword one
+    // stores just before, until a far transfer has moved CS.
     void call_block(unsigned depth) {
         const bool os32 = pick(4) == 0;
-        const unsigned far = pick(9);  // 0-5 near, 6-7 ptr, 8 indirect
-        const int call = far < 8 ? int(items.size()) : store_pointer(os32);
-        if (far < 6) items.push_back(rel_item(os32, 0xe8));
-        else if (far < 8) items.push_back(ptr_item(os32, 0x9a));
-        else items.push_back(indirect_item(os32, 0x1e));
+        const unsigned kind = pick(cs_moved ? 9 : 12);  // 0-5 rel, 6-7 ptr, 8 far indirect, 9-10 register, 11 memory
+        const bool far = kind >= 6 && kind <= 8;
+        cs_moved = cs_moved || far;
+        int call = int(items.size());
+        if (kind < 6) {
+            items.push_back(rel_item(os32, 0xe8));
+        } else if (kind < 8) {
+            items.push_back(ptr_item(os32, 0x9a));
+        } else if (kind == 8) {
+            call = store_pointer(os32);
+            items.push_back(indirect_item(os32, 0x1e));
+        } else {
+            // MOV r, target (not SP) and CALL r; or MOV [disp16], target and
+            // CALL [disp16].
+            const unsigned r = kind < 11 ? (pick(7) + 5) % 8 : 0;
+            Item mov;
+            if (os32) mov.bytes.push_back(0x66);
+            if (kind < 11) {
+                mov.bytes.push_back(uint8_t(0xb8 + r));
+            } else {
+                pointer = uint16_t(rng());
+                mov.bytes.insert(mov.bytes.end(), {0xc7, 0x06, uint8_t(pointer), uint8_t(pointer >> 8)});
+            }
+            mov.rel_at = unsigned(mov.bytes.size());
+            mov.rel_size = os32 ? 4 : 2;
+            mov.bytes.insert(mov.bytes.end(), mov.rel_size, 0);
+            mov.far = Item::NEAR_ABS;
+            items.push_back(mov);
+            Item via;
+            if (os32) via.bytes.push_back(0x66);
+            if (kind < 11) via.bytes.insert(via.bytes.end(), {0xff, uint8_t(0xd0 | r)});
+            else via.bytes.insert(via.bytes.end(), {0xff, 0x16, uint8_t(pointer), uint8_t(pointer >> 8)});
+            items.push_back(via);
+        }
         const int jump = int(items.size());
         items.push_back(rel_item(pick(4) == 0, 0xe9));
-        if (far < 6) items[size_t(call)].target = int(items.size());
+        if (kind < 6 || kind > 8) items[size_t(call)].target = int(items.size());
         else set_far_target(call, int(items.size()));
         const unsigned length = pick(5);
         for (unsigned n = 0; n < length; ++n) {
@@ -1535,7 +1648,7 @@ private:
         }
         Item ret;
         if (os32) ret.bytes.push_back(0x66);
-        const uint8_t ret_op = far >= 6 ? 0xca : 0xc2;
+        const uint8_t ret_op = far ? 0xca : 0xc2;
         if (depth == 0 && pick(3) == 0) {
             const uint16_t n = pick(4) ? uint16_t(2 * pick(5)) : uint16_t(rng());
             ret.bytes.insert(ret.bytes.end(), {ret_op, uint8_t(n), uint8_t(n >> 8)});
@@ -1602,6 +1715,7 @@ private:
     // take the 386EX's and Bochs's different orders of the entry's read and
     // the pushes (divergence interrupt-vector-before-push).
     void interrupt_block() {
+        cs_moved = true;
         const unsigned form = pick(4);
         const uint8_t vector = form == 0 ? 3 : form == 1 ? 4 : uint8_t(0x20 + pick(0xe0));
         const uint16_t ss = uint16_t(0x100 + pick(0xef00));
@@ -1635,6 +1749,7 @@ private:
     // A far JMP over 0-3 instructions: JMP ptr, or JMP m16:16/32 through a
     // pointer stored just before. Code after it runs with the new CS.
     void far_jump() {
+        cs_moved = true;
         const bool os32 = pick(4) == 0;
         const bool indirect = pick(3) == 0;
         const int at = indirect ? store_pointer(os32) : int(items.size());
@@ -1793,7 +1908,10 @@ private:
         std::vector<uint8_t> out;
         for (size_t n = 0; n < items.size(); ++n) {
             Item &item = items[n];
-            if (item.target >= 0 && item.far != Item::NEAR) {
+            if (item.target >= 0 && item.far == Item::NEAR_ABS) {
+                const uint32_t value = program_eip + offset[size_t(item.target)];
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+            } else if (item.target >= 0 && item.far != Item::NEAR) {
                 uint16_t sel;
                 uint32_t off;
                 far_point(program_base + offset[size_t(item.target)], sel, off);
@@ -1826,7 +1944,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
-        const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base);
+        const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
         for (size_t i = 0; i < code.size(); ++i) bus.ram[base + i] = rtl.ram[base + i] = code[i];
         oracle.invalidate(base, uint32_t(code.size()));
         oracle.set_state(state);
@@ -1973,7 +2091,8 @@ int main(int argc, char **argv) {
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
-                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s}}\n",
+                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s, "
+                "\"several\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -1989,6 +2108,6 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_shift).c_str(), histogram(summary.gap_store_load).c_str(),
                 histogram(summary.gap_after_store).c_str(), histogram(summary.gap_address).c_str(),
                 histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
-                histogram(summary.gap_stack_stack).c_str());
+                histogram(summary.gap_stack_stack).c_str(), histogram(summary.gap_several).c_str());
     return summary.failed ? 1 : 0;
 }

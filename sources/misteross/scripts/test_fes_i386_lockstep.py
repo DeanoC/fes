@@ -99,7 +99,13 @@ SCOPE: frozenset[str] = frozenset([
     'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA', '9A', 'CA', 'CB', 'FF.3', 'FF.5',
     # Microcode routines; PUSHF and POPF.
     '60', '61', '9C', '9D', 'CC', 'CD', 'CE', 'CF',
+    # XCHG, MOV with a direct offset, SALC, XLAT; CALL, PUSH and POP of r/m.
+    '86', '87', *(f'{opcode:02X}' for opcode in range(0x91, 0x98)), 'A0', 'A1', 'A2', 'A3', 'D6', 'D7',
+    'FF.2', 'FF.6', '8F',
 ])
+# Files of an in-scope opcode whose forms are not built yet: POP m with
+# 32-bit addressing, whose ESP base would read ESP after the pop.
+UNBUILT_FILES: frozenset[str] = frozenset(['678F', '67668F'])
 
 
 class LockstepError(RuntimeError):
@@ -108,7 +114,7 @@ class LockstepError(RuntimeError):
 
 def in_scope(stem: str) -> bool:
     """Whether this build executes the stem's instructions."""
-    return vectors.base_opcode(stem) in SCOPE
+    return vectors.base_opcode(stem) in SCOPE and stem not in UNBUILT_FILES
 
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
@@ -328,7 +334,7 @@ def main() -> int:
         if not corpus.is_dir():
             raise LockstepError(f'corpus directory does not exist: {corpus}; pass --download')
         paths = sorted(path for path in corpus.glob('*.MOO.gz')
-                       if vectors.base_opcode(path.name[:-len('.MOO.gz')]) in SCOPE
+                       if in_scope(path.name[:-len('.MOO.gz')])
                        and (not args.opcode or path.name[:-len('.MOO.gz')] in args.opcode))
         if args.opcode and len(paths) != len(set(args.opcode)):
             raise LockstepError('requested opcode files are absent or outside the scope')
@@ -382,7 +388,7 @@ def main() -> int:
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
-                        'after_stack', 'stack_stack')}
+                        'after_stack', 'stack_stack', 'several')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
