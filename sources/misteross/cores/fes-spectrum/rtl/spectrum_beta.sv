@@ -62,7 +62,7 @@ module spectrum_beta #(
     reg mfm;
     reg [23:0] unload_count;
     reg unload_armed;
-    reg index_irq;      // Force Interrupt I2: INTRQ at the next index
+    reg index_irq;      // Force Interrupt I2: INTRQ when the next index ends
     reg step;
     reg step_out;
 

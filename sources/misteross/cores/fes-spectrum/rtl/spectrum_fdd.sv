@@ -49,7 +49,7 @@ module spectrum_fdd #(
     output wire          tr00,
     output wire          loaded,        // the selected drive holds a disk
     output wire          index_pulse,
-    output wire          index_end,     // one clock: the index pulse ends
+    output wire          index_end,     // one clock: the current index pulse ends
     output reg           byte_ev,
     output reg  [7:0]    byte_data,
     output reg           byte_clock,

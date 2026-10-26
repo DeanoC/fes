@@ -228,6 +228,18 @@ int main(int argc, char **argv) {
     b.command({0x04, 0x01});
     expect((b.results()[0] & 0x70) == 0x50, "drive B is empty: write protected at track 0");
 
+    // A not-ready seek still raises a Sense Interrupt Status, and consuming
+    // that status leaves no command pending.
+    b.command({0x0f, 0x01, 0x01});
+    while (b.msr() & 0x01) {}
+    {
+        const auto r = b.sense_int();
+        expect(r.size() == 2 && (r[0] & 0xe8) == 0xe8 && r[1] == 0,
+               "not-ready seek sense interrupt");
+    }
+    expect(b.sense_int() == std::vector<uint8_t>{0x80},
+           "sense interrupt after consuming not-ready status is invalid");
+
     // Recalibrate, then seek.
     b.command({0x07, 0x00});
     while (b.msr() & 0x01) {}
@@ -235,6 +247,8 @@ int main(int argc, char **argv) {
         const auto r = b.sense_int();
         expect(r.size() == 2 && (r[0] & 0xf0) == 0x20 && r[1] == 0, "recalibrate sense interrupt");
     }
+    expect(b.sense_int() == std::vector<uint8_t>{0x80},
+           "sense interrupt after consuming seek completion is invalid");
     {
         const uint64_t start = b.t;
         b.seek(2);
@@ -339,6 +353,30 @@ int main(int argc, char **argv) {
         const auto d = b.transfer(&r);
         expect(d.size() == 2 * 512 && d[5] == pattern(1, 1, 5), "read diagnostic");
     }
+
+    // When multiple seeks have completed, draining one Sense Interrupt must
+    // leave the next unit's status pending for the following 0x08.
+    b.command({0x0f, 0x00, 0x03});
+    b.command({0x0f, 0x01, 0x01});
+    {
+        const uint64_t start = b.t;
+        while (b.msr() & 0x03)
+            if (b.t - start > 2000 * T_PER_MS) fail("queued seeks do not end");
+    }
+    {
+        const auto r = b.sense_int();
+        expect(r.size() == 2 && (r[0] & 0xf8) == 0x20 && r[1] == 3,
+               "first of two pending seek interrupts");
+    }
+    {
+        const auto r = b.sense_int();
+        expect(r.size() == 2 && (r[0] & 0xe8) == 0xe8 && r[1] == 0,
+               "second of two pending seek interrupts: ST0=" +
+                   (r.empty() ? std::string("missing") : std::to_string(r[0])) +
+                   ", PCN=" + (r.size() < 2 ? std::string("missing") : std::to_string(r[1])));
+    }
+    expect(b.sense_int() == std::vector<uint8_t>{0x80},
+           "sense interrupt after consuming both pending statuses is invalid");
 
     // Write Data: the disk is write protected.
     b.command({0x45, 0x00, 0x01, 0x00, 0x01, 0x02, 0x01, 0x2a, 0xff});

@@ -630,7 +630,14 @@ module spectrum_upd765 #(
                         rqm <= 1'b1;
                         dio <= 1'b0;
                         cb <= 1'b0;
-                        if (intrq < I_READY) intrq <= I_NONE;
+                        if (cmd == C_SENSE_INT) begin
+                            // A Sense Interrupt result acknowledges the seek
+                            // status it returned. Keep an interrupt only when
+                            // another unit still has a completed seek status.
+                            if (!sense_any) intrq <= I_NONE;
+                            else if (seek_st[sense_unit] == 3'd6) intrq <= I_READY;
+                            else intrq <= I_SEEK;
+                        end else if (intrq < I_READY) intrq <= I_NONE;
                         cycle <= 4'd0;
                     end else cycle <= cycle + 4'd1;
                 end
