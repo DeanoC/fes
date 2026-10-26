@@ -116,6 +116,11 @@ func readSZX(data []byte) (*Snapshot, error) {
 	var regs, spcr, ay []byte
 	swap := false
 	for rest := data[8:]; len(rest) > 0; {
+		// libspectrum takes an all-$FF tail (Fuse's libretro core pads its
+		// saves) as the end: no chunk id starts with $FF.
+		if len(bytes.TrimLeft(rest, "\xff")) == 0 {
+			break
+		}
 		if len(rest) < 8 {
 			return nil, errors.New(".szx chunk header is truncated")
 		}

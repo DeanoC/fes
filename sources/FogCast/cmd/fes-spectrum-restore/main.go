@@ -20,7 +20,7 @@ func run(args []string, stderr io.Writer) int {
 		return 2
 	}
 	if *output == "" || flags.NArg() != 1 {
-		fmt.Fprintln(stderr, "usage: fes-spectrum-restore -out stream.bin snapshot.z80")
+		fmt.Fprintln(stderr, "usage: fes-spectrum-restore -out stream.bin snapshot.{z80,sna,szx}")
 		return 2
 	}
 	data, err := os.ReadFile(flags.Arg(0))

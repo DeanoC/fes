@@ -131,6 +131,16 @@ func TestSZXOldLibspectrumSwapsAF(t *testing.T) {
 	}
 }
 
+func TestSZXAcceptsFFPadding(t *testing.T) {
+	// Fuse's libretro core pads its saves with $FF to a fixed size.
+	s := sampleState(Machine48K, rand.New(rand.NewSource(28)))
+	data := append(szx(s, 1, true), bytes.Repeat([]byte{0xff}, 1000)...)
+	checkRegisters(t, restore(t, data, Model48K, Machine48K), s)
+	if Recognize(append(data, 0)) {
+		t.Fatal("a tail that is not all $FF was recognized")
+	}
+}
+
 func TestSZXIgnoresIdlePeripherals(t *testing.T) {
 	s := sampleState(Machine128K, rand.New(rand.NewSource(25)))
 	data := szx(s, 2, true,
