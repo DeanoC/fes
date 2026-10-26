@@ -243,6 +243,215 @@ func TestStaleBondErrorClassificationAndRemovalBound(t *testing.T) {
 	}
 }
 
+func TestPairTimeoutCancelsBeforeRestoringPairability(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		cancelFails bool
+	}{
+		{name: "restore after cancellation"},
+		{name: "leave bondable if cancellation is uncertain", cancelFails: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, server := net.Pipe()
+			t.Cleanup(func() { client.Close() })
+			a := &agent{bus: newBus(bufio.NewReader(client), client)}
+			go a.bus.readLoop()
+
+			peerErr := make(chan error, 1)
+			go func() { peerErr <- fakePairTimeoutBlueZ(server, tc.cancelFails) }()
+			err := a.pairDeviceWithTimeout(context.Background(), devInfo{Path: gamepadPath}, 100*time.Millisecond)
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("Pair error = %v, want client timeout", err)
+			}
+			if tc.cancelFails && !strings.Contains(err.Error(), "cancel pairing before restoring") {
+				t.Fatalf("uncertain cancellation was not reported: %v", err)
+			}
+			_, cleanupPending := a.pendingPairingCancel[gamepadPath]
+			if cleanupPending != tc.cancelFails {
+				t.Fatalf("pending cancellation = %v, want %v", cleanupPending, tc.cancelFails)
+			}
+			if err := <-peerErr; err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestPendingPairingCleanupKeepsPairableUntilCancellationCompletes(t *testing.T) {
+	client, server := net.Pipe()
+	t.Cleanup(func() { client.Close() })
+	a := &agent{
+		bus:                  newBus(bufio.NewReader(client), client),
+		configuredAdapters:   map[string]struct{}{},
+		pendingPairingCancel: map[string]struct{}{gamepadPath: {}},
+	}
+	go a.bus.readLoop()
+	peerErr := make(chan error, 1)
+	go func() { peerErr <- fakePendingPairingCleanupBlueZ(server) }()
+
+	a.configure(context.Background(), "/org/bluez/hci0")
+	if !a.adapterHasPendingPairing("/org/bluez/hci0") {
+		t.Fatal("adapter lost its pending pairing state during configuration")
+	}
+	a.retryPendingPairingCleanup()
+	if a.adapterHasPendingPairing("/org/bluez/hci0") {
+		t.Fatal("pending pairing state remained after BlueZ confirmed it was inactive")
+	}
+	if _, ok := a.configuredAdapters["/org/bluez/hci0"]; ok {
+		t.Fatal("adapter remained configured after pending cleanup changed Pairable")
+	}
+	if err := <-peerErr; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fakePendingPairingCleanupBlueZ(conn net.Conn) error {
+	defer conn.Close()
+	r := bufio.NewReader(conn)
+	var serial uint32
+	readCall := func(member string) (*Message, error) {
+		msg, err := readMessage(r)
+		if err != nil {
+			return nil, err
+		}
+		if msg.Type != msgMethodCall || msg.Member != member {
+			return nil, fmt.Errorf("got %s, want method %s", msg.Member, member)
+		}
+		return msg, nil
+	}
+	respond := func(msg *Message, name string, want any) error {
+		if msg.Path != "/org/bluez/hci0" || msg.Iface != propsIface || msg.Signature != "ssv" {
+			return fmt.Errorf("Set call targeted %s %s", msg.Iface, msg.Path)
+		}
+		d := &decoder{b: msg.Body}
+		values, err := d.readSig("ssv")
+		if err != nil || len(values) != 3 || values[0] != adapterIface || values[1] != name || values[2] != want {
+			return fmt.Errorf("Set %s = %v (error %v), want %v", name, values, err, want)
+		}
+		serial++
+		return reply(conn, serial, msg.Serial, "", nil)
+	}
+	powered, err := readCall("Set")
+	if err != nil {
+		return err
+	}
+	if err := respond(powered, "Powered", true); err != nil {
+		return err
+	}
+	discoverable, err := readCall("Set")
+	if err != nil {
+		return err
+	}
+	if err := respond(discoverable, "Discoverable", false); err != nil {
+		return err
+	}
+	discovery, err := readCall("StartDiscovery")
+	if err != nil || discovery.Path != "/org/bluez/hci0" || discovery.Iface != adapterIface {
+		return fmt.Errorf("StartDiscovery call = %#v (error %v)", discovery, err)
+	}
+	serial++
+	if err := reply(conn, serial, discovery.Serial, "", nil); err != nil {
+		return err
+	}
+	cancel, err := readCall("CancelPairing")
+	if err != nil || cancel.Path != gamepadPath || cancel.Iface != deviceIface {
+		return fmt.Errorf("CancelPairing call = %#v (error %v)", cancel, err)
+	}
+	serial++
+	if err := replyError(conn, serial, cancel.Serial, "org.bluez.Error.DoesNotExist", "no pairing active"); err != nil {
+		return err
+	}
+	pairable, err := readCall("Set")
+	if err != nil {
+		return err
+	}
+	return respond(pairable, "Pairable", false)
+}
+
+func fakePairTimeoutBlueZ(conn net.Conn, cancelFails bool) error {
+	defer conn.Close()
+	r := bufio.NewReader(conn)
+	readCall := func(member string) (*Message, error) {
+		msg, err := readMessage(r)
+		if err != nil {
+			return nil, err
+		}
+		if msg.Type != msgMethodCall || msg.Member != member {
+			return nil, fmt.Errorf("got %s, want method %s", msg.Member, member)
+		}
+		return msg, nil
+	}
+	decodePairable := func(msg *Message, want bool) error {
+		if msg.Path != "/org/bluez/hci0" || msg.Iface != propsIface || msg.Signature != "ssv" {
+			return errors.New("adapter Pairable update targeted the wrong property")
+		}
+		d := &decoder{b: msg.Body}
+		values, err := d.readSig("ssv")
+		if err != nil || len(values) != 3 || values[0] != adapterIface || values[1] != "Pairable" || values[2] != want {
+			return fmt.Errorf("Pairable update = %v (error %v), want %v", values, err, want)
+		}
+		return nil
+	}
+	var serial uint32
+	replyVoid := func(msg *Message) error {
+		serial++
+		return reply(conn, serial, msg.Serial, "", nil)
+	}
+	setOn, err := readCall("Set")
+	if err != nil {
+		return err
+	}
+	if err := decodePairable(setOn, true); err != nil {
+		return err
+	}
+	if err := replyVoid(setOn); err != nil {
+		return err
+	}
+	pair, err := readCall("Pair")
+	if err != nil || pair.Path != gamepadPath || pair.Iface != deviceIface {
+		return fmt.Errorf("Pair call = %#v (error %v)", pair, err)
+	}
+	// Hold Pair open past the client's deadline. BlueZ can still be pairing
+	// until the explicit CancelPairing request arrives.
+	cancel, err := readCall("CancelPairing")
+	if err != nil || cancel.Path != gamepadPath || cancel.Iface != deviceIface {
+		return fmt.Errorf("CancelPairing call = %#v (error %v)", cancel, err)
+	}
+	if cancelFails {
+		serial++
+		if err := replyError(conn, serial, cancel.Serial, "org.bluez.Error.Failed", "pairing still active"); err != nil {
+			return err
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
+			return err
+		}
+		if msg, err := readMessage(r); err == nil {
+			return fmt.Errorf("sent %s after uncertain CancelPairing", msg.Member)
+		} else if timeoutErr, ok := err.(net.Error); !ok || !timeoutErr.Timeout() {
+			return fmt.Errorf("waiting for no restore call: %w", err)
+		}
+		return nil
+	}
+	serial++
+	if err := reply(conn, serial, cancel.Serial, "", nil); err != nil {
+		return err
+	}
+	// Ignore the late response to Pair that can arrive after cancellation; its
+	// client-side wait has already expired.
+	serial++
+	if err := replyError(conn, serial, pair.Serial, "org.bluez.Error.AuthenticationCanceled", "pairing canceled"); err != nil {
+		return err
+	}
+	setOff, err := readCall("Set")
+	if err != nil {
+		return err
+	}
+	if err := decodePairable(setOff, false); err != nil {
+		return err
+	}
+	return replyVoid(setOff)
+}
+
 func fakeBlueZ(conn net.Conn) error {
 	defer conn.Close()
 	r := bufio.NewReader(conn)
@@ -271,7 +480,10 @@ func fakeBlueZ(conn net.Conn) error {
 	var registerCount, startDiscoveryCount int
 	var poweredSets, pairableSets, discoverableSets int
 	var connectCount, removeDeviceCount, pairCount int
-	var bonded, devicePresent bool
+	var pairStoreHint bool
+	var pairCompleted bool
+	var pairableRestoreFailures int
+	var bonded, devicePresent, paired bool
 	expectedMatches := []string{
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
@@ -367,6 +579,13 @@ func fakeBlueZ(conn net.Conn) error {
 					if !ok {
 						return errors.New("adapter Pairable value is not boolean")
 					}
+					if pairCompleted && !value && pairableRestoreFailures == 0 {
+						pairableRestoreFailures++
+						if err := replyError(conn, next(), msg.Serial, "org.bluez.Error.Failed", "simulated transient Pairable restore failure"); err != nil {
+							return err
+						}
+						continue
+					}
 					adapterPairable = value
 				case "Discoverable":
 					discoverableSets++
@@ -400,7 +619,7 @@ func fakeBlueZ(conn net.Conn) error {
 			}
 			startDiscoveryCount++
 			if startDiscoveryCount == 2 {
-				if registerCount != 2 || poweredSets != 2 || pairableSets != 4 || discoverableSets != 2 {
+				if registerCount != 2 || poweredSets != 2 || pairableSets != 5 || discoverableSets != 2 {
 					return fmt.Errorf("BlueZ restart setup counts: register=%d powered=%d pairable=%d discoverable=%d", registerCount, poweredSets, pairableSets, discoverableSets)
 				}
 				if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {
@@ -416,7 +635,7 @@ func fakeBlueZ(conn net.Conn) error {
 				Member:    "InterfacesAdded",
 				Signature: "oa{sa{sv}}",
 			}
-			bonded, devicePresent = true, true
+			bonded, devicePresent, paired = true, true, true
 			if err := writeMessage(conn, signal, encodeDeviceAddedState(gamepadPath, true)); err != nil {
 				return err
 			}
@@ -432,14 +651,17 @@ func fakeBlueZ(conn net.Conn) error {
 			if !devicePresent {
 				return errors.New("Pair targeted a temporary device that was removed")
 			}
-			if !adapterPairable {
-				return errors.New("Pair ran while the adapter was not bondable")
-			}
 			if bonded {
 				return errors.New("agent re-paired an already bonded device")
 			}
+			if pairCount != 0 {
+				return errors.New("agent re-paired a controller whose key was not stored")
+			}
 			pairCount++
-			bonded = true
+			// The kernel's New Link Key/Long Term Key store_hint is modeled from
+			// bondability at key generation time. Pair may look successful while
+			// store_hint is false, but that key disappears on disconnect.
+			pairStoreHint = adapterPairable
 			authorization, err := callAgent("RequestAuthorization", "o", bodyPath(gamepadPath))
 			if err != nil {
 				return err
@@ -501,6 +723,7 @@ func fakeBlueZ(conn net.Conn) error {
 			if hid.Type != msgMethodReturn {
 				return errors.New("HID service rejected")
 			}
+			paired, bonded, pairCompleted = true, pairStoreHint, true
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
@@ -514,7 +737,7 @@ func fakeBlueZ(conn net.Conn) error {
 				return errors.New("RemoveDevice targeted the wrong device")
 			}
 			removeDeviceCount++
-			bonded, devicePresent = false, false
+			bonded, devicePresent, paired = false, false, false
 			if removeDeviceCount != 1 {
 				return errors.New("stale device removed more than once")
 			}
@@ -528,15 +751,13 @@ func fakeBlueZ(conn net.Conn) error {
 				return err
 			}
 			devicePresent = true
+			paired = false
 			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesAdded", Signature: "oa{sa{sv}}"}, encodeDeviceAddedState(gamepadPath, false)); err != nil {
 				return err
 			}
 		case "Connect":
 			if msg.Path != gamepadPath {
 				return errors.New("connected " + msg.Path)
-			}
-			if adapterPairable {
-				return errors.New("adapter remained pairable during Connect")
 			}
 			connectCount++
 			if connectCount == 1 {
@@ -546,8 +767,8 @@ func fakeBlueZ(conn net.Conn) error {
 				continue
 			}
 			if connectCount == 2 {
-				if pairCount != 1 || removeDeviceCount != 1 || !bonded || !devicePresent {
-					return fmt.Errorf("pair result was not retained on the same bonded device: connect=%d pair=%d remove=%d bonded=%v present=%v", connectCount, pairCount, removeDeviceCount, bonded, devicePresent)
+				if pairCount != 1 || removeDeviceCount != 1 || !paired || !devicePresent {
+					return fmt.Errorf("pair result was not retained on the same device: connect=%d pair=%d remove=%d paired=%v present=%v", connectCount, pairCount, removeDeviceCount, paired, devicePresent)
 				}
 				if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 					return err
@@ -558,10 +779,16 @@ func fakeBlueZ(conn net.Conn) error {
 				if err := writeDeviceProperties(conn, next(), gamepadPath, propBool("Connected", false)); err != nil {
 					return err
 				}
+				if !bonded {
+					paired = false
+					if err := writeDeviceProperties(conn, next(), gamepadPath, propBool("Paired", false)); err != nil {
+						return err
+					}
+				}
 				continue
 			}
-			if connectCount != 3 || pairCount != 1 || removeDeviceCount != 1 || !bonded || !devicePresent {
-				return fmt.Errorf("reconnect unexpectedly paired or removed the device: connect=%d pair=%d remove=%d bonded=%v present=%v", connectCount, pairCount, removeDeviceCount, bonded, devicePresent)
+			if connectCount != 3 || pairCount != 1 || removeDeviceCount != 1 || !bonded || !paired || !devicePresent {
+				return fmt.Errorf("reconnect unexpectedly paired or removed the device: connect=%d pair=%d remove=%d bonded=%v paired=%v present=%v", connectCount, pairCount, removeDeviceCount, bonded, paired, devicePresent)
 			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err

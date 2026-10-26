@@ -34,6 +34,8 @@ const (
 	// staleBondRemovalMax bounds recovery attempts for one device during this
 	// agent lifetime, including attempts whose RemoveDevice call fails.
 	staleBondRemovalMax = 3
+	pairCallTimeout     = 35 * time.Second
+	pairCleanupTimeout  = 10 * time.Second
 )
 
 type dbusError struct {
@@ -256,6 +258,7 @@ func Run(ctx context.Context, raw io.ReadWriteCloser) error {
 		devices:                  map[string]devInfo{},
 		adapters:                 map[string]struct{}{},
 		configuredAdapters:       map[string]struct{}{},
+		pendingPairingCancel:     map[string]struct{}{},
 		logged:                   map[string]time.Time{},
 		staleBondRemoved:         map[string]struct{}{},
 		staleBondRemovalAttempts: map[string]int{},
@@ -280,6 +283,7 @@ type agent struct {
 	bluezOwner               string
 	registeredOwner          string
 	configuredAdapters       map[string]struct{}
+	pendingPairingCancel     map[string]struct{}
 	staleBondMu              sync.Mutex
 	staleBondRemoved         map[string]struct{}
 	staleBondRemovalAttempts map[string]int
@@ -405,6 +409,7 @@ func (a *agent) refresh(ctx context.Context) error {
 		return err
 	}
 	a.devices = devices
+	a.retryPendingPairingCleanup()
 	a.adapters = make(map[string]struct{}, len(adapters))
 	for _, path := range adapters {
 		a.adapters[path] = struct{}{}
@@ -455,6 +460,7 @@ func (a *agent) onSignal(ctx context.Context, msg *Message) error {
 		a.adapters = map[string]struct{}{}
 		a.devices = map[string]devInfo{}
 		a.configuredAdapters = map[string]struct{}{}
+		a.pendingPairingCancel = map[string]struct{}{}
 		a.resetStaleBondRemovalClaims()
 		if newOwner == "" {
 			log.Printf("bluetooth: org.bluez owner disappeared from %s", previousOwner)
@@ -524,11 +530,20 @@ func (a *agent) configure(ctx context.Context, path string) {
 		body []byte
 	}{
 		{"Powered", bodyProp(adapterIface, "Powered", "b", true, 0)},
-		// Keep BlueZ bondability off while idle. Pairable is BlueZ's
-		// controller bondable setting, so pairing enables it only for Pair.
-		{"Pairable", bodyProp(adapterIface, "Pairable", "b", false, 0)},
-		{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)},
 	}
+	pairingPending := a.adapterHasPendingPairing(path)
+	if !pairingPending {
+		// Keep BlueZ bondability off while idle. Pairable is BlueZ's controller
+		// bondable setting, so pairing enables it only for Pair.
+		sets = append(sets, struct {
+			name string
+			body []byte
+		}{"Pairable", bodyProp(adapterIface, "Pairable", "b", false, 0)})
+	}
+	sets = append(sets, struct {
+		name string
+		body []byte
+	}{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)})
 	configured := true
 	for _, set := range sets {
 		if err := a.callVoid(ctx, bluezDest, path, propsIface, "Set", "ssv", set.body, 10*time.Second); err != nil {
@@ -543,7 +558,36 @@ func (a *agent) configure(ctx context.Context, path string) {
 	}
 	if configured {
 		a.configuredAdapters[path] = struct{}{}
-		log.Printf("bluetooth: adapter setup succeeded %s (Powered=true Pairable=false Discoverable=false, discovery active)", path)
+		if pairingPending {
+			log.Printf("bluetooth: adapter setup succeeded %s (Pairable restoration pending, discovery active)", path)
+		} else {
+			log.Printf("bluetooth: adapter setup succeeded %s (Powered=true Pairable=false Discoverable=false, discovery active)", path)
+		}
+	}
+}
+
+func (a *agent) adapterHasPendingPairing(adapterPath string) bool {
+	for devicePath := range a.pendingPairingCancel {
+		if path.Dir(devicePath) == adapterPath {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *agent) retryPendingPairingCleanup() {
+	for devicePath := range a.pendingPairingCancel {
+		if err := a.cancelPairing(devicePath); err != nil {
+			a.logf("cancel-pairing:"+devicePath, "bluetooth: cancel pending pairing %s: %v", devicePath, err)
+			continue
+		}
+		adapterPath := path.Dir(devicePath)
+		if err := a.restoreAdapterPairable(adapterPath); err != nil {
+			a.logf("restore-pairable:"+adapterPath, "bluetooth: restore adapter pairability %s after pairing cancellation: %v", adapterPath, err)
+			continue
+		}
+		delete(a.pendingPairingCancel, devicePath)
+		delete(a.configuredAdapters, adapterPath)
 	}
 }
 
@@ -608,6 +652,10 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 // temporary pairing without persisting its link key. Restore the idle state
 // even if Pair fails or the caller is cancelled.
 func (a *agent) pairDevice(ctx context.Context, dev devInfo) error {
+	return a.pairDeviceWithTimeout(ctx, dev, pairCallTimeout)
+}
+
+func (a *agent) pairDeviceWithTimeout(ctx context.Context, dev devInfo, timeout time.Duration) error {
 	adapterPath := path.Dir(dev.Path)
 	if err := a.setAdapterPairable(ctx, adapterPath, true); err != nil {
 		enableErr := fmt.Errorf("enable adapter bondability: %w", err)
@@ -616,7 +664,20 @@ func (a *agent) pairDevice(ctx context.Context, dev devInfo) error {
 		}
 		return enableErr
 	}
-	pairErr := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, 35*time.Second)
+	pairErr := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, timeout)
+	if pairErr != nil {
+		var bluezErr *dbusError
+		if !errors.As(pairErr, &bluezErr) {
+			if cancelErr := a.cancelPairing(dev.Path); cancelErr != nil {
+				if a.pendingPairingCancel == nil {
+					a.pendingPairingCancel = map[string]struct{}{}
+				}
+				a.pendingPairingCancel[dev.Path] = struct{}{}
+				delete(a.configuredAdapters, adapterPath)
+				return errors.Join(pairErr, fmt.Errorf("cancel pairing before restoring adapter bondability: %w", cancelErr))
+			}
+		}
+	}
 	restoreErr := a.restoreAdapterPairable(adapterPath)
 	if pairErr != nil {
 		if restoreErr != nil {
@@ -625,15 +686,35 @@ func (a *agent) pairDevice(ctx context.Context, dev devInfo) error {
 		return pairErr
 	}
 	if restoreErr != nil {
-		return fmt.Errorf("restore adapter pairability: %w", restoreErr)
+		// Pair has already created the bond. Retry transient restoration errors,
+		// but keep the successful pairing path moving even if BlueZ still refuses
+		// to restore its idle state. The next adapter refresh will configure it
+		// again because this entry is no longer marked configured.
+		if retryErr := a.restoreAdapterPairable(adapterPath); retryErr != nil {
+			restoreErr = errors.Join(restoreErr, retryErr)
+		} else {
+			return nil
+		}
+		delete(a.configuredAdapters, adapterPath)
+		a.logf("restore-pairable:"+adapterPath, "bluetooth: restore adapter pairability %s after successful pairing: %v", adapterPath, restoreErr)
 	}
 	return nil
 }
 
 func (a *agent) restoreAdapterPairable(adapterPath string) error {
-	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), pairCleanupTimeout)
 	defer cancel()
 	return a.setAdapterPairable(cleanupCtx, adapterPath, false)
+}
+
+func (a *agent) cancelPairing(devicePath string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), pairCleanupTimeout)
+	defer cancel()
+	err := a.callVoid(cleanupCtx, bluezDest, devicePath, deviceIface, "CancelPairing", "", nil, pairCleanupTimeout)
+	if isName(err, "org.bluez.Error.DoesNotExist") {
+		return nil
+	}
+	return err
 }
 
 func (a *agent) setAdapterPairable(ctx context.Context, adapterPath string, pairable bool) error {

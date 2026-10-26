@@ -132,13 +132,29 @@ test ! -e "$BT_SIGNALS"
 test "$(cat "$BT_STARTS")" = start
 test "$(cat "$fixture/pid")" != 4242
 
-# S35's storage waiter must stop before a late mount can restart Bluetooth.
+# S35 restart must replace its storage waiter, and stop must wait for the
+# waiter to finish an in-flight service restart before returning.
 cat > "$fixture/storage-sleep" <<'INNER'
 #!/bin/sh
-printf '%s\n' started > "$BT_STORAGE_SLEEP_STARTED"
-exec /bin/sleep 2
+case "$1" in
+  1) printf '%s\n' started > "$BT_STORAGE_SLEEP_STARTED"; exec /bin/sleep 0.2 ;;
+  2) exec /bin/sleep 0.05 ;;
+  *) exit 2 ;;
+esac
 INNER
-chmod +x "$fixture/storage-sleep"
+cat > "$fixture/storage-bluetoothd" <<'INNER'
+#!/bin/sh
+[ "${1:-}" = restart ] || exit 2
+printf '%s\n' S40-start >> "$BT_STORAGE_SERVICE_EVENTS"
+/bin/sleep 0.5
+printf '%s\n' S40-end >> "$BT_STORAGE_SERVICE_EVENTS"
+INNER
+cat > "$fixture/storage-agent" <<'INNER'
+#!/bin/sh
+[ "${1:-}" = restart ] || exit 2
+printf '%s\n' S41-start >> "$BT_STORAGE_SERVICE_EVENTS"
+INNER
+chmod +x "$fixture/storage-sleep" "$fixture/storage-bluetoothd" "$fixture/storage-agent"
 sed \
   -e "s|/run/fes-bluetooth-storage.pid|$fixture/storage-pid|g" \
   -e "s|/var/log/fes-bluetooth-storage.log|$fixture/storage-log|g" \
@@ -146,40 +162,81 @@ sed \
   -e "s|/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth|$fixture/modules|g" \
   -e "s|/proc/mounts|$fixture/mounts|g" \
   -e "s|/sys/class/bluetooth/hci0|$fixture/hci0|g" \
+  -e "s|/etc/init.d/S40bluetooth|$fixture/storage-bluetoothd|g" \
+  -e "s|/etc/init.d/S41fes-bluetooth|$fixture/storage-agent|g" \
   -e "s|/bin/sleep|$fixture/storage-sleep|g" \
   -e "s|/bin/kill|$fixture/storage-kill|g" \
   -e "s|/bin/rm|$fixture/rm|g" \
   "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S35fes-bluetooth" > "$fixture/storage-init"
 cat > "$fixture/storage-kill" <<'INNER'
 #!/bin/sh
-if [ "${1:-}" != -0 ]; then printf '%s\n' "$1" >> "$BT_STORAGE_SIGNALS"; fi
+if [ "${1:-}" = -0 ]; then exec /bin/kill -0 "$2"; fi
+printf '%s\n' "$1" >> "$BT_STORAGE_SIGNALS"
 exec /bin/kill "$@"
 INNER
 chmod +x "$fixture/storage-kill" "$fixture/storage-init"
 
-check_storage_waiter_cancelled() {
-  action=$1
-  rm -rf "$fixture/data" "$fixture/mounts"
-  rm -f "$fixture/storage-pid" "$fixture/storage-sleep-started" "$fixture/storage-signals"
-  : > "$fixture/mounts"
-  BT_STORAGE_SLEEP_STARTED=$fixture/storage-sleep-started \
-    BT_STORAGE_SIGNALS=$fixture/storage-signals "$fixture/storage-init" start
+wait_for_storage_file() {
+  file=$1
   tries=0
-  while [ ! -s "$fixture/storage-sleep-started" ] && [ "$tries" -lt 30 ]; do
-    /bin/sleep 0.1
+  while [ ! -e "$file" ] && [ "$tries" -lt 100 ]; do
+    /bin/sleep 0.05
     tries=$((tries + 1))
   done
-  test -s "$fixture/storage-sleep-started"
-  test -s "$fixture/storage-pid"
-  waiter=$(cat "$fixture/storage-pid")
-  BT_STORAGE_SLEEP_STARTED=$fixture/storage-sleep-started \
-    BT_STORAGE_SIGNALS=$fixture/storage-signals "$fixture/storage-init" "$action"
-  grep -Fxq "$waiter" "$fixture/storage-signals"
-  test ! -e "$fixture/storage-pid"
-  printf 'device %s ext4 rw 0 0\n' "$fixture/data" > "$fixture/mounts"
-  /bin/sleep 2.2
-  test ! -e "$fixture/data/bluetooth"
+  test -e "$file"
 }
 
-check_storage_waiter_cancelled stop
-check_storage_waiter_cancelled restart
+rm -rf "$fixture/data" "$fixture/mounts"
+rm -f "$fixture/storage-pid" "$fixture/storage-sleep-started" "$fixture/storage-signals" "$fixture/storage-events"
+: > "$fixture/mounts"
+export BT_STORAGE_SLEEP_STARTED=$fixture/storage-sleep-started
+export BT_STORAGE_SIGNALS=$fixture/storage-signals
+export BT_STORAGE_SERVICE_EVENTS=$fixture/storage-events
+"$fixture/storage-init" start
+wait_for_storage_file "$fixture/storage-sleep-started"
+waiter=$(cat "$fixture/storage-pid")
+"$fixture/storage-init" stop
+grep -Fxq "$waiter" "$fixture/storage-signals"
+test ! -e "$fixture/storage-pid"
+printf 'device %s ext4 rw 0 0\n' "$fixture/data" > "$fixture/mounts"
+/bin/sleep 0.3
+test ! -e "$fixture/data/bluetooth"
+
+# Restart cancels the pre-mount waiter and launches a replacement that handles
+# the mount when it becomes ready.
+rm -f "$fixture/storage-sleep-started" "$fixture/storage-signals"
+: > "$fixture/mounts"
+"$fixture/storage-init" start
+wait_for_storage_file "$fixture/storage-sleep-started"
+waiter=$(cat "$fixture/storage-pid")
+"$fixture/storage-init" restart
+grep -Fxq "$waiter" "$fixture/storage-signals"
+test -s "$fixture/storage-pid"
+printf 'device %s ext4 rw 0 0\n' "$fixture/data" > "$fixture/mounts"
+wait_for_storage_file "$fixture/data/bluetooth"
+test "$(stat -c '%a' "$fixture/data/bluetooth")" = 700
+
+# If stop arrives while S40 is running, it waits for the waiter to finish and
+# the waiter does not proceed to restart the Bluetooth agent afterward.
+rm -f "$fixture/storage-pid" "$fixture/storage-sleep-started" "$fixture/storage-signals" "$fixture/storage-events"
+: > "$fixture/mounts"
+: > "$fixture/hci0"
+printf 'device %s ext4 rw 0 0\n' "$fixture/data" > "$fixture/mounts"
+"$fixture/storage-init" start
+wait_for_storage_file "$fixture/storage-events"
+grep -Fxq S40-start "$fixture/storage-events"
+(
+  "$fixture/storage-init" stop
+  : > "$fixture/stop-returned"
+) &
+stop_pid=$!
+/bin/sleep 0.1
+test ! -e "$fixture/stop-returned"
+wait "$stop_pid"
+test -e "$fixture/stop-returned"
+grep -Fxq S40-end "$fixture/storage-events"
+if grep -Fxq S41-start "$fixture/storage-events"; then
+  echo 'storage waiter restarted the Bluetooth agent after stop' >&2
+  exit 1
+fi
+test ! -e "$fixture/storage-pid"
