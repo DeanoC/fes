@@ -96,6 +96,9 @@ simulation (VGA BIOS text, mode 13h and mode Y at 720p, the VGA trace replay
 against Bochs's VGA) and the first machine-only synthesis figures. Like the
 [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md), it is
 host-only evidence: no routed result, package or kit.
+The [pc386 AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md)
+replaces the AT core's synthesis figures (its memories in M10K, inside its
+budget) with a FreeDOS boot identical to M2's, clock for clock.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
