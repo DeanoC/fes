@@ -206,7 +206,7 @@ fields = ["eflags.CF", "stack.flags.CF"]
 deciding_case = "67C0.4#2"
 deciding_hash = "409a8086b60bc776b6aca0e5795707be4b97bdc2"
 oracle = "Bochs computes CF as the last bit shifted out."
-corpus = "The 386EX produces the CF test386 documents (the operand bit at counts 8, 16 and 24 for bytes, 0 beyond). Undefined in the 386 manual; the 386EX result decides."
+corpus = "The 386EX produces the CF test386 documents (the operand bit at counts 8, 16 and 24 for bytes, 0 beyond): for a byte SHL or SAL, bit 0 at 16 and 24; for SHR, bit 7. Undefined in the 386 manual; the 386EX result decides."
 follow = "corpus"
 # 853 failures; deciding case 'shl bl,B0h'
 
@@ -219,7 +219,7 @@ fields = ["*"]
 deciding_case = "0FA4#1"
 deciding_hash = "d517c0305c853613ebdc8dc01d68f24e35eee37e"
 oracle = "Bochs shifts the 32-bit concatenation and keeps the low word."
-corpus = "The 386EX produces another destination and flags. The 386 manual leaves both undefined; the 386EX result decides."
+corpus = "The 386EX shifts the 48-bit dst:src:src left (SHLD) or src:src:dst right (SHRD) and keeps the top or bottom 16 bits, with CF the last bit shifted out, OF by the same rule as at smaller counts and AF set (fes_i386_shift). The 386 manual leaves both undefined; the 386EX result decides."
 follow = "corpus"
 # 8231 failures; deciding case 'shld [ss:bp+36DCh],bp,94h'
 

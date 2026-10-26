@@ -2,7 +2,7 @@
 // Shared types for fes_i386_cpu (docs/i386-cpu-design.md). The uop is the
 // pipeline's only instruction format and follows the design's Decode table.
 // The front-end records carry an x86 instruction from the fetch buffer
-// through Q to D.
+// through Q to D; pipe_t carries a uop from D to WB.
 package fes_i386_pkg;
 
     // ---- Front end ----------------------------------------------------------
@@ -67,44 +67,25 @@ package fes_i386_pkg;
         endcase
     endfunction
 
-    // A sum of a few bits built from gates. Yosys maps every + to an ALM
-    // carry chain, and entering one costs about a nanosecond; for lengths and
-    // positions a LUT is faster.
-    function automatic logic [4:0] small_add(input logic [4:0] a, input logic [4:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 5; i++) begin
-            small_add[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
-    // The same for six bits.
-    function automatic logic [5:0] small_add6(input logic [5:0] a, input logic [5:0] b);
-        logic carry;
-        carry = 1'b0;
-        for (int i = 0; i < 6; i++) begin
-            small_add6[i] = a[i] ^ b[i] ^ carry;
-            carry = (a[i] & b[i]) | (a[i] & carry) | (b[i] & carry);
-        end
-    endfunction
-
-    // Fold prefix byte b into p; b must satisfy is_prefix. The seg and rep
-    // values are computed from the byte, since Yosys cannot resolve package
-    // constants inside a package function called from a module.
+    // Fold prefix byte b into p; b must satisfy is_prefix.
     function automatic prefixes_t add_prefix(input prefixes_t p, input logic [7:0] b);
         prefixes_t r;
         r = p;
         case (b)
-            8'h26, 8'h2e, 8'h36, 8'h3e: begin r.seg_valid = 1'b1; r.seg = {1'b0, b[4:3]}; end  // ES CS SS DS
-            8'h64, 8'h65: begin r.seg_valid = 1'b1; r.seg = {2'b10, b[0]}; end                // FS GS
+            8'h26: begin r.seg_valid = 1'b1; r.seg = SEG_ES; end
+            8'h2e: begin r.seg_valid = 1'b1; r.seg = SEG_CS; end
+            8'h36: begin r.seg_valid = 1'b1; r.seg = SEG_SS; end
+            8'h3e: begin r.seg_valid = 1'b1; r.seg = SEG_DS; end
+            8'h64: begin r.seg_valid = 1'b1; r.seg = SEG_FS; end
+            8'h65: begin r.seg_valid = 1'b1; r.seg = SEG_GS; end
             8'h66: r.opsize = 1'b1;
             8'h67: r.adsize = 1'b1;
             8'hf0: r.lock = 1'b1;
-            8'hf2, 8'hf3: r.rep = {1'b1, b[0]};                                                 // REP_NE REP_E
+            8'hf2: r.rep = REP_NE;
+            8'hf3: r.rep = REP_E;
             default: ;
         endcase
-        add_prefix = r;
+        return r;
     endfunction
 
     // ---- Uop ------------------------------------------------------------------
@@ -114,19 +95,33 @@ package fes_i386_pkg;
         UOP_ALU, UOP_SHIFT, UOP_MUL, UOP_DIV, UOP_BRANCH, UOP_SEGMENT, UOP_SYSTEM, UOP_SPECIAL
     } uop_class_e;
 
-    // UOP_ALU. The first eight follow the x86 group-1 order.
+    // UOP_ALU. The first eight follow the x86 group-1 order. MOVZX and MOVSX
+    // extend from src_size; SIGN gives every bit the sign of the source at
+    // src_size (CWD, CDQ); FLAGS is the flag instruction imm names (flag_op_e).
     typedef enum logic [4:0] {
         ALU_ADD, ALU_OR, ALU_ADC, ALU_SBB, ALU_AND, ALU_SUB, ALU_XOR, ALU_CMP,
         ALU_TEST, ALU_MOV, ALU_INC, ALU_DEC, ALU_NEG, ALU_NOT, ALU_LEA,
         ALU_MOVZX, ALU_MOVSX, ALU_SETCC, ALU_XCHG, ALU_BT, ALU_BTS, ALU_BTR, ALU_BTC,
-        ALU_BSF, ALU_BSR, ALU_DAA, ALU_DAS, ALU_AAA, ALU_AAS, ALU_SALC, ALU_FLAGS
+        ALU_BSF, ALU_BSR, ALU_DAA, ALU_DAS, ALU_AAA, ALU_AAS, ALU_SALC, ALU_FLAGS, ALU_SIGN
     } alu_op_e;
+
+    // ALU_FLAGS, in imm[3:0].
+    typedef enum logic [3:0] {
+        FLAG_CLC, FLAG_STC, FLAG_CMC, FLAG_CLI, FLAG_STI, FLAG_CLD, FLAG_STD, FLAG_SAHF, FLAG_LAHF
+    } flag_op_e;
 
     // UOP_SHIFT. The first eight follow the x86 group-2 order.
     typedef enum logic [4:0] {
         SHIFT_ROL, SHIFT_ROR, SHIFT_RCL, SHIFT_RCR, SHIFT_SHL, SHIFT_SHR, SHIFT_SAL, SHIFT_SAR,
         SHIFT_SHLD, SHIFT_SHRD
     } shift_op_e;
+
+    // UOP_SEGMENT: a real-mode or V86 load of the selector in src2, which
+    // sets the base to selector * 16.
+    typedef enum logic [4:0] { SEGOP_LOAD_REAL } segment_op_e;
+
+    // UOP_SPECIAL.
+    typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
     // UOP_MUL and UOP_DIV.
     typedef enum logic [4:0] { MULDIV_UNSIGNED, MULDIV_SIGNED, MULDIV_AAM, MULDIV_AAD } muldiv_op_e;
@@ -191,7 +186,9 @@ package fes_i386_pkg;
     } flags_t;
 
     // Faults decode finds; each travels with its uop and is taken at WB.
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM } fault_e;
+    // UNIMPLEMENTED is not architectural: an encoding this build does not
+    // execute yet. WB stops on it, so a check never retires one silently.
+    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -201,6 +198,10 @@ package fes_i386_pkg;
         fault_e     fault;
     } control_t;
 
+    // src1 is the destination's register whenever there is one: a byte or
+    // word write merges into its old value, an implicit source. src2 is the
+    // second register source, or imm when it is not valid; count_cl takes a
+    // shift count from CL, a third source.
     typedef struct packed {
         uop_class_e  cls;
         logic [4:0]  op;
@@ -208,10 +209,79 @@ package fes_i386_pkg;
         reg_ref_t    src2;
         reg_ref_t    dst;
         size_e       size;
+        size_e       src_size;  // src2's size where it differs (MOVZX, MOVSX, SIGN)
+        logic        count_cl;
         logic [31:0] imm;
         mem_t        mem;
         flags_t      flags;
         control_t    ctl;
     } uop_t;
+
+    // ---- Pipeline ---------------------------------------------------------------
+
+    // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
+    // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
+    // right, 1 left), size z (8, 16, 32 bits) and fill k (the operand alone,
+    // rotate, rotate through carry, sign, the SHLD/SHRD source).
+    typedef struct packed {
+        logic [29:0] sel;
+        logic        left;
+        logic        z8, z16, z32;
+        logic        count_cl;              // the count is CL, not imm
+        logic [4:0]  s_imm;                 // an immediate count's shift amount
+        logic        imm_zero;              // the immediate count is zero
+        logic        cf_rol, cf_ror, cf_shl, cf_shr;  // CF other than the last bit out
+        logic        szap;                  // SF, ZF, AF and PF change (not a rotate)
+    } shctl_t;
+
+    // EX's controls, decoded from the uop in M2 (fes_i386_exctl) so that EX
+    // sees registered selects: one-hot where EX picks among sources.
+    typedef struct packed {
+        logic       ok;                        // no fault: EX changes nothing otherwise
+        logic       byp_a, byp_b, byp_c;       // the operand comes from the WB result register
+        logic       size8, size16;             // the operation's size (32 otherwise)
+        logic       src8, src16;               // src2's size for MOVZX, MOVSX and SIGN
+        logic       sub;                       // the adder subtracts
+        logic       x_zero;                    // NEG: 0 - a
+        logic       y_one, y_a;                // INC, DEC, LOOP add 1; NEG takes a
+        logic       cin_cf, cin_ncf;           // ADC, SBB; else the carry-in is sub
+        logic       r_add, r_logic, r_shift, r_lea, r_ext, r_movsx, r_setcc, r_lahf, r_sign, r_mov;
+        logic       l_or, l_xor, l_not;        // the logic unit; AND otherwise
+        logic       f_add, f_incdec, f_logic, f_shift, f_flagop;  // which flags change, from where
+        logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
+        shctl_t     sh;
+    } exctl_t;
+
+    // A uop from D to WB. a, b and c are the values of src1, src2 (or imm)
+    // and ECX for a CL count. An operand whose producer has not computed it
+    // when D reads it is pending: it arrives from the WB result register when
+    // that producer reaches WB, which is dist stages ahead (1-4; see
+    // fes_i386_dops).
+    typedef struct packed {
+        logic        valid;
+        uop_t        uop;
+        logic [31:0] eip;         // the x86 instruction's EIP
+        logic [31:0] eip_next;    // the next instruction's, sequentially
+        logic [31:0] a;
+        logic [31:0] b;
+        logic [31:0] c;
+        logic        pend_a;
+        logic        pend_b;
+        logic        pend_c;
+        logic [2:0]  dist_a;
+        logic [2:0]  dist_b;
+        logic [2:0]  dist_c;
+        logic        early;       // the result is ready at the end of AG (LEA)
+        logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
+        logic [31:0] target;      // AG: a branch's target linear address
+        logic [31:0] target_eip;  // ... and EIP
+        exctl_t      exc;         // M2: EX's controls
+        logic [17:0] eflags;      // EX: EFLAGS after this uop
+        logic        taken;       // EX: a branch that redirects fetch
+        logic        sh_cf;       // EX: a shift's CF and OF, applied at WB (def_co)
+        logic        sh_of;
+        logic        def_co;
+        logic        def_szap;    // EX: a shift's SF, ZF and PF follow the result; AF is set
+    } pipe_t;
 
 endpackage

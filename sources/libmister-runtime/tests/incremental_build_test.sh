@@ -77,7 +77,10 @@ for header in "${headers[@]}"; do
 	touch "$root/$header"
 done
 
-MAKEFLAGS= make -C "$root" -j16 run-tests >/dev/null
+# The initial run-tests prerequisite already executed every functional case.
+# Header contents are unchanged here: rebuild every binary to exercise the
+# dependency edges, without running the same functional cases a second time.
+MAKEFLAGS= make -C "$root" -j16 "$@" >/dev/null
 for binary in "$@"; do
 	[[ "$root/$binary" -nt "$temporary/rebuild-marker" ]] || {
 		echo "relevant headers did not rebuild test binary: $binary" >&2

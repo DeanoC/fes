@@ -14,6 +14,10 @@ each spike is a block of fes_i386_cpu inside a stimulus/signature envelope
             late operand, the 3:2 rows, the adders, the 16-bit-wrap select)
   m2        the M2 stage: M10K tag and data reads, four tag compares against
             a registered page number, way select
+  cpu       fes_i386_cpu as built so far, F1 to WB, behind the frontend
+            spike's L1I model: the register-only real-mode core
+  rom       a registered case-table ROM synthesized without proc -norom, so
+            it maps to an M10K: checks that it places and routes
 
 Each route reports the clock, its critical path, and a figure for every
 pipeline stage: the worst setup slack among the registers the stage writes,
@@ -64,10 +68,14 @@ LOCK = RTL / 'toolchain.lock'
 FRONTEND_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
                 'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv')
 DAG_RTL = ('fes_i386_pkg.sv', 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv')
+CPU_RTL = (*FRONTEND_RTL, 'fes_i386_amode.sv', 'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_decode.sv',
+           'fes_i386_dops.sv', 'fes_i386_shift.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv', 'fes_i386_cpu.sv')
 SPIKES = {
     'frontend': ('spike_frontend', FRONTEND_RTL),
     'dag': ('spike_dag', DAG_RTL),
     'm2': ('spike_m2', ()),
+    'cpu': ('spike_cpu', CPU_RTL),
+    'rom': ('spike_rom', ()),
 }
 # Which stage writes each register, by the RTL signals around it. After
 # flattening a register's cell takes the name of any one port it drives, and
@@ -83,7 +91,8 @@ STAGES = {
     'frontend': (
         ('envelope', r'(.*\.)?(signature|noise|LED0|redirect|code32|d_ready)$|redirect_linear$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
-        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$'),
+        # A decoder's opcode table can map to an M10K that holds F2's bytes.
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         # Only the L1/L2 register feeds L2's sums, so any name inside them is it.
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|dut\.fetch\.sums\.'),
         ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
@@ -97,12 +106,38 @@ STAGES = {
         ('AG', r'(.*\.)?(m1_valid|m1_linear|m1_offset|m1_result|late_m1)$'),
     ),
     'm2': (('M2', r'(.*\.)?load_'),),
+    # The whole CPU: the front end's labels with any hierarchy prefix, then
+    # each pipeline register by its stage prefix. The architectural registers
+    # (WB) and the stage records come before D, whose forwarding tables take
+    # the register file and the records as ports.
+    'cpu': (
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|init_\w+)$|stimulus\.'),
+        ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
+        ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
+        ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
+        ('L2', r'(.*\.)?(bytes|half_block|dec|avail)$'),
+        ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)'),
+        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|trace_\w+|start|start_linear|arch_\w+)$'),
+        # A stage's output record passes most fields through, so they name
+        # the register feeding it: ag_out's are ag_s (D), ex_out's are ex_s
+        # (M2). ex.flags_in is EX's ex_flags.
+        ('EX', r'(.*\.)?(wb_s|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
+        ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
+        ('M1', r'(.*\.)?m2_s$'),
+        ('AG', r'(.*\.)?(m1_s|late_m1)$'),
+        ('D', r'(.*\.)?(skid|skid_valid|d_eip|d_stop|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
+    ),
+    'rom': (('ROM', r'(.*\.)?q$'),),
 }
 # M10K and DSP allowed, LUT RAM forbidden (docs/i386-cpu-design.md, platform
-# rules). proc -norom first keeps the length decoders' opcode tables in logic:
-# Yosys would otherwise turn them into asynchronous ROMs, which an M10K
-# cannot be.
+# rules). proc -norom keeps case tables in logic, by choice: the length
+# decoders' opcode tables would otherwise become M10K ROMs that take in F2's
+# register, putting an M10K read in front of L1's decode (rule 7). That
+# costs F2 about 15% on the corrected model.
 SYNTHESIS = 'proc -norom; synth_intel_alm -family cyclonev -nolutram'
+# The ROM spike checks that a case-table ROM maps to an M10K and routes, so it
+# keeps proc's ROM inference.
+SPIKE_SYNTHESIS = {'rom': 'synth_intel_alm -family cyclonev -nolutram'}
 
 
 def digest(path: Path) -> str:
@@ -220,7 +255,7 @@ def route_record(run: dict, identity: dict, source_fingerprint: str, synthesis: 
         'spike': run['spike'],
         'stages': run.get('stages', {}),
         'synth_json_sha256': synthesis['synth_json_sha256'],
-        'synthesis': identity['synthesis'],
+        'synthesis': synthesis['synthesis'],
         'tools': identity['tools'],
         'version': version,
     }
@@ -416,7 +451,7 @@ def main() -> int:
         selected[(SPIKE / 'spike.qsf').as_posix()] = (ROOT / SPIKE / 'spike.qsf').read_bytes()
         selected['scripts/benchmark_fes_i386.py'] = Path(__file__).read_bytes()
         identity = {'device': DEVICE, 'target_mhz': args.target_mhz, 'router': 'gpu', 'gpu_backend': backend,
-                    'synthesis': SYNTHESIS, 'lock': args.lock.as_posix(), 'lock_sha256': digest(ROOT / args.lock),
+                    'synthesis': SYNTHESIS, 'spike_synthesis': SPIKE_SYNTHESIS, 'lock': args.lock.as_posix(), 'lock_sha256': digest(ROOT / args.lock),
                     'sources': {path: hashlib.sha256(data).hexdigest() for path, data in sorted(selected.items())},
                     'tools': {name: tool.identity for name, tool in sorted(tools.items())}}
         fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
@@ -440,7 +475,8 @@ def main() -> int:
             work = output / spike
             work.mkdir(exist_ok=True)
             files = ' '.join(str(snapshot / path) for path in sources(spike))
-            program = f'read_verilog -sv {files}; hierarchy -top {top}; {SYNTHESIS} -top {top}; stat; write_json synth.json'
+            synthesis = SPIKE_SYNTHESIS.get(spike, SYNTHESIS)
+            program = f'read_verilog -sv {files}; hierarchy -top {top}; {synthesis} -top {top}; stat; write_json synth.json'
             (work / 'synth.ys').write_text(program + '\n')
             started = time.monotonic()
             with (work / 'yosys.log').open('w') as log:
@@ -451,7 +487,8 @@ def main() -> int:
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
             labels = register_labels(netlist, top, STAGES[spike])
-            record = {'top': top, 'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
+            record = {'top': top, 'synthesis': synthesis,
+                      'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
                       'synth_json_sha256': digest(work / 'synth.json'),
                       'cells_by_stage': cells_by_stage(netlist, top, labels),
                       'logic_depth': logic_depth(netlist, top, STAGES[spike], labels), 'runs': []}

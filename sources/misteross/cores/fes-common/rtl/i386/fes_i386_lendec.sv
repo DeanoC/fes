@@ -8,9 +8,9 @@
 // opcode units, since a prefixed instruction at k is the unprefixed one at
 // k + 1 with one more byte. L2 (fes_i386_lstage) adds the classes up for each
 // size.
-module fes_i386_lendec (
-    input  logic [19:0][7:0]              w,
-    output fes_i386_pkg::lclass_t [15:0] cls
+module fes_i386_lendec import fes_i386_pkg::*; (
+    input  logic [19:0][7:0] w,
+    output lclass_t [15:0]   cls
 );
     logic [16:0][2:0]      unit_head;
     logic [16:0][1:0][2:0] unit_mb;
@@ -23,23 +23,17 @@ module fes_i386_lendec (
         );
     end
 
-    // A record is built whole and then stored: Yosys reads cls[k].field as a
-    // generate-block name (DeanoC/yosys#52).
     for (genvar k = 0; k < 16; k++) begin : g_byte
-        fes_i386_pkg::lclass_t c;
-        logic                  prefix;
-        logic [4:0]            with_prefix;
-        assign prefix = fes_i386_pkg::is_prefix(w[k]);
-        assign with_prefix = fes_i386_pkg::small_add({2'b0, unit_head[k + 1]}, 5'd1);
-        assign c.prefix = prefix;
-        assign c.run = prefix && fes_i386_pkg::is_prefix(w[k + 1]);
-        assign c.opsize = w[k] == 8'h66;
-        assign c.adsize = w[k] == 8'h67;
-        assign c.head = prefix ? with_prefix[2:0] : unit_head[k];
-        assign c.mb16 = prefix ? unit_mb[k + 1][0][1:0] : unit_mb[k][0][1:0];
-        assign c.mb32 = prefix ? unit_mb[k + 1][1] : unit_mb[k][1];
-        assign c.z = prefix ? unit_z[k + 1] : unit_z[k];
-        assign c.moffs = prefix ? unit_moffs[k + 1] : unit_moffs[k];
-        assign cls[k] = c;
+        logic prefix;
+        assign prefix = is_prefix(w[k]);
+        assign cls[k].prefix = prefix;
+        assign cls[k].run = prefix && is_prefix(w[k + 1]);
+        assign cls[k].opsize = w[k] == 8'h66;
+        assign cls[k].adsize = w[k] == 8'h67;
+        assign cls[k].head = prefix ? unit_head[k + 1] + (* no_carry *) 3'd1 : unit_head[k];
+        assign cls[k].mb16 = prefix ? unit_mb[k + 1][0][1:0] : unit_mb[k][0][1:0];
+        assign cls[k].mb32 = prefix ? unit_mb[k + 1][1] : unit_mb[k][1];
+        assign cls[k].z = prefix ? unit_z[k + 1] : unit_z[k];
+        assign cls[k].moffs = prefix ? unit_moffs[k + 1] : unit_moffs[k];
     end
 endmodule
