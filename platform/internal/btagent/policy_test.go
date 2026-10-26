@@ -129,6 +129,13 @@ func TestAttemptBudget(t *testing.T) {
 		t.Fatal("success start")
 	}
 	ok.Finish("pad", true, now)
+	if !ok.Start(okPad, now, actionConnect) {
+		t.Fatal("successful pairing suppressed the first connect")
+	}
+	ok.Finish("pad", true, now)
+	if ok.Start(okPad, now, actionConnect) {
+		t.Fatal("connect retry bypassed its own spacing")
+	}
 	if ok.Start(okPad, now, actionPair) {
 		t.Fatal("success retries immediately")
 	}

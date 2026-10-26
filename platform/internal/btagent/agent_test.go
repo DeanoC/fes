@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func TestRunRecoversStaleGamepadBondAndRestoresAfterBlueZRestart(t *testing.T) {
+func TestRunRecoversStaleBondReconnectsWithoutRePairAndRestoresAfterBlueZRestart(t *testing.T) {
 	client, server := net.Pipe()
 	errc := make(chan error, 1)
 	go func() { errc <- fakeBlueZ(server) }()
@@ -28,6 +28,21 @@ func TestRunRecoversStaleGamepadBondAndRestoresAfterBlueZRestart(t *testing.T) {
 	if runErr == nil {
 		t.Fatal("expected the closed bus to end the agent")
 	}
+}
+
+func writeDeviceProperties(conn net.Conn, serial uint32, devicePath string, properties ...fixtureProp) error {
+	e := &encoder{}
+	e.str(deviceIface)
+	e.array(8, func() {
+		for _, prop := range properties {
+			e.pad(8)
+			e.str(prop.name)
+			e.sig(prop.sig)
+			prop.write(e)
+		}
+	})
+	e.array(4, func() {})
+	return writeMessage(conn, &Message{Type: msgSignal, Serial: serial, Path: devicePath, Iface: propsIface, Member: "PropertiesChanged", Signature: "sa{sv}as"}, e.buf)
 }
 
 func TestAdapterNeedsSetupOnlyForUndesiredProperties(t *testing.T) {
@@ -252,9 +267,11 @@ func fakeBlueZ(conn net.Conn) error {
 	var matches []string
 	sawPairable := false
 	sawDiscoverable := false
+	adapterPairable := false
 	var registerCount, startDiscoveryCount int
 	var poweredSets, pairableSets, discoverableSets int
 	var connectCount, removeDeviceCount, pairCount int
+	var bonded, devicePresent bool
 	expectedMatches := []string{
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
 		"type='signal',sender='org.bluez',path='/',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
@@ -346,9 +363,11 @@ func fakeBlueZ(conn net.Conn) error {
 				case "Pairable":
 					pairableSets++
 					sawPairable = true
-					if values[2] != false {
-						return errors.New("adapter remains pairable")
+					value, ok := values[2].(bool)
+					if !ok {
+						return errors.New("adapter Pairable value is not boolean")
 					}
+					adapterPairable = value
 				case "Discoverable":
 					discoverableSets++
 					sawDiscoverable = true
@@ -373,12 +392,15 @@ func fakeBlueZ(conn net.Conn) error {
 			if !sawPairable || !sawDiscoverable {
 				return errors.New("adapter pairing or discoverability was not disabled")
 			}
+			if adapterPairable {
+				return errors.New("adapter remained pairable while idle")
+			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
 				return err
 			}
 			startDiscoveryCount++
 			if startDiscoveryCount == 2 {
-				if registerCount != 2 || poweredSets != 2 || pairableSets != 2 || discoverableSets != 2 {
+				if registerCount != 2 || poweredSets != 2 || pairableSets != 4 || discoverableSets != 2 {
 					return fmt.Errorf("BlueZ restart setup counts: register=%d powered=%d pairable=%d discoverable=%d", registerCount, poweredSets, pairableSets, discoverableSets)
 				}
 				if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {
@@ -394,6 +416,7 @@ func fakeBlueZ(conn net.Conn) error {
 				Member:    "InterfacesAdded",
 				Signature: "oa{sa{sv}}",
 			}
+			bonded, devicePresent = true, true
 			if err := writeMessage(conn, signal, encodeDeviceAddedState(gamepadPath, true)); err != nil {
 				return err
 			}
@@ -406,7 +429,17 @@ func fakeBlueZ(conn net.Conn) error {
 			if msg.Path != gamepadPath {
 				return errors.New("paired " + msg.Path)
 			}
+			if !devicePresent {
+				return errors.New("Pair targeted a temporary device that was removed")
+			}
+			if !adapterPairable {
+				return errors.New("Pair ran while the adapter was not bondable")
+			}
+			if bonded {
+				return errors.New("agent re-paired an already bonded device")
+			}
 			pairCount++
+			bonded = true
 			authorization, err := callAgent("RequestAuthorization", "o", bodyPath(gamepadPath))
 			if err != nil {
 				return err
@@ -481,6 +514,7 @@ func fakeBlueZ(conn net.Conn) error {
 				return errors.New("RemoveDevice targeted the wrong device")
 			}
 			removeDeviceCount++
+			bonded, devicePresent = false, false
 			if removeDeviceCount != 1 {
 				return errors.New("stale device removed more than once")
 			}
@@ -493,12 +527,16 @@ func fakeBlueZ(conn net.Conn) error {
 			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesRemoved", Signature: "oas"}, removed.buf); err != nil {
 				return err
 			}
+			devicePresent = true
 			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: "/", Iface: objectsIface, Member: "InterfacesAdded", Signature: "oa{sa{sv}}"}, encodeDeviceAddedState(gamepadPath, false)); err != nil {
 				return err
 			}
 		case "Connect":
 			if msg.Path != gamepadPath {
 				return errors.New("connected " + msg.Path)
+			}
+			if adapterPairable {
+				return errors.New("adapter remained pairable during Connect")
 			}
 			connectCount++
 			if connectCount == 1 {
@@ -507,10 +545,28 @@ func fakeBlueZ(conn net.Conn) error {
 				}
 				continue
 			}
-			if connectCount != 2 || pairCount != 1 || removeDeviceCount != 1 {
-				return fmt.Errorf("stale bond recovery counts: connect=%d pair=%d remove=%d", connectCount, pairCount, removeDeviceCount)
+			if connectCount == 2 {
+				if pairCount != 1 || removeDeviceCount != 1 || !bonded || !devicePresent {
+					return fmt.Errorf("pair result was not retained on the same bonded device: connect=%d pair=%d remove=%d bonded=%v present=%v", connectCount, pairCount, removeDeviceCount, bonded, devicePresent)
+				}
+				if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+					return err
+				}
+				if err := writeDeviceProperties(conn, next(), gamepadPath, propBool("Paired", true), propBool("Connected", true)); err != nil {
+					return err
+				}
+				if err := writeDeviceProperties(conn, next(), gamepadPath, propBool("Connected", false)); err != nil {
+					return err
+				}
+				continue
+			}
+			if connectCount != 3 || pairCount != 1 || removeDeviceCount != 1 || !bonded || !devicePresent {
+				return fmt.Errorf("reconnect unexpectedly paired or removed the device: connect=%d pair=%d remove=%d bonded=%v present=%v", connectCount, pairCount, removeDeviceCount, bonded, devicePresent)
 			}
 			if err := reply(conn, next(), msg.Serial, "", nil); err != nil {
+				return err
+			}
+			if err := writeDeviceProperties(conn, next(), gamepadPath, propBool("Connected", true)); err != nil {
 				return err
 			}
 			if err := writeMessage(conn, &Message{Type: msgSignal, Serial: next(), Path: dbusPath, Iface: dbusIface, Member: "NameOwnerChanged", Signature: "sss"}, bodyNameOwnerChanged(bluezDest, ":1.1", ":1.2")); err != nil {

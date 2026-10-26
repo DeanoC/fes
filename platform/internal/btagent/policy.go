@@ -118,7 +118,8 @@ type attempts struct {
 	mu          sync.Mutex
 	inflight    map[string]action
 	fails       map[string]int
-	last        map[string]time.Time
+	lastPair    map[string]time.Time
+	lastConnect map[string]time.Time
 	lockedUntil map[string]time.Time
 }
 
@@ -126,7 +127,8 @@ func newAttempts() *attempts {
 	return &attempts{
 		inflight:    map[string]action{},
 		fails:       map[string]int{},
-		last:        map[string]time.Time{},
+		lastPair:    map[string]time.Time{},
+		lastConnect: map[string]time.Time{},
 		lockedUntil: map[string]time.Time{},
 	}
 }
@@ -150,11 +152,18 @@ func (a *attempts) Start(dev devInfo, now time.Time, what action) bool {
 			a.fails[path] = 0
 		}
 	}
-	if t, ok := a.last[path]; ok && now.Sub(t) < attemptGap {
-		return false
+	if what == actionPair {
+		if t, ok := a.lastPair[path]; ok && now.Sub(t) < attemptGap {
+			return false
+		}
+		a.lastPair[path] = now
+	} else {
+		if t, ok := a.lastConnect[path]; ok && now.Sub(t) < attemptGap {
+			return false
+		}
+		a.lastConnect[path] = now
 	}
 	a.inflight[path] = what
-	a.last[path] = now
 	return true
 }
 
@@ -163,7 +172,8 @@ func (a *attempts) Start(dev devInfo, now time.Time, what action) bool {
 func (a *attempts) AllowPairAfterBondRemoval(path string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	delete(a.last, path)
+	delete(a.lastPair, path)
+	delete(a.lastConnect, path)
 }
 
 func (a *attempts) Has(path string) bool {

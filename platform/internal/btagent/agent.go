@@ -524,7 +524,8 @@ func (a *agent) configure(ctx context.Context, path string) {
 		body []byte
 	}{
 		{"Powered", bodyProp(adapterIface, "Powered", "b", true, 0)},
-		// Pairable controls incoming requests; this agent initiates pairing.
+		// Keep BlueZ bondability off while idle. Pairable is BlueZ's
+		// controller bondable setting, so pairing enables it only for Pair.
 		{"Pairable", bodyProp(adapterIface, "Pairable", "b", false, 0)},
 		{"Discoverable", bodyProp(adapterIface, "Discoverable", "b", false, 0)},
 	}
@@ -574,7 +575,7 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 	defer func() { a.attempts.Finish(dev.Path, pairSucceeded, time.Now()) }()
 	if what == actionPair {
 		log.Printf("bluetooth: pairing %s %s", dev.Path, dev.Name)
-		if err := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, 35*time.Second); err != nil {
+		if err := a.pairDevice(ctx, dev); err != nil {
 			a.logf("pair:"+dev.Path, "bluetooth: pair %s: %v", dev.Path, err)
 			return
 		}
@@ -600,6 +601,44 @@ func (a *agent) act(ctx context.Context, dev devInfo) {
 		a.logf("connect:"+dev.Path, "bluetooth: connect %s: %v", dev.Path, err)
 		return
 	}
+}
+
+// pairDevice enables the adapter's bondable state only while pairing an
+// unpaired, policy-approved controller. BlueZ otherwise can complete a
+// temporary pairing without persisting its link key. Restore the idle state
+// even if Pair fails or the caller is cancelled.
+func (a *agent) pairDevice(ctx context.Context, dev devInfo) error {
+	adapterPath := path.Dir(dev.Path)
+	if err := a.setAdapterPairable(ctx, adapterPath, true); err != nil {
+		enableErr := fmt.Errorf("enable adapter bondability: %w", err)
+		if restoreErr := a.restoreAdapterPairable(adapterPath); restoreErr != nil {
+			return errors.Join(enableErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
+		}
+		return enableErr
+	}
+	pairErr := a.callVoid(ctx, bluezDest, dev.Path, deviceIface, "Pair", "", nil, 35*time.Second)
+	restoreErr := a.restoreAdapterPairable(adapterPath)
+	if pairErr != nil {
+		if restoreErr != nil {
+			return errors.Join(pairErr, fmt.Errorf("restore adapter pairability: %w", restoreErr))
+		}
+		return pairErr
+	}
+	if restoreErr != nil {
+		return fmt.Errorf("restore adapter pairability: %w", restoreErr)
+	}
+	return nil
+}
+
+func (a *agent) restoreAdapterPairable(adapterPath string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return a.setAdapterPairable(cleanupCtx, adapterPath, false)
+}
+
+func (a *agent) setAdapterPairable(ctx context.Context, adapterPath string, pairable bool) error {
+	return a.callVoid(ctx, bluezDest, adapterPath, propsIface, "Set", "ssv",
+		bodyProp(adapterIface, "Pairable", "b", pairable, 0), 10*time.Second)
 }
 
 func (a *agent) claimStaleBondRemoval(devicePath string) bool {
