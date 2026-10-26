@@ -1036,3 +1036,61 @@ search runs; the 133-entry journal is unchanged. No runtime/shared contract
 or package changes. Physical HPS/OE/pad/board bounds, complete native
 fast-corner cell/clock/data coverage, reset/CDC qualification and observable
 exact-artifact PC/XT hardware acceptance remain open.
+
+### Minimum-model investigation, 26 October
+
+Base `7217d83031`. [Mistral #22](https://github.com/DeanoC/mistral/pull/22)
+now includes current master at `c57686002d`, retaining its newer configured
+receiver-load tests; all ten CTests pass. The merge changes no library source.
+[Mistral #24](https://github.com/DeanoC/mistral/pull/24), `d8b0745098`,
+adds supply-normalized driver-table coordinates and derivatives, preserves the
+physical three-dimensional gate origin, removes the extra supply factor in
+LAB/MLAB source waves, and orders finite signed derating intervals. It depends
+on #22. All thirteen CTests pass, including 192 actual source waveforms and
+an actual powered-buffer negative-delay regression. Actual parent libraries
+fail the waveform and signed-interval controls. Both PRs are ready for review;
+neither changes this FES toolchain lock.
+
+Fifteen host replays use the actual committed corner library: three seeds at
+four route corners, plus three explicitly diagnostic zero-FF-min controls.
+The later master merge changes no library bytes or library source tree.
+Every RBF is byte-identical to its frozen original. Each slow100 control
+reproduces the complete original native timing JSON. All twelve ordinary
+corner replays complete with 17,709 positive paired rows and nine explicit
+unpaired rows, without analogue simulation declines. Cell/PLL/pad calibration
+and HPS sources remain incomplete, so these are numerical diagnostics, not
+native fast-corner signoff. The artificial zero-FF-min controls report
+70/63/70 failing holds and minima -0.165/-0.140/-0.130 ns. They do not establish
+physical RTL failures.
+
+Re-analysis of the immutable, deassertion-corrected Quartus FF fits retains
+3,200 clock-to-Q and 3,200 data-pin observations. It covers every FF slot in
+two LABs with constant/positive enables and three LABs adding inverted enables, both data
+transitions, early/late analysis and four corners. The committed fixture
+sources match, allowing only the reference reader's declared Quartus version
+bookkeeping normalization. Original fits remain unchanged; no new fit runs.
+Synthetic IO clocks expose the local arcs and supply no board clock contract.
+At minimum/-40 C, clock-anchor-to-Q observations range from 168 to 173 ps;
+the native diagnostic still uses 731 ps for both minimum and maximum.
+
+Data observations retain the distinct `d` and `asdata` pins. Their internal
+data/clock-to-storage requirements differ, so neither bare FF pin constants
+nor a clock-to-Q-only correction supplies a complete native FF model. Native
+virtual data/control endpoints and the actual PKREG input selection must be
+matched before transferring these observations. Actual fitted RBF PKREG bits
+agree with all 3,200 retained `d`/`asdata` identities. A separate reader uses
+nextpnr's own placed BEL metadata and selected routing edges to check all
+4,067 native FFs per seed against their original RBF input-selector bits;
+every check passes. It also finds 1,008/928/932 MLAB FFs, which these LAB-only
+references do not characterize. This selection proof does not establish
+equivalence of the virtual timing boundaries. The next repair remains matched
+LAB/MLAB data/control characterization and a source-bound min/max model,
+followed by complete frozen-route replays.
+
+[The model screen](board50-minimum-model-screen.json) binds compiler commits,
+tests, all fifteen replays, fitted source/report hashes and the two retained
+analysis Tcl scripts. The accompanying compressed archive contains all 6,400
+FF observations. Evidence is host-only. No runtime/shared contract, package,
+clock rate or timing exception changes; no kit or GPU is used in this step.
+The native search journal remains unchanged at 133 entries. HPS/pad/board,
+reset/CDC and observable exact-artifact hardware qualification remain open.
