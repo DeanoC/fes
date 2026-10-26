@@ -1546,8 +1546,8 @@ include the MLAB mask permutation and a routed carry operand exchange;
 unsupported feedback modes reject. Another 128 full setup/hold reports
 independently match their CELL increments to the direct edge queries.
 
-Both CMake checks, all 18 real-fixture corruption tests and 95 compiler C++
-regressions pass. A fresh complete Quartus rebuild reproduces every normalized
+Both CMake checks, all 18 parser tests (16 corruption rejections and two
+positive controls), and 95 compiler C++ regressions pass. A fresh complete Quartus rebuild reproduces every normalized
 record, RBF byte and decoded configuration exactly. A clean Git archive of
 the committed fixtures also passes all eight RBF decodes. The latest #311
 CI tests are included through a normal dependency merge; production timing

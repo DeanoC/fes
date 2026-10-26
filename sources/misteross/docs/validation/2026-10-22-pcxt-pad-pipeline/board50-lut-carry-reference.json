@@ -8,7 +8,7 @@
   "reference_issue": "https://github.com/DeanoC/nextpnr/issues/314",
   "Mistral_commit": "5e311528d8a373503f3508b0dc916e876db0a7a8",
   "input_sha256": {
-    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-lut-carry-reference.py": "7fe8a9de4a6e72161cd84a0182363335d639e5e3266cce877d5847f9f55cf33d",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-lut-carry-reference.py": "0a28a2002a723ccdb9a64f3bc9658d0b6d1b71f80eebf649d4e9d00bf5abefe2",
     "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/manifest.json": "31f83758e387d2cb18ed2f5e5c7b6453dcfba4eadf59432ac1f32ced60fc988f",
     "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/reference.json.gz": "907f7eb411762be8ab672100351b2fe7230e74879b9856eb59532b9eddf87d93",
     "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/capture.json.gz": "8f6669679e9fc3ccbdede9f9dee838bef4bfd47eb2a230bfb47641cca2b547f0",
@@ -63,7 +63,9 @@
     ]
   },
   "tests": {
-    "parser_corruption_cases": 18,
+    "parser_tests": 18,
+    "corruption_rejection_cases": 16,
+    "positive_control_cases": 2,
     "CMake_CTests": 2,
     "compiler_Cpp_tests": 95,
     "compiler_Cpp_source_matches_dependency_merge": true,
