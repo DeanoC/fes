@@ -16,31 +16,27 @@
 // its own half (bytes 0-11) or with the next one (bytes 12-15), which fixes
 // how an end maps back to a buffer position.
 //
-// An instruction may use bytes of the next half in the cycle L writes them;
-// the aligner takes those bytes from L's register.
-module fes_i386_qalign (
+// Whether the instruction at a byte is in the buffer (fes_i386_fetchbuf's
+// avail) is a register per byte and variant, so the loop's check is part of
+// the same select. An instruction may use bytes of the next half in the cycle
+// L2 writes them; the aligner takes those bytes from L2's register.
+module fes_i386_qalign import fes_i386_pkg::*; (
     input  logic                   clk,
     input  logic                   reset,
     input  logic                   redirect,
     input  logic [31:0]            redirect_linear,
     input  logic [1:0]             half_valid,
-    input  logic [1:0]             tail_ok,
-    input  logic [1:0]             filling,
     input  logic [1:0][27:0]       half_block,
     input  logic [31:0][7:0]       bytes,
-    input  logic [31:0]            dec_prefix,
-    input  logic [31:0]            dec_run,
-    input  logic [31:0][15:0]      dec_len,
-    input  logic [31:0][19:0]      dec_fin,
-    input  logic [31:0][3:0]       dec_far,
+    input  lbyte_t [31:0]          dec,
+    input  logic [31:0][3:0]       avail,
     input  logic [15:0][7:0]       fill_data,
     output logic [1:0]             release_half,
+    output logic                   start_half,
     output logic                   q_valid,
-    output fes_i386_pkg::fetched_t q,
+    output fetched_t               q,
     input  logic                   d_ready
 );
-    typedef fes_i386_pkg::prefixes_t prefixes_t;
-
     logic [4:0]  start;
     prefixes_t   acc;
     logic [3:0]  acc_count;    // prefixes consumed; at most 13
@@ -56,22 +52,18 @@ module fes_i386_qalign (
     for (genvar j = 0; j < 32; j++) begin : g_pos
         localparam int H = j / 16;
         localparam int K = j % 16;
-        logic [15:0] lengths;
-        logic [19:0] ends;
-        logic [3:0]  fars;
-        logic [4:0]  fin;  // where the instruction ends, counted as L counts
+        lbyte_t     d;
+        logic [3:0] usable;
+        logic [4:0] fin;  // where the instruction ends, counted as L counts
 
-        assign lengths = dec_len[j];
-        assign ends = dec_fin[j];
-        assign fars = dec_far[j];
-        assign len[j] = lengths[{variant, 2'b00} +: 4];
-        assign fin = variant[1] ? (variant[0] ? ends[19:15] : ends[14:10])
-                                : (variant[0] ? ends[9:5] : ends[4:0]);
-        // L wrote this byte while filling half (K < 12 ? H : 1 - H); its count
+        assign d = dec[j];
+        assign usable = avail[j];
+        assign len[j] = d.len[variant];
+        assign fin = d.fin[variant];
+        // L2 wrote this byte while filling half (K < 12 ? H : 1 - H); its count
         // starts at the other half's byte 0.
         assign next[j] = {!(fin[4] ^ ((K < 12) == (H != 0))), fin[3:0]};
-        assign ok[j] = half_valid[H] && (K < 12 || tail_ok[H])
-                    && (!fars[variant] || half_valid[1 - H] || filling[1 - H]);
+        assign ok[j] = usable[variant];
     end
 
     // ---- The loop -----------------------------------------------------------
@@ -79,8 +71,10 @@ module fes_i386_qalign (
     logic       out_free, too_long_run, issue, consume, advance;
     logic [4:0] start_next;
 
-    assign run_here = dec_run[start];
-    assign prefix_here = dec_prefix[start];
+    lbyte_t at_start;  // one select for both fields: DeanoC/yosys#59
+    assign at_start = dec[start];
+    assign run_here = at_start.run;
+    assign prefix_here = at_start.prefix;
     assign out_free = !q_valid || d_ready;
     // A prefix run that reaches a 16th byte before its opcode cannot fit in
     // 15 bytes; issue it so D raises #GP(0) instead of consuming forever.
@@ -91,6 +85,7 @@ module fes_i386_qalign (
     assign start_next = next[start];
     assign release_half[0] = advance && !start[4] && start_next[4];
     assign release_half[1] = advance && start[4] && !start_next[4];
+    assign start_half = start[4];
 
     // ---- Aligner ------------------------------------------------------------
     logic [31:0][7:0] source;
@@ -105,10 +100,11 @@ module fes_i386_qalign (
     end
     assign rotated = 104'({source, source} >> {start, 3'b000});
     assign linear_here = {half_block[start[4]], start[3:0]};
-    assign total = fes_i386_pkg::small_add({1'b0, acc_count}, {1'b0, len[start]});
-    assign prefix_count = fes_i386_pkg::small_add({1'b0, acc_count}, {4'b0, prefix_here});
-    assign acc_count_next = fes_i386_pkg::small_add({1'b0, acc_count}, 5'd1);
-    assign prefixes = prefix_here ? fes_i386_pkg::add_prefix(acc, rotated[0]) : acc;
+    // Counts of a few bits: LUTs, not a carry chain.
+    assign total = 5'(acc_count) + (* no_carry *) 5'(len[start]);
+    assign prefix_count = 5'(acc_count) + (* no_carry *) 5'(prefix_here);
+    assign acc_count_next = 5'(acc_count) + (* no_carry *) 5'd1;
+    assign prefixes = prefix_here ? add_prefix(acc, rotated[0]) : acc;
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -123,7 +119,7 @@ module fes_i386_qalign (
             acc <= '0;
             acc_count <= 4'd0;
         end else if (consume) begin
-            acc <= fes_i386_pkg::add_prefix(acc, rotated[0]);
+            acc <= add_prefix(acc, rotated[0]);
             acc_count <= acc_count_next[3:0];
             if (acc_count == 4'd0) acc_linear <= linear_here;
         end
