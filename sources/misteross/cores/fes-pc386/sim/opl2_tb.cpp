@@ -9,8 +9,13 @@
 //                           random writes to every register class, at random
 //                           times, so some land while the operators compute
 //   --log FILE              port writes captured from the machine bench:
-//                           lines "<clock> <a0> <byte>" (hex byte)
-// Prints PASS/FAIL lines and "OPL2 samples=<n> exact=<n> nonzero=<n> writes=<n>".
+//                           lines "<clock> <a0> <byte>" (hex byte). The
+//                           machine boots for seconds before the first
+//                           write, so times move earlier by whole periods of
+//                           the sample enable (14080 clocks, 7 samples):
+//                           write timing within the sample is kept.
+// Prints PASS/FAIL lines, "OPL2 samples=<n> exact=<n> nonzero=<n> writes=<n>" and
+// "OPL2-BUSY <n> clocks", the longest sample computation (writes wait it out).
 #include "Vpc386_opl2.h"
 #include "Vpc386_opl2___024root.h"
 #include "opl2_reference.h"
@@ -130,6 +135,11 @@ std::vector<PortWrite> read_log(const std::string &path) {
         if (std::sscanf(line.c_str(), "%llu %u %x", &clock, &a0, &value) != 3) throw std::runtime_error("bad log line: " + line);
         writes.push_back({clock, a0 != 0, uint8_t(value)});
     }
+    const uint64_t period = 14080;
+    if (!writes.empty() && writes.front().clock > 2 * period) {
+        uint64_t shift = (writes.front().clock - period) / period * period;
+        for (PortWrite &write : writes) write.clock -= shift;
+    }
     return writes;
 }
 
@@ -161,6 +171,7 @@ int main(int argc, char **argv) {
         const Opl2Reference &r = bench.reference;
         std::printf("OPL2 samples=%llu exact=%llu nonzero=%llu writes=%llu\n", (unsigned long long)r.samples,
                     (unsigned long long)r.exact, (unsigned long long)r.nonzero, (unsigned long long)r.writes);
+        std::printf("OPL2-BUSY %llu clocks\n", (unsigned long long)r.busy_clocks);
         bool ok = r.mismatches == 0 && r.samples > 0 && r.nonzero > 0;
         if (ok) std::printf("PASS %s\n", name.c_str());
         else std::printf("FAIL %s: %llu of %llu samples differ; first %s\n", name.c_str(),

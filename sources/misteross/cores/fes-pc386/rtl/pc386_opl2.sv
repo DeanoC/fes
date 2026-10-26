@@ -11,7 +11,7 @@
 // between one sample's computation and the next, so every write lands on a
 // sample boundary as in Nuked-OPL3, the reference it is checked against. A
 // write that arrives during the computation waits in a four-entry queue;
-// the pipeline is busy for under 100 clocks and each guest OUT takes 72.
+// the computation takes 72 clocks and each guest OUT takes 72 too.
 //
 // Ports: a0 = 0 writes the register index and reads status; a0 = 1 writes
 // data and reads FFh. Status is {IRQ, timer 1 flag, timer 2 flag, 00110b},

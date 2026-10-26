@@ -5,6 +5,9 @@ Phase M1 exists as RTL and simulation: the AT core in
 [`cores/fes-pc386/`](../cores/fes-pc386/README.md) boots the Bochs BIOS and
 FreeDOS to a prompt with the Bochs oracle as CPU
 ([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md)).
+Phase M3's audio exists the same way: the OPL2 import, the Sound Blaster 2.0
+DSP and the mixer, checked in simulation
+([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)).
 No routed result or kit evidence exists for this machine. Every clock, area,
 bandwidth and latency figure below is a budget or an estimate unless it names
 a measurement. The milestone that measures one replaces it.
@@ -700,6 +703,34 @@ Verification compares the imported core sample-for-sample with Nuked-OPL3 in
 OPL2 mode on register-write logs captured from the three games in the
 simulated machine, before any resampling.
 
+**As built in M3** ([`pc386_opl2.sv`](../cores/fes-pc386/rtl/pc386_opl2.sv),
+[import README](../cores/fes-pc386/vendor/opl2_fpga/README.md)). The import is
+the MiSTer port of opl2_fpga, which has a flat source tree and explicit port
+connections; only its synthesis core is vendored, and the wrapper owns the
+status register and both timers. Upstream was not sample-exact: its envelope
+step table was packed in reverse, key-on lost a sample of phase, AM was read
+from the next operator, its LFOs and noise came from an older software model,
+and drum key-on ignored the channel key. Each is a recorded local change, and
+the core now matches Nuked-OPL3's default build sample for sample, including
+its one-sample delay on channels 6-8's second operators. Two more decisions
+follow from comparing at sample granularity:
+
+- **Writes land between samples.** Nuked-OPL3 applies a write before the next
+  sample; the import would apply one mid-computation to some operators and not
+  others. The wrapper queues a write that arrives while the operators compute
+  (72 clocks of the 2,011 in each sample at 100 MHz) and releases it afterwards. Against
+  the real chip this moves a write by less than one sample.
+- **The reference, not the YM3812, settles two edges.** Register 01h bit 5
+  (waveform-select enable) and CSM mode (08h bit 7) are not modelled, as in
+  Nuked-OPL3: E0h-F5h select waveforms whatever 01h holds. Games set 01h bit 5
+  before using waveforms; a title that relies on the chip ignoring them would
+  need the enable added to both.
+
+The three games' register logs are not available in this repository (games
+are user-supplied); M3 captured its log from a start-up exercise program run
+in the simulated machine instead
+([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)).
+
 ### Sound Blaster 2.0 DSP
 
 An original RTL model of DSP version 2.01, written from Creative's hardware
@@ -708,7 +739,7 @@ cases the guide leaves open.
 
 | Command | Function |
 | --- | --- |
-| Reset (base+6: 1 then 0) | AAh in the read buffer about 100 µs later |
+| Reset (base+6: 1 then 0) | AAh in the read buffer 20 µs later, DOSBox-X's figure |
 | 10h | Direct 8-bit DAC |
 | 14h, 91h | Single-cycle 8-bit DMA playback, normal and high speed |
 | 1Ch, 90h, 48h | Auto-init 8-bit DMA, normal and high speed, block size |
@@ -717,17 +748,29 @@ cases the guide leaves open.
 | D1h, D3h, D8h | Speaker on, off, status |
 | 20h, 24h, 2Ch, 98h, 99h | Recording: returns silence (80h) at the programmed rate so DMA and IRQs complete |
 | E0h, E1h, E2h | DSP identification (inverted byte), version (02h 01h), DMA identification |
-| F2h | Force IRQ, which IRQ-probing detection code uses |
+| F2h | Force IRQ, 10 µs later as in DOSBox-X, which IRQ-probing detection code uses |
+| 80h | Silence for a sample count, then IRQ (some games time with it) |
+| E4h, E8h | Write and read the test register |
 
 - During a high-speed transfer the DSP ignores commands until the block ends,
   as the real DSP does.
-- Write-status bit 7 reads busy for about 1 µs after each command byte
-  (estimate), so detection code that waits for not-busy sees the edge.
+- Write-status bit 7 reads busy for 1-2 µs after each command byte
+  (estimate), so detection code that waits for not-busy sees the edge. The
+  status ports read AAh (busy or data ready) and 2Ah otherwise, the values
+  DOSBox-X records from a real SB 2.0; odd ports alias the even one below.
+- Reset completes 20 µs after release, not the guide's "about 100 µs":
+  detection loops that poll base+E a fixed number of times at 720 ns per read
+  give up before 100 µs, and DOSBox-X's 20 µs is what the game library has
+  been run against.
 - DREQ on channel 1 at the sample rate; the IRQ at block end on the set line,
   acknowledged by reading base+E.
 - The DAC holds the last sample, muted while the speaker is off.
 - ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the three
-  games is known to use it. Unknown commands are consumed and ignored.
+  games is known to use it. Unknown commands are consumed and ignored, with
+  the argument bytes DOSBox-X's command table gives them, so an ADPCM length
+  is not taken for a command.
+- E2h writes DOSBox-X's identification byte (a running sum seeded AAh with a
+  rotating XOR seeded 96h) by DMA; it raises no IRQ.
 
 Ultima VII also lists the Sound Blaster Pro. The acceptance setups choose SB
 2.0 (mono) settings in their install programs; Pro stereo comes with OPL3.
@@ -744,7 +787,16 @@ never drifts against the I2S transmitter in `fes_audio_output`.
 
 Fixed gains put the OPL2 and DSP at about −6 dBFS peak and the speaker at about
 −12 dBFS, with saturation on the sum. The audio contract has no volume control;
-these are constants, tuned by ear against period recordings in Phase M3.
+these are constants, tuned by ear against period recordings.
+
+**As built in M3** ([`pc386_mixer.sv`](../cores/fes-pc386/rtl/pc386_mixer.sv)):
+OPL2 and DSP at half scale, the speaker at 16384 when on, so a full speaker
+square wave swings ±8192 (−12 dBFS). The area of each period is divided by
+its length in clocks with a 33-clock serial divider. One DC blocker near 30 Hz
+follows the sum rather than the speaker alone; the OPL2 and an idle DSP are
+zero-mean, so it only removes static cone drive and DAC offsets. The gains are
+the design's starting values; tuning them by ear against period recordings
+needs a listener and stays open.
 
 ## Disk
 

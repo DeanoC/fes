@@ -9,18 +9,31 @@ docs/pc386-machine-design.md, "Verification" and phase M1.
            DMA registers, pages and a transfer, 8042 commands, A20 and reset,
            RTC update and interrupts, the ATA command set, and the I/O timing
            classes. Needs only Verilator.
+  audio    cores/fes-pc386/sim/audio_tb.cpp drives the AT core and the audio
+           block together: the Sound Blaster DSP's commands, DMA and IRQ at
+           every base and IRQ choice, the OPL2's AdLib timers, mixer levels.
+  opl2     cores/fes-pc386/sim/opl2_tb.cpp checks the OPL2 sample for sample
+           against Nuked-OPL3 on random register programs and on the port
+           writes captured from the sound suite (sim/fixtures/*-opl2.log).
   boot     cores/fes-pc386/sim/machine_tb.cpp runs the Bochs BIOS, the LGPL
            VGABios and FreeDOS on the AT core with the Bochs oracle as the CPU
            and a text VGA stand-in, types a command at the prompt and checks
            the answer and the I/O completion times. Needs the oracle build,
            the firmware build and the FreeDOS fixture; --download fetches what
            is missing.
+  sound    the boot, then SOUND.COM (sim/sound.asm) at the prompt: AdLib and
+           Sound Blaster detection, speaker, OPL2 and DSP DMA, as games start.
+           Checks the program's findings, every OPL2 sample against Nuked-OPL3,
+           and each section's tone in the captured 48 kHz output, and writes
+           build/sim/fes-pc386/sound/sound.wav to listen to. --update-fixture
+           copies its OPL2 port log to sim/fixtures/sound-opl2.log.
 
 Writes build/sim/fes-pc386/<suite>/report.json.
 
 Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
   python3 scripts/sim_fes_pc386.py --suite boot --download
+  python3 scripts/sim_fes_pc386.py --suite sound
 """
 from __future__ import annotations
 
@@ -28,8 +41,10 @@ import argparse
 import json
 import os
 from pathlib import Path
+import math
 import re
 import shutil
+import struct
 import subprocess
 import sys
 
@@ -39,6 +54,7 @@ if __package__ in (None, ''):
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import fes_i386_oracle as oracle
+from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / 'cores/fes-pc386'
@@ -122,7 +138,8 @@ def verilate(verilator: str, name: str, testbench: Path | None, linked: list[Pat
 
 def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'inta': {}, 'screen': [], 'end': None,
-              'prompt_cycle': None, 'cpu_resets': 0}
+              'prompt_cycle': None, 'cpu_resets': 0, 'marks': {}, 'opl2': None, 'opl2_mismatch': None,
+              'audio_samples': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'POST':
@@ -145,6 +162,15 @@ def parse_boot(text: str) -> dict:
             report['prompt_cycle'] = int(rest)
         elif kind == 'CPU-RESET':
             report['cpu_resets'] += 1
+        elif kind == 'MARK':
+            sample, _, name = rest.partition(' ')
+            report['marks'][name] = int(sample)
+        elif kind == 'OPL2':
+            report['opl2'] = {k: int(v) for k, v in (field.split('=') for field in rest.split())}
+        elif kind == 'OPL2-MISMATCH':
+            report['opl2_mismatch'] = rest
+        elif kind == 'AUDIO':
+            report['audio_samples'] = int(rest.partition('=')[2])
         elif kind == 'END':
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
@@ -164,16 +190,18 @@ def timing_failures(report: dict) -> list[str]:
     return failures
 
 
-def run_boot(args, linked: list[Path]) -> dict:
+def run_boot(args, linked: list[Path], suite: str = 'boot', disk: Path | None = None,
+             extra: tuple[str, ...] = ()) -> dict:
     images = firmware.images(args.download, args.jobs)
-    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
-    testbench = verilate(args.verilator, 'boot', CORE / 'sim/machine_tb.cpp', linked, args.jobs)
+    if disk is None:
+        disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    testbench = verilate_with_audio(args, suite, CORE / 'sim/machine_tb.cpp', linked)
     command = [str(testbench), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']),
                '--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
-               '--type', args.type, '--expect', args.expect]
+               '--type', args.type, '--expect', args.expect, *extra]
     print('Booting FreeDOS in simulation (this takes minutes)', flush=True)
-    result = subprocess.run(command, cwd=OUTPUT / 'boot', capture_output=True, text=True)
-    (OUTPUT / 'boot/machine.log').write_text(result.stdout + result.stderr)
+    result = subprocess.run(command, cwd=OUTPUT / suite, capture_output=True, text=True)
+    (OUTPUT / suite / 'machine.log').write_text(result.stdout + result.stderr)
     report = parse_boot(result.stdout)
     report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
     report['exit'] = result.returncode
@@ -183,6 +211,86 @@ def run_boot(args, linked: list[Path]) -> dict:
                                   f' {result.stderr.strip()}')
     if report['panic']:
         report['failures'].append(f'BIOS panic ports written: {report["panic"]}')
+    opl2 = report['opl2'] or {}
+    if opl2.get('exact') != opl2.get('samples') or report['opl2_mismatch']:
+        report['failures'].append(f'OPL2 against Nuked-OPL3: {opl2} {report["opl2_mismatch"] or ""}')
+    return report
+
+
+# The sound suite: SOUND.COM's sections in order, and what each must sound like.
+SOUND_SECTIONS = ('start', 'speaker', 'cpu-speaker', 'opl2', 'sb-single', 'sb-auto', 'end')
+SOUND_TONES = {'speaker': 880.0, 'sb-single': 1000.0, 'sb-auto': 1000.0}
+SOUND_SCREEN = ('ADLIB OK', 'SB DSP 2.01', 'SB IRQS 6', 'SOUND DONE')
+
+
+def sound_disk(args) -> Path:
+    """The FreeDOS fixture with SOUND.COM added."""
+    work = OUTPUT / 'sound'
+    work.mkdir(parents=True, exist_ok=True)
+    nasm = test386.nasm(args.download, args.jobs)
+    program = work / 'SOUND.COM'
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(program), str(CORE / 'sim/sound.asm')],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError('NASM failed on sound.asm:\n' + result.stderr)
+    disk = work / 'disk.img'
+    shutil.copyfile(freedos.image(args.download, args.jobs), disk)
+    env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', TZ='UTC')
+    result = subprocess.run(['mcopy', '-m', '-i', f'{disk}@@{freedos.PARTITION_START * 512}', str(program), '::SOUND.COM'],
+                            capture_output=True, text=True, env=env)
+    if result.returncode:
+        raise SimError('mcopy failed:\n' + result.stdout + result.stderr)
+    return disk
+
+
+def read_wav(path: Path) -> list[int]:
+    data = path.read_bytes()
+    if data[:4] != b'RIFF' or data[36:40] != b'data':
+        raise SimError(f'{path} is not the bench\'s WAV')
+    count = struct.unpack_from('<I', data, 40)[0] // 2
+    return list(struct.unpack_from(f'<{count}h', data, 44))
+
+
+def tone(samples: list[int]) -> dict:
+    """Frequency from rising zero crossings, and RMS and peak, of a stretch of 48 kHz output."""
+    rises = [n for n in range(1, len(samples)) if samples[n - 1] < 0 <= samples[n]]
+    hz = 48000 * (len(rises) - 1) / (rises[-1] - rises[0]) if len(rises) > 2 else 0.0
+    rms = math.sqrt(sum(v * v for v in samples) / len(samples)) if samples else 0.0
+    return {'hz': round(hz, 2), 'rms': round(rms, 1), 'peak': max((abs(v) for v in samples), default=0),
+            'samples': len(samples)}
+
+
+def run_sound(args, linked: list[Path]) -> dict:
+    wav = OUTPUT / 'sound/sound.wav'
+    opl2_log = OUTPUT / 'sound/sound-opl2.log'
+    report = run_boot(args, linked, 'sound', sound_disk(args), ('--wav', str(wav), '--opl2-log', str(opl2_log)))
+    screen = '\n'.join(report['screen'])
+    for text in SOUND_SCREEN:
+        if text not in screen:
+            report['failures'].append(f'SOUND.COM did not print {text!r}')
+    marks = report['marks']
+    missing = [name for name in SOUND_SECTIONS if name not in marks]
+    if missing:
+        report['failures'].append(f'SOUND.COM sections missing: {missing}')
+        return report
+    samples = read_wav(wav)
+    report['sections'] = {}
+    for name, end in zip(SOUND_SECTIONS[1:-1], SOUND_SECTIONS[2:]):
+        # Skip the first 10 ms of each section, while the last one decays.
+        section = tone(samples[marks[name] + 480:marks[end]])
+        report['sections'][name] = section
+        expected = SOUND_TONES.get(name)
+        if expected and abs(section['hz'] - expected) > expected * 0.005:
+            report['failures'].append(f'{name}: {section["hz"]} Hz, expected {expected}')
+        if section['rms'] < 500:
+            report['failures'].append(f'{name}: silent (RMS {section["rms"]})')
+    opl2 = report['opl2'] or {}
+    if not opl2.get('writes') or not opl2.get('nonzero'):
+        report['failures'].append(f'the OPL2 did not play: {opl2}')
+    if args.update_fixture:
+        fixtures = CORE / 'sim/fixtures'
+        fixtures.mkdir(exist_ok=True)
+        shutil.copyfile(opl2_log, fixtures / 'sound-opl2.log')
     return report
 
 
@@ -250,33 +358,46 @@ def run_opl2(args) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'boot', 'all'), default='all')
+    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'boot', 'sound', 'all'), default='all')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
-    parser.add_argument('--limit-seconds', type=float, default=8, help='simulated seconds before giving up')
-    parser.add_argument('--type', default='dir|', help="keys typed at the prompt; '|' is Enter")
-    parser.add_argument('--expect', default='bytes free', help='text the screen must show at the end')
+    parser.add_argument('--limit-seconds', type=float, default=None,
+                        help='simulated seconds before giving up (boot 8, sound 14)')
+    parser.add_argument('--update-fixture', action='store_true',
+                        help='sound: copy the captured OPL2 port log to sim/fixtures/sound-opl2.log')
+    parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter (boot: dir, sound: sound)")
+    parser.add_argument('--expect', default=None, help='text the screen must show at the end')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
+    limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     if shutil.which(args.verilator) is None:
         print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
         return 2
     failed = False
     try:
-        for suite in ('devices', 'audio', 'opl2', 'boot') if args.suite == 'all' else (args.suite,):
+        for suite in ('devices', 'audio', 'opl2', 'boot', 'sound') if args.suite == 'all' else (args.suite,):
+            sound = suite == 'sound'
+            args.limit_seconds = limit_seconds or (14 if sound else 8)
+            args.type = typed or ('sound|' if sound else 'dir|')
+            args.expect = expect or ('SOUND DONE' if sound else 'bytes free')
             if suite == 'devices':
                 report = run_devices(args)
             elif suite == 'audio':
                 report = run_audio(args)
             elif suite == 'opl2':
                 report = run_opl2(args)
-            else:
+            elif suite == 'boot':
                 report = run_boot(args, oracle.link_inputs(args.jobs, args.download))
+            else:
+                report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             (OUTPUT / suite / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-            if suite == 'boot':
+            if suite in ('boot', 'sound'):
                 for row in report['screen']:
                     print('|' + row + '|')
+                print('OPL2', report['opl2'])
+                for name, section in report.get('sections', {}).items():
+                    print('SECTION', name, section)
                 print('END', report['end'])
             else:
                 print('\n'.join(report['checks']))

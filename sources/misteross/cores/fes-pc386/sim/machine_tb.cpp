@@ -17,12 +17,23 @@
 //   IO <class> <size> <cycles> <count>      completion-time histogram of CPU I/O
 //   INTA <cycles> <count>
 //   SCREEN <row> |<80 characters>|          the text screen at the end
+//   MARK <sample> <name>                    a "MARK <name>" line on port E9h, at that 48 kHz output sample
+//   OPL2 samples=<n> exact=<n> nonzero=<n> writes=<n>   the OPL2 against Nuked-OPL3, every sample
+//   AUDIO samples=<n>
 //   END <reason> steps=<n> cycles=<n> seconds=<simulated>
+// The audio block (pc386_audio, a second model joined by audio_link.h) runs
+// beside the AT core: DMA channel 1 reaches guest RAM through the AT core's
+// DMA port, and the OPL2 is checked against Nuked-OPL3 as it plays.
 // usage: machine_tb --bios F --vgabios F --disk F [--disk-out F] [--limit-seconds S]
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
+//        [--wav F] [--opl2-log F]
+// --wav writes the 48 kHz mixer output (mono, 16-bit); --opl2-log the OPL2
+// port writes as "<clock> <a0> <byte>" for sim/opl2_tb.cpp to replay.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
-#include "Vpc386_at_core.h"
+#include "Vpc386_audio___024root.h"
+#include "audio_link.h"
 #include "i386_oracle.h"
+#include "opl2_reference.h"
 #include "verilated.h"
 
 #include <cstdint>
@@ -101,6 +112,9 @@ public:
     }
 
     Vpc386_at_core top;
+    AudioLink link{top};
+    Opl2Reference opl2;
+    FILE *opl2_log = nullptr;
     fes_i386::PageMemory ram{RAM_BYTES};
     fes_i386::PageMemory rom_bios{0x10000};
     fes_i386::PageMemory rom_vga{0x8000};
@@ -132,6 +146,7 @@ public:
     uint64_t pending_read_address = 0;
     bool pending_read = false;
     bool vga_answered = false;
+    bool dma_pending = false;
 
     void clock() {
         // Inputs for this edge, from the outputs after the previous one.
@@ -151,10 +166,23 @@ public:
         }
         vga_answered = top.vga_valid && top.vga_done;
         top.flush_done = top.flush_request;
-        top.clk = 1;
-        top.eval();
-        top.clk = 0;
-        top.eval();
+        // DMA channel 1's memory cycles, answered in the next clock.
+        top.dma_done = dma_pending;
+        dma_pending = false;
+        if (top.dma_valid && !top.dma_done) {
+            dma_pending = true;
+            uint32_t address = top.dma_address & (RAM_BYTES - 1);
+            if (top.dma_write) ram[address] = top.dma_wdata;
+            else top.dma_rdata = ram[address];
+        }
+        link.carry(cycles);
+        if (opl2_log && link.audio.access && link.audio.write && (link.audio.adlib || (link.audio.address >> 1) == 4))
+            std::fprintf(opl2_log, "%llu %u %02x\n", (unsigned long long)cycles, link.audio.address & 1u,
+                         unsigned(link.audio.wdata));
+        link.edge();
+        auto *audio = link.audio.rootp;
+        opl2.clock(audio->pc386_audio__DOT__opl2__DOT__opl2_reg_wr, audio->pc386_audio__DOT__opl2__DOT__sample_tick,
+                   link.audio.opl2_valid, int16_t(link.audio.opl2_sample));
         ++cycles;
         if (top.post_valid && top.post_code != last_post) {
             last_post = top.post_code;
@@ -180,6 +208,8 @@ public:
         }
         std::string &line = debug_line[port];
         if (value == '\n' || line.size() > 200) {
+            if (port == 0xe9 && line.rfind("MARK ", 0) == 0)
+                std::printf("MARK %zu %s\n", link.samples.size(), line.c_str() + 5);
             std::printf("DEBUG %03x %s\n", port, line.c_str());
             line.clear();
         } else if (value != '\r') line.push_back(char(value));
@@ -334,8 +364,21 @@ public:
     }
 };
 
+// 48 kHz mono 16-bit PCM.
+void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
+    std::ofstream out(path, std::ios::binary);
+    auto u32 = [&](uint32_t v) { out.write(reinterpret_cast<const char *>(&v), 4); };
+    auto u16 = [&](uint16_t v) { out.write(reinterpret_cast<const char *>(&v), 2); };
+    uint32_t bytes = uint32_t(samples.size() * 2);
+    out.write("RIFF", 4); u32(36 + bytes); out.write("WAVEfmt ", 8);
+    u32(16); u16(1); u16(1); u32(48000); u32(96000); u16(2); u16(16);
+    out.write("data", 4); u32(bytes);
+    out.write(reinterpret_cast<const char *>(samples.data()), std::streamsize(bytes));
+    if (!out) throw std::runtime_error("cannot write " + path);
+}
+
 struct Options {
-    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect;
+    std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, wav, opl2_log;
     double limit_seconds = 120;
     unsigned cycles_per_instruction = 4;
 };
@@ -355,6 +398,8 @@ Options parse(int argc, char **argv) {
         else if (flag == "--prompt") options.prompt = value;
         else if (flag == "--type") options.type = value;
         else if (flag == "--expect") options.expect = value;
+        else if (flag == "--wav") options.wav = value;
+        else if (flag == "--opl2-log") options.opl2_log = value;
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
@@ -371,6 +416,8 @@ int main(int argc, char **argv) {
     try {
         Options options = parse(argc, argv);
         Machine machine(read_file(options.bios), read_file(options.vgabios), options.disk);
+        if (!options.opl2_log.empty() && !(machine.opl2_log = std::fopen(options.opl2_log.c_str(), "w")))
+            throw std::runtime_error("cannot write " + options.opl2_log);
         auto oracle = fes_i386::make_oracle(machine);
         oracle->reset();
         bool intr = false, a20m = false;
@@ -456,6 +503,13 @@ int main(int argc, char **argv) {
         for (int row = 0; row < 25; ++row) std::printf("SCREEN %02d |%s|\n", row, machine.screen_row(row).c_str());
         bool expected = options.expect.empty() || machine.screen().find(options.expect) != std::string::npos;
         if (!expected) reason = "expected-text-missing";
+        const Opl2Reference &opl2 = machine.opl2;
+        std::printf("OPL2 samples=%llu exact=%llu nonzero=%llu writes=%llu\n", (unsigned long long)opl2.samples,
+                    (unsigned long long)opl2.exact, (unsigned long long)opl2.nonzero, (unsigned long long)opl2.writes);
+        if (opl2.mismatches) std::printf("OPL2-MISMATCH %s\n", opl2.first_mismatch.c_str());
+        std::printf("AUDIO samples=%zu\n", machine.link.samples.size());
+        if (machine.opl2_log) std::fclose(machine.opl2_log);
+        if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

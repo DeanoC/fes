@@ -25,12 +25,15 @@ public:
             OPL3_WriteReg(&chip, uint16_t(write >> 8 & 0xff), uint8_t(write));
             ++writes;
         }
+        ++since_tick;
         if (tick) {
+            since_tick = 0;
             int16_t out[2];
             OPL3_Generate(&chip, out);
             expected.push_back(out[0]);
         }
         if (valid) {
+            if (since_tick > busy_clocks) busy_clocks = since_tick;
             if (expected.empty()) {
                 note("RTL sample with no reference sample");
                 return;
@@ -53,6 +56,7 @@ public:
     }
 
     uint64_t samples = 0, exact = 0, mismatches = 0, nonzero = 0, writes = 0;
+    uint64_t busy_clocks = 0;      // longest sample computation, tick to output
     std::string first_mismatch;
 
 private:
@@ -62,4 +66,5 @@ private:
     }
     opl3_chip chip;
     std::deque<int16_t> expected;
+    uint64_t since_tick = 0;
 };
