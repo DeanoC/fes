@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-VENDOR = ROOT / 'cores/fes-pcxt/vendor/kf8259'
+VENDOR = ROOT / 'cores/fes-common/vendor/kf8259'
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 

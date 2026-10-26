@@ -9,7 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from sim_fes_pcxt import CHIPSET_SOURCES
+from sim_fes_pcxt import CHIPSET_SOURCES, CHIP_VENDORS, vendor_dir
 
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
@@ -45,8 +45,7 @@ class MotherboardPinTest(unittest.TestCase):
             work = Path(directory)
             (work / 'proof.sv').write_text(source)
             command = ('read_verilog -sv ' +
-                       ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n)
-                                for n in ('kf8259', 'kf8253', 'kf8255')) + ' ' +
+                       ' '.join('-I ' + str(vendor_dir(n)) for n in CHIP_VENDORS) + ' ' +
                        ' '.join(str(ROOT / s) for s in CHIPSET_SOURCES[:-2]) +
                        ' proof.sv; prep -top pcxt_motherboard -flatten; memory; async2sync; opt; '
                        'sat -verify -seq 4 -tempinduct -maxsteps 8 -set-at 1 reset 1 -prove proof_ok 1')

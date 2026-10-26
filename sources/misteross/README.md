@@ -87,6 +87,11 @@ source/tool receipts and failed or completed routes under
 Routed timing, SDRAM pad qualification, a sealed package, physically linkable ISA
 sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
 
+The pc386 machine's AT core (phase M1 of the [machine design](docs/pc386-machine-design.md))
+boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
+oracle as CPU. `make sim-fes-pc386` runs its device checks and
+`make sim-fes-pc386-boot` the boot; see the [core README](cores/fes-pc386/README.md).
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
