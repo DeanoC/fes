@@ -58,7 +58,7 @@ module pc386_at_core #(
     input wire [7:0] vga_rdata,
     // Sound port: the Sound Blaster base range and 388h-389h, isa8 cycles
     output wire sound_access, sound_write, sound_adlib,
-    output wire [3:0] sound_register,
+    output wire [3:0] sound_address,
     output wire [7:0] sound_wdata,
     input wire [7:0] sound_rdata,
     // Interrupts from other devices (Sound Blaster), ORed in
@@ -142,7 +142,7 @@ module pc386_at_core #(
     assign sound_access = access && select_sound;
     assign sound_write = cycle_write;
     assign sound_adlib = port[15:4] != {4'h0, sb_base_high};
-    assign sound_register = port[3:0];
+    assign sound_address = port[3:0];
     assign sound_wdata = cycle_wdata[7:0];
 
     // ---- Interrupts -------------------------------------------------------

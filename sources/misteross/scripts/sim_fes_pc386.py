@@ -212,6 +212,22 @@ def run_checks(command: list[str], cwd: Path, log: Path) -> tuple[list[str], lis
     return checks, failures, result.stdout
 
 
+def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
+                        parameters: dict[str, int] | None = None) -> Path:
+    """The AT core with pc386_audio as a second model, joined by sim/audio_link.h."""
+    audio = verilate(args.verilator, name, None, [], args.jobs, top='pc386_audio', rtl=AUDIO_RTL)
+    return verilate(args.verilator, name, testbench, [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters,
+                    include=(audio.parent,))
+
+
+def run_audio(args) -> dict:
+    testbench = verilate_with_audio(args, 'audio', CORE / 'sim/audio_tb.cpp', [])
+    log = OUTPUT / 'audio/audio.log'
+    log.write_text('')
+    checks, failures, _ = run_checks([str(testbench)], OUTPUT / 'audio', log)
+    return {'checks': checks, 'failures': failures}
+
+
 def run_opl2(args) -> dict:
     testbench = verilate(args.verilator, 'opl2', CORE / 'sim/opl2_tb.cpp', [NUKED / 'opl3.c'], args.jobs,
                          top='pc386_opl2', rtl=OPL2_RTL)
@@ -234,7 +250,7 @@ def run_opl2(args) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'opl2', 'boot', 'all'), default='all')
+    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'boot', 'all'), default='all')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=8, help='simulated seconds before giving up')
@@ -248,9 +264,11 @@ def main() -> int:
         return 2
     failed = False
     try:
-        for suite in ('devices', 'opl2', 'boot') if args.suite == 'all' else (args.suite,):
+        for suite in ('devices', 'audio', 'opl2', 'boot') if args.suite == 'all' else (args.suite,):
             if suite == 'devices':
                 report = run_devices(args)
+            elif suite == 'audio':
+                report = run_audio(args)
             elif suite == 'opl2':
                 report = run_opl2(args)
             else:
