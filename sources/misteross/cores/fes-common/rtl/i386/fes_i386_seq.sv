@@ -85,6 +85,7 @@ module fes_i386_seq (
         n.step = d.step + 3'd1;
         n.more = 1'b0;
         n.uop.sp_add = 1'b0;
+        n.uop.eoi_taken = 1'b0;
         n.uop.seg2 = 1'b0;
         n.uop.ctl.end_of_instruction = 1'b0;
         n.sel_part = 1'b0;
@@ -206,7 +207,6 @@ module fes_i386_seq (
                 n.base = 3'd4;
                 n.has_index = 1'b0;
                 n.scale = 2'd0;
-                if (w.ivt) n.lea_disp = {d.lea_disp[31:2], w.sel_part, 1'b0};
                 n.push_eip = w.b == 2'd1;
                 n.b_t1 = w.b == 2'd2;
                 n.a_t1 = w.a_t1;

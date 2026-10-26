@@ -216,7 +216,10 @@ package fes_i386_pkg;
     // probe: the uop reads the lowest slot of a routine's pushes or pops
     // (PROBE_*), and M1 also faults when the slots cross the 64 KiB wrap
     // misaligned, so a routine writes nothing before it can fault.
+    // eoi_taken: the uop ends the instruction when it is a taken branch
+    // (INTO's JNO, past which the rest of the routine is the interrupt).
     typedef struct packed {
+        logic        eoi_taken;
         logic [1:0]  probe;
         logic        seg2;
         logic [2:0]  seg2_idx;

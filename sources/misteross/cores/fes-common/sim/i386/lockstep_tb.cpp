@@ -478,6 +478,7 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
 
 struct Summary {
     uint64_t runs = 0, passed = 0, failed = 0, retirements = 0, cycles = 0, faults = 0, halts = 0, limits = 0;
+    uint64_t interrupts = 0;  // corpus runs that took a software interrupt, then halted in its handler
     uint64_t trace_hash = 1469598103934665603ull;
     std::map<int, uint64_t> fault_vectors;
     std::map<std::string, uint64_t> divergences;  // retirements an entry left to the corpus
@@ -532,9 +533,10 @@ MemUse stack_use(const uint8_t *code) {
         m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
     } else {
         m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
-                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a || op == 0x60 || op == 0x9c;
+                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a || op == 0x60 || op == 0x9c ||
+                   op == 0xcc || op == 0xcd || op == 0xce;
         m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
-                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb || op == 0x61 || op == 0x9d;
+                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb || op == 0x61 || op == 0x9d || op == 0xcf;
     }
     return m;
 }
@@ -645,7 +647,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
     else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
     else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea || op == 0x9a ||
-             op == 0xca || op == 0xcb)
+             op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 3 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
     else if (op == 0xe2) taken = count != 1;
@@ -661,6 +663,7 @@ struct Outcome {
     int fault = -1;        // the vector both sides raised
     bool limit = false;    // stopped at the retirement limit
     bool smc = false;      // stopped at a store into [code_lo, code_hi)
+    int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
     std::string code;      // the last instruction's first bytes, for a failure's line
 };
 
@@ -756,7 +759,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.reads && store_before ? summary.gap_store_load
                            : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0x9a &&
                                      op != 0xca && op != 0xcb && op != 0xc9 && op != 0x54 && op != 0x5c &&
-                                     op != 0x60 && op != 0x61
+                                     op != 0x60 && op != 0x61 && (op < 0xcc || op > 0xcf)
                                ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
                            : stack_before ? summary.gap_after_stack
@@ -816,6 +819,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             outcome.halted = true;
             return outcome;
         }
+        for (const auto &e : result.events)
+            if (e.kind == fes_i386::EventKind::SoftwareInterrupt) outcome.interrupt = e.vector;
         if (outcome.smc) return outcome;
     }
 }
@@ -1035,7 +1040,11 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             } else if (!outcome.halted) {
                 out.add("halt", 1, 0);
             } else {
-                if (test.exception >= 0) out.add("corpus.exception", uint32_t(test.exception), 0xffffffffu);
+                // A software interrupt is the corpus's exception: the run goes
+                // on into the handler, to its HLT.
+                if (test.exception >= 0 && outcome.interrupt != test.exception)
+                    out.add("corpus.exception", uint32_t(test.exception),
+                            outcome.interrupt >= 0 ? uint32_t(outcome.interrupt) : 0xffffffffu);
                 compare_corpus(test, rtl.state(), rtl, out);
             }
         }
@@ -1044,6 +1053,7 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
             ++summary.fault_vectors[outcome.fault];
         } else if (outcome.halted) {
             ++summary.halts;
+            summary.interrupts += outcome.interrupt >= 0;
         }
         summary.cycles += rtl.cycles;
         rtl.cycles = 0;
@@ -1789,7 +1799,7 @@ int main(int argc, char **argv) {
     for (auto &[id, count] : summary.divergences)
         divergences += (divergences.empty() ? "" : ", ") + std::string("\"") + id + "\": " + std::to_string(count);
     std::printf("{\"mode\": \"%s\", \"seed\": %llu, \"latency\": %s, \"runs\": %llu, \"passed\": %llu, \"failed\": %llu, "
-                "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
+                "\"retirements\": %llu, \"cycles\": %llu, \"halts\": %llu, \"interrupts\": %llu, \"faults\": %llu, \"fault_vectors\": {%s}, "
                 "\"retire_limits\": %llu, \"smc_stops\": %llu, \"load_wait_cycles\": %llu, "
                 "\"divergence_retirements\": {%s}, "
                 "\"trace_hash\": \"%016llx\", "
@@ -1800,6 +1810,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
                 (unsigned long long)summary.cycles, (unsigned long long)summary.halts,
+                (unsigned long long)summary.interrupts,
                 (unsigned long long)summary.faults, vectors.c_str(), (unsigned long long)summary.limits,
                 (unsigned long long)summary.smc, (unsigned long long)summary.load_waits, divergences.c_str(),
                 (unsigned long long)summary.trace_hash, histogram(summary.gap_sequential).c_str(),

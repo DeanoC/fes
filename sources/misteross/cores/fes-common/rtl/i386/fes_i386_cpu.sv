@@ -160,12 +160,13 @@ module fes_i386_cpu (
     logic     q_two;                // a two-byte opcode: the ModRM is byte 2
     assign q_two = q.bytes[0] == 8'h0f;
     logic [2:0] q_stk, q_seq;       // dc_q.stk and .seq, apart so no field of dc_q reads another
+    logic       q_ivt;              // the interrupt vector's entry: no base or index
     fes_i386_decode decode (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc)
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .ivt(q_ivt)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -177,9 +178,9 @@ module fes_i386_cpu (
         .base(am_base), .has_index(am_has_index), .index(dc_q.index), .scale(am_scale), .stack(dc_stack)
     );
     assign dc_q.stk = q_stk;
-    assign dc_q.has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base;
+    assign dc_q.has_base = q_stk != fes_i386_pkg::STK_NONE || am_has_base && !q_ivt;
     assign dc_q.base = q_stk == fes_i386_pkg::STK_LEAVE ? 3'd5 : q_stk != fes_i386_pkg::STK_NONE ? 3'd4 : am_base;
-    assign dc_q.has_index = q_stk == fes_i386_pkg::STK_NONE && am_has_index;
+    assign dc_q.has_index = q_stk == fes_i386_pkg::STK_NONE && am_has_index && !q_ivt;
     assign dc_q.scale = q_stk == fes_i386_pkg::STK_NONE ? am_scale : 2'd0;
     assign dc_q.length = q.length;
     assign dc_q.seq = q_seq;
@@ -346,7 +347,10 @@ module fes_i386_cpu (
     assign lea_early = dc.lea_early;
     // A far pointer's selector is past its offset by the operand size,
     // wrapped by address size.
-    assign lea_disp = !dc.sel_part ? dc.lea_disp
+    // The interrupt vector's entry is at vector * 4 (far_sel), its selector
+    // at + 2.
+    assign lea_disp = dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
+                    : !dc.sel_part ? dc.lea_disp
                     : dc.uop.mem.addr32 ? dc.lea_disp + st_size : {16'b0, dc.lea_disp[15:0] + st_size[15:0]};
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
@@ -828,6 +832,9 @@ module fes_i386_cpu (
     assign seg_w_idx = wb_s.uop.seg2 ? wb_s.uop.seg2_idx : wb_s.uop.dst.index[2:0];
     assign seg_w_sel = !wb_s.uop.seg2 ? wb_s.result[15:0] : wb_s.uop.seg2_t ? t0 : wb_s.c[15:0];
     assign wb_fault = 3'(wb_s.uop.ctl.fault);
+    // The uop ends its instruction: its last, or INTO's JNO when taken.
+    logic wb_eoi;
+    assign wb_eoi = wb_s.uop.ctl.end_of_instruction || wb_s.taken && wb_s.uop.eoi_taken;
 
     // A store writes its bytes on the edge it retires: the result's low
     // bytes, moved to the address's place in its dword and the next.
@@ -876,11 +883,11 @@ module fes_i386_cpu (
                 trace_vector <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
                               : wb_fault == 3'd5 ? 8'd12 : 8'd0;
             end else begin
-                trace_retire <= wb_s.uop.ctl.end_of_instruction;
+                trace_retire <= wb_eoi;
                 eflags <= wb_flags;
                 // EIP moves at an instruction's last uop, so a sequence that
                 // faults part way leaves it at the instruction.
-                if (wb_s.uop.ctl.end_of_instruction) eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
+                if (wb_eoi) eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
                 // A stack operation's ESP, which a destination of ESP overrides;
                 // RETF's step, at the stack's width.
                 if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;

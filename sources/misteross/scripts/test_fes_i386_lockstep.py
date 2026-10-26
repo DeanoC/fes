@@ -94,7 +94,7 @@ SCOPE: frozenset[str] = frozenset([
     # Far pointer loads: LES, LDS, LSS, LFS, LGS; far transfers.
     'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA', '9A', 'CA', 'CB', 'FF.3', 'FF.5',
     # Microcode routines; PUSHF and POPF.
-    '60', '61', '9C', '9D',
+    '60', '61', '9C', '9D', 'CC', 'CD', 'CE', 'CF',
 ])
 
 
@@ -357,7 +357,7 @@ def main() -> int:
         summary = result['summary']
         counts = by_opcode.setdefault(vectors.base_opcode(result['stem']), Counter())
         counts.update({'tests': result['tests'], 'passed': summary['passed'], 'failed': summary['failed'],
-                       'retired_to_hlt': summary['halts'], 'faults': summary['faults'],
+                       'retired_to_hlt': summary['halts'], 'interrupts': summary['interrupts'], 'faults': summary['faults'],
                        'retirements': summary['retirements']})
         corpus_failures += result['failures']
     totals = sum(by_opcode.values(), Counter())
@@ -402,7 +402,8 @@ def main() -> int:
     })
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
-          f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['faults']} faulting "
+          f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
+          f"interrupt's handler, {totals['faults']} faulting "
           f"{dict(fault_vectors)}), {totals['failed']} fail; {totals['retirements']} retirements compared")
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "

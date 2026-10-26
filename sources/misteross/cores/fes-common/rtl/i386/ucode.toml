@@ -46,3 +46,40 @@ uops = [
     { cls = "alu", op = "mov", s1 = "eax", d = "eax", mkind = "load", stk = "pop" },
     { cls = "alu", op = "mov", a = "t1", s2 = "esp", d = "esp", size = "16", popad_esp = true },
 ]
+
+# INTO: DC decodes a JNO to the next instruction that ends it if taken; with
+# OF set it falls into INT's routine with vector 4. INT n and INT3: DC
+# decodes the read of the vector's offset into T1. Real-mode interrupt entry,
+# as the 386EX does it, reads the vector's entry before pushing (divergence
+# interrupt-vector-before-push): the selector into T0, a probe of the three
+# 16-bit slots, FLAGS (IF and TF then clear), CS and the next IP, then the far
+# jump to T0:T1.
+[[routine]]
+name = "into"
+falls_through = true
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", mbytes = "2", ivt = true },
+]
+
+[[routine]]
+name = "int"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", mbytes = "2", ivt = true, sel_part = true },
+    { cls = "alu", op = "mov", mkind = "load", mbytes = "2", stk = "probe", probe = "int" },
+    { cls = "alu", op = "flags", imm = 11, size = "16", mkind = "store", mbytes = "2", in_a = true, stk = "push", rd_cf = true, rd_oszap = true },
+    { cls = "alu", op = "movzx", src_size = "16", size = "16", b = "sel", seg = "cs", mkind = "store", mbytes = "2", in_a = true, stk = "push" },
+    { cls = "alu", op = "mov", size = "16", b = "eip", mkind = "store", mbytes = "2", in_a = true, stk = "push" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true },
+]
+
+# IRET and IRETD. DC decodes the read of the offset, slot 0, into T1; the ROM
+# reads CS's slot into T0, then FLAGS' slot into FLAGS, which first checks
+# the offset against CS's limit (far_chk), then jumps, stepping ESP past the
+# three slots (stk = "retf", slot 1).
+[[routine]]
+name = "iret"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1 },
+    { cls = "alu", op = "flags", imm = 9, mkind = "load", stk = "peek", slot = 2, far_chk = true, far_t = true, wr_cf = true, wr_oszap = true },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, sp_add = true, stk = "retf", slot = 1 },
+]
