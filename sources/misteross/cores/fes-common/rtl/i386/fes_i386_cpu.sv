@@ -401,9 +401,9 @@ module fes_i386_cpu (
     end
     assign flags_keep = wb_s.valid && (wb_s.def_co || wb_s.def_szap) ? wb_flags : ex_flags;
 
-    // An operand whose producer is one stage ahead (exc.byp_*) comes from the
-    // WB result register beside EX's operand.
-    // An early LEA's offset is its whole result, which EX's LEA select passes.
+    // An operand whose producer is one stage ahead (exc.byp_a, xw_*, yw_*,
+    // byp_c) comes from the WB result register beside EX's operand. An early
+    // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
         .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),

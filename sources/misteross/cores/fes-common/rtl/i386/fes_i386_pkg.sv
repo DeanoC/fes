@@ -278,7 +278,9 @@ package fes_i386_pkg;
         logic       kp_lo, kp_mid, kp_hi;
         logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
         logic       l_or, l_xor;               // the logic unit; AND otherwise
-        logic       f_add, f_arith, f_logic, f_shift;  // CF from the adder; OF, SF, ZF, AF, PF from it; ...
+        logic       f_add;                     // CF comes from the adder
+        logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
+        logic       f_logic, f_shift;          // ... from the logic unit; from the shift, at WB
         logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
         logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
