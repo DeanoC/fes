@@ -29,7 +29,8 @@
 // store engine presents each word's address a clock before it issues the word.
 // A sector store marks its chunk by read-modify-write two clocks later, and a
 // reset clears the map over 128 clocks; dirty_word is the word at dirty_index
-// two clocks before.
+// two clocks before, held over a read that met a mark (M10K leaves that read
+// undefined).
 //
 // Device 1 is absent: with DEV set its status reads 00h and it runs no
 // command but EXECUTE DEVICE DIAGNOSTIC; the other registers are shared.
@@ -125,6 +126,7 @@ module pc386_ata #(
 
     // Dirty map: a sector store marks its chunk in two clocks, ahead of dirty_index.
     reg mark_read, mark_write, clearing;
+    reg host_read;                       // last clock's map read was dirty_index's, with no write
     reg [6:0] mark_index, dirty_clear;
     reg [3:0] mark_bit;
     wire [15:0] dirty_read;
@@ -232,8 +234,9 @@ module pc386_ata #(
     assign buffer_wdata = fetch_fill ? disk_rdata : deferred ? gathered : {wdata, gathered[47:0]};
 
     always @(posedge clk) begin
-        // The map read that a mark used gives the host nothing.
-        if (!mark_write) dirty_word <= clearing ? 16'h0000 : dirty_read;
+        host_read <= !mark_read && !dirty_write;
+        if (clearing) dirty_word <= 16'h0000;
+        else if (host_read) dirty_word <= dirty_read;
         if (reset) begin
             features <= 0; count <= 1; number <= 1; cylinder_low <= 0; cylinder_high <= 0; drive_head <= 0;
             error <= 8'h01; nien <= 0; srst <= 0;

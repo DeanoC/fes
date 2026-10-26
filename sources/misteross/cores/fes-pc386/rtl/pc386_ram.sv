@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Simple dual-port RAMs for the pc386 VGA and presenter: one write port and
-// one registered read port. pc386_ram reads when read is high and holds its
+// Simple dual-port RAMs for the pc386 AT core, VGA and presenter: one write
+// port and one registered read port. pc386_ram reads when read is high and holds its
 // output otherwise; pc386_dcram writes in one clock and reads in another, for
 // the presenter's line buffers. Byte enables cover BYTES equal lanes.
 module pc386_ram #(

@@ -40,7 +40,8 @@ a **host-only check** plus diagnostic synthesis: no route, package or kit.
 - **Dirty map:** a 128 × 16 `pc386_ram`, 1 M10K. A sector store marks its
   chunk by read-modify-write over the two clocks after the store. A reset
   clears the map over 128 clocks, during which `dirty_word` reads 0.
-  `dirty_word` is now the word at `dirty_index` two clocks earlier.
+  `dirty_word` is now the word at `dirty_index` two clocks earlier. It holds
+  over a map read that met a write, which M10K leaves undefined.
 - **CMOS** ([`pc386_rtc.sv`](../../../sources/misteross/cores/fes-pc386/rtl/pc386_rtc.sv)):
   64 pairs × 16 bits with byte enables, 1 M10K. 71h reads the pair at the
   index, re-read every clock. The checksum reads one pair ahead, and 2Eh–2Fh
@@ -54,8 +55,9 @@ a **host-only check** plus diagnostic synthesis: no route, package or kit.
 Recorded deviations, both protocol errors no driver makes:
 
 - A data-port read during a write command returns no defined data.
-- A guest write to CMOS while `busy` (the machine holds the CPU in reset
-  then) is lost.
+- A guest write to CMOS while `busy` is lost. The testbenches release the
+  CPU only after `busy` falls, and so will the runtime that the endpoint
+  phase adds.
 
 ## Device checks and benches
 
