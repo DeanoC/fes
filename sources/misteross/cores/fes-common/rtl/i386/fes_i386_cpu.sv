@@ -89,6 +89,8 @@ module fes_i386_cpu (
     logic [31:0]      eip;
     logic [5:0][15:0] seg_sel, seg_ar, seg_hi1;  // seg_hi1: base[31:16] + 1
     logic [5:0][31:0] seg_base, seg_limit;
+    logic [15:0]      t0;  // microcode temporaries: a far transfer's selector and offset
+    logic [31:0]      t1;
     // Each segment's limit less 0, 1 and 3, for 1-, 2- and 4-byte accesses,
     // and whether that is below zero, so the limit check is one compare.
     // Real-mode loads keep the limit, so only reset loads them.
@@ -159,7 +161,8 @@ module fes_i386_cpu (
         .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
-        .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part)
+        .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
+        .far_sel(dc_q.far_sel)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -179,6 +182,7 @@ module fes_i386_cpu (
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
+    assign dc_q.far_t = 1'b0;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
     // issues, dc takes the next (fes_i386_seq).
@@ -271,10 +275,24 @@ module fes_i386_cpu (
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
     assign d_unimpl = wrap16 || (mem && expand_down);
+
+    // A far transfer's selector and offset, from the instruction or from T0
+    // and T1. In 16-bit code an offset past CS's limit raises #GP(0) at the
+    // uop that checks it, the transfer's first to write anything; under a
+    // larger limit that is FAULT_UNIMPLEMENTED, as wrap16.
+    logic [15:0] far_sel;
+    logic [31:0] far_off;
+    logic        far_bad, t_busy, t_wait;
+    assign far_sel = dc.far_t ? t0 : dc.far_sel;
+    assign far_off = dc.far_t ? t1 : dc.uop.imm;
+    assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
+    assign t_wait = dc.far_t && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
         if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        if (far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
         if (cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
     end
     assign opsize32 = dc.opsize32;
@@ -287,7 +305,7 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || d_unimpl || cs_gp;
+    assign stop = dc.stop || d_unimpl || cs_gp || far_bad;
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -364,6 +382,12 @@ module fes_i386_cpu (
                                  && s.uop.dst.index[2:0] == 3'(seg) || s.uop.seg2 && s.uop.seg2_idx == 3'(seg));
     endfunction
     logic [5:0] d_seg_busy;
+    function automatic logic writes_temp_u(input uop_t v);
+        writes_temp_u = v.dst.valid && v.dst.space == fes_i386_pkg::RS_TEMP;
+    endfunction
+    function automatic logic writes_temp(input pipe_t s);
+        writes_temp = s.valid && writes_temp_u(s.uop);
+    endfunction
     logic       seg_hazard, mseg_hazard;
     assign seg_hazard = d_seg_busy[seg_index];
     assign mseg_hazard = d_seg_busy[mseg];
@@ -385,12 +409,17 @@ module fes_i386_cpu (
     // taken branch's redirect resets DC and D's EIP on the same edge, and a
     // fault or HLT stops the CPU.
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
-                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !freeze;
+                && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !freeze;
 
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             d_seg_busy <= 6'd0;
+            t_busy <= 1'b0;
         end else if (!freeze) begin
+            // T0 and T1 are written at WB, so a uop that reads them in D waits
+            // for every older one that writes either to retire.
+            t_busy <= issue && writes_temp_u(u) || writes_temp(ag_s) || writes_temp(m1_s) || writes_temp(m2_s)
+                   || writes_temp(ex_s);
             for (int k = 0; k < 6; k++)
                 d_seg_busy[k] <= (issue && (u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k)
                                             || u.seg2 && u.seg2_idx == 3'(k)))
@@ -425,7 +454,7 @@ module fes_i386_cpu (
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : a_val;
         d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next
                 : u.src2.valid ? b_val : u.imm;
-        d_out.c = c_val;
+        d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;
         d_out.pend_a = u.src1.valid && a_pend;
         d_out.pend_b = u.src2.valid && b_pend;
         d_out.pend_c = u.count_cl && c_pend;
@@ -463,6 +492,18 @@ module fes_i386_cpu (
             ag_seg_term <= lea ? 32'd0 : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
             ag_seg_hi <= lea ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea ? 16'd0 : seg_hi1[mseg];
+        end else if (dc.far_jmp) begin
+            // A far jump's target: the new CS's base, selector * 16, plus
+            // the offset, which is already its operand size's.
+            ag_addr32 <= 1'b1;
+            ag_row <= 32'd0;
+            ag_last <= 32'd0;
+            ag_late <= 2'd0;
+            ag_late_hi <= 2'd0;
+            ag_disp <= far_off;
+            ag_seg_term <= {12'd0, far_sel, 4'd0};
+            ag_seg_hi <= {12'd0, far_sel[15:12]};
+            ag_seg_hi_plus1 <= 16'd0;
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
             // wrapped by operand size.
@@ -722,7 +763,7 @@ module fes_i386_cpu (
     // the selector in T0 (a far pointer load) or c.
     logic        seg_w;
     logic [2:0]  seg_w_idx;
-    logic [15:0] seg_w_sel, t0;
+    logic [15:0] seg_w_sel;
     assign seg_w = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG || wb_s.uop.seg2;
     assign seg_w_idx = wb_s.uop.seg2 ? wb_s.uop.seg2_idx : wb_s.uop.dst.index[2:0];
     assign seg_w_sel = !wb_s.uop.seg2 ? wb_s.result[15:0] : wb_s.uop.seg2_t ? t0 : wb_s.c[15:0];
@@ -783,7 +824,10 @@ module fes_i386_cpu (
                 if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
                     gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
-                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) t0 <= wb_s.result[15:0];
+                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) begin
+                    if (wb_s.uop.dst.index[3]) t1 <= wb_s.result;
+                    else t0 <= wb_s.result[15:0];
+                end
                 if (seg_w) begin
                     // Real mode: the base is selector * 16; limit and attributes stay.
                     seg_sel[seg_w_idx] <= seg_w_sel;

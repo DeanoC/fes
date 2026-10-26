@@ -207,7 +207,8 @@ package fes_i386_pkg;
     // destination, which the main one overrides when it is ESP too (POP ESP).
     // A segment register can be a second destination too (seg2: LES and its
     // kin), written at WB with the selector in T0 (seg2_t) or in c. A
-    // destination in RS_TEMP is T0, which WB writes and no forwarding sees.
+    // destination in RS_TEMP is T0 (16 bits), or T1 (32) with index bit 3,
+    // which WB writes and no forwarding sees.
     typedef struct packed {
         logic        seg2;
         logic [2:0]  seg2_idx;
@@ -257,6 +258,15 @@ package fes_i386_pkg;
         // operand size. Each part is checked against the limit on its own,
         // the selector's offset wrapped by address size, as the 386EX does.
         logic        sel_part;
+        // A far transfer's selector and offset: far_sel and uop.imm, or T0
+        // and T1 (far_t, once the uops loading them have retired). far_jmp: the
+        // uop is the jump, whose target AG computes as the new CS's base
+        // plus the offset; far_chk: the uop checks the offset against CS's
+        // limit, before the transfer writes anything.
+        logic        far_jmp;
+        logic        far_chk;
+        logic        far_t;
+        logic [15:0] far_sel;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
         logic [2:0]  seq;

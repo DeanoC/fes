@@ -611,7 +611,7 @@ bool consumes_flags(const uint8_t *code) {
 
 // A branch's opcode and whether it is taken from this state, as the 386
 // decides: Jcc by its condition, LOOPcc and JCXZ by CX or ECX (address size).
-// CALL, RET and JMP r/m are always taken.
+// CALL, RET, JMP r/m and the far transfers are always taken.
 bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken) {
     unsigned i = 0;
     bool as32 = code32;
@@ -640,7 +640,7 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     const bool zf = s.eflags & 0x40;
     if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
     else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
-    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3) taken = true;
+    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea) taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) == 4) taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;

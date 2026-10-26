@@ -46,7 +46,10 @@ module fes_i386_decode (
     output logic                   push_eip,    // src2 is the next instruction's EIP
     output logic                   cs_base,     // src1 is CS's base (EX adds the target)
     output logic [2:0]             seq,         // a fixed uop sequence (fes_i386_pkg SEQ_*, fes_i386_seq)
-    output logic                   sel_part     // the uop reads a far pointer's selector
+    output logic                   sel_part,    // the uop reads a far pointer's selector
+    output logic                   far_jmp,     // a far jump by far_sel:imm
+    output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
+    output logic [15:0]            far_sel
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -121,7 +124,8 @@ module fes_i386_decode (
     logic [1:0]  size, src_size;
     logic        count_cl;
     logic        s1_valid, s1_hi8, s2_valid, s2_hi8, d_valid, d_seg, d_temp, d_hi8;
-    logic [2:0]  seg2_idx;  // a far pointer's segment register
+    logic        seg2, seg2_t;
+    logic [2:0]  seg2_idx;  // a far pointer's segment register, or CS
     logic [2:0]  s1_idx, s2_idx, d_idx;
     logic [31:0] imm;
     logic [3:0]  cond;
@@ -151,8 +155,12 @@ module fes_i386_decode (
         d_valid = 1'b0;
         d_seg = 1'b0;
         d_temp = 1'b0;
+        seg2 = 1'b0;
+        seg2_t = 1'b1;
         seg2_idx = 3'd0;
         sel_part = 1'b0;
+        far_jmp = 1'b0;
+        far_chk = 1'b0;
         lptr = 1'b0;
         d_idx = 3'd0;
         d_hi8 = 1'b0;
@@ -525,6 +533,17 @@ module fes_i386_decode (
                         eoi = 1'b0;
                     end
                 end
+                8'hea: begin
+                    // JMP ptr16:16 or ptr16:32: CS from c (far_sel)
+                    cls = C_BRANCH;
+                    op = 5'd1;  // BR_JMP
+                    imm = relz1;
+                    far_jmp = 1'b1;
+                    far_chk = 1'b1;
+                    seg2 = 1'b1;
+                    seg2_idx = 3'd1;
+                    seg2_t = 1'b0;
+                end
                 8'b1100010?: begin
                     // LES (C4h), LDS (C5h): SEQ_LPTR
                     undefined = reg_form;
@@ -744,9 +763,11 @@ module fes_i386_decode (
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
-    assign u.seg2 = 1'b0;
+    assign u.seg2 = seg2 && fault == 3'd0;
     assign u.seg2_idx = seg2_idx;
-    assign u.seg2_t = 1'b1;
+    assign u.seg2_t = seg2_t;
+    // A far pointer's selector follows its offset.
+    assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
     assign u.sp_write = stk != fes_i386_pkg::STK_NONE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
     assign u.op = op;
