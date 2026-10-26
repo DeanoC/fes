@@ -163,46 +163,63 @@ Programmer's Reference Manual (1986):
   implemented. This is a recorded deviation; no target software is known to
   use it.
 
-Hidden descriptor caches behave as on a 386:
+The segment-cache contract for the completed CPU follows the 386:
 
-- In real mode, loading DS, ES, FS, GS or SS sets the selector and sets the
-  base to selector × 16. The cached limit and attributes stay as they were.
-- A real-mode load of CS, by a far transfer or an interrupt, sets the base the
-  same way and gives CS a limit of FFFFh and real-mode access rights.
+- The Phase 1 RTL implements real-mode `MOV Sreg, r/m16` loads for DS, ES, FS,
+  GS and SS. It updates the selector and sets the base to selector × 16; the
+  cached limit and attributes stay as they were. The real-mode CS load from a
+  far transfer or interrupt is not implemented in this slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
+- When that CS path is implemented, a real-mode CS load sets the base to
+  selector × 16, the limit to FFFFh, and the 16-bit real-mode code attributes:
+  P=1, DPL=0, S=1, type=executable, readable, nonconforming code, D/B=0 and
+  G=0. This is the 386 rule described by Collins; Bochs 3.1 differs by
+  retaining CS's cached limit and access-right attributes on a real-mode load.
 - In V86 mode every segment load sets the base to selector × 16, the limit to
   FFFFh and the attributes to V86 values.
 - A protected-mode load replaces the whole cache from the descriptor.
 
-So unreal mode works. Software loads a segment with a large limit in protected
-mode and clears PE, and the limit survives every later real-mode reload of
-that register; it ends only when the register is loaded in protected or V86
-mode. DOS reloads DS and ES on every call, so unreal-mode programs that call
-DOS depend on this, and Ultima VII's Voodoo memory manager runs in unreal mode.
-Every data access is checked against the cached limit in every mode: with a
-normal real-mode segment, a word access at offset FFFFh raises #GP (#SS for a
-stack access), while an unreal-mode segment uses its cached extended limit.
+So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
+segments with a large limit in protected mode and clears PE; its cached limit
+and attributes survive every later real-mode reload of that register. They
+are replaced when the register is loaded in protected or V86 mode. A real-mode
+CS load is the 386-specific exception: it resets CS to the real-mode limit and
+code attributes. DOS reloads DS and ES on every call, so unreal-mode programs
+that call DOS depend on the data-segment behavior, and Ultima VII's Voodoo
+memory manager runs in unreal mode. Every data access is checked against the
+cached limit in every mode: with a normal real-mode segment, a word access at
+offset FFFFh raises #GP (#SS for a stack access), while an unreal-mode data
+segment uses its cached extended limit.
 
 The evidence:
 
 - The 386 manual's procedure for returning to real mode
   ([§14.5](https://courses.cs.washington.edu/courses/cse451/25wi/documentation/i386/s14_05.htm))
-  has software load SS, DS, ES, FS and GS with 64K-limit, byte-granular,
-  expand-up, writable descriptors before it clears PE. That step is needed
-  only because real-mode loads leave the limit alone. The procedure also moves
-  to a 64K code segment first, because code runs on the old CS cache until the
-  far JMP, and that far JMP "puts appropriate values in the access rights of
-  the CS register".
-- Bochs, the lockstep oracle (`REL_3_1_FINAL`, `cpu/segment_ctrl_pro.cc`,
-  `load_seg_reg`), keeps the limit and attributes on every real-mode load
-  ("Support for big real mode") and sets FFFFh and V86 attributes in V86 mode.
-  Its comment quotes Robert Collins' x86.org finding that on the 286, 386 and
-  486 only CS gets fixed real-mode values when loaded in real mode.
-- Bochs also keeps CS's cache on a real-mode far transfer. When the RTL
-  lockstep reaches that case it goes into the divergence list, following
-  x86.org and §14.5.
-- Neither corpus checks hidden segment state. SingleStepTests/80386 has no
-  unreal-mode set yet, and test386.asm has no unreal-mode test. Phase 2's
-  directed unreal-mode tests cover it.
+  first loads CS with a 64K limit before PE is cleared. Its step 3 loads SS,
+  DS, ES, FS and GS with 64K-limit, byte-granular (G=0), expand-up (E=0),
+  writable (W=1), present (P=1) descriptors. Those descriptors establish the
+  limit and data/stack attributes retained by later real-mode loads of those
+  registers. Step 6 says the far jump sets CS access rights to appropriate
+  values; the manual does not say that a later real-mode CS load preserves an
+  extended limit.
+- Robert Collins's [segment-cache analysis](https://www.rcollins.org/ddj/Aug98/Aug98.html),
+  also cited in Bochs's source comment as an x86.org finding, says that on the
+  286, 386 and 486 a real-mode CS load receives fixed real-mode values, while
+  other segment registers retain their cached limit and access rights. This
+  design follows that 386-specific rule for CS. Its code attributes are
+  present (P=1), ring 0 (DPL=0), a code segment (S=1 and executable/readable
+  type), 16-bit default size (D/B=0) and byte-granular limit (G=0).
+- Bochs 3.1, the lockstep oracle (`REL_3_1_FINAL`, `cpu/segment_ctrl_pro.cc`,
+  `load_seg_reg`), keeps limit and access-right attributes on every real-mode
+  load, including CS; its real-mode far-transfer path uses that loader. It
+  agrees with the design for DS, ES, FS, GS and SS, but differs for CS. It sets
+  FFFFh and V86 attributes in V86 mode.
+- Neither corpus observes hidden CS limit or access-right state:
+  SingleStepTests/80386 has no unreal-mode set yet, and test386.asm has no
+  unreal-mode test. This oracle difference is a known limit, not an
+  oracle-versus-corpus divergence; the planned directed unreal-mode test in
+  the general verification plan will check the RTL's 386 CS rule. It is not
+  currently listed as a Phase 2 exit criterion. See the simulation
+  [known-limits entry](../cores/fes-common/sim/i386/README.md#known-limits).
 
 ### The 386, not the 486
 
@@ -958,7 +975,8 @@ for the complete CPU and machine.
    at random, and every memory, MMIO, I/O and DMA port gets random latency.
    Latency never changes a result.
 6. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling,
-   DMA against CPU stores (randomised), unreal mode, 16-bit wrap cases, page
+   DMA against CPU stores (randomised), unreal mode (data-segment retention and
+   CS-cache reset on a real-mode CS load), 16-bit wrap cases, page
    faults inside REP, segment-limit edges, LOCK against DMA, governor pacing,
    every no-387 ESC form with the common FPU-detection routines, dirty L2 lines
    surviving a reset after shutdown, and FLUSH while running, halted, in
