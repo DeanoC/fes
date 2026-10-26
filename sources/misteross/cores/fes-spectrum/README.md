@@ -267,8 +267,8 @@ frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
 attribute swaps ink and paper every 16 frames. The diagnostic tape plays in
 turbo, and each model runs again with every T state in turbo (`--turbo`),
-which must give the same results; the snapshot simulation does the same. The snapshot simulation
-writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
+which must give the same results. The snapshot simulation repeats this check.
+It writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
 with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
 `cmd/fes-spectrum-restore` (Go), streams it with random gaps and checks every
 register, the paging ports, border, AY registers and all RAM at the first
