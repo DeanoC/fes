@@ -249,8 +249,8 @@ class AffectedTests(unittest.TestCase):
                      'cores/fes-common/rtl/i386/toolchain.lock',
                      'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
                      'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
-                     'scripts/test_fes_i386_lockstep.py', 'scripts/benchmark_fes_i386.py',
-                     'scripts/quartus_fes_i386.py'):
+                     'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
+                     'scripts/benchmark_fes_i386.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
