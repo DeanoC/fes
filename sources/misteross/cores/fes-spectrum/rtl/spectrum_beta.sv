@@ -8,28 +8,31 @@
 // the rest 0). READY and the drive motor follow the FDC's head load, which
 // drops 3 s after a command ends.
 //
-// Drive A reads the fes.media.spectrum-disk raw track image through
-// spectrum_fdd; drives B-D are empty, and each drive keeps its own head
-// position.
+// Drive A reads the fes.media.spectrum-disk raw track image (FogCast
+// internal/spectrumdisks) through the store's fetch port: 8 KiB slots,
+// cylinder c side s in slot 1+2c+s, its length in bytes 0-1, the missing
+// clock bitmap from byte 16 and the track bytes from byte 1024. A slot past
+// the image, or of length 0, is unformatted. Drives B-D are empty. Each drive
+// keeps its own head position.
 //
 // Unlike Fuse, which hands the CPU the next byte whenever it reads the data
-// register, the disk turns while the head is loaded (spectrum_fdd: one track
-// byte every 112 T states, 300 rpm on a 6250-byte track, a 10 ms index pulse
-// at byte 0). Commands decode the bytes as they pass. A byte the CPU has not
-// read when the next arrives sets Lost Data.
+// register, the disk turns: while the head is loaded the head passes one
+// track byte every 112 T states (32 us at 3.5 MHz, 300 rpm on a 6250-byte
+// track), with a 10 ms index pulse at byte 0. Commands decode the bytes as
+// they pass. A byte the CPU has not read when the next arrives sets Lost Data.
 // The image is write protected: Write Sector and Write Track end with Write
 // Protect. Type I commands step at the r1r0 rate and verify within five
 // revolutions; Read Sector (single or multiple), Read Address and Read Track
 // follow wd_fdc.c, including its 30 ms E delay and 15 ms verify settle.
 //
-// reset is the machine's reset, which master-resets the FDC and puts drive
-// A's head on track 0 as Fuse's beta_reset does; power_reset (the shell's
-// execution reset) restarts the drives. A launch image raises boot
-// (spectrum_fdd): the machine resets into TR-DOS with the disk inserted, as
-// Fuse's disk autoload does. A disk changed while the machine runs only swaps
-// the medium.
+// reset is the machine's reset, which master-resets the FDC as Fuse's
+// beta_reset does; power_reset (the shell's execution reset) restarts the
+// drive. When drive A's image becomes ready its header is read, and a launch
+// image (flags bit 1) raises boot for 64 clocks: the machine resets into
+// TR-DOS with the disk inserted, as Fuse's disk autoload does. A disk changed
+// while the machine runs only swaps the medium.
 module spectrum_beta #(
-    parameter integer AW = 22,
+    parameter integer AW = 21,
     parameter integer T_PER_MS = 3500
 ) (
     input  wire          clk,
@@ -43,12 +46,18 @@ module spectrum_beta #(
     output reg  [7:0]    rdata,
     input  wire          disk_ready,
     input  wire [AW:0]   disk_bytes,
-    output wire          fetch,
-    output wire [AW-1:0] fetch_addr,
+    output reg           fetch,
+    output reg  [AW-1:0] fetch_addr,
     input  wire          fetch_ready,
     input  wire [7:0]    fetch_data,
     output wire          boot
 );
+    localparam integer SLOT_BITS = 13;
+    localparam [12:0] NOMINAL_BYTES = 13'd6250;
+    localparam [12:0] MAX_BYTES = 13'd6912;
+    localparam [6:0] MAX_CYLINDER = 7'd85;
+    localparam [6:0] T_PER_BYTE = 7'd112;
+    localparam [12:0] INDEX_BYTES = 13'd313;  // 10 ms of 200
     localparam [23:0] HEAD_UNLOAD_T = 24'(3000 * T_PER_MS);
 
     // ---------------------------------------------------------- registers
@@ -60,24 +69,43 @@ module spectrum_beta #(
     reg [1:0] drive;
     reg side;
     reg mfm;
+    reg [6:0] cylinder [0:3];
     reg [23:0] unload_count;
     reg unload_armed;
-    reg index_irq;      // Force Interrupt I2: INTRQ when the next index ends
-    reg step;
-    reg step_out;
+    reg index_irq;      // Force Interrupt I2: INTRQ at the next index
 
-    wire disk_here, tr00, index_pulse, index_end, byte_ev, byte_clock, byte_wrap, mark_byte;
-    wire [6:0] head_cylinder;
-    wire [7:0] byte_data;
-    spectrum_fdd #(.AW(AW)) drives (
-        .clk(clk), .power_reset(power_reset), .tick(tick), .spin(head_load), .drive(drive),
-        .side(side), .mfm(mfm), .step(step), .step_out(step_out), .home(reset),
-        .cylinder(head_cylinder), .tr00(tr00), .loaded(disk_here), .index_pulse(index_pulse),
-        .index_end(index_end), .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
-        .byte_wrap(byte_wrap), .mark(mark_byte), .disk_ready(disk_ready), .disk_bytes(disk_bytes),
-        .fetch(fetch), .fetch_addr(fetch_addr), .fetch_ready(fetch_ready), .fetch_data(fetch_data),
-        .boot(boot)
-    );
+    wire disk_here = drive == 2'd0 && disk_ready;
+    wire [6:0] head_cylinder = cylinder[drive];
+    wire tr00 = head_cylinder == 7'd0;
+
+    // ----------------------------------------------------------- rotation
+    reg [6:0] byte_t;
+    reg [12:0] pos;
+    reg [12:0] track_bytes;   // 0: unformatted
+    wire [12:0] turn_bytes = track_bytes != 13'd0 ? track_bytes : NOMINAL_BYTES;
+    wire index_pulse = head_load && pos < INDEX_BYTES;
+    wire byte_strobe = tick && head_load && byte_t == T_PER_BYTE - 7'd1;
+    wire [12:0] pos_next = pos + 13'd1 >= turn_bytes ? 13'd0 : pos + 13'd1;
+    // The byte under the head once this clock's strobe has moved it.
+    wire [12:0] head_pos = byte_strobe ? pos_next : pos;
+
+    // The track under the head, re-read when the drive, cylinder, side or
+    // disk changes. Track bytes are fetched one per byte time.
+    wire [7:0] slot = {head_cylinder, side} + 8'd1;
+    wire [AW-1:0] slot_base = AW'({slot, {SLOT_BITS{1'b0}}});
+    wire slot_present = disk_here && {1'b0, slot_base} + (AW+1)'(1 << SLOT_BITS) <= disk_bytes;
+    reg [9:0] track_key;
+    wire [9:0] key_now = {slot_present, drive == 2'd0, head_cylinder, side};
+    typedef enum logic [2:0] {F_IDLE, F_LEN0, F_LEN1, F_DATA, F_CLOCK, F_EVENT, F_FLAGS} fetch_state_t;
+    fetch_state_t fstate;
+    reg [7:0] len_low, byte_data;
+    reg byte_clock;
+    reg byte_ev;              // one clock: byte_data/byte_clock passed the head
+    reg byte_wrap;            // that byte was byte 0
+    reg pending;              // a byte strobe arrived during a fetch
+    reg ready_q, boot_check;
+    reg [6:0] boot_count;
+    assign boot = boot_count != 7'd0;
 
     // ------------------------------------------------------------- decoder
     function automatic [15:0] crc_step(input [15:0] crc, input [7:0] b);
@@ -91,6 +119,9 @@ module spectrum_beta #(
         end
     endfunction
     localparam [15:0] CRC_A1A1A1 = 16'hcdb4;
+    reg [1:0] a1_run;
+    wire mark_byte = byte_ev && a1_run == 2'd3 && !byte_clock && mfm;
+    wire sync_a1 = byte_clock && byte_data == 8'ha1;
 
     typedef enum logic [3:0] {
         S_IDLE, S_STEP, S_STEP_WAIT, S_SETTLE, S_DELAY, S_HLT, S_SEARCH, S_ID,
@@ -106,6 +137,7 @@ module spectrum_beta #(
     reg [15:0] crc;
     reg [10:0] data_left;     // data bytes then two CRC bytes
     reg [5:0] dam_window;
+    reg step_out;
 
     wire cmd_type1 = !command[7];
     wire [1:0] rate = command[1:0];
@@ -146,7 +178,107 @@ module spectrum_beta #(
         end
     endtask
 
+    // ------------------------------------------------------------- the drive
+    always @(posedge clk) begin
+        byte_ev <= 1'b0;
+        if (boot_count != 7'd0) boot_count <= boot_count - 7'd1;
+        if (power_reset) begin
+            byte_t <= 7'd0;
+            pos <= 13'd0;
+            track_bytes <= 13'd0;
+            track_key <= 10'd0;
+            fstate <= F_IDLE;
+            fetch <= 1'b0;
+            pending <= 1'b0;
+            a1_run <= 2'd0;
+            ready_q <= 1'b0;
+            boot_check <= 1'b0;
+            boot_count <= 7'd0;
+        end else begin
+            if (!disk_ready) ready_q <= 1'b0;
+            else if (!ready_q) begin
+                ready_q <= 1'b1;
+                boot_check <= 1'b1;
+            end
+            // ---------------------------------------------------- rotation
+            if (tick && head_load) byte_t <= byte_t == T_PER_BYTE - 7'd1 ? 7'd0 : byte_t + 7'd1;
+            if (byte_strobe) pos <= pos_next;
+
+            // A changed track is measured before its bytes are read.
+            case (fstate)
+                F_IDLE: begin
+                    if (boot_check && disk_ready) begin
+                        boot_check <= 1'b0;
+                        fstate <= F_FLAGS;
+                        fetch <= 1'b1;
+                        fetch_addr <= AW'(7);
+                    end else if (key_now != track_key) begin
+                        track_key <= key_now;
+                        track_bytes <= 13'd0;
+                        if (slot_present) begin
+                            fstate <= F_LEN0;
+                            fetch <= 1'b1;
+                            fetch_addr <= slot_base;
+                        end
+                    end else if (byte_strobe || pending) begin
+                        pending <= 1'b0;
+                        if (track_bytes != 13'd0 && head_pos < track_bytes) begin
+                            fstate <= F_DATA;
+                            fetch <= 1'b1;
+                            fetch_addr <= slot_base + AW'(1024) + AW'(head_pos);
+                        end else begin
+                            byte_data <= 8'h00;
+                            byte_clock <= 1'b0;
+                            fstate <= F_EVENT;
+                        end
+                    end
+                end
+                F_LEN0: if (fetch_ready) begin
+                    len_low <= fetch_data;
+                    fetch_addr <= slot_base + AW'(1);
+                    fstate <= F_LEN1;
+                end
+                F_LEN1: if (fetch_ready) begin
+                    fetch <= 1'b0;
+                    track_bytes <= {fetch_data, len_low} <= {3'd0, MAX_BYTES} ?
+                                   {fetch_data[4:0], len_low} : 13'd0;
+                    fstate <= F_IDLE;
+                end
+                F_DATA: if (fetch_ready) begin
+                    byte_data <= fetch_data;
+                    fetch_addr <= slot_base + AW'(16) + AW'(pos[12:3]);
+                    fstate <= F_CLOCK;
+                end
+                F_CLOCK: if (fetch_ready) begin
+                    fetch <= 1'b0;
+                    byte_clock <= fetch_data[pos[2:0]];
+                    fstate <= F_EVENT;
+                end
+                F_FLAGS: if (fetch_ready) begin
+                    fetch <= 1'b0;
+                    if (fetch_data[1]) boot_count <= 7'd64;
+                    fstate <= F_IDLE;
+                end
+                default: begin
+                    byte_ev <= 1'b1;
+                    byte_wrap <= pos == 13'd0;
+                    fstate <= F_IDLE;
+                end
+            endcase
+            if (byte_strobe && fstate != F_IDLE) pending <= 1'b1;
+            // A track change abandons the byte in flight.
+            if (fstate != F_IDLE && fstate != F_EVENT && fstate != F_FLAGS && key_now != track_key) begin
+                fetch <= 1'b0;
+                fstate <= F_IDLE;
+            end
+
+            if (byte_ev) a1_run <= sync_a1 ? (a1_run == 2'd3 ? 2'd3 : a1_run + 2'd1) : 2'd0;
+
+        end
+    end
+
     // --------------------------------------------------------------- the FDC
+    integer i;
     always @(posedge clk) begin
         if (reset) begin
             command <= 8'd0;
@@ -167,7 +299,7 @@ module spectrum_beta #(
             drive <= 2'd0;
             side <= 1'b0;
             mfm <= 1'b1;
-            step <= 1'b0;
+            for (i = 0; i < 4; i = i + 1) cylinder[i] <= 7'd0;
             unload_armed <= 1'b0;
             unload_count <= 24'd0;
             index_irq <= 1'b0;
@@ -175,7 +307,6 @@ module spectrum_beta #(
             op <= OP_VERIFY;
             wait_t <= 24'd0;
         end else begin
-            step <= 1'b0;
             // --------------------------------------------- head unloading
             if (tick && unload_armed) begin
                 if (unload_count == 24'd0) begin
@@ -183,7 +314,7 @@ module spectrum_beta #(
                     head_load <= 1'b0;
                 end else unload_count <= unload_count - 24'd1;
             end
-            if (index_irq && index_end) begin
+            if (index_irq && byte_strobe && pos_next == INDEX_BYTES) begin
                 index_irq <= 1'b0;
                 intrq <= 1'b1;
             end
@@ -197,7 +328,8 @@ module spectrum_beta #(
                         track_r <= 8'd0;
                         state <= S_SETTLE;
                     end else begin
-                        step <= 1'b1;
+                        if (step_out) cylinder[drive] <= head_cylinder - 7'd1;
+                        else if (head_cylinder != MAX_CYLINDER) cylinder[drive] <= head_cylinder + 7'd1;
                         wait_t <= step_t;
                         state <= S_STEP_WAIT;
                     end
@@ -340,8 +472,8 @@ module spectrum_beta #(
                         intrq <= 1'b0;
                         if (wdata[7:4] == 4'hd) begin
                             // Type IV: abandon the command; I3 interrupts
-                            // now, I2 as the next index pulse ends. Fuse's
-                            // spinup without the h bit loads the head.
+                            // now, I2 at the next index. Fuse's spinup
+                            // without the h bit loads the head.
                             busy <= 1'b0;
                             wrprot <= 1'b0;
                             crc_error <= 1'b0;
