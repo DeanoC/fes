@@ -1094,3 +1094,57 @@ FF observations. Evidence is host-only. No runtime/shared contract, package,
 clock rate or timing exception changes; no kit or GPU is used in this step.
 The native search journal remains unchanged at 133 entries. HPS/pad/board,
 reset/CDC and observable exact-artifact hardware qualification remain open.
+
+### Complete FF references and sensitivity, 26 October
+
+Base `9aec310170`. [nextpnr #305](https://github.com/DeanoC/nextpnr/pull/305),
+`a718d09f06` on main `03f39e460c`, adds a reference-only inventory of 101,120
+local FF observations. Sixteen fixed-placement cases cover LAB/MLAB, all four
+FF positions in ten ALMs per block, all three local clock/enable selectors,
+100/50/74.25 MHz clocks, both clock polarities, constant/positive/inverted
+enables and synchronous clear active/inactive. Four cases also retain clear
+deassertion. Sources, geometry, clock and data/control identities, RBFs and
+report hashes are bound in its manifest. Synthetic IO/reset fixture violations
+remain signed; these fixtures are not accepted board or reset designs.
+
+The configuration reader builds through CMake. Its CTest passes ten Python
+regressions, including complete RBF decoding and changed-control rejection.
+A fresh Quartus 17.0.2 Build 602 rebuild from that committed source reproduces
+all sixteen RBFs byte for byte and every local timing value exactly. Across
+the covered modes, clock-anchor-to-Q spans 158 ps at fast/-40 C to 860 ps at
+slow/100 C. The original producer still uses 731 ps for both bounds. The new
+reference leaves the timing engine and this FES source lock unchanged.
+
+A separate structural reader checks all 4,067 native FFs per seed against
+the actual RBF selectors and routed architecture objects. All clock suffixes
+have two virtual edges back to physical CLKIN0. DATAIN resolves either to the
+local LUT output or, for 1,222/1,066/1,079 FFs, a selected same-ALM E/F pin.
+All 3,088 enables, 2,579 synchronous clears and 629 asynchronous clears per
+seed resolve to their architecture-owned LAB inputs. Enable and synchronous
+clear activation/inversion bits and selected E/F inputs also agree. The
+default control-set allocator deliberately routes common CLKA through virtual
+CLK0, including when physical CLK/ENA1 is selected; model selection must read
+the actual RBF index rather than infer it from that virtual wire. No native FF combines
+an active asynchronous clear with an inverted clock. This proves structural
+cut identities; it does not yet qualify the numerical delay at those cuts.
+
+Fifteen further host replays use the complete reference's outward-rounded
+local pin ranges with the actual corrected Mistral corner library. Three
+unchanged-model slow100 controls reproduce the complete original timing JSON.
+The twelve FF-reference sensitivities cover all four route corners. Every
+RBF stays byte-identical, every run retains 17,709 paired/nine unpaired rows,
+and no analogue simulation declines occur. The smallest setup margin is
++0.718 ns. Seeds 2 and 3 retain positive setup/hold at all diagnostic corners;
+seed 1 fast/-40 C reaches zero hold on the fabric-FF-to-SDRAM-DQ-output-register
+input and is correctly rejected by the native timer. A zero margin is a failed
+case, even though the count of strictly negative rows is zero.
+
+[The complete-reference screen](board50-ff-complete-reference-screen.json)
+binds the fresh fits, source and tool identities, native cut inventories and
+all fifteen replay receipts. These remain pin-reference sensitivities:
+numerical pin-to-virtual equivalence, other primitive/PLL/pad models and HPS
+sources remain unqualified. No RTL repair follows from the zero-hold result.
+The next compiler step is a source-bound FF model matched to the native cuts,
+followed by complete corner/endpoint checks. Whole-board and exact-artifact
+hardware acceptance remain open. No clock, timing exception, runtime/shared
+contract, package, kit or GPU changes; the search journal still has 133 entries.
