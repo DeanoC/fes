@@ -15,7 +15,8 @@ Verilator testbenches in cores/fes-common/sim/i386:
   frontend_tb.cpp  The whole front end on sampled streams: random bytes,
                    prefix-heavy bytes, long prefix runs, and generated defined
                    instructions whose issue cycles are checked exactly (one per
-                   cycle, plus one cycle for each prefix before the last), plus
+                   cycle, plus one cycle for each prefix before the last);
+                   then the same with random fetch latency, untimed; and
                    a delayed fetch response while Q crosses buffer halves.
   dag_tb.cpp       D's address operands (the forwarding table, scaling, the
                    late operand and its stalls) and AG, cycle by cycle: every
@@ -74,19 +75,24 @@ class FrontendError(RuntimeError):
     pass
 
 
-def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
-    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
-    _, rtl, sim, _, _, synthesized = BENCHES[name]
-    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
-    netlist = output / f'{synthesized}.netlist.v'
-    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {synthesized}; '
+def synthesize_netlist(yosys: str, sources: list[Path], top: str, output: Path) -> Path:
+    """Write Yosys's reading of top, from sources, as a flat Verilog netlist."""
+    netlist = output / f'{top}.netlist.v'
+    script = (f'read_verilog -sv {" ".join(map(str, sources))}; hierarchy -top {top}; '
               f'proc -norom; flatten; opt -purge; write_verilog -noattr {netlist}')
     log = output / 'yosys.log'
     with log.open('w') as stream:
         result = subprocess.run([yosys, '-q', '-p', script], cwd=output, stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode:
-        raise FrontendError(f'yosys failed for {name}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
+        raise FrontendError(f'yosys failed for {top}; see {log}\n' + '\n'.join(log.read_text().splitlines()[-30:]))
     return netlist
+
+
+def yosys_netlist(yosys: str, name: str, output: Path) -> Path:
+    """Write Yosys's reading of a bench's RTL as a flat Verilog netlist."""
+    _, rtl, sim, _, _, synthesized = BENCHES[name]
+    sources = [*(RTL / path for path in rtl), *(SIM / path for path in sim if Path(path).stem == synthesized)]
+    return synthesize_netlist(yosys, sources, synthesized, output)
 
 
 def qalign_synthesis(yosys: str) -> dict[str, int]:
@@ -117,7 +123,7 @@ def verilate(verilator: str, name: str, linked: list[Path], jobs: int, yosys: st
         # a wrapper left as SystemVerilog still needs the package's types.
         design = [yosys_netlist(yosys, name, output), RTL / 'fes_i386_pkg.sv',
                   *(SIM / path for path in sim if Path(path).stem != synthesized)]
-        warnings = ['-Wno-fatal']
+        warnings = ['-Wno-fatal', '+define+FES_I386_NETLIST']
     else:
         design = [*(RTL / path for path in rtl), *(SIM / path for path in sim)]
         warnings = []
@@ -169,6 +175,8 @@ def summary(lendec: list[dict], frontend: list[dict], dag: list[dict]) -> list[s
     for record in frontend:
         line = (f"front end {record['stream']}, {record['default_size']}-bit: {record['instructions']} instructions, "
                 f"{record['compared']} compared, {record['too_long']} too long, {record['failures']} failures")
+        if record.get('fetch_latency'):
+            line += f"; Q left a half L2 held no block for {record['l2_empty_releases']} times"
         if record['issue_cycles']:
             latency = ', '.join(f'{cycles} cycles x{count}' for cycles, count in record['redirect_to_issue'].items())
             line += (f"; {record['instructions']} issued in {record['issue_cycles']} cycles, "

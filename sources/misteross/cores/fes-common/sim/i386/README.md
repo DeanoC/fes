@@ -4,7 +4,8 @@ Phase 0 of the i386 CPU design (DeanoC/fes#1068): an external emulator as the
 lockstep oracle, checked against two corpora, with a divergence list naming the
 deciding case for every disagreement. Phase 1 adds Verilator checks of the
 [front-end, D and AG RTL](../../rtl/i386/README.md), the front end against the
-oracle, and the routed [timing spikes](#timing-spikes).
+oracle, the [whole-CPU lockstep](#whole-cpu-lockstep) of `fes_i386_cpu`
+against the oracle, and the routed [timing spikes](#timing-spikes).
 
 Everything here is test-only. The oracle, the corpora and the tools that build
 them are fetched into the ignored `build/` directory and never enter a package
@@ -187,14 +188,21 @@ writes `build/sim/fes-i386-frontend/report.json`:
 | Testbench | Scope | Coverage |
 | --- | --- | --- |
 | [`lendec_tb.cpp`](lendec_tb.cpp) | The per-byte length decode, L1's 16 decoders feeding L2's sums through [`lendec_tb_top.sv`](lendec_tb_top.sv) | Exhaustive: no prefix or each of the eleven, every one- and two-byte opcode, every ModRM and every SIB byte, in 16- and 32-bit default size, against `decode()`. Each byte's length for all four prefix-accumulator variants, against the oracle's decode behind the variant's extra 66h and 67h; each variant's end and next-half bit. Up to four cases share an evaluation and rotate through all 16 decoders. Plus directed checks of prefix runs and of MOV TR6/TR7 |
-| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly, as is each redirect's first issue. A directed 32-bit case delays a fetch response after Q releases the first half; a 10-byte MOV crosses back into it. The check requires Q to wait for the response and then match Bochs. |
+| [`frontend_tb.cpp`](frontend_tb.cpp) | F1 to Q through [`frontend_tb_top.sv`](frontend_tb_top.sv) | Sampled: random bytes (with and without D stalls), prefix-heavy bytes, long prefix runs, and generated defined instructions with 0-4 prefixes whose issue cycles are checked exactly, as is each redirect's first issue. Then random bytes, instructions and long instructions again with each fetch block delayed 0-12 cycles and garbage on the port until it arrives, untimed. A directed 32-bit case delays a fetch response after Q releases the first half; a 10-byte MOV crosses back into it. The check requires Q to wait for the response and then match Bochs. |
 | [`dag_tb.cpp`](dag_tb.cpp) | D's address operands and AG through [`dag_tb_top.sv`](dag_tb_top.sv), cycle by cycle | Every memory ModRM, every SIB and both address sizes as a uop stream whose producers move through AG, M1, M2, EX and WB, most writing a register one of the next uops reads: each cycle D must stall exactly when the late-operand rule says, and AG must otherwise give the architectural linear address and offset; a stalled uop is checked again until it leaves. Then each kind of result into the next uop's base, unscaled index and scaled index, timed against the design's latencies. Needs no oracle |
 
 A case is compared where the oracle defines the encoding; for LOCK, the
 encoding without LOCK, since LOCK's validity is D's check. An instruction the
 oracle cannot fit in 15 bytes must come out `too_long`.
 
-The bench's `mem_ready` qualifies the response for the block at the registered
+Fetch latency is what reaches Q's next-half availability term: without it L2
+always holds the next block when Q leaves a half. Each `*-fetch-latency`
+stream counts the cycles in which Q left a half that L2 held no block for
+(`l2_empty_release`, read from the RTL's internals, so a run on Yosys's
+netlist reports zero). The memory model is not an L1I: the L1I slice's real
+misses still need the check repeated with them.
+
+The bench's `mem_valid` qualifies the response for the block at the registered
 memory address. The directed case withholds block 2 after block 1 has filled
 the other half, so the L2 pipeline empties while Q releases the first half.
 Q jumps from a far CALL at byte 15 to a 10-byte MOV at byte 23. The MOV's
@@ -213,9 +221,58 @@ SystemVerilog, and Yosys has misread constructs without an error. Use the
 Yosys of the i386 lock ([`rtl/i386/toolchain.lock`](../../rtl/i386/toolchain.lock));
 the repository lock's older Yosys misreads the RTL's per-byte records.
 
+## Whole-CPU lockstep
+
+[`lockstep_tb.cpp`](lockstep_tb.cpp) runs `fes_i386_cpu` beside the oracle.
+The oracle steps one instruction and the RTL runs until it retires one; the
+two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
+0-17 and the six segment registers with their hidden caches. Memory writes
+are compared as each side reports them. An instruction that faults in the
+oracle must fault in the RTL with the same vector and nothing retired; the
+RTL does not deliver exceptions yet, so the run ends there. HLT ends a run on
+both sides.
+
+The RTL starts each run from the state its `init_*` ports load at reset. Its
+memory model serves the fetch port with a random 0-12 cycle delay per block
+and garbage on the port until the block arrives
+(`FES_I386_LATENCY=1`, the default); the model's `Latency` port class is
+what later slices' data, MMIO and I/O ports take.
+
+Where the oracle and SingleStepTests disagree, [`divergences.toml`](divergences.toml)
+says which side the FES CPU follows. For an entry that follows the corpus,
+each retirement it applies to leaves the fields it names out of the
+comparison with the oracle, and the oracle takes the RTL's values so both run
+on from the same state; the testbench works out each entry's opcode stem and
+`when` predicates from the instruction, as the vectors runner does. The
+corpus itself then checks those values.
+
+`scripts/test_fes_i386_lockstep.py` drives it two ways:
+
+| Source | What runs | Checked |
+| --- | --- | --- |
+| SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
+| Random programs | Register and immediate forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs and backward jumps, from random register states | Every retirement against the oracle; a run stops at its HLT, a fault or 2,000 retirements. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+
+The latency-free reruns also give the cycles between retirements: in
+sequence, after an instruction with more than one prefix, and after a taken
+branch.
+
+Each later slice adds its instruction forms to `SCOPE`, its ports to the
+memory model, and its instructions to the random generator; the comparison
+and the divergence handling stay.
+
+```sh
+python3 scripts/test_fes_i386_lockstep.py --download
+python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
+python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+```
+
+`--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
+(after `proc -norom; flatten; opt -purge`) instead of the RTL.
+
 ## Timing spikes
 
-[`spike/`](spike) holds four CPU-only routed spikes, each a block inside a
+[`spike/`](spike) holds five routed spikes, each a block inside a
 stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 
 | Spike | Block |
@@ -223,6 +280,7 @@ stimulus and signature envelope with one clock, KEY0 and LED0 on pads:
 | `spike_frontend.sv` | F1, F2 behind a 16 KiB 4-way L1I model (M10K tags and data, compares against a registered ITLB page, way select with the hit signals replicated per two bytes), L1, L2, the buffer and Q |
 | `spike_dag.sv` | D's address operands (addressing decode, register file, the forwarding table, scaling, segment select) and AG, with the producers moving through AG-EX registers; D's opcode decode, not built, is stimulus |
 | `spike_m2.sv` | The M2 stage of a 16 KiB 4-way L1D: M10K tag and data reads, four tag compares against a registered page, way select |
+| `spike_cpu.sv` | `fes_i386_cpu`, F1 to WB, behind `spike_frontend`'s L1I model, with a registered fetch-valid bit and the reset state from the stimulus |
 | `spike_rom.sv` | A registered case-table ROM, synthesized without `proc -norom` so it maps to an M10K: checks DeanoC/yosys#40's fix, since the i386 RTL keeps its own tables in logic |
 
 `scripts/benchmark_fes_i386.py` synthesizes them with the selected lock's
@@ -244,7 +302,7 @@ FES_TOOLCHAIN_CACHE_ROOT=/abs/out/cache/misteross-toolchains \
   FES_TOOLCHAIN_GPU_ROUTER=HIP FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   scripts/bootstrap.sh   # provisions the i386 lock's toolchain once
 python3 scripts/benchmark_fes_i386.py --cache-root /abs/out/cache/misteross-toolchains \
-    --version "phase 1 front-end fixes"
+    --version "phase 1 whole CPU"
 ```
 
 ## Tests
@@ -257,3 +315,7 @@ the spike harness's report reading; it lints the spikes and runs the D and AG
 check when Verilator is installed, runs the oracle-backed front-end checks when
 the pinned Bochs checkout is present too, and runs the D and AG check on
 Yosys's netlist when `FES_I386_YOSYS` names a Yosys.
+`tests/test_fes_i386_lockstep.py` covers the lockstep runner's scope,
+divergence and output handling, and runs a short lockstep when Verilator, the
+pinned Bochs checkout and the pinned corpus are present (and on Yosys's
+netlist when `FES_I386_YOSYS` names a Yosys).

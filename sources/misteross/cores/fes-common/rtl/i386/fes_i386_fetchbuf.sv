@@ -17,7 +17,9 @@
 // which L2's register still holds, and then its own block.
 //
 // The memory port models an M10K with address stall: mem_data is the block at
-// the address registered on the last edge with mem_load set.
+// the address registered on the last edge with mem_load set, once mem_valid
+// says it has arrived. F2 waits for it, and the address stays loaded until F2
+// takes the block; a redirect replaces a request still waiting.
 //
 // avail[j][v] says Q may issue or consume the instruction at buffer byte j
 // under accumulator variant v: byte j's half is valid, its bytes 12-15 have
@@ -35,8 +37,8 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     input  logic              code32,
     output logic [27:0]       mem_block,
     output logic              mem_load,
-    input  logic              mem_ready,      // response for the registered F2 address is available
     input  logic [15:0][7:0]  mem_data,
+    input  logic              mem_valid,
     input  logic [1:0]        release_half,   // Q left this half on this edge
     input  logic              q_half,         // the half Q's start is in
     output logic [1:0]        half_valid,
@@ -64,7 +66,7 @@ module fes_i386_fetchbuf import fes_i386_pkg::*; (
     assign half = l2_block[0];
     assign l2_fire = l2_valid && !half_valid[half];
     assign l1_advance = l1_valid && (!l2_valid || l2_fire);
-    assign f2_advance = active && mem_ready && (!l1_valid || l1_advance);
+    assign f2_advance = active && mem_valid && (!l1_valid || l1_advance);
     assign filling = {l2_fire && half, l2_fire && !half};
     assign fill_bytes = l2_bytes;
     assign mem_load = redirect || f2_advance;
