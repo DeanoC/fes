@@ -121,6 +121,8 @@ The stage labels are the front-end fixes record's. The record RTL's buffer is
 one register array, `dec`, which L2's label now names; the fixes RTL's routes
 are labelled with that record's harness.
 
-The record-RTL routes are of `5e3658dc3f`; the fixes-RTL routes on the new
-Yosys are of `137aa86b41` with this lock added. Since then only the harness's
-L2 label and documentation have changed.
+The record-RTL re-route with Yosys `d4ac300d9d` is of `5e3658dc3f`, before the
+later fetch-response `mem_ready` (now named `mem_valid`) qualifier; that RTL
+change was not routed in this comparison. The fixes-RTL routes on the new Yosys are of `137aa86b41`
+with this lock added. Since the record-RTL re-route, the harness's L2 label
+and documentation changed, and the fetch-response qualifier was added.

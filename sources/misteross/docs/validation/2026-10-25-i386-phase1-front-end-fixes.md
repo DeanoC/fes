@@ -6,8 +6,10 @@ No package, RBF or kit. It makes the four changes the
 re-measures every stage under rule 9. That record's figures are the earlier
 round in the tables below; it is unchanged. Run data:
 [`2026-10-25-i386-phase1-front-end-fixes.jsonl`](2026-10-25-i386-phase1-front-end-fixes.jsonl),
-one line per route with argv, tools, GPU, fmax, per-stage figures, the
-envelope's worst endpoints, logic depth, utilization and critical path.
+one line per route with argv, tool and lock identities, GPU, fmax, per-stage
+figures, envelope endpoints, logic depth, cell totals and critical path. The
+stage cell mapping counts FF and M10K cells; the separate FF and M10K totals
+retain their distinct meanings.
 
 ## What changed, and what it costs
 
@@ -19,12 +21,12 @@ envelope's worst endpoints, logic depth, utilization and critical path.
 | **F2's hit signals replicated.** Eight sets of the four way hits, one per two bytes, so no hit drives more than 16 way-select bits. Each set compares against its own copy of the ITLB page register, since Yosys merges identical logic even on kept wires ([DeanoC/yosys#51](https://github.com/DeanoC/yosys/issues/51)). | None | None |
 
 Two requirements the full CPU inherits:
-- **Availability with a missing fetch.** The availability bit ignores a half
-  Q releases on the same edge, since Q's start has left it, and for the next
-  half's term assumes a release whenever Q is in that half. That last term
-  matters only when L2 is empty as Q leaves a half. The memory model never
-  stalls fetch, so the checks below never reach it; it needs exercising once
-  F2 can miss.
+- **Availability with a missing fetch.** The fetch-response port is now named
+  `mem_valid`; this historical bench's `mem_ready` holds F2 until the response
+  for its registered address is present. The directed `fetch-stalled`
+  bench delays block 2 while Q crosses from half 0 into half 1, then verifies
+  that Q waits before issuing a 10-byte instruction that reaches back into the
+  released half. This covers the case where L2 is empty at the half release.
 - **D's table follows the pipeline.** It is written from the producers that
   will be in M1-WB next cycle. If the stages behind D ever hold, it must be
   written from the held producers instead. Nothing behind D holds yet.
@@ -41,6 +43,7 @@ with identical counts, on the netlist the locked Yosys writes from the RTL
 | Length decode, L1 and L2 together, against Bochs | Exhaustive: 12 prefix choices × 500 opcodes × 256 ModRM × 256 SIB × 2 default sizes. Each byte's length for all four accumulator variants: variant 0 against the oracle's decode, variants 1-3 against its decode behind the extra 66h and 67h; every variant's end and next-half bit | 786,432,000 | 478,175,232 compared, plus 1,434,525,696 variant lengths; 0 mismatches |
 | Prefix runs, MOV TR6/TR7 | Exhaustive, in all 16 decoders and every variant; MOV TR in both default sizes | 18,320 | 0 failures |
 | Front end F1-Q against Bochs | Sampled: 14 streams | 4,400,000 instructions | 4,297,806 compared, 29,862 over 15 bytes flagged, 0 failures |
+| Q availability with delayed fetch | 32-bit stream; block 2 withheld across the half release | 100 response-wait cycles, 82 while Q waits at the boundary | No early issue; one 10-byte cross-half MOV issued and matched Bochs |
 | D and AG, cycle by cycle, against the architectural address and the stall rule | Every memory ModRM × SIB × address size, 16 times, as a uop stream through a pipeline model; producers biased onto the next uops' registers | 1,572,864 uops, 2,567,239 D cycles | 0 failures |
 | Waits behind the uop ahead | Each kind of result into the next uop's base, unscaled index and scaled index | 9 | early 0, 0, 1; load 2, 2, 3; late 3, 3, 4 cycles: the design's latencies |
 
@@ -71,8 +74,8 @@ Mutations show the checks bite:
 - **L1 tail.** L1 reading the previous block's bytes 12-15 from the buffer
   instead of L2's register: thousands of failures in every front-end stream.
 - **Availability.** A next-half term that never counts the next half as
-  valid: the front end stops issuing. A term that ignores Q's release passes,
-  as explained above.
+  valid: the front end stops issuing. The directed delayed-fetch case also
+  exercises Q's release while the next response is absent.
 - **Uop ahead.** D's table taking the uop ahead without asking whether it
   left D: 84,347 failures at 2 rounds. Dropping the uop ahead altogether:
   48,113 failures.
@@ -103,6 +106,12 @@ stage by a port or input it shares. Every route's worst envelope endpoints
 below are stimulus, signature or register-file model cells. The earlier
 round's labels were checked the same way: no envelope register there was
 slower than 118 MHz, so its stage figures stand.
+
+These are historical route results, not measurements of the current RTL. The
+final `now` columns use source `137aa86b41`, before the fetch-response
+`mem_ready` qualifier (the port is now named `mem_valid`) and the later packed
+per-byte `lclass_t`/`lbyte_t` change. Neither later RTL change was routed again
+at the current HEAD.
 
 Routed fmax in MHz, seeds 1, 2, 3, 4:
 
@@ -208,6 +217,13 @@ Options the paths point at, for a later decision. None is made here:
 - **D:** the forwarded values could be registered per GPR a cycle ahead as
   well, leaving D the select by register number and the scaling.
 
+The checked-in route rows are emitted by the benchmark writer, including the
+tool, lock, source, synthesis, logic-depth and `cells_by_stage` fields. They
+retain the labels recorded at run time: `round 3`, `round 3, split L only`,
+and `round 3, split L and availability`. The `--version` argument labels new
+rows. The frontend spike ties `mem_ready` (now named `mem_valid`) high, so
+these routes do not measure the later fetch-response qualifier.
+
 ### Area
 
 | Spike | COMB | FF | M10K |
@@ -220,9 +236,12 @@ Earlier round in brackets.
 
 ### Sources
 
-The final routes are of `137aa86b41`. Since then the RTL has changed only in
-one comment, plus documentation and an example in the harness's help text.
-The split-L-only routes are of `aab085bc97`'s RTL with L1 and L2's instances
+The final routes are of `137aa86b41`. The fetch-response `mem_ready` qualifier
+(the port is now named `mem_valid`) and the later conversion to packed per-byte
+`lclass_t`/`lbyte_t` records followed those route inputs. Neither change was
+re-routed at the
+current HEAD. The split-L-only routes are of `aab085bc97`'s RTL with L1 and
+L2's instances
 renamed as at `8cb56e7a6c`, so the stage labels find them; the
 stored-availability routes are of `8cb56e7a6c`. All three used the harness at
 `8cb56e7a6c` or later; the `.jsonl` records each route's source digests.

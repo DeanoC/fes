@@ -207,6 +207,7 @@ before the check or the representative header changes would not rebuild it.
 It does not touch headers or perform a second test compilation.
 
 `make test` remains exhaustive: it also touches the representative headers,
-actually rebuilds the test binaries and reruns them. FES CI and `test-changed`
-select this mode for build-system, dependency, policy and uncertain inputs,
+actually rebuilds every test binary and verifies its new timestamp. The full
+functional suite runs once, before those timestamp-only header changes.
+FES CI and `test-changed` select this mode for build-system, dependency, policy and uncertain inputs,
 and for scheduled/manual/full runs. Ordinary C/C++ edits use the routine target.
