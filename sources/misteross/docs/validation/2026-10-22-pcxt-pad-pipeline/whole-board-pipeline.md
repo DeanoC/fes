@@ -1356,3 +1356,67 @@ options, complete native fast-corner and clock qualification, actual
 HPS/pad/board/reset/CDC bounds, and observable exact-artifact acceptance are
 still required. No runtime/shared contract, package or factory image is
 promoted.
+
+### Compiler review repairs and combined corner screen, 26 October
+
+Base `98691d4209`. The GPIO report-count review was reconciled against the
+manifest, the expected set and the retained files: four corners each have
+two pad-binding, eight local timing and four clock-prefix reports, totaling
+56. A clean-checkout follow-up found that the manifest itself had been
+ignored by Git. nextpnr #309 commit `fefc401de1` retains it explicitly. A Git
+archive containing only committed fixture/header bytes now passes physical
+configuration decoding, generated-table verification and all 15 parser cases.
+
+The #311 review found a real calibration defect: native range-mode STA kept
+early route bounds, but critical-cohort export still duplicated the maximum
+when external IO constraints were absent. Commit `c15ecd1da4` uses the same
+range predicate for eligible data arcs and binds the range setting into the
+calibration identity. Its regression exports an independent 1..4 ns route in
+all four range/IO combinations, reloads the original graph, matches native
+and calibrated early/late arrivals and setup/hold, and rejects a changed
+range setting. All 42 critical-cohort tests and four route/primitive-clock
+tests pass; both related CLI CTests pass. Three GPIO CTests also pass after
+merging the fixture repair into #311 at `95886de8e6`. That merge changes only
+the GPIO fixture manifest, README and ignore rule after the tested C++ fix.
+
+Nine new frozen replays with the final committed compiler preserve complete
+timing JSONs from before the calibration fix, complete native/IO inventories
+and matched-current-parent RBF bytes. These results preserve the prior
+conditional slow100 whole-board minima, including the +0.023 ns internal
+hold margin. A stale executable version was rejected before an earlier
+capture; reconfiguration and rebuilding corrected it. A CLI attempt that
+collided with relinking and the clean-checkout manifest failure are also
+retained alongside the passing captures.
+
+A separate private three-object diagnostic selects corresponding route,
+native FF and native GPIO reference corners. All twelve captures preserve
+17,806 paired/eleven unpaired rows and matched-parent RBF bytes. Each slow100
+control reproduces the complete final-compiler report exactly. Setup stays
+positive, with a minimum +0.469 ns across the screen. Hold does not:
+
+| Seed | Slow100 hold (ns) | Slow/-40 C hold (ns) | Fast/100 C hold (ns) | Fast/-40 C hold (ns) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | +0.023 | -0.106 | -0.472 | -0.576 |
+| 2 | +0.084 | -0.101 | -0.482 | -0.584 |
+| 3 | +0.078 | -0.080 | -0.459 | -0.572 |
+
+All nine non-slow100 runs return failure; no check is overridden. Cold-slow
+violations are mostly internal register paths, with seed 1 also showing a
+SDRAM DQ register input. Fast-corner violations are mostly HDMI outputs;
+seed 1 fast/-40 C also has one SDRAM DQ input violation. This distinguishes
+minimum-delay/clock and external phase budgets from maximum-delay setup.
+The selected route/FF/GPIO corners do not qualify the remaining LUT/other
+primitive, PLL/clock, legacy pad and actual board models. These failed
+sensitivities therefore need a native clock-edge/path audit and numerical
+boundary qualification before selecting an RTL or physical timing repair.
+
+[The reviewed-compiler record](board50-reviewed-gpio-ranges.json) retains
+the committed archive proof, source/build identities, focused test logs,
+complete replay/corner receipts, failed attempts and all artifact hashes.
+Its [compressed harness](board50-reviewed-gpio-ranges-harness.json.gz)
+retains the exact capture/build/record sources. This is host-only diagnostic
+evidence. The 133-entry native-search journal, RTL, toolchain lock, clocks,
+exceptions, physical routes, runtime/shared contracts, packages and kits
+remain unchanged. Compiler review/integration, fresh authenticated producers,
+qualified whole-board timing and observable exact-artifact hardware
+acceptance remain open; no PR is merged by this task.
