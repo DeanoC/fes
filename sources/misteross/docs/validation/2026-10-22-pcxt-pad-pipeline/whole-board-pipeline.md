@@ -1420,3 +1420,37 @@ exceptions, physical routes, runtime/shared contracts, packages and kits
 remain unchanged. Compiler review/integration, fresh authenticated producers,
 qualified whole-board timing and observable exact-artifact hardware
 acceptance remain open; no PR is merged by this task.
+
+### Read-only clock-edge audit, 26 October
+
+Base `ed4f66dc13`. [nextpnr #312](https://github.com/DeanoC/nextpnr/issues/312)
+records a specific native timing-model defect found in the failed corner
+screen. Clock routes are stored as an envelope over rising and falling
+transitions, even when launch and capture both use the same known edge.
+Two CPU register clock cuts on one audited path each have rising delay
+1061..1061 ps and falling delay 1472..1472 ps. Combining those transitions
+charges 411 ps of hold skew between identical rising-edge bounds.
+
+A private report-only object adds native hold-path and clock-quad annotations
+to five captures. Removing that field reproduces every complete parent timing
+JSON exactly; RBF bytes and native process results also remain identical.
+The audit binds architecture-owned clock terminals to the actual clock nets
+and events, verifies each interval reproduces native skew, and matches every
+failed endpoint identity. All failures remain failed in these captures.
+
+All 56 cold-slow violations across seeds 1/2/3 have two native clock cuts.
+Selecting their actual edges gives numerical sensitivities with minimum
+margins +244/+305/+302 ps, compared with the failed sets' -106/-101/-80 ps.
+The one native SDRAM hold violation in seed 1 fast/-40 C similarly changes
+from -12 to +76 ps. Its eight HDMI failures have external capture clocks;
+this registered-pair calculation does not address them. A slow100 control
+has no hold violations and reproduces its parent unchanged.
+
+[The clock-edge audit](board50-clock-edge-audit.json) and
+[its retained harness](board50-clock-edge-audit-harness.json.gz) bind all five
+captures, 57 native clock pairs, original failed outcomes and every source,
+build, input and artifact hash. This is host diagnostic evidence. The general
+default-off compiler correction is being implemented and tested separately;
+no corrected-mode timing or physical acceptance follows from this audit.
+RTL, clock frequencies/phases, FES locks, routes, runtime/shared contracts,
+packages, kits and the 133-entry search journal remain unchanged.
