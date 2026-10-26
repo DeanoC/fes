@@ -281,8 +281,9 @@ package fes_i386_pkg;
     } decoded_t;
 
     // STK_PEEK reads the stack without moving ESP (RETF's loads); STK_RETF
-    // is RETF's step of ESP, at its jump.
-    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF } stk_e;
+    // is RETF's step of ESP, at its jump; STK_PROBE reads the lower slot of
+    // a far call's two pushes, only for its limit check.
+    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
     typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM } seq_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates

@@ -550,16 +550,14 @@ module fes_i386_decode (
                     seg2_t = 1'b0;
                 end
                 8'h9a: begin
-                    // CALL ptr16:16 or ptr16:32 (SEQ_CALLF): push CS, which
-                    // checks the offset first, then the next EIP, then JMP.
-                    // CS's slot is operand-sized, zero-extended.
-                    op = 5'd15;  // ALU_MOVZX of the selector
-                    src_size = 2'd1;
-                    reads_seg = 1'b1;
-                    seg_index = 3'd1;
-                    m_in_a = 1'b1;
-                    mkind = 2'd2;
-                    stk = fes_i386_pkg::STK_PUSH;
+                    // CALL ptr16:16 or ptr16:32 (SEQ_CALLF): a read of the
+                    // return address's lower slot, which checks the offset and
+                    // that slot's limit before anything is written, then push
+                    // CS (an operand-sized slot, zero-extended), push the next
+                    // EIP, and JMP.
+                    op = 5'd9;  // ALU_MOV
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_PROBE;
                     imm = relz1;
                     far_chk = 1'b1;
                     seg2_idx = 3'd1;
@@ -819,7 +817,7 @@ module fes_i386_decode (
     // A far pointer's selector follows its offset.
     assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
     assign u.sp_add = 1'b0;
-    assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK;
+    assign u.sp_write = stk != fes_i386_pkg::STK_NONE && stk != fes_i386_pkg::STK_PEEK && stk != fes_i386_pkg::STK_PROBE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
     assign u.op = op;
     assign u.src1.valid = s1_valid;

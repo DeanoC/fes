@@ -251,6 +251,7 @@ module fes_i386_cpu (
             end
             fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
             fes_i386_pkg::STK_PEEK: st_disp = dc.sel_part ? st_size : 32'd0;
+            fes_i386_pkg::STK_PROBE: st_disp = -(st_size << 1);
             fes_i386_pkg::STK_RETF: st_sp_disp = (st_size << 1) + dc.uop.imm;
             default: ;
         endcase
