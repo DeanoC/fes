@@ -568,7 +568,7 @@ func TestInflateRejectsTruncatedRLEMarkers(t *testing.T) {
 }
 
 func TestAdmit(t *testing.T) {
-	for name, want := range map[string]bool{"a.z80": true, "B.SNA": true, "c.tzx": false, "d": false} {
+	for name, want := range map[string]bool{"a.z80": true, "B.SNA": true, "e.SzX": true, "c.tzx": false, "d": false} {
 		if Admit(name) != want {
 			t.Errorf("Admit(%q) = %v", name, !want)
 		}

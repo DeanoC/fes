@@ -199,13 +199,14 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 }
 
 // spectrumCassetteStream reads a stored .tzx, .tap, .pzx or .csw image and
-// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80
-// or .sna snapshot that descriptor runs to its restore stream. A tape or
+// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80,
+// .sna or .szx snapshot that descriptor runs to its restore stream. A tape or
 // snapshot name decides which it is. Library media and inserts by digest have
 // no name (""), and then the content decides: .tap has no signature, so a
 // snapshot's bytes can tile as .tap blocks and a .tap can be the size of a
-// snapshot. A valid snapshot is taken as one unless every .tap block also
-// passes the ROM loader's checksum. It closes reader.
+// snapshot. A file with a ZXST signature is a snapshot, and another valid
+// snapshot is taken as one unless every .tap block also passes the ROM
+// loader's checksum. It closes reader.
 func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, reader io.ReadCloser, size int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
@@ -214,7 +215,8 @@ func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, read
 	}
 	snapshot := spectrumsnapshots.Admit(name)
 	if name == "" {
-		snapshot = spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
+		snapshot = bytes.HasPrefix(data, []byte("ZXST")) ||
+			spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
 	}
 	if snapshot {
 		machine, stream, err := spectrumsnapshots.Convert(data)

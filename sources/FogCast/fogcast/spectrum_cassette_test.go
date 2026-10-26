@@ -35,6 +35,20 @@ func sna128() []byte {
 	return append(sna48(), make([]byte, 4+5*16<<10)...)
 }
 
+// szx48 is a 48K .szx: the header, Z80R, SPCR and three raw RAM pages.
+func szx48() []byte {
+	chunk := func(id string, data []byte) []byte {
+		return append(append([]byte(id), byte(len(data)), byte(len(data)>>8), byte(len(data)>>16), 0), data...)
+	}
+	out := append([]byte("ZXST"), 1, 4, 1, 0)
+	out = append(out, chunk("Z80R", make([]byte, 37))...)
+	out = append(out, chunk("SPCR", make([]byte, 8))...)
+	for _, page := range []byte{5, 2, 0} {
+		out = append(out, chunk("RAMP", append([]byte{0, 0, page}, make([]byte, 16<<10)...))...)
+	}
+	return out
+}
+
 // z80TapCollision is a valid uncompressed 48K version-1 .z80 file whose
 // first RAM bytes make its full contents a valid sequence of TAP blocks.
 func z80TapCollision() []byte {
@@ -82,7 +96,7 @@ func TestSpectrumCassetteStreamChoosesTapeOrSnapshot(t *testing.T) {
 	if err != nil || !bytes.HasPrefix(pzx, []byte("PZXT")) {
 		t.Fatalf("tape: % x, %v", pzx[:min(len(pzx), 8)], err)
 	}
-	for name, data := range map[string][]byte{"48K": sna48(), "128K": sna128()} {
+	for name, data := range map[string][]byte{"48K": sna48(), "128K": sna128(), "48K .szx": szx48()} {
 		stream, err := cassette(t, all, data)
 		if err != nil || !bytes.HasPrefix(stream, spectrumsnapshots.Magic[:]) {
 			t.Fatalf("%s snapshot: %v", name, err)
@@ -135,6 +149,17 @@ func TestSpectrumCassetteStreamNameDecides(t *testing.T) {
 	}
 	if _, err := namedCassette(t, d, "game.tzx", sna48()); !errors.As(err, &api) || api.Code != protocol.CodeBadRequest {
 		t.Errorf("snapshot named .tzx: %v", err)
+	}
+}
+
+func TestSpectrumCassetteStreamReportsInvalidSZXAsSnapshot(t *testing.T) {
+	data := szx48()
+	data[6] = 6 // unsupported +3e machine
+	_, err := cassette(t, spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID), data)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest ||
+		!strings.Contains(api.Message, "Spectrum snapshot: .szx snapshot is for the +3e") {
+		t.Fatalf("invalid ZXST error: %v", err)
 	}
 }
 
