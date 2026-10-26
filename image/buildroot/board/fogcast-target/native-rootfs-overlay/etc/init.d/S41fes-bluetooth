@@ -1,0 +1,87 @@
+#!/bin/sh
+# Pair gamepad controllers once bluetoothd is up. Link keys stay on the ext4
+# appliance data partition across reboots. Hold the controller's pair button.
+set -eu
+
+pid_file=/run/fes-bluetooth.pid
+log=/var/log/fes-bluetooth.log
+agent=/usr/sbin/fes-bluetooth
+
+agent_matches_pid() {
+  candidate=$1
+  case "$candidate" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  executable=$(/usr/bin/readlink "/proc/$candidate/exe" 2>/dev/null) || return 1
+  case "$executable" in
+    "$agent"|"$agent (deleted)") ;;
+    *) return 1 ;;
+  esac
+  /bin/kill -0 "$candidate" 2>/dev/null
+}
+
+agent_pid() {
+  [ -f "$pid_file" ] || return 1
+  IFS= read -r candidate < "$pid_file" || return 1
+  agent_matches_pid "$candidate" || return 1
+  printf '%s\n' "$candidate"
+}
+
+signal_agent() {
+  candidate=$1
+  agent_matches_pid "$candidate" || return 1
+  /bin/kill "$candidate" 2>/dev/null
+}
+
+stop_agent() {
+  # No stop countdown: the shutdown budget is already full, and the agent
+  # returns as soon as it receives SIGTERM.
+  [ -f "$pid_file" ] || return 0
+  pid=$(agent_pid) || pid=
+  if [ -n "$pid" ]; then
+    signal_agent "$pid" || true
+  fi
+  /bin/rm -f "$pid_file"
+}
+
+restart_agent() {
+  if [ -f "$pid_file" ]; then
+    pid=$(agent_pid) || pid=
+    if [ -n "$pid" ]; then
+      signal_agent "$pid" || true
+      restart_wait=5
+      while agent_matches_pid "$pid" && [ "$restart_wait" -gt 0 ]; do
+        /bin/sleep 1
+        restart_wait=$((restart_wait - 1))
+      done
+      if agent_matches_pid "$pid"; then
+        printf '%s\n' "fes-bluetooth: PID $pid did not exit; restart cancelled" >&2
+        return 1
+      fi
+    fi
+    /bin/rm -f "$pid_file"
+  fi
+  "$0" start
+}
+
+case "${1:-start}" in
+  start)
+    pid=$(agent_pid) || pid=
+    if [ -n "$pid" ]; then
+      exit 0
+    fi
+    /bin/rm -f "$pid_file"
+    "$agent" >>"$log" 2>&1 &
+    printf '%s\n' "$!" > "$pid_file"
+    ;;
+  stop)
+    stop_agent
+    ;;
+  restart)
+    restart_agent
+    ;;
+  *)
+    printf '%s\n' "usage: $0 start|stop|restart" >&2
+    exit 2
+    ;;
+esac

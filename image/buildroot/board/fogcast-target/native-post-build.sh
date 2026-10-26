@@ -125,7 +125,7 @@ if [ "$native_mode" = package-only ]; then
     "$target/usr/share/mister-runtime/idle.rbf"
   /bin/chmod 0755 "$target/etc/init.d/S40fes-kit-software"
   # The stable supervisor and storage bootstrap are base-image components.
-  for helper in fes-kit-data fes-kit-software; do
+  for helper in fes-kit-data fes-kit-software fes-bluetooth; do
     /usr/bin/install -m 0755 "$fogcast/bin/$helper-linux-armv7" "$target/usr/sbin/$helper"
   done
   /bin/rm -f "$target/etc/init.d/S40mister-runtime" "$target/etc/init.d/S50mister-agent" "$target/etc/init.d/S60fogcast-kit"

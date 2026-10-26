@@ -115,7 +115,11 @@ fi
   "$target/etc/init.d"/S11fes-block-admit \
   "$target/etc/init.d"/S15fes-ethaddr \
   "$target/etc/init.d"/S20mister-network \
+  "$target/etc/init.d"/S30dbus \
   "$target/etc/init.d"/S30mister-dropbear \
+  "$target/etc/init.d"/S35fes-bluetooth \
+  "$target/etc/init.d"/S40bluetooth \
+  "$target/etc/init.d"/S41fes-bluetooth \
   "$target/etc/init.d"/S49fogcast-target-smoke \
   "$target/usr/sbin/fes-block-admit" \
   "$target/usr/sbin/fes-usb-quirk" \
@@ -124,10 +128,41 @@ fi
 /bin/rm -rf "$target/etc/dropbear"
 /bin/ln -s /run/dropbear "$target/etc/dropbear"
 
-# The native agent retains libbluetooth for linkage, but package-only images do
-# not run Bluetooth or D-Bus services.
-/bin/rm -f "$target/etc/init.d/S40bluetooth" "$target/etc/init.d/S30dbus"
-/bin/rm -f "$target/usr/libexec/bluetooth/bluetoothd" "$target/usr/bin/dbus-daemon"
+# BlueZ link keys live at /run/fogcast/fesdata3/bluetooth on the FESDATA3 ext4
+# partition, not on the read-only root or FAT. S35 creates this directory.
+/bin/rm -rf "$target/var/lib/bluetooth"
+/bin/mkdir -p "$target/var/lib"
+/bin/ln -s /run/fogcast/fesdata3/bluetooth "$target/var/lib/bluetooth"
+# dbus-uuidgen --ensure writes the machine id. Keep that write on /run.
+[ -L "$target/var/lib/dbus" ] && /bin/rm -f "$target/var/lib/dbus"
+/bin/mkdir -p "$target/var/lib/dbus"
+/bin/rm -rf "$target/var/lib/dbus/machine-id"
+/bin/ln -s /run/dbus/machine-id "$target/var/lib/dbus/machine-id"
+
+firmware_src=$repo/firmware/rtl_bt
+(cd "$firmware_src" && /usr/bin/sha256sum -c SHA256SUMS) >/dev/null
+/bin/mkdir -p "$target/lib/firmware/rtl_bt"
+for fw in \
+  rtl8821c_fw.bin \
+  rtl8821c_config.bin \
+  rtl8761bu_fw.bin \
+  rtl8761bu_config.bin \
+  LICENCE.rtlwifi_firmware.txt
+do
+  [ -f "$firmware_src/$fw" ] && [ ! -L "$firmware_src/$fw" ] || {
+    printf 'post-build: bluetooth firmware missing: %s\n' "$fw" >&2
+    exit 1
+  }
+  /usr/bin/install -m 0644 "$firmware_src/$fw" "$target/lib/firmware/rtl_bt/$fw"
+done
+
+modules_archive=${FES_BLUETOOTH_MODULES_ARCHIVE:-$repo/build/cache/target-image/image-creator/modules.tar.gz}
+if [ -f "$modules_archive" ]; then
+  "$repo/scripts/install-bluetooth-modules.sh" "$target" "$modules_archive"
+elif [ "${FES_BLUETOOTH_MODULES_REQUIRED:-0}" = 1 ]; then
+  printf 'post-build: bluetooth module archive is missing: %s\n' "$modules_archive" >&2
+  exit 1
+fi
 
 # GCC's GDB auto-load helper embeds the per-run Buildroot output path.
 find "$target/usr/lib" -type f -name '*-gdb.py' -delete
@@ -145,7 +180,16 @@ fi
 
 # All Markdown/game payloads except that exact verified source notice remain
 # forbidden, including additional Markdown in or beside the notice directory.
-if find "$target" -type f ! -path "$verified_notice" \( \
+if find "$target" -type f ! -path "$verified_notice" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_fw.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8821c_config.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8821c_config.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_fw.bin" \
+  ! -path "$target/usr/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
+  ! -path "$target/lib/firmware/rtl_bt/rtl8761bu_config.bin" \
+  \( \
   -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
   -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o -iname '*.bin' -o \
   -iname '*.sqlite' -o -iname '*.sqlite-*' -o \

@@ -15,6 +15,9 @@ func TestOnlyPhysicalGamepadEligible(t *testing.T) {
 	if !eligible(3, "USB gamepad", true) {
 		t.Fatal("physical pad rejected")
 	}
+	if !eligible(5, "Bluetooth gamepad", true) {
+		t.Fatal("bluetooth pad rejected")
+	}
 }
 
 func TestPhysicalKeyboardEligibleForPlayHID(t *testing.T) {

@@ -37,6 +37,8 @@ func (d Device) GUID() string {
 }
 
 // eligible rejects the retained virtual pad (BUS_VIRTUAL) and non-gamepads.
+// Bus 5 is Linux BUS_BLUETOOTH. A paired HID or HoG pad on that bus is a
+// physical gamepad.
 func eligible(bus uint16, name string, buttons bool) bool {
 	// A button bitmap alone is not an identity: keyboards and arbitrary
 	// evdev nodes can expose BTN_SOUTH too. Auto discovery needs a physical
