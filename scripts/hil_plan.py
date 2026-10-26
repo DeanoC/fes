@@ -48,6 +48,9 @@ RULES = [
     ('sources/FogCast/cmd/fogcast-tenfoot/**', 'overlay', 'fogcast-tenfoot'),
     ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'host:fogcast-api'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
+    # The Spectrum simulations' restore-stream writer; no image, bundle or
+    # package ships it, and the host converts snapshots in fogcast-api.
+    ('sources/FogCast/cmd/fes-spectrum-restore/**', 'none', None),
     ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
     # ui/** is compiled into fogcast-kit, fogcast-tenfoot and fogcast-api, so it
     # falls through to kit-go+host below.
