@@ -199,18 +199,18 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 }
 
 // spectrumCassetteStream reads a stored .tzx, .tap, .pzx or .csw image and
-// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80
-// or .sna snapshot that descriptor runs to its restore stream. A valid
-// snapshot takes priority over tape parsing because TAP has no magic header
-// and snapshot bytes can also parse as length-prefixed TAP blocks. It closes
-// reader.
+// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80,
+// .sna or .szx snapshot that descriptor runs to its restore stream. A valid
+// snapshot, or a file with a ZXST signature, takes priority over tape parsing
+// because TAP has no magic header and snapshot bytes can also parse as
+// length-prefixed TAP blocks. It closes reader.
 func spectrumCassetteStream(descriptor corepackage.Descriptor, reader io.ReadCloser, size int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
 	if readErr != nil || closeErr != nil || int64(len(data)) != size {
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
 	}
-	if spectrumsnapshots.Recognize(data) {
+	if spectrumsnapshots.Recognize(data) || bytes.HasPrefix(data, []byte("ZXST")) {
 		machine, stream, err := spectrumsnapshots.Convert(data)
 		if err != nil {
 			return nil, protocol.SnapshotConversionError(err)

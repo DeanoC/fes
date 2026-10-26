@@ -727,7 +727,7 @@ On a kit, Home or Select/View opens **Change media** directly over the running
 machine, with transparent pixels outside the opaque picker. The launch room
 is not drawn behind it. The picker offers insert and eject for the observed
 unit-0 format: ZX81 `.p`, Spectrum `.tap`, Apple II `.dsk`/`.do`, C64 `.d64`
-or Atari ST `.st`. Spectrum `.z80` and `.sna` appear only when the active
+or Atari ST `.st`. Spectrum `.z80`, `.sna` and `.szx` appear only when the active
 package reports `fes.media.spectrum-snapshot` 1.0. The runtime reports the
 matching optional package metadata as active; model-specific snapshot checks
 remain in the host converter. It applies the active interface and reported
@@ -814,10 +814,13 @@ same unit 0. The library keeps the image as imported; at insertion
 `internal/spectrumtapes` converts it to the unit's 10..16,777,216-byte PZX
 stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
 package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
-`-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80` and `.sna`;
-the host checks for a valid snapshot before probing tape blocks because TAP
-has no magic header, converts it by `internal/spectrumsnapshots` to the core's
-restore stream, and refuses a snapshot of a machine the package does not run. A shell
+`-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80`, `.sna` and
+`.szx`;
+the host checks valid snapshots before probing tape blocks because TAP has no
+magic header, and routes any `ZXST` signature through snapshot conversion even
+when it is invalid so its snapshot error is preserved. The host converts a
+snapshot by `internal/spectrumsnapshots` to the core's restore stream and
+refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
 13) validates the size and source offline. Writable ST initial disks are
@@ -828,7 +831,7 @@ is a failed launch and follows existing library-slot Stop/recovery. The same ses
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
 insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
-legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80` or `.sna` name
+legacy ZX81 blob path. A `.tzx`, `.tap`, `.pzx`, `.csw`, `.z80`, `.sna` or `.szx` name
 inserts the Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
