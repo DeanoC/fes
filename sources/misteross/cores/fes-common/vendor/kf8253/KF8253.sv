@@ -5,7 +5,11 @@
 // Written by Kitune-san
 //
 
-module KF8253 (
+module KF8253 #(
+    // 1 adds the 8254 read-back command (control word bits 7:6 = 11) and its
+    // status byte. 0 is the 8253, which ignores that control word.
+    parameter READ_BACK = 0
+) (
     // Bus
     input   logic           clock,
     input   logic           reset,
@@ -48,6 +52,8 @@ module KF8253 (
     logic   [7:0]   read_counter_0_data;
     logic   [7:0]   read_counter_1_data;
     logic   [7:0]   read_counter_2_data;
+    logic   [2:0]   read_back_count;
+    logic   [2:0]   read_back_status;
 
     KF8253_Control_Logic u_KF8253_Control_Logic (
         // Bus
@@ -69,14 +75,16 @@ module KF8253 (
         .write_counter_2        (write_counter_2),
         .read_counter_0         (read_counter_0),
         .read_counter_1         (read_counter_1),
-        .read_counter_2         (read_counter_2)
+        .read_counter_2         (read_counter_2),
+        .read_back_count        (read_back_count),
+        .read_back_status       (read_back_status)
     );
 
 
     //
     // Counter #0
     //
-    KF8253_Counter u_KF8253_Counter_0 (
+    KF8253_Counter #(.READ_BACK(READ_BACK)) u_KF8253_Counter_0 (
         // Bus
         .clock                  (clock),
         .reset                  (reset),
@@ -85,6 +93,8 @@ module KF8253 (
         .write_control          (write_control_0),
         .write_counter          (write_counter_0),
         .read_counter           (read_counter_0),
+        .read_back_count        (read_back_count[0]),
+        .read_back_status       (read_back_status[0]),
 
         .read_counter_data      (read_counter_0_data),
 
@@ -98,7 +108,7 @@ module KF8253 (
     //
     // Counter #1
     //
-    KF8253_Counter u_KF8253_Counter_1 (
+    KF8253_Counter #(.READ_BACK(READ_BACK)) u_KF8253_Counter_1 (
         // Bus
         .clock                  (clock),
         .reset                  (reset),
@@ -107,6 +117,8 @@ module KF8253 (
         .write_control          (write_control_1),
         .write_counter          (write_counter_1),
         .read_counter           (read_counter_1),
+        .read_back_count        (read_back_count[1]),
+        .read_back_status       (read_back_status[1]),
 
         .read_counter_data      (read_counter_1_data),
 
@@ -120,7 +132,7 @@ module KF8253 (
     //
     // Counter #2
     //
-    KF8253_Counter u_KF8253_Counter_2 (
+    KF8253_Counter #(.READ_BACK(READ_BACK)) u_KF8253_Counter_2 (
         // Bus
         .clock                  (clock),
         .reset                  (reset),
@@ -129,6 +141,8 @@ module KF8253 (
         .write_control          (write_control_2),
         .write_counter          (write_counter_2),
         .read_counter           (read_counter_2),
+        .read_back_count        (read_back_count[2]),
+        .read_back_status       (read_back_status[2]),
 
         .read_counter_data      (read_counter_2_data),
 

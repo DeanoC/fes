@@ -23,7 +23,7 @@ REFERENCE = r"""    reg chosen_valid;
 @unittest.skipUnless(YOSYS, 'requires Yosys; set YOSYS to the locked executable')
 class DmaPriorityTest(unittest.TestCase):
     def test_whole_dma_state_and_interface_equivalence(self):
-        source = (ROOT / 'cores/fes-pcxt/rtl/pcxt_dma.sv').read_text()
+        source = (ROOT / 'cores/fes-common/rtl/fes_dma8237.sv').read_text()
         start = source.index('    wire chosen_valid =')
         end = source.index('    // Resolve a new service', start)
         original = source[:start] + REFERENCE + source[end:]
@@ -31,9 +31,9 @@ class DmaPriorityTest(unittest.TestCase):
             work = Path(directory)
             (work / 'original.sv').write_text(original)
             (work / 'actual.sv').write_text(source)
-            command = ('read_verilog -sv original.sv; proc; memory; opt; rename pcxt_dma gold; '
+            command = ('read_verilog -sv original.sv; proc; memory; opt; rename fes_dma8237 gold; '
                        'design -stash gold; read_verilog -sv actual.sv; proc; memory; opt; '
-                       'rename pcxt_dma gate; design -copy-from gold -as gold gold; '
+                       'rename fes_dma8237 gate; design -copy-from gold -as gold gold; '
                        'equiv_make gold gate equiv; hierarchy -top equiv; equiv_simple; '
                        'equiv_induct -seq 4; equiv_status -assert')
             result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,

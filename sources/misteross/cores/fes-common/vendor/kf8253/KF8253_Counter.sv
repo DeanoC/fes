@@ -7,7 +7,9 @@
 
 `include "KF8253_Definitions.svh"
 
-module KF8253_Counter (
+module KF8253_Counter #(
+    parameter READ_BACK = 0
+) (
     // Bus
     input   logic           clock,
     input   logic           reset,
@@ -16,6 +18,8 @@ module KF8253_Counter (
     input   logic           write_control,
     input   logic           write_counter,
     input   logic           read_counter,
+    input   logic           read_back_count,
+    input   logic           read_back_status,
 
     output  logic   [7:0]   read_counter_data,
 
@@ -63,6 +67,12 @@ module KF8253_Counter (
     logic   [16:0]  count;
     logic   [16:0]  count_latched;
 
+    logic           count_read_negedge;
+    logic           status_latched_flag;
+    logic   [7:0]   status_latched;
+    logic           null_count;
+    logic           preset_loading;
+
 
     //
     // Mode control word
@@ -100,9 +110,9 @@ module KF8253_Counter (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             count_latched_flag <= 1'b0;
-        else if ((write_control) && (internal_data_bus[5:4] == `RL_COUNTER_LATCH))
+        else if (((write_control) && (internal_data_bus[5:4] == `RL_COUNTER_LATCH)) || ((READ_BACK != 0) && read_back_count))
             count_latched_flag <= 1'b1;
-        else if ((count_latched_flag == 1'b1) && (read_negedge)) begin
+        else if ((count_latched_flag == 1'b1) && (count_read_negedge)) begin
             if (select_read_write != `RL_SELECT_LSB_MSB)
                 count_latched_flag <= 1'b0;
             else
@@ -192,7 +202,9 @@ module KF8253_Counter (
     // Read count value (latched)
     //
     always_comb begin
-        if (read_count_step == 1'b0)
+        if (status_latched_flag)
+            read_counter_data <= status_latched;
+        else if (read_count_step == 1'b0)
             read_counter_data <= count_latched[15:8];
         else
             read_counter_data <= count_latched[7:0];
@@ -206,6 +218,34 @@ module KF8253_Counter (
     end
 
     assign read_negedge = ((prev_read_counter != read_counter) & read_counter == 1'b0);
+    // A latched status byte is read first and does not advance the count read.
+    assign count_read_negedge = read_negedge & ~status_latched_flag;
+
+    // 8254 read-back status: OUT, null count, then the control word's RW, mode
+    // and BCD fields. A second status latch before the read is ignored. The
+    // 8253 (READ_BACK = 0) has none of this state.
+    generate
+        if (READ_BACK != 0) begin : g_read_back_status
+            always_ff @(posedge clock, posedge reset) begin
+                if (reset) begin
+                    status_latched_flag <= 1'b0;
+                    status_latched      <= 8'h00;
+                end
+                else if (read_back_status && !status_latched_flag) begin
+                    status_latched_flag <= 1'b1;
+                    status_latched      <= {counter_out, null_count, select_read_write, select_mode, select_bcd};
+                end
+                else if (status_latched_flag && read_negedge)
+                    status_latched_flag <= 1'b0;
+                else
+                    status_latched_flag <= status_latched_flag;
+            end
+        end
+        else begin : g_no_read_back_status
+            assign status_latched_flag = 1'b0;
+            assign status_latched      = 8'h00;
+        end
+    endgenerate
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
@@ -217,7 +257,7 @@ module KF8253_Counter (
                 `RL_SELECT_LSB_MSB  : read_count_step <= 1'b1;
                 default             : read_count_step <= read_count_step;
             endcase
-        else if ((read_negedge) && (select_read_write == `RL_SELECT_LSB_MSB))
+        else if ((count_read_negedge) && (select_read_write == `RL_SELECT_LSB_MSB))
             read_count_step <= (read_count_step) ? 1'b0 : 1'b1;
         else
             read_count_step <= read_count_step;
@@ -453,6 +493,31 @@ module KF8253_Counter (
             end
         endcase
 
+    end
+
+    // 8254 null count: set by a control word or count write, cleared when the
+    // counting element takes the preset at a count edge.
+    always_comb begin
+        casez (select_mode)
+            `KF8253_CONTROL_MODE_0: preset_loading = load_edge;
+            `KF8253_CONTROL_MODE_1: preset_loading = gate_edge;
+            `KF8253_CONTROL_MODE_2: preset_loading = gate_edge || mode2_zero;
+            `KF8253_CONTROL_MODE_3: preset_loading = gate_edge || mode3_zero;
+            `KF8253_CONTROL_MODE_4: preset_loading = load_edge;
+            `KF8253_CONTROL_MODE_5: preset_loading = gate_edge;
+            default:                preset_loading = 1'b0;
+        endcase
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            null_count <= 1'b0;
+        else if (update_counter_config || write_counter)
+            null_count <= 1'b1;
+        else if (start_counting && count_edge && preset_loading)
+            null_count <= 1'b0;
+        else
+            null_count <= null_count;
     end
 
     // Update Count

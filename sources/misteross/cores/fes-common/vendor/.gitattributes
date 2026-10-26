@@ -1,0 +1,5 @@
+# Preserve pinned upstream EOF bytes while checking other whitespace. The
+# read-back patch quotes upstream lines, trailing blanks included.
+kf8253/*.sv whitespace=-blank-at-eof
+kf8259/*.sv whitespace=-blank-at-eof
+kf8253/read_back.patch -whitespace

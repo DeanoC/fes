@@ -5,7 +5,8 @@
   "local_changes": [
     "Replace serial saturating one/two-step binary/BCD decrement with direct constant-step arithmetic and parallel BCD borrow prefixes; preserve all counter/register timing and behavior.",
     "Precompute binary and BCD one/two-step decrements between falling count-clock edges. Preserve visible counter/output cycles; inactive/reset candidates clear with count, and selection uses current BCD configuration.",
-    "Precompute scalar terminal-count flags and select period/output conditions in parallel with next-count data; retain current control/preset selection and original count/output cycles."
+    "Precompute scalar terminal-count flags and select period/output conditions in parallel with next-count data; retain current control/preset selection and original count/output cycles.",
+    "8254 read-back (2026-10-26, for pc386): the READ_BACK parameter (default 0, the 8253) adds the read-back control word (bits 7:6 = 11), per-counter count latch and status byte (OUT, null count, RW, mode, BCD); a latched status is read before the count. read_back.patch is the whole change; tests/test_fes_kf8253_read_back.py reverses it to the previous bytes and proves READ_BACK=0 sequentially equivalent to them."
   ],
   "files": [
     {
@@ -16,23 +17,26 @@
     {
       "path": "KF8253.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253.sv",
-      "sha256": "cc0d63e629e6869cbc0dda09497f7a27485ec5111af4ac0c891b2a6ba9242a31"
+      "sha256": "8eafce840403773204b3162317d6c773d7352daf2e994a7520161a611427c9e8",
+      "upstream_sha256": "cc0d63e629e6869cbc0dda09497f7a27485ec5111af4ac0c891b2a6ba9242a31"
     },
     {
       "path": "KF8253_Control_Logic.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Control_Logic.sv",
-      "sha256": "08fdb53ae2db6d2de5a8b80ba84b2021de9ee6aa01a17890cdd9aa926e6e374b"
+      "sha256": "db11635d34159622e43cd996c3ea101b84eb0e3abae4f8ccb9556cf4351a4837",
+      "upstream_sha256": "08fdb53ae2db6d2de5a8b80ba84b2021de9ee6aa01a17890cdd9aa926e6e374b"
     },
     {
       "path": "KF8253_Counter.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv",
-      "sha256": "1b9a556831217b8daa21e4cdf83486bc6a4bda73439397477ed9479a2596b4e8",
+      "sha256": "87b3df9e59b75c0102aed1d592e6be23ba732e9d80c9c6f154355729b450dba8",
       "upstream_sha256": "4c7ff9a11fe5d1207548bb3b67de46adb8defa6dd3541a0ab519d61a5b3ab660"
     },
     {
       "path": "KF8253_Definitions.svh",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Definitions.svh",
-      "sha256": "8cee59d4e7f03f3ec8e8319bd5e135c1f8a1fd81506de83bf8cb6f8137047e0d"
+      "sha256": "e6ac7b4eb0c8236f6b7923d38abeab2f9b2ec0b3b652536e53fc1be840fdebbf",
+      "upstream_sha256": "8cee59d4e7f03f3ec8e8319bd5e135c1f8a1fd81506de83bf8cb6f8137047e0d"
     }
   ]
 }

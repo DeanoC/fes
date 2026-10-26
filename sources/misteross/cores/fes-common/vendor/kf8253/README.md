@@ -2,8 +2,8 @@
 
 Pinned from [PCXT_MiSTer](https://github.com/spark2k06/PCXT_MiSTer/tree/af4f8a98ae562af0e3f9b86cc3a59673f999d0f6/rtl/KFPC-XT/HDL/KF8253)
 under the retained MIT license. `source.json` records original paths and hashes.
-The motherboard wrapper supplies synchronous bus strobes at 100 MHz.
-Simulation coverage is described in the [core README](../../README.md);
+The PC/XT motherboard and the pc386 AT core supply synchronous bus strobes.
+Simulation coverage is described in the [PC/XT README](../../../fes-pcxt/README.md);
 importing this implementation does not qualify all chip modes or silicon timing.
 
 Local timing change: mode 3's two-step decrement uses one direct saturating
@@ -27,3 +27,15 @@ Terminal-count flags are precomputed with the candidates. Period/output control
 selects scalar conditions in parallel with next-count data, avoiding a wide
 next-count mux followed by a wide comparator. Current gate/load/preset choices
 remain live, and the same consumption invariant covers the scalar flags.
+
+Local feature change (2026-10-26, for pc386): `READ_BACK = 1` makes the chip an
+8254. A control word with bits 7:6 = 11 is the read-back command: for each
+counter its bits 3:1 select, bit 5 clear latches the count as the counter-latch
+command does, and bit 4 clear latches the status byte (OUT, null count, RW,
+mode, BCD). A latched status is returned by the next read of that counter and
+does not advance the count read sequence. Null count is set by a control word
+or count write and cleared when the counting element takes the preset. With
+the default `READ_BACK = 0` none of that state exists. `read_back.patch` is the
+whole change; `tests/test_fes_kf8253_read_back.py` reverses it, checks the
+result against the previous hashes and proves the `READ_BACK = 0` chip
+sequentially equivalent to it at every port and matched internal signal.
