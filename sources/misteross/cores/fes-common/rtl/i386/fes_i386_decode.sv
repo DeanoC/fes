@@ -87,7 +87,8 @@ module fes_i386_decode (
                    || ((b0[7:1] == 7'b1100000 || b0[7:2] == 6'b110100) && by[1][5:4] == 2'b01)  // RCL, RCR
                    || b0[7:4] == 4'h7                                             // Jcc rel8
                    || (two && op2[7:5] == 3'b100)                                 // Jcc rel16/32, SETcc
-                   || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000;        // LAHF, CMC, LOOPNE, LOOPE
+                   || b0 == 8'h9f || b0 == 8'hf5 || b0[7:1] == 7'b1110000         // LAHF, CMC, LOOPNE, LOOPE
+                   || b0 == 8'h9c;                                                // PUSHF
 
     // Where the displacement is: after the ModRM and, in 32-bit addressing
     // with r/m 100b, a SIB byte.
@@ -433,6 +434,25 @@ module fes_i386_decode (
                     s2_valid = 1'b1;
                     d_valid = 1'b1;
                     d_idx = 3'd2;
+                end
+                8'h9c: begin
+                    // PUSHF, PUSHFD: FLAGS' image, VM and RF clear
+                    op = 5'd30;  // ALU_FLAGS
+                    imm = 32'd10;  // FLAG_READ
+                    rd_cf = 1'b1;
+                    rd_oszap = 1'b1;
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'h9d: begin
+                    // POPF, POPFD
+                    op = 5'd30;  // ALU_FLAGS
+                    imm = 32'd9;  // FLAG_LOAD
+                    wr_cf = 1'b1;
+                    wr_oszap = 1'b1;
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_POP;
                 end
                 8'h9e: begin
                     // SAHF

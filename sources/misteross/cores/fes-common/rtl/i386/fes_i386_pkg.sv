@@ -105,9 +105,11 @@ package fes_i386_pkg;
         ALU_BSF, ALU_BSR, ALU_DAA, ALU_DAS, ALU_AAA, ALU_AAS, ALU_SALC, ALU_FLAGS, ALU_SIGN
     } alu_op_e;
 
-    // ALU_FLAGS, in imm[3:0].
+    // ALU_FLAGS, in imm[3:0]. LOAD writes the flags from src2 (POPF, IRET);
+    // READ gives FLAGS' image (PUSHF), READ_INT too, clearing IF and TF (INT).
     typedef enum logic [3:0] {
-        FLAG_CLC, FLAG_STC, FLAG_CMC, FLAG_CLI, FLAG_STI, FLAG_CLD, FLAG_STD, FLAG_SAHF, FLAG_LAHF
+        FLAG_CLC, FLAG_STC, FLAG_CMC, FLAG_CLI, FLAG_STI, FLAG_CLD, FLAG_STD, FLAG_SAHF, FLAG_LAHF,
+        FLAG_LOAD, FLAG_READ, FLAG_READ_INT
     } flag_op_e;
 
     // UOP_SHIFT. The first eight follow the x86 group-2 order.
@@ -378,11 +380,14 @@ package fes_i386_pkg;
         logic       ot_lo, ot_mid, ot_h8, ot_hi;
         logic       kp_lo, kp_mid, kp_hi;
         logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
+        logic       r_flags;                   // FLAGS' image (PUSHF, INT's push)
         logic       l_or, l_xor;               // the logic unit; AND otherwise
         logic       f_add;                     // CF comes from the adder
         logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
         logic       f_logic, f_shift;          // ... from the logic unit; from the shift, at WB
         logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
+        logic       f_load;                    // the writable flags from y (POPF, IRET)
+        logic       f_clrit;                   // IF and TF cleared (INT)
         logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)

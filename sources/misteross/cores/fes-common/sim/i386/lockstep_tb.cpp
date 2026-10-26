@@ -532,9 +532,9 @@ MemUse stack_use(const uint8_t *code) {
         m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
     } else {
         m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
-                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a || op == 0x60;
+                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a || op == 0x60 || op == 0x9c;
         m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
-                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb || op == 0x61;
+                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb || op == 0x61 || op == 0x9d;
     }
     return m;
 }

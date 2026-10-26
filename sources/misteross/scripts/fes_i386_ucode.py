@@ -45,7 +45,7 @@ SEG = {'es': 0, 'cs': 1, 'ss': 2, 'ds': 3, 'fs': 4, 'gs': 5}
 # Named values; a field not listed takes an integer.
 VALUES: dict[str, dict[str, int]] = {
     'cls': {'alu': 0, 'shift': 1, 'branch': 4, 'segment': 5, 'special': 7},
-    'op': {'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30, 'flags_read': 29},
+    'op': {'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30},
     'size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'src_size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'mbytes': {'osz': 0, '2': 1, '4': 2, '1': 3},
