@@ -418,6 +418,7 @@ void adopt(State &oracle_state, const State &rtl, const Fields &fields) {
         for (int n = 0; n < 8; ++n) oracle_state.gpr[n] = rtl.gpr[n];
         oracle_state.eflags = (oracle_state.eflags & ~EFLAGS_MASK) | (rtl.eflags & EFLAGS_MASK);
         oracle_state.eip = rtl.eip;
+        for (int n = 0; n < 6; ++n) oracle_state.seg[n] = rtl.seg[n];
         return;
     }
     oracle_state.eflags = (oracle_state.eflags & ~fields.eflags) | (rtl.eflags & fields.eflags);
@@ -628,13 +629,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (oracle_faulted && !(skip.all && event == Rtl::Event::Retired)) {
             // An exception: the RTL must raise it with nothing retired.
-            const int vector = result.events.front().vector;
+            int vector = result.events.front().vector;
             if (event != Rtl::Event::Fault) {
                 out.add(at + (event == Rtl::Event::Unimplemented ? "unimplemented" : "exception"), uint32_t(vector),
                         event == Rtl::Event::Retired ? 0xffu : 0xfeu);
                 return outcome;
             }
-            if (rtl.top.trace_vector != vector) out.add(at + "vector", uint32_t(vector), rtl.top.trace_vector);
+            if (!skip.all && rtl.top.trace_vector != vector) out.add(at + "vector", uint32_t(vector), rtl.top.trace_vector);
+            if (skip.all) vector = rtl.top.trace_vector;
             if (!rtl.step_writes.empty()) out.add(at + "fault-write", *rtl.step_writes.begin(), 0);
             compare(before, rtl.state(), Fields{}, at, out);
             outcome.fault = vector;
