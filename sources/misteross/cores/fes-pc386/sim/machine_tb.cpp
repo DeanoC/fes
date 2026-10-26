@@ -20,13 +20,17 @@
 //   MARK <sample> <name>                    a "MARK <name>" line on port E9h, at that 48 kHz output sample
 //   OPL2 samples=<n> exact=<n> nonzero=<n> writes=<n>   the OPL2 against Nuked-OPL3, every sample
 //   AUDIO samples=<n>
+//   SB resets=<n> commands=<n> dma=<n> irqs=<n>   the DSP's resets, command bytes, DMA bytes, IRQs
 //   END <reason> steps=<n> cycles=<n> seconds=<simulated>
 // The audio block (pc386_audio, a second model joined by audio_link.h) runs
 // beside the AT core: DMA channel 1 reaches guest RAM through the AT core's
 // DMA port, and the OPL2 is checked against Nuked-OPL3 as it plays.
 // usage: machine_tb --bios F --vgabios F --disk F [--disk-out F] [--limit-seconds S]
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
-//        [--wav F] [--opl2-log F]
+//        [--wav F] [--opl2-log F] [--keys SECONDS:TEXT]...
+// --keys presses TEXT's keys at that simulated time, each held 200 ms so a
+// game's per-frame keyboard poll sees it: '|' is Enter, '~' Esc, '^' Ctrl.
+// The run then ends at the limit unless the prompt returns.
 // --wav writes the 48 kHz mixer output (mono, 16-bit); --opl2-log the OPL2
 // port writes as "<clock> <a0> <byte>" for sim/opl2_tb.cpp to replay.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
@@ -69,10 +73,12 @@ bool set2(char c, uint8_t &code, bool &shift) {
         {'v', 0x2a}, {'w', 0x1d}, {'x', 0x22}, {'y', 0x35}, {'z', 0x1a}, {'0', 0x45}, {'1', 0x16},
         {'2', 0x1e}, {'3', 0x26}, {'4', 0x25}, {'5', 0x2e}, {'6', 0x36}, {'7', 0x3d}, {'8', 0x3e},
         {'9', 0x46}, {' ', 0x29}, {'\n', 0x5a}, {'.', 0x49}, {'\\', 0x5d}, {'/', 0x4a}, {'-', 0x4e},
-        {';', 0x4c}, {',', 0x41}, {'=', 0x55}};
+        {';', 0x4c}, {',', 0x41}, {'=', 0x55}, {'|', 0x5a}};
     shift = false;
     if (c >= 'A' && c <= 'Z') { shift = true; c = char(c - 'A' + 'a'); }
     if (c == ':') { shift = true; c = ';'; }
+    if (c == '~') { code = 0x76; return true; }      // Esc
+    if (c == '^') { code = 0x14; return true; }      // left Ctrl
     auto found = plain.find(c);
     if (found == plain.end()) return false;
     code = found->second;
@@ -380,6 +386,7 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, wav, opl2_log;
     double limit_seconds = 120;
+    std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
 };
 
@@ -400,6 +407,11 @@ Options parse(int argc, char **argv) {
         else if (flag == "--expect") options.expect = value;
         else if (flag == "--wav") options.wav = value;
         else if (flag == "--opl2-log") options.opl2_log = value;
+        else if (flag == "--keys") {
+            size_t colon = value.find(':');
+            if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
+            options.keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
         else throw std::runtime_error("unknown option " + flag);
     }
     if (options.bios.empty() || options.vgabios.empty() || options.disk.empty())
@@ -428,7 +440,9 @@ int main(int argc, char **argv) {
         uint64_t prompt_at = 0, settled_at = 0;
         size_t typed = 0;
         std::vector<uint8_t> key_bytes;
+        std::vector<uint64_t> key_holds;     // a set wait after a byte; 0 for the typing pace below
         uint64_t next_key = 0;
+        size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
 
@@ -460,7 +474,22 @@ int main(int argc, char **argv) {
                 machine.clock();
                 machine.top.key_valid = 0;
                 key_bytes.erase(key_bytes.begin());
-                if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(0.03 * CLOCK_HZ);
+                uint64_t hold = key_holds.empty() ? 0 : key_holds.front();
+                if (!key_holds.empty()) key_holds.erase(key_holds.begin());
+                if (hold) next_key = machine.cycles + hold;
+                else if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(0.03 * CLOCK_HZ);
+            }
+            // Scheduled keys: make, held 200 ms, then break.
+            if (scheduled < options.keys.size() && key_bytes.empty() &&
+                machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
+                for (char c : options.keys[scheduled].second) {
+                    uint8_t code; bool shift;
+                    if (!set2(c, code, shift) || shift) throw std::runtime_error("cannot press that");
+                    for (uint8_t b : {code, uint8_t(0xf0), code}) key_bytes.push_back(b);
+                    for (uint64_t h : {uint64_t(0.2 * CLOCK_HZ), uint64_t(0), uint64_t(0.1 * CLOCK_HZ)}) key_holds.push_back(h);
+                }
+                next_key = machine.cycles;
+                ++scheduled;
             }
 
             if (machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
@@ -481,6 +510,7 @@ int main(int argc, char **argv) {
                         key_bytes.push_back(code);
                         key_bytes.push_back(0xf0); key_bytes.push_back(code);
                         if (shift) { key_bytes.push_back(0xf0); key_bytes.push_back(0x12); }
+                        key_holds.resize(key_bytes.size(), 0);
                     }
                     next_key = machine.cycles;
                     settled_at = machine.cycles;
@@ -508,6 +538,9 @@ int main(int argc, char **argv) {
                     (unsigned long long)opl2.exact, (unsigned long long)opl2.nonzero, (unsigned long long)opl2.writes);
         if (opl2.mismatches) std::printf("OPL2-MISMATCH %s\n", opl2.first_mismatch.c_str());
         std::printf("AUDIO samples=%zu\n", machine.link.samples.size());
+        const AudioLink &link = machine.link;
+        std::printf("SB resets=%llu commands=%llu dma=%llu irqs=%llu\n", (unsigned long long)link.dsp_resets,
+                    (unsigned long long)link.dsp_commands, (unsigned long long)link.dacks, (unsigned long long)link.dsp_irqs);
         if (machine.opl2_log) std::fclose(machine.opl2_log);
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,

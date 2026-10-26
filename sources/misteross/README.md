@@ -89,8 +89,10 @@ sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
 
 The pc386 machine's AT core (phase M1 of the [machine design](docs/pc386-machine-design.md))
 boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
-oracle as CPU. `make sim-fes-pc386` runs its device checks and
-`make sim-fes-pc386-boot` the boot; see the [core README](cores/fes-pc386/README.md).
+oracle as CPU, and its audio (phase M3: speaker, OPL2, Sound Blaster 2.0 DSP,
+mixer) plays beside it. `make sim-fes-pc386` runs its device, DSP and OPL2
+checks, `make sim-fes-pc386-boot` the boot and `make sim-fes-pc386-sound` the
+audio start-up exercise; see the [core README](cores/fes-pc386/README.md).
 
 ## What builds now
 

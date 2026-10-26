@@ -10,7 +10,7 @@
 ;
 ; Writes "MARK <name>" lines to port E9h at each section so the bench can cut
 ; the captured audio, prints its findings and ends with "SOUND DONE".
-; Assemble: nasm -f bin -o SOUND.COM sound.asm
+; Assemble: nasm -f bin -o SOUND.COM sound.asm. Needs a 386 (32-bit registers).
 
         bits 16
         org 0x100
@@ -196,6 +196,12 @@ start:  cld
         call wait_us
         mov ax, 0xb111
         call adlib
+        mov ax, 0x4000                   ; every operator to full attenuation,
+.mute:  mov al, 0x3f                     ; so release tails stay out of the
+        call adlib                       ; Sound Blaster sections
+        inc ah
+        cmp ah, 0x56
+        jb .mute
         mov dx, 50000
         xor cx, cx
         call wait_us
@@ -307,16 +313,43 @@ adlib:  push ax
         pop ax
         ret
 
-; CX:DX microseconds through the BIOS.
+; CX:DX microseconds, counted on PIT channel 0 (mode 2, one count per
+; 1/1,193,182 s), as games time short waits. The Bochs BIOS's INT 15h AH=86h
+; counts port 61h bit 4, which follows PIT channel 1, and that BIOS never
+; programs channel 1.
 wait_us:
-        push ax
-        push cx
-        push dx
-        mov ah, 0x86
-        int 0x15
-        pop dx
-        pop cx
-        pop ax
+        pushad
+        mov ax, cx
+        shl eax, 16
+        mov ax, dx
+        imul eax, eax, 1193
+        xor edx, edx
+        mov ebx, 1000
+        div ebx
+        mov ecx, eax                     ; PIT counts to wait
+        call pit_count
+        mov bx, ax
+.next:  call pit_count
+        mov dx, bx
+        sub dx, ax                       ; counts since the last read
+        mov bx, ax
+        movzx edx, dx
+        sub ecx, edx
+        jg .next
+        popad
+        ret
+
+; AX = PIT channel 0's current count.
+pit_count:
+        pushf
+        cli
+        xor al, al
+        out 0x43, al                     ; latch channel 0
+        in al, 0x40
+        mov ah, al
+        in al, 0x40
+        xchg al, ah
+        popf
         ret
 
 dsp_write:
