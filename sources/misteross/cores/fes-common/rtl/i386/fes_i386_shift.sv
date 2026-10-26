@@ -19,21 +19,15 @@
 // and fill, so no opcode compare sits between the operands and the shift. At
 // a count of zero the shift returns a unchanged.
 //
-// The flags follow the 386EX where the manual leaves them undefined (Phase 0
-// divergences shift-rotate-of and shift-cf-wide-count): OF is the result's
-// top bit XOR CF after a left shift or rotate, and its top two bits XORed
-// after a right one, at every count; an 8-bit SHL or SHR by 16 or 24 sets CF
-// to the operand's bit 0 or bit 7. AF, SF, ZF and PF are the caller's.
+// The shifter hands out its whole output; fes_i386_shflags, at WB, takes
+// the flags from it.
 module fes_i386_shift (
     input  fes_i386_pkg::shctl_t c,
-    input  logic [4:0]  count,
     input  logic [4:0]  s,       // count, or 31 - count for a left shift
     input  logic [31:0] a,       // the destination, zero-extended
     input  logic [31:0] b,       // SHLD and SHRD's source, zero-extended
     input  logic        cf_in,
-    output logic [31:0] r,
-    output logic        cf,
-    output logic        of
+    output logic [33:0] out      // the result is out[n:1]
 );
     localparam int DATA = 0, ROT = 1, RC = 2, SAR = 3, SHD = 4;
 
@@ -74,21 +68,6 @@ module fes_i386_shift (
                     x = x | ({64{c.sel[d * 15 + z * 5 + k]}} & cand[d][z][k]);
     end
 
-    // ---- The shift and result -------------------------------------------------
-    logic [33:0] out;
+    // ---- The shift ----------------------------------------------------------------
     assign out = 34'(x >> s);
-    assign r = {{16{c.z32}} & out[32:17], {8{!c.z8}} & out[16:9], out[8:1]};
-
-    // ---- Flags ------------------------------------------------------------------
-    logic msb, msb2, cf_out, wide8;
-    assign msb = c.z8 ? out[8] : c.z16 ? out[16] : out[32];
-    assign msb2 = c.z8 ? out[7] : c.z16 ? out[15] : out[31];
-    assign cf_out = !c.left ? out[0] : c.z8 ? out[9] : c.z16 ? out[17] : out[33];
-    assign wide8 = c.z8 && (count == 5'd16 || count == 5'd24);
-    assign cf = c.cf_rol ? out[1]
-              : c.cf_ror ? msb
-              : c.cf_shl && wide8 ? a[0]
-              : c.cf_shr && wide8 ? a[7]
-              : cf_out;
-    assign of = c.left ? msb ^ cf : msb ^ msb2;
 endmodule

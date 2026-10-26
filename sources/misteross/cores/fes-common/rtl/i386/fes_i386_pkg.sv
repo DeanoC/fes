@@ -247,27 +247,42 @@ package fes_i386_pkg;
         logic [29:0] sel;
         logic        left;
         logic        z8, z16, z32;
-        logic        count_cl;              // the count is CL, not imm
-        logic [4:0]  s_imm;                 // an immediate count's shift amount
-        logic        imm_zero;              // the immediate count is zero
+        logic [4:0]  s;                     // the shift amount: the count, or 31 - count left
+        logic [4:0]  count;                 // the count, unless EX takes CL from WB (byp_c)
         logic        cf_rol, cf_ror, cf_shl, cf_shr;  // CF other than the last bit out
         logic        szap;                  // SF, ZF, AF and PF change (not a rotate)
     } shctl_t;
 
     // EX's controls, decoded from the uop in M2 (fes_i386_exctl) so that EX
-    // sees registered selects: one-hot where EX picks among sources.
+    // sees registered selects: one-hot where EX picks among sources. M2 also
+    // prepares EX's operands x and y (pipe_t); an operand still pending with
+    // its producer one stage ahead comes from the WB result register in EX,
+    // through the x and y bypass selects.
     typedef struct packed {
         logic       ok;                        // no fault: EX changes nothing otherwise
-        logic       byp_a, byp_b, byp_c;       // the operand comes from the WB result register
+        logic       byp_a, byp_c;              // src1 (the merge's old value) and CL come from WB
+        // x and y take WB's bits 7:0 (lo) or 15:8 (hi) into their low byte,
+        // its bits 15:8 (w16) and 31:16 (w32) in place.
+        logic       xw_lo, xw_hi, xw16, xw32;
+        logic       yw_lo, yw_hi, yw16, yw32;
         logic       size8, size16;             // the operation's size (32 otherwise)
-        logic       src8, src16;               // src2's size for MOVZX, MOVSX and SIGN
+        logic       src8, src16;               // src2's size for MOVSX and SIGN
         logic       sub;                       // the adder subtracts
-        logic       x_zero;                    // NEG: 0 - a
-        logic       y_one, y_a;                // INC, DEC, LOOP add 1; NEG takes a
         logic       cin_cf, cin_ncf;           // ADC, SBB; else the carry-in is sub
-        logic       r_add, r_logic, r_shift, r_lea, r_ext, r_movsx, r_setcc, r_lahf, r_sign, r_mov;
-        logic       l_or, l_xor, l_not;        // the logic unit; AND otherwise
-        logic       f_add, f_incdec, f_logic, f_shift, f_flagop;  // which flags change, from where
+        // The result by lane: bits 7:0 (lo), 15:8 (mid), the low byte's
+        // result into 15:8 (h8, a high-byte destination) and 31:16 (hi); the
+        // old value elsewhere (kp).
+        logic       add_lo, add_mid, add_h8, add_hi;
+        logic       sh_lo, sh_mid, sh_h8, sh_hi;
+        logic       ot_lo, ot_mid, ot_h8, ot_hi;
+        logic       kp_lo, kp_mid, kp_hi;
+        logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
+        logic       l_or, l_xor;               // the logic unit; AND otherwise
+        logic       f_add;                     // CF comes from the adder
+        logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
+        logic       f_logic, f_shift;          // ... from the logic unit; from the shift, at WB
+        logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
+        logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
         shctl_t     sh;
     } exctl_t;
@@ -296,10 +311,14 @@ package fes_i386_pkg;
         logic [31:0] target;      // AG: a branch's target linear address
         logic [31:0] target_eip;  // ... and EIP
         exctl_t      exc;         // M2: EX's controls
+        logic [31:0] x;           // M2: EX's adder, logic and shifter operands (fes_i386_exctl)
+        logic [31:0] y;
         logic [17:0] eflags;      // EX: EFLAGS after this uop
         logic        taken;       // EX: a branch that redirects fetch
-        logic        sh_cf;       // EX: a shift's CF and OF, applied at WB (def_co)
-        logic        sh_of;
+        logic        sh_out0;     // EX: a shift's bit out at the right, the one out at the left by size,
+        logic        sh_outn;     // and its wide-count CF (fes_i386_shflags, applied at WB: def_co)
+        logic        sh_cfw;
+        logic        sh_wide;
         logic        def_co;
         logic        def_szap;    // EX: a shift's SF, ZF and PF follow the result; AF is set
     } pipe_t;
