@@ -233,10 +233,9 @@ with varying delay: Restore and Seek with verify and their timing, Read
 Sector on both sides at 112 T a byte, Read Address, Read Track, multi-sector
 reads ending at the track's last sector, Record Not Found after five
 revolutions, Write Protect, Lost Data, a CRC error, a verify on the wrong
-track, Force Interrupt immediately and at the next index pulse, an empty drive
-B, a Type II command on an unloaded head, the head unloading after 3 s and the
-launch image's boot pulse. A
-mailbox simulation checks the Pentagon's two units: each unit's Info, a
+track, Force Interrupt immediately and as the next index pulse ends, an
+empty drive B, a Type II command on an unloaded head, the head unloading
+after 3 s and the launch image's boot pulse. A mailbox simulation checks the Pentagon's two units: each unit's Info, a
 transfer to each, transfers bound to their unit and one at a time, and an
 eject of one unit leaving the other alone. The video simulation
 streams 50 Hz frames into the 720p60 banks and checks that every HDMI frame

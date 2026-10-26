@@ -314,7 +314,7 @@ module spectrum_beta #(
                     head_load <= 1'b0;
                 end else unload_count <= unload_count - 24'd1;
             end
-            if (index_irq && byte_strobe && pos_next == 13'd0) begin
+            if (index_irq && byte_strobe && pos_next == INDEX_BYTES) begin
                 index_irq <= 1'b0;
                 intrq <= 1'b1;
             end
