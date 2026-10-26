@@ -29,7 +29,8 @@ def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
 class ScopeTest(unittest.TestCase):
     def test_scope_takes_every_form_of_a_stem(self):
         for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95', '6650', '0FA9', 'C2', 'FF.4',
-                     'C4', '660FB2', 'EA', '669A', 'CB', 'FF.3', 'FF.5'):
+                     'C4', '660FB2', 'EA', '669A', 'CB', 'FF.3', 'FF.5', '60', '6661', '9C', '9D', 'CC', 'CD', 'CE',
+                     '66CF'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
         for stem in ('F6.4', 'A0', 'FF.2', 'FF.6', '8F', 'C8', '0FA3'):  # MUL, moffs, CALL r/m, PUSH and POP r/m, ENTER, BT
