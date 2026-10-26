@@ -2991,7 +2991,7 @@ Yosys SAT checks equivalence against its original rotation equations for
 arbitrary requests, service/mask vectors and nested modes. Register boundaries
 and the motherboard's bus setup/active/release timing are unchanged.
 
-Original `pcxt_dma.sv` implements the XT subset of the
+Original `fes_dma8237.sv` (shared with pc386 in `fes-common`) implements, at its default parameters, the XT subset of the
 [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
 Ports `00–1F` select controller registers through A3:0; write-only four-bit page
 latches at `80–9F` use A1:0 (DMA2 index 1, DMA3 index 2, DMA1/refresh index 3).

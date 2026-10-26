@@ -1,0 +1,3 @@
+# Preserve pinned upstream EOF bytes while checking other whitespace.
+kf8253/*.sv whitespace=-blank-at-eof
+kf8259/*.sv whitespace=-blank-at-eof
