@@ -157,7 +157,7 @@ def run_boot(args, linked: list[Path]) -> dict:
     result = subprocess.run(command, cwd=OUTPUT / 'boot', capture_output=True, text=True)
     (OUTPUT / 'boot/machine.log').write_text(result.stdout + result.stderr)
     report = parse_boot(result.stdout)
-    report['command'] = command
+    report['command'] = [str(Path(arg).relative_to(ROOT)) if arg.startswith(str(ROOT)) else arg for arg in command]
     report['exit'] = result.returncode
     report['failures'] = timing_failures(report)
     if result.returncode != 0:
