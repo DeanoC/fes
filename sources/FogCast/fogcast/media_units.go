@@ -327,7 +327,7 @@ func (s *Service) replaceLiveSpectrumDisk(parent context.Context, mediaID, name 
 // Spectrum, converted to the unit's PZX stream, or a snapshot the package
 // runs, converted to its restore stream.
 func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitSpectrumCassetteName(name) {
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || name != "" && !protocol.AdmitSpectrumCassetteName(name) {
 		return protocol.Status{}, protocol.CassetteMediaRequestError()
 	}
 	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
@@ -361,7 +361,7 @@ func (s *Service) replaceLiveCassette(parent context.Context, mediaID, name stri
 		reader.Close()
 		return protocol.Status{}, err
 	}
-	stream, err := spectrumCassetteStream(inspection.Descriptor, reader, info.Size)
+	stream, err := spectrumCassetteStream(inspection.Descriptor, name, reader, info.Size)
 	if err != nil {
 		return protocol.Status{}, err
 	}

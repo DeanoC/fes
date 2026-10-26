@@ -20,7 +20,8 @@ type liveMediaClient interface {
 // replaceLiveDisk. A .trd or .scl name, or a .dsk on a package with a
 // Spectrum disk drive, selects the Spectrum disk unit; see
 // replaceLiveSpectrumDisk. A Spectrum tape or snapshot name selects the
-// cassette unit; see replaceLiveCassette.
+// cassette unit; see replaceLiveCassette. So does no name: a Spectrum cassette
+// inserted by digest, whose content decides between tape and snapshot.
 func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	if protocol.AdmitSpectrumDiskName(name) && (!protocol.AdmitComputerDiskName(name) || s.spectrumDiskPackage(parent, b)) {
 		return s.replaceLiveSpectrumDisk(parent, mediaID, name, b)
@@ -28,7 +29,7 @@ func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string,
 	if protocol.AdmitComputerDiskName(name) {
 		return s.replaceLiveDisk(parent, mediaID, name, b)
 	}
-	if protocol.AdmitSpectrumCassetteName(name) {
+	if name == "" || protocol.AdmitSpectrumCassetteName(name) {
 		return s.replaceLiveCassette(parent, mediaID, name, b)
 	}
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {

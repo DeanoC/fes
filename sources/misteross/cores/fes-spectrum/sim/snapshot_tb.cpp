@@ -154,43 +154,47 @@ int main(int argc, char** argv) {
             fail(message.str());
         }
     };
-    check("pc", root.MACHINE(cpu_a));
-    check("af", root.ENGINE(a_reg) << 8 | root.ENGINE(f_reg));
-    check("bc", root.ENGINE(b_reg) << 8 | root.ENGINE(c_reg));
-    check("de", root.ENGINE(d_reg) << 8 | root.ENGINE(e_reg));
-    check("hl", root.ENGINE(h_reg) << 8 | root.ENGINE(l_reg));
-    check("af2", root.ENGINE(af_alt));
-    check("bc2", root.ENGINE(bc_alt));
-    check("de2", root.ENGINE(de_alt));
-    check("hl2", root.ENGINE(hl_alt));
-    check("ix", root.ENGINE(ix));
-    check("iy", root.ENGINE(iy));
-    check("sp", root.ENGINE(sp));
-    check("i", root.ENGINE(i_reg));
-    check("r", root.ENGINE(r_reg));
-    check("im", root.ENGINE(im));
-    check("iff1", root.ENGINE(iff1));
-    check("border", root.MACHINE(border_q));
+    // Every register, the paging, the AY and the RAM the stream restores.
+    auto check_restored = [&]() {
+        check("pc", root.MACHINE(cpu_a));
+        check("af", root.ENGINE(a_reg) << 8 | root.ENGINE(f_reg));
+        check("bc", root.ENGINE(b_reg) << 8 | root.ENGINE(c_reg));
+        check("de", root.ENGINE(d_reg) << 8 | root.ENGINE(e_reg));
+        check("hl", root.ENGINE(h_reg) << 8 | root.ENGINE(l_reg));
+        check("af2", root.ENGINE(af_alt));
+        check("bc2", root.ENGINE(bc_alt));
+        check("de2", root.ENGINE(de_alt));
+        check("hl2", root.ENGINE(hl_alt));
+        check("ix", root.ENGINE(ix));
+        check("iy", root.ENGINE(iy));
+        check("sp", root.ENGINE(sp));
+        check("i", root.ENGINE(i_reg));
+        check("r", root.ENGINE(r_reg));
+        check("im", root.ENGINE(im));
+        check("iff1", root.ENGINE(iff1));
+        check("border", root.MACHINE(border_q));
 #if defined(SPECTRUM_MODEL_128K) || defined(SPECTRUM_MODEL_PLUS3) || defined(SPECTRUM_MODEL_PENTAGON)
-    check("p7ffd", root.MACHINE(port_7ffd));
-    auto ay = [&](unsigned r) { return root.MACHINE(psg__DOT__ay__DOT__registers)[r]; };
-    if (expect.count("ay0"))
-        for (unsigned r = 0; r < 16; ++r) check("ay" + std::to_string(r), ay(r));
+        check("p7ffd", root.MACHINE(port_7ffd));
+        auto ay = [&](unsigned r) { return root.MACHINE(psg__DOT__ay__DOT__registers)[r]; };
+        if (expect.count("ay0"))
+            for (unsigned r = 0; r < 16; ++r) check("ay" + std::to_string(r), ay(r));
 #endif
 #ifdef SPECTRUM_MODEL_PLUS3
-    check("p1ffd", root.MACHINE(port_1ffd));
+        check("p1ffd", root.MACHINE(port_1ffd));
 #endif
-    for (size_t i = 0; i < bank_order.size(); ++i) {
-        const uint8_t* memory = spectrum_ram_bank(root, bank_order[i]);
-        require(memory != nullptr, "no RAM bank " + std::to_string(bank_order[i]));
-        for (unsigned offset = 0; offset < 16384; ++offset)
-            if (memory[offset] != banks[i * 16384 + offset]) {
-                std::ostringstream message;
-                message << "bank " << bank_order[i] << " offset " << std::hex << offset << " is "
-                        << unsigned(memory[offset]) << ", want " << unsigned(banks[i * 16384 + offset]);
-                fail(message.str());
-            }
-    }
+        for (size_t i = 0; i < bank_order.size(); ++i) {
+            const uint8_t* memory = spectrum_ram_bank(root, bank_order[i]);
+            require(memory != nullptr, "no RAM bank " + std::to_string(bank_order[i]));
+            for (unsigned offset = 0; offset < 16384; ++offset)
+                if (memory[offset] != banks[i * 16384 + offset]) {
+                    std::ostringstream message;
+                    message << "bank " << bank_order[i] << " offset " << std::hex << offset << " is "
+                            << unsigned(memory[offset]) << ", want " << unsigned(banks[i * 16384 + offset]);
+                    fail(message.str());
+                }
+        }
+    };
+    check_restored();
     require(!played, "the deck played the restore stream");
 
     // Three frames of the restored program.
@@ -211,10 +215,7 @@ int main(int argc, char** argv) {
     require(pos == stream.size(), "repeat restore ended before the stream did");
     while (root.MACHINE(cpu_m1_n) && clocks < limit) clock();
     require(!root.MACHINE(cpu_m1_n), "no fetch after the repeated restore");
-    check("pc", root.MACHINE(cpu_a));
-    check("af", root.ENGINE(a_reg) << 8 | root.ENGINE(f_reg));
-    check("sp", root.ENGINE(sp));
-    check("border", root.MACHINE(border_q));
+    check_restored();
     std::cout << "fes.spectrum " SPECTRUM_MODEL_NAME " snapshot: registers, paging, AY and RAM restored; program ran and restored again after reset\n";
     return 0;
 }

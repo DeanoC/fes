@@ -190,7 +190,7 @@ func TestSpectrumSnapshotDeclarations(t *testing.T) {
 			}
 		}
 		media := DeclaredCoreMediaCapabilities(d)
-		listed := len(media) == 1 && strings.Contains(strings.Join(media[0].Extensions, " "), ".z80 .sna")
+		listed := len(media) == 1 && strings.Contains(strings.Join(media[0].Extensions, " "), ".z80 .sna .szx")
 		if listed != tc.runs[0] {
 			t.Errorf("%s: snapshot extensions listed = %v (%v)", name, listed, media)
 		}

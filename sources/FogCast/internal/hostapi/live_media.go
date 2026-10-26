@@ -31,7 +31,7 @@ func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var req protocol.LiveMediaRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
-			protocol.ValidateDigest(req.MediaID) != nil || !protocol.AdmitLiveMediaName(req.Name) {
+			protocol.ValidateDigest(req.MediaID) != nil || req.Name != "" && !protocol.AdmitLiveMediaName(req.Name) {
 			writeSessionError(w, protocol.LiveMediaRequestError())
 			return
 		}

@@ -36,6 +36,20 @@ func sna128() []byte {
 	return append(sna48(), make([]byte, 4+5*16<<10)...)
 }
 
+// szx48 is a 48K .szx: the header, Z80R, SPCR and three raw RAM pages.
+func szx48() []byte {
+	chunk := func(id string, data []byte) []byte {
+		return append(append([]byte(id), byte(len(data)), byte(len(data)>>8), byte(len(data)>>16), 0), data...)
+	}
+	out := append([]byte("ZXST"), 1, 4, 1, 0)
+	out = append(out, chunk("Z80R", make([]byte, 37))...)
+	out = append(out, chunk("SPCR", make([]byte, 8))...)
+	for _, page := range []byte{5, 2, 0} {
+		out = append(out, chunk("RAMP", append([]byte{0, 0, page}, make([]byte, 16<<10)...))...)
+	}
+	return out
+}
+
 // z80TapCollision is a valid uncompressed 48K version-1 .z80 file whose
 // first RAM bytes make its full contents a valid sequence of TAP blocks.
 func z80TapCollision() []byte {
@@ -52,9 +66,29 @@ func tap() []byte {
 	return append([]byte{byte(len(block)), 0}, block...)
 }
 
+// checkedTAP is one standard data block filling a file of size bytes: its
+// flag, data and checksum XOR to zero. set writes header bytes that make it a
+// valid snapshot of that size too.
+func checkedTAP(size int, set func(data []byte)) []byte {
+	data := make([]byte, size)
+	data[0], data[1], data[2] = byte(size-2), byte((size-2)>>8), 0xff
+	set(data)
+	sum := byte(0)
+	for _, v := range data[2 : size-1] {
+		sum ^= v
+	}
+	data[size-1] = sum
+	return data
+}
+
 func cassette(t *testing.T, d corepackage.Descriptor, data []byte) ([]byte, error) {
 	t.Helper()
-	return spectrumCassetteStream(d, io.NopCloser(bytes.NewReader(data)), int64(len(data)))
+	return namedCassette(t, d, "", data)
+}
+
+func namedCassette(t *testing.T, d corepackage.Descriptor, name string, data []byte) ([]byte, error) {
+	t.Helper()
+	return spectrumCassetteStream(d, name, io.NopCloser(bytes.NewReader(data)), int64(len(data)))
 }
 
 func TestSpectrumCassetteStreamChoosesTapeOrSnapshot(t *testing.T) {
@@ -63,7 +97,7 @@ func TestSpectrumCassetteStreamChoosesTapeOrSnapshot(t *testing.T) {
 	if err != nil || !bytes.HasPrefix(pzx, []byte("PZXT")) {
 		t.Fatalf("tape: % x, %v", pzx[:min(len(pzx), 8)], err)
 	}
-	for name, data := range map[string][]byte{"48K": sna48(), "128K": sna128()} {
+	for name, data := range map[string][]byte{"48K": sna48(), "128K": sna128(), "48K .szx": szx48()} {
 		stream, err := cassette(t, all, data)
 		if err != nil || !bytes.HasPrefix(stream, spectrumsnapshots.Magic[:]) {
 			t.Fatalf("%s snapshot: %v", name, err)
@@ -79,6 +113,54 @@ func TestSpectrumCassetteStreamPrioritizesValidSnapshotOverTAP(t *testing.T) {
 	stream, err := cassette(t, spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID), data)
 	if err != nil || !bytes.HasPrefix(stream, spectrumsnapshots.Magic[:]) {
 		t.Fatalf("ambiguous snapshot became a tape: %v", err)
+	}
+}
+
+func TestSpectrumCassetteStreamKeepsCheckedTAPOfSnapshotSize(t *testing.T) {
+	d := spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID)
+	for name, data := range map[string][]byte{
+		// A 48K .sna: SP $8000 and IM 1.
+		".sna": checkedTAP(27+48<<10, func(b []byte) { b[24], b[25] = 0x80, 1 }),
+		// An uncompressed version-1 .z80: PC $0001 and IM 1.
+		".z80": checkedTAP(30+48<<10, func(b []byte) { b[6], b[12], b[29] = 1, 0, 1 }),
+	} {
+		if !spectrumsnapshots.Recognize(data) || !spectrumtapes.CheckedTAP(data) {
+			t.Fatalf("%s: fixture must be both a valid snapshot and a checked TAP", name)
+		}
+		for file, want := range map[string]string{"": "PZXT", "game.tap": "PZXT", "game" + name: "ZXRS"} {
+			stream, err := namedCassette(t, d, file, data)
+			if err != nil || !bytes.HasPrefix(stream, []byte(want)) {
+				t.Errorf("%s named %q: %v, want %s", name, file, err, want)
+			}
+		}
+	}
+}
+
+func TestSpectrumCassetteStreamNameDecides(t *testing.T) {
+	d := spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID)
+	// The unchecked collision is a snapshot unnamed, but a tape named .tap.
+	stream, err := namedCassette(t, d, "game.TAP", z80TapCollision())
+	if err != nil || !bytes.HasPrefix(stream, []byte("PZXT")) {
+		t.Fatalf("collision named .tap: %v", err)
+	}
+	// A named snapshot is never read as a tape, nor a named tape as a snapshot.
+	var api *protocol.APIError
+	if _, err := namedCassette(t, d, "game.z80", tap()); !errors.As(err, &api) || api.Code != protocol.CodeBadRequest {
+		t.Errorf("tape named .z80: %v", err)
+	}
+	if _, err := namedCassette(t, d, "game.tzx", sna48()); !errors.As(err, &api) || api.Code != protocol.CodeBadRequest {
+		t.Errorf("snapshot named .tzx: %v", err)
+	}
+}
+
+func TestSpectrumCassetteStreamReportsInvalidSZXAsSnapshot(t *testing.T) {
+	data := szx48()
+	data[6] = 6 // unsupported +3e machine
+	_, err := cassette(t, spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID), data)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest ||
+		!strings.Contains(api.Message, "Spectrum snapshot: .szx snapshot is for the +3e") {
+		t.Fatalf("invalid ZXST error: %v", err)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Package spectrumsnapshots reads ZX Spectrum .z80 and .sna snapshots and
+// Package spectrumsnapshots reads ZX Spectrum .z80, .sna and .szx snapshots and
 // writes the restore stream that fes.media.spectrum-snapshot 1.0 cores run.
 //
 // A restore stream is an 8-byte header followed by Z80 code. A core that
@@ -46,7 +46,7 @@ const (
 	// HeaderBytes is the restore stream header: magic, version, class and
 	// two zero bytes.
 	HeaderBytes = 8
-	// MaxInputBytes bounds a snapshot before it is read; the largest
+	// MaxInputBytes bounds a .z80 or .sna before it is read; the largest
 	// uncompressed .z80 is 30+56 header bytes and nine 16 KiB pages.
 	MaxInputBytes = 1 << 18
 	bankBytes     = 16 << 10
@@ -56,7 +56,7 @@ const (
 var Magic = [4]byte{'Z', 'X', 'R', 'S'}
 
 // Extensions are the snapshot names Convert reads.
-var Extensions = []string{".z80", ".sna"}
+var Extensions = []string{".z80", ".sna", ".szx"}
 
 // Admit reports whether name has a snapshot extension.
 func Admit(name string) bool {
@@ -92,15 +92,19 @@ type Snapshot struct {
 	Banks map[int]*[bankBytes]byte
 }
 
-// Recognize reports whether data is a .z80 or .sna snapshot this package
-// reads.
+// Recognize reports whether data is a .z80, .sna or .szx snapshot this
+// package reads.
 func Recognize(data []byte) bool {
 	_, err := Read(data)
 	return err == nil
 }
 
-// Read parses a .sna (by its exact size) or a .z80 snapshot.
+// Read parses a .szx (by its signature), a .sna (by its exact size) or a
+// .z80 snapshot.
 func Read(data []byte) (*Snapshot, error) {
+	if bytes.HasPrefix(data, szxMagic) {
+		return readSZX(data)
+	}
 	if len(data) == 0 || len(data) > MaxInputBytes {
 		return nil, errors.New("snapshot size is outside 1 byte..256 KiB")
 	}
@@ -251,7 +255,7 @@ func z80Machine(version int, mode, flags3, if1 byte) (Machine, error) {
 
 func readZ80(data []byte) (*Snapshot, error) {
 	if len(data) < 30 {
-		return nil, errors.New("not a .z80 or .sna snapshot")
+		return nil, errors.New("not a .z80, .sna or .szx snapshot")
 	}
 	h := data[:30]
 	flags1 := h[12]
@@ -318,6 +322,11 @@ func readZ80(data []byte) (*Snapshot, error) {
 	s.Machine = machine
 	if machine != Machine48K {
 		s.Port7FFD = x[3]
+	}
+	// A 48K snapshot sets byte 37 bit 2 when an AY is in use: on the 128K
+	// ports (a Melodik), unless bit 6 says a Fuller box. A 128K-class core
+	// running it restores the chip.
+	if machine != Machine48K || x[5]&0x44 == 0x04 {
 		s.HasAY = true
 		s.AYSelect = x[6] & 0x0f
 		copy(s.AY[:], x[7:23])

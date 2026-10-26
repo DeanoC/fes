@@ -139,8 +139,8 @@ stops the tape runs at its own speed from then on.
 
 ## Snapshots
 
-The cassette unit also loads `.z80` (versions 1-3) and `.sna` (48K and 128K)
-snapshots. The host converts a snapshot into a restore stream (FogCast
+The cassette unit also loads `.z80` (versions 1-3), `.sna` (48K and 128K)
+and `.szx` (ZX-State 1.x, as Fuse writes it) snapshots. The host converts a snapshot into a restore stream (FogCast
 `internal/spectrumsnapshots`, also `cmd/fes-spectrum-restore`): an 8-byte
 header, `ZXRS`, version 1, the snapshot's class (0 48K, 1 128K, 2 +2A/+3)
 and two zero bytes, followed by Z80 code. `rtl/spectrum_snapshot.v` reads the
@@ -171,8 +171,13 @@ model), `fes.media.spectrum-snapshot-128` 1.0 (128K-class models) and
 `fes.media.spectrum-snapshot-plus3` 1.0 (+2A/+3); the host refuses a snapshot
 the package does not run, and the core leaves a stream of another class to
 the deck. IFF2 is restored only as a copy of IFF1, and the T state within the
-frame is not restored. 16K, SamRam, MGT, Scorpion, Didaktik and Timex
-snapshots, and those with the Interface 1 or TR-DOS ROM paged in, are refused.
+frame is not restored. 16K, SamRam, MGT, Scorpion, Didaktik, Timex and
+Spectrum SE snapshots are refused, as are snapshots with the Interface 1 or
+TR-DOS ROM paged in. The `.szx` reader also refuses +3e, 128Ke, Pentagon 512
+or 1024, and NTSC 48K snapshots; halted Z80 state; an enabled ULAplus palette;
+a paged Multiface, DivIDE, DivMMC, +D or Opus; active Spectranet paging or its
+programmable trap; an Interface 2 cartridge; or a custom ROM, LEC, ZXATASP or
+ZXCF chunk.
 
 ## TR-DOS disks
 
@@ -363,7 +368,7 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 ## Not implemented
 
 Disk writes, the +3's drive B and Scan commands, Beta drives B-D, the Pentagon's
-magic NMI button, tape write-back, a switch to load at the machine's own speed, `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
+magic NMI button, tape write-back, a switch to load at the machine's own speed, saving snapshots, ULAplus, Timex video modes and
 the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
