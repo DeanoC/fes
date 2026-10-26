@@ -1148,3 +1148,70 @@ The next compiler step is a source-bound FF model matched to the native cuts,
 followed by complete corner/endpoint checks. Whole-board and exact-artifact
 hardware acceptance remain open. No clock, timing exception, runtime/shared
 contract, package, kit or GPU changes; the search journal still has 133 entries.
+
+### Guarded native FF model, 26 October
+
+Base `7f2ff2b583`. [nextpnr #305](https://github.com/DeanoC/nextpnr/pull/305)
+now independently checks active E/F and SCLR selections against fitted routing
+at `b6835e2ff8`, then merges main into reference head `ff051ec656`. All ten
+reference regressions pass; the additional routing identities change no
+canonical timing value or fitted RBF.
+
+[nextpnr #307](https://github.com/DeanoC/nextpnr/pull/307),
+`0e1e03edfff15b9baedf27f2b403b85a43be4445`, adds the default-off
+`--mistral-ff-core-reference` profile on that exact parent. The source-bound
+inventory contains 326,912 observations from 52 legal Quartus fits and 126
+physical modes. It covers native combinations missing from the original
+sixteen cases. SCLR DIN1/DIN3 and E/F bypass inputs retain separate coverage;
+an unobserved mode or connected role is fatal. All three immutable native
+layouts have 4,067 FFs and 13,801 connected Q/data/ENA/SCLR roles covered at
+every retained reference corner. Asynchronous-clear recovery/removal remains
+under its separate reference and unchanged limits.
+
+Local data/control constraints use the actual native cuts and clock/data IC
+increments. The generated bounds preserve signs, distinguish early/late Q,
+and round Q outward by 1 ps and input requirements by 3 ps. Before physical
+configuration the model uses conservative unions. Afterwards it checks the
+placed owner, actual clock/enable selector, polarity, PKREG/E/F and control
+bits against the net-owned cuts. SCLR's direct GOUT sink omits the terminal
+input buffer in the ordinary route model; the opt-in simulates that stage
+once on the routed net. It rejects a missing source waveform or a path that
+does not reach its declared driver. An actual red/green regression confirms
+the missing stage. The first two attempted fixture families fail Quartus
+packing/control legality; all sixteen failed captures remain retained and
+contribute no bound. Legal fixed-placement and single-enable cases provide
+the measured DIN3 selections instead.
+
+A clean committed Release CPU build links the actual Mistral `d8b0745098`
+library. All 28 focused FF/reset/input-boundary C++ tests and all four FF
+CTests pass, including all 52 fitted RBFs, the generated header, six native
+parser/coverage regressions and explicit CLI/reload acknowledgement. Three
+frozen layouts then run ordinary fatal timing checks with final RBF
+generation. Each default control reproduces the complete current-parent
+timing JSON and RBF. Each profile run retains every endpoint, clock/check
+identity and all 17,709 paired/nine unpaired rows, with an RBF byte-identical
+to that same parent.
+
+| Frozen seed | Profile setup minimum (ns) | Profile hold minimum (ns) |
+| --- | ---: | ---: |
+| 1 | +0.839 | +0.286 |
+| 2 | +1.662 | +0.352 |
+| 3 | +1.145 | +0.353 |
+
+The exact parent matters: current main writes 64 unused HPS IRQ inversion
+bits that the original locked producer did not. For seed 1, applying only
+those bits to the original RBF reproduces the current-parent bytes exactly;
+the original RBF round trip is also exact. That upstream bitstream change
+is separate from this timing-only opt-in.
+
+[The native FF evidence](board50-ff-native-model.json) binds source/tree,
+binary/library hashes, the full six replay receipts, complete role coverage,
+failed fits and tests. These are host-only frozen-route checks, not a new
+producer, placement improvement, native fast-corner signoff or hardware
+acceptance. The public profile uses slow100 only; the other three datasets
+do not qualify the remaining cell/clock/IO models. The FES toolchain lock,
+RTL, clock rates, runtime/shared contracts and package set are unchanged.
+No kit or GPU is used, and the 133-entry native search journal is unchanged.
+Review and integration of the compiler changes, complete native corner and
+HPS/pad/board qualification, physical reset/CDC evidence and an observable
+exact-artifact hardware run remain required for whole-board closure.
