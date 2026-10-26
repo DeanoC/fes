@@ -428,6 +428,27 @@ func Test48KSnapshotOnEveryModel(t *testing.T) {
 	}
 }
 
+func Test48KSnapshotWithAY(t *testing.T) {
+	s := sampleState(Machine48K, rand.New(rand.NewSource(9)))
+	s.HasAY, s.AYSelect = true, 11
+	for i := range s.AY {
+		s.AY[i] = uint8(0x30 + 5*i)
+	}
+	data := z80v3(s, 0, 54)
+	for _, model := range []Model{Model128K, ModelPlus3, ModelPentagon} {
+		m := restore(t, data, model, Machine48K)
+		checkRegisters(t, m, s)
+		if m.ay != s.AY || m.ayIndex != s.AYSelect {
+			t.Errorf("model %d: AY = % x select %d, want % x select %d", model, m.ay, m.ayIndex, s.AY, s.AYSelect)
+		}
+	}
+	// A Fuller box's AY sits on other ports; the cores have none.
+	data[32+5] |= 0x40
+	if got, err := Read(data); err != nil || got.HasAY {
+		t.Errorf("Fuller box: AY restored (%v)", err)
+	}
+}
+
 func Test128KSnapshots(t *testing.T) {
 	s := sampleState(Machine128K, rand.New(rand.NewSource(3)))
 	for _, data := range [][]byte{z80v3(s, 4, 54), z80v3(s, 3, 23), z80v3(s, 9, 54), sna(s)} {

@@ -318,6 +318,11 @@ func readZ80(data []byte) (*Snapshot, error) {
 	s.Machine = machine
 	if machine != Machine48K {
 		s.Port7FFD = x[3]
+	}
+	// A 48K snapshot sets byte 37 bit 2 when an AY is in use: on the 128K
+	// ports (a Melodik), unless bit 6 says a Fuller box. A 128K-class core
+	// running it restores the chip.
+	if machine != Machine48K || x[5]&0x44 == 0x04 {
 		s.HasAY = true
 		s.AYSelect = x[6] & 0x0f
 		copy(s.AY[:], x[7:23])
