@@ -345,14 +345,17 @@ module fes_i386_cpu (
     end
 
     // ---- M1 and M2: no memory yet -------------------------------------------------
-    // M2 also decodes EX's controls (fes_i386_exctl).
+    // M2 also decodes EX's controls and prepares its operands (fes_i386_exctl).
     pipe_t                m2_cap, m2_out;
     fes_i386_pkg::exctl_t m2_exc;
+    logic [31:0]          m2_x, m2_y;
     assign m2_cap = capture(m2_s, 3'd2, wb_s.result);
-    fes_i386_exctl exctl (.s(m2_cap), .exc(m2_exc));
+    fes_i386_exctl exctl (.s(m2_cap), .exc(m2_exc), .x(m2_x), .y(m2_y));
     always_comb begin
         m2_out = m2_cap;
         m2_out.exc = m2_exc;
+        m2_out.x = m2_x;
+        m2_out.y = m2_y;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -372,16 +375,21 @@ module fes_i386_cpu (
     // end.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
-    logic        ex_taken, ex_sh_cf, ex_sh_of, ex_def_co, ex_def_szap;
+    logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
     pipe_t       ex_out;
 
     logic [7:0] wb_r8;
+    logic       wb_sh_cf, wb_sh_of;
     assign wb_r8 = wb_s.uop.dst.hi8 ? wb_s.result[15:8] : wb_s.result[7:0];
+    fes_i386_shflags shflags (
+        .c(wb_s.exc.sh), .hi8(wb_s.uop.dst.hi8), .result(wb_s.result), .out0(wb_s.sh_out0), .outn(wb_s.sh_outn),
+        .cfw(wb_s.sh_cfw), .wide(wb_s.sh_wide), .cf(wb_sh_cf), .of(wb_sh_of)
+    );
     always_comb begin
         wb_flags = wb_s.eflags;
         if (wb_s.def_co) begin
-            wb_flags[0] = wb_s.sh_cf;
-            wb_flags[11] = wb_s.sh_of;
+            wb_flags[0] = wb_sh_cf;
+            wb_flags[11] = wb_sh_of;
         end
         if (wb_s.def_szap) begin
             wb_flags[2] = ~^wb_r8;
@@ -395,18 +403,22 @@ module fes_i386_cpu (
 
     // An operand whose producer is one stage ahead (exc.byp_*) comes from the
     // WB result register beside EX's operand.
+    // An early LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
-        .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .b(ex_s.b), .c(ex_s.c), .wb(wb_s.result),
+        .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),
-        .taken(ex_taken), .sh_cf(ex_sh_cf), .sh_of(ex_sh_of), .def_co(ex_def_co), .def_szap(ex_def_szap)
+        .taken(ex_taken), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
+        .def_co(ex_def_co), .def_szap(ex_def_szap)
     );
     always_comb begin
         ex_out = ex_s;
-        ex_out.result = ex_s.early ? ex_s.result : ex_result;
+        ex_out.result = ex_result;
         ex_out.eflags = ex_flags_out;
         ex_out.taken = ex_taken;
-        ex_out.sh_cf = ex_sh_cf;
-        ex_out.sh_of = ex_sh_of;
+        ex_out.sh_out0 = ex_sh_out0;
+        ex_out.sh_outn = ex_sh_outn;
+        ex_out.sh_cfw = ex_sh_cfw;
+        ex_out.sh_wide = ex_sh_wide;
         ex_out.def_co = ex_def_co;
         ex_out.def_szap = ex_def_szap;
     end
