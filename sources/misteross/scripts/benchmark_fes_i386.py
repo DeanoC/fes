@@ -120,17 +120,19 @@ STAGES = {
         # Q's output register may keep only the names of DC's inputs: the
         # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
-        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|trace_\w+|start|start_linear|arch_\w+)$'),
+        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|trace_\w+|start|start_linear|arch_\w+|rt_\w+)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), ex_out's are ex_s
         # (M2). ex.flags_in is EX's ex_flags.
         ('EX', r'(.*\.)?(wb_s|ex_flags)$|(.*\.)?ex\.(flags_in|shifter\.cf_in)$'),
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
-        ('M1', r'(.*\.)?m2_s$'),
+        # M1 also writes the L1D model's address registers and the store
+        # distances M2 decodes.
+        ('M1', r'(.*\.)?(m2_s|m2_dw|m2_dr|m2_vw|m2_vr|even_q|odd_q|odd_first)$|l1d_'),
         ('AG', r'(.*\.)?(m1_s|late_m1)$'),
         # DC's buffer before D, since dfwd and dops take its fields as ports.
         ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid)$'),
-        ('D', r'(.*\.)?(d_eip|d_stop|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
+        ('D', r'(.*\.)?(d_eip|d_stop|d_seg_busy|d_out|ag_\w+)$|(.*\.)?(dops|dfwd)\.'),
     ),
     'rom': (('ROM', r'(.*\.)?q$'),),
 }

@@ -2,21 +2,24 @@
 // fes_i386_cpu as far as Phase 1's register-only slice has built it
 // (docs/i386-cpu-design.md): the front end (F1 to Q) on a memory port, then
 // D, AG, M1, M2, EX and WB for the one-uop register and immediate forms that
-// fes_i386_decode lists. M1 and M2 carry uops through; there is no data
-// memory, cache, microcode or exception delivery yet.
+// fes_i386_decode lists, with their memory forms on a data port that stands
+// for the L1D's output. There is no cache, microcode or exception delivery
+// yet.
 //
 //   DC  decode (fes_i386_decode, fes_i386_amode) from Q's output register
 //   D   the GPR file and segment registers read; forwarding for data
 //       operands (fes_i386_dops) and LEA's address (fes_i386_dfwd); EIP
-//   AG  LEA's address and a branch's target (fes_i386_agu)
+//   AG  a memory operand's or LEA's address, a branch's target (fes_i386_agu)
+//   M1  the segment limit check; the data port's address
+//   M2  the loaded bytes, aligned and merged with older stores not yet written
 //   EX  ALU, shifter, flags, branch resolution (fes_i386_ex)
-//   WB  in-order commit
+//   WB  in-order commit, stores included
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
 // F1 from WB and flushes every younger uop, which costs 10 cycles. No stage
 // behind D holds, so D's forwarding tables only need clearing on a flush.
 //
-// A fault (#UD, #GP(0)) or an encoding this build does not implement stops
+// A fault (#UD, #GP(0), #SS(0)) or an encoding this build does not implement stops
 // the CPU at WB with nothing retired, and so does HLT after it retires;
 // delivery waits for the microcode slice.
 //
@@ -40,6 +43,18 @@ module fes_i386_cpu (
     output logic             mem_load,
     input  logic [15:0][7:0] mem_data,
     input  logic             mem_valid,
+    // Data: the L1D's output for now, an M10K-like port. M1 drives a load's
+    // address, the port registers it on the edge, and the 8 bytes from the
+    // address's dword arrive in M2. A retiring store writes the bytes
+    // dmem_wmask names, from its address's dword, on the edge it retires.
+    // The port reads before it writes on the same edge.
+    output logic [31:0]      dmem_addr,
+    output logic             dmem_read,
+    input  logic [7:0][7:0]  dmem_rdata,
+    output logic             dmem_write,
+    output logic [31:0]      dmem_waddr,
+    output logic [7:0][7:0]  dmem_wdata,
+    output logic [7:0]       dmem_wmask,
     output logic             trace_retire,
     output logic             trace_halt,           // stopped: HLT retired or a fault was raised
     output logic             trace_fault,          // ... a fault, which is not delivered yet
@@ -67,6 +82,11 @@ module fes_i386_cpu (
     logic [31:0]      eip;
     logic [5:0][15:0] seg_sel, seg_ar, seg_hi1;  // seg_hi1: base[31:16] + 1
     logic [5:0][31:0] seg_base, seg_limit;
+    // Each segment's limit less 0, 1 and 3, for 1-, 2- and 4-byte accesses,
+    // and whether that is below zero, so the limit check is one compare.
+    // Real-mode loads keep the limit, so only reset loads them.
+    logic [5:0][2:0][31:0] seg_lim;
+    logic [5:0][2:0]       seg_tiny;
     logic             code32;
     assign code32 = seg_ar[SEG_CS][14];
 
@@ -116,14 +136,16 @@ module fes_i386_cpu (
     logic     d_stop;   // D issued a uop nothing after which can retire
     logic     issue;
     logic     dc_load;  // dc takes the next instruction
-    logic     dc_branch, dc_stack;  // not used yet
+    logic     dc_branch, dc_stack;  // dc_branch: not used yet
+    logic     q_two;                // a two-byte opcode: the ModRM is byte 2
+    assign q_two = q.bytes[0] == 8'h0f;
     fes_i386_decode decode (
-        .q, .code32, .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop)
     );
     fes_i386_amode amode (
-        .modrm(q.bytes[1]), .sib(q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(dc_q.has_base),
+        .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(dc_q.has_base),
         .base(dc_q.base), .has_index(dc_q.has_index), .index(dc_q.index), .scale(dc_q.scale), .stack(dc_stack)
     );
     assign dc_q.length = q.length;
@@ -166,9 +188,23 @@ module fes_i386_cpu (
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
+    // The memory operand: whether it reads and writes, its segment, and the
+    // limit check's operands for its size. An expand-down data segment,
+    // which a real-mode load keeps from protected mode, is not built yet.
+    logic        mem, mem_reads, mem_writes, addr_use, expand_down, d_unimpl;
+    logic [2:0]  mseg;
+    logic [1:0]  msize;  // 1, 2 or 4 bytes as 0, 1, 2
+    assign mem = dc.uop.mem.kind != fes_i386_pkg::MEM_NONE;
+    assign mem_reads = dc.uop.mem.kind == fes_i386_pkg::MEM_LOAD || dc.uop.mem.kind == fes_i386_pkg::MEM_RMW;
+    assign mem_writes = dc.uop.mem.kind == fes_i386_pkg::MEM_STORE || dc.uop.mem.kind == fes_i386_pkg::MEM_RMW;
+    assign addr_use = dc.lea || mem;
+    assign mseg = 3'(dc.uop.mem.seg);
+    assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
+    assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
+    assign d_unimpl = wrap16 || (mem && expand_down);
     always_comb begin
         u = dc.uop;
-        if (wrap16 && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
     end
     assign opsize32 = dc.opsize32;
     assign lea = dc.lea;
@@ -177,7 +213,7 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || wrap16;
+    assign stop = dc.stop || d_unimpl;
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early;
@@ -216,25 +252,37 @@ module fes_i386_cpu (
         .pend_c(c_pend), .dist_a(a_dist), .dist_b(b_dist), .dist_c(c_dist)
     );
 
-    // LEA's address.
+    // A memory operand's or LEA's address.
     logic        lea_stall;
     logic [1:0]  late, late_hi;
     logic [31:0] row, last;
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base(lea && dc.has_base), .base(dc.base),
-        .has_index(lea && dc.has_index), .index(dc.index), .scale(dc.scale), .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
+        .clk, .reset(reset || wb_flush), .has_base(addr_use && dc.has_base), .base(dc.base),
+        .has_index(addr_use && dc.has_index), .index(dc.index), .scale(dc.scale), .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
         .d_kind(lea && lea_early ? EARLY : LATE), .advance(issue), .prod_valid, .prod_dst, .prod_kind, .gpr,
         .stage_value, .row, .last, .late, .late_hi, .stall(lea_stall)
     );
 
-    // A selector read waits for an older write of that segment register.
-    function automatic logic writes_seg(input pipe_t s, input logic [2:0] seg);
+    // A selector read waits for an older write of that segment register, and
+    // a memory operand for its segment's base, which a real-mode load sets
+    // at WB. d_seg_busy names the segments an older uop in AG to WB writes,
+    // registered from what will be there next cycle, so each wait is one
+    // select.
+    function automatic logic writes_seg(input pipe_t s, input int seg);
         writes_seg = s.valid && s.uop.dst.valid && s.uop.dst.space == fes_i386_pkg::RS_SEG
-                  && s.uop.dst.index[2:0] == seg;
+                  && s.uop.dst.index[2:0] == 3'(seg);
     endfunction
-    logic seg_hazard;
-    assign seg_hazard = writes_seg(ag_s, seg_index) || writes_seg(m1_s, seg_index) || writes_seg(m2_s, seg_index)
-                     || writes_seg(ex_s, seg_index) || writes_seg(wb_s, seg_index);
+    logic [5:0] d_seg_busy;
+    logic       seg_hazard, mseg_hazard;
+    assign seg_hazard = d_seg_busy[seg_index];
+    assign mseg_hazard = d_seg_busy[mseg];
+
+    // A load waits one cycle behind a store, whose data EX computes in the
+    // cycle the load would be in M2. One cycle later the store is in WB,
+    // and M2 takes its bytes from the WB register.
+    logic store_hazard;
+    assign store_hazard = ag_s.valid && (ag_s.uop.mem.kind == fes_i386_pkg::MEM_STORE
+                                         || ag_s.uop.mem.kind == fes_i386_pkg::MEM_RMW) && mem_reads;
 
     // A flag reader waits one cycle behind a shift or rotate, whose flags
     // reach EX's running copy a cycle after the shift leaves EX (fes_i386_ex).
@@ -242,9 +290,20 @@ module fes_i386_cpu (
     assign flag_hazard = ag_s.valid && ag_s.uop.cls == fes_i386_pkg::UOP_SHIFT
                       && consumes;
 
-    assign issue = cur_valid && !(lea && lea_stall) && !(reads_seg && seg_hazard) && !flag_hazard && !wb_flush;
+    // A flush needs no term here: it clears AG and the forwarding tables, a
+    // taken branch's redirect resets DC and D's EIP on the same edge, and a
+    // fault or HLT stops the CPU.
+    assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
+                && !store_hazard && !flag_hazard;
 
     always_ff @(posedge clk) begin
+        if (reset || wb_flush) begin
+            d_seg_busy <= 6'd0;
+        end else begin
+            for (int k = 0; k < 6; k++)
+                d_seg_busy[k] <= (issue && u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k))
+                                || writes_seg(ag_s, k) || writes_seg(m1_s, k) || writes_seg(m2_s, k) || writes_seg(ex_s, k);
+        end
         if (reset) begin
             d_stop <= 1'b0;
         end else if (redirect) begin
@@ -278,6 +337,8 @@ module fes_i386_cpu (
         d_out.dist_b = b_dist;
         d_out.dist_c = c_dist;
         d_out.early = lea && lea_early;
+        d_out.mlimit = seg_lim[mseg][msize];
+        d_out.mtiny = seg_tiny[mseg][msize];
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -285,16 +346,18 @@ module fes_i386_cpu (
         end else begin
             ag_s <= d_out;
         end
-        if (lea) begin
+        if (addr_use) begin
+            // LEA's offset, or a memory operand's address: its segment's
+            // base, wrapped like the offset by address size.
             ag_addr32 <= u.mem.addr32;
             ag_row <= row;
             ag_last <= last;
             ag_late <= late;
             ag_late_hi <= late_hi;
             ag_disp <= lea_disp;
-            ag_seg_term <= 32'd0;
-            ag_seg_hi <= 16'd0;
-            ag_seg_hi_plus1 <= 16'd0;
+            ag_seg_term <= lea ? 32'd0 : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+            ag_seg_hi <= lea ? 16'd0 : seg_base[mseg][31:16];
+            ag_seg_hi_plus1 <= lea ? 16'd0 : seg_hi1[mseg];
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
             // wrapped by operand size.
@@ -335,6 +398,8 @@ module fes_i386_cpu (
         ag_out.result = offset;
         ag_out.target = linear;
         ag_out.target_eip = offset;
+        ag_out.maddr = linear;
+        ag_out.moff = offset;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
@@ -344,8 +409,77 @@ module fes_i386_cpu (
         end
     end
 
-    // ---- M1 and M2: no memory yet -------------------------------------------------
-    // M2 also decodes EX's controls and prepares its operands (fes_i386_exctl).
+    // ---- M1 -----------------------------------------------------------------------
+    // The segment limit check: the offset against the limit less the access's
+    // bytes but one, which D picked (#SS(0) for SS, #GP(0) otherwise). A load
+    // sends its address to the data port.
+    function automatic logic reads_mem(input pipe_t s);
+        reads_mem = s.uop.mem.kind == fes_i386_pkg::MEM_LOAD || s.uop.mem.kind == fes_i386_pkg::MEM_RMW;
+    endfunction
+    function automatic logic writes_mem(input pipe_t s);
+        writes_mem = s.uop.mem.kind == fes_i386_pkg::MEM_STORE || s.uop.mem.kind == fes_i386_pkg::MEM_RMW;
+    endfunction
+    pipe_t m1_out;
+    logic  m1_limit;
+    assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && (m1_s.moff > m1_s.mlimit || m1_s.mtiny);
+    always_comb begin
+        m1_out = capture(m1_s, 3'd3, wb_s.result);
+        if (m1_limit && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            m1_out.uop.ctl.fault = m1_s.uop.mem.seg == fes_i386_pkg::SEG_SS ? fes_i386_pkg::FAULT_SS0
+                                                                           : fes_i386_pkg::FAULT_GP0;
+    end
+    assign dmem_addr = m1_s.maddr;
+    assign dmem_read = m1_s.valid && reads_mem(m1_s);
+
+    // Stores older than the load that have not written when the port reads:
+    // the store now in EX, which will be in WB when the load is in M2, and
+    // the store now in WB, which writes on the edge the port reads and so
+    // is missed (the retired store, rt_*, in M2). D keeps a load from
+    // following a store directly (store_hazard), so no store in M2 is older.
+    // M1 takes each one's distance from the load's address; M2 decodes it.
+    logic [31:0] m2_dw, m2_dr;  // the load's address less the store's
+    logic        m2_vw, m2_vr;
+    always_ff @(posedge clk) begin
+        m2_dw <= m1_s.maddr - ex_s.maddr;
+        m2_dr <= m1_s.maddr - wb_s.maddr;
+        m2_vw <= ex_s.valid && writes_mem(ex_s);
+        m2_vr <= wb_s.valid && writes_mem(wb_s) && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
+    end
+
+    // ---- M2 -----------------------------------------------------------------------
+    // The loaded bytes from the port, aligned to the access, with each byte an
+    // older store writes taken from that store: the store in WB first, then
+    // the retired one. EX takes the value through its bypass selects. M2 also
+    // decodes EX's controls and prepares its operands (fes_i386_exctl).
+    logic [31:0] rt_data;     // the store that retired on the last edge
+    logic [3:0]  rt_bytes;
+    logic        rt_valid;
+    logic [3:0][7:0] ld_bytes;
+
+    // Load byte i is store byte k when the load's address less the store's is
+    // k - i: within -3..3, so its high bits are all zero or all one and its
+    // low three bits are k - i.
+    logic       near_w, near_r;
+    logic [3:0] long_w, long_r;  // the store writes byte k
+    assign near_w = m2_vw && (m2_dw[31:2] == 30'd0 || m2_dw[31:2] == '1);
+    assign near_r = rt_valid && (m2_dr[31:2] == 30'd0 || m2_dr[31:2] == '1);
+    assign long_w = {{2{wb_s.uop.mem.bytes[2]}}, |wb_s.uop.mem.bytes[2:1], 1'b1};
+    assign long_r = {{2{rt_bytes[2]}}, |rt_bytes[2:1], 1'b1};
+    for (genvar i = 0; i < 4; i++) begin : g_ld
+        logic [3:0] hw, hr;
+        logic [7:0] port, from_w, from_r;
+        for (genvar k = 0; k < 4; k++) begin : g_k
+            assign hw[k] = near_w && long_w[k] && m2_dw[2:0] == 3'(k - i);
+            assign hr[k] = near_r && long_r[k] && m2_dr[2:0] == 3'(k - i);
+        end
+        assign port = dmem_rdata[3'(m2_s.maddr[1:0]) + 3'(i)];
+        assign from_w = ({8{hw[0]}} & wb_s.result[7:0]) | ({8{hw[1]}} & wb_s.result[15:8])
+                      | ({8{hw[2]}} & wb_s.result[23:16]) | ({8{hw[3]}} & wb_s.result[31:24]);
+        assign from_r = ({8{hr[0]}} & rt_data[7:0]) | ({8{hr[1]}} & rt_data[15:8])
+                      | ({8{hr[2]}} & rt_data[23:16]) | ({8{hr[3]}} & rt_data[31:24]);
+        assign ld_bytes[i] = i >= m2_s.uop.mem.bytes ? 8'd0 : |hw ? from_w : |hr ? from_r : port;
+    end
+
     pipe_t                m2_cap, m2_out;
     fes_i386_pkg::exctl_t m2_exc;
     logic [31:0]          m2_x, m2_y;
@@ -356,13 +490,14 @@ module fes_i386_cpu (
         m2_out.exc = m2_exc;
         m2_out.x = m2_x;
         m2_out.y = m2_y;
+        m2_out.ld = ld_bytes;
     end
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             m2_s.valid <= 1'b0;
             ex_s.valid <= 1'b0;
         end else begin
-            m2_s <= capture(m1_s, 3'd3, wb_s.result);
+            m2_s <= m1_out;
             ex_s <= m2_out;
         end
     end
@@ -402,10 +537,11 @@ module fes_i386_cpu (
     assign flags_keep = wb_s.valid && (wb_s.def_co || wb_s.def_szap) ? wb_flags : ex_flags;
 
     // An operand whose producer is one stage ahead (exc.byp_a, xw_*, yw_*,
-    // byp_c) comes from the WB result register beside EX's operand. An early
+    // byp_c) comes from the WB result register beside EX's operand, and a
+    // memory operand from the loaded value (xl, yl). An early
     // LEA's offset is its whole result, which EX's LEA select passes.
     fes_i386_ex ex (
-        .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result),
+        .u(ex_s.uop), .exc(ex_s.exc), .a(ex_s.a), .xr(ex_s.x), .yr(ex_s.y), .wb(wb_s.result), .ld(ex_s.ld),
         .ag_result(ex_s.result), .flags_in(ex_flags), .flags_keep, .result(ex_result), .flags_out(ex_flags_out),
         .taken(ex_taken), .sh_out0(ex_sh_out0), .sh_outn(ex_sh_outn), .sh_cfw(ex_sh_cfw), .sh_wide(ex_sh_wide),
         .def_co(ex_def_co), .def_szap(ex_def_szap)
@@ -441,6 +577,23 @@ module fes_i386_cpu (
     logic halted;
     logic [2:0] wb_fault;
     assign wb_fault = 3'(wb_s.uop.ctl.fault);
+
+    // A store writes its bytes on the edge it retires: the result's low
+    // bytes, moved to the address's place in its dword and the next.
+    logic wb_store;
+    assign wb_store = wb_s.valid && !halted && wb_fault == 3'd0 && writes_mem(wb_s);
+    assign dmem_write = wb_store;
+    assign dmem_waddr = wb_s.maddr;
+    always_comb begin
+        dmem_wdata = 64'(wb_s.result) << {wb_s.maddr[1:0], 3'b000};
+        dmem_wmask = (wb_s.uop.mem.bytes[2] ? 8'h0f : wb_s.uop.mem.bytes[1] ? 8'h03 : 8'h01) << wb_s.maddr[1:0];
+    end
+    always_ff @(posedge clk) begin
+        rt_valid <= wb_store && !reset;
+        rt_data <= wb_s.result;
+        rt_bytes <= wb_s.uop.mem.bytes;
+    end
+
     always_ff @(posedge clk) begin
         trace_retire <= 1'b0;
         if (reset) begin
@@ -452,6 +605,12 @@ module fes_i386_cpu (
             seg_limit <= init_limit;
             seg_ar <= init_ar;
             for (int k = 0; k < 6; k++) seg_hi1[k] <= init_base[k][31:16] + 16'd1;
+            for (int k = 0; k < 6; k++) begin
+                seg_lim[k][0] <= init_limit[k];
+                seg_lim[k][1] <= init_limit[k] - 32'd1;
+                seg_lim[k][2] <= init_limit[k] - 32'd3;
+                seg_tiny[k] <= {init_limit[k] < 32'd3, init_limit[k] < 32'd1, 1'b0};
+            end
             halted <= 1'b0;
             trace_fault <= 1'b0;
             trace_vector <= 8'd0;
@@ -461,7 +620,8 @@ module fes_i386_cpu (
                 halted <= 1'b1;
                 trace_fault <= wb_fault != 3'd4;
                 trace_unimplemented <= wb_fault == 3'd4;
-                trace_vector <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7 : 8'd0;
+                trace_vector <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
+                              : wb_fault == 3'd5 ? 8'd12 : 8'd0;
             end else begin
                 trace_retire <= wb_s.uop.ctl.end_of_instruction;
                 eflags <= wb_flags;
