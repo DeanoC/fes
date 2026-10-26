@@ -726,9 +726,10 @@ follow from comparing at sample granularity:
   before using waveforms; a title that relies on the chip ignoring them would
   need the enable added to both.
 
-The three games' register logs are not available in this repository (games
-are user-supplied); M3 captured its log from a start-up exercise program run
-in the simulated machine instead
+M3 compared every OPL2 sample online as Wolfenstein 3D and Ultima VI started
+in the simulated machine; their register logs are not committed, since they
+reproduce the games' music. The committed log comes from a start-up exercise
+program, and Ultima VII waits for a fixture with HIMEMX
 ([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m3-audio/summary.md)).
 
 ### Sound Blaster 2.0 DSP

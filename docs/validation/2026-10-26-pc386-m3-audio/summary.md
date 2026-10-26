@@ -1,13 +1,13 @@
 # pc386 M3: PC speaker, OPL2, Sound Blaster 2.0 and mixer in simulation, 26 October 2026
 
-**The pc386 audio plays in the oracle-CPU machine, and its OPL2 is
-sample-exact against Nuked-OPL3.** The imported opl2_fpga core, after the
-local changes listed in its README, matched Nuked-OPL3 on every one of
-1,294,948 samples checked: random register programs, a start-up exercise
-program, and Ultima VI's start-up as the machine ran it. The Sound Blaster 2.0
-DSP passes 87 directed checks of its commands, DMA and IRQ at every base port
-and IRQ choice, and plays DMA audio with IRQs for a DOS program on the oracle
-machine. This is a **host-only check**: no synthesis, routed result, package
+**The pc386 audio plays Wolfenstein 3D and Ultima VI on the oracle-CPU
+machine, and its OPL2 is sample-exact against Nuked-OPL3.** The imported
+opl2_fpga core, after the local changes listed in its README, matched
+Nuked-OPL3 on every one of 2,488,129 samples checked: random register
+programs, a start-up exercise program, and both games' start-up as the
+machine ran them. The Sound Blaster 2.0 DSP passes 87 directed checks of its
+commands, DMA and IRQ at every base port and IRQ choice, and played
+Wolfenstein 3D's digitized sounds by DMA with IRQs. This is a **host-only check**: no synthesis, routed result, package
 or kit is involved. It meets phase M3's exit in the
 [machine design](../../../sources/misteross/docs/pc386-machine-design.md#phases)
 except where "Not covered" says otherwise.
@@ -123,7 +123,26 @@ intro's music wrote 3,813 OPL2 registers; all 795,454 OPL2 samples of the run
 equal Nuked-OPL3's (513,707 non-zero). It does not use the Sound Blaster.
 Every I/O completed at its class time.
 
-**Wolfenstein 3D**: see below.
+**Wolfenstein 3D** ([`wolf3d-report.json`](wolf3d-report.json)): `Wolfenstein 3D (1992).zip`
+(registered v1.4, `.WL6`), SHA-256 `f451d853…41ed37`, 11 files; its own
+`CONFIG.WL6` (AdLib effects, AdLib music, Sound Blaster digitized sound).
+Beside a resident FreeCOM it stops with "You do not have enough memory to run
+Wolfenstein 3-D": the fixture has no HIMEMX, so DOS cannot load high. The game
+disk therefore makes `WOLF3D.EXE` FreeDOS's shell (`SHELL=C:\WOLF3D.EXE`, game
+files in `C:\`), with no `BLASTER` variable: the game probed the card itself.
+Keys, blind: Enter every 1.5 s from 4 s through the signon, the PG-13 and
+title screens and the menus into E1M1, then Ctrl and space every 0.8 s from
+17.5 s. In 24 simulated seconds:
+
+| | |
+| --- | --- |
+| OPL2 | 4,803 register writes; all 1,193,181 samples equal Nuked-OPL3's, 985,658 non-zero |
+| Sound Blaster | 1 reset, 48 command bytes, 30,821 bytes by DMA, 7 IRQs |
+| I/O | every access at its class time; 31 million VGA port bytes |
+
+The DMA and IRQs are the game's digitized sounds playing through the DSP.
+Nobody has yet listened to either game's capture and judged it against a
+period recording.
 
 ## Recorded behaviour and deviations
 
@@ -140,6 +159,9 @@ These are in the design's audio section and the core README.
   does not program PIT channel 1, which port 61h bit 4 follows. SOUND.COM
   times with PIT channel 0 instead. Filed as
   [#1150](https://github.com/DeanoC/fes/issues/1150).
+- Wolfenstein 3D needs more conventional memory than the M1 fixture leaves
+  beside FreeCOM; the game disk runs it as the shell instead (above). The
+  design's acceptance setups load HIMEMX.
 - The audio model costs about as much simulation time as the rest of the
   machine (2.4 million clocks per second alone), so the boot suite now takes
   about twice as long as in M1.
@@ -148,7 +170,9 @@ These are in the design's audio section and the core README.
 
 - Ultima VII (both parts): their Voodoo memory manager needs HIMEMX and 2 MiB
   of XMS, which the FreeDOS fixture does not carry. Their start-up audio is
-  unchecked.
+  unchecked; it needs a fixture with HIMEMX.
+- The games' play beyond start-up, and Ultima VI's speaker effects (in play,
+  not at start-up) at the 286-class preset.
 - A listener comparing the captures with period recordings, and tuning the
   mixer gains by ear, as the design asks.
 - Synthesis: whether the locked Yosys frontend takes the import's
