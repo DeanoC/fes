@@ -108,7 +108,10 @@ ran HIP through `gpu-run` with `NEXTPNR_REQUIRE_GPU=1`, with an 80 MHz target.
 | F2 | 73.1-78.7 | 104.9-113.2 | 101.8-108.5 |
 | L2 | 73.6-83.8 | 102.5-107.9 | 95.1-100.9 |
 
-On the captured pre-copy branch snapshot, as in #1109, both flows have #59's DSP:
+The pre-copy both-flows table pairs the Phase 1 nextpnr `238eac9a49` rows
+(decode `e9507da6`) with Quartus fits of the branch snapshot (decode
+`9449de84`), so decode differs between flows. Both use qalign `55ebf99b` and
+have #59's DSP, as in the branch-snapshot Quartus result documented in #1109:
 
 | | nextpnr | Quartus |
 | --- | --- | --- |
