@@ -62,18 +62,18 @@ module spectrum_beta #(
     reg mfm;
     reg [23:0] unload_count;
     reg unload_armed;
-    reg index_irq;      // Force Interrupt I2: INTRQ at the next index
+    reg index_irq;      // Force Interrupt I2: INTRQ when the next index ends
     reg step;
     reg step_out;
 
-    wire disk_here, tr00, index_pulse, index_start, byte_ev, byte_clock, byte_wrap, mark_byte;
+    wire disk_here, tr00, index_pulse, index_end, byte_ev, byte_clock, byte_wrap, mark_byte;
     wire [6:0] head_cylinder;
     wire [7:0] byte_data;
     spectrum_fdd #(.AW(AW)) drives (
         .clk(clk), .power_reset(power_reset), .tick(tick), .spin(head_load), .drive(drive),
         .side(side), .mfm(mfm), .step(step), .step_out(step_out), .home(reset),
         .cylinder(head_cylinder), .tr00(tr00), .loaded(disk_here), .index_pulse(index_pulse),
-        .index_start(index_start), .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
+        .index_end(index_end), .byte_ev(byte_ev), .byte_data(byte_data), .byte_clock(byte_clock),
         .byte_wrap(byte_wrap), .mark(mark_byte), .disk_ready(disk_ready), .disk_bytes(disk_bytes),
         .fetch(fetch), .fetch_addr(fetch_addr), .fetch_ready(fetch_ready), .fetch_data(fetch_data),
         .boot(boot)
@@ -183,7 +183,7 @@ module spectrum_beta #(
                     head_load <= 1'b0;
                 end else unload_count <= unload_count - 24'd1;
             end
-            if (index_irq && index_start) begin
+            if (index_irq && index_end) begin
                 index_irq <= 1'b0;
                 intrq <= 1'b1;
             end
