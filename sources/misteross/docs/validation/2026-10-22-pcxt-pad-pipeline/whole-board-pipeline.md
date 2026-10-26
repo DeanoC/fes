@@ -1215,3 +1215,39 @@ No kit or GPU is used, and the 133-entry native search journal is unchanged.
 Review and integration of the compiler changes, complete native corner and
 HPS/pad/board qualification, physical reset/CDC evidence and an observable
 exact-artifact hardware run remain required for whole-board closure.
+
+### Native FF corner diagnostic, 26 October
+
+Base `ddb6e3b298`. A private two-object override of committed nextpnr
+`0e1e03edff` selects matching route temperature/estimate and the corresponding
+four-corner FF table. All other source objects and the actual corrected
+Mistral library stay unchanged. The compressed diagnostic patch and complete
+build/input hashes are retained in [the corner evidence](board50-ff-native-corners.json).
+This is not a public timing mode or a source-lock change.
+
+All twelve frozen-route replays complete with positive paired margins. Each
+retains the complete endpoint/clock/check inventory, 17,709 paired and nine
+unpaired rows, and an RBF byte-identical to the published profile. All three
+slow100 controls reproduce the complete published timing JSONs exactly.
+At fast/-40 C the setup/hold minima are:
+
+| Frozen seed | Diagnostic setup minimum (ns) | Diagnostic hold minimum (ns) |
+| --- | ---: | ---: |
+| 1 | +2.861 | +0.013 |
+| 2 | +3.317 | +0.196 |
+| 3 | +3.046 | +0.060 |
+
+The earlier zero-hold sensitivity does not persist with the measured native
+mode. The same limiting path is controller `dq_out_c[0]` to the SDRAM DQ
+output-register input. Its actual source is a rising-clock MLAB FF using
+CLKA/CI0 and a non-inverted dynamic enable, with both clears inactive. A
+read-only RBF decode independently confirms that identity. This mode's
+guarded fast/-40 C Q interval is 178--206 ps; the older shared pin sensitivity
+used 165--207 ps. The 13 ps early-bound difference accounts for the hold result;
+no RTL, placement, routing, exception or clock changes create it.
+
+The narrow positive result remains diagnostic. Other primitive/PLL and
+clock-boundary models, a complete native fast-corner engine, HPS/pad/board
+bounds, reset/CDC and exact-artifact hardware acceptance remain unqualified.
+No RTL repair is justified by the old zero-hold sensitivity. No kit, GPU or
+new native search is used; all 133 search-journal entries remain unchanged.
