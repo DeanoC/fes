@@ -11,7 +11,7 @@
     "nextpnr-mistral": "commit=bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb; sha256=211ec86fa933f89687af4b885701775c6703008859ce7d6cc82a5efbc19e94e8; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
     "yosys": "commit=238eac9a49002722cef800cacaa763911e01f240; sha256=771be6f583aab6ce380b9ec1dfae89252b4c989506cb1b7c7466b47968ab9f4d"
   },
-  "created_utc": "2026-10-26T22:06:31.167687+00:00",
+  "created_utc": "2026-10-26T22:22:49.410081+00:00",
   "blocks": {
     "at-core": {
       "top": "pc386_at_core",
@@ -32,33 +32,33 @@
         "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
         "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
         "cores/fes-pc386/rtl/pc386_rtc.sv": "215c4f2813c8db760034811cb58e242b427191533d748bc4d13344c9f2288bfc",
-        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
-        "cores/fes-pc386/rtl/pc386_ata.sv": "10340b64db17cbf3a033f37b198d85d8e73b3e9a7466012601cab38341766ca0",
+        "cores/fes-pc386/rtl/pc386_ram.sv": "8ee96e8ee346e645aa77784cc4175f75f6185087d476a4d38caecb1aa5acca5a",
+        "cores/fes-pc386/rtl/pc386_ata.sv": "0bf973c5efd0d5e13d5303e5aa2c4a3b69185f421a586915967097f97822dbf8",
         "cores/fes-pc386/rtl/pc386_at_core.sv": "93794ae9124e239a9c1f0d3b9e4044ba6de55d22e475d045a1b26d9ccd733da1"
       },
       "cells": {
-        "MISTRAL_ALUT2": 1165,
-        "MISTRAL_ALUT3": 1203,
-        "MISTRAL_ALUT4": 1109,
-        "MISTRAL_ALUT5": 1532,
-        "MISTRAL_ALUT6": 824,
-        "MISTRAL_ALUT_ARITH": 1680,
+        "MISTRAL_ALUT2": 1167,
+        "MISTRAL_ALUT3": 1195,
+        "MISTRAL_ALUT4": 1114,
+        "MISTRAL_ALUT5": 1585,
+        "MISTRAL_ALUT6": 807,
+        "MISTRAL_ALUT_ARITH": 1674,
         "MISTRAL_CLKBUF": 1,
-        "MISTRAL_FF": 3344,
+        "MISTRAL_FF": 3345,
         "MISTRAL_IB": 2,
         "MISTRAL_M10K": 4,
         "MISTRAL_MUL27X27": 2,
         "MISTRAL_MUL9X9": 1,
-        "MISTRAL_NOT": 77,
+        "MISTRAL_NOT": 76,
         "MISTRAL_OB": 1
       },
       "utilisation": {
         "MISTRAL_COMB": {
-          "used": 7570,
+          "used": 7599,
           "available": 83820
         },
         "MISTRAL_FF": {
-          "used": 3344,
+          "used": 3345,
           "available": 167640
         },
         "MISTRAL_MUL9X9": {
@@ -134,7 +134,7 @@
           "available": 1
         }
       },
-      "synth_json_sha256": "2beea6cee1c9ff8dbe5e70c2fbc46397993fe8624a4cae30ff8df0cf03eb6567"
+      "synth_json_sha256": "4f0b086cad3a5c7a23bed796d933ceacf47e09dc192d47f639ee75476920fe43"
     },
     "machine": {
       "top": "pc386_machine",
@@ -155,8 +155,8 @@
         "cores/fes-pc386/rtl/pc386_sysctl.sv": "02832baa8b7878fcdb448108060162034327a160f79868d2109dc5bf7e5047b2",
         "cores/fes-pc386/rtl/pc386_kbc.sv": "72c209d8f40ee017784038ec36d73c1a51b0d333f993927daec40cfe660ca203",
         "cores/fes-pc386/rtl/pc386_rtc.sv": "215c4f2813c8db760034811cb58e242b427191533d748bc4d13344c9f2288bfc",
-        "cores/fes-pc386/rtl/pc386_ram.sv": "de9992221215721095f073a3960e14ae946b06c8e31d8b884f53dfe50bf16ef1",
-        "cores/fes-pc386/rtl/pc386_ata.sv": "10340b64db17cbf3a033f37b198d85d8e73b3e9a7466012601cab38341766ca0",
+        "cores/fes-pc386/rtl/pc386_ram.sv": "8ee96e8ee346e645aa77784cc4175f75f6185087d476a4d38caecb1aa5acca5a",
+        "cores/fes-pc386/rtl/pc386_ata.sv": "0bf973c5efd0d5e13d5303e5aa2c4a3b69185f421a586915967097f97822dbf8",
         "cores/fes-pc386/rtl/pc386_at_core.sv": "93794ae9124e239a9c1f0d3b9e4044ba6de55d22e475d045a1b26d9ccd733da1",
         "cores/fes-pc386/rtl/pc386_vga.sv": "d2435faa3c0132f11e4c1d8d931768edc494202262db83334d3d3468b51e13bf",
         "cores/fes-pc386/rtl/pc386_vga_scanout.sv": "6502d3094eef941d149187b7f905fb5ca91f7aecab212763d6fc8d73a3ea002f",
@@ -171,28 +171,28 @@
         "cores/fes-menu/rtl/fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
       },
       "cells": {
-        "MISTRAL_ALUT2": 2057,
-        "MISTRAL_ALUT3": 2534,
-        "MISTRAL_ALUT4": 1885,
-        "MISTRAL_ALUT5": 2816,
-        "MISTRAL_ALUT6": 1296,
-        "MISTRAL_ALUT_ARITH": 3802,
+        "MISTRAL_ALUT2": 2078,
+        "MISTRAL_ALUT3": 2542,
+        "MISTRAL_ALUT4": 1910,
+        "MISTRAL_ALUT5": 2880,
+        "MISTRAL_ALUT6": 1267,
+        "MISTRAL_ALUT_ARITH": 3762,
         "MISTRAL_CLKBUF": 2,
-        "MISTRAL_FF": 7720,
+        "MISTRAL_FF": 7753,
         "MISTRAL_IB": 2,
         "MISTRAL_M10K": 38,
         "MISTRAL_MUL27X27": 4,
         "MISTRAL_MUL9X9": 12,
-        "MISTRAL_NOT": 179,
+        "MISTRAL_NOT": 178,
         "MISTRAL_OB": 1
       },
       "utilisation": {
         "MISTRAL_COMB": {
-          "used": 14511,
+          "used": 14560,
           "available": 83820
         },
         "MISTRAL_FF": {
-          "used": 7720,
+          "used": 7753,
           "available": 167640
         },
         "MISTRAL_MUL9X9": {
@@ -268,7 +268,7 @@
           "available": 1
         }
       },
-      "synth_json_sha256": "ca29e3d190962386c4a92f2b36d4590627d90c2b92b8a6bb991aaebab2822ee8"
+      "synth_json_sha256": "e51789fd7fa38d4d117813f4fb60953560207ce4bd7de275a807e51a5a86a371"
     }
   }
 }

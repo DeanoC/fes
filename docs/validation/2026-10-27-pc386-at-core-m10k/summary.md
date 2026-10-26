@@ -1,6 +1,6 @@
 # pc386 AT core memories in M10K, in simulation and synthesis, 27 October 2026
 
-**The pc386 AT core fits its area budget: at least 3,785 ALMs and 4 M10K,
+**The pc386 AT core fits its area budget: at least 3,799 ALMs and 4 M10K,
 down from 16,526 ALMs and 0 M10K, and the machine boots FreeDOS on exactly
 the clocks it took before.** Three memories move from flip-flops to M10K
 with registered reads: the ATA sector buffer (128 × 64), the ATA dirty map
@@ -13,7 +13,7 @@ a **host-only check** plus diagnostic synthesis: no route, package or kit.
 
 ## Inputs
 
-- RTL at `45ad391f73` on `deano/pc386-at-m10k`, on the M2 branch
+- RTL at `59c1713d6e` on `deano/pc386-at-m10k`, on the M2 branch
   (`deano/pc386-m2-vga` at `3e0d275abb`, PR
   [#1149](https://github.com/DeanoC/fes/pull/1149)). The synthesis summary's
   source digests are those files. Issue
@@ -87,8 +87,8 @@ envelope, then nextpnr `--pack-only`. "ALMs at least" is half the packed LUTs.
 
 | Block | Packed LUTs | ALMs at least | FFs | M10K | DSP | M2 (LUTs / ALMs / FFs / M10K) | Budget (ALMs / M10K / DSP) |
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| AT core: PICs, PIT, DMA, ports, 8042, RTC, ATA, I/O decoder | 7,570 | 3,785 | 3,344 | 4 | 1 + 2 (27 × 27) | 33,053 / 16,526 / 14,510 / 0 | 4,800 plus the I/O decoder's share of 900 / 6 / 0 |
-| Machine (AT core, VGA, presenter, port 2, plane) | 14,511 | 7,255 | 7,720 | 38 | 12 × 9 × 9, 4 × 27 × 27 | 40,034 / 20,017 / 18,886 / 34 | 16,100 / 142 / 16 for the whole machine, audio and endpoint included |
+| AT core: PICs, PIT, DMA, ports, 8042, RTC, ATA, I/O decoder | 7,599 | 3,799 | 3,345 | 4 | 1 + 2 (27 × 27) | 33,053 / 16,526 / 14,510 / 0 | 4,800 plus the I/O decoder's share of 900 / 6 / 0 |
+| Machine (AT core, VGA, presenter, port 2, plane) | 14,560 | 7,280 | 7,753 | 38 | 12 × 9 × 9, 4 × 27 × 27 | 40,034 / 20,017 / 18,886 / 34 | 16,100 / 142 / 16 for the whole machine, audio and endpoint included |
 
 The M2 blocks are unchanged; their rows in the M2 record stand. Unflattened
 per-module figures from the same Yosys, as a guide:
