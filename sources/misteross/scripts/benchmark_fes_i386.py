@@ -217,6 +217,50 @@ def register_labels(netlist: dict, top: str, stages) -> dict[str, str]:
     return labels
 
 
+def cells_by_stage(netlist: dict, top: str, labels: dict[str, str]) -> dict[str, int]:
+    """Count the labeled FF and M10K cells by stage."""
+    module = netlist['modules'][top]
+    return dict(sorted(Counter(labels[name] for name, cell in module['cells'].items()
+                               if cell['type'] in ('MISTRAL_FF', 'MISTRAL_M10K')).items()))
+
+
+def route_record(run: dict, identity: dict, source_fingerprint: str, synthesis: dict,
+                 version: str) -> dict:
+    """Join one route with the synthesis and tool identities for a portable JSONL row."""
+    cells = synthesis['cells']
+    nextpnr_identity = identity['tools']['nextpnr-mistral']
+    nextpnr_commit = re.search(r'\bcommit=([0-9a-f]{8,})', nextpnr_identity)
+    if not nextpnr_commit:
+        raise ValueError('nextpnr tool identity has no commit')
+    critical_paths = run.get('critical_paths') or []
+    return {
+        'argv': run['argv'],
+        'cells_by_stage': synthesis['cells_by_stage'],
+        'comb': sum(count for cell_type, count in cells.items() if cell_type.startswith('MISTRAL_ALUT')),
+        'critical_path': critical_paths[0] if critical_paths else None,
+        'elapsed_seconds': run['elapsed_seconds'],
+        'envelope_worst': run.get('envelope_worst', []),
+        'ff': cells.get('MISTRAL_FF', 0),
+        'fmax_mhz': run.get('fmax_mhz'),
+        'gpu_backend': run.get('gpu_backend'),
+        'gpu_device_granted': run.get('gpu_device_granted', []),
+        'lock': identity['lock'],
+        'lock_sha256': identity['lock_sha256'],
+        'logic_depth': synthesis['logic_depth'],
+        'm10k': cells.get('MISTRAL_M10K', 0),
+        'nextpnr': nextpnr_commit.group(1)[:8],
+        'seed': run['seed'],
+        'source_fingerprint': source_fingerprint,
+        'sources': identity['sources'],
+        'spike': run['spike'],
+        'stages': run.get('stages', {}),
+        'synth_json_sha256': synthesis['synth_json_sha256'],
+        'synthesis': synthesis['synthesis'],
+        'tools': identity['tools'],
+        'version': version,
+    }
+
+
 def _label(cell: str, stages, labels) -> str:
     if labels and cell in labels:
         return labels[cell]
@@ -384,6 +428,8 @@ def main() -> int:
     parser.add_argument('--cache-root', type=Path, help='shared misteross-toolchains cache root')
     parser.add_argument('--gpu-device', type=int, default=0)
     parser.add_argument('--output', type=Path, help='diagnostic output directory')
+    parser.add_argument('--version', default='diagnostic',
+                        help='run label stored in every per-route JSONL row (default: diagnostic)')
     args = parser.parse_args()
     spikes = args.spike or list(SPIKES)
     seeds = args.seed or [1, 2, 3, 4]
@@ -441,9 +487,10 @@ def main() -> int:
             netlist = json.loads((work / 'synth.json').read_text())
             cells = dict(sorted(Counter(cell['type'] for cell in netlist['modules'][top]['cells'].values()).items()))
             labels = register_labels(netlist, top, STAGES[spike])
-            record = {'top': top, 'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
+            record = {'top': top, 'synthesis': synthesis,
+                      'synth_seconds': round(time.monotonic() - started, 1), 'cells': cells,
                       'synth_json_sha256': digest(work / 'synth.json'),
-                      'registers_by_stage': dict(sorted(Counter(labels.values()).items())),
+                      'cells_by_stage': cells_by_stage(netlist, top, labels),
                       'logic_depth': logic_depth(netlist, top, STAGES[spike], labels), 'runs': []}
             print(f'{spike} logic depth: ' + ', '.join(f'{label} {depth["lut_levels"]} LUT'
                                                       + (f' + {depth["carry_cells"]} carry' if depth['carry_cells'] else '')
@@ -479,8 +526,7 @@ def main() -> int:
                           flush=True)
                 record['runs'].append(run)
                 with runs_path.open('a') as stream:
-                    stream.write(json.dumps({k: v for k, v in run.items() if k != 'critical_paths'}
-                                            | {'critical_path': (run.get('critical_paths') or [None])[0]},
+                    stream.write(json.dumps(route_record(run, identity, fingerprint, record, args.version),
                                             sort_keys=True) + '\n')
                 write_json(summary_path, summary)
                 if result.returncode:

@@ -4,6 +4,7 @@ harness's report reading, and (when the tools are present) the RTL itself. No
 network access. Verilator cases skip without Verilator; the oracle-backed run
 skips unless the pinned Bochs checkout is already in build/; the netlist run
 needs a Yosys named by FES_I386_YOSYS."""
+import json
 import os
 import shutil
 import subprocess
@@ -130,6 +131,43 @@ class HarnessReportTest(unittest.TestCase):
                                   'dut.fetch.sums.mb32_MISTRAL_FF_Q': 'L1',
                                   'redirect_linear_MISTRAL_FF_Q': 'envelope', 'signature_MISTRAL_FF_Q': 'envelope',
                                   'l1i_data0.0.0.0': 'F1'})
+        self.assertEqual(benchmark.cells_by_stage(netlist, 'top', labels),
+                         {'F1': 1, 'F2': 1, 'L1': 1, 'envelope': 2})
+
+    def test_route_jsonl_row_joins_route_with_synthesis_and_tool_identity(self):
+        identity = {
+            'lock': 'toolchain.lock', 'lock_sha256': 'lock-sha',
+            'synthesis': 'proc -norom; synth_intel_alm -family cyclonev -nolutram',
+            'sources': {'rtl.sv': 'source-sha'},
+            'tools': {'nextpnr-mistral': 'commit=123456789abcdef; sha256=tool-sha; gpu-router=HIP'},
+        }
+        synthesis = {
+            'cells': {'MISTRAL_ALUT4': 3, 'MISTRAL_ALUT_ARITH': 2, 'MISTRAL_FF': 5, 'MISTRAL_M10K': 1},
+            'cells_by_stage': {'F1': 1, 'F2': 5}, 'logic_depth': {'F1': {'lut_levels': 2}},
+            'synth_json_sha256': 'synth-sha',
+            'synthesis': 'synth_intel_alm -family cyclonev -nolutram',
+        }
+        run = {
+            'argv': ['nextpnr-mistral', '--seed', '2'], 'elapsed_seconds': 4.5, 'envelope_worst': [],
+            'fmax_mhz': 92.0, 'gpu_backend': 'hip', 'gpu_device_granted': ['0'], 'seed': 2,
+            'spike': 'rom', 'stages': {'ROM': {'fmax_mhz': 92.0}},
+            'critical_paths': [{'from': 'a', 'to': 'b'}],
+        }
+        row = benchmark.route_record(run, identity, 'fingerprint', synthesis, 'round 4')
+        self.assertEqual(row['nextpnr'], '12345678')
+        self.assertEqual((row['comb'], row['ff'], row['m10k']), (5, 5, 1))
+        self.assertEqual(row['cells_by_stage'], {'F1': 1, 'F2': 5})
+        self.assertEqual(row['critical_path'], {'from': 'a', 'to': 'b'})
+        self.assertEqual((row['source_fingerprint'], row['synth_json_sha256'], row['version']),
+                         ('fingerprint', 'synth-sha', 'round 4'))
+        # The spike's own recipe, not the default one
+        self.assertEqual((row['spike'], row['synthesis']),
+                         ('rom', 'synth_intel_alm -family cyclonev -nolutram'))
+        self.assertIn('tools', row)
+        self.assertNotIn('registers_by_stage', row)
+        checked_record = json.loads((benchmark.ROOT / 'docs/validation/2026-10-25-i386-phase1-front-end-fixes.jsonl')
+                                    .read_text().splitlines()[0])
+        self.assertEqual(set(row), set(checked_record))
 
     def test_logic_depth_counts_luts_and_carry_cells(self):
         netlist = self.netlist({
@@ -160,6 +198,13 @@ class HarnessReportTest(unittest.TestCase):
         from scripts import lockfile
         self.assertEqual(benchmark.LOCK, benchmark.RTL / 'toolchain.lock')
         self.assertEqual(lockfile.validate_lock(benchmark.ROOT / benchmark.LOCK), [])
+
+
+@unittest.skipUnless(YOSYS, 'FES_I386_YOSYS names no Yosys')
+class SynthesisTest(unittest.TestCase):
+    def test_q_synthesizes_without_multipliers_or_carry_cells(self):
+        synthesis = frontend.qalign_synthesis(YOSYS)
+        self.assertEqual((synthesis['multipliers'], synthesis['carry_cells']), (0, 0), synthesis)
 
 
 @unittest.skipUnless(VERILATOR, 'Verilator not installed')
@@ -201,6 +246,8 @@ class OracleFrontEndTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('length decoders, 32-bit: 393216000 cases', result.stdout)
         self.assertIn('front end prefix-free, 16-bit: 4000 instructions', result.stdout)
+        self.assertIn('front end fetch-stalled, 32-bit:', result.stdout)
+        self.assertIn('cross-half instruction', result.stdout)
 
 
 if __name__ == '__main__':

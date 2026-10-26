@@ -71,10 +71,7 @@ module fes_i386_qalign import fes_i386_pkg::*; (
     logic       out_free, too_long_run, issue, consume, advance;
     logic [4:0] start_next;
 
-    // Workaround for DeanoC/yosys#59 until DeanoC/yosys#60 lands in the lock:
-    // two field selects of dec[start] share one start*W multiply, which maps
-    // to a DSP in Q. A whole-record copy keeps it a mux.
-    lbyte_t at_start;
+    lbyte_t at_start;  // one select for both fields: DeanoC/yosys#59
     assign at_start = dec[start];
     assign run_here = at_start.run;
     assign prefix_here = at_start.prefix;

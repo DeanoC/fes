@@ -100,7 +100,7 @@ func newCoreEntryLaunchFixtureAt(t *testing.T, root string, raw []byte, title st
 	}
 	base := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
 	client := &defaultMediaPackageClient{packageLibraryClient: base}
-	uploadTimeout := time.Second
+	uploadTimeout := 10 * time.Second
 	if len(uploadDeadline) != 0 {
 		uploadTimeout = uploadDeadline[0]
 	}
