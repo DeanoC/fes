@@ -1089,6 +1089,16 @@ replaces each row.
 | Machine total | about 16,100 | about 142 | about 16 |
 | Margin | about 2,800 | about 203 | about 83 |
 
+**Measured (M2, machine-only synthesis and packing, no placement;
+[record](../../../docs/validation/2026-10-26-pc386-m2-vga/summary.md#machine-only-synthesis)):**
+the VGA needs at least 1,891 ALMs and 16 M10K (its small FIFOs each take a
+block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
+and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
+one DSP block. The M1 AT core needs at least 16,526 ALMs, more than three
+times its rows, because its memories (the ATA sector buffer and dirty map,
+CMOS, the 8042's RAM and FIFOs, the DMA register files) synthesize to
+flip-flops; they must move to M10K before the machine can fit beside the CPU.
+
 The M10K margin leaves room for a VGA read cache or a larger L2 if profiles ask
 for either. The ALM margin is the tight one. With the CPU at 16,000 ALMs the
 first playable machine fills about 77% of the device, and the x87 milestone

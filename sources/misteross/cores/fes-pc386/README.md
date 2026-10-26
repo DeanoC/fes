@@ -62,8 +62,8 @@ benches, boots the VGA test disk, compares each marked picture's 720p frame
 Each writes `build/sim/fes-pc386/<suite>/report.json` (POST codes, debug-port
 text, I/O histogram, final screen, frames, replay counts) and logs; the vga
 suite writes the marked captures and 720p frames as PPM files in `frames/`.
-The boot takes about 25 minutes, the vga suite about as long; the replays a
-few minutes. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
+The boot takes about 7 minutes of wall time and its replay one more; the vga
+suite about 6 minutes in all. `PC386_TRACE_IO=1` makes `machine_tb` print every I/O but port
 80h.
 
 ## Simulation model
