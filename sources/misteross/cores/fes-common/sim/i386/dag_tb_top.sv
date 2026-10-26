@@ -41,7 +41,7 @@ module dag_tb_top (
     );
     fes_i386_dfwd dfwd (
         .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes(d_valid && d_writes),
-        .d_dst, .d_kind, .advance(d_valid && !stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
+        .d_dst, .d_kind, .advance(d_valid && !stall), .hold(1'b0), .prod_valid, .prod_dst, .prod_kind, .gpr,
         .stage_value, .row, .last, .late, .late_hi, .stall
     );
     fes_i386_agu agu (

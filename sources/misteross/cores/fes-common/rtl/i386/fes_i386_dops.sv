@@ -18,8 +18,9 @@
 // forwarding mux in EX is that 2:1 select from the WB register. An early
 // result (LEA) is ready in the M1 register from the cycle after AG.
 //
-// The table follows the pipeline, as fes_i386_dfwd's does: if a stage
-// behind D ever holds, both must be written from the held producers.
+// The table follows the pipeline, as fes_i386_dfwd's does. D to WB only
+// ever hold together (hold), when nothing moves, so the table keeps its
+// state.
 module fes_i386_dops (
     input  logic             clk,
     input  logic             reset,         // also on a flush, which kills every producer
@@ -32,6 +33,7 @@ module fes_i386_dops (
     input  logic [2:0]       d_dst,
     input  logic             d_early,
     input  logic             advance,
+    input  logic             hold,          // D to WB are frozen: the table keeps its state
     // The producers now in AG, M1, M2 and EX, oldest last.
     input  logic [3:0]       prod_valid,    // writes a GPR
     input  logic [3:0][2:0]  prod_dst,
@@ -96,13 +98,15 @@ module fes_i386_dops (
             pend_now <= '0;
             in_ag <= '0;
             left <= 1'b0;
-        end else begin
+        end else if (!hold) begin
             ready <= ready_next;
             pend_now <= pend_next;
             for (int r = 0; r < 8; r++) in_ag[r] <= d_writes && d_dst == 3'(r);
             left <= advance;
         end
-        dist_now <= dist_next;
+        if (!hold) begin
+            dist_now <= dist_next;
+        end
     end
 
     // ---- D --------------------------------------------------------------------

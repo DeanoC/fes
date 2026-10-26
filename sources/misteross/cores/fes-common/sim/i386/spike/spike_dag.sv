@@ -66,7 +66,7 @@ module spike_dag (
 
     fes_i386_dfwd dfwd (
         .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes, .d_dst, .d_kind,
-        .advance(!stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
+        .advance(!stall), .hold(1'b0), .prod_valid, .prod_dst, .prod_kind, .gpr,
         .stage_value({wb_result, ex_result, m2_result, m1_result}), .row, .last, .late, .late_hi, .stall
     );
 

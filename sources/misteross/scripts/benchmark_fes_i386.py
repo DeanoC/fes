@@ -128,7 +128,7 @@ STAGES = {
         ('M2', r'(.*\.)?(ex_s|ex_in|ex_out)$|(.*\.)?ex\.u$'),
         # M1 also writes the L1D model's address registers and the store
         # distances M2 decodes.
-        ('M1', r'(.*\.)?(m2_s|m2_dw|m2_dr|m2_vw|m2_vr|even_q|odd_q|odd_first)$|l1d_'),
+        ('M1', r'(.*\.)?(m2_s|m2_load|m2_dw|m2_dr|m2_vw|m2_vr|even_q|odd_q|odd_first)$|l1d_'),
         ('AG', r'(.*\.)?(m1_s|m1_out|late_m1)$'),
         # DC's buffer before D, since dfwd and dops take its fields as ports.
         ('DC', r'(.*\.)?(dc|dc_skid|dc_valid|dc_skid_valid)$'),

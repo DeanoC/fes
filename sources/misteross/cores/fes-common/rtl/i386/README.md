@@ -116,9 +116,18 @@ removed, so only the address-size select follows the 32-bit chain.
 
 `fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end, with a
 data port that stands for the L1D's output: M1 drives a load's address, the
-port registers it on the edge as an M10K does, and the 8 bytes from the
-address's dword arrive in M2. A retiring store writes its bytes on the edge
-it retires, and the port reads before it writes on the same edge.
+port registers it on the edge M1 advances, as an M10K does, and the 8 bytes
+from the address's dword, as memory held them on that edge, arrive in M2 once
+`dmem_valid` says so. A retiring store writes its bytes on the edge it
+retires, and the port reads before it writes on the same edge.
+
+**Freeze.** A load in M2 whose bytes have not arrived freezes D to WB: every
+stage behind DC keeps its uop, D issues nothing and nothing retires, until
+they do. Nothing moves relative to anything else, so the forwarding
+distances, AG's late operands, the store merge and D's forwarding tables all
+hold as they are. Whether M2 holds a load is a register set as it enters, so
+the freeze is one gate on `dmem_valid`; WB's flush waits for it, which makes
+a taken branch or a fault in WB wait out a wrong-path load.
 
 **DC** decodes Q's output register into a two-entry buffer of decoded
 instructions: `dc` holds the instruction D issues, and `dc_skid` takes Q's

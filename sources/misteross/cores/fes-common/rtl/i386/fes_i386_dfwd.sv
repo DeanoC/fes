@@ -24,8 +24,8 @@
 // select to the result registers, beside the addressing decode, and picks its
 // base and index by register number.
 //
-// The table follows the pipeline: if the stages behind D ever hold a cycle,
-// the table must be written from the held producers instead.
+// The table follows the pipeline. D to WB only ever hold together (hold),
+// when nothing moves, so the table keeps its state.
 //
 // D hands AG:
 //   row   the operand for AG's first 3:2 row: the scaled index, or the base
@@ -53,6 +53,7 @@ module fes_i386_dfwd (
     input  logic [1:0]        d_kind,
     // ... and whether it leaves D on this edge.
     input  logic              advance,
+    input  logic              hold,         // D to WB are frozen: the table keeps its state
     // The producers now in AG, M1, M2 and EX, oldest last.
     input  logic [3:0]        prod_valid,   // writes a GPR
     input  logic [3:0][2:0]   prod_dst,
@@ -119,15 +120,17 @@ module fes_i386_dfwd (
             wait_now <= '0;
             in_ag <= '0;
             left <= 1'b0;
-        end else begin
+        end else if (!hold) begin
             ready <= ready_next;
             late_now <= late_next;
             wait_now <= wait_next;
             for (int r = 0; r < 8; r++) in_ag[r] <= d_writes && d_dst == 3'(r);
             left <= advance;
         end
-        source_now <= source_next;
-        ag_early <= d_kind == EARLY;
+        if (!hold) begin
+            source_now <= source_next;
+            ag_early <= d_kind == EARLY;
+        end
     end
 
     // ---- D --------------------------------------------------------------------
