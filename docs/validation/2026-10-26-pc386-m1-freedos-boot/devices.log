@@ -28,6 +28,9 @@ PASS keyboard F2 identifies as AB 83, translated to AB 41
 PASS aux F4 is acknowledged through the aux output buffer
 PASS mouse packet: left button, dx +5, dy -3 (PS/2 Y is up)
 PASS movement beyond 255 is carried into the next packet
+PASS at resolution 0 a quarter-count move and its reverse send nothing; four send -1
+PASS sample rate 10: stream packets 100 ms apart
+PASS an F2 reply fits behind a full scan-code queue
 PASS CMOS configuration bytes
 PASS CMOS checksum 2Eh-2Fh covers 10h-2Dh
 PASS wall clock seed: century 20h in 32h, year 99h, in BCD

@@ -65,33 +65,33 @@ class ImageError(RuntimeError):
     pass
 
 
-def input_sha256() -> str:
-    """Identify the lock and source code that determine the disk image."""
+def lock() -> dict:
+    return json.loads(LOCK.read_text())
+
+
+def inputs_key() -> str:
+    """Identity of everything the image is built from: the lock (package
+    commits and file hashes), the builder, NASM helper and assembler version."""
     digest = hashlib.sha256()
     for path in (LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()):
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
         digest.update(path.read_bytes())
         digest.update(b'\0')
+    digest.update(test386.NASM_VERSION.encode())
     return digest.hexdigest()
 
 
 def image_is_current(image: Path | None = None) -> bool:
     """Check both the fixture's input identity and the image bytes."""
     image = IMAGE if image is None else image
-    sidecar = image.with_suffix('.json')
     try:
-        record = json.loads(sidecar.read_text())
+        record = json.loads(image.with_suffix('.json').read_text())
         image_digest = hashlib.sha256(image.read_bytes()).hexdigest()
     except (OSError, ValueError):
         return False
-    if not isinstance(record, dict):
-        return False
-    return record.get('inputs_sha256') == input_sha256() and record.get('sha256') == image_digest
-
-
-def lock() -> dict:
-    return json.loads(LOCK.read_text())
+    return (isinstance(record, dict) and record.get('inputs') == inputs_key() and
+            record.get('sha256') == image_digest)
 
 
 def package(name: str, spec: dict, download: bool) -> Path:
@@ -210,14 +210,21 @@ def build(download: bool = False, jobs: int = 4) -> Path:
     record = {
         'image': str(IMAGE.relative_to(ROOT)),
         'sha256': hashlib.sha256(IMAGE.read_bytes()).hexdigest(),
-        'inputs_sha256': input_sha256(),
         'geometry': {'cylinders': CYLINDERS, 'heads': HEADS, 'sectors_per_track': SPT},
         'packages': {name: {'commit': spec['commit'], 'version': spec['version'], 'license': spec['license']}
                      for name, spec in packages.items()},
         'distribution': 'simulation fixture only; never distributed',
+        'inputs': inputs_key(),
     }
     IMAGE.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
     return IMAGE
+
+
+def image(download: bool = False, jobs: int = 4) -> Path:
+    """The image, rebuilt unless the one in build/ came from the current inputs."""
+    if image_is_current():
+        return IMAGE
+    return build(download, jobs)
 
 
 def main(argv=None) -> int:

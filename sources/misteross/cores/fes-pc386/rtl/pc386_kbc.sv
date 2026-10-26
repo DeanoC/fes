@@ -401,6 +401,7 @@ module pc386_ps2_mouse #(
     wire signed [9:0] sent_x = scaling && !read_data ? scale21(report_x) : report_x;
     wire signed [9:0] sent_y = scaling && !read_data ? scale21(report_y) : report_y;
     wire moved = report_x != 0 || report_y != 0 || buttons_changed;
+    // The PS/2 rates 10, 20, 40, 60, 80, 100 and 200 per second; others round down.
     wire [16:0] sample_us = sample_rate >= 200 ? 17'd5000 : sample_rate >= 100 ? 17'd10000 :
                             sample_rate >= 80 ? 17'd12500 : sample_rate >= 60 ? 17'd16667 :
                             sample_rate >= 40 ? 17'd25000 : sample_rate >= 20 ? 17'd50000 : 17'd100000;

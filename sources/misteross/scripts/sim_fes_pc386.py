@@ -148,8 +148,7 @@ def timing_failures(report: dict) -> list[str]:
 
 def run_boot(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
-    disk = (freedos.IMAGE if freedos.image_is_current() and not args.rebuild_image
-            else freedos.build(args.download, args.jobs))
+    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
     testbench = verilate(args.verilator, 'boot', CORE / 'sim/machine_tb.cpp', linked, args.jobs)
     command = [str(testbench), '--bios', str(images['bios']), '--vgabios', str(images['vgabios']),
                '--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
