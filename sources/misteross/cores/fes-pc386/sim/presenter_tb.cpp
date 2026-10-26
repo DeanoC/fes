@@ -5,10 +5,12 @@
 // model, publishes it as the VGA does (buffer, width, height, then the frame
 // sequence), and compares the second complete 720p frame after that with the
 // model's scaling, pixel for pixel, including the black bars. The pixels are
-// 6-bit DAC values widened by replication, as captures are. The last case
-// publishes a new buffer while the old one shows, to check the switch. The
-// pixel clock runs at 74.25 MHz against a 100 MHz system clock; DDR port 2 is
-// pc386_ddr_model.h.
+// 6-bit DAC values widened by replication, as captures are. Then a buffer
+// switch while one shows, and a stream: distinct frames written a line every
+// 31.8 us into the buffer the capture writer would pick (neither the newest
+// nor the presenter's) and published at 70 Hz, where every 720p frame must be
+// exactly one published frame's scaling, never a mix. The pixel clock runs at
+// 74.25 MHz against a 100 MHz system clock; DDR port 2 is pc386_ddr_model.h.
 //
 // Prints PASS/FAIL per case; exit 0 when every case passes.
 #include "Vpc386_presenter.h"
@@ -161,6 +163,47 @@ int main(int argc, char **argv) {
     pc386::Frame next = card(320, 400, 99);
     bench.publish(buffer, next);
     ok &= check(bench, next, "switch");
+    unsigned newest = buffer;
+
+    // A stream at 70 Hz: each frame written a line at a time into the buffer
+    // the capture writer would pick, then published.
+    std::vector<pc386::Frame> stream, scaled;
+    for (unsigned n = 0; n < 8; ++n) {
+        stream.push_back(card(320, 400, 200 + n));
+        scaled.push_back(pc386::present_720p(stream.back()));
+    }
+    unsigned checked = 0, torn = 0, seen = bench.complete;
+    std::vector<bool> shown(stream.size());
+    for (size_t n = 0; n < stream.size(); ++n) {
+        unsigned target = 0;
+        while (target == newest || target == bench.top.present_buffer) ++target;
+        uint32_t base = pc386::CAPTURE_OFFSET + target * pc386::CAPTURE_BYTES;
+        for (unsigned row = 0; row < 400; ++row) {
+            std::memcpy(bench.window.at(base + row * pc386::CAPTURE_STRIDE), &stream[n].pixels[row * 320], 320 * 4);
+            for (unsigned clock = 0; clock < 3178; ++clock) {
+                bench.step();
+                if (bench.complete == seen) continue;
+                seen = bench.complete;
+                int match = -1;
+                for (size_t m = 0; m < scaled.size() && match < 0; ++m)
+                    if (bench.last.pixels == scaled[m].pixels) match = int(m);
+                if (match < 0 && bench.last.pixels == pc386::present_720p(next).pixels) match = 99;
+                if (match < 0) ++torn; else { ++checked; if (match < 99) shown[match] = true; }
+            }
+        }
+        bench.top.frame_buffer = target;
+        bench.top.frame_width = 320;
+        bench.top.frame_height = 400;
+        bench.step();
+        bench.top.frame_sequence = uint16_t(bench.top.frame_sequence + 1);
+        newest = target;
+    }
+    unsigned distinct = 0;
+    for (bool flag : shown) distinct += flag;
+    bool stream_ok = !torn && checked >= 6 && distinct >= 5;
+    std::printf("%s stream: %u 720p frames each one published frame (%u distinct), %u mixed\n",
+                stream_ok ? "PASS" : "FAIL", checked, distinct, torn);
+    ok &= stream_ok;
     std::printf("PRESENTER underflows=%u frames=%u\n", bench.top.underflows, bench.top.frames_shown);
     if (bench.top.underflows) { std::printf("FAIL underflows\n"); ok = false; }
     return ok ? 0 : 1;

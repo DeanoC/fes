@@ -504,6 +504,8 @@ int main(int argc, char **argv) {
                 if (!options.until_debug.empty() && line.find(options.until_debug) != std::string::npos) finished = true;
                 if (line.rfind("SNAP ", 0) == 0) {
                     snap_name = line.substr(5);
+                    if (machine.trace)
+                        std::fprintf(machine.trace, "M %llu %s\n", (unsigned long long)machine.cycles, snap_name.c_str());
                     snap_frames = machine.frames_done;
                     snap_captured = false;
                 }
@@ -579,9 +581,9 @@ int main(int argc, char **argv) {
         for (const auto &[time, count] : machine.inta_times)
             std::printf("INTA %llu %llu\n", (unsigned long long)time, (unsigned long long)count);
         std::printf("VGA frames %u\nVGA scanout_underflows %u\nVGA capture_drops %u\nVGA present_underflows %u\n"
-                    "VGA frames_shown %u\nVGA port1_commands %llu\nVGA port2_commands %llu\n",
+                    "VGA plane_underflows %u\nVGA frames_shown %u\nVGA port1_commands %llu\nVGA port2_commands %llu\n",
                     machine.frames_done, machine.top.scanout_underflows, machine.top.capture_drops,
-                    machine.top.present_underflows, machine.top.frames_shown,
+                    machine.top.present_underflows, machine.top.plane_underflows, machine.top.frames_shown,
                     (unsigned long long)machine.ddr1.commands, (unsigned long long)machine.ddr2.commands);
         for (int row = 0; row < 25; ++row) std::printf("SCREEN %02d |%s|\n", row, machine.screen_row(row).c_str());
         if (!options.frames.empty() && machine.frames_done) {

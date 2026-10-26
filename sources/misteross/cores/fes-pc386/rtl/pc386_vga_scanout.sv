@@ -284,13 +284,10 @@ module pc386_vga_scanout #(
     // ---- Raster and display line ------------------------------------------------
     reg line_shown, line_blank;
     reg [4:0] display_row;
-    reg display_split;
     reg [7:0] display_cursor;
     reg [3:0] sub;               // dot within the character, or pixel within the word in 256-colour
     reg pixel_phase;             // 256-colour: second dot of a pixel
     reg [9:0] pixel_x;
-    reg [9:0] line_pixels, captured_lines;
-    reg capturing, frame_open;
     wire [3:0] text_pan = nine_dot ? (pel_pan >= 4'd8 ? 4'd0 : pel_pan + 4'd1) : {1'b0, pel_pan[2:0]};
     always @(posedge clk) begin
         frame_start <= 0;
@@ -298,7 +295,7 @@ module pc386_vga_scanout #(
         if (reset) begin
             dot_count <= 0; hcount <= 0; vcount <= 0; retrace <= 0;
             start_address <= 0; preset_row <= 0; byte_pan <= 0; frame_count <= 0;
-            line_shown <= 0; line_blank <= 0; display_row <= 0; display_split <= 0; display_cursor <= 8'h80;
+            line_shown <= 0; line_blank <= 0; display_row <= 0; display_cursor <= 8'h80;
             display_slot <= 0; underflows <= 0;
         end else if (dot) begin
             dot_count <= char_end ? 4'd0 : dot_count + 4'd1;
@@ -323,7 +320,6 @@ module pc386_vga_scanout #(
                     line_blank <= !slot_done[fetch_slot];
                     if (!slot_done[fetch_slot]) underflows <= underflows + 32'd1;
                     display_row <= slot_row[fetch_slot];
-                    display_split <= slot_split[fetch_slot];
                     display_cursor <= slot_cursor[fetch_slot];
                 end
             end
@@ -433,7 +429,7 @@ module pc386_vga_scanout #(
             dac_index <= (!attr_pas ? {2'b0, overscan} : mode256 ? pixel_byte : attribute_index) & pel_mask;
         end
     end
-    wire unused_pixel = ^{captured_lines, capturing, frame_open, tags_full, tags_empty};
+    wire unused_tags = ^{tags_full, tags_empty};
 
     // ---- DAC ----------------------------------------------------------------------
     pc386_ram #(.WIDTH(18), .DEPTH(256)) dac_scan (
@@ -491,10 +487,9 @@ module pc386_vga_scanout #(
         frame_done <= 0;
         if (reset) begin
             low_pixel <= 0; pair <= 0; line_beats <= 0; beat_data <= 0; descriptor_data <= 0;
-            capture_buffer <= 0; capture_line <= 0; width_seen <= 0; line_pixels <= 0; pixel_x <= 0;
+            capture_buffer <= 0; capture_line <= 0; width_seen <= 0; pixel_x <= 0;
             frame_end_pending <= 0; capture_drops <= 0;
             frame_buffer <= 0; frame_width <= 0; frame_height <= 0; frame_sequence <= 0;
-            captured_lines <= 0; capturing <= 0; frame_open <= 0;
         end else begin
             if (beat_push && beat_full) capture_drops <= capture_drops + 32'd1;
             if (dot && b_valid && line_capturing && pixel_x < 10'd800) begin

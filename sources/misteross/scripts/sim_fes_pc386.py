@@ -231,7 +231,7 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
                                   f' {result.stderr.strip()}')
     if report['panic']:
         report['failures'].append(f'BIOS panic ports written: {report["panic"]}')
-    for counter in ('scanout_underflows', 'capture_drops', 'present_underflows'):
+    for counter in ('scanout_underflows', 'capture_drops', 'present_underflows', 'plane_underflows'):
         if report['vga'].get(counter):
             report['failures'].append(f'VGA {counter}: {report["vga"][counter]}')
     return report

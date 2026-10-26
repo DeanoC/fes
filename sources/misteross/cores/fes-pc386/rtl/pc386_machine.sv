@@ -118,7 +118,7 @@ module pc386_machine #(
     output wire [15:0] frame_count,
     output wire [1:0] frame_buffer,
     output wire [9:0] frame_width, frame_height,
-    output wire [31:0] scanout_underflows, capture_drops, present_underflows, frames_shown,
+    output wire [31:0] scanout_underflows, capture_drops, present_underflows, plane_underflows, frames_shown,
     output wire [27:0] presenter_video
 );
     wire vga_valid, vga_write, vga_done;
@@ -215,7 +215,7 @@ module pc386_machine #(
         .response_valid(display_response_valid), .response_error(display_response_error),
         .response_data(display_response_data), .quiesced_sys(display_quiesced),
         .machine(presenter_video), .video(video), .ui_active(), .locked(), .displayed_sequence(),
-        .underflows(), .faulted(),
+        .underflows(plane_underflows), .faulted(),
         .ddr_hold(plane_hold), .ddr_reset(plane_ddr_reset), .ddr_drained(plane_ddr_drained),
         .ddr_address(plane_address), .ddr_burstcount(plane_burstcount), .ddr_read(plane_read),
         .ddr_waitrequest(plane_waitrequest), .ddr_readdata(plane_readdata), .ddr_readdatavalid(plane_readdatavalid)

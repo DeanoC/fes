@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""pc386 machine M1: the firmware and FreeDOS locks, the image layout helpers,
-the boot report parser and its I/O timing checks, and (with Verilator) the
-directed device benches. No network access; the oracle boot itself runs from
-scripts/sim_fes_pc386.py --suite boot."""
+"""pc386 machine M1 and M2: the firmware and FreeDOS locks, the image layout
+helpers, the boot report parser and its I/O timing checks, and (with
+Verilator) the directed device benches and the presenter and port 2 benches.
+No network access; the oracle boots and the VGA replays run from
+scripts/sim_fes_pc386.py --suite boot and --suite vga."""
 import json
 import os
 import shutil
@@ -104,8 +105,13 @@ PROMPT 240000013
 IO isa8 1 74 71477
 IO isa8 2 146 249
 IO isa16 2 38 144384
-IO vga 2 5 2697
+IO vga-out 2 7 2697
+IO vga-in 1 6 120
+IO vga-in 1 31 4
 INTA 146 52
+SNAP text 720 400 frames/text.ppm
+PRESENT text frames/text-720p.ppm 0
+VGA scanout_underflows 0
 SCREEN 24 |C:\\>dir                                                                         |
 END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
@@ -122,6 +128,9 @@ class BootReportTest(unittest.TestCase):
         self.assertTrue(report['screen'][0].startswith('C:\\>dir'))
         self.assertEqual(report['end']['reason'], 'prompt')
         self.assertEqual(report['end']['seconds'], 2.9)
+        self.assertEqual(report['snaps']['text'], {'width': 720, 'height': 400, 'file': 'frames/text.ppm'})
+        self.assertEqual(report['present']['text'], {'file': 'frames/text-720p.ppm', 'mismatches': 0})
+        self.assertEqual(report['vga'], {'scanout_underflows': 0})
 
     def test_timing_classes(self):
         self.assertEqual(sim.timing_failures(sim.parse_boot(BOOT_OUTPUT)), [])
@@ -131,6 +140,14 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(len(sim.timing_failures(inta)), 1)
         unknown = sim.parse_boot(BOOT_OUTPUT + 'IO isa16 1 99 1\n')
         self.assertEqual(len(sim.timing_failures(unknown)), 1)
+        # A VGA write posts at a fixed time; a read takes at least its minimum
+        # and at most the bound.
+        posted = sim.parse_boot(BOOT_OUTPUT.replace('IO vga-out 2 7 2697', 'IO vga-out 2 8 2697'))
+        self.assertEqual(len(sim.timing_failures(posted)), 1)
+        early = sim.parse_boot(BOOT_OUTPUT.replace('IO vga-in 1 6 120', 'IO vga-in 1 5 120'))
+        self.assertEqual(len(sim.timing_failures(early)), 1)
+        late = sim.parse_boot(BOOT_OUTPUT + f'IO vga-in 1 {sim.VGA_READ_BOUND + 1} 1\n')
+        self.assertEqual(len(sim.timing_failures(late)), 1)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
@@ -145,6 +162,28 @@ class DeviceBenchTest(unittest.TestCase):
             report = sim.run_devices(Args())
         self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
         self.assertGreater(len(report['checks']), 50)
+
+
+@unittest.skipUnless(VERILATOR, 'requires Verilator')
+class PresenterBenchTest(unittest.TestCase):
+    """The presenter and the plane on port 2 against their models (minutes)."""
+    class Args:
+        verilator = VERILATOR
+        jobs = min(os.cpu_count() or 2, 16)
+
+    def bench(self, name, top, rtl, testbench):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(sim, 'OUTPUT', Path(directory)):
+            report = sim.run_bench(self.Args(), name, top, rtl, testbench)
+        self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
+        return report
+
+    def test_presenter_matches_its_model(self):
+        report = self.bench('presenter', 'pc386_presenter', sim.PRESENTER_RTL, sim.CORE / 'sim/presenter_tb.cpp')
+        self.assertEqual(len(report['checks']), 10)
+
+    def test_plane_reads_through_port_2(self):
+        report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
+        self.assertEqual(len(report['checks']), 11)
 
 
 if __name__ == '__main__':

@@ -1,13 +1,18 @@
 # FES pc386 machine design
 
 **Status:** Design decisions settled on 2026-10-25 ([decisions](#decisions)).
-Phase M1 exists as RTL and simulation: the AT core in
-[`cores/fes-pc386/`](../cores/fes-pc386/README.md) boots the Bochs BIOS and
-FreeDOS to a prompt with the Bochs oracle as CPU
-([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md)).
-No routed result or kit evidence exists for this machine. Every clock, area,
-bandwidth and latency figure below is a budget or an estimate unless it names
-a measurement. The milestone that measures one replaces it.
+Phases M1 and M2 exist as RTL and simulation in
+[`cores/fes-pc386/`](../cores/fes-pc386/README.md): the AT core boots the
+Bochs BIOS and FreeDOS to a prompt with the Bochs oracle as CPU
+([M1 record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md)),
+and the VGA, its capture, the 720p presenter and the plane on DDR port 2 show
+the VGA BIOS text, mode 13h and mode Y pictures at 720p, with the VGA trace
+replay matching Bochs's VGA
+([M2 record](../../../docs/validation/2026-10-26-pc386-m2-vga/summary.md)).
+No routed result or kit evidence exists for this machine; M2's machine-only
+synthesis is the first area measurement ([budgets](#budgets)). Every other
+clock, area, bandwidth and latency figure below is a budget or an estimate
+unless it names a measurement. The milestone that measures one replaces it.
 
 **Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
 everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
@@ -293,7 +298,7 @@ cycles for 16-bit devices.
 | --- | --- | --- |
 | `isa8` | Every on-board chip, port 61h/92h/80h, ATA task file, Sound Blaster, OPL2 | 720 ns: six ISA clocks at 8.33 MHz |
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
-| `vga` | 3B0–3DF | Posted into the VGA FIFO; reads wait for the FIFO to drain |
+| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
 
 The ISA figures come from the AT bus's default wait states: an ISA cycle is
 two bus clocks plus four wait states for 8-bit cycles and one for 16-bit
@@ -527,11 +532,14 @@ VRAM is 256 KiB at window offset `0x00800000`: 65,536 words of 32 bits, one
 byte per plane, so the four planes at one planar offset are one word. DDR
 port 1 is 64 bits wide and carries two VRAM words per beat.
 
-Address translation follows the sequencer memory mode and graphics misc
-register. Chain-4 uses plane `A & 3` at planar offset `A >> 2`, which is what
-mode 13h's dword-mode scanout reads and what DOSBox does. Odd/even uses plane
-`A & 1` (plus the page bit for planes 2 and 3) at planar offset `A >> 1`.
-Otherwise the offset is `A` and the map mask selects planes. Games that switch
+Address translation follows the sequencer memory mode and the graphics
+controller's memory map. Chain-4 uses plane `A & 3` at planar offset `A >> 2`,
+which is what mode 13h's dword-mode scanout reads and what DOSBox and Bochs do.
+Odd/even uses planes 1 and 3 for odd `A`, 0 and 2 for even, at planar offset
+`A` with bit 0 cleared: text mode's word-mode scanout reads character `n` at
+offset `2n`, as on the IBM VGA and in Bochs. The page bit (misc output bit 5)
+is not modelled, as in Bochs and DOSBox. Otherwise the offset is `A` and every
+plane is addressed. The map mask gates planes in every mode. Games that switch
 chain-4 off and read mode 13h data back unchained depend on this mapping, so
 the VGA trace replay checks it against the reference.
 
@@ -602,10 +610,12 @@ picture goes through DDR.
 
 1. **Capture** writes the post-DAC active area of every guest frame into one
    of three buffers on port 2, one 32-bit word per pixel (B, G, R, 0; 6-bit
-   DAC values widened by bit replication). In 256-colour modes it stores the
-   attribute controller's pixels, half the dot rate. Buffers hold up to
-   800 × 600 so tweaked modes fit. The overscan border is not captured, a
-   recorded deviation.
+   DAC values widened by bit replication), 3,200 bytes a line. In 256-colour
+   modes it stores the attribute controller's pixels, half the dot rate. Every
+   scan line is captured, so mode 13h is 320 × 400; the area-weighted filter
+   gives the same picture as from 320 × 200, since doubled lines blend as one.
+   Buffers hold up to 800 × 600 so tweaked modes fit. The overscan border is
+   not captured, a recorded deviation.
 2. **Presenter.** At each 720p frame start it takes the newest complete
    buffer, never the one being written. A 70 Hz guest shows six of every seven
    frames; a 59.94 Hz guest repeats one frame about every 17 seconds. The
@@ -617,9 +627,12 @@ picture goes through DDR.
    3.6), so nearest-neighbour would give uneven rows. The presenter uses an
    area-weighted ("sharp bilinear") filter: each output pixel blends at most
    two source pixels per axis by their coverage, so most output pixels are
-   unblended and edges stay sharp. It reads source lines from DDR into
-   dual-clock line buffers and runs on the 74.25 MHz pixel clock. Underflow
-   pixels are black and counted.
+   unblended and edges stay sharp. The weights are 8-bit fractions from a
+   per-frame reciprocal; the arithmetic is in `pc386_presenter.sv` and, bit for
+   bit, in the simulation's presenter model. It reads source lines from DDR
+   into dual-clock line buffers (even and odd rows, two rows each, 18-bit
+   pixels: eight M10K) and runs on the 74.25 MHz pixel clock. Underflow rows
+   are black and counted.
 4. **Display plane.** The presenter's 720p raster is the plane's machine input.
    The plane reports the picture rectangle (160, 0, 960, 720), which FogCast
    uses to cut the surround's window

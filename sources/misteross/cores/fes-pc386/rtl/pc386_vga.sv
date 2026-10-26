@@ -134,7 +134,8 @@ module pc386_vga #(
     end
 
     // ---- Planar translation --------------------------------------------------
-    // Window offset of byte i of a dword, its planar offset and planes.
+    // A byte's planar offset from its offset in A0000h-BFFFFh, and in bit 0
+    // whether it is inside the memory map and VRAM.
     function automatic [16:0] translate(input [16:0] a, input [1:0] map, input chain4, input odd_even);
         reg in_map;
         reg [16:0] offset;
@@ -147,7 +148,6 @@ module pc386_vga #(
             endcase
             if (chain4) offset = {2'b0, offset[16:2]};
             else if (odd_even) offset = {offset[16:1], 1'b0};
-            // Bit 0 says the byte is in_map the map and the offset in_map VRAM.
             translate = {offset[15:0], in_map && !offset[16]};
         end
     endfunction
@@ -244,7 +244,7 @@ module pc386_vga #(
     wire [12:0] word_tag = word_offset[15:3];
     reg hit;
     reg [1:0] hit_line;
-    integer l;
+    integer l, n;   // each always block keeps its own loop variable
     always @* begin
         hit = 0;
         hit_line = 0;
@@ -361,7 +361,7 @@ module pc386_vga #(
 
     always @(posedge clk) begin
         if (reset) begin
-            for (l = 0; l < 4; l = l + 1) begin line_valid[l] <= 0; line_tag[l] <= 0; line_mask[l] <= 0; end
+            for (n = 0; n < 4; n = n + 1) begin line_valid[n] <= 0; line_tag[n] <= 0; line_mask[n] <= 0; end
             line_head <= 0; line_tail <= 0; lines_used <= 0; idle <= 0;
         end else begin
             idle <= word_accept || lines_used == 0 ? 7'd0 : idle == 7'd64 ? idle : idle + 7'd1;
@@ -459,24 +459,25 @@ module pc386_vga #(
     reg [31:0] word_of [0:3];
     reg [14:0] beat_index;
     reg [7:0] compare_byte;
+    integer k;
     always @* begin
         read_result = 32'hffffffff;
         read_latch = latch;
         compare_byte = 0;
-        for (r = 0; r < 4; r = r + 1) begin
-            beat_index = read_offset[r][15:1] - read_first_beat;
-            word_of[r] = read_offset[r][0] ? read_beats[beat_index[1:0]][63:32] : read_beats[beat_index[1:0]][31:0];
-            if (read_enables[r] && read_inside[r]) begin
-                read_latch = word_of[r];
-                compare_byte = ~(((word_of[r][7:0] ^ {8{color_compare[0]}}) & {8{color_dont_care[0]}}) |
-                                 ((word_of[r][15:8] ^ {8{color_compare[1]}}) & {8{color_dont_care[1]}}) |
-                                 ((word_of[r][23:16] ^ {8{color_compare[2]}}) & {8{color_dont_care[2]}}) |
-                                 ((word_of[r][31:24] ^ {8{color_compare[3]}}) & {8{color_dont_care[3]}}));
-                if (read_mode) read_result[8 * r +: 8] = compare_byte;
-                else if (chain_four) read_result[8 * r +: 8] = word_of[r][8 * {r[1:0]} +: 8];
+        for (k = 0; k < 4; k = k + 1) begin
+            beat_index = read_offset[k][15:1] - read_first_beat;
+            word_of[k] = read_offset[k][0] ? read_beats[beat_index[1:0]][63:32] : read_beats[beat_index[1:0]][31:0];
+            if (read_enables[k] && read_inside[k]) begin
+                read_latch = word_of[k];
+                compare_byte = ~(((word_of[k][7:0] ^ {8{color_compare[0]}}) & {8{color_dont_care[0]}}) |
+                                 ((word_of[k][15:8] ^ {8{color_compare[1]}}) & {8{color_dont_care[1]}}) |
+                                 ((word_of[k][23:16] ^ {8{color_compare[2]}}) & {8{color_dont_care[2]}}) |
+                                 ((word_of[k][31:24] ^ {8{color_compare[3]}}) & {8{color_dont_care[3]}}));
+                if (read_mode) read_result[8 * k +: 8] = compare_byte;
+                else if (chain_four) read_result[8 * k +: 8] = word_of[k][8 * {k[1:0]} +: 8];
                 else if (!odd_even_disable)
-                    read_result[8 * r +: 8] = word_of[r][8 * {read_map[1], r[0]} +: 8];
-                else read_result[8 * r +: 8] = word_of[r][8 * read_map +: 8];
+                    read_result[8 * k +: 8] = word_of[k][8 * {read_map[1], k[0]} +: 8];
+                else read_result[8 * k +: 8] = word_of[k][8 * read_map +: 8];
             end
         end
     end
@@ -608,7 +609,7 @@ module pc386_vga #(
                 E_READ_DRAIN: if (coalescer_empty) begin
                     flush_all <= 0;
                     read_received <= 0;
-                    // Nothing in_map the window, or the VGA disabled: FFh, no latch load.
+                    // Nothing inside the window, or the VGA disabled: FFh, no latch load.
                     if (!video_enable || (read_enables & read_inside) == 0) begin
                         mem_rdata <= 32'hffffffff;
                         mem_rvalid <= 1;
@@ -635,7 +636,6 @@ module pc386_vga #(
     end
 
     // ---- Scanout, DAC and capture ---------------------------------------------
-    wire [8:0] dac_scan_unused;
     pc386_vga_scanout #(
         .CAPTURE_BASE(CAPTURE_BASE),
         .DOT0_N(DOT0_N), .DOT0_D(DOT0_D), .DOT1_N(DOT1_N), .DOT1_D(DOT1_D)
@@ -667,6 +667,5 @@ module pc386_vga #(
         .frame_count(frame_count), .underflows(scanout_underflows), .capture_drops(capture_drops)
     );
     wire unused = ^{owner_full, owner_empty, owner_fill, fifo_count, gc_odd_even, chain_odd_even, seq_extended, crtc_index,
-                    dac_scan_unused, crtc[2], crtc[3], crtc[4], crtc[5], crtc[21], crtc[22]};
-    assign dac_scan_unused = 0;
+                    crtc[2], crtc[3], crtc[4], crtc[5], crtc[21], crtc[22]};
 endmodule

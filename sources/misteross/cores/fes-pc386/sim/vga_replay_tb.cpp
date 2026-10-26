@@ -14,7 +14,9 @@
 //     before it and the end of its capture. The reference renders it at the
 //     RTL's frame start, with its start address latched when the RTL latched
 //     it. 256-colour and dot-clock/2 frames are half the reference's width
-//     (Bochs doubles those pixels).
+//     (Bochs doubles those pixels). Matches are counted by size and mode,
+//     and by the picture marker (machine_tb's "M" lines) they follow until
+//     the next write.
 // Frames are not compared where the reference cannot show the RTL's picture,
 // each counted by name (sim/vga_divergences.toml lists every divergence with
 // its deciding case): text frames whose cursor or character blink phase
@@ -43,11 +45,12 @@
 namespace {
 
 struct Event {
-    char kind;          // I/O: I O; MMIO: R W
+    char kind;          // I/O: I O; MMIO: R W; M a picture marker
     uint64_t cycle;
     uint32_t address;   // port, or offset of the dword in A0000h-BFFFFh
     unsigned size;      // I/O bytes; MMIO byte enables
     uint32_t value;
+    std::string name;   // the marker's picture
 };
 
 std::vector<Event> load(const std::string &path) {
@@ -59,7 +62,9 @@ std::vector<Event> load(const std::string &path) {
         if (line.empty() || line[0] == '#') continue;
         std::istringstream fields(line);
         Event event{};
-        fields >> event.kind >> event.cycle >> std::hex >> event.address >> event.size >> event.value;
+        fields >> event.kind >> event.cycle;
+        if (event.kind == 'M') fields >> event.name;
+        else fields >> std::hex >> event.address >> event.size >> event.value;
         if (!fields) throw std::runtime_error("bad trace line: " + line);
         events.push_back(event);
     }
@@ -146,6 +151,7 @@ int main(int argc, char **argv) {
         uint64_t last_write = 0, last_latch = 0, window_start = 0;
         bool any_write = false;
         unsigned frame_index = 0;
+        std::string marker;   // the last picture marker, while its picture holds
         std::map<std::string, unsigned> counts;
         unsigned dumps = 0;
         unsigned long long read_mismatches = 0, replay_mismatches = 0, vram_mismatches = 0, frame_mismatches = 0;
@@ -209,6 +215,7 @@ int main(int argc, char **argv) {
                 ++counts["frames-matched"];
                 ++counts["frames-matched-" + std::to_string(rtl.width) + "x" + std::to_string(rtl.height) +
                          (reference_text ? "-text" : "-graphics")];
+                if (!marker.empty()) ++counts["frames-matched-at-" + marker];
             }
             // VRAM: no write since before this frame, so the coalescer has drained.
             const uint8_t *expected = reference->vram();
@@ -233,6 +240,7 @@ int main(int argc, char **argv) {
 
         for (const Event &event : events) {
             advance_to(event.cycle);
+            if (event.kind == 'M') { marker = event.name; continue; }
             bool write = event.kind == 'O' || event.kind == 'W';
             if (event.kind == 'I' || event.kind == 'O') {
                 while (bench.top.io_busy) { bench.clock(); observe(); }
@@ -281,7 +289,7 @@ int main(int argc, char **argv) {
                     else read_check("memory", physical, uint8_t(bench.top.mem_rdata >> (8 * k)), reference->mem_read(physical));
                 }
             }
-            if (write) { last_write = bench.cycles; any_write = true; }
+            if (write) { last_write = bench.cycles; any_write = true; marker.clear(); }
             ++counts[std::string("events-") + event.kind];
         }
         // Let the coalescer drain and the last frames finish.
