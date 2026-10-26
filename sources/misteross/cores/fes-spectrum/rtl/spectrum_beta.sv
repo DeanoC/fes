@@ -340,8 +340,8 @@ module spectrum_beta #(
                         intrq <= 1'b0;
                         if (wdata[7:4] == 4'hd) begin
                             // Type IV: abandon the command; I3 interrupts
-                            // now, I2 at the next index. Fuse's spinup
-                            // without the h bit loads the head.
+                            // now, I2 as the next index pulse ends. Fuse's
+                            // spinup without the h bit loads the head.
                             busy <= 1'b0;
                             wrprot <= 1'b0;
                             crc_error <= 1'b0;
