@@ -145,10 +145,27 @@ and lease-free.
     inserts included, and the 48K, 128K and Pentagon refused a class they do
     not run.
 
+- Run `tbB5` (07:45-08:04 EET) recorded the HDMI audio as well (the capture
+  card's ALSA device, 48 kHz), and every automatic check passed. Loudness is
+  per-second RMS in signed 16-bit units; the capture's floor is about 60.
+  - Manic Miner on the previous 48K seal: the tape's sound at about 2,340
+    through the load, silent only in its gaps.
+  - The same tape on `fes.spectrum` 0.6.0: silent through the turbo load
+    apart from blips up to 270 around typing `LOAD` and in the tape's first
+    gaps, then the title's beeper tune at 2,000-6,000 from the end of the load
+    (79 s). The mute holds while the deck plays, and sound returns when it
+    stops.
+  - Head Over Heels on `fes.spectrum128` 0.4.0 stayed silent through its load
+    and joystick menu.
+  - The Bubble Dizzy 128K snapshot on `fes.spectrum128` 0.4.0 and
+    `fes.pentagon` 0.5.0 played its title music at about 2,500 for the first
+    10 s, then went silent with the title still showing (the script presses
+    ENTER at 10 s; why the music stopped is not established). Fuse's save of
+    the same title has the AY playing three tone channels at volumes 12-15,
+    so this is the AY heard on hardware.
+
 ## Not established
 
-- Sound muting in turbo: no simulation checks it, and the kit recordings
-  carry no audio.
 - Full-length game loads at the model's speed in simulation (still running),
   and loaders other than the three games above.
 - A switch to load at the machine's own speed, for games that play music or
