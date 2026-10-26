@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "scope": "Retain immutable LUT/carry primitive references and reproduction; no XT timing or hardware acceptance.",
+  "FES_base_commit": "d44fa53aa0b8af97fd3f11c1405c060bc2fb729f",
+  "source_commit": "e7a1f0871f9382cb61720a0dbe6ff7b9a75148eb",
+  "compiler_dependency_merge": "97492a0425f25b53539dbb46a2615383d126a57e",
+  "compiler_pull_request": "https://github.com/DeanoC/nextpnr/pull/315",
+  "reference_issue": "https://github.com/DeanoC/nextpnr/issues/314",
+  "Mistral_commit": "5e311528d8a373503f3508b0dc916e876db0a7a8",
+  "input_sha256": {
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-lut-carry-reference.py": "7fe8a9de4a6e72161cd84a0182363335d639e5e3266cce877d5847f9f55cf33d",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/manifest.json": "31f83758e387d2cb18ed2f5e5c7b6453dcfba4eadf59432ac1f32ced60fc988f",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/reference.json.gz": "907f7eb411762be8ab672100351b2fe7230e74879b9856eb59532b9eddf87d93",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-carry-corner-reference/mistral/tests/lut-carry/capture.json.gz": "8f6669679e9fc3ccbdede9f9dee838bef4bfd47eb2a230bfb47641cca2b547f0",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-reference-reproduction-check.json": "c824fb2aebda200fb1b1e4aa4539d1692d5dc350bc462b2018496d3a26ad9fd5",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-committed-archive/receipt.json": "2190483bf551fae4bc0efd80782d3fb8173e5676aadc2d971a8b35d1dd7dd6aa",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-committed-archive/check.log": "10302dbb39be8d438b673b50783339226f4e3c86e487a9297762a16ba7df2bbc",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-reference-compiler-regressions.log": "a60307818f837ab9bdc2ae6bc6820a6eb4f17daeef444712f625fd4e18980aa6",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-reference-final-ctest.log": "e0171688137395f90a2f0ee2ccfbcda106c38b6320e0868e35b8a34a1184c9ee",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-reference-compressed-python-tests.log": "fb4025c31546cb7bf012ad25f82bdfdb5246b57deb892016060e3a451d196fc6",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-build/nextpnr-mistral-test": "d9fb1b69e0a73842ac9959753b222030ee7d454328748882e84518d65cb326f7",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-build/mistral/nextpnr-mistral-lut-carry-decode": "f9ca8de757029e32f05a4a0721b692487ff678651709f1805af9be06053c2582",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-build/mistral/libmistral/libmistral.a": "94897604f0fa5e58b1b6c9211d37eaba89d7cac257ec9668a3ea62ad1fd4a98a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed1/instrumented.json": "7a8789827b05aa0b61a0aa721bafa662c7194f13cfcf34ae0d812356cd4ab2ca",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/continued-runs.jsonl": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-v3-20261026/capture.json": "57ffcf6f855c4bd34a78c583410713f7251dc41f715cabbbd14c6d40b58655f3",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-reproduction-20261026/capture.json": "ef7a30ca3f971ac9e3552bc3f2d1dce596d74e660a58b8fcb09501b34ae2b3d7"
+  },
+  "corpus": {
+    "device": "5CSEBA6U23I7",
+    "fits": 8,
+    "primitive_placements": 120,
+    "corners": [
+      "7_slow_1100mv_100c",
+      "7_slow_1100mv_-40c",
+      "MIN_fast_1100mv_100c",
+      "MIN_fast_1100mv_-40c"
+    ],
+    "complete_primitive_arcs": 3664,
+    "valid_transition_intervals": 13968,
+    "independent_full_path_reports": 128,
+    "physical_A_rising_envelope_ps": {
+      "7_slow_1100mv_100c": [
+        440,
+        601
+      ],
+      "7_slow_1100mv_-40c": [
+        519,
+        704
+      ],
+      "MIN_fast_1100mv_100c": [
+        170,
+        226
+      ],
+      "MIN_fast_1100mv_-40c": [
+        171,
+        225
+      ]
+    },
+    "legacy_physical_A_rising_interval_ps": [
+      592,
+      605
+    ]
+  },
+  "tests": {
+    "parser_corruption_cases": 18,
+    "CMake_CTests": 2,
+    "compiler_Cpp_tests": 95,
+    "compiler_Cpp_source_matches_dependency_merge": true,
+    "committed_archive": {
+      "source_commit": "e7a1f0871f9382cb61720a0dbe6ff7b9a75148eb",
+      "command": [
+        "python3",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-carry-committed-archive/mistral/tests/lut-carry/reference.py",
+        "--decoder",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-carry-reference-build/mistral/nextpnr-mistral-lut-carry-decode"
+      ],
+      "returncode": 0,
+      "archive_sha256": "038fc946258cadeb2724276f889d4069efe055bbcba2400c0a2dfb698c55c51a",
+      "decoder_sha256": "f9ca8de757029e32f05a4a0721b692487ff678651709f1805af9be06053c2582",
+      "committed_bytes_only": true,
+      "hardware": false
+    }
+  },
+  "fresh_reproduction": {
+    "cases": [
+      {
+        "case": "lab-l5",
+        "arc_count": 400,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "lab-l6-top",
+        "arc_count": 240,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "lab-l6-bottom",
+        "arc_count": 240,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "lab-carry",
+        "arc_count": 952,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "mlab-l5",
+        "arc_count": 400,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "mlab-l6-top",
+        "arc_count": 240,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "mlab-l6-bottom",
+        "arc_count": 240,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      },
+      {
+        "case": "mlab-carry",
+        "arc_count": 952,
+        "all_normalized_records_identical": true,
+        "rbf_byte_identical": true,
+        "decoded_bitstream_identical": true
+      }
+    ],
+    "total_arcs": 3664,
+    "host_reproduction_pass": true,
+    "hardware": false
+  },
+  "frozen_XT_primitive_inventory": {
+    "boolean_LUT_cells": 7208,
+    "carry_cells": 1376,
+    "M10K_cells": 268
+  },
+  "native_search_journal": {
+    "entries": 133,
+    "sha256": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585"
+  },
+  "clocks_MHz": {
+    "CPU": 100,
+    "motherboard": 50,
+    "pixel": 74.25
+  },
+  "retained_failed_attempts": [
+    "lut-carry-characterization-20261026",
+    "lut-carry-characterization-v2-20261026",
+    "lut-carry-characterization-v3-20261026",
+    "lut-carry-characterization-v4-20261026",
+    "lut-carry-characterization-v6-20261026",
+    "lut-carry-carry-trial-v8-20261026",
+    "lut-carry-reference-20261026",
+    "lut-carry-reference-v2-20261026"
+  ],
+  "existing_conditional_timing_screen_unchanged": true,
+  "reference_data_only": true,
+  "production_timing_models_changed": false,
+  "private_corner_overrides_replaced": false,
+  "FES_locks_RTL_clock_phases_routes_and_shared_contracts_changed": false,
+  "native_fast_corner_qualified": false,
+  "whole_board_qualified": false,
+  "hardware": false
+}

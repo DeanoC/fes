@@ -1532,3 +1532,42 @@ observable exact-artifact hardware acceptance remain open. The historical
 producer seal is not refreshed. CPU/board/pixel clocks remain 100/50/74.25 MHz;
 RTL, PLL phases, FES locks, physical routes, runtime/shared contracts, packages,
 kits and the 133-entry native-search journal remain unchanged.
+
+### LUT and carry primitive references (26 October)
+
+[nextpnr #315](https://github.com/DeanoC/nextpnr/pull/315), source
+`e7a1f0871f9382cb61720a0dbe6ff7b9a75148eb`, retains eight fixed Quartus
+17.0.2 fits for LAB/MLAB paired L5, top/bottom LUT6 and twenty-stage carry
+chains. They cover every ALM position and both halves, with 120 fitted
+primitive placements, 3,664 complete four-corner primitive arcs and 13,968
+valid transition intervals. Independent launch-register witnesses and decoded
+RBF routes identify every data input. Native mode and source-truth checks
+include the MLAB mask permutation and a routed carry operand exchange;
+unsupported feedback modes reject. Another 128 full setup/hold reports
+independently match their CELL increments to the direct edge queries.
+
+Both CMake checks, all 18 real-fixture corruption tests and 95 compiler C++
+regressions pass. A fresh complete Quartus rebuild reproduces every normalized
+record, RBF byte and decoded configuration exactly. A clean Git archive of
+the committed fixtures also passes all eight RBF decodes. The latest #311
+CI tests are included through a normal dependency merge; production timing
+models and defaults are unchanged.
+
+The sampled physical-A rising interval is 440--601 ps at slow/100 C,
+519--704 ps at slow/-40 C, 170--226 ps at fast/100 C and 171--225 ps at
+fast/-40 C. The fixed compiler interval is 592--605 ps. Carry/sum observations
+also differ between ALM halves. These observations explain why slow-only
+combinational constants cannot qualify the earlier partial fast-corner
+screen. They are fitted references, not bounds for every mask, slew, load,
+packing arrangement or cross-LAB carry bridge.
+
+[The reference record](board50-lut-carry-reference.json) and
+[its harness](board50-lut-carry-reference-harness.json.gz) retain those
+identities and checks. The frozen XT layout still contains 7,208 boolean
+LUT/buffer/inverter cells, 1,376 carry cells and 268 M10Ks. Native cell/route
+integration and complete corner qualification remain open; the private
+corner overrides have not been replaced. The earlier conditional XT screen
+is unchanged and inherits no new qualification from these primitive fits.
+No XT route attempt, lock, RTL, clock frequency/phase, shared contract, kit
+or hardware-acceptance change is made here. The native-search journal remains
+133 entries with its existing digest.
