@@ -245,8 +245,9 @@ bench covers it); kit HDMI captures (M4); audio (M3); the mailbox wiring.
 
 ## Post-review verification, 27 October 2026
 
-The capture overflow and status-display-enable review fixes were present in
-the source used for these runs. Both requested simulation targets passed:
+The capture overflow and status-display-enable review fixes in commit
+`86cd58ea` were present in the source used for these runs. Both requested
+simulation targets passed:
 
 | Command | Result |
 | --- | --- |
