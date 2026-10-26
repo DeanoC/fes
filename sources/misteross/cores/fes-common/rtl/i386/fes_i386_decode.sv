@@ -10,11 +10,9 @@
 // Encodings the i386 rejects raise #UD (LOCK on any of these, MOV to CS or
 // to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
 // an instruction over 15 bytes raises #GP(0). Everything else, memory forms
-// included, decodes as FAULT_UNIMPLEMENTED.
-//
-// In 16-bit code an instruction whose next EIP passes FFFFh is also
-// FAULT_UNIMPLEMENTED: fetch would have to wrap to the segment's start, and
-// the CS-limit check that goes with it is not built yet (wrap16).
+// included, decodes as FAULT_UNIMPLEMENTED. In 16-bit code an instruction
+// whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED too, but D applies
+// that, since only D knows the instruction's EIP (fes_i386_cpu, wrap16).
 //
 // src1 is always the destination's register: a byte or word result merges
 // into its old value. A LOOP or JCXZ counts in CX or ECX by address size, which
@@ -22,7 +20,6 @@
 module fes_i386_decode (
     input  fes_i386_pkg::fetched_t q,
     input  logic                   code32,      // CS.D
-    input  logic                   wrap16,      // 16-bit code and the next EIP passes FFFFh
     output fes_i386_pkg::uop_t     uop,
     output logic                   opsize32,
     output logic                   lea,         // address operands go to AG
@@ -513,8 +510,7 @@ module fes_i386_decode (
     logic [2:0] fault;
     assign fault = !known ? 3'd4                                      // FAULT_UNIMPLEMENTED
                  : undefined || q.prefixes.lock ? 3'd1                // FAULT_UD
-                 : q.too_long ? 3'd2                                  // FAULT_GP0
-                 : wrap16 ? 3'd4 : 3'd0;
+                 : q.too_long ? 3'd2 : 3'd0;                          // FAULT_GP0
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
