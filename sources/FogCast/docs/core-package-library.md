@@ -510,8 +510,8 @@ package version 0.4.0: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB, then
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
 `fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
-`spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3` 0.4.0) or `pentagon-firmware`
-(48 KiB, `fes.pentagon` 0.4.0: 128, 48 BASIC, then TR-DOS), and role `cassette`
+`spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3` 0.5.0) or `pentagon-firmware`
+(48 KiB, `fes.pentagon` 0.5.0: 128, 48 BASIC, then TR-DOS), and role `cassette`
 for `fes.media.spectrum-tape` 2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of
 up to 32 MiB, media unit 0, converted to the unit's PZX stream when it is
 inserted. `fes.pentagon` also has role `disk` for `fes.media.spectrum-disk` 1.0

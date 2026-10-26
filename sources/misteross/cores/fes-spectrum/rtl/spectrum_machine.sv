@@ -16,6 +16,9 @@
 // Other reads return the ULA's floating bus where the model has one. The tape
 // deck plays a PZX image that the shell streams from its media store; a
 // restore stream in the same unit loads a snapshot instead (spectrum_snapshot).
+// While the deck plays (Fuse's loader detection starts and stops it), T
+// states take 5 clocks instead of 14 or 15: the machine loads about 3 times
+// faster and is otherwise unchanged, and the shell mutes its sound.
 //
 // The Pentagon has a Beta 128 disk interface (spectrum_beta) and a 48 KiB
 // firmware whose third page is TR-DOS. As in Fuse, TR-DOS pages in over the
@@ -56,6 +59,10 @@ module spectrum_machine #(
     input  wire [7:0]  tape_stream_data,
     output wire        tape_stream_take,
     output wire        tape_playing,
+    // Turbo: T states take 5 clocks while the deck plays, or always with
+    // turbo_always (the benches' check that turbo changes nothing in T states).
+    input  wire        turbo_always,
+    output wire        turbo,
     output wire [`SP_BUS_REQ-1:0] bus_request,
     input  wire [`SP_BUS_RSP-1:0] response1,
     output wire        pixel_we,
@@ -159,16 +166,16 @@ module spectrum_machine #(
         .mem_point(), .ula_io_point(), .request(contend_request)
     );
 
-    wire [2:0] screen_bank;
     wire [13:0] screen_addr;
-    wire [7:0] screen_data, floating;
+    wire [7:0] screen5_data, screen7_data, floating;
     reg [2:0] border_q = 3'd7;
+    assign turbo = turbo_always | tape_playing;
     spectrum_ula #(.MODEL(MODEL)) ula (
-        .clk(clk_sys), .reset(machine_reset), .tick_p(tick_p), .tick_n(tick_n),
+        .clk(clk_sys), .reset(machine_reset), .turbo(turbo), .tick_p(tick_p), .tick_n(tick_n),
         .contend_request(contend_request), .cpu_ce_p(cpu_ce_p), .cpu_ce_n(cpu_ce_n),
-        .int_n(int_n), .screen7(port_7ffd[3]), .screen_bank(screen_bank),
-        .screen_addr(screen_addr),
-        .screen_data(screen_data), .border(border_q), .floating(floating),
+        .int_n(int_n), .screen7(port_7ffd[3]), .screen_addr(screen_addr),
+        .screen5_data(screen5_data), .screen7_data(screen7_data),
+        .border(border_q), .floating(floating),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
         .pixel_data(pixel_data), .frame_done(frame_done)
     );
@@ -211,8 +218,8 @@ module spectrum_machine #(
     spectrum_ram #(.BANKS(PAGED ? 8 : 3)) ram (
         .clk(clk_sys), .cpu_we(mem_write & ~mem_write_q),
         .cpu_bank(cpu_map[2:0]), .cpu_offset(cpu_a[13:0]), .cpu_wdata(cpu_do),
-        .cpu_rdata(ram_data), .ula_bank(screen_bank), .ula_offset(screen_addr),
-        .ula_rdata(screen_data)
+        .cpu_rdata(ram_data), .ula_offset(screen_addr),
+        .ula5_rdata(screen5_data), .ula7_rdata(screen7_data)
     );
 
     // ------------------------------------------------------------------ I/O

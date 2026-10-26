@@ -93,19 +93,19 @@ class Model:
 MODELS = {model.key: model for model in (
     Model("48", "fes.spectrum", "FES ZX Spectrum 48K",
           "ZX Spectrum 48K: NMOS Z80 with ULA contention, linked 16 KiB firmware",
-          "0.5.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
+          "0.6.0", None, "spectrum-firmware", 16, 3_500_000, 69_888, 3,
           Path("build/fes-spectrum-oss")),
     Model("128", "fes.spectrum128", "FES ZX Spectrum 128K",
           "ZX Spectrum 128K/+2: NMOS Z80, ULA contention, AY-3-8912, 128 KiB paged RAM, "
-          "linked 32 KiB firmware", "0.3.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
+          "linked 32 KiB firmware", "0.4.0", "SPECTRUM_MODEL_128K", "spectrum128-firmware", 32,
           3_546_900, 70_908, 8, Path("build/fes-spectrum128-oss")),
     Model("plus3", "fes.spectrum-plus3", "FES ZX Spectrum +2A/+3",
           "ZX Spectrum +2A/+3: gate-array contention, all-RAM paging, AY-3-8912, "
-          "uPD765A +3 disk drive, linked 64 KiB firmware", "0.4.0", "SPECTRUM_MODEL_PLUS3",
+          "uPD765A +3 disk drive, linked 64 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PLUS3",
           "spectrum-plus3-firmware", 64, 3_546_900, 70_908, 8, Path("build/fes-spectrum-plus3-oss")),
     Model("pentagon", "fes.pentagon", "FES Pentagon 128",
           "Pentagon 128: uncontended 71,680 T-state frame, AY-3-8912, 128 KiB paged RAM, "
-          "Beta 128 TR-DOS drive, linked 48 KiB firmware", "0.4.0", "SPECTRUM_MODEL_PENTAGON",
+          "Beta 128 TR-DOS drive, linked 48 KiB firmware", "0.5.0", "SPECTRUM_MODEL_PENTAGON",
           "pentagon-firmware", 48,
           3_500_000, 71_680, 8, Path("build/fes-pentagon-oss")),
 )}
@@ -621,7 +621,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         snapshots.append("fes.media.spectrum-snapshot-plus3")
     # The Pentagon's Beta 128 reads the unit-1 raw track disk under TR-DOS,
     # and the +2A/+3's uPD765A reads it under +3DOS.
-    media = ".tzx/.tap/.pzx cassette, .z80/.sna snapshots"
+    media = ".tzx/.tap/.pzx cassette with turbo loading, .z80/.sna snapshots"
     if machine.key in DISK_MODELS:
         required.append(("fes.media.spectrum-disk", 1))
         snapshots.append(DISK_MODELS[machine.key][0])

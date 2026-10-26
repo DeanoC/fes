@@ -9,7 +9,8 @@
 
 // DE10-Nano shell for the FES ZX Spectrum models (fes.computer 1.0). The
 // mailbox, machine, tape and edge sockets run at 52.224 MHz; the ULA derives
-// the model's T state from it. Complete 50 Hz frames are shown 3x in 720p60
+// the model's T state from it, 5 clocks per T state while a tape loads in
+// turbo, when the sound is muted. Complete 50 Hz frames are shown 3x in 720p60
 // through the shared session-display plane. Audio leaves through 48 kHz I2S.
 // Sockets 1-4 are physical and vacant here; a linked card replaces the
 // vacant response. HPS DDR port 0 feeds the plane; port 1 holds the tape and,
@@ -190,7 +191,7 @@ module top #(
 
     wire [`SP_BUS_REQ-1:0] bus_request;
     wire [`SP_BUS_RSP-1:0] response1;
-    wire pixel_we, frame_done, tick, speaker, mic, ear;
+    wire pixel_we, frame_done, tick, turbo, speaker, mic, ear;
     wire [7:0] pixel_row, ay_pcm;
     wire [5:0] pixel_chunk;
     wire [15:0] pixel_data;
@@ -203,7 +204,7 @@ module top #(
         .disk_fetch_ready(disk_fetch_ready), .disk_fetch_data(disk_fetch_data),
         .tape_stream_enable(tape_stream_enable), .tape_stream_valid(tape_stream_valid),
         .tape_stream_data(tape_stream_data), .tape_stream_take(tape_stream_take),
-        .tape_playing(),
+        .tape_playing(), .turbo_always(1'b0), .turbo(turbo),
         .bus_request(bus_request),
         .response1(response1),
         .pixel_we(pixel_we), .pixel_row(pixel_row), .pixel_chunk(pixel_chunk),
@@ -277,7 +278,7 @@ module top #(
 
     wire signed [15:0] audio_sample;
     spectrum_audio audio_mix (
-        .clk(clk_sys), .reset(exec_reset), .tick(tick), .speaker(speaker), .mic(mic),
+        .clk(clk_sys), .reset(exec_reset), .tick(tick), .mute(turbo), .speaker(speaker), .mic(mic),
         .ear(ear), .ay_pcm(ay_pcm), .slot_audio(slot_audio), .sample(audio_sample)
     );
     fes_audio_output audio (

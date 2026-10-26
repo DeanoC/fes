@@ -25,7 +25,8 @@ the selected firmware image into the blank ROM lanes at download time.
 - `rtl/spectrum_ula.sv` owns the T-state clock. It derives each model's CPU
   rate from the 52.224 MHz system clock by a rational enable (875/13056 for
   3.5 MHz, 11823/174080 for 3.5469 MHz) and stretches the CPU clock for
-  contended accesses exactly as the ULA holds its clock high.
+  contended accesses exactly as the ULA holds its clock high. While the tape
+  plays, T states run at turbo speed (see Cassette).
 - `rtl/spectrum_contention.sv` decides which T states may be stretched, from
   the CPU's presented bus cycle. A Sinclair ULA checks T1 of every memory or
   fetch cycle and every internal T state that keeps a contended address on
@@ -78,6 +79,9 @@ from its next frame start, so the 50 Hz picture repeats whole frames in
 and centred, and the shared session-display plane (`fes_display_plane`,
 backed by HPS DDR) blends launcher frames over it.
 
+While the tape loads in turbo, frames come about three times faster than
+HDMI shows them, so the picture skips frames, and the sound is muted.
+
 The beeper level is OUT bit 4 plus MIC low or an EAR input, filtered as a
 coupled speaker. The 128K-class AY-3-8912 (`zonx_ay` in AY mode) runs at half
 the CPU clock and is DC-blocked. Socket PCM is summed with saturation. Audio
@@ -118,6 +122,20 @@ start it, and 2 reads more than 1000 T apart or with B jumping stop it. A
 tape therefore waits at its start until a loader runs, and pauses when the
 program stops loading. STOP blocks stop it (flag 1 only on the 48K) and the
 end of the tape stops and rewinds it. MIC writes are not returned to the host.
+
+While the tape plays, the machine runs in turbo: each T state takes 5 system
+clocks instead of 14 or 15, so the CPU runs at 10.44 MHz and a tape loads
+about 3 times faster (2.98x on the 48K and Pentagon, 2.94x on the 128K-class
+models). Everything else is counted in T states, so software cannot tell:
+contention, the frame interrupt, the screen and floating bus, the tape
+pulses, the AY and the disk controllers' timers. The ULA reads screen memory
+in the first three clocks of a T state, after a CPU write from the T state
+before lands and before the next one can, and reads the floating-bus byte a T
+state ahead. 5 clocks is the shortest exact T state: the CPU presents a new
+bus cycle two clocks after ce_p, the contention decision registers it a clock
+before tick_n, and ce_n and ce_p may not be on consecutive clocks. The machine
+returns to its own speed at the T state after the deck stops, so a game that
+stops the tape runs at its own speed from then on.
 
 ## Snapshots
 
@@ -247,8 +265,10 @@ the deck's loader detection, see its 1200 T pilot and decode the four bytes of
 its 350/700 T turbo block. It also checks the
 frame T state at which a contended timing loop finishes, against the value
 Fuse 1.6.0 gives for the same firmware on each model, and that a FLASH
-attribute swaps ink and paper every 16 frames. The snapshot simulation
-writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
+attribute swaps ink and paper every 16 frames. The diagnostic tape plays in
+turbo, and each model runs again with every T state in turbo (`--turbo`),
+which must give the same results. The snapshot simulation repeats this check.
+It writes a synthetic `.z80` for each model (48K on the 48K and Pentagon, 128K
 with interrupts in IM 2, +2A/+3 in an all-RAM mode), converts it with
 `cmd/fes-spectrum-restore` (Go), streams it with random gaps and checks every
 register, the paging ports, border, AY registers and all RAM at the first
@@ -343,8 +363,7 @@ lanes so routed cells keep their flat `machine.rom.laneN` names.
 ## Not implemented
 
 Disk writes, the +3's drive B and Scan commands, Beta drives B-D, the Pentagon's
-magic NMI button, tape write-back, accelerated tape loading
-(#999), `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
+magic NMI button, tape write-back, a switch to load at the machine's own speed, `.szx` snapshots and saving snapshots, ULAplus, Timex video modes and
 the IR-register snow effect. The previous TV80 shell is recorded in
 `docs/validation/2026-09-28-spectrum-pathfinder-seal.md`, and a kit ROM link of
 the 48K BASIC ROM in `docs/validation/2026-09-28-spectrum-basic-kit.md`. Those
