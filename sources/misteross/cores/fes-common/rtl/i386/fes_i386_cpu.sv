@@ -171,18 +171,23 @@ module fes_i386_cpu (
     logic cur_valid;
     assign cur_valid = dc_valid && !d_stop;
 
-    // EIP of the instruction in D, and of the next. In 16-bit code an
-    // instruction whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED: fetch
-    // would have to wrap to the segment's start, and the CS-limit check that
-    // goes with it is not built yet (wrap16). Such a uop keeps its
-    // destination, which nothing reads: it stops at WB, which writes nothing
-    // for a fault, and D issues nothing after it (d_stop).
+    // EIP of the instruction in D, and of the next. In 16-bit code EIP is
+    // not cut to 16 bits: an instruction that ends at offset FFFFh leaves
+    // EIP 10000h. CS's limit is FFFFh after every real-mode CS load, and an
+    // instruction that starts or runs past it raises #GP(0) at its fetch,
+    // before anything its decode found (cs_gp). Under a larger limit the
+    // general CS-limit check is not built yet, so that is
+    // FAULT_UNIMPLEMENTED (wrap16). A faulting uop keeps its destination,
+    // which nothing reads: it stops at WB, which writes nothing for a fault,
+    // and D issues nothing after it (d_stop).
     logic [31:0] d_eip, d_eip_next;
     logic [16:0] eip16;
-    logic        wrap16;
+    logic        past, wrap16, cs_gp, seg_cs_ffff;
     assign eip16 = {1'b0, d_eip[15:0]} + {13'd0, dc.length};
-    assign wrap16 = !code32 && eip16[16];
-    assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {16'd0, eip16[15:0]};
+    assign past = !code32 && (d_eip[31:16] != 16'd0 || eip16 > 17'h1_0000);
+    assign cs_gp = past && seg_cs_ffff;
+    assign wrap16 = past && !seg_cs_ffff;
+    assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {15'd0, eip16};
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
@@ -205,6 +210,7 @@ module fes_i386_cpu (
     always_comb begin
         u = dc.uop;
         if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        if (cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
     end
     assign opsize32 = dc.opsize32;
     assign lea = dc.lea;
@@ -213,7 +219,7 @@ module fes_i386_cpu (
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = dc.stop || d_unimpl;
+    assign stop = dc.stop || d_unimpl || cs_gp;
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early;
@@ -605,6 +611,7 @@ module fes_i386_cpu (
             seg_limit <= init_limit;
             seg_ar <= init_ar;
             for (int k = 0; k < 6; k++) seg_hi1[k] <= init_base[k][31:16] + 16'd1;
+            seg_cs_ffff <= init_limit[SEG_CS] == 32'h0000_ffff;
             for (int k = 0; k < 6; k++) begin
                 seg_lim[k][0] <= init_limit[k];
                 seg_lim[k][1] <= init_limit[k] - 32'd1;

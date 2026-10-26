@@ -603,11 +603,30 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         const Rtl::Event event = rtl.next();
         const std::string at = "@" + hex(before.eip) + ".";
 
+        // Fields this instruction leaves to the corpus. An entry that leaves it
+        // every field also decides whether it faults: the RTL's outcome stands,
+        // and the oracle takes the RTL's state and memory.
+        Fields skip = label_corpus;
+        const Facts fact = facts(code, code32, before.gpr[fes_i386::REG_ECX]);
+        for (const Entry &e : entries) {
+            if (!e.corpus || (!e.stems.empty() && !e.stems.count(fact.stem))) continue;
+            bool holds = true;
+            for (const auto &p : e.when) holds = holds && fact.predicates.count(p);
+            if (!holds) continue;
+            for (const auto &field : e.fields) skip.add(field);
+            ++summary.divergences[e.id];
+        }
+
         // Every byte the oracle writes is cleared after the run, its exception
         // frames included, which the RTL does not write yet.
         for (const auto &w : result.writes)
             for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
-        if (!result.events.empty() && !result.retired) {
+        const bool oracle_faulted = !result.events.empty() && !result.retired;
+        if (skip.all && event == Rtl::Event::Fault && !oracle_faulted) {
+            outcome.fault = rtl.top.trace_vector;
+            return outcome;
+        }
+        if (oracle_faulted && !(skip.all && event == Rtl::Event::Retired)) {
             // An exception: the RTL must raise it with nothing retired.
             const int vector = result.events.front().vector;
             if (event != Rtl::Event::Fault) {
@@ -656,17 +675,6 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             last_retirement = rtl.cycles;
         }
 
-        // Fields this retirement leaves to the corpus.
-        Fields skip = label_corpus;
-        const Facts fact = facts(code, code32, before.gpr[fes_i386::REG_ECX]);
-        for (const Entry &e : entries) {
-            if (!e.corpus || (!e.stems.empty() && !e.stems.count(fact.stem))) continue;
-            bool holds = true;
-            for (const auto &p : e.when) holds = holds && fact.predicates.count(p);
-            if (!holds) continue;
-            for (const auto &field : e.fields) skip.add(field);
-            ++summary.divergences[e.id];
-        }
         {
             // The bytes each side wrote, and their values, unless an entry
             // leaves memory to the corpus: then the oracle takes the RTL's.
