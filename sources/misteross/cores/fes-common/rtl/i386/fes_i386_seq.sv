@@ -95,8 +95,7 @@ module fes_i386_seq (
         n.push_eip = 1'b0;
         n.reads_seg = 1'b0;
         n.wseg = 6'd0;
-        n.slot = 2'd0;
-        n.b_t1 = 1'b0;
+        n.slot = 4'd0;
         n.a_t1 = 1'b0;
         n.popad_esp = 1'b0;
         case (d.seq)
@@ -125,7 +124,7 @@ module fes_i386_seq (
                     // slot is read whole, so its limit check is operand-sized,
                     // as the 386EX's is.
                     n.uop.dst.index = 4'd0;
-                    n.slot = 2'd1;
+                    n.slot = 4'd1;
                     n.more = 1'b1;
                 end else begin
                     to_far_jump(n);
@@ -188,7 +187,7 @@ module fes_i386_seq (
                 n.uop.mem.system = w.ivt;
                 if (w.stk != 3'd0) n.uop.mem.seg = fes_i386_pkg::SEG_SS;
                 n.uop.probe = w.probe;
-                n.uop.sp_write = w.stk == 3'(fes_i386_pkg::STK_PUSH) || w.stk == 3'(fes_i386_pkg::STK_POP);
+                n.uop.sp_write = w.stk == 3'(fes_i386_pkg::STK_PUSH) || w.stk == 3'(fes_i386_pkg::STK_POP) || w.sp_step;
                 n.uop.sp_add = w.sp_add;
                 n.uop.seg2 = w.far_jmp;
                 n.uop.seg2_idx = 3'd1;  // CS
@@ -208,10 +207,9 @@ module fes_i386_seq (
                 n.has_index = 1'b0;
                 n.scale = 2'd0;
                 n.push_eip = w.b == 2'd1;
-                n.b_t1 = w.b == 2'd2;
                 n.a_t1 = w.a_t1;
                 n.popad_esp = w.popad_esp;
-                n.reads_seg = w.b == 2'd3;
+                n.reads_seg = w.b == 2'd2;
                 n.seg_index = w.seg;
                 n.far_jmp = w.far_jmp;
                 n.far_chk = w.far_chk;

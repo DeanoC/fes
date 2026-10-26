@@ -3,8 +3,7 @@
 // (docs/i386-cpu-design.md): the front end (F1 to Q) on a memory port, then
 // D, AG, M1, M2, EX and WB for the one-uop register and immediate forms that
 // fes_i386_decode lists, with their memory forms on a data port that stands
-// for the L1D's output. There is no cache, microcode or exception delivery
-// yet.
+// for the L1D's output. There is no cache yet.
 //
 //   DC  decode (fes_i386_decode, fes_i386_amode) from Q's output register
 //   D   the GPR file and segment registers read; forwarding for data
@@ -24,9 +23,13 @@
 // late operands, the store merge and D's forwarding tables all hold as they
 // are; the tables only need clearing on a flush.
 //
-// A fault (#UD, #GP(0), #SS(0)) or an encoding this build does not implement stops
-// the CPU at WB with nothing retired, and so does HLT after it retires;
-// delivery waits for the microcode slice.
+// A fault (#UD, #GP(0), #SS(0), #NM) is taken at WB with nothing of its
+// instruction retired: WB flushes, and DC takes the exception's entry into
+// the microcode routine INT uses, which pushes FLAGS, CS and the faulting
+// instruction's IP and jumps through the vector table. An encoding this
+// build does not implement stops the CPU at WB, and so does a fault while an
+// exception is delivered (double fault and shutdown are not built), and HLT
+// after it retires.
 //
 // init_* is the architectural state reset loads. A machine ties it to the
 // 386 reset state; the lockstep harness loads a test's initial state.
@@ -63,10 +66,11 @@ module fes_i386_cpu (
     output logic [7:0][7:0]  dmem_wdata,
     output logic [7:0]       dmem_wmask,
     output logic             trace_retire,
-    output logic             trace_halt,           // stopped: HLT retired or a fault was raised
-    output logic             trace_fault,          // ... a fault, which is not delivered yet
+    output logic             trace_exception,      // the retirement delivered exception trace_vector
     output logic [7:0]       trace_vector,
-    output logic             trace_unimplemented,  // ... on an encoding not built yet
+    output logic             trace_halt,           // stopped: HLT retired, or ...
+    output logic             trace_unimplemented,  // ... an encoding not built yet, or a fault in a
+                                                   // delivery (trace_vector 8: double fault)
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic [7:0][31:0] arch_gpr,
     output logic [31:0]      arch_eflags,
@@ -117,6 +121,16 @@ module fes_i386_cpu (
     assign freeze = m2_load && !dmem_valid;
     assign wb_flush = !freeze && (wb_s.valid && wb_s.taken || wb_stop);
 
+    // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
+    // restart, and DC takes the exception's entry the cycle after
+    // (exc_inject). exc_active holds until the delivery's last uop retires; a
+    // fault before then stops the CPU instead.
+    logic       exc_take, exc_active, exc_inject;
+    logic [7:0] exc_vec;
+    assign exc_take = !freeze && wb_s.valid && !halted && !exc_active
+                   && wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
+                   && wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED;
+
     // ---- Start and redirect -------------------------------------------------------
     // After reset the front end starts at CS.base + EIP, one cycle after the
     // sum is registered.
@@ -132,10 +146,14 @@ module fes_i386_cpu (
         end
         start_linear <= seg_base[SEG_CS] + eip;
     end
-    assign redirect = start == 2'd2 || (!freeze && wb_s.valid && wb_s.taken
-                                         && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE);
-    assign redirect_linear = start == 2'd2 ? start_linear : wb_s.target;
-    assign redirect_eip = start == 2'd2 ? eip : wb_s.target_eip;
+    // A delivery refetches from the faulting instruction, or the one before
+    // (start_linear is a cycle old), which the delivery's far jump discards.
+    // D's EIP is the faulting instruction's, cut to 16 bits: the IP the
+    // routine pushes, which D's CS-limit check then passes.
+    assign redirect = start == 2'd2 || exc_take || (!freeze && wb_s.valid && wb_s.taken
+                                                    && wb_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE);
+    assign redirect_linear = start == 2'd2 || exc_take ? start_linear : wb_s.target;
+    assign redirect_eip = start == 2'd2 ? eip : exc_take ? {16'd0, eip[15:0]} : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
     logic     q_valid, d_ready, fe_mem_load;
@@ -166,7 +184,7 @@ module fes_i386_cpu (
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .ivt(q_ivt)
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .ivt(q_ivt), .slot(dc_q.slot)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -187,8 +205,6 @@ module fes_i386_cpu (
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
     assign dc_q.far_t = 1'b0;
-    assign dc_q.slot = 2'd0;
-    assign dc_q.b_t1 = 1'b0;
     assign dc_q.a_t1 = 1'b0;
     assign dc_q.popad_esp = 1'b0;
     assign d_ready = !dc_skid_valid;
@@ -205,6 +221,19 @@ module fes_i386_cpu (
     always_ff @(posedge clk) rom_ok <= dc_valid && !issue;
     assign uc_wait = dc.seq == fes_i386_pkg::SEQ_UCODE && dc.more && !rom_ok;
     fes_i386_seq seq (.d(dc), .w(rom_q), .n(dc_next));
+    // An exception's entry: a NOP that starts the ROM's vector routine with
+    // the fault's vector, at length 0, so the routine pushes D's EIP, the
+    // faulting instruction's. It goes in through dc_skid the cycle after the
+    // fault's flush, which has emptied DC and Q.
+    decoded_t dc_exc;
+    always_comb begin
+        dc_exc = '0;
+        dc_exc.uop.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
+        dc_exc.far_sel = {6'd0, exc_vec, 2'b00};
+        dc_exc.upc = fes_i386_ucode_pkg::UC_VECTOR;
+        dc_exc.seq = fes_i386_pkg::SEQ_UCODE;
+        dc_exc.more = 1'b1;
+    end
     assign dc_load = !dc_valid || (issue && !dc.more);
     always_ff @(posedge clk) begin
         if (reset || redirect) begin
@@ -212,14 +241,17 @@ module fes_i386_cpu (
             dc_skid_valid <= 1'b0;
         end else begin
             if (dc_load) dc_valid <= dc_skid_valid || q_valid;
-            if (dc_skid_valid) begin
+            if (exc_inject) begin
+                dc_skid_valid <= 1'b1;
+            end else if (dc_skid_valid) begin
                 if (dc_load) dc_skid_valid <= 1'b0;
             end else if (q_valid && !dc_load) begin
                 dc_skid_valid <= 1'b1;
             end
         end
         if (!dc_valid || issue) dc <= dc_valid && dc.more ? dc_next : dc_skid_valid ? dc_skid : dc_q;
-        if (!dc_skid_valid) dc_skid <= dc_q;
+        if (exc_inject) dc_skid <= dc_exc;
+        else if (!dc_skid_valid) dc_skid <= dc_q;
     end
 
     // ---- D ------------------------------------------------------------------------
@@ -281,16 +313,15 @@ module fes_i386_cpu (
                 st_sp_disp = -st_size;
             end
             fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
-            fes_i386_pkg::STK_PEEK: st_disp = dc.slot[1] ? st_size << 1 : dc.slot[0] ? st_size : 32'd0;
-            // A probe reads its routine's lowest slot: a far call's two
-            // pushes below ESP, INT's three words, PUSHA's eight, POPA's at ESP.
-            fes_i386_pkg::STK_PROBE:
-                case (dc.uop.probe)
-                    fes_i386_pkg::PROBE_INT: st_disp = -32'd6;
-                    fes_i386_pkg::PROBE_PUSHA: st_disp = -(st_size << 3);
-                    fes_i386_pkg::PROBE_POPA: st_disp = 32'd0;
-                    default: st_disp = -(st_size << 1);
-                endcase
+            // A slot, as a shift of the signed slot (no carry chain); its
+            // step of ESP goes past the eight slots, down from below ESP.
+            fes_i386_pkg::STK_PEEK: begin
+                st_disp = dc.opsize32 ? {{26{dc.slot[3]}}, dc.slot, 2'b00} : {{27{dc.slot[3]}}, dc.slot, 1'b0};
+                st_sp_disp = dc.slot[3] ? -(st_size << 3) : st_size << 3;
+            end
+            // A probe reads the lowest slot: INT's three words, or a far
+            // call's two pushes below ESP.
+            fes_i386_pkg::STK_PROBE: st_disp = dc.uop.probe == fes_i386_pkg::PROBE_INT ? -32'd6 : -(st_size << 1);
             fes_i386_pkg::STK_RETF: st_sp_disp = (dc.slot[0] ? st_size * 32'd3 : st_size << 1) + dc.uop.imm;
             default: ;
         endcase
@@ -316,8 +347,8 @@ module fes_i386_cpu (
     assign mseg = 3'(dc.uop.mem.seg);
     assign msize = dc.uop.mem.bytes[2] ? 2'd2 : dc.uop.mem.bytes[1] ? 2'd1 : 2'd0;
     assign expand_down = !seg_ar[mseg][3] && seg_ar[mseg][2];
-    // A routine's probe assumes SS's real-mode limit, FFFFh, under which only
-    // a slot that straddles the 64 KiB wrap faults.
+    // INT's probe assumes SS's real-mode limit, FFFFh, under which only a
+    // slot that straddles the 64 KiB wrap faults.
     assign d_unimpl = wrap16 || (mem && expand_down) || call_target_unimpl
                    || (dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_ffff);
 
@@ -331,7 +362,7 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = (dc.far_t || dc.b_t1 || dc.a_t1) && t_busy;
+    assign t_wait = (dc.far_t || dc.a_t1) && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
@@ -504,8 +535,7 @@ module fes_i386_cpu (
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
-        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1
-                : u.src2.valid ? b_val : u.imm;
+        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : u.src2.valid ? b_val : u.imm;
         d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;
         d_out.pend_a = u.src1.valid && a_pend;
         d_out.pend_b = u.src2.valid && b_pend;
@@ -634,21 +664,15 @@ module fes_i386_cpu (
     endfunction
     pipe_t m1_out;
     logic  m1_limit;
-    // A routine's probe reads its lowest slot. Under SS's limit of FFFFh a
-    // slot faults only by straddling the 64 KiB wrap, which some slot does
-    // when the slots wrap and start misaligned to their size: then the
-    // probe faults, before the routine writes anything. M1 records it
+    // INT's probe reads its lowest slot. Under SS's limit of FFFFh a slot
+    // faults only by straddling the 64 KiB wrap, which one of INT's three
+    // words does when they wrap (the lowest past FFFAh) at an odd offset:
+    // then the probe faults, before INT writes anything. M1 records it
     // (pbad) and M2 raises #SS(0) from that register, off M1's fault path;
     // a probe writes nothing and never branches, so a stage later is as good.
-    // The slots wrap when the lowest is past 10000h less their bytes: 6 for
-    // INT's three words, 16 or 32 for PUSHA's and POPA's eight.
-    logic m1_probe_bad, m1_wraps;
-    assign m1_wraps = !m1_s.uop.mem.addr32
-                   && (m1_s.uop.probe == fes_i386_pkg::PROBE_INT ? m1_s.moff[15:0] > 16'hfffa
-                       : m1_s.uop.size == fes_i386_pkg::SIZE_32 ? m1_s.moff[15:0] > 16'hffe0 : m1_s.moff[15:0] > 16'hfff0);
-    assign m1_probe_bad = m1_s.uop.probe != fes_i386_pkg::PROBE_NONE && m1_wraps
-                       && (m1_s.uop.probe != fes_i386_pkg::PROBE_INT && m1_s.uop.size == fes_i386_pkg::SIZE_32
-                           ? m1_s.moff[1:0] != 2'd0 : m1_s.moff[0]);
+    logic m1_probe_bad;
+    assign m1_probe_bad = m1_s.uop.probe == fes_i386_pkg::PROBE_INT && !m1_s.uop.mem.addr32
+                       && m1_s.moff[15:0] > 16'hfffa && m1_s.moff[0];
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE && (m1_s.moff > m1_s.mlimit || m1_s.mtiny);
     always_comb begin
         m1_out = capture(m1_s, 3'd3, wb_s.result);
@@ -739,7 +763,8 @@ module fes_i386_cpu (
     // and a flush only kills uops younger than WB, which have not. A shift
     // in WB still owes its flags (wb_flags): ex_flags lacks them for that
     // cycle, which no flag reader sees (flag_hazard), and takes them at its
-    // end.
+    // end. A faulting uop has passed EX too, but its flags never retire, so
+    // its delivery starts from WB's EFLAGS.
     logic [17:0] ex_flags, ex_flags_out, wb_flags, flags_keep;
     logic [31:0] ex_result;
     logic        ex_taken, ex_sh_out0, ex_sh_outn, ex_sh_cfw, ex_sh_wide, ex_def_co, ex_def_szap;
@@ -812,7 +837,7 @@ module fes_i386_cpu (
         end else if (ex_s.valid && !wb_flush) begin
             ex_flags <= ex_flags_out;
         end else begin
-            ex_flags <= flags_keep;
+            ex_flags <= exc_take ? eflags : flags_keep;
         end
         if (reset || wb_flush) begin
             wb_s.valid <= 1'b0;
@@ -852,8 +877,13 @@ module fes_i386_cpu (
         rt_bytes <= wb_s.uop.mem.bytes;
     end
 
+    // trace_vector: the delivered fault's vector, or 8 once a fault in a
+    // delivery has stopped the CPU.
+    always_ff @(posedge clk) exc_inject <= !reset && exc_take;
+    assign trace_vector = exc_vec;
     always_ff @(posedge clk) begin
         trace_retire <= 1'b0;
+        trace_exception <= 1'b0;
         if (reset) begin
             gpr <= init_gpr;
             eflags <= {init_eflags[17:2], 1'b1, init_eflags[0]};
@@ -872,18 +902,22 @@ module fes_i386_cpu (
                 seg_tiny[k] <= {init_limit[k] < 32'd3, init_limit[k] < 32'd1, 1'b0};
             end
             halted <= 1'b0;
-            trace_fault <= 1'b0;
-            trace_vector <= 8'd0;
             trace_unimplemented <= 1'b0;
+            exc_active <= 1'b0;
+            exc_vec <= 8'd0;
         end else if (wb_s.valid && !halted && !freeze) begin
-            if (wb_fault != 3'd0) begin
+            if (exc_take) begin
+                exc_active <= 1'b1;
+                exc_vec <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7 : 8'd12;
+            end else if (wb_fault != 3'd0) begin
+                // An encoding not built, or a fault in a delivery.
                 halted <= 1'b1;
-                trace_fault <= wb_fault != 3'd4;
-                trace_unimplemented <= wb_fault == 3'd4;
-                trace_vector <= wb_fault == 3'd1 ? 8'd6 : wb_fault == 3'd2 ? 8'd13 : wb_fault == 3'd3 ? 8'd7
-                              : wb_fault == 3'd5 ? 8'd12 : 8'd0;
+                trace_unimplemented <= 1'b1;
+                exc_vec <= wb_fault == 3'd4 ? 8'd0 : 8'd8;
             end else begin
                 trace_retire <= wb_eoi;
+                trace_exception <= wb_eoi && exc_active;
+                if (wb_eoi) exc_active <= 1'b0;
                 eflags <= wb_flags;
                 // EIP moves at an instruction's last uop, so a sequence that
                 // faults part way leaves it at the instruction.
