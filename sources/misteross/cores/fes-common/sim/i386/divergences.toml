@@ -239,7 +239,8 @@ follow = "corpus"
 [[vectors]]
 id = "popad-esp-high-word"
 title = "POPAD with a 16-bit stack loads the high word of ESP"
-files = ["6661"]
+opcodes = ["61"]
+when = ["opsize32"]
 fields = ["esp"]
 deciding_case = "6661#0"
 deciding_hash = "2c2b3ccba3ae932b8ae842cf03537265b1954ce8"

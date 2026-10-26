@@ -112,7 +112,13 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(self.predicates('C1.4', [0xC1, 0xE0, 0x21, 0xF4]), {'count>0'})  # 33 & 31
         self.assertEqual(self.predicates('0FA4', [0x0F, 0xA4, 0x06, 0x34, 0x12, 17, 0xF4]),
                          {'count>0', 'count>1', 'count>=width', 'count>width'})
-        self.assertEqual(self.predicates('660FA4', [0x66, 0x0F, 0xA4, 0xC0, 17, 0xF4]), {'count>0', 'count>1'})
+        self.assertEqual(self.predicates('660FA4', [0x66, 0x0F, 0xA4, 0xC0, 17, 0xF4]),
+                         {'count>0', 'count>1', 'opsize32'})
+
+    def test_operand_size_from_the_prefix(self):
+        self.assertEqual(self.predicates('6661', [0x66, 0x61, 0xF4]), {'opsize32'})
+        self.assertEqual(self.predicates('61', [0x61, 0xF4]), set())
+        self.assertEqual(self.predicates('F6.6', [0xF6, 0xF0, 0xF4]), set())
 
     def test_aam_zero_immediate(self):
         self.assertEqual(self.predicates('D4', [0xD4, 0x00, 0xF4]), {'imm8=0'})
