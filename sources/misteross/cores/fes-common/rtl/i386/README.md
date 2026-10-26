@@ -224,7 +224,9 @@ every field and routine.
   the 64 KiB wrap. Some slot does when the slots wrap and start misaligned
   to their size. M1 flags that (`pbad`), and M2 raises #SS(0) from the
   register, before the routine writes anything. Under any other SS limit the
-  routines are unimplemented.
+  routines are unimplemented. For PUSHA and POPA this differs from the
+  386EX, which moves the slots below the one that crosses first (divergence
+  `stack-wrap-partial-transfer`).
 - **The routines:**
   - PUSHA and PUSHAD keep ESP in T1 for its push.
   - POPA and POPAD read ESP's slot into T1. POPAD on a 16-bit stack takes
