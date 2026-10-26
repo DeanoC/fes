@@ -5,14 +5,15 @@
 // fes_i386_decode lists. M1 and M2 carry uops through; there is no data
 // memory, cache, microcode or exception delivery yet.
 //
-//   D   decode; the GPR file and segment registers read; forwarding for data
+//   DC  decode (fes_i386_decode, fes_i386_amode) from Q's output register
+//   D   the GPR file and segment registers read; forwarding for data
 //       operands (fes_i386_dops) and LEA's address (fes_i386_dfwd); EIP
 //   AG  LEA's address and a branch's target (fes_i386_agu)
 //   EX  ALU, shifter, flags, branch resolution (fes_i386_ex)
 //   WB  in-order commit
 //
 // Branches are predicted not taken. EX resolves them; a taken one redirects
-// F1 from WB and flushes every younger uop, which costs 9 cycles. No stage
+// F1 from WB and flushes every younger uop, which costs 10 cycles. No stage
 // behind D holds, so D's forwarding tables only need clearing on a flush.
 //
 // A fault (#UD, #GP(0)) or an encoding this build does not implement stops
@@ -55,6 +56,7 @@ module fes_i386_cpu (
     typedef fes_i386_pkg::pipe_t pipe_t;
     typedef fes_i386_pkg::uop_t uop_t;
     typedef fes_i386_pkg::fetched_t fetched_t;
+    typedef fes_i386_pkg::decoded_t decoded_t;
 
     localparam logic [1:0] EARLY = 2'd0, LATE = 2'd2;
     localparam int SEG_CS = 1;
@@ -104,44 +106,78 @@ module fes_i386_cpu (
         .q_valid, .q, .d_ready
     );
 
-    // ---- D ------------------------------------------------------------------------
-    // A one-entry skid register keeps D's stall out of Q's loop: Q may load
-    // its output whenever the skid is empty, and an instruction D cannot take
-    // that cycle moves into the skid.
-    fetched_t skid, cur;
-    logic     skid_valid, cur_valid;
+    // ---- DC ---------------------------------------------------------------------
+    // Q's output register is decoded into a two-entry buffer: dc holds the
+    // instruction D issues, and dc_skid takes Q's instruction when dc cannot.
+    // Q may load its output whenever dc_skid is empty, so D's stall stays out
+    // of Q's loop, and everything D's issue waits on starts from a register.
+    decoded_t dc, dc_skid, dc_q;
+    logic     dc_valid, dc_skid_valid;
     logic     d_stop;   // D issued a uop nothing after which can retire
     logic     issue;
-    assign cur = skid_valid ? skid : q;
-    assign cur_valid = (skid_valid || q_valid) && !d_stop;
-    assign d_ready = !skid_valid;
+    logic     dc_load;  // dc takes the next instruction
+    logic     dc_branch, dc_stack;  // not used yet
+    fes_i386_decode decode (
+        .q, .code32, .uop(dc_q.uop), .opsize32(dc_q.opsize32), .lea(dc_q.lea), .lea_early(dc_q.lea_early),
+        .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
+        .seg_index(dc_q.seg_index), .stop(dc_q.stop)
+    );
+    fes_i386_amode amode (
+        .modrm(q.bytes[1]), .sib(q.bytes[2]), .addr32(dc_q.uop.mem.addr32), .has_base(dc_q.has_base),
+        .base(dc_q.base), .has_index(dc_q.has_index), .index(dc_q.index), .scale(dc_q.scale), .stack(dc_stack)
+    );
+    assign dc_q.length = q.length;
+    assign d_ready = !dc_skid_valid;
+    assign dc_load = !dc_valid || issue;
     always_ff @(posedge clk) begin
         if (reset || redirect) begin
-            skid_valid <= 1'b0;
-        end else if (skid_valid) begin
-            if (issue) skid_valid <= 1'b0;
-        end else if (q_valid && !issue) begin
-            skid_valid <= 1'b1;
+            dc_valid <= 1'b0;
+            dc_skid_valid <= 1'b0;
+        end else begin
+            if (dc_load) dc_valid <= dc_skid_valid || q_valid;
+            if (dc_skid_valid) begin
+                if (dc_load) dc_skid_valid <= 1'b0;
+            end else if (q_valid && !dc_load) begin
+                dc_skid_valid <= 1'b1;
+            end
         end
-        if (!skid_valid) skid <= q;
+        if (dc_load) dc <= dc_skid_valid ? dc_skid : dc_q;
+        if (!dc_skid_valid) dc_skid <= dc_q;
     end
 
-    // EIP of the instruction in D, and of the next.
+    // ---- D ------------------------------------------------------------------------
+    logic cur_valid;
+    assign cur_valid = dc_valid && !d_stop;
+
+    // EIP of the instruction in D, and of the next. In 16-bit code an
+    // instruction whose next EIP passes FFFFh is FAULT_UNIMPLEMENTED: fetch
+    // would have to wrap to the segment's start, and the CS-limit check that
+    // goes with it is not built yet (wrap16). Such a uop keeps its
+    // destination, which nothing reads: it stops at WB, which writes nothing
+    // for a fault, and D issues nothing after it (d_stop).
     logic [31:0] d_eip, d_eip_next;
     logic [16:0] eip16;
     logic        wrap16;
-    assign eip16 = {1'b0, d_eip[15:0]} + {13'd0, cur.length};
+    assign eip16 = {1'b0, d_eip[15:0]} + {13'd0, dc.length};
     assign wrap16 = !code32 && eip16[16];
-    assign d_eip_next = code32 ? d_eip + {28'd0, cur.length} : {16'd0, eip16[15:0]};
+    assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {16'd0, eip16[15:0]};
 
     uop_t        u;
-    logic        opsize32, lea, lea_early, branch, consumes, reads_seg, stop;
+    logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
     logic [2:0]  seg_index;
     logic [31:0] lea_disp;
-    fes_i386_decode decode (
-        .q(cur), .code32, .wrap16, .uop(u), .opsize32, .lea, .lea_early, .lea_disp, .branch, .consumes, .reads_seg,
-        .seg_index, .stop
-    );
+    always_comb begin
+        u = dc.uop;
+        if (wrap16 && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+    end
+    assign opsize32 = dc.opsize32;
+    assign lea = dc.lea;
+    assign lea_early = dc.lea_early;
+    assign lea_disp = dc.lea_disp;
+    assign consumes = dc.consumes;
+    assign reads_seg = dc.reads_seg;
+    assign seg_index = dc.seg_index;
+    assign stop = dc.stop || wrap16;
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early;
@@ -181,17 +217,12 @@ module fes_i386_cpu (
     );
 
     // LEA's address.
-    logic        has_base, has_index, stack, lea_stall;
-    logic [2:0]  base, index;
-    logic [1:0]  scale, late, late_hi;
+    logic        lea_stall;
+    logic [1:0]  late, late_hi;
     logic [31:0] row, last;
-    fes_i386_amode amode (
-        .modrm(cur.bytes[1]), .sib(cur.bytes[2]), .addr32(u.mem.addr32), .has_base, .base, .has_index, .index,
-        .scale, .stack
-    );
     fes_i386_dfwd dfwd (
-        .clk, .reset(reset || wb_flush), .has_base(lea && has_base), .base, .has_index(lea && has_index), .index,
-        .scale, .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
+        .clk, .reset(reset || wb_flush), .has_base(lea && dc.has_base), .base(dc.base),
+        .has_index(lea && dc.has_index), .index(dc.index), .scale(dc.scale), .addr32(u.mem.addr32), .d_writes, .d_dst(u.dst.index[2:0]),
         .d_kind(lea && lea_early ? EARLY : LATE), .advance(issue), .prod_valid, .prod_dst, .prod_kind, .gpr,
         .stage_value, .row, .last, .late, .late_hi, .stall(lea_stall)
     );
@@ -269,7 +300,7 @@ module fes_i386_cpu (
             // wrapped by operand size.
             ag_addr32 <= opsize32;
             ag_row <= opsize32 ? d_eip : {16'b0, d_eip[15:0]};
-            ag_last <= {28'd0, cur.length};
+            ag_last <= {28'd0, dc.length};
             ag_late <= 2'd0;
             ag_late_hi <= 2'd0;
             ag_disp <= u.imm;
