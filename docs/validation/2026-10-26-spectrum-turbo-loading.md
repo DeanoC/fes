@@ -109,7 +109,8 @@ The kit runs below were made on the first turbo seals from `a8e165fc`:
 `4d501a44` and `fes.pentagon` `0afd828c`. Their RTL differs from the seals
 above only in the two controller fixes: the Pentagon's Force Interrupt I2,
 which TR-DOS 5.03 does not issue, and the +2A/+3's Sense Interrupt after a
-seek. The seals above were not run on a kit.
+seek. Run `i2B2` below repeated the disk and snapshot checks on the seals
+above.
 
 Kit B, on the running image `4db74864` with the stacked branches' kit
 software (bundle `c8b2a0c5`, built from `a5de9abb`; FogCast and the runtime
@@ -179,6 +180,22 @@ and lease-free.
     ENTER at 10 s; why the music stopped is not established). Fuse's save of
     the same title has the AY playing three tone channels at volumes 12-15,
     so this is the AY heard on hardware.
+
+- Run `i2B2` (16:34-16:57 EET) repeated run `tbB4`'s disk and snapshot
+  checks on the seals from `9da56232`, with the same kit software and a
+  private FogCast host built from `6ff4e487`, and every automatic check
+  passed (`HIL_VERDICT PASS`):
+  - `fes.spectrum-plus3` 0.5.0 booted Bubble Bobble, Batman: The Caped
+    Crusader and Beyond the Ice Palace from `.dsk` to the same screens as
+    before, and Chase H.Q. II inserted live changed only the medium.
+  - `fes.pentagon` 0.5.0 booted `tetris.trd` to its menu and refused a
+    `.dsk`. `fes.spectrum` 0.6.0 refused a disk.
+  - Every model restored the same `.z80` and `.sna` games as before, live
+    inserts included, to the same screens, and the 48K, 128K and Pentagon
+    refused a class they do not run.
+  - Kit B was restored to software `35d58489` on image `4db74864`, with the
+    card images and launcher files as found, and released idle and
+    lease-free.
 
 ## Not established
 
