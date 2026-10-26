@@ -162,7 +162,7 @@ module fes_i386_cpu (
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
-        .far_sel(dc_q.far_sel)
+        .far_sel(dc_q.far_sel), .wseg(dc_q.wseg)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -423,8 +423,7 @@ module fes_i386_cpu (
             t_busy <= issue && writes_temp_u(u) || writes_temp(ag_s) || writes_temp(m1_s) || writes_temp(m2_s)
                    || writes_temp(ex_s);
             for (int k = 0; k < 6; k++)
-                d_seg_busy[k] <= (issue && (u.dst.valid && u.dst.space == fes_i386_pkg::RS_SEG && u.dst.index[2:0] == 3'(k)
-                                            || u.seg2 && u.seg2_idx == 3'(k)))
+                d_seg_busy[k] <= issue && dc.wseg[k]
                                 || writes_seg(ag_s, k) || writes_seg(m1_s, k) || writes_seg(m2_s, k) || writes_seg(ex_s, k);
         end
         if (reset) begin
@@ -482,30 +481,22 @@ module fes_i386_cpu (
         end
         if (freeze) begin
             // AG keeps its uop's operands.
-        end else if (addr_use) begin
+        end else if (addr_use || dc.far_jmp) begin
             // LEA's offset, or a memory operand's address: its segment's
-            // base, wrapped like the offset by address size.
-            ag_addr32 <= u.mem.addr32;
+            // base, wrapped like the offset by address size. A far jump's
+            // target: the new CS's base, selector * 16, plus the offset,
+            // which is already its operand size's; with no base or index
+            // looked up, the rows are zero.
+            ag_addr32 <= dc.far_jmp || u.mem.addr32;
             ag_row <= row;
             ag_last <= last;
             ag_late <= late;
             ag_late_hi <= late_hi;
-            ag_disp <= stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
-            ag_seg_term <= lea ? 32'd0 : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
+            ag_disp <= dc.far_jmp ? far_off : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
+            ag_seg_term <= dc.far_jmp ? {12'd0, far_sel, 4'd0} : lea ? 32'd0
+                         : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
             ag_seg_hi <= lea ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea ? 16'd0 : seg_hi1[mseg];
-        end else if (dc.far_jmp) begin
-            // A far jump's target: the new CS's base, selector * 16, plus
-            // the offset, which is already its operand size's.
-            ag_addr32 <= 1'b1;
-            ag_row <= 32'd0;
-            ag_last <= 32'd0;
-            ag_late <= 2'd0;
-            ag_late_hi <= 2'd0;
-            ag_disp <= far_off;
-            ag_seg_term <= {12'd0, far_sel, 4'd0};
-            ag_seg_hi <= {12'd0, far_sel[15:12]};
-            ag_seg_hi_plus1 <= 16'd0;
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
             // wrapped by operand size.

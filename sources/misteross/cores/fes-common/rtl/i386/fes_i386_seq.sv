@@ -7,7 +7,9 @@
 // register at every step, and D issues the sequence one uop per cycle.
 //
 // Each step changes only the fields that differ from the uop before, so a
-// bit the sequence keeps is a hold, which DC's input select absorbs.
+// bit the sequence keeps is a hold, which DC's input select absorbs. The
+// one-bit controls below are set outright at every step instead: a hold on
+// one becomes an enable that Yosys builds after D's issue, a level deeper.
 //
 // SEQ_CALL (CALL rel): the push of the next EIP, then JMP rel by the
 // displacement the push carries in its imm, which a push does not use. The
@@ -37,9 +39,7 @@ module fes_i386_seq (
         q.uop.op = 5'd9;  // ALU_MOV
         q.uop.src_size = p.uop.size;
         q.uop.mem.bytes = p.opsize32 ? 4'd4 : 4'd2;
-        q.reads_seg = 1'b0;
         q.push_eip = 1'b1;
-        q.far_chk = 1'b0;
     endfunction
     // The far jump that ends a far transfer.
     function automatic void to_far_jump(inout fes_i386_pkg::decoded_t q);
@@ -49,9 +49,8 @@ module fes_i386_seq (
         q.uop.mem.kind = fes_i386_pkg::MEM_NONE;
         q.uop.seg2 = 1'b1;
         q.uop.ctl.end_of_instruction = 1'b1;
+        q.wseg = 6'b000010;  // CS
         q.stk = fes_i386_pkg::STK_NONE;
-        q.push_eip = 1'b0;
-        q.reads_seg = 1'b0;
         q.far_jmp = 1'b1;
     endfunction
 
@@ -59,6 +58,16 @@ module fes_i386_seq (
         n = d;
         n.step = d.step + 3'd1;
         n.more = 1'b0;
+        n.uop.sp_add = 1'b0;
+        n.uop.seg2 = 1'b0;
+        n.uop.ctl.end_of_instruction = 1'b0;
+        n.sel_part = 1'b0;
+        n.far_jmp = 1'b0;
+        n.far_chk = 1'b0;
+        n.far_t = 1'b0;
+        n.push_eip = 1'b0;
+        n.reads_seg = 1'b0;
+        n.wseg = 6'd0;
         case (d.seq)
             fes_i386_pkg::SEQ_CALL: begin
                 n.uop.sp_write = 1'b0;
@@ -67,7 +76,6 @@ module fes_i386_seq (
                 n.uop.mem.kind = fes_i386_pkg::MEM_NONE;
                 n.uop.ctl.end_of_instruction = 1'b1;
                 n.stk = fes_i386_pkg::STK_NONE;
-                n.push_eip = 1'b0;
             end
             fes_i386_pkg::SEQ_CALLF: begin
                 if (d.step == 3'd0) begin
@@ -89,7 +97,6 @@ module fes_i386_seq (
                     n.uop.dst.valid = 1'b0;
                     n.uop.sp_add = 1'b1;
                     n.stk = fes_i386_pkg::STK_RETF;
-                    n.sel_part = 1'b0;
                     n.far_chk = 1'b1;
                     n.far_t = 1'b1;
                 end
@@ -99,7 +106,6 @@ module fes_i386_seq (
                     // The offset into T1.
                     n.uop.dst.index = 4'b1000;
                     n.uop.mem.bytes = d.opsize32 ? 4'd4 : 4'd2;
-                    n.sel_part = 1'b0;
                     n.more = 1'b1;
                 end else if (d.seq == fes_i386_pkg::SEQ_JMPFM || d.step == 3'd3) begin
                     to_far_jump(n);
@@ -128,7 +134,6 @@ module fes_i386_seq (
                     n.more = 1'b1;
                 end else begin
                     to_push_eip(d, n);
-                    n.far_chk = 1'b0;
                     n.more = 1'b1;
                 end
             end
@@ -137,7 +142,7 @@ module fes_i386_seq (
                 n.uop.mem.bytes = d.opsize32 ? 4'd4 : 4'd2;
                 n.uop.seg2 = 1'b1;
                 n.uop.ctl.end_of_instruction = 1'b1;
-                n.sel_part = 1'b0;
+                n.wseg = 6'(1) << d.uop.seg2_idx;
             end
             default: ;
         endcase

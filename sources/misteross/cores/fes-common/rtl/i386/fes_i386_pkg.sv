@@ -270,6 +270,9 @@ package fes_i386_pkg;
         logic        far_chk;
         logic        far_t;
         logic [15:0] far_sel;
+        // The segment registers the uop writes, one-hot: its destination's
+        // or its second destination's (D's segment-busy update).
+        logic [5:0]  wseg;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
         // another uop follows (fes_i386_seq).
         logic [2:0]  seq;

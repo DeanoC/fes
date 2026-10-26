@@ -49,7 +49,8 @@ module fes_i386_decode (
     output logic                   sel_part,    // the uop reads a far pointer's selector
     output logic                   far_jmp,     // a far jump by far_sel:imm
     output logic                   far_chk,     // ... whose offset (imm) D checks against CS's limit
-    output logic [15:0]            far_sel
+    output logic [15:0]            far_sel,
+    output logic [5:0]             wseg         // the segment registers the uop writes, one-hot
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -814,6 +815,7 @@ module fes_i386_decode (
     assign u.seg2 = seg2 && fault == 3'd0;
     assign u.seg2_idx = seg2_idx;
     assign u.seg2_t = seg2_t;
+    assign wseg = (u.dst.valid && d_seg ? 6'(1) << d_idx : 6'd0) | (u.seg2 ? 6'(1) << seg2_idx : 6'd0);
     // A far pointer's selector follows its offset.
     assign far_sel = opsize32 ? {by[6], by[5]} : {by[4], by[3]};
     assign u.sp_add = 1'b0;
