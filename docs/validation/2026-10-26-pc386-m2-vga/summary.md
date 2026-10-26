@@ -10,7 +10,10 @@ test disk with the Bochs oracle as CPU. Every picture the test disk marks, at
 model's scaling of its capture, pixel for pixel. Replaying each run's VGA
 trace into the RTL VGA and into Bochs's own VGA, every register and VRAM read
 agrees, VRAM agrees after every stable frame and at the end, and every stable
-captured frame that Bochs can show equals Bochs's display of it. Opened on
+captured frame that Bochs can show equals Bochs's display of it: 103 of the
+test disk's 10,197 captured frames and 131 of the boot's 10,279, nearly all
+the rest being the tiny frames of the unprogrammed CRTC in the first
+milliseconds. Opened on
 launcher frames, the plane blends exactly over the presenter while capture
 writes load port 2. The first machine-only synthesis puts the M2 blocks
 inside their budgets and finds M1's AT core far over its own. This is a
@@ -20,7 +23,10 @@ meets the exit of phase M2 in the
 
 ## Inputs
 
-- misteross tree at `5412741d4a` on the PR branch (the synthesis ran on `99bfd3bb5c`, whose RTL is the same) (FES base `8bfd4ecc13`). The
+- The simulations ran at `5412741d4a` on the PR branch and the synthesis at
+  `99bfd3bb5c`, whose RTL is the same. This record is committed later on the
+  branch; the commits between change only tests, runner plumbing (a
+  `benches` suite), the affected-tests planner and docs. (FES base `8bfd4ecc13`). The
   machine is in [`cores/fes-pc386/`](../../../sources/misteross/cores/fes-pc386/README.md).
 - Firmware and disk as in the [M1 record](../2026-10-26-pc386-m1-freedos-boot/summary.md):
   `pc386-bios.bin` `8caa3f2f…`, `pc386-vgabios.bin` `69401dc8…`, the FreeDOS
@@ -63,7 +69,7 @@ The run: 44,395,819 instructions, 2.62 simulated seconds, about 3 minutes of
 wall time. No scanout underflow, capture drop, presenter or plane underflow.
 VGA port writes 4 clocks a byte (18,179) and 7 a word (1,332); 13,128,450
 port reads (retrace polling) at 6 clocks. Port 1 took 9,380,440 commands,
-port 2 1,344,977.
+port 2 1,344,977. The plane's underflow counter stayed at 0.
 
 Captures (guest resolution; the 720p frames are these scaled to 960 × 720
 between black bars):
@@ -131,9 +137,9 @@ measurements.
 | Result | `END prompt`: `dir` typed at `C:\>` lists the disk, read back from VRAM |
 | Instructions retired | 103,831,426 (M1: 104,108,642; VGA I/O now takes a clock more a byte) |
 | Simulated time | 4.30 s; first prompt at 2.40 s |
-| Wall time | about 6.5 minutes (M1 with the stand-in: 2 min 20 s) |
+| Wall time | about 6.5 minutes on an otherwise idle 24-core host (M1 with the stand-in: 2 min 20 s) |
 | I/O | `isa8` 75,597 at 74 clocks, `isa16` 209,152 at 38, VGA writes 823 bytes at 4 and 3,381 words at 7, VGA reads 6 at 6, INTA 86 at 146 |
-| VGA | 10,312 frames, no scanout underflow or capture drop; port 1 19,736,774 commands |
+| VGA | 10,312 frames, no scanout underflow, capture drop, presenter or plane underflow; port 1 19,736,774 commands |
 
 The VGA BIOS loads its font through the planar logic, every character the
 BIOS and FreeDOS print goes through the MMIO FIFO and the coalescer to DDR,
@@ -210,8 +216,19 @@ the AT core, outside M2.
   retrace interrupt, graphics-mode blink, cursor and display enable skew.
 - The ATA image stays on its own port; moving it onto port 2 is later work.
 - Simulation speed: the FreeDOS boot now takes about 6.5 minutes of wall
-  time (M1: 2 min 20 s), the VGA logic running on every system clock. The pixel clock
+  time on an idle 24-core host (M1: 2 min 20 s; several times longer under
+  load), the VGA logic running on every system clock. The pixel clock
   runs only around marked pictures.
+
+## Follow-up
+
+The AT core's memories into M10K, starting with the ATA sector buffer
+(`pc386_ata.sv`): it is read a 16-bit lane at a time combinationally (line
+166) and written 64 bits wide from the disk port and 16 from the data port,
+so it cannot map to a registered-read M10K. With the dirty map (128 × 16),
+CMOS (128 × 8), the 8042's RAM and FIFOs and the DMA register files it is
+most of the AT core's 14,510 flip-flops. The design budgets the ATA at 900
+ALMs and 3 M10K.
 
 ## Not covered
 
