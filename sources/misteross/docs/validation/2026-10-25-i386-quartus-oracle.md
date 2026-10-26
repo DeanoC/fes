@@ -3,12 +3,14 @@
 Dated record, 2026-10-25. Host-only diagnostic on Powerboat. No package, RBF
 or kit. Quartus is an oracle here and never the product path.
 
-The whole-CPU timing below was measured from older, pre-`at_start` Q-aligner
-source snapshots, not the RTL in this tree. Their JSONL qalign hashes are
-`55ebf99b` (branch snapshot) and `f4ffbb1d` (scratch snapshot); neither matches
-the qalign source at HEAD. Current `fes_i386_qalign.sv` reads `dec[start]` once
-into `at_start` and uses that copy for both `.run` and `.prefix`. Do not read
-these figures as timing for the current RTL.
+The JSONL timing captures use two historical qalign snapshots, neither of
+which is HEAD (`74747b58`). The branch rows use `55ebf99b`, which reads
+`dec[start].run` and `.prefix` separately, before the `at_start` copy. The
+scratch rows use `f4ffbb1d`, the DeanoC/yosys#59 copy that selects
+`at_start = dec[start]` for both fields. Scratch decode source `e9507da6`
+still has `known = reg_form`; it predates HEAD's group-1 fix in
+`9449de84` (`known = known && reg_form`). Do not read either set of figures as
+timing for the exact HEAD RTL.
 
 The question, from Deano: does the whole CPU's 53-62 MHz on the OSS flow
 come from the RTL or from the flow? Quartus 17.0.2 Lite fitted the same
@@ -91,9 +93,10 @@ CPU uses 23 RAM blocks in Quartus against 19 M10K in nextpnr.
 
 ## Whole CPU, MHz, seeds 1-4
 
-The scratch snapshot also includes the review's decode fix, a one-term change
-in D's group-1 arm. The nextpnr routes ran HIP through `gpu-run` with
-`NEXTPNR_REQUIRE_GPU=1`, with an 80 MHz target.
+The scratch rows use qalign `f4ffbb1d` with the `at_start` copy, but their
+decode source is `e9507da6`, before the review's one-term group-1 fix
+(`9449de84`) in HEAD. They do not include that decode fix. The nextpnr routes
+ran HIP through `gpu-run` with `NEXTPNR_REQUIRE_GPU=1`, with an 80 MHz target.
 
 | | nextpnr, scratch | Quartus, scratch, multiplies in logic | Quartus, scratch, DSP |
 | --- | --- | --- | --- |
