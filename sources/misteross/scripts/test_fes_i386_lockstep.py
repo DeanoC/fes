@@ -92,7 +92,7 @@ SCOPE: frozenset[str] = frozenset([
     '06', '07', '0E', '16', '17', '1E', '1F', '0FA0', '0FA1', '0FA8', '0FA9',
     '68', '6A', 'C2', 'C3', 'C9', 'E8', 'FF.4',
     # Far pointer loads: LES, LDS, LSS, LFS, LGS; far transfers.
-    'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA',
+    'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA', '9A', 'CA', 'CB', 'FF.3', 'FF.5',
 ])
 
 

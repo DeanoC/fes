@@ -250,6 +250,8 @@ module fes_i386_cpu (
                 st_sp_disp = -st_size;
             end
             fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
+            fes_i386_pkg::STK_PEEK: st_disp = dc.sel_part ? st_size : 32'd0;
+            fes_i386_pkg::STK_RETF: st_sp_disp = (st_size << 1) + dc.uop.imm;
             default: ;
         endcase
         if (!ss32) begin
@@ -820,8 +822,11 @@ module fes_i386_cpu (
                 // EIP moves at an instruction's last uop, so a sequence that
                 // faults part way leaves it at the instruction.
                 if (wb_s.uop.ctl.end_of_instruction) eip <= wb_s.taken ? wb_s.target_eip : wb_s.eip_next;
-                // A stack operation's ESP, which a destination of ESP overrides.
+                // A stack operation's ESP, which a destination of ESP overrides;
+                // RETF's step, at the stack's width.
                 if (wb_s.uop.sp_write) gpr[4] <= wb_s.sp_new;
+                if (wb_s.uop.sp_add)
+                    gpr[4] <= ss32 ? gpr[4] + wb_s.sp_new : {gpr[4][31:16], gpr[4][15:0] + wb_s.sp_new[15:0]};
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_GPR)
                     gpr[wb_s.uop.dst.index[2:0]] <= wb_s.result;
                 if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) begin

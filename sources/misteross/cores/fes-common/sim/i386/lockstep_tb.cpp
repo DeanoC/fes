@@ -489,7 +489,7 @@ struct Summary {
     // instruction that writes it (store_load: D holds it at least a cycle),
     // or closely follows a segment load (it waits for the base). A push or
     // pop right after one is stack_stack: one cycle, as its ESP is early
-    // from AG. Left out: CALL (two uops), LEAVE (on a 16-bit stack it waits
+    // from AG. Left out: CALL rel and ptr (several uops), LEAVE (on a 16-bit stack it waits
     // for ESP's high half), PUSH and POP of (E)SP, which read ESP as data,
     // and anything after POP (E)SP, which loads ESP.
     // Any other instruction right after a push or pop is after_stack: it
@@ -518,8 +518,8 @@ struct MemUse {
     bool any() const { return reads || writes; }
 };
 
-// A push (PUSH r, imm or Sreg, CALL rel) or a pop (POP r or Sreg, RET,
-// LEAVE): the forms without a ModRM.
+// A push (PUSH r, imm or Sreg, CALL rel or ptr) or a pop (POP r or Sreg,
+// RET, RETF, LEAVE): the forms without a ModRM.
 MemUse stack_use(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
@@ -530,9 +530,9 @@ MemUse stack_use(const uint8_t *code) {
         m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
     } else {
         m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
-                   op == 0x16 || op == 0x1e || op == 0xe8;
+                   op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a;
         m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
-                  op == 0xc3 || op == 0xc9;
+                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb;
     }
     return m;
 }
@@ -564,8 +564,10 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
-    } else if (op == 0xff && reg == 4) {  // JMP r/m
+    } else if (op == 0xff && (reg == 4 || reg == 5)) {  // JMP r/m, JMP m16:16/32
         m.reads = true;
+    } else if (op == 0xff && reg == 3) {  // CALL m16:16/32: the pointer, then the stack
+        m.reads = m.writes = true;
     } else if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3) || op == 0xfe || op == 0xff) {
         m.reads = m.writes = true;
     } else if (op == 0xf6 || op == 0xf7) {
@@ -640,8 +642,10 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     const bool zf = s.eflags & 0x40;
     if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
     else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
-    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea) taken = true;
-    else if (op == 0xff && ((code[i + 1] >> 3) & 7) == 4) taken = true;
+    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3 || op == 0xea || op == 0x9a ||
+             op == 0xca || op == 0xcb)
+        taken = true;
+    else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 3 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -748,8 +752,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.any() && since_segment < 6 ? summary.gap_after_segment
                            : op == 0x8c ? summary.gap_selector
                            : use.reads && store_before ? summary.gap_store_load
-                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0xc9 &&
-                                     op != 0x54 && op != 0x5c ? summary.gap_stack_stack
+                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0x9a &&
+                                     op != 0xc9 && op != 0x54 && op != 0x5c ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
                            : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)

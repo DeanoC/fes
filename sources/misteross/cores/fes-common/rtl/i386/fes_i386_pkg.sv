@@ -209,10 +209,13 @@ package fes_i386_pkg;
     // kin), written at WB with the selector in T0 (seg2_t) or in c. A
     // destination in RS_TEMP is T0 (16 bits), or T1 (32) with index bit 3,
     // which WB writes and no forwarding sees.
+    // sp_add: WB adds sp_new to ESP (RETF, whose jump flushes every younger
+    // uop, so nothing needs the new ESP sooner).
     typedef struct packed {
         logic        seg2;
         logic [2:0]  seg2_idx;
         logic        seg2_t;
+        logic        sp_add;
         logic        sp_write;
         uop_class_e  cls;
         logic [4:0]  op;
@@ -274,8 +277,10 @@ package fes_i386_pkg;
         logic        more;
     } decoded_t;
 
-    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE } stk_e;
-    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR } seq_e;
+    // STK_PEEK reads the stack without moving ESP (RETF's loads); STK_RETF
+    // is RETF's step of ESP, at its jump.
+    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF } stk_e;
+    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM } seq_e;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
     // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
