@@ -359,8 +359,8 @@ flowchart LR
 | F2 | Compare L1I tags with the ITLB page, select a way, register 16 bytes into the fetch buffer. A BTB hit redirects F1. | M10K output, equality compares, way mux: M2's shape. No decode, no carry chain |
 | L | Run the 16 per-byte length decoders on the registered bytes, and precompute each byte's next start for every operand- and address-size variant. | About seven LUT levels from flip-flops; no M10K output, no carry chain |
 | Q | Pick the precomputed next start at the current start, strip the last prefix, rotate the instruction bytes. | 32:1 select of a next start; no add in the loop |
-| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale; no carry chain |
-| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Last 3:2 row and compression, one carry chain, one select |
+| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale, and 32-bit CALL target-limit check |
+| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Final 3:2 row and compression, parallel linear and offset carry chains, a third stack-pointer adder, and selects |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain |
 | EX | Align and extend load data; late ALU, shifter and flags; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux |
@@ -380,6 +380,9 @@ flowchart LR
 | Any of the three results above used as a scaled index | +1 on its row |
 | Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
 | Mispredict resolved at AG / at EX | +5 / +8 |
+| CALL rel | Two issue cycles: push the next EIP, then JMP rel |
+| ESP read as data immediately after a stack operation | +1 while the stack operation is in AG |
+| LEAVE with a 16-bit stack | Waits until the older ESP high half is in a register |
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
@@ -576,10 +579,11 @@ descriptor-cache write retires.
 - **Address adders:** AG computes
   `linear = segment base + base + (index << scale) + displacement` with 4:2
   compression and one carry chain. In parallel it computes
-  `offset = base + (index << scale) + displacement` for the limit check. Phase
-  1's first AG put the five-way forwarding mux and the scaling in front of the
-  compression and routed at 77–81 MHz; that is why D now does both
-  ([rule 8](#platform-constraints)).
+  `offset = base + (index << scale) + displacement` for the limit check, with
+  its own carry chain. The third AG adder computes the stack operation's new
+  ESP/SP beside those address sums. Phase 1's first AG put the five-way
+  forwarding mux and the scaling in front of the compression and routed at
+  77–81 MHz; that is why D now does both ([rule 8](#platform-constraints)).
 - **16-bit wrap without a second chain.** With a 16-bit address size the offset
   wraps at 64 KiB but the linear sum must not carry the wrap. Correct and raw
   linear addresses differ only in bits 31:16. AG adds the base's low 16 bits to
@@ -590,8 +594,11 @@ descriptor-cache write retires.
   16-bit sums, so after the 32-bit chain AG adds just the address-size select.
   `[si+bx]` with BX = FFFFh then costs nothing.
 - **Stack:** PUSH, POP, CALL and RET compute the new ESP or SP at AG; SS.B
-  selects the width. ESP is an early result, so back-to-back pushes do not
-  stall.
+  selects the stack address width. The third adder produces ESP as an early
+  result for WB to write beside the main destination. A back-to-back push can
+  use it without a wait; ESP read as data stalls D for one cycle while the
+  producer is in AG. CALL rel uses two uops: push the next EIP, then issue JMP
+  rel. A 16-bit LEAVE waits until ESP's high half is in a register.
 - **Early ALU:** the register and immediate forms of ADD, ADC, SUB, SBB, AND,
   OR, XOR, CMP, TEST, INC, DEC, NEG, MOV and LEA execute at AG when their
   inputs are ready there. Otherwise they execute at EX. Results and flags move

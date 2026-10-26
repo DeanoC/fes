@@ -18,6 +18,11 @@
 // forwarding mux in EX is that 2:1 select from the WB register. An early
 // result (LEA) is ready in the M1 register from the cycle after AG.
 //
+// ESP has a second kind of producer: a stack operation writes it early from
+// AG (prod_sp), not as its destination. D does not read ESP as data while
+// such a producer is in AG (fes_i386_cpu). Once it reaches M1, prod_sp[0]
+// records it in this table as the early ESP value that will reach WB.
+//
 // The table follows the pipeline, as fes_i386_dfwd's does. D to WB only
 // ever hold together (hold), when nothing moves, so the table keeps its
 // state.
@@ -38,8 +43,10 @@ module fes_i386_dops (
     input  logic [3:0]       prod_valid,    // writes a GPR
     input  logic [3:0][2:0]  prod_dst,
     input  logic [3:0]       prod_early,
+    input  logic [3:0]       prod_sp,       // writes ESP early from AG (a stack operation), not as its dst
     input  logic [7:0][31:0] gpr,
     input  logic [3:0][31:0] stage_value,   // M1, M2, EX and WB result registers
+    input  logic [31:0]      wb_sp,         // the WB register's ESP from AG (pipe_t sp_new)
     output logic [31:0]      a,
     output logic [31:0]      b,
     output logic [31:0]      c,             // ECX
@@ -57,6 +64,9 @@ module fes_i386_dops (
     logic [7:0][3:0] ready_next, ready;
     logic [7:0]      pend_next, pend_now;
     logic [7:0][2:0] dist_next, dist_now;
+    // ESP from a stack operation stays in the result field through EX's
+    // register; in WB's it is sp_new (sp_wb).
+    logic [7:0]      sp_wb_next, sp_wb;
     logic [7:0]      in_ag;  // the uop now in D writes this GPR
     logic            left;
 
@@ -65,29 +75,35 @@ module fes_i386_dops (
             ready_next[r] = 4'b0000;
             pend_next[r] = 1'b0;
             dist_next[r] = 3'd0;
-            // Oldest first, so the youngest producer decides.
-            if (prod_valid[3] && prod_dst[3] == 3'(r)) begin
+            sp_wb_next[r] = 1'b0;
+            // Oldest first, so the youngest producer decides. A stack
+            // operation's ESP is early.
+            if (prod_valid[3] && prod_dst[3] == 3'(r) || r == 4 && prod_sp[3]) begin
                 // In WB next cycle, computed.
                 ready_next[r] = 4'b1000;
                 pend_next[r] = 1'b0;
+                sp_wb_next[r] = !(prod_valid[3] && prod_dst[3] == 3'(r));
             end
-            if (prod_valid[2] && prod_dst[2] == 3'(r)) begin
+            if (prod_valid[2] && prod_dst[2] == 3'(r) || r == 4 && prod_sp[2]) begin
                 // In EX next cycle.
-                ready_next[r] = prod_early[2] ? 4'b0100 : 4'b0000;
-                pend_next[r] = !prod_early[2];
+                ready_next[r] = prod_early[2] || !(prod_valid[2] && prod_dst[2] == 3'(r)) ? 4'b0100 : 4'b0000;
+                pend_next[r] = !prod_early[2] && prod_valid[2] && prod_dst[2] == 3'(r);
                 dist_next[r] = 3'd4;
+                sp_wb_next[r] = 1'b0;
             end
-            if (prod_valid[1] && prod_dst[1] == 3'(r)) begin
+            if (prod_valid[1] && prod_dst[1] == 3'(r) || r == 4 && prod_sp[1]) begin
                 // In M2 next cycle.
-                ready_next[r] = prod_early[1] ? 4'b0010 : 4'b0000;
-                pend_next[r] = !prod_early[1];
+                ready_next[r] = prod_early[1] || !(prod_valid[1] && prod_dst[1] == 3'(r)) ? 4'b0010 : 4'b0000;
+                pend_next[r] = !prod_early[1] && prod_valid[1] && prod_dst[1] == 3'(r);
                 dist_next[r] = 3'd3;
+                sp_wb_next[r] = 1'b0;
             end
-            if (prod_valid[0] && prod_dst[0] == 3'(r)) begin
+            if (prod_valid[0] && prod_dst[0] == 3'(r) || r == 4 && prod_sp[0]) begin
                 // In M1 next cycle.
-                ready_next[r] = prod_early[0] ? 4'b0001 : 4'b0000;
-                pend_next[r] = !prod_early[0];
+                ready_next[r] = prod_early[0] || !(prod_valid[0] && prod_dst[0] == 3'(r)) ? 4'b0001 : 4'b0000;
+                pend_next[r] = !prod_early[0] && prod_valid[0] && prod_dst[0] == 3'(r);
                 dist_next[r] = 3'd2;
+                sp_wb_next[r] = 1'b0;
             end
         end
     end
@@ -96,11 +112,13 @@ module fes_i386_dops (
         if (reset) begin
             ready <= '0;
             pend_now <= '0;
+            sp_wb <= '0;
             in_ag <= '0;
             left <= 1'b0;
         end else if (!hold) begin
             ready <= ready_next;
             pend_now <= pend_next;
+            sp_wb <= sp_wb_next;
             for (int r = 0; r < 8; r++) in_ag[r] <= d_writes && d_dst == 3'(r);
             left <= advance;
         end
@@ -117,8 +135,8 @@ module fes_i386_dops (
     logic [7:0][2:0]  ahead;
     for (genvar r = 0; r < 8; r++) begin : g_value
         assign value[r] = ({32{ready[r][0]}} & stage_value[0]) | ({32{ready[r][1]}} & stage_value[1])
-                        | ({32{ready[r][2]}} & stage_value[2]) | ({32{ready[r][3]}} & stage_value[3])
-                        | ({32{ready[r] == 4'b0000}} & gpr[r]);
+                        | ({32{ready[r][2]}} & stage_value[2]) | ({32{ready[r][3] && !sp_wb[r]}} & stage_value[3])
+                        | ({32{ready[r][3] && sp_wb[r]}} & wb_sp) | ({32{ready[r] == 4'b0000}} & gpr[r]);
         assign pend[r] = (left && in_ag[r]) || pend_now[r];
         assign ahead[r] = left && in_ag[r] ? 3'd1 : dist_now[r];
     end

@@ -86,6 +86,11 @@ SCOPE: frozenset[str] = frozenset([
     'F4', 'F5', 'F8', 'F9', 'FA', 'FB', 'FC', 'FD',
     *(f'{opcode:02X}' for opcode in [*range(0x70, 0x80), *range(0xB0, 0xC0)]),
     *(f'0F{opcode:02X}' for opcode in range(0x80, 0x90)),
+    # The stack: PUSH and POP of registers, immediates and segment registers,
+    # CALL rel, RET, LEAVE and JMP r/m.
+    *(f'{opcode:02X}' for opcode in range(0x50, 0x60)),
+    '06', '07', '0E', '16', '17', '1E', '1F', '0FA0', '0FA1', '0FA8', '0FA9',
+    '68', '6A', 'C2', 'C3', 'C9', 'E8', 'FF.4',
 ])
 
 
@@ -145,6 +150,17 @@ def run_reset_store(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
+def run_directed(testbench: str, env: dict) -> dict:
+    env = dict(env, FES_I386_MODE='directed', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 3:
+        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 3 cases')
+    return {'summary': summary, 'failures': failures}
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -195,7 +211,8 @@ def hold_failures(gaps: dict) -> list[str]:
     """D's flag and store holds, cycle-exactly where nothing else can hold:
     without latency a flag consumer right after a shift or rotate retires two
     cycles after it, and anything else one; a memory read right after a store
-    at least two, and any other instruction after a store one."""
+    at least two, any other instruction after a store one, and a push or pop
+    right after another one (lockstep_tb.cpp's Summary says which)."""
     failures = [f'FAIL flag hold: {count} {key} retirements {gap} cycles apart'
                 for key, expected in (('shift_consumer', 2), ('after_shift', 1))
                 for gap, count in gaps[key].items() if gap != expected]
@@ -203,6 +220,8 @@ def hold_failures(gaps: dict) -> list[str]:
                  for gap, count in gaps['store_load'].items() if gap < 2]
     failures += [f'FAIL store hold: {count} after_store retirements {gap} cycles apart'
                  for gap, count in gaps['after_store'].items() if gap != 1]
+    failures += [f'FAIL stack hold: {count} stack_stack retirements {gap} cycles apart'
+                 for gap, count in gaps['stack_stack'].items() if gap != 1]
     return failures
 
 
@@ -293,6 +312,7 @@ def main() -> int:
         testbench = str(verilate(verilator, linked, args.jobs, yosys))
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
         reset_store = run_reset_store(testbench, env)
+        directed = run_directed(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
         if args.download:
@@ -352,16 +372,20 @@ def main() -> int:
     gaps = {key: dict(sorted(sum((Counter({int(gap): count for gap, count in result['summary']['gaps'][key].items()})
                                   for result in steady_results), Counter()).items()))
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
-                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment')}
+                        'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
+                        'after_stack', 'stack_stack')}
     held = hold_failures(gaps)
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    if corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures:
+    directed_failures = directed['failures']
+    if (corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
+            or directed_failures):
         exit_code = 1
     report.update({
         'reset_store': reset_store,
+        'directed_faults': directed,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
@@ -401,7 +425,8 @@ def main() -> int:
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
-    for line in (reset_store_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
+    print(f"directed faults: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
+    for line in (reset_store_failures + directed_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

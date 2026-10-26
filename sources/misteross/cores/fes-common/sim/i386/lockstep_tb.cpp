@@ -32,9 +32,11 @@
 //           corpus's final state, undefined flags included.
 //   random  FES_I386_PROGRAMS random programs from FES_I386_SEED: register,
 //           immediate and 16-bit-addressed memory forms of the slice's
-//           instructions with prefixes, forward branches, bounded LOOPs and
-//           backward jumps, so results forward between instructions and taken
-//           branches kill younger producers. A run stops at its HLT, after
+//           instructions with prefixes, forward branches, bounded LOOPs,
+//           backward jumps, pushes and pops, CALLs to subroutines that RET
+//           and PUSH BP / MOV BP, SP / LEAVE frames, so results forward
+//           between instructions and taken branches kill younger producers.
+//           A run stops at its HLT, after
 //           FES_I386_RETIRE_LIMIT retirements, or at a store into its own
 //           code, which needs self-modifying-code detection the RTL does not
 //           have yet.
@@ -42,6 +44,8 @@
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
 //   reset-store a store waiting in WB must not write memory on a reset edge.
+//   directed  out-of-limit CALL/RET/JMP faults, followed by a check that fetch,
+//             issue and data reads stay inactive after each fault.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -485,12 +489,17 @@ struct Summary {
     // An instruction with a memory operand is an address one (as LEA, its
     // address may wait in D) unless it reads memory right after an
     // instruction that writes it (store_load: D holds it at least a cycle),
-    // or closely follows a segment load (it waits for the base). Any other
-    // instruction after a store, not after a shift, is after_store: one
-    // cycle, as D's store hold must not catch it.
+    // or closely follows a segment load (it waits for the base). A push or
+    // pop right after one is stack_stack: one cycle, as its ESP is early
+    // from AG. Left out: CALL (two uops), LEAVE (on a 16-bit stack it waits
+    // for ESP's high half), PUSH and POP of (E)SP, which read ESP as data,
+    // and anything after POP (E)SP, which loads ESP.
+    // Any other instruction right after a push or pop is after_stack: it
+    // waits in D if it reads ESP. Any other after a store, not after a shift, is
+    // after_store: one cycle, as D's store hold must not catch it.
     std::map<uint64_t, uint64_t> gap_sequential, gap_prefixed, gap_lea, gap_selector, gap_after_taken,
         gap_after_not_taken, gap_shift_consumer, gap_after_shift, gap_store_load, gap_after_store,
-        gap_address, gap_after_segment;
+        gap_address, gap_after_segment, gap_after_stack, gap_stack_stack;
     uint64_t smc = 0;  // runs stopped at a store into their own code
     uint64_t load_waits = 0;
 };
@@ -504,13 +513,34 @@ void hash_state(Summary &summary, const State &s) {
     mix(s.eflags);
 }
 
-// What an instruction does with its ModRM memory operand, if it has one in
-// this build: reads it, writes it, or both.
+// What an instruction does with memory in this build: its ModRM memory
+// operand, or the stack. Reads, writes, or both.
 struct MemUse {
     bool reads = false, writes = false;
     bool any() const { return reads || writes; }
 };
+
+// A push (PUSH r, imm or Sreg, CALL rel) or a pop (POP r or Sreg, RET,
+// LEAVE): the forms without a ModRM.
+MemUse stack_use(const uint8_t *code) {
+    unsigned i = 0;
+    while (i < 15 && is_prefix(code[i])) ++i;
+    MemUse m;
+    const uint8_t op = code[i];
+    if (op == 0x0f) {
+        m.writes = code[i + 1] == 0xa0 || code[i + 1] == 0xa8;
+        m.reads = code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
+    } else {
+        m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
+                   op == 0x16 || op == 0x1e || op == 0xe8;
+        m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
+                  op == 0xc3 || op == 0xc9;
+    }
+    return m;
+}
+
 MemUse mem_use(const uint8_t *code) {
+    if (stack_use(code).any()) return stack_use(code);
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
     MemUse m;
@@ -535,6 +565,8 @@ MemUse mem_use(const uint8_t *code) {
         m.reads = true;
     } else if (op == 0x88 || op == 0x89 || op == 0x8c || op == 0xc6 || op == 0xc7) {
         m.writes = true;
+    } else if (op == 0xff && reg == 4) {  // JMP r/m
+        m.reads = true;
     } else if (op == 0xc0 || op == 0xc1 || (op >= 0xd0 && op <= 0xd3) || op == 0xfe || op == 0xff) {
         m.reads = m.writes = true;
     } else if (op == 0xf6 || op == 0xf7) {
@@ -544,11 +576,12 @@ MemUse mem_use(const uint8_t *code) {
     return m;
 }
 
-// A segment load (MOV Sreg, r/m).
+// A segment load (MOV Sreg, r/m or POP Sreg).
 bool loads_segment(const uint8_t *code) {
     unsigned i = 0;
     while (i < 15 && is_prefix(code[i])) ++i;
-    return code[i] == 0x8e;
+    if (code[i] == 0x0f) return code[i + 1] == 0xa1 || code[i + 1] == 0xa9;
+    return code[i] == 0x8e || code[i] == 0x07 || code[i] == 0x17 || code[i] == 0x1f;
 }
 
 // A shift or rotate: group 2, SHLD or SHRD.
@@ -575,6 +608,7 @@ bool consumes_flags(const uint8_t *code) {
 
 // A branch's opcode and whether it is taken from this state, as the 386
 // decides: Jcc by its condition, LOOPcc and JCXZ by CX or ECX (address size).
+// CALL, RET and JMP r/m are always taken.
 bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken) {
     unsigned i = 0;
     bool as32 = code32;
@@ -603,7 +637,8 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
     const bool zf = s.eflags & 0x40;
     if (op >= 0x70 && op < 0x80) taken = cond(op & 15);
     else if (op == 0x0f && code[i + 1] >= 0x80 && code[i + 1] < 0x90) taken = cond(code[i + 1] & 15);
-    else if (op == 0xe9 || op == 0xeb) taken = true;
+    else if (op == 0xe9 || op == 0xeb || op == 0xe8 || op == 0xc2 || op == 0xc3) taken = true;
+    else if (op == 0xff && ((code[i + 1] >> 3) & 7) == 4) taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -628,7 +663,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
     Outcome outcome;
     uint64_t last_retirement = 0;
     bool retired_before = false, branch_before = false, taken_before = false, shift_before = false;
-    bool store_before = false;
+    bool store_before = false, stack_before = false, pop_sp_before = false;
     unsigned since_segment = 99;  // retirements since a segment load
     for (uint64_t step = 0;; ++step) {
         if (step == retire_limit) {
@@ -710,13 +745,18 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.any() && since_segment < 6 ? summary.gap_after_segment
                            : op == 0x8c ? summary.gap_selector
                            : use.reads && store_before ? summary.gap_store_load
+                           : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0xc9 &&
+                                     op != 0x54 && op != 0x5c ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
+                           : stack_before ? summary.gap_after_stack
                            : shift_before ? (consumes_flags(code) ? summary.gap_shift_consumer : summary.gap_after_shift)
                            : store_before ? summary.gap_after_store
                                           : summary.gap_sequential;
                 ++gaps[rtl.cycles - last_retirement];
             }
             store_before = use.writes;
+            stack_before = stack_use(code).any();
+            pop_sp_before = op == 0x5c;
             since_segment = loads_segment(code) ? 0 : since_segment + 1;
             retired_before = true;
             branch_before = branch_taken(code, before, code32, taken_before);
@@ -767,6 +807,105 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (outcome.smc) return outcome;
     }
+}
+
+void check_fault_quiet(Rtl &rtl, const std::string &label, Mismatches &out) {
+    bool fault_cleared = false, fetched = false, issued = false, read = false;
+    for (unsigned cycle = 0; cycle < 32; ++cycle) {
+        rtl.top.clk = 0;
+        rtl.top.eval();
+        fault_cleared = fault_cleared || !rtl.top.trace_fault;
+        fetched = fetched || rtl.top.mem_load;
+        issued = issued || rtl.top.trace_issue;
+        read = read || rtl.top.dmem_read;
+        rtl.clock();
+    }
+    if (fault_cleared) out.add(label + ".fault-held", 1, 0);
+    if (fetched) out.add(label + ".fetch-after-fault", 0, 1);
+    if (issued) out.add(label + ".issue-after-fault", 0, 1);
+    if (read) out.add(label + ".dmem-read-after-fault", 0, 1);
+}
+
+void run_fault_case(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary,
+                    const std::string &label, const std::vector<uint8_t> &code, State state,
+                    uint32_t stack_address = 0, const std::array<uint8_t, 4> *stack_value = nullptr) {
+    const uint32_t code_base = state.seg[fes_i386::SEG_CS].base + state.eip;
+    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = code[i];
+    oracle.invalidate(code_base, uint32_t(code.size()));
+    if (stack_value) {
+        for (unsigned i = 0; i < stack_value->size(); ++i)
+            bus.ram[stack_address + i] = rtl.ram[stack_address + i] = (*stack_value)[i];
+        oracle.invalidate(stack_address, 4);
+    }
+    oracle.set_state(state);
+    rtl.start(state);
+
+    Mismatches out;
+    Outcome outcome;
+    try {
+        const std::vector<Entry> no_divergences;
+        outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, summary, out,
+                           code_base, code_base + uint32_t(code.size()));
+    } catch (const std::exception &error) {
+        out.add(label + ".oracle-error:" + error.what(), 0, 1);
+        oracle.reset();
+    }
+    if (outcome.fault != 13) out.add(label + ".fault-vector", 13, outcome.fault < 0 ? 0xff : outcome.fault);
+    if (rtl.state().eip != state.eip) out.add(label + ".eip", state.eip, rtl.state().eip);
+    if (rtl.state().gpr[fes_i386::REG_ESP] != state.gpr[fes_i386::REG_ESP])
+        out.add(label + ".esp", state.gpr[fes_i386::REG_ESP], rtl.state().gpr[fes_i386::REG_ESP]);
+    if (!rtl.step_writes.empty()) out.add(label + ".fault-write", 0, *rtl.step_writes.begin());
+    if (rtl.top.trace_fault) check_fault_quiet(rtl, label, out);
+
+    summary.cycles += rtl.cycles;
+    rtl.cycles = 0;
+    rtl.load_waits = 0;
+    for (size_t i = 0; i < code.size(); ++i) bus.ram[code_base + i] = rtl.ram[code_base + i] = 0;
+    oracle.invalidate(code_base, uint32_t(code.size()));
+    if (stack_value) {
+        for (unsigned i = 0; i < stack_value->size(); ++i) bus.ram[stack_address + i] = rtl.ram[stack_address + i] = 0;
+        oracle.invalidate(stack_address, 4);
+    }
+    for (uint32_t address : rtl.written) {
+        if (address < RAM_BYTES) bus.ram[address] = rtl.ram[address] = 0;
+        oracle.invalidate(address, 1);
+    }
+    rtl.written.clear();
+    ++summary.runs;
+    if (out.items.empty()) {
+        ++summary.passed;
+    } else {
+        ++summary.failed;
+        std::cout << "FAIL directed:" << label;
+        for (const auto &item : out.items) std::cout << ' ' << item;
+        std::cout << '\n';
+    }
+}
+
+void run_fault_regressions(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, Summary &summary) {
+    State call;
+    for (int k = 0; k < 6; ++k) call.seg[k] = fes_i386::real_mode_segment(0);
+    call.eip = 0;
+    // 66 E8 disp32=10000h: CALL's instruction fits, but its full-width target
+    // is outside the 16-bit CS limit. Bochs rolls back the speculative push.
+    run_fault_case(oracle, bus, rtl, summary, "call-rel32-cs-limit",
+                   {0x66, 0xe8, 0x00, 0x00, 0x01, 0x00}, call);
+
+    State ret = call;
+    ret.gpr[fes_i386::REG_ESP] = 0x200;
+    ret.gpr[fes_i386::REG_ESI] = 0x300;
+    const std::array<uint8_t, 4> target = {0x00, 0x00, 0x01, 0x00};
+    // RET's 32-bit pop is outside CS; the following MOV [SI] is a younger
+    // data read that must never issue after the fault is raised.
+    run_fault_case(oracle, bus, rtl, summary, "ret-rel32-cs-limit",
+                   {0x66, 0xc3, 0x8b, 0x04, 0xf4}, ret, 0x200, &target);
+
+    State jump = call;
+    jump.gpr[fes_i386::REG_EBX] = 0x10000;
+    jump.gpr[fes_i386::REG_ESI] = 0x300;
+    // JMP EBX has the same rejected target; MOV [SI] follows it in memory.
+    run_fault_case(oracle, bus, rtl, summary, "jmp-rm-cs-limit",
+                   {0x66, 0xff, 0xe3, 0x8b, 0x04, 0xf4}, jump);
 }
 
 // ---- SingleStepTests mode ---------------------------------------------------------------
@@ -919,8 +1058,9 @@ int run_corpus(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 
 // ---- Random programs ----------------------------------------------------------------------
 
-// Instructions of the register-only slice, laid out with branch targets on
-// instruction boundaries.
+// Instructions of the build, laid out with branch targets on instruction
+// boundaries: straight-line code, branches, loops, pushes and pops,
+// subroutines and stack frames.
 class Generator {
 public:
     explicit Generator(std::mt19937_64 &random) : rng(random) {}
@@ -934,11 +1074,15 @@ public:
 
     std::vector<uint8_t> program(unsigned count) {
         items.clear();
+        fence = 0;
         while (items.size() < count) {
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
             else if (kind < 9) loop_block();
             else if (kind < 10) backward_jump();
+            else if (kind < 16) items.push_back(Item{stack_op(pick(2), pick(3) == 0, false), -1, 0, 0});
+            else if (kind < 19) call_block(0);
+            else if (kind < 21) frame_block();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -948,6 +1092,7 @@ public:
 private:
     std::mt19937_64 &rng;
     std::vector<Item> items;
+    int fence = 0;  // no backward jump lands before here: inside a subroutine
 
     unsigned pick(unsigned n) { return unsigned(rng() % n); }
     uint8_t byte() { return uint8_t(rng()); }
@@ -968,8 +1113,10 @@ private:
     void imm(std::vector<uint8_t> &out, unsigned bytes) {
         for (unsigned i = 0; i < bytes; ++i) out.push_back(byte());
     }
-    // One non-branch instruction; keep_ecx avoids writing ECX (a loop body).
-    std::vector<uint8_t> instruction(bool keep_ecx) {
+    // One non-branch instruction; keep_ecx avoids writing ECX (a loop body),
+    // keep_stack writing ESP, SS or memory (a subroutine's body, which must
+    // leave its return address where RET finds it).
+    std::vector<uint8_t> instruction(bool keep_ecx, bool keep_stack = false) {
         for (;;) {
             std::vector<uint8_t> out;
             bool os32;
@@ -1146,6 +1293,13 @@ private:
             }
             if (pick(3) == 0) to_memory(out, dst);
             if (keep_ecx && dst != 8 && (dst_byte ? (dst & 3) == 1 : dst == 1)) continue;
+            if (keep_stack) {
+                unsigned i = 0;
+                while (i < out.size() && is_prefix(out[i])) ++i;
+                if ((!dst_byte && dst == 4) || mem_use(out.data()).writes ||
+                    (out[i] == 0x8e && ((out[i + 1] >> 3) & 7) == 2))
+                    continue;
+            }
             return out;
         }
     }
@@ -1181,6 +1335,99 @@ private:
         const unsigned disp = mod == 1 ? 1 : mod == 2 || rm == 6 ? 2 : 0;
         for (unsigned n = 0; n < disp; ++n) out.insert(out.begin() + at + 1, byte());
         if (mem_use(out.data()).writes) dst = 8;
+    }
+
+    // PUSH r, imm or Sreg, or POP r or Sreg, with 66h when os32. keep_stack
+    // (a subroutine's body) pops into neither ESP, EBP nor SS.
+    std::vector<uint8_t> stack_op(bool push, bool os32, bool keep_stack) {
+        static const uint8_t harmless[] = {0x26, 0x2e, 0x36, 0x3e, 0x64, 0x65, 0xf2, 0xf3};
+        std::vector<uint8_t> out;
+        if (pick(6) == 0) out.push_back(harmless[pick(8)]);
+        if (pick(6) == 0) out.push_back(0x67);
+        if (os32) out.push_back(0x66);
+        const unsigned form = pick(4);
+        if (push && form == 2) {
+            const bool wide = pick(2);
+            out.push_back(wide ? 0x68 : 0x6a);
+            imm(out, wide ? (os32 ? 4 : 2) : 1);
+        } else if (form == 3) {
+            static const uint8_t pushes[] = {0x06, 0x0e, 0x16, 0x1e, 0xa0, 0xa8};
+            static const uint8_t pops[] = {0x07, 0x1f, 0xa1, 0xa9, 0x17};
+            const uint8_t op = push ? pushes[pick(6)] : pops[pick(keep_stack ? 4 : 5)];
+            if (op >= 0xa0) out.push_back(0x0f);
+            out.push_back(op);
+        } else {
+            unsigned r = pick(8);
+            while (!push && keep_stack && (r == 4 || r == 5)) r = pick(8);
+            out.push_back(uint8_t((push ? 0x50 : 0x58) + r));
+        }
+        return out;
+    }
+
+    // CALL a subroutine laid out past a JMP over it: CALL L; JMP over; L:
+    // body; RET or RET imm16; over:. The body leaves ESP, SS and the return
+    // address alone, or pushes and pops the same size back; it may call
+    // another, two deep, which returns with a plain RET so the outer return
+    // address stays where its RET pops.
+    void call_block(unsigned depth) {
+        const bool os32 = pick(4) == 0;
+        const int call = int(items.size());
+        items.push_back(rel_item(os32, 0xe8));
+        const int jump = int(items.size());
+        items.push_back(rel_item(pick(4) == 0, 0xe9));
+        items[size_t(call)].target = int(items.size());
+        const unsigned length = pick(5);
+        for (unsigned n = 0; n < length; ++n) {
+            const unsigned kind = pick(8);
+            if (kind == 0 && depth < 2) {
+                call_block(depth + 1);
+            } else if (kind == 1) {
+                const bool pair32 = pick(3) == 0;
+                items.push_back(Item{stack_op(true, pair32, true), -1, 0, 0});
+                if (pick(2)) items.push_back(Item{instruction(false, true), -1, 0, 0});
+                items.push_back(Item{stack_op(false, pair32, true), -1, 0, 0});
+            } else {
+                items.push_back(Item{instruction(false, true), -1, 0, 0});
+            }
+        }
+        Item ret;
+        if (os32) ret.bytes.push_back(0x66);
+        if (depth == 0 && pick(3) == 0) {
+            const uint16_t n = pick(4) ? uint16_t(2 * pick(5)) : uint16_t(rng());
+            ret.bytes.insert(ret.bytes.end(), {0xc2, uint8_t(n), uint8_t(n >> 8)});
+        } else {
+            ret.bytes.push_back(0xc3);
+        }
+        items.push_back(ret);
+        items[size_t(jump)].target = int(items.size());
+        fence = int(items.size());
+    }
+
+    // PUSH (E)BP; MOV (E)BP, (E)SP; a body that may push; LEAVE, all of one
+    // operand size.
+    void frame_block() {
+        const bool os32 = pick(3) == 0;
+        auto add = [&](std::vector<uint8_t> bytes) {
+            if (os32) bytes.insert(bytes.begin(), 0x66);
+            items.push_back(Item{bytes, -1, 0, 0});
+        };
+        add({0x55});
+        add(pick(2) ? std::vector<uint8_t>{0x89, 0xe5} : std::vector<uint8_t>{0x8b, 0xec});
+        const unsigned length = pick(5);
+        for (unsigned n = 0; n < length; ++n)
+            items.push_back(Item{pick(3) == 0 ? stack_op(true, pick(3) == 0, false) : instruction(false), -1, 0, 0});
+        add({0xc9});
+    }
+
+    // CALL or JMP rel16/32 (rel32 with 66h).
+    Item rel_item(bool os32, uint8_t op) {
+        Item item;
+        if (os32) item.bytes.push_back(0x66);
+        item.bytes.push_back(op);
+        item.rel_at = unsigned(item.bytes.size());
+        item.rel_size = os32 ? 4 : 2;
+        item.bytes.insert(item.bytes.end(), item.rel_size, 0);
+        return item;
     }
 
     // A conditional or unconditional jump, or JCXZ, over 0-3 instructions.
@@ -1223,6 +1470,7 @@ private:
         if (items.size() < 3) return;
         Item branch = jump_item(0);
         branch.target = int(items.size()) - 1 - int(pick(3));
+        if (branch.target < fence) return;
         items.push_back(branch);
     }
 
@@ -1396,6 +1644,8 @@ int main(int argc, char **argv) {
             ++summary.failed;
             std::cout << "FAIL reset-store reset-edge-write 0 1\n";
         }
+    } else if (mode == "directed") {
+        run_fault_regressions(*oracle, bus, rtl, summary);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "random") {
@@ -1423,7 +1673,7 @@ int main(int argc, char **argv) {
                 "\"trace_hash\": \"%016llx\", "
                 "\"gaps\": {\"sequential\": %s, \"prefixed\": %s, \"lea\": %s, \"selector\": %s, "
                 "\"after_taken\": %s, \"after_not_taken\": %s, \"shift_consumer\": %s, \"after_shift\": %s, "
-                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s}}\n",
+                "\"store_load\": %s, \"after_store\": %s, \"address\": %s, \"after_segment\": %s, \"after_stack\": %s, \"stack_stack\": %s}}\n",
                 mode.c_str(), (unsigned long long)seed, rtl.fetch.random ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -1436,6 +1686,7 @@ int main(int argc, char **argv) {
                 histogram(summary.gap_after_not_taken).c_str(), histogram(summary.gap_shift_consumer).c_str(),
                 histogram(summary.gap_after_shift).c_str(), histogram(summary.gap_store_load).c_str(),
                 histogram(summary.gap_after_store).c_str(), histogram(summary.gap_address).c_str(),
-                histogram(summary.gap_after_segment).c_str());
+                histogram(summary.gap_after_segment).c_str(), histogram(summary.gap_after_stack).c_str(),
+                histogram(summary.gap_stack_stack).c_str());
     return summary.failed ? 1 : 0;
 }

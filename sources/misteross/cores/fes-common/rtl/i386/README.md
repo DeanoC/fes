@@ -140,8 +140,8 @@ DC decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
 DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
-NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, with a ModRM
-memory operand wherever they take one. A memory operand is a load, a store,
+NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, and the stack
+operations below, with a ModRM memory operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
@@ -151,7 +151,23 @@ reg != 0 raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes
 as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
 one. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
-the address registers and scale a memory ModRM names (`fes_i386_amode`).
+the address registers and scale a memory ModRM names (`fes_i386_amode`), or
+ESP (EBP for LEAVE) for a stack operation.
+
+**Stack operations** are PUSH and POP of a GPR, an immediate (PUSH) or a
+segment register, CALL rel, RET and RET imm16, LEAVE and JMP r/m. Each is one
+uop with a memory operand at SS:ESP (SS:EBP for LEAVE) at the stack's width
+(SS.B), except CALL rel, which is two: the push of the next EIP, then JMP rel
+by the displacement the push carries in its unused immediate, which D builds
+as it issues the second. A stack operation also writes ESP: AG has a third
+adder for it (ESP less the size for a push, plus it for a pop, plus imm16 for
+RET imm16, EBP plus it for LEAVE), and WB writes it beside the main
+destination, which wins when it is ESP too (POP ESP). A 32-bit PUSH or POP of
+a segment register moves ESP by 4 and transfers the selector's word only, as
+the 386EX does. RET and JMP r/m take their target from EX's adder (CS's base
+plus the EIP) and redirect from WB like any taken branch; in 16-bit code a
+target past FFFFh raises #GP(0) at the branch. CALL r/m, PUSH and POP r/m,
+far transfers, ENTER, PUSHA and POPA come later.
 
 **D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
 not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
@@ -175,7 +191,12 @@ AG, M1 or M2 into its next pipeline register, or EX beside its operand, which
 is EX's only forwarding mux. A late result reaches the next uop's ALU with no
 bubble. LEA's offset is early when the destination is 32-bit and comes from
 AG; a 16-bit LEA merges at EX like any other result. `fes_i386_dfwd` gives
-a memory operand's or LEA's address operands and its stalls as before. A
+a memory operand's or LEA's address operands and its stalls as before. Both
+tables follow ESP from a stack operation as an early result from AG, so a
+push or pop right after another takes its address with no wait. ESP read as
+data waits in D while a stack operation is in AG (its value reaches the M1
+register next cycle), and LEAVE on a 16-bit stack waits until ESP's high
+half, which it keeps, is in a register. A
 selector read (MOV r/m, Sreg), and a memory operand for its segment's base,
 waits in D while an older uop writes that segment register; a register of
 the segments in flight makes each wait one select. A load waits one cycle

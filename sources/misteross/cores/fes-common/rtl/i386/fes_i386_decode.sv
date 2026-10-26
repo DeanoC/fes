@@ -6,12 +6,17 @@
 //   segment register in real mode), LEA, shifts and rotates, SHLD and SHRD,
 //   SETcc, MOVZX and MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and
 //   clear instructions, NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE
-//   and JCXZ;
+//   and JCXZ; PUSH and POP of a register, an immediate or a segment register,
+//   RET and RET imm16, LEAVE, JMP r/m and CALL rel;
 // with a ModRM memory operand where they take one. The memory operand is a
 // load (src2, or src1 for CMP and TEST), a store, or both in one uop
 // (read-modify-write), and replaces the register it stands for: no GPR is
 // read or written for it. Its segment is the override, else SS for a BP-,
-// EBP- or ESP-based address (stack, fes_i386_amode), else DS.
+// EBP- or ESP-based address (stack, fes_i386_amode), else DS. A stack
+// operation's memory operand is at SS:ESP (or SS:EBP for LEAVE), which D
+// sets up; it also writes ESP (stk says how). CALL rel is two uops: the
+// push of the next EIP, then JMP rel, which D builds from the push's
+// otherwise unused imm (the displacement).
 // Encodings the i386 rejects raise #UD (LOCK on anything but a read-modify-
 // write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC, MOV to CS
 // or to segment register 6 or 7, LEA of a register, C6h/C7h with reg != 0);
@@ -36,7 +41,11 @@ module fes_i386_decode (
     output logic                   consumes,    // the result depends on the old flags
     output logic                   reads_seg,   // b is the selector of segment seg_index
     output logic [2:0]             seg_index,
-    output logic                   stop         // nothing after this uop can retire: HLT or a fault
+    output logic                   stop,        // nothing after this uop can retire: HLT or a fault
+    output logic [2:0]             stk,         // a stack operation (fes_i386_pkg STK_*)
+    output logic                   push_eip,    // src2 is the next instruction's EIP
+    output logic                   cs_base,     // src1 is CS's base (EX adds the target)
+    output logic                   two_uops     // D issues JMP rel after this uop
 );
     typedef fes_i386_pkg::uop_t uop_t;
 
@@ -116,6 +125,7 @@ module fes_i386_decode (
     logic [3:0]  cond;
     logic        rd_cf, rd_oszap, wr_cf, wr_oszap;
     logic        known, undefined;
+    logic        eoi;       // the uop ends the instruction
     logic [1:0]  mkind;     // a mem_kind_e
     logic        m_in_a;    // the memory operand stands for src1 (and the destination), else src2
     logic [2:0]  mbytes;    // the access's bytes, when not the operation's size
@@ -155,12 +165,86 @@ module fes_i386_decode (
         m_in_a = 1'b0;
         mbytes = 3'd0;  // by size
         lockable = 1'b0;
+        stk = fes_i386_pkg::STK_NONE;
+        push_eip = 1'b0;
+        cs_base = 1'b0;
+        two_uops = 1'b0;
+        eoi = 1'b1;
 
         if (!two) begin
             casez (b0)
+                8'b01010???: begin
+                    // PUSH r16/32
+                    op = 5'd9;  // ALU_MOV
+                    s2_valid = 1'b1;
+                    s2_idx = b0[2:0];
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'b01011???: begin
+                    // POP r16/32
+                    op = 5'd9;
+                    s1_valid = 1'b1;
+                    s1_idx = b0[2:0];
+                    d_valid = 1'b1;
+                    d_idx = b0[2:0];
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_POP;
+                end
+                8'b011010?0: begin
+                    // PUSH imm16/32 (68h), imm8 sign-extended (6Ah)
+                    op = 5'd9;
+                    imm = b0[1] ? {{24{by[1][7]}}, by[1]} : opsize32 ? {by[4], by[3], by[2], by[1]} : {16'b0, by[2], by[1]};
+                    m_in_a = 1'b1;
+                    mkind = 2'd2;
+                    stk = fes_i386_pkg::STK_PUSH;
+                end
+                8'b1100001?: begin
+                    // RET imm16 (C2h), RET (C3h): EX adds CS's base to the popped EIP.
+                    cls = C_BRANCH;
+                    op = 5'd10;  // BR_RET
+                    imm = {16'b0, by[2], by[1]};
+                    mkind = 2'd1;
+                    cs_base = 1'b1;
+                    stk = b0[0] ? fes_i386_pkg::STK_POP : fes_i386_pkg::STK_RET_IMM;
+                end
+                8'hc9: begin
+                    // LEAVE: ESP from EBP, then POP EBP
+                    op = 5'd9;
+                    s1_valid = 1'b1;
+                    s1_idx = 3'd5;
+                    d_valid = 1'b1;
+                    d_idx = 3'd5;
+                    mkind = 2'd1;
+                    stk = fes_i386_pkg::STK_LEAVE;
+                end
                 // Group 1, r/m and accumulator forms: ADD OR ADC SBB AND SUB XOR CMP.
                 // Columns 6 and 7 hold segment PUSH and POP and the BCD adjusts.
-                8'b00??????: begin
+                8'b00??????: if (b0[2:1] == 2'b11 && !b0[5]) begin
+                    // Columns 6 and 7 of rows 0-1: PUSH and POP of ES, CS, SS
+                    // and DS (POP CS, 0Fh, is the escape).
+                    if (!b0[0]) begin
+                        op = 5'd15;  // ALU_MOVZX of the selector
+                        src_size = 2'd1;
+                        reads_seg = 1'b1;
+                        seg_index = {1'b0, b0[4:3]};
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        mbytes = 3'd2;   // a word, whatever the operand size
+                        stk = fes_i386_pkg::STK_PUSH;
+                    end else begin
+                        cls = C_SEGMENT;
+                        op = 5'd0;  // SEGOP_LOAD_REAL
+                        size = 2'd1;
+                        mkind = 2'd1;
+                        mbytes = 3'd2;   // the selector's word; ESP still steps by 4
+                        d_valid = 1'b1;
+                        d_seg = 1'b1;
+                        d_idx = {1'b0, b0[4:3]};
+                        stk = fes_i386_pkg::STK_POP;
+                    end
+                end else begin
                     known = b0[2:1] != 2'b11;
                     op = {2'b00, b0[5:3]};
                     size = b0[0] ? osz : 2'd0;
@@ -416,12 +500,23 @@ module fes_i386_decode (
                     d_idx = 3'd1;
                     imm = rel8;
                 end
-                8'he9, 8'heb: begin
-                    // JMP rel16/32, rel8
-                    cls = C_BRANCH;
-                    op = 5'd1;  // BR_JMP
-                    branch = 1'b1;
+                8'he8, 8'he9, 8'heb: begin
+                    // JMP rel16/32, rel8; CALL rel16/32, which pushes the
+                    // next EIP, then D issues JMP rel by imm
                     imm = b0[1] ? rel8 : relz1;
+                    if (b0[0]) begin
+                        cls = C_BRANCH;
+                        op = 5'd1;  // BR_JMP
+                        branch = 1'b1;
+                    end else begin
+                        op = 5'd9;
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        push_eip = 1'b1;
+                        stk = fes_i386_pkg::STK_PUSH;
+                        two_uops = 1'b1;
+                        eoi = 1'b0;
+                    end
                 end
                 8'hf4: begin
                     cls = C_SPECIAL;
@@ -461,21 +556,31 @@ module fes_i386_decode (
                     imm = b0[0] ? immz_m : imm8_m;
                 end
                 8'b1111111?: begin
-                    // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32
-                    known = reg_f[2:1] == 2'b00;
-                    op = reg_f[0] ? 5'd11 : 5'd10;
-                    m_in_a = 1'b1;
-                    mkind = reg_form ? 2'd0 : 2'd3;
-                    lockable = 1'b1;
-                    size = b0[0] ? osz : 2'd0;
-                    rd_cf = 1'b1;
-                    wr_oszap = 1'b1;
-                    s1_valid = 1'b1;
-                    s1_idx = b0[0] ? rm : {1'b0, rm[1:0]};
-                    s1_hi8 = !b0[0] && rm[2];
-                    d_valid = 1'b1;
-                    d_idx = s1_idx;
-                    d_hi8 = s1_hi8;
+                    if (b0[0] && reg_f == 3'd4) begin
+                        // FFh /4: JMP r/m16/32; EX adds CS's base to the target EIP.
+                        cls = C_BRANCH;
+                        op = 5'd11;  // BR_JMP_INDIRECT
+                        s2_valid = 1'b1;
+                        s2_idx = rm;
+                        mkind = reg_form ? 2'd0 : 2'd1;
+                        cs_base = 1'b1;
+                    end else begin
+                        // FEh /0 /1: INC, DEC r/m8; FFh /0 /1: INC, DEC r/m16/32
+                        known = reg_f[2:1] == 2'b00;
+                        op = reg_f[0] ? 5'd11 : 5'd10;
+                        m_in_a = 1'b1;
+                        mkind = reg_form ? 2'd0 : 2'd3;
+                        lockable = 1'b1;
+                        size = b0[0] ? osz : 2'd0;
+                        rd_cf = 1'b1;
+                        wr_oszap = 1'b1;
+                        s1_valid = 1'b1;
+                        s1_idx = b0[0] ? rm : {1'b0, rm[1:0]};
+                        s1_hi8 = !b0[0] && rm[2];
+                        d_valid = 1'b1;
+                        d_idx = s1_idx;
+                        d_hi8 = s1_hi8;
+                    end
                 end
                 default: known = 1'b0;
             endcase
@@ -506,6 +611,29 @@ module fes_i386_decode (
                     d_valid = 1'b1;
                     d_idx = s1_idx;
                     d_hi8 = s1_hi8;
+                end
+                8'b1010?00?: begin
+                    // PUSH FS (A0h), POP FS (A1h), PUSH GS (A8h), POP GS (A9h)
+                    if (!op2[0]) begin
+                        op = 5'd15;
+                        src_size = 2'd1;
+                        reads_seg = 1'b1;
+                        seg_index = op2[3] ? 3'd5 : 3'd4;
+                        m_in_a = 1'b1;
+                        mkind = 2'd2;
+                        mbytes = 3'd2;
+                        stk = fes_i386_pkg::STK_PUSH;
+                    end else begin
+                        cls = C_SEGMENT;
+                        op = 5'd0;
+                        size = 2'd1;
+                        mkind = 2'd1;
+                        mbytes = 3'd2;   // the selector's word; ESP still steps by 4
+                        d_valid = 1'b1;
+                        d_seg = 1'b1;
+                        d_idx = op2[3] ? 3'd5 : 3'd4;
+                        stk = fes_i386_pkg::STK_POP;
+                    end
                 end
                 8'b1010?10?: begin
                     // SHLD, SHRD r/m, r by imm8 (A4h, ACh) or by CL (A5h, ADh)
@@ -581,6 +709,7 @@ module fes_i386_decode (
     assign stop = fault != 3'd0 || (cls == C_SPECIAL && op == 5'd1);
 
     uop_t u;
+    assign u.sp_write = stk != fes_i386_pkg::STK_NONE;
     assign u.cls = fes_i386_pkg::uop_class_e'(cls);
     assign u.op = op;
     assign u.src1.valid = s1_valid;
@@ -601,7 +730,8 @@ module fes_i386_decode (
     assign u.imm = imm;
     assign u.mem.kind = fes_i386_pkg::mem_kind_e'(mkind);
     assign u.mem.bytes = mbytes != 3'd0 ? 4'(mbytes) : size == 2'd0 ? 4'd1 : size == 2'd1 ? 4'd2 : 4'd4;
-    assign u.mem.seg = q.prefixes.seg_valid ? fes_i386_pkg::seg_e'(q.prefixes.seg)
+    assign u.mem.seg = stk != fes_i386_pkg::STK_NONE ? fes_i386_pkg::SEG_SS
+                     : q.prefixes.seg_valid ? fes_i386_pkg::seg_e'(q.prefixes.seg)
                      : stack ? fes_i386_pkg::SEG_SS : fes_i386_pkg::SEG_DS;
     assign u.mem.base = '0;
     assign u.mem.index = '0;
@@ -617,7 +747,7 @@ module fes_i386_decode (
     assign u.flags.write.oszap = wr_oszap;
     assign u.ctl.cond = cond;
     assign u.ctl.predict_taken = 1'b0;
-    assign u.ctl.end_of_instruction = 1'b1;
+    assign u.ctl.end_of_instruction = eoi;
     assign u.ctl.ilen = q.length;
     assign u.ctl.fault = fes_i386_pkg::fault_e'(fault);
     assign uop = u;

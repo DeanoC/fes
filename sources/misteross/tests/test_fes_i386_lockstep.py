@@ -28,20 +28,20 @@ def moo_test(instruction: bytes, index: int = 0) -> vectors.MooTest:
 
 class ScopeTest(unittest.TestCase):
     def test_scope_takes_every_form_of_a_stem(self):
-        for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95'):
+        for stem in ('00', '6601', '0FA4', '8D', '04', '8E', 'F6.3', 'FF.1', '0F95', '6650', '0FA9', 'C2', 'FF.4'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
-        for stem in ('F6.4', 'A0', 'FF.2', '8F', '0FA3'):  # MUL, moffs, CALL, POP, BT come later
+        for stem in ('F6.4', 'A0', 'FF.2', 'FF.6', '8F', 'C8', '0FA3'):  # MUL, moffs, CALL r/m, PUSH and POP r/m, ENTER, BT
             with self.subTest(stem=stem):
                 self.assertFalse(lockstep.in_scope(stem))
 
     def test_unbuilt_encodings_cover_what_scope_leaves_out(self):
         lines = lockstep.unbuilt_encodings()
         self.assertEqual(len(lines), len(set(lines)))
-        for encoding in ('06c0', '27c0', '3fff', 'f6e0', 'a000', 'ff10', '0f0b00'):
+        for encoding in ('c8c0', '27c0', 'ff30', '3fff', 'f6e0', 'a000', 'ff10', '0f0b00'):
             with self.subTest(encoding=encoding):
                 self.assertIn(encoding, lines)
-        for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0'):
+        for encoding in ('00c0', '0000', '04ff', '8d00', '0fa4c0', '0fa400', 'f4c0', '06c0', 'ff20', '0fa1c0'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, lines)
 
@@ -89,15 +89,17 @@ class OutputTest(unittest.TestCase):
             lockstep.parse_output('Segmentation fault\n{"runs": 1}\n')
 
     def test_holds_are_checked_cycle_exactly(self):
-        quiet = {'store_load': {}, 'after_store': {}}
+        quiet = {'store_load': {}, 'after_store': {}, 'stack_stack': {}}
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {2: 5}, 'after_shift': {1: 7}, **quiet}), [])
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {1: 3, 2: 5}, 'after_shift': {2: 4}, **quiet}),
                          ['FAIL flag hold: 3 shift_consumer retirements 1 cycles apart',
                           'FAIL flag hold: 4 after_shift retirements 2 cycles apart'])
         self.assertEqual(lockstep.hold_failures({'shift_consumer': {}, 'after_shift': {},
-                                                 'store_load': {1: 2, 2: 6, 4: 1}, 'after_store': {1: 9, 2: 3}}),
+                                                 'store_load': {1: 2, 2: 6, 4: 1}, 'after_store': {1: 9, 2: 3},
+                                                 'stack_stack': {1: 8, 2: 1}}),
                          ['FAIL store hold: 2 store_load retirements 1 cycles apart',
-                          'FAIL store hold: 3 after_store retirements 2 cycles apart'])
+                          'FAIL store hold: 3 after_store retirements 2 cycles apart',
+                          'FAIL stack hold: 1 stack_stack retirements 2 cycles apart'])
 
     def test_cpu_sources_exist(self):
         for name in lockstep.CPU_RTL:
@@ -117,6 +119,7 @@ class LockstepRunTest(unittest.TestCase):
                                 cwd=lockstep.ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
+        self.assertIn('directed faults: 3 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout
 
