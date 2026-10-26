@@ -240,7 +240,9 @@ module top #(
     // backed by fes.memory.hps-ddr, after the part. It locks to the part's
     // CTA 720p60 word, blends launcher frames over it and delays RGB and sync
     // together. A vacant socket, a closed plane or a fault returns the part's
-    // pixels and never stops or reprograms the machine.
+    // pixels and never stops or reprograms the machine. The shell supplies
+    // the plane's valid bit: the cart merge drops the part's constant CE and
+    // the boundary reads 0 (DeanoC/nextpnr#297), so the plane never locked.
     fes_display_plane #(
         .PICTURE_LEFT(16'd384), .PICTURE_TOP(16'd168),
         .PICTURE_WIDTH(16'd512), .PICTURE_HEIGHT(16'd384)
@@ -250,7 +252,7 @@ module top #(
         .index(display_index), .argument(display_argument),
         .response_valid(display_response_valid), .response_error(display_response_error),
         .response_data(display_response_data), .quiesced_sys(display_quiesced),
-        .machine(native_response),
+        .machine({1'b1, native_response[26:0]}),
         .video(hdmi_video), .ui_active(), .locked(), .displayed_sequence(), .underflows(), .faulted(),
         .ddr_hold(ddr_hold), .ddr_reset(ddr0_reset), .ddr_drained(ddr0_drained),
         .ddr_address(ddr0_address), .ddr_burstcount(ddr0_burstcount), .ddr_read(ddr0_read),

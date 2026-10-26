@@ -64,7 +64,7 @@ func TestRemovableMediaBoundsSpectrumTapeImages(t *testing.T) {
 
 func TestRemovableMediaOffersSnapshotsOnlyWhenPackageSupportsThem(t *testing.T) {
 	p := removableSession(protocol.SpectrumTapeInterface(), uint32(protocol.SpectrumTapeMinBytes), uint32(protocol.SpectrumTapeMaxBytes)).CorePackage
-	for _, name := range []string{"game.z80", "game.sna"} {
+	for _, name := range []string{"game.z80", "game.sna", "game.szx"} {
 		if AdmitRemovableMedia(p, name, 1) {
 			t.Errorf("tape-only package admitted %s", name)
 		}
@@ -73,7 +73,7 @@ func TestRemovableMediaOffersSnapshotsOnlyWhenPackageSupportsThem(t *testing.T) 
 		t.Fatal("tape-only package refused a TAP image")
 	}
 	p.ActiveInterfaces = append(p.ActiveInterfaces, SessionCoreInterface{ID: protocol.SpectrumSnapshotInterfaceID, Major: 1})
-	for _, name := range []string{"game.z80", "game.sna"} {
+	for _, name := range []string{"game.z80", "game.sna", "game.szx"} {
 		if !AdmitRemovableMedia(p, name, 1) {
 			t.Errorf("snapshot-capable package refused %s", name)
 		}

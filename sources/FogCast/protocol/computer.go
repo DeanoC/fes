@@ -462,7 +462,7 @@ func AdmitSpectrumTapeName(name string) bool {
 	return spectrumtapes.Admit(name)
 }
 
-// AdmitSpectrumSnapshotName accepts a Spectrum .z80 or .sna snapshot basename.
+// AdmitSpectrumSnapshotName accepts a Spectrum .z80, .sna or .szx snapshot basename.
 func AdmitSpectrumSnapshotName(name string) bool {
 	if name == "" || strings.ContainsAny(name, "/\\") || name != filepath.Base(name) {
 		return false
@@ -470,7 +470,7 @@ func AdmitSpectrumSnapshotName(name string) bool {
 	return spectrumsnapshots.Admit(name)
 }
 
-// AdmitSpectrumCassetteName accepts a Spectrum tape image or a .z80 or .sna
+// AdmitSpectrumCassetteName accepts a Spectrum tape image or a .z80, .sna or .szx
 // snapshot basename; the active package decides whether it runs snapshots.
 func AdmitSpectrumCassetteName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
@@ -599,7 +599,7 @@ func DiskMediaRequestError() *APIError {
 
 // CassetteMediaRequestError is the live-media refusal for Spectrum tapes.
 func CassetteMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB, or a .z80 or .sna snapshot", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live cassette media requires a .tzx, .tap, .pzx or .csw image of at most 32 MiB, or a .z80, .sna or .szx snapshot", Phase: "request"}
 }
 
 // CassetteConversionError reports a Spectrum tape image the host could not

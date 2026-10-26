@@ -56,6 +56,31 @@ func Recognize(data []byte) bool {
 	return err == nil
 }
 
+// CheckedTAP reports whether data is a .tap image whose every block passes
+// the ROM loader's check: a flag byte, the data and a checksum byte that XOR
+// to zero. A file of snapshot size can also tile as .tap blocks; the host
+// takes one whose blocks all check as a tape.
+func CheckedTAP(data []byte) bool {
+	if !AdmitSize(int64(len(data))) || bytes.HasPrefix(data, tzxSignature) ||
+		bytes.HasPrefix(data, pzxSignature) || bytes.HasPrefix(data, cswSignature) {
+		return false
+	}
+	blocks, err := readTAP(data)
+	if err != nil {
+		return false
+	}
+	for _, b := range blocks {
+		sum := byte(0)
+		for _, v := range b.data {
+			sum ^= v
+		}
+		if len(b.data) < 2 || sum != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // Convert reads a tape image and returns its PZX stream. TZX, PZX and CSW
 // images are known by their signatures; anything else must be a .tap image
 // whose blocks cover it exactly.

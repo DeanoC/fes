@@ -189,7 +189,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	}
 	size := media.Size
 	if capability.Interface == protocol.SpectrumTapeInterface() {
-		stream, err := spectrumCassetteStream(descriptor, reader, media.Size)
+		stream, err := spectrumCassetteStream(descriptor, "", reader, media.Size)
 		if err != nil {
 			return nil, err
 		}
@@ -208,18 +208,26 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 }
 
 // spectrumCassetteStream reads a stored .tzx, .tap, .pzx or .csw image and
-// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80
-// or .sna snapshot that descriptor runs to its restore stream. A valid
-// snapshot takes priority over tape parsing because TAP has no magic header
-// and snapshot bytes can also parse as length-prefixed TAP blocks. It closes
-// reader.
-func spectrumCassetteStream(descriptor corepackage.Descriptor, reader io.ReadCloser, size int64) ([]byte, error) {
+// converts it to the PZX stream fes.media.spectrum-tape 2.0 plays, or a .z80,
+// .sna or .szx snapshot that descriptor runs to its restore stream. A tape or
+// snapshot name decides which it is. Library media and inserts by digest have
+// no name (""), and then the content decides: .tap has no signature, so a
+// snapshot's bytes can tile as .tap blocks and a .tap can be the size of a
+// snapshot. A file with a ZXST signature is a snapshot, and another valid
+// snapshot is taken as one unless every .tap block also passes the ROM
+// loader's checksum. It closes reader.
+func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, reader io.ReadCloser, size int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
 	if readErr != nil || closeErr != nil || int64(len(data)) != size {
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), readErr, closeErr)
 	}
-	if spectrumsnapshots.Recognize(data) {
+	snapshot := spectrumsnapshots.Admit(name)
+	if name == "" {
+		snapshot = bytes.HasPrefix(data, []byte("ZXST")) ||
+			spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
+	}
+	if snapshot {
 		machine, stream, err := spectrumsnapshots.Convert(data)
 		if err != nil {
 			return nil, protocol.SnapshotConversionError(err)
