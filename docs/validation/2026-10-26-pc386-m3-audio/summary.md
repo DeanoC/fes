@@ -7,10 +7,12 @@ Nuked-OPL3 on every one of 2,488,129 samples checked: random register
 programs, a start-up exercise program, and both games' start-up as the
 machine ran them. The Sound Blaster 2.0 DSP passes 87 directed checks of its
 commands, DMA and IRQ at every base port and IRQ choice, and played
-Wolfenstein 3D's digitized sounds by DMA with IRQs. This is a **host-only check**: no synthesis, routed result, package
-or kit is involved. It meets phase M3's exit in the
-[machine design](../../../sources/misteross/docs/pc386-machine-design.md#phases)
-except where "Not covered" says otherwise.
+Wolfenstein 3D's digitized sounds by DMA with IRQs. Of phase M3's three exit clauses in the
+[machine design](../../../sources/misteross/docs/pc386-machine-design.md#phases),
+two are measured and pass (OPL2 sample-exact; DSP sequences); the third,
+start-up audio that **sounds right**, is a listening judgement nobody has made
+yet, so it stays open. This is a **host-only check**: no synthesis, routed
+result, package or kit is involved.
 
 ## Inputs
 
