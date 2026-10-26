@@ -67,33 +67,50 @@ counts are unchanged.
 
 ## Artifacts
 
-Source FES `a8e165fc` (`sources/misteross`), producers
+Source FES `9da56232` (`sources/misteross`), producers
 `scripts/build_fes_spectrum_oss.py --model {48,128,plus3,pentagon}`, lock
 `cores/fes-spectrum/toolchain.lock` (nextpnr main `bd7a1c0d`, unchanged), HIP
 router, first-pass placement search in each recipe's seed order. Every core
 is constrained to a 52.224 MHz system clock, the 74.25 MHz pixel clock and a
 12.288 MHz audio clock.
 
+These seals replace the first turbo seals, built from `a8e165fc`. Two
+controller fixes came between the two sources, and they are the only
+changes to the Spectrum RTL:
+
+- The Beta 128's Force Interrupt I2 raised INTRQ as the index pulse started;
+  it now raises it as the pulse ends, as Fuse 1.6.0 does.
+- The uPD765's Sense Interrupt Status left the seek interrupt pending after
+  returning its status; it now clears it unless another unit still has a
+  completed seek, as Fuse does.
+
 | Core | Seed | System MHz | Pixel MHz | Audio MHz | COMB | FF | M10K | MUL9X9 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `fes.spectrum` 0.6.0 | 5 | 57.46 | 86.34 | 208.07 | 9,451 | 4,821 | 129 (16 TDP) | 3 |
-| `fes.spectrum128` 0.4.0 | 5 | 57.69 | 88.71 | 186.57 | 10,504 | 5,092 | 225 (32 TDP) | 3 |
-| `fes.spectrum-plus3` 0.5.0 | 5 | 53.75 | 79.83 | 196.66 | 13,950 | 6,650 | 257 (32 TDP) | 3 |
-| `fes.pentagon` 0.5.0 | 5 | 63.33 | 92.76 | 194.25 | 12,126 | 6,273 | 241 (32 TDP) | 3 |
+| `fes.spectrum` 0.6.0 | 5 | 59.30 | 92.16 | 231.80 | 9,443 | 4,821 | 129 (16 TDP) | 3 |
+| `fes.spectrum128` 0.4.0 | 5 | 65.59 | 89.12 | 189.83 | 10,491 | 5,092 | 225 (32 TDP) | 3 |
+| `fes.spectrum-plus3` 0.5.0 | 4 | 58.85 | 95.95 | 229.89 | 14,712 | 6,650 | 257 (32 TDP) | 3 |
+| `fes.pentagon` 0.5.0 | 5 | 64.53 | 81.38 | 154.51 | 12,114 | 6,273 | 241 (32 TDP) | 3 |
 
-- `fes.spectrum` 0.6.0: package `eb0025040f8c0807706cf9505fbe08984d24cd5fe2443827334dd0c4ee8f4e5a`, build `da59f2b55836b0bd609dabd44e520287`, RBF sha256 `209957577b080f3f18723e75d26c10c828ae9b82b47d1975c020dbbfbc5515d5` (2,641,750 bytes)
-- `fes.spectrum128` 0.4.0: package `f07a38f54f29dfe1696066766e73afe7cd311821d1127048c1bf6eeadc5a8212`, build `17913ec8a3bdb2395f4a04c8a233e124`, RBF sha256 `db53dd48b8080c0ce2bed0d4e94125d487afaf660940c2e5379681f48aa6e761` (2,949,562 bytes)
-- `fes.spectrum-plus3` 0.5.0: package `4d501a44e4a113d0b01a4d06ca188b622d37d8b79d40380fc974554cbc15aff5`, build `e7670815327393e08e9a624712a59304`, RBF sha256 `7c058ce60c81442d0a2b4687531c68d0e3ef480b471c1bde3a0eac30eceb841b` (3,151,739 bytes)
-- `fes.pentagon` 0.5.0: package `0afd828cc7f29f37fc92e04c28ee064618f8d03d0d7e464ca3cb2fdb69a6468c`, build `77c4f449f474d070798c4a1abfa2b685`, RBF sha256 `d70f4767ef5a42b7c0d533537caaa573b0cd82e575a353cd6b474bf09474feb1` (3,015,029 bytes)
+- `fes.spectrum` 0.6.0: package `057a422d1b7869608f122cd2c07b3615525be6d7ac9e9db776cf84c258e91acb`, build `6a69d61b0b453c7b45c928ecb340f2d3`, RBF sha256 `c24df2181fdac2060fb4733273f2a594fbe3771e5334f8f5a1aa81d9138b1e0d` (2,623,604 bytes)
+- `fes.spectrum128` 0.4.0: package `ee164e9f26ffb24ca3a3db8ac6274fe8e1b368a187f44561b1bc998b1db80015`, build `5c8f2002b38012ebed7125624679d0ea`, RBF sha256 `008f8435dd3242707cec788dc9f7f0d47340876130b4f9ba0abc9d7749dfeddb` (3,011,808 bytes)
+- `fes.spectrum-plus3` 0.5.0: package `a1fa87c585f87b8719cd566cb7f316d63bdfd2ca3246832cb22de1571c47e1a7`, build `9b0ab58102e38d9d281e6aed8039cbd0`, RBF sha256 `96d4ef62245904d329fda12a690e8739d6bf89143f5bcbb5566d46fe6558609f` (3,180,659 bytes)
+- `fes.pentagon` 0.5.0: package `effa14fb5abb77e4e47d9f69fcfb2760bda215857db24c3608fa91b430175f71`, build `b172d9cdc6529ea18c651c3bb4a7155a`, RBF sha256 `48103181e4506942c38c0d1b1bb6faec971bbefae9907c41e95ecf9069e8a3d0` (3,071,581 bytes)
 
 The system clock closed with less margin than the +3 disk seals (70.67,
 66.14, 61.27 and 57.81 MHz then). No system critical path runs through the
-ULA's clock or screen fetch: the 48K's is the tape store into the mailbox,
-the 128K's the AY into the audio mix, the +2A/+3's the disk drive's fetch
-address into its weak-byte enable, the Pentagon's the CPU into the Beta 128.
-No check was relaxed.
+ULA's clock or screen fetch: the 48K's, 128K's and +2A/+3's are inside the
+CPU's state decode, the Pentagon's the AY into the audio mix. No check was
+relaxed.
 
 ## Kit check
+
+The kit runs below were made on the first turbo seals from `a8e165fc`:
+`fes.spectrum` `eb002504`, `fes.spectrum128` `f07a38f5`, `fes.spectrum-plus3`
+`4d501a44` and `fes.pentagon` `0afd828c`. Their RTL differs from the seals
+above only in the two controller fixes: the Pentagon's Force Interrupt I2,
+which TR-DOS 5.03 does not issue, and the +2A/+3's Sense Interrupt after a
+seek. Run `i2B2` below repeated the disk and snapshot checks on the seals
+above.
 
 Kit B, on the running image `4db74864` with the stacked branches' kit
 software (bundle `c8b2a0c5`, built from `a5de9abb`; FogCast and the runtime
@@ -163,6 +180,22 @@ and lease-free.
     ENTER at 10 s; why the music stopped is not established). Fuse's save of
     the same title has the AY playing three tone channels at volumes 12-15,
     so this is the AY heard on hardware.
+
+- Run `i2B2` (16:34-16:57 EET) repeated run `tbB4`'s disk and snapshot
+  checks on the seals from `9da56232`, with the same kit software and a
+  private FogCast host built from `6ff4e487`, and every automatic check
+  passed (`HIL_VERDICT PASS`):
+  - `fes.spectrum-plus3` 0.5.0 booted Bubble Bobble, Batman: The Caped
+    Crusader and Beyond the Ice Palace from `.dsk` to the same screens as
+    before, and Chase H.Q. II inserted live changed only the medium.
+  - `fes.pentagon` 0.5.0 booted `tetris.trd` to its menu and refused a
+    `.dsk`. `fes.spectrum` 0.6.0 refused a disk.
+  - Every model restored the same `.z80` and `.sna` games as before, live
+    inserts included, to the same screens, and the 48K, 128K and Pentagon
+    refused a class they do not run.
+  - Kit B was restored to software `35d58489` on image `4db74864`, with the
+    card images and launcher files as found, and released idle and
+    lease-free.
 
 ## Not established
 
