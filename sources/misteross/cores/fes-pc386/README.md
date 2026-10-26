@@ -49,6 +49,7 @@ python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixe
 python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL3, about 30 s
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt, minutes
 python3 scripts/sim_fes_pc386.py --suite sound          # the boot, then SOUND.COM; writes sound.wav
+python3 scripts/sim_fes_pc386.py --suite game --game ultima6   # a user-supplied game's start-up
 ```
 
 `make sim-fes-pc386` runs the first three; `make sim-fes-pc386-boot` and
@@ -88,6 +89,15 @@ output: the speaker's 880 Hz, the DSP's 1 kHz. It writes
 `build/sim/fes-pc386/sound/sound.wav` to listen to, `report.json` with each
 section's frequency, RMS and peak, and `sound-opl2.log`; `--update-fixture`
 copies that log to `sim/fixtures/` for the opl2 suite.
+
+The game suite boots the same way, then starts a game from the eXoDOS zips in
+`$FES_PC386_GAMES` (`wolf3d` or `ultima6`) with its shipped sound
+configuration and a fixed key schedule, and checks every OPL2 sample against
+Nuked-OPL3. The games are user-supplied: the suite unpacks one into
+`--games-work` (default `/tmp/fes-pc386-games`), outside the repository, and
+writes the disk image, WAV and OPL2 log there. Only measurements, paths and
+the zip's hash go into `build/sim/fes-pc386/game-<name>/report.json`. Never
+commit anything from that directory.
 
 ## Audio
 

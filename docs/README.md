@@ -90,6 +90,13 @@ The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
 binds mouse and writable-disk software checks, the original GEMDOS guest
 diagnostic, sealed video parts, and the unresolved physical byte-write failure.
 
+The [pc386 M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md)
+boots the Bochs BIOS and FreeDOS on the AT core with the Bochs oracle as CPU.
+The [pc386 M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md)
+checks the OPL2 sample for sample against Nuked-OPL3, the Sound Blaster DSP's
+DMA and IRQ sequences, and start-up audio of a test program and the games on
+that machine. Both are host-only simulation evidence.
+
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.

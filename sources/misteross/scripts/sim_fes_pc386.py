@@ -426,7 +426,7 @@ def run_game(args, linked: list[Path]) -> dict:
     args.type, args.expect = game['type'], ''
     keys = [arg for seconds, text in game['keys'] for arg in ('--keys', f'{seconds}:{text}')]
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
-    report = run_boot(args, linked, 'game', disk, ('--wav', str(wav), '--opl2-log', str(opl2_log), *keys))
+    report = run_boot(args, linked, f'game-{args.game}', disk, ('--wav', str(wav), '--opl2-log', str(opl2_log), *keys))
     report['game'] = {'name': args.game, **record}
     report['work'] = str(work)
     # The run ends at the limit, not at a prompt: that is not a failure here.
@@ -480,7 +480,8 @@ def main() -> int:
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
-            (OUTPUT / suite / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+            name = f'game-{args.game}' if suite == 'game' else suite
+            (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite in ('boot', 'sound', 'game'):
                 for row in report['screen']:
                     print('|' + row + '|')
