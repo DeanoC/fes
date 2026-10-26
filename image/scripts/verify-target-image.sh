@@ -327,7 +327,24 @@ verify_root() {
 /usr/sbin/fes-kit-software
 /usr/sbin/fes-kit-data
 /etc/fes/software-base.json
-/usr/share/fes/software/manifest.json'
+/usr/share/fes/software/manifest.json
+/usr/libexec/bluetooth/bluetoothd
+/usr/bin/dbus-daemon
+/usr/sbin/fes-bluetooth
+/etc/init.d/S30dbus
+/etc/init.d/S35fes-bluetooth
+/etc/init.d/S40bluetooth
+/etc/init.d/S41fes-bluetooth
+/etc/bluetooth/main.conf
+/lib/firmware/rtl_bt/rtl8821c_fw.bin
+/lib/firmware/rtl_bt/rtl8821c_config.bin
+/lib/firmware/rtl_bt/rtl8761bu_fw.bin
+/lib/firmware/rtl_bt/rtl8761bu_config.bin
+/lib/firmware/rtl_bt/LICENCE.rtlwifi_firmware.txt
+/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/btusb.ko
+/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/btrtl.ko
+/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/btintel.ko
+/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/btbcm.ko'
   fi
   printf '%s\n' "$required_paths" | while IFS= read -r required; do
     [ -n "$required" ] || continue
@@ -409,6 +426,31 @@ EOF
       printf '%s\n' 'verify-target-image: native init contains conventional Main, MGL, or FIFO startup wiring' >&2
       exit 1
     fi
+    bluetooth_link=$(readlink "$root/var/lib/bluetooth" || true)
+    [ -L "$root/var/lib/bluetooth" ] && [ "$bluetooth_link" = /run/fogcast/fesdata3/bluetooth ] || {
+      printf '%s\n' 'verify-target-image: bluetooth storage is not the ext4 appliance data link' >&2
+      exit 1
+    }
+    machine_id_link=$(readlink "$root/var/lib/dbus/machine-id" || true)
+    [ -L "$root/var/lib/dbus/machine-id" ] && [ "$machine_id_link" = /run/dbus/machine-id ] || {
+      printf '%s\n' 'verify-target-image: dbus machine id is not the volatile link' >&2
+      exit 1
+    }
+    (cd "$root/lib/firmware/rtl_bt" && /usr/bin/sha256sum -c "$repo/firmware/rtl_bt/SHA256SUMS") >/dev/null
+    overlay=$repo/buildroot/board/fogcast-target/native-rootfs-overlay
+    cmp "$root/etc/init.d/S35fes-bluetooth" "$overlay/etc/init.d/S35fes-bluetooth" || exit 1
+    cmp "$root/etc/init.d/S41fes-bluetooth" "$overlay/etc/init.d/S41fes-bluetooth" || exit 1
+    cmp "$root/etc/bluetooth/main.conf" "$overlay/etc/bluetooth/main.conf" || exit 1
+    [ -x "$root/usr/sbin/fes-bluetooth" ] && \
+      [ -x "$root/usr/libexec/bluetooth/bluetoothd" ] && \
+      [ -x "$root/usr/bin/dbus-daemon" ] && \
+      [ -x "$root/etc/init.d/S30dbus" ] && \
+      [ -x "$root/etc/init.d/S35fes-bluetooth" ] && \
+      [ -x "$root/etc/init.d/S40bluetooth" ] && \
+      [ -x "$root/etc/init.d/S41fes-bluetooth" ] || {
+      printf '%s\n' 'verify-target-image: bluetooth agent, daemon, or init is not executable' >&2
+      exit 1
+    }
   fi
 
   if [ "$variant" = native-dev ]; then
