@@ -553,15 +553,15 @@ module fes_i386_decode (
                     seg2_idx = 3'd1;
                     seg2_t = 1'b0;
                 end
-                8'h60: begin
-                    // PUSHA, PUSHAD (SEQ_UCODE): a probe of all eight slots,
-                    // then the ROM's routine
+                8'b0110000?: begin
+                    // PUSHA, PUSHAD, POPA, POPAD (SEQ_UCODE): a probe of all
+                    // eight slots, then the ROM's routine
                     op = 5'd9;  // ALU_MOV
                     mkind = 2'd1;
                     stk = fes_i386_pkg::STK_PROBE;
-                    probe = fes_i386_pkg::PROBE_PUSHA;
+                    probe = b0[0] ? fes_i386_pkg::PROBE_POPA : fes_i386_pkg::PROBE_PUSHA;
                     seq = fes_i386_pkg::SEQ_UCODE;
-                    upc = fes_i386_ucode_pkg::UC_PUSHA;
+                    upc = b0[0] ? fes_i386_ucode_pkg::UC_POPA : fes_i386_ucode_pkg::UC_PUSHA;
                     eoi = 1'b0;
                 end
                 8'h9a: begin

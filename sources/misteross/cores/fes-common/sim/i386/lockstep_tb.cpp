@@ -534,7 +534,7 @@ MemUse stack_use(const uint8_t *code) {
         m.writes = (op >= 0x50 && op < 0x58) || op == 0x68 || op == 0x6a || op == 0x06 || op == 0x0e ||
                    op == 0x16 || op == 0x1e || op == 0xe8 || op == 0x9a || op == 0x60;
         m.reads = (op >= 0x58 && op < 0x60) || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc2 ||
-                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb;
+                  op == 0xc3 || op == 0xc9 || op == 0xca || op == 0xcb || op == 0x61;
     }
     return m;
 }
@@ -756,7 +756,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                            : use.reads && store_before ? summary.gap_store_load
                            : stack_before && !pop_sp_before && stack_use(code).any() && op != 0xe8 && op != 0x9a &&
                                      op != 0xca && op != 0xcb && op != 0xc9 && op != 0x54 && op != 0x5c &&
-                                     op != 0x60
+                                     op != 0x60 && op != 0x61
                                ? summary.gap_stack_stack
                            : op == 0x8d || use.any() ? summary.gap_address
                            : stack_before ? summary.gap_after_stack

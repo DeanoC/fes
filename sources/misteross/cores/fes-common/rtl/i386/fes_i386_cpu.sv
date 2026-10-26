@@ -188,6 +188,8 @@ module fes_i386_cpu (
     assign dc_q.far_t = 1'b0;
     assign dc_q.slot = 2'd0;
     assign dc_q.b_t1 = 1'b0;
+    assign dc_q.a_t1 = 1'b0;
+    assign dc_q.popad_esp = 1'b0;
     assign d_ready = !dc_skid_valid;
     // A fixed sequence's uops issue from dc in turn: as each but the last
     // issues, dc takes the next (fes_i386_seq).
@@ -328,10 +330,12 @@ module fes_i386_cpu (
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
     assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
-    assign t_wait = (dc.far_t || dc.b_t1) && t_busy;
+    assign t_wait = (dc.far_t || dc.b_t1 || dc.a_t1) && t_busy;
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
+        // POPAD's ESP image counts only on a 16-bit stack.
+        if (dc.popad_esp && !(dc.opsize32 && !ss32)) u.dst.valid = 1'b0;
         if (d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
         if (far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
             u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
@@ -495,7 +499,7 @@ module fes_i386_cpu (
         d_out.uop = u;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
-        d_out.a = dc.cs_base ? seg_base[SEG_CS] : a_val;
+        d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
         d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1
                 : u.src2.valid ? b_val : u.imm;
         d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;

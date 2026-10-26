@@ -281,6 +281,8 @@ package fes_i386_pkg;
         // a push of the value in T1 (b_t1, which waits as far_t does).
         logic [1:0]  slot;
         logic        b_t1;
+        logic        a_t1;       // src1's value is T1's (POPAD's ESP), which waits as b_t1 does
+        logic        popad_esp;  // the uop counts only for POPAD on a 16-bit stack
         // A microcode routine (SEQ_UCODE): the ROM address of its next uop.
         logic [7:0]  upc;
         // A fixed uop sequence (SEQ_*), the step dc holds, and whether
@@ -329,6 +331,8 @@ package fes_i386_pkg;
         logic        far_chk;
         logic        far_t;
         logic        sp_add;
+        logic        a_t1;       // src1's value is T1's
+        logic        popad_esp;  // kept only for POPAD on a 16-bit stack
         logic        rd_cf;
         logic        rd_oszap;
         logic        wr_cf;

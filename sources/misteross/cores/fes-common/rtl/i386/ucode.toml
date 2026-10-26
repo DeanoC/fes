@@ -25,3 +25,24 @@ uops = [
     { cls = "alu", op = "mov", s2 = "esi", mkind = "store", in_a = true, stk = "push" },
     { cls = "alu", op = "mov", s2 = "edi", mkind = "store", in_a = true, stk = "push" },
 ]
+
+# POPA and POPAD. DC decodes the probe of all eight slots from ESP up
+# (probe = "popa"); the ROM pops EDI, ESI, EBP, reads ESP's slot into T1,
+# and pops EBX, EDX, ECX and EAX. POPAD on a 16-bit stack then takes ESP's
+# high word from that image, as the 386EX does (divergence
+# popad-esp-high-word): a 16-bit MOV merges SP into T1 (a = "t1") and
+# writes ESP. D keeps that uop only for POPAD on a 16-bit stack
+# (popad_esp).
+[[routine]]
+name = "popa"
+uops = [
+    { cls = "alu", op = "mov", s1 = "edi", d = "edi", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "esi", d = "esi", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "ebp", d = "ebp", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "ebx", d = "ebx", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "edx", d = "edx", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "ecx", d = "ecx", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", s1 = "eax", d = "eax", mkind = "load", stk = "pop" },
+    { cls = "alu", op = "mov", a = "t1", s2 = "esp", d = "esp", size = "16", popad_esp = true },
+]

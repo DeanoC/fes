@@ -94,7 +94,7 @@ SCOPE: frozenset[str] = frozenset([
     # Far pointer loads: LES, LDS, LSS, LFS, LGS; far transfers.
     'C4', 'C5', '0FB2', '0FB4', '0FB5', 'EA', '9A', 'CA', 'CB', 'FF.3', 'FF.5',
     # Microcode routines.
-    '60',
+    '60', '61',
 ])
 
 

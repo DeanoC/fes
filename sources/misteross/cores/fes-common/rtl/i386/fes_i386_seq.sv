@@ -96,6 +96,8 @@ module fes_i386_seq (
         n.wseg = 6'd0;
         n.slot = 2'd0;
         n.b_t1 = 1'b0;
+        n.a_t1 = 1'b0;
+        n.popad_esp = 1'b0;
         case (d.seq)
             fes_i386_pkg::SEQ_CALL: begin
                 n.uop.sp_write = 1'b0;
@@ -207,6 +209,8 @@ module fes_i386_seq (
                 if (w.ivt) n.lea_disp = {d.lea_disp[31:2], w.sel_part, 1'b0};
                 n.push_eip = w.b == 2'd1;
                 n.b_t1 = w.b == 2'd2;
+                n.a_t1 = w.a_t1;
+                n.popad_esp = w.popad_esp;
                 n.reads_seg = w.b == 2'd3;
                 n.seg_index = w.seg;
                 n.far_jmp = w.far_jmp;

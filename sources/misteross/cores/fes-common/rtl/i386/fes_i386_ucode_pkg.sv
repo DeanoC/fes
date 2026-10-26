@@ -5,4 +5,5 @@
 package fes_i386_ucode_pkg;
     localparam int UC_ABITS = 8;
     localparam logic [7:0] UC_PUSHA = 8'd0;
+    localparam logic [7:0] UC_POPA = 8'd9;
 endpackage

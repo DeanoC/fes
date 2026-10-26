@@ -35,7 +35,7 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('d', 1), ('d_space', 2), ('d_idx', 4),
     ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 2), ('ivt', 1), ('sel_part', 1),
     ('probe', 2), ('b', 2), ('seg', 3),
-    ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1),
+    ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('a_t1', 1), ('popad_esp', 1),
     ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
@@ -72,6 +72,11 @@ def encode(uop: dict, last: bool, where: str) -> int:
                 raise UcodeError(f'{where}: {key} = {value!r} is not a GPR')
             values[key] = 1
             values[REGS[key]] = GPR[value]
+        elif key == 'a':
+            # src1's value from T1 rather than a GPR.
+            if value != 't1':
+                raise UcodeError(f'{where}: a = {value!r}: only t1')
+            values['a_t1'] = 1
         elif key == 'd':
             # A GPR, T0 or T1, or a segment register.
             if value in GPR:
