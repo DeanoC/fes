@@ -38,6 +38,7 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
+	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))
 	th := r.opts.Theme
 	colors := L.NewTable()
 	background := FormatHexColor(th.SofaBackground)
@@ -83,7 +84,8 @@ func (r *Instance) installRooms() *lua.LTable {
 					L.RaiseError("rooms.open: unknown room %q", id)
 				}
 			}
-			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id})
+			initialGameID := strings.TrimSpace(optString(L.OptTable(2, nil), "game_id"))
+			r.actions = append(r.actions, Action{Kind: ActionOpenRoom, RoomID: id, InitialGameID: initialGameID})
 			return 0
 		},
 		"back": func(L *lua.LState) int {

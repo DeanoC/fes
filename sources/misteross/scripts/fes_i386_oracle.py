@@ -115,27 +115,46 @@ def build_bochs(source: Path, jobs: int) -> Path:
     return tree
 
 
-def build_testbench(name: str, source: Path, jobs: int = 4, download: bool = False) -> Path:
-    """Build cores/fes-common/sim/i386/<source> against the oracle; return the executable."""
+def link_inputs(jobs: int = 4, download: bool = False) -> list[Path]:
+    """Build the oracle adapter once per input set; return what a testbench links, in link order.
+
+    A testbench includes i386_oracle.h from SIM and links these files after its
+    own objects. Verilator testbenches pass them on the verilator command line.
+    """
     bochs = build_bochs(bochs_source(download), jobs)
-    inputs = [(SIM / item).read_bytes() for item in (*ORACLE_SOURCES, source.name)]
+    inputs = [(SIM / item).read_bytes() for item in ORACLE_SOURCES]
     key = _inputs_key(bochs.name, CXXFLAGS, _compiler(), *inputs)
     output = BUILD / 'bin'
     output.mkdir(parents=True, exist_ok=True)
+    oracle_object = output / f'bochs_oracle-{key}.o'
+    if not oracle_object.is_file():
+        # Per-process names let concurrent runners build the same object.
+        log = output / f'bochs_oracle.{os.getpid()}.log'
+        log.write_text('')
+        temporary = output / f'{oracle_object.name}.{os.getpid()}.tmp'
+        _run([_compiler(), *CXXFLAGS, f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{SIM}',
+              '-c', str(SIM / 'bochs_oracle.cpp'), '-o', str(temporary)], output, log)
+        log.unlink()
+        temporary.replace(oracle_object)
+        for stale in output.glob('bochs_oracle-*.o'):
+            if stale != oracle_object:
+                stale.unlink(missing_ok=True)
+    return [oracle_object, bochs / 'fes-paramtree.o', bochs / 'cpu/libcpu.a',
+            bochs / 'cpu/fpu/libfpu.a', bochs / 'cpu/softfloat3e/libsoftfloat.a']
+
+
+def build_testbench(name: str, source: Path, jobs: int = 4, download: bool = False) -> Path:
+    """Build cores/fes-common/sim/i386/<source> against the oracle; return the executable."""
+    linked = link_inputs(jobs, download)
+    key = _inputs_key(*(path.name for path in linked), CXXFLAGS, _compiler(), (SIM / source.name).read_bytes())
+    output = BUILD / 'bin'
     executable = output / f'{name}-{key}'
     if executable.is_file():
         return executable
-    # Per-process names let concurrent runners build the same testbench.
     log = output / f'{name}.{os.getpid()}.log'
     log.write_text('')
-    oracle_object = output / f'bochs_oracle-{key}.{os.getpid()}.o'
-    _run([_compiler(), *CXXFLAGS, f'-I{bochs}', f'-I{bochs}/instrument/fes', f'-I{SIM}',
-          '-c', str(SIM / 'bochs_oracle.cpp'), '-o', str(oracle_object)], output, log)
     temporary = output / f'{executable.name}.{os.getpid()}.tmp'
-    _run([_compiler(), *CXXFLAGS, f'-I{SIM}', str(source), str(oracle_object),
-          str(bochs / 'fes-paramtree.o'), str(bochs / 'cpu/libcpu.a'), str(bochs / 'cpu/fpu/libfpu.a'),
-          str(bochs / 'cpu/softfloat3e/libsoftfloat.a'), '-o', str(temporary)], output, log)
-    oracle_object.unlink()
+    _run([_compiler(), *CXXFLAGS, f'-I{SIM}', str(source), *map(str, linked), '-o', str(temporary)], output, log)
     log.unlink()
     temporary.replace(executable)
     for stale in output.glob(f'{name}-*'):

@@ -209,6 +209,10 @@ func (a *App) roomStorePathLocked(id string) string {
 // are opened by pushing the live parent instance onto roomStack first
 // (see applyRoomActionsLocked) so its state survives until Back.
 func (a *App) openRoomLocked(id string) {
+	a.openRoomWithSelectionLocked(id, "")
+}
+
+func (a *App) openRoomWithSelectionLocked(id, initialGameID string) {
 	pack, ok := a.roomsIndex.Find(id)
 	if !ok || !pack.Valid() {
 		a.roomErr = fmt.Sprintf("room %s is not installed", id)
@@ -216,23 +220,23 @@ func (a *App) openRoomLocked(id string) {
 		return
 	}
 	if pack.Revision != "" {
-		a.openInstalledRoomLocked(pack, false)
+		a.openInstalledRoomLocked(pack, false, initialGameID)
 		return
 	}
-	a.openValidRoomLocked(pack)
+	a.openValidRoomLocked(pack, initialGameID)
 }
 
 // openValidRoomLocked replaces the current room with pack. It reports
 // false only when rooms.New fails; a script error still leaves the
 // instance up so the existing error panel can show it.
-func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
+func (a *App) openValidRoomLocked(pack rooms.Pack, initialGameID string) bool {
 	a.discardLibraryOriginLocked()
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
-	inst, err := a.newRoomInstanceLocked(pack)
+	inst, err := a.newRoomInstanceLocked(pack, initialGameID)
 	if err != nil {
 		a.roomErr = err.Error()
 		a.status = a.roomErr
@@ -290,7 +294,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 		return true
 	}
 	if pack.Revision != "" {
-		if a.openInstalledRoomLocked(pack, true) {
+		if a.openInstalledRoomLocked(pack, true, "") {
 			// The room may have opened a nested child during load. Its trial
 			// committed, so preserve that navigation and stack as-is.
 			return true
@@ -307,7 +311,7 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	prevStatus := a.status
 	a.closeAllRoomsLocked()
 	a.roomPickerOpen = false
-	if a.openValidRoomLocked(pack) {
+	if a.openValidRoomLocked(pack, "") {
 		return true
 	}
 	a.closeRoomLocked()
@@ -481,7 +485,7 @@ func (a *App) applyRoomActionsLocked() {
 			}
 			return
 		case rooms.ActionOpenRoom:
-			a.openNestedRoomLocked(act.RoomID)
+			a.openNestedRoomLocked(act.RoomID, act.InitialGameID)
 			return
 		case rooms.ActionBack:
 			if a.roomDuringPlay {
@@ -753,7 +757,7 @@ func roomPickerHint(kind InputKind) string {
 	return selectWord(kind) + " open  " + detailsWord(kind) + " pin  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 }
 
-func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
+func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string) (*rooms.Instance, error) {
 	w, h := a.roomContentSizeLocked(pack.ID)
 	return rooms.New(pack, rooms.Options{
 		Width:                  w,
@@ -762,6 +766,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack) (*rooms.Instance, error) {
 		Index:                  a.roomsIndex,
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
+		InitialGameID:          initialGameID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),
 		StorePath:              a.roomStorePathLocked(pack.ID),
 		Local:                  a.localCores,

@@ -1,0 +1,16 @@
+Realtek Bluetooth firmware from linux-firmware tag 20240909
+https://gitlab.com/kernel-firmware/linux-firmware/-/tree/20240909/rtl_bt
+
+The kernel requests these names for the Superstation One RTL8821CU
+(rtl8821c) and for common Realtek USB dongles (rtl8761bu):
+
+  rtl_bt/rtl8821c_fw.bin
+  rtl_bt/rtl8821c_config.bin
+  rtl_bt/rtl8761bu_fw.bin
+  rtl_bt/rtl8761bu_config.bin
+
+Redistribution in binary form follows LICENCE.rtlwifi_firmware.txt.
+Trailing spaces on that licence's lines are removed; the notice text is unchanged.
+SHA256SUMS is the pin checked when the image is assembled. The firmware
+blob lines match linux-firmware 20240909. The licence line matches this copy.
+This note stays in the repository and is not copied into the rootfs.

@@ -109,8 +109,16 @@ Allowed operations are:
   A missing bearer is 401 and a token for another kit is 403.
 - `GET /api/v1/library/hardware` includes `expansion_selection` when this
   listener's service accepts the single-entry next-start write.
+- `POST /api/v1/library/core-entries` creates one library entry. The body
+  keeps `title` and `package_id` (optional media fields stay on the same
+  object). The listener forwards it unchanged after the bearer and
+  paired-target checks, and pins the session target to the requesting kit.
+  `PUT`, `PATCH` and `DELETE` on this collection stay unavailable, as do
+  posts to a child path.
 - `GET /api/v1/library/core-entries/{game_id}` reads one entry for ROM
   selection. The game ID is a strict slug.
+- `GET /api/v1/library/core-entries/{game_id}/rom` reads that entry's named
+  ROM binding. The game ID is a strict slug. Extra suffixes stay unavailable.
 - `PUT /api/v1/library/core-entries/{game_id}/rom` saves one named ROM
   selection. The body keeps `package_id`, `rom_id`, `expected_media_id` and
   `media_id`, and the listener forwards it unchanged after the bearer and

@@ -9,7 +9,11 @@ a library entry from an installed sealed package and an explicitly selected
 household BASIC ROM. This
 uses the local library APIs even when the published-core catalogue is unavailable;
 published Systems remains an optional installation route. No hardware is fabricated when the
-library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a separate shelf of prepared ZX81 and Commodore 64 library entries. It launches them through `session.launch` and adds no sockets or a second workshop.
+library is empty. The Amiga-themed `example.workbench` remains a separate room. **Computers** (`example.computers`) is a shelf of prepared ZX81 and Commodore 64 library entries. Confirm launches the focused row through `session.launch`. **Set up** opens that row's workbench: `example.hardware` for ZX81 and `example.c64` for Commodore 64.
+
+## Commodore 64 setup
+
+`example.c64` lists prepared `fes.c64` library entries. **Next machine** and **Next edition** choose among those entries and their grouped editions. Socket 1, socket 2, and any other saved expansion are shown from `slot_expansions` and `expansion_id` already on the entry. The saved disk is the entry's `media_id` when `media_role` is `disk`, shown as a short prefix. This core's media unit is a 1541 `.d64` on unit 0. `.tap`, `.t64`, and `.crt` are not offered. **Start machine** calls `session.launch`. While that entry is running and the session reports removable media, **Choose disk** calls `session.open_tape` for the live disk picker. **Stop machine** uses the ordinary stop path. The room does not invent an REU or another drive.
 
 ## Use the workbench
 

@@ -48,6 +48,9 @@ type gameResult struct {
 	Title            string              `json:"title"`
 	System           protocol.System     `json:"system"`
 	CoreID           string              `json:"core_id,omitempty"`
+	PackageID        string              `json:"package_id,omitempty"`
+	MediaID          string              `json:"media_id,omitempty"`
+	MediaRole        string              `json:"media_role,omitempty"`
 	Kind             catalog.SourceKind  `json:"kind"`
 	State            catalog.SourceState `json:"state"`
 	RootOnline       bool                `json:"root_online"`

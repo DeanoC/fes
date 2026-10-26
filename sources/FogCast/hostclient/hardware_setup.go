@@ -264,7 +264,8 @@ func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, 
 		}
 	}
 	if entry.GameID == "" {
-		err = c.doJSON(ctx, http.MethodPost, "/api/v1/library/core-entries", map[string]string{"title": title, "package_id": setup.PackageID}, &entry)
+		// The library route returns 201. 200 remains success.
+		err = c.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/core-entries", map[string]string{"title": title, "package_id": setup.PackageID}, &entry, http.StatusOK, http.StatusCreated)
 		if err != nil {
 			return entry, err
 		}

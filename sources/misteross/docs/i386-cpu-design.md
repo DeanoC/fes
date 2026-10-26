@@ -1,8 +1,27 @@
 # FES i386 CPU design
 
-**Status:** Proposal. No RTL, oracle harness, simulation, routed result or kit
-evidence exists. Every clock, area, latency and performance figure below is a
-budget or an estimate. The milestone that measures one replaces it.
+**Status:** The complete CPU and `fes.pc386` machine remain proposals. Phase 0's
+pinned Bochs oracle adapter and corpus runners ([#1071](https://github.com/DeanoC/fes/pull/1071))
+are implemented. Phase 1's first slice, delivered by
+[#1080](https://github.com/DeanoC/fes/pull/1080), implements the uop definitions,
+front end through Q, and AG address unit; Verilator checks cover length decode,
+front-end behavior and AG arithmetic. Four-seed routed spikes from that first
+slice cover the front end, AG and M2. The first-slice front-end routes used
+pre-correction RTL whose synthesized length decoder omitted some ModRM and
+immediate bytes. The corrected decoder had not been routed at the time, so
+corrected front-end timing was unmeasured in that record. The later
+[Phase 1 cuts](validation/2026-10-25-i386-phase1-cuts.md) record
+remeasurements of the revised stages. With nextpnr bd7a1c0d's corrected timing model, the
+pre-correction front end routed at 69.74–74.35 MHz; AG and M2 routed at
+77.36–80.71 MHz and 102.23–109.69 MHz, respectively, against a 100 MHz
+target. The original pipeline below follows those first-slice measurements.
+See the [RTL README](../cores/fes-common/rtl/i386/README.md),
+[simulation README](../cores/fes-common/sim/i386/README.md) and
+[Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md). The CPU
+top, decode, caches, execute, whole-CPU lockstep, complete machine, package,
+RBF and kit evidence do not exist. Every clock, area, latency and performance
+figure below is a budget or estimate unless it names its measurement; isolated
+spike results are not full-CPU timing or seal evidence.
 
 **Owners:** misteross for the CPU RTL, microcode, test harness and producer.
 The machine around the CPU (AT chipset, VGA, audio, storage, firmware) is a
@@ -36,7 +55,7 @@ titles it must play ([first acceptance games](#first-acceptance-games)).
 comparison. Its README gives a 90 MHz default with L1 and L2 on and "486SX33
 performance (no-FPU)". It is a reference only; nothing here reuses its RTL.
 
-The estimate for this design at 100 MHz is about 65 million instructions per
+The estimate for this design at 100 MHz is about 64 million instructions per
 second on cache-resident integer code ([estimate](#performance-estimate)). That
 is roughly twice a 486DX2-66 and three to four times a 486SX-33.
 
@@ -294,8 +313,9 @@ PC/XT's FFh for unclaimed reads.
 | Item | Value | Source |
 | --- | --- | --- |
 | Device | 5CSEBA6U23I7: 41,910 ALMs (83,820 COMB cells), 553 M10K, 112 DSP blocks | [RISC-V QoR](../cores/fes-riscv/qor.md); DSP count from the Cyclone V SE A6 device table |
-| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core | [Recipes](architecture.md#per-core-place-and-route-recipes) |
+| Compilers | Yosys and nextpnr-mistral with the GPU router, one lock per core. The CPU's timing figures come from the newest authenticated nextpnr with the corrected LUT-input and M10K timing models (`bd7a1c0d` when Phase 1 measured). A lock is a last known good and moves forward | [Recipes](architecture.md#per-core-place-and-route-recipes) |
 | CPU clocks seen | Pipelined RV32I cores 79.7–83.6 MHz in the QoR harness; the sealed `fes.riscv` system 75–79 MHz | [RISC-V QoR](../cores/fes-riscv/qor.md) |
+| i386 Phase 1 spikes | Each block routed alone with nextpnr bd7a1c0d, seeds 1–4: the pre-correction first-slice front end 70–74 MHz, AG as first drawn 77–81 MHz, M2 102–110 MHz. The repository lock's older nextpnr reports 84–98 MHz for the same pre-correction netlists because it predates the corrected models | [#1080](https://github.com/DeanoC/fes/pull/1080) |
 | Memory clocks seen | HPS DDR and SDRAM domains ship at 100 MHz; RAM-test experiments reached about 117–118 MHz; 130 MHz is unresolved | [RAM tester](../cores/fes-ramtest/README.md), [dated records](README.md#dated-records) |
 | HPS DDR | 256 MiB core window at `0x30000000`; port 0 is 128-bit, ports 1 and 2 are 64-bit; about 1,570 MB/s measured on port 0 and 700 MB/s on each of the others | [HPS DDR](../../../docs/hps-ddr.md), [kit diagnostic](../../../docs/validation/2026-09-27-hps-ddr-kit-diagnostic.md) |
 | RAM rules | M10K reads are synchronous (producers reject asynchronous M10K); current producers forbid MLAB | [Architecture](architecture.md) |
@@ -318,6 +338,18 @@ Rules that follow, checked in review and against every routed critical path:
    measurement says where the path is.
 6. Use DSP blocks wherever they save logic or cycles: the integer multiplier,
    AAM and AAD, and the x87 multiplier and wide shifts.
+7. In the stage where an M10K output arrives, it feeds at most equality
+   compares and a way select. That is M2's shape, which routed at 102–110 MHz.
+   Decoding M10K data waits for the next stage: the first front end, with seven
+   LUT levels of length decode behind the M10K, routed at 70–74 MHz on the
+   pre-correction RTL.
+8. A stage with a 32-bit carry chain has at most two LUT levels before the
+   chain and one after it. The first AG, with four or five levels before and
+   two after, routed at 77–81 MHz.
+9. Each cut is re-measured with the spike harness before the next one is made.
+   If the re-measured stages still miss 100 MHz, the clock lands at the measured
+   figure; at 75 MHz the [estimate](#performance-estimate) still clears the
+   minimum gate.
 
 The area budget is in [budgets](#budgets).
 
@@ -343,7 +375,7 @@ These facts drive the choices below.
 
 ## Microarchitecture
 
-Single-issue, in-order, nine stages. An x86 instruction with a memory operand,
+Single-issue, in-order, ten stages. An x86 instruction with a memory operand,
 read-modify-write included, goes through the pipeline once: address at AG,
 load at M1–M2, ALU at EX, store at WB. That is the 486's shape with stages cut
 for this FPGA. Complex instructions run microcode routines that issue
@@ -352,7 +384,8 @@ micro-operations (uops) into the same pipeline.
 ```mermaid
 flowchart LR
     BTB[BTB and return stack] --> F1
-    F1[F1 fetch] --> F2[F2 way select] --> Q[Q length and align]
+    F1[F1 fetch] --> F2[F2 way select] --> L[L per-byte lengths]
+    L --> Q[Q select and align]
     Q --> D[D decode and microcode] --> AG[AG address and early ALU]
     AG --> M1[M1 L1D and DTLB] --> M2[M2 tag check and load data]
     M2 --> EX[EX ALU, shift, multiply, divide] --> WB[WB commit]
@@ -367,10 +400,11 @@ flowchart LR
 | Stage | Work | Timing budget |
 | --- | --- | --- |
 | F1 | Choose the fetch address: sequential, BTB, return stack or redirect. Read L1I data and tags, the BTB and the ITLB. | One 28-bit incrementer and a 4:1 select into M10K address registers |
-| F2 | Compare L1I tags with the ITLB page, select a way, write 16 bytes into the fetch buffer. A BTB hit redirects F1. | M10K output, equality compares, way mux; no carry chain |
-| Q | Pick the next instruction start from the per-byte lengths, strip the last prefix, rotate the instruction bytes. | 32:1 select of a length, a 5-bit add |
-| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables and register muxes; no carry chain |
-| AG | Forward operands; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Forwarding mux, 4:2 compression, one carry chain |
+| F2 | Compare L1I tags with the ITLB page, select a way, register 16 bytes into the fetch buffer. A BTB hit redirects F1. | M10K output, equality compares, way mux: M2's shape. No decode, no carry chain |
+| L | Run the 16 per-byte length decoders on the registered bytes, and precompute each byte's next start for every operand- and address-size variant. | About seven LUT levels from flip-flops; no M10K output, no carry chain |
+| Q | Pick the precomputed next start at the current start, strip the last prefix, rotate the instruction bytes. | 32:1 select of a next start; no add in the loop |
+| D | Decode to one uop or a microcode entry; extract immediate and displacement; read GPRs and the segment base; select forwarded operands and scale the index; governor gate; instruction-breakpoint and CS-limit checks. | Opcode tables, register and forwarding muxes, index scale, and 32-bit CALL target-limit check |
+| AG | Take the operands registered by D plus at most one late operand; compute the linear address and offset; run the early ALU; resolve early branches; adjust ESP. | Final 3:2 row and compression, parallel linear and offset carry chains, a third stack-pointer adder, and selects |
 | M1 | Read L1D data and tags (index from linear bits 11:5); look up the DTLB; check the segment limit; compare data breakpoints. | DTLB CAM; the limit compare is the only carry chain |
 | M2 | Compare L1D tags with the physical page; select the way; merge bytes from older in-flight stores; decide faults and the memory type. | M10K output, equality compares, muxes; no carry chain |
 | EX | Align and extend load data; late ALU, shifter and flags; issue multiply and divide; resolve branches; check descriptors. | Byte rotate, one carry chain, result mux |
@@ -387,12 +421,16 @@ flowchart LR
 | Load result into the next instruction's address | +2 |
 | Early-ALU result into an address | 0 extra |
 | Late-ALU result into the next instruction's address | +3 |
+| Any of the three results above used as a scaled index | +1 on its row |
 | Predicted taken branch | One fetch bubble, normally hidden by the fetch buffer |
-| Mispredict resolved at AG / at EX | +4 / +7 |
+| Mispredict resolved at AG / at EX | +5 / +8 |
+| CALL rel | Two issue cycles: push the next EIP, then JMP rel |
+| ESP read as data immediately after a stack operation | +1 while the stack operation is in AG |
+| LEAVE with a 16-bit stack | Waits until the older ESP high half is in a register |
 | Access inside one 32-byte line, any alignment | 0 extra |
 | Access crossing a line / a page | +1 / +1 and a possible walk |
 | L1 miss that hits L2 | About 6–8 (estimate) |
-| L2 miss | DDR latency plus two beats (measured in Phase 1) |
+| L2 miss | DDR latency plus two beats (estimate; full-path measurement pending) |
 
 ### Performance estimate
 
@@ -403,16 +441,19 @@ row once the RTL runs games.
 | --- | ---: |
 | Base, one uop per instruction | 1.00 |
 | Extra prefixes | 0.03 |
-| Mispredicts: 18% branches, 10% mispredicted, 6 cycles on average | 0.11 |
+| Mispredicts: 18% branches, 10% mispredicted, 7 cycles on average | 0.13 |
 | Load-to-address and late-ALU-to-address stalls | 0.08 |
+| Late scaled-index stalls | 0.01 |
 | Microcoded instructions beyond their first uop | 0.10 |
 | L1 misses that hit L2: 0.5 accesses per instruction, 3% miss, 8 cycles | 0.12 |
 | L2 misses: 0.5% of accesses, 40 cycles | 0.10 |
-| Total | about 1.54 |
+| Total | about 1.57 |
 
-That is about 65 million instructions per second at 100 MHz and 54 million at
-83.3 MHz. Taking about 2 CPI for a 486 on the same code, which is also an
-estimate, a 486DX2-66 retires about 33 million.
+That is about 64 million instructions per second at 100 MHz, 53 million at
+83.3 MHz and 48 million at 75 MHz. Taking about 2 CPI for a 486 on the same
+code, which is also an estimate, a 486DX2-66 retires about 33 million. The L
+stage costs about 2% against the nine-stage pipeline first drawn; dropping the
+clock from 100 MHz to the spikes' 75 MHz would cost 25%.
 
 ### Alternatives rejected
 
@@ -424,6 +465,9 @@ estimate, a 486DX2-66 retires about 33 million.
 | Decoded-uop or trace cache | Parallel per-byte length decode handles x86 length cheaply. The M10K is better spent on L2. |
 | Write-back L1D | Write-through, the 486's choice, keeps DMA reads and self-modifying-code detection simple. A coalescing write buffer and the L2 absorb the store traffic. |
 | Virtually tagged L1D | EMM386 maps one physical page at several linear addresses, and the aliases would go stale. |
+| Lengths predecoded into the L1I's spare bits | Two spare bits per byte cannot hold a length for every operand- and address-size variant, and fills would need the decoders anyway. A stage of its own costs one mispredict cycle. |
+| Splitting AG into two stages | Every address-forwarding penalty would grow by a cycle, and the early ALU's zero-cycle forward into the next address would be lost. Moving forwarding and scaling into D keeps both. |
+| Lowering the clock to the spikes' 70–80 MHz | About a quarter of the throughput, against about 2% for the L stage. It stays the fallback if the re-measured stages still miss ([rule 9](#platform-constraints)). |
 | Translation on the HPS | Not a CPU core, and capped by the Cortex-A9. |
 
 ## Front end
@@ -433,8 +477,11 @@ estimate, a 486DX2-66 retires about 33 million.
 Fetch works in linear addresses (CS base plus EIP). L1I is 16 KiB, 4-way,
 32-byte lines, physically tagged and indexed by linear bits 11:5. A way is one
 4 KiB page, so the index needs no translation. F2 writes 16 bytes per cycle
-into a 32-byte fetch buffer. The ITLB has 16 fully associative entries in
-flip-flops; a miss starts the shared page walker.
+into a 32-byte fetch buffer. F2 holds its registered block until the memory
+response is ready; a miss can empty L2 while Q crosses the buffer halves, so
+Q's stored availability must withhold instructions that reach into a missing
+half. The ITLB has 16 fully associative entries in flip-flops; a miss starts
+the shared page walker.
 
 Fetch may run ahead of the CS limit. D checks `EIP + length - 1 <= CS.limit`
 for each instruction and raises #GP only for an instruction that would
@@ -467,22 +514,30 @@ the self-modifying-code snoop and L2 back-invalidation.
 The x86 length is the front end's critical loop: the next start is this start
 plus the length found at this start. The design breaks the loop.
 
-1. As 16 bytes enter the fetch buffer, 16 per-byte decoders work out the
+1. F2 registers each 16-byte block. In L, 16 per-byte decoders work out the
    instruction that would start at each byte, reading up to four following
-   bytes. Each decoder recognises one prefix and the 0F escape ahead of the
-   opcode, and reports its length for both operand sizes and both address
-   sizes, plus whether its byte is a prefix that starts a longer run.
-2. Q selects the length at the current start using the operand and address
-   sizes of CS.D and the prefix accumulator, and adds it to the start: one
-   instruction per cycle.
+   bytes; a block's last bytes are decoded when the next block arrives. Each
+   decoder recognises one prefix and the 0F escape ahead of the opcode, and
+   reports its length for both operand sizes and both address sizes, plus
+   whether its byte is a prefix that starts a longer run. L then adds each
+   length to its byte's position, so every byte carries its next start for
+   each size variant.
+2. Q selects the precomputed next start at the current start, using the
+   operand and address sizes of CS.D and the prefix accumulator: one
+   instruction per cycle, with no add in the loop.
 3. The aligner rotates the instruction to its opcode and passes the stripped
    prefix as flags. A run of prefixes is consumed one byte per cycle into the
    prefix accumulator until one prefix remains. The 486 charges a cycle for
    every prefix; this design charges for all but the last.
 
-In ×40 mode the I-cache M10K blocks keep two spare bits per byte. They are
-reserved for predecode marks in case routed timing shows the length loop needs
-them. Do not use them before that measurement.
+Phase 1 checked the decoders against the oracle on every opcode, ModRM, SIB
+and single-prefix combination in both default sizes, with no mismatch, and
+showed one prefix-free instruction per cycle
+([#1080](https://github.com/DeanoC/fes/pull/1080)). Its first draft decoded
+straight from the M10K output in F2 and, on the pre-correction RTL, routed
+at 70–74 MHz; the L stage exists because of that
+([rule 7](#platform-constraints)). The I-cache's ×40 spare bits stay unused: two bits per byte cannot hold a length for every size
+variant.
 
 ## Decode and microcode
 
@@ -557,23 +612,37 @@ descriptor-cache write retires.
   At load time each also stores its limit already adjusted for 1-, 2- and
   4-byte accesses, its expand-down bounds, and `base[31:16] + 1`. The limit
   check at M1 is then one compare.
-- **Forwarding:** D reads registers; AG forwards from the M1, M2, EX and WB
-  pipeline registers. Uops in M1 and M2 capture late-ALU results from the EX
-  result bus by register tag, so EX has no wide forwarding mux.
+- **Forwarding:** D reads registers, selects forwarded values from the M1, M2,
+  EX and WB pipeline registers, and scales the index, so AG starts from
+  registered operands. One value per uop can still arrive late: a result
+  finished in the cycle the uop leaves D (the previous uop's early-ALU result,
+  load data from M2 or a late-ALU result from EX). It enters AG's last 3:2 row
+  as a base or an unscaled index. A late scaled index waits one cycle in D
+  instead. Uops in M1 and M2 capture late-ALU results from the EX result bus by
+  register tag, so EX has no wide forwarding mux.
 - **Address adders:** AG computes
   `linear = segment base + base + (index << scale) + displacement` with 4:2
   compression and one carry chain. In parallel it computes
-  `offset = base + (index << scale) + displacement` for the limit check.
+  `offset = base + (index << scale) + displacement` for the limit check, with
+  its own carry chain. The third AG adder computes the stack operation's new
+  ESP/SP beside those address sums. Phase 1's first AG put the five-way
+  forwarding mux and the scaling in front of the compression and routed at
+  77–81 MHz; that is why D now does both ([rule 8](#platform-constraints)).
 - **16-bit wrap without a second chain.** With a 16-bit address size the offset
   wraps at 64 KiB but the linear sum must not carry the wrap. Correct and raw
   linear addresses differ only in bits 31:16. AG adds the base's low 16 bits to
   the 16-bit operands for linear bits 15:0, takes the wrap count from bits
   17:16 of the offset adder, and picks bits 31:16 from the stored `base[31:16]`
   or `base[31:16] + 1` by the carry left after removing the wrap. The two
-  chains run in parallel. `[si+bx]` with BX = FFFFh then costs nothing.
+  chains run in parallel. The high-half choice depends only on the shorter
+  16-bit sums, so after the 32-bit chain AG adds just the address-size select.
+  `[si+bx]` with BX = FFFFh then costs nothing.
 - **Stack:** PUSH, POP, CALL and RET compute the new ESP or SP at AG; SS.B
-  selects the width. ESP is an early result, so back-to-back pushes do not
-  stall.
+  selects the stack address width. The third adder produces ESP as an early
+  result for WB to write beside the main destination. A back-to-back push can
+  use it without a wait; ESP read as data stalls D for one cycle while the
+  producer is in AG. CALL rel uses two uops: push the next EIP, then issue JMP
+  rel. A 16-bit LEAVE waits until ESP's high half is in a register.
 - **Early ALU:** the register and immediate forms of ADD, ADC, SUB, SBB, AND,
   OR, XOR, CMP, TEST, INC, DEC, NEG, MOV and LEA execute at AG when their
   inputs are ready there. Otherwise they execute at EX. Results and flags move
@@ -649,6 +718,8 @@ sits behind it, in the machine.
 
 The machine's FLUSH request invalidates L1 and writes back and invalidates L2.
 The machine uses it when it changes the attribute map (shadow RAM control).
+The L2 controller serves FLUSH and DMA without the pipeline, so both complete
+whether the CPU is running, halted, in shutdown or held in reset.
 
 ### I/O
 
@@ -678,7 +749,10 @@ updates hold the L2's DMA port between their read and their write.
 - Guest RAM is in HPS DDR, not the SDRAM addon. L2 misses and write-backs use
   `fes.memory.hps-ddr` port 0. Guest RAM defaults to 16 MiB with a 64 MiB
   maximum, leaving the rest of the window to the machine for disk images and,
-  if it chooses, video memory.
+  if it chooses, video memory. Existing shells give the display plane port 0.
+  Guest RAM needs port 0's 128-bit width for its line fills; whether the plane
+  moves to port 2 or shares port 0 is the
+  [machine design](https://github.com/DeanoC/fes/pull/1077)'s decision.
 - Why DDR: the RAM tester scanned the whole window on all three ports on Kit
   A, and the Spectrum cores load tapes from DDR on both kits. FES has no
   qualified SDRAM pad timing; the [PC/XT notes](../cores/fes-pcxt/README.md)
@@ -686,11 +760,12 @@ updates hold the L2's DMA port between their read and their write.
   100 MHz peaks at 200 MB/s. DDR returns a 32-byte line in two beats once data
   starts, where the SDRAM needs 16 beats plus row opening, about 22 cycles. No
   addon is needed.
-- The check: Phase 1 measures line-fill latency on both memories. If DDR's first
-  data takes much more than about 40 cycles at 100 MHz, or Linux activity makes
-  it erratic, revisit the choice. The SDRAM would then become a faster tier in
-  front of DDR, not a replacement. DDR jitter costs speed only; nothing in the
-  machine times itself by memory latency.
+- The planned full-CPU Phase 1 check measures line-fill latency on both memories.
+  The current front-end/AG slice does not exercise either memory path. If DDR's
+  first data takes much more than about 40 cycles at 100 MHz, or Linux activity
+  makes it erratic, revisit the choice. The SDRAM would then become a faster
+  tier in front of DDR, not a replacement. DDR jitter costs speed only; nothing
+  in the machine times itself by memory latency.
 - **Self-modifying code:** every committed store looks up the L1I tags through
   port B and invalidates a hit. In the same cycle it compares its physical line
   with the lines of the instructions in flight from F2 to WB. A hit flushes the
@@ -730,6 +805,13 @@ updates hold the L2's DMA port between their read and their write.
   exception routine. Fault and trap classes, error codes, double fault and
   shutdown follow the 386. Shutdown asserts SHUTDOWN, which the machine turns
   into a CPU reset as an AT does.
+- **A CPU reset keeps memory.** `reset` is driven by the machine after
+  SHUTDOWN, from the 8042 or from port 92h. It first lets the write buffer
+  drain into L2, then clears the pipeline, the TLBs and both L1s. The L2 keeps
+  its lines, dirty ones included, as RAM survives a real 386 reset. Only
+  `cold_reset`, the machine's start, clears the L2. Without this, a
+  triple-fault reset would lose stores still held only in the L2; the
+  [machine design](https://github.com/DeanoC/fes/pull/1077) found the gap.
 - INTR is sampled at instruction boundaries, with the one-instruction shadow
   after MOV SS, POP SS and STI. NMI is edge-triggered and blocked until IRET.
   The INTA handshake returns the vector from the machine's PICs.
@@ -745,7 +827,8 @@ them.
 
 | Port | Direction | Contract |
 | --- | --- | --- |
-| `clk`, `reset` | In | One clock; synchronous reset to the 386 reset state |
+| `clk`, `reset` | In | One clock. `reset` is the CPU reset to the 386 reset state: it drains the write buffer and keeps the L2's contents |
+| `cold_reset` | In | Machine start: also clears the L2 |
 | Memory | Out | L2 to `fes.memory.hps-ddr` port 0: 32-byte line reads and write-backs, guest physical addresses offset into the window |
 | DMA | In | Physical byte, word and dword reads and writes through L2, coherent with both L1s |
 | MMIO | Out | Uncached dword reads with byte enables (blocking) and posted writes (in order, one per cycle into the machine's FIFO) |
@@ -753,7 +836,7 @@ them.
 | Interrupts | In/out | INTR level, NMI edge, INTA request and the returned vector |
 | A20M | In | Masks physical bit 20 |
 | SHUTDOWN | Out | Triple fault or shutdown |
-| FLUSH | In | Invalidate L1; write back and invalidate L2 |
+| FLUSH | In | Invalidate L1; write back and invalidate L2. Completes while the CPU runs, is halted, is in shutdown or is held in reset |
 | Attribute map | In | The memory-type table above |
 | Profile | In | `i386dx` or `i486-isa`, `coherent` or `queue16`, sampled at reset |
 | Governor | In | Mode, reference cost table and frequency |
@@ -820,7 +903,11 @@ A later milestone adds a 387-compatible unit and an `i386dx+387` identity:
 
 ## Budgets
 
-Budgets, not measurements. Phase 1 replaces the CPU rows with synthesis numbers.
+These are budgets for the planned full CPU, not measured totals. The routed
+front-end, AG and M2 spike counts and timing are recorded separately in the
+[Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md); those
+isolated harnesses do not replace the CPU budgets below. No whole-CPU synthesis
+or area result exists yet.
 
 | Block | ALMs | M10K | DSP blocks |
 | --- | ---: | ---: | ---: |
@@ -838,53 +925,68 @@ Budgets, not measurements. Phase 1 replaces the CPU rows with synthesis numbers.
 
 ## Verification
 
-Evidence is named as AGENTS.md requires: host-only check, hardware diagnostic,
-or exact-artifact hardware acceptance.
+Current evidence is host-only simulation plus isolated routed diagnostics; no
+package, RBF or kit acceptance exists. The later checks below remain the plan
+for the complete CPU and machine.
 
-1. **Oracle.** An external emulator configured as a 386 (MAME's i386 core or
-   Bochs at CPU level 3, whichever passes more of the corpora) behind a thin
-   adapter. It is an oracle only and never ships, as Fuse is for the Spectrum.
-   Where the corpora show it wrong, the harness keeps a divergence list, each
-   entry naming its deciding case.
-2. **SingleStepTests/80386** at a pinned revision, consuming only test data, as
-   [`test_fes_z80_vectors.py`](../scripts/test_fes_z80_vectors.py) does for the
-   Z80. Architectural state only: the corpus comes from a 386EX's 16-bit bus,
-   and this CPU does not reproduce bus cycles.
-3. **test386.asm** as a simulated boot ROM with `TEST_UNDEF` set: protected
-   mode, paging, V86 and task switches. POST codes arrive on an I/O port and the
-   final memory is compared with the oracle's. It is GPL-3 test input and never
-   enters a package.
-4. **RTL lockstep.** Verilator runs the RTL beside the oracle and compares
-   every retirement: EIP, GPRs, EFLAGS, segment caches, control registers,
-   memory writes, I/O and exceptions. Interrupts are injected at random, and
-   every memory, MMIO, I/O and DMA port gets random latency. Latency never
-   changes a result.
-5. **Directed tests:** both self-modifying-code profiles, A20 toggling, DMA
-   against CPU stores (randomised), unreal mode, 16-bit wrap cases, page faults
-   inside REP, segment-limit edges, LOCK against DMA, governor pacing, and every
-   no-387 ESC form with the common FPU-detection routines.
-6. **Random programs:** constrained-random instruction streams in each mode,
-   against the oracle.
-7. **System:** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
+1. **Oracle and corpus runners (implemented).** Phase 0 pins Bochs 3.1 at CPU
+   level 3 behind a thin adapter. It was selected over MAME's i386 core because
+   it passed more of both corpora ([#1071](https://github.com/DeanoC/fes/pull/1071)).
+   The adapter and runners cover SingleStepTests/80386 and test386.asm, with a
+   divergence list naming the deciding case for each disagreement. The oracle
+   and test inputs never ship. See the
+   [simulation README](../cores/fes-common/sim/i386/README.md).
+2. **Corpus scope.** SingleStepTests/80386 is pinned test data and compares
+   architectural state only; it comes from a 386EX's 16-bit bus, whose bus
+   cycles this CPU does not reproduce. The test386.asm runner uses the pinned
+   GPL-3 test input with `TEST_UNDEF` set and records the POST stream and final
+   memory. These oracle runners are implemented; booting test386 as a simulated
+   ROM on the RTL and comparing its final memory with the oracle remains part
+   of CPU validation. Test inputs never enter a package.
+3. **RTL checks (implemented for the first slice).** Verilator checks all 16
+   per-byte length decoders against Bochs `decode()`, samples the whole front
+   end, and compares AG address results against the architectural calculation.
+   They do not constitute whole-CPU instruction lockstep; coverage and results
+   are in the [simulation README](../cores/fes-common/sim/i386/README.md).
+4. **Routed spikes (implemented for isolated blocks).** The front end, AG and
+   M2 have four-seed timing runs. Their exact results and critical paths are in
+   the [Phase 1 spike record](validation/2026-10-25-i386-phase1-spikes.md).
+   These runs do not establish a full-CPU route, package seal or hardware result.
+5. **Whole-CPU RTL lockstep (planned).** Verilator will run the RTL beside the
+   oracle and compare every retirement: EIP, GPRs, EFLAGS, segment caches,
+   control registers, memory writes, I/O and exceptions. Interrupts are injected
+   at random, and every memory, MMIO, I/O and DMA port gets random latency.
+   Latency never changes a result.
+6. **Directed tests (planned):** both self-modifying-code profiles, A20 toggling,
+   DMA against CPU stores (randomised), unreal mode, 16-bit wrap cases, page
+   faults inside REP, segment-limit edges, LOCK against DMA, governor pacing,
+   every no-387 ESC form with the common FPU-detection routines, dirty L2 lines
+   surviving a reset after shutdown, and FLUSH while running, halted, in
+   shutdown and in reset.
+7. **Random programs (planned):** constrained-random instruction streams in each
+   mode, against the oracle.
+8. **System (planned):** in the `fes.pc386` simulation and then on a kit, FreeDOS and the
    [first acceptance games](#first-acceptance-games), each in the setup its
    install guide names and at its recorded speed. Later breadth: JEMM386 (V86
    with paging) with Wolfenstein 3D using its EMS, and DOS32A- or
    CWSDPMI-based test programs and a DOS/4GW game (Doom) for flat protected
    mode. Commercial games are user-supplied like any ROM.
-8. **Performance:** one microbenchmark per row of the latency table, plus Doom
+9. **Performance (planned):** one microbenchmark per row of the latency table, plus Doom
    `-timedemo demo3`, 3DBench, PCPBench and a cache and memory benchmark
    (Speedsys or CACHECHK) against published period results. Every performance
    feature lands with its before and after.
-9. **Timing:** a CPU-only routed harness like the RISC-V QoR one from Phase 1, then
-   the machine producer. Seal evidence follows AGENTS.md, from an authenticated
-   HIP or CUDA backend.
+10. **Timing and seal (planned):** the Phase 1 spike harness routes each stage
+    alone like the RISC-V QoR harness, followed by the complete CPU and then the
+    machine producer. Seal evidence follows AGENTS.md and requires an
+    authenticated HIP or CUDA backend. Existing isolated-block spikes are not
+    full-CPU timing or seal evidence.
 
 ## Milestones
 
 | Milestone | Content | Exit |
 | --- | --- | --- |
-| Phase 0 | Oracle adapter and corpus runners | Both corpora run against the oracle; every failure is in the divergence list with its deciding case |
-| Phase 1 | Real-mode pipeline: all nine stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | Lockstep clean on the real-mode corpus; first CPU-only routed fmax and area; DDR and SDRAM line-fill latency measured against the [DDR check](#l2-and-coherence) |
+| Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
+| Phase 1 | Real-mode pipeline: all ten stages, L1I and L1D on a memory model, static not-taken prediction, real-mode microcode | **In progress:** the first slice (front end through Q and AGU) has RTL, Verilator checks and isolated timing spikes. Exit requires clean real-mode lockstep; remeasured L, Q, D and AG spikes after the planned cuts; CPU-only routed fmax and area; and DDR and SDRAM line-fill measurements against the [DDR check](#l2-and-coherence) |
 | Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
@@ -897,7 +999,7 @@ or exact-artifact hardware acceptance.
 Settled on 2026-10-24:
 
 - DSP blocks are used wherever they help ([rule 6](#platform-constraints)).
-- Guest RAM is in HPS DDR port 0, subject to Phase 1's
+- Guest RAM is in HPS DDR port 0, subject to the pending full-CPU Phase 1
   [latency check](#l2-and-coherence).
 - `i486-isa` is a later extension (Phase 7), not part of the first acceptance.
 - The [first acceptance games](#first-acceptance-games) set the machine's
@@ -905,6 +1007,15 @@ Settled on 2026-10-24:
   presets for Ultima VI and The Black Gate.
 - Without an FPU, the CPU behaves as a 386 with an empty 387 socket on an AT
   board ([FPU](#fpu)).
+
+Settled on 2026-10-25:
+
+- After the Phase 1 spikes, the front end gains the L stage, and D takes over
+  operand forwarding and index scaling, keeping the 100 MHz design point
+  ([microarchitecture](#microarchitecture)). Lowering the clock is the
+  fallback ([rule 9](#platform-constraints)).
+- A CPU reset keeps the L2's contents, and FLUSH completes in every CPU state
+  ([commit](#commit-exceptions-and-interrupts)).
 
 No decision is open.
 

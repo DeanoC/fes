@@ -207,6 +207,14 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
+            'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
+            'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
+            'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},
+            'scripts/sim_fes_pc386.py': {'pc386'},
+            'scripts/build_pc386_firmware.py': {'pc386'},
+            'scripts/build_pc386_freedos_image.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -241,16 +249,22 @@ class AffectedTests(unittest.TestCase):
                 self.assertTrue(result['lanes']['parent'])
                 self.assertEqual(result['cores'], [])
 
-    def test_i386_oracle_runs_software_tests_without_simulations(self):
+    def test_i386_runs_software_tests_without_simulations(self):
         for path in ('cores/fes-common/sim/i386/bochs_oracle.cpp', 'cores/fes-common/sim/i386/divergences.toml',
-                     'cores/fes-common/sim/i386/bochs/instrument.h', 'scripts/fes_i386_oracle.py',
-                     'scripts/test_fes_i386_vectors.py', 'scripts/test_fes_i386_test386.py'):
+                     'cores/fes-common/sim/i386/bochs/instrument.h', 'cores/fes-common/sim/i386/frontend_tb.cpp',
+                     'cores/fes-common/sim/i386/spike/spike_ag.sv', 'cores/fes-common/rtl/i386/fes_i386_qalign.sv',
+                     'cores/fes-common/sim/i386/lockstep_tb.cpp', 'cores/fes-common/rtl/i386/fes_i386_cpu.sv',
+                     'cores/fes-common/rtl/i386/toolchain.lock',
+                     'scripts/fes_i386_oracle.py', 'scripts/test_fes_i386_vectors.py',
+                     'scripts/test_fes_i386_test386.py', 'scripts/test_fes_i386_frontend.py',
+                     'scripts/test_fes_i386_lockstep.py', 'scripts/quartus_fes_i386.py',
+                     'scripts/benchmark_fes_i386.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
                 self.assertTrue(result['lanes']['fpga'])
-        # A future i386 RTL directory is not swallowed by the oracle rule.
-        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/i386/top.sv'])['cores']), set(CORES))
+        # The rule is the i386 directory only: a new shared RTL unit still fails broad.
+        self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',
@@ -301,7 +315,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt'):
+            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

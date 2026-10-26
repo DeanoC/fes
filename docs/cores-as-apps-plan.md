@@ -66,7 +66,7 @@ On a miss, the driver and nightly don't just reroll seeds:
   - Against: one repo's CI config grows, and the path→core map has to be maintained.
 - **Split repos (one per core)**
   - For: hard isolation, and independent release cadence and ownership.
-  - Against: ABI and shell changes become N coordinated PRs. Shared RTL gets vendored or submoduled, with drift risk. Split repos also mean N CIs, more Devin reviews and more agent overhead, plus breaking up a large repo.
+  - Against: ABI and shell changes become N coordinated PRs. Shared RTL gets vendored or submoduled, with drift risk. Split repos also mean N CIs, more automated reviews (SuperGrok/Codex/Bugbot) and more agent overhead, plus breaking up a large repo.
 - **Recommendation:** stay a monorepo. Split out only a core that is truly independent, for example a third-party core.
 
 ## 4. Expected effect

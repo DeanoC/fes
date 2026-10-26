@@ -143,6 +143,84 @@ func TestWorkshopCoreSetupReadsAndPackageSelectionAreAdmitted(t *testing.T) {
 	}
 }
 
+type setupCreateAPIService struct {
+	coreLibraryAPIService
+	settings  fogcast.LibraryConfig
+	title     string
+	packageID string
+	target    string
+	romReads  int
+	romWrite  []string
+}
+
+func (s *setupCreateAPIService) LibrarySettings() fogcast.LibraryConfig { return s.settings }
+
+func (s *setupCreateAPIService) CreateCoreEntry(ctx context.Context, title, id string) (catalog.CoreEntry, error) {
+	s.title = title
+	s.packageID = id
+	s.target = fogcast.SessionTargetFromContext(ctx)
+	return catalog.CoreEntry{GameID: "my-zx81", Title: title, CoreID: "fes.zx81", PackageID: id}, nil
+}
+
+func (s *setupCreateAPIService) CoreEntryROM(_ context.Context, game string) (catalog.CoreEntryROM, error) {
+	s.romReads++
+	return catalog.CoreEntryROM{GameID: game}, nil
+}
+
+func (s *setupCreateAPIService) SelectCoreEntryROM(_ context.Context, game, pkg, rom, expected, media string) (catalog.CoreEntryROM, error) {
+	s.romWrite = []string{game, pkg, rom, expected, media}
+	return catalog.CoreEntryROM{GameID: game, PackageID: pkg, ROMID: rom, MediaID: media}, nil
+}
+
+// Add game posts the collection, then reads and writes the named ROM binding.
+// Other methods on the collection, and other core-entry routes, stay closed.
+func TestLauncherAdmitsSetupRoomCoreEntryPost(t *testing.T) {
+	pkg := strings.Repeat("a", 64)
+	rom := strings.Repeat("b", 64)
+	service := &setupCreateAPIService{settings: twoKitSettings("kit-a")}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), distinctKitConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	client := pairedExpansionClient(server, launcherTokenB, launcherIDB)
+	setup := hostclient.CoreSetup{
+		CoreReference: hostclient.CoreReference{CoreID: "fes.zx81", PackageID: pkg},
+		ROMs:          []hostclient.SetupROM{{ID: "machine-rom", Role: "firmware", SourceSize: 8192, Binding: "entry"}},
+	}
+	entry, err := client.CreateInstalledZX81Entry(context.Background(), setup, "My Zx81", map[string]string{"machine-rom": rom})
+	if err != nil || entry.GameID != "my-zx81" || entry.PackageID != pkg || entry.CoreID != "fes.zx81" {
+		t.Fatalf("create = %+v, %v", entry, err)
+	}
+	if service.title != "My Zx81" || service.packageID != pkg || service.target != "kit-b" {
+		t.Fatalf("forwarded create title=%q package=%q target=%q", service.title, service.packageID, service.target)
+	}
+	if service.romReads != 1 || len(service.romWrite) != 5 || service.romWrite[0] != "my-zx81" || service.romWrite[1] != pkg || service.romWrite[2] != "machine-rom" || service.romWrite[3] != "" || service.romWrite[4] != rom {
+		t.Fatalf("rom read=%d write=%v", service.romReads, service.romWrite)
+	}
+
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPut, "/api/v1/library/core-entries"},
+		{http.MethodPatch, "/api/v1/library/core-entries"},
+		{http.MethodDelete, "/api/v1/library/core-entries"},
+		{http.MethodPost, "/api/v1/library/core-entries/"},
+		{http.MethodPost, "/api/v1/library/core-entries/fpga-zx81"},
+		{http.MethodPost, "/api/v1/library/core-entries/fpga-zx81/rom"},
+		{http.MethodGet, "/api/v1/library/core-entries/Nope/rom"},
+		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/rom/extra"},
+		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/video"},
+		{http.MethodPut, "/api/v1/library/core-entries/Nope/media"},
+		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media/extra"},
+		{http.MethodPost, "/api/v1/library/settings"},
+	} {
+		response := kitCall(handler, tc.method, tc.path, launcherTokenB, launcherIDB, `{}`)
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "launcher operation is unavailable") {
+			t.Fatalf("%s %s = %d %s", tc.method, tc.path, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestLauncherCorePackageReadsRejectUnlistedPaths(t *testing.T) {
 	service := &workshopCoreReadAPIService{packageID: strings.Repeat("c", 64), settings: twoKitSettings("kit-a")}
 	handler, err := hostapi.NewLauncherHandler(hostapi.New(service), distinctKitConfig())

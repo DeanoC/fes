@@ -159,11 +159,73 @@ func TestComputersRoomEmptyLibraryDoesNotLaunch(t *testing.T) {
 	}
 	assertRowContrast(t, frame)
 	r.Input("select")
+	r.Input("right")
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("empty select launched %+v", acts)
 	}
+	if strings.Contains(frameText(frame), "Set up") {
+		t.Fatal("empty shelf offered Set up")
+	}
 	if r.Err() != nil {
 		t.Fatal(r.Err())
+	}
+}
+
+func TestComputersRoomSetupOpensTheWorkbench(t *testing.T) {
+	pack := examplePack(t, "example.computers")
+	zx := preparedComputer("fpga-zx81-maze", "3D Monster Maze", "fes.zx81")
+	c64 := preparedComputer("fpga-c64-game", "Impossible Mission", "fes.c64")
+	c64Second := preparedComputer("fpga-c64-second", "Second C64 title", "fes.c64")
+	svc := &fakeServices{games: []hostclient.Game{zx, c64, c64Second}}
+	r := newRoom(t, pack, Options{Services: svc, Index: NewIndex(Examples()), Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "Commodore 64") && strings.Contains(text, "Set up")
+	})
+	assertRowContrast(t, frame)
+	if !r.Input("right") {
+		t.Fatal("right did not focus Set up")
+	}
+	focused := r.Step(time.Unix(2, 0))
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	assertRowContrast(t, focused)
+	if !r.Input("select") {
+		t.Fatal("select on Set up")
+	}
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.hardware" || acts[0].InitialGameID != "fpga-zx81-maze" {
+		t.Fatalf("ZX81 setup %+v", acts)
+	}
+	if !r.Input("left") || !r.Input("down") || !r.Input("right") || !r.Input("select") {
+		t.Fatal("move to Commodore 64 setup")
+	}
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-game" {
+		t.Fatalf("C64 setup %+v", acts)
+	}
+	if !r.Input("left") || !r.Input("down") || !r.Input("right") || !r.Input("select") {
+		t.Fatal("move to the second Commodore 64 setup")
+	}
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-second" {
+		t.Fatalf("second C64 setup %+v", acts)
+	}
+	if !r.Input("left") || !r.Input("select") {
+		t.Fatal("confirm still launches")
+	}
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "fpga-c64-second" {
+		t.Fatalf("launch %+v", acts)
+	}
+	r.Activate("setup")
+	acts = r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionOpenRoom || acts[0].RoomID != "example.c64" || acts[0].InitialGameID != "fpga-c64-second" {
+		t.Fatalf("pointer setup %+v", acts)
 	}
 }
 

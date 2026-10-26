@@ -318,28 +318,44 @@ def build_static_arm(root, fogcast, output, env):
     )
 
 
-def build_kit_software(root, fogcast, env):
-    """Build the base-image software supervisor against selected appliance code."""
+def _arm_build(root, fogcast, env, output_name, package, workspace_prefix):
+    """Compile one static ARM platform command."""
     root, fogcast = Path(root), Path(fogcast)
     _, appliance_dir = selected_appliance(fogcast)
     platform_dir = root / 'platform'
-    output = fogcast / 'bin/fes-kit-software-linux-armv7'
+    if not (platform_dir / 'go.mod').is_file() or platform_dir.is_symlink():
+        raise ValueError('FES platform module is missing')
+    output = fogcast / 'bin' / output_name
     output.parent.mkdir(parents=True, exist_ok=True)
     before = (tree_identity(platform_dir), tree_identity(appliance_dir))
-    with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as temporary:
+    with tempfile.TemporaryDirectory(prefix=workspace_prefix) as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
         probe_env = dict(env, GOWORK='off', GOPROXY='off')
-        goroot = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=platform_dir,
-                                        env=probe_env, text=True).strip()
+        goroot = subprocess.check_output(
+            ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
         go_bin = Path(goroot) / 'bin' / 'go'
         build_env = dict(env, **BUILD_ENV, GOWORK=str(workspace))
-        subprocess.run([str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output),
-                        './cmd/fes-kit-software'], cwd=platform_dir,
-                       env=build_env, check=True)
+        subprocess.run(
+            [str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output), package],
+            cwd=platform_dir, env=build_env, check=True)
     if before != (tree_identity(platform_dir), tree_identity(appliance_dir)):
         output.unlink(missing_ok=True)
-        raise ValueError('software supervisor sources changed during build')
+        raise ValueError('platform sources changed during build')
     return _appliance_module().validate_static_arm(output)
+
+
+def build_bluetooth(root, fogcast, env):
+    """Build the base-image Bluetooth controller agent."""
+    return _arm_build(root, fogcast, env, 'fes-bluetooth-linux-armv7',
+                      './cmd/fes-bluetooth', 'fes-bluetooth-')
+
+
+def build_kit_software(root, fogcast, env):
+    """Build the base-image software supervisor against selected appliance code."""
+    digest = _arm_build(root, fogcast, env, 'fes-kit-software-linux-armv7',
+                        './cmd/fes-kit-software', 'fes-kit-software-')
+    build_bluetooth(root, fogcast, env)
+    return digest
 
 
 def main(argv=None):

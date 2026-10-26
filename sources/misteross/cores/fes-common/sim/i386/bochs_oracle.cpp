@@ -12,6 +12,7 @@
 #define NEED_CPU_REG_SHORTCUTS 1
 #include "bochs.h"
 #include "cpu/cpu.h"
+#include "cpu/decoder/fetchdecode.h"
 #include "cpu/icache.h"
 #include "iodev/iodev.h"
 #include "memory/memory-bochs.h"
@@ -28,6 +29,11 @@
 #error "the FES i386 oracle requires Bochs configured by scripts/fes_i386_oracle.py"
 #endif
 
+// Bochs' decoder (cpu/decoder/fetchdecode32.cc). Opcodes the configured CPU
+// level lacks keep their decoded length but execute BxError (#UD).
+extern int fetchDecode32(const Bit8u *iptr, bool is_32, bxInstruction_c *i, unsigned remainingInPage);
+extern bxIAOpcodeTable BxOpcodesTable[];
+
 namespace {
 
 fes_i386::Bus *bus = nullptr;
@@ -41,6 +47,16 @@ struct StepContext {
     bool rep_string = false;  // the instruction being executed is a REP string op
 };
 StepContext context;
+
+bool is_prefix(uint8_t b) {
+    switch (b) {
+    case 0x26: case 0x2e: case 0x36: case 0x3e: case 0x64: case 0x65:
+    case 0x66: case 0x67: case 0xf0: case 0xf2: case 0xf3:
+        return true;
+    default:
+        return false;
+    }
+}
 
 void stop_at_next_boundary() {
     bx_cpu.async_event |= 1;
@@ -277,6 +293,27 @@ public:
     ~BochsOracle() override { bus = nullptr; }
 
     std::string name() const override { return "bochs-level3"; }
+
+    Decoded decode(const uint8_t *bytes, unsigned available, bool code32) const override {
+        Decoded result;
+        // Below CPU level 6 Bochs keeps the 0F 38 and 0F 3A three-byte escapes
+        // in its descriptor table with no opcode table, and decoding them
+        // dereferences null. The i386 raises #UD for both; their length is
+        // not architectural, so report the two opcode bytes.
+        unsigned limit = available < 15 ? available : 15, at = 0;
+        while (at < limit && is_prefix(bytes[at])) ++at;
+        if (at + 1 < limit && bytes[at] == 0x0f && (bytes[at + 1] == 0x38 || bytes[at + 1] == 0x3a))
+            return Decoded{true, true, uint8_t(at + 2)};
+        bxInstruction_c i;
+        if (!available || fetchDecode32(bytes, code32, &i, available) < 0) return result;
+        result.complete = true;
+        result.length = uint8_t(i.ilen());
+        unsigned opcode = i.getIaOpcode();
+        // The handler choice mirrors BX_CPU_C::assignHandler.
+        BxExecutePtr_tR handler = i.modC0() ? BxOpcodesTable[opcode].execute2 : BxOpcodesTable[opcode].execute1;
+        result.undefined = opcode == BX_IA_ERROR || handler == &BX_CPU_C::BxError;
+        return result;
+    }
 
     void reset() override {
         bx_cpu.reset(BX_RESET_HARDWARE);

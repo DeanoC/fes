@@ -116,10 +116,20 @@ struct StepResult {
     std::vector<Access> writes;
 };
 
+// The oracle's decode of one instruction, without executing it.
+struct Decoded {
+    bool complete = false;   // the instruction ends within min(available, 15) bytes
+    bool undefined = false;  // the oracle raises #UD for this encoding on this CPU
+    uint8_t length = 0;      // bytes, prefixes included, when complete
+};
+
 class Oracle {
 public:
     virtual ~Oracle() = default;
     virtual std::string name() const = 0;
+    // Decode the instruction at bytes[0..available) with default operand and
+    // address size code32 (CS.D). Touches no CPU state.
+    virtual Decoded decode(const uint8_t *bytes, unsigned available, bool code32) const = 0;
     // Hardware reset: CS:EIP F000:FFF0 with CS base FFFF0000.
     virtual void reset() = 0;
     virtual State get_state() const = 0;

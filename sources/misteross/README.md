@@ -87,6 +87,11 @@ source/tool receipts and failed or completed routes under
 Routed timing, SDRAM pad qualification, a sealed package, physically linkable ISA
 sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
 
+The pc386 machine's AT core (phase M1 of the [machine design](docs/pc386-machine-design.md))
+boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
+oracle as CPU. `make sim-fes-pc386` runs its device checks and
+`make sim-fes-pc386-boot` the boot; see the [core README](cores/fes-pc386/README.md).
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
@@ -198,8 +203,8 @@ Pong's lock pins nextpnr `552ba246`, ZX81's `1eecf877` and RISC-V's
 pin's exact F0/F1 `$ROUTETHRU` map. Apple II and C64 share one slot, while the
 Atari ST lock has its own. Spectrum uses nextpnr main `bd7a1c0d`, which
 contains #276 as merged, and has its own slot. Coleco has its own slot at
-nextpnr `266e18b5`, which retains #276's exact F0/F1 `$ROUTETHRU` map; its
-lock also pins Yosys `5391eeb1`. The Coleco development shell still uses
+nextpnr `bec82e36`, which includes #296 and #299 and retains #276's exact F0/F1
+`$ROUTETHRU` map; its lock also pins Yosys `5391eeb1`. The Coleco development shell still uses
 nextpnr `9128800f`, whose exact route-through map is C/D. The validators
 select the map from each producer's lock; they do not broaden the
 reserved-boundary guard. The other five locks are byte copies of the
@@ -242,7 +247,7 @@ This path does not seal `fes.zx81`.
 | `toolchain.lock` | Shared OSS compiler pin (Yosys `3a5accbd`, Mistral `8fcc4cb4`, nextpnr `9128800f`) and the HIP cache slot for every described recipe whose lock matches it |
 | `cores/fes-apple2/toolchain.lock`, `cores/fes-c64/toolchain.lock` | Per-core locks using nextpnr `5fe55f3d` for the #276 F0/F1 boundary route-through map |
 | `cores/fes-spectrum/toolchain.lock` | Per-core lock using nextpnr main `bd7a1c0d` (#276 merged, same F0/F1 map) |
-| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `266e18b5` pins; this lock has its own HIP cache slot |
+| `cores/fes-coleco/toolchain.lock` | Coleco's Yosys `5391eeb1` and nextpnr `bec82e36` pins; this lock has its own HIP cache slot |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

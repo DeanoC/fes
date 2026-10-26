@@ -196,6 +196,13 @@ func (r *Instance) gameRow(g hostclient.Game, withVariants bool) *lua.LTable {
 	if coreID := strings.TrimSpace(g.CoreID); coreID != "" {
 		t.RawSetString("core_id", lua.LString(coreID))
 	}
+	if packageID := strings.TrimSpace(g.PackageID); packageID != "" {
+		t.RawSetString("package_id", lua.LString(packageID))
+	}
+	if mediaID := strings.TrimSpace(g.MediaID); mediaID != "" {
+		t.RawSetString("media_id", lua.LString(mediaID))
+		t.RawSetString("media_role", lua.LString(strings.TrimSpace(g.MediaRole)))
+	}
 	t.RawSetString("genre", lua.LString(g.Genre))
 	t.RawSetString("year", lua.LString(g.Year))
 	t.RawSetString("region", lua.LString(g.Region))

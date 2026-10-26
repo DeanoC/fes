@@ -701,9 +701,18 @@ type coreIdentityService interface {
 	CoreEntries(context.Context) ([]catalog.CoreEntry, error)
 }
 
-// attachCoreIdentities stamps core_id from core_entries onto core-package
-// rows, including grouped editions. A missing reader or a failed read leaves
-// core_id empty and the catalog page intact.
+// stampedCore is the core entry identity a catalog row can show without a
+// second library call.
+type stampedCore struct {
+	coreID    string
+	packageID string
+	mediaID   string
+	mediaRole string
+}
+
+// attachCoreIdentities stamps core_id, package_id, and saved media from
+// core_entries onto core-package rows, including grouped editions. A missing
+// reader or a failed read leaves those fields empty and the catalog page intact.
 func attachCoreIdentities(ctx context.Context, service Service, games []gameResult) {
 	if !gamesNeedCoreIdentity(games) {
 		return
@@ -716,14 +725,19 @@ func attachCoreIdentities(ctx context.Context, service Service, games []gameResu
 	if err != nil {
 		return
 	}
-	byGame := make(map[string]string, len(entries))
+	byGame := make(map[string]stampedCore, len(entries))
 	for _, entry := range entries {
 		gameID := strings.TrimSpace(entry.GameID)
 		coreID := strings.TrimSpace(entry.CoreID)
 		if gameID == "" || coreID == "" {
 			continue
 		}
-		byGame[gameID] = coreID
+		byGame[gameID] = stampedCore{
+			coreID:    coreID,
+			packageID: strings.TrimSpace(entry.PackageID),
+			mediaID:   strings.TrimSpace(entry.MediaID),
+			mediaRole: strings.TrimSpace(entry.MediaRole),
+		}
 	}
 	for i := range games {
 		stampCoreID(&games[i], byGame)
@@ -751,12 +765,21 @@ func gameWantsCoreID(game gameResult) bool {
 	return game.Kind == catalog.SourceKindCorePackage || game.System == catalog.CorePlatform
 }
 
-func stampCoreID(game *gameResult, byGame map[string]string) {
+func stampCoreID(game *gameResult, byGame map[string]stampedCore) {
 	if game == nil || !gameWantsCoreID(*game) {
 		return
 	}
-	if coreID := byGame[game.ID]; coreID != "" {
-		game.CoreID = coreID
+	id, ok := byGame[game.ID]
+	if !ok || id.coreID == "" {
+		return
+	}
+	game.CoreID = id.coreID
+	if id.packageID != "" {
+		game.PackageID = id.packageID
+	}
+	if id.mediaID != "" {
+		game.MediaID = id.mediaID
+		game.MediaRole = id.mediaRole
 	}
 }
 

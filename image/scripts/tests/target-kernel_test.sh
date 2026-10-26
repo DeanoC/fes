@@ -38,7 +38,7 @@ cat > "$fake_build" <<'EOF'
 set -eu
 output=$1
 epoch=$2
-mkdir -p "$output/modules/lib/modules/5.15.1-MiSTer/kernel"
+mkdir -p "$output/modules/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth"
 printf '%s\n' kernel > "$output/zImage"
 case "$output:${TARGET_IMAGE_KERNEL_FAKE_DIFFER:-0}" in
   *kernel-work-2*:1) printf '%s\n' different >> "$output/zImage" ;;
@@ -46,6 +46,7 @@ esac
 printf '%s\n' dtb > "$output/MiSTer.dtb"
 cat "$output/zImage" "$output/MiSTer.dtb" > "$output/zImage_dtb"
 printf '%s\n' module > "$output/modules/lib/modules/5.15.1-MiSTer/kernel/test.ko"
+printf '%s\n' btusb > "$output/modules/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth/btusb.ko"
 find "$output/modules" -exec touch -t 202507020910.12 {} +
 COPYFILE_DISABLE=1 LC_ALL=C tar -cf "$output/modules.tar" -C "$output/modules" .
 gzip -n "$output/modules.tar"
@@ -68,6 +69,20 @@ CONFIG_FPGA=y
 CONFIG_FPGA_MGR_SOCFPGA=y
 CONFIG_SOCFPGA_FPGA_BRIDGE=y
 CONFIG_FPGA_REGION=y
+CONFIG_BT=y
+CONFIG_BT_BREDR=y
+CONFIG_BT_HIDP=y
+CONFIG_BT_LE=y
+CONFIG_UHID=y
+CONFIG_HID=y
+CONFIG_INPUT_JOYDEV=y
+CONFIG_HID_SONY=y
+CONFIG_HID_NINTENDO=y
+CONFIG_HID_PLAYSTATION=y
+CONFIG_BT_HCIBTUSB=m
+CONFIG_BT_RTL=m
+CONFIG_BT_BCM=m
+CONFIG_BT_INTEL=m
 CONFIG
 printf '%s\n' '5.15.1-MiSTer' > "$output/release"
 printf '%s\n' 'fixture gcc' > "$output/compiler.txt"
@@ -107,6 +122,14 @@ sed '/^CONFIG_FPGA_REGION=y$/d' "$fixture/valid-config" > \
 if PATH="$fake_bin:$PATH" TARGET_IMAGE_TEST_MODE=1 \
   sh "$verify_script" --fixture "$output_root/kernel" >/dev/null 2>&1; then
   echo 'kernel verifier accepted a pruned required config' >&2
+  exit 1
+fi
+cp "$fixture/valid-config" "$output_root/kernel/config"
+sed '/^CONFIG_BT_HCIBTUSB=m$/d' "$fixture/valid-config" > \
+  "$output_root/kernel/config"
+if PATH="$fake_bin:$PATH" TARGET_IMAGE_TEST_MODE=1 \
+  sh "$verify_script" --fixture "$output_root/kernel" >/dev/null 2>&1; then
+  echo 'kernel verifier accepted a kernel without the USB Bluetooth module' >&2
   exit 1
 fi
 cp "$fixture/valid-config" "$output_root/kernel/config"
@@ -150,6 +173,12 @@ with tarfile.open(sys.argv[1], "w:gz") as archive:
     member.size = len(payload)
     archive.addfile(member, io.BytesIO(payload))
 PY
+expect_module_rejection
+
+mkdir -p "$fixture/no-btusb/lib/modules/5.15.1-MiSTer/kernel"
+printf '%s\n' module > "$fixture/no-btusb/lib/modules/5.15.1-MiSTer/kernel/test.ko"
+COPYFILE_DISABLE=1 tar -czf "$output_root/kernel/modules.tar.gz" \
+  -C "$fixture/no-btusb" .
 expect_module_rejection
 cp "$fixture/valid-modules.tar.gz" "$output_root/kernel/modules.tar.gz"
 

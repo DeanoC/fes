@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -114,6 +115,84 @@ func TestHardwareRoomSavesDraftWithoutChangingActiveMachine(t *testing.T) {
 	r.Activate("power")
 	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionStop {
 		t.Fatalf("Stop action: %+v", acts)
+	}
+}
+
+func TestHardwareRoomUsesInitialGameIDInsteadOfSavedNavigation(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	second := s.value.Machines[0]
+	second.GameID = "zx81-second"
+	second.Title = "Selected ZX81"
+	s.value.Machines = append(s.value.Machines, second)
+	s.lock.Unlock()
+	storePath := filepath.Join(t.TempDir(), "room.json")
+	if err := os.WriteFile(storePath, []byte(`{"navigation":{"game_id":"zx81-workbench"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: storePath, InitialGameID: "zx81-second",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") })
+	if frameHas(frame, "My ZX81") {
+		t.Fatalf("workbench ignored the selected entry\n%s", frameText(frame))
+	}
+}
+
+func TestHardwareRoomFallsBackWhenInitialGameIDIsUnavailable(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	s.value.Machines[0].GameID = "zx81-remaining"
+	s.value.Machines[0].Title = "Remaining ZX81"
+	s.lock.Unlock()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: "zx81-missing",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Remaining ZX81") && frameHas(f, "Start machine") })
+	if frameHas(frame, "selected ZX81 setup is no longer available") || !frameHas(frame, "Next start: Empty socket") {
+		t.Fatalf("remaining setup was not selected after the requested entry disappeared\n%s", frameText(frame))
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-remaining" {
+		t.Fatalf("remaining setup could not start: %+v", acts)
+	}
+}
+
+func TestHardwareRoomFallsBackWhenSelectedMachineDisappears(t *testing.T) {
+	s := hardwareData(false)
+	s.lock.Lock()
+	second := s.value.Machines[0]
+	second.GameID = "zx81-second"
+	second.Title = "Selected ZX81"
+	s.value.Machines = append(s.value.Machines, second)
+	s.lock.Unlock()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: "zx81-second",
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") && frameHas(f, "Next setup") })
+	r.Activate("setup")
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "My ZX81") && frameHas(f, "Next setup") })
+
+	s.lock.Lock()
+	s.value.Machines = []hostclient.HardwareMachine{second}
+	s.lock.Unlock()
+	r.Activate("refresh")
+	frame := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Selected ZX81") && frameHas(f, "Start machine") })
+	if frameHas(frame, "My ZX81") || frameHas(frame, "selected ZX81 setup is no longer available") {
+		t.Fatalf("workbench did not fall back to the remaining setup\n%s", frameText(frame))
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionLaunch || acts[0].GameID != "zx81-second" {
+		t.Fatalf("remaining setup could not start: %+v", acts)
 	}
 }
 
