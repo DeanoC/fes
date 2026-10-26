@@ -114,8 +114,11 @@ removed, so only the address-size select follows the 32-bit chain.
 
 ## D to WB
 
-`fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end. M1
-and M2 carry uops through; the memory slice fills them.
+`fes_i386_cpu` puts DC, D, AG, M1, M2, EX and WB behind the front end, with a
+data port that stands for the L1D's output: M1 drives a load's address, the
+port registers it on the edge as an M10K does, and the 8 bytes from the
+address's dword arrive in M2. A retiring store writes its bytes on the edge
+it retires, and the port reads before it writes on the same edge.
 
 **DC** decodes Q's output register into a two-entry buffer of decoded
 instructions: `dc` holds the instruction D issues, and `dc_skid` takes Q's
@@ -128,18 +131,27 @@ DC decodes the instruction to one uop (`fes_i386_decode`): group 1, INC,
 DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
-NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, register
-forms only (LEA's memory forms access nothing). LOCK on any of them, MOV to
-CS or to segment register 6 or 7, LEA of a register and C6h/C7h with reg != 0
-raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes as
-`FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
-one. DC also registers the address registers and scale a memory ModRM names
-(`fes_i386_amode`).
+NOP, HLT, and the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, with a ModRM
+memory operand wherever they take one. A memory operand is a load, a store,
+or both in one uop (read-modify-write), and stands for the register it
+replaces: no GPR is read or written for it. Its segment is the override, else
+SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
+read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC,
+MOV to CS or to segment register 6 or 7, LEA of a register and C6h/C7h with
+reg != 0 raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes
+as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
+one. An immediate after a ModRM's operand bytes is the instruction's last
+bytes, so DC takes it from the length, beside the decode. DC also registers
+the address registers and scale a memory ModRM names (`fes_i386_amode`).
 
-**D** keeps the instruction's EIP with an incrementer; in 16-bit code an
-instruction whose next EIP passes FFFFh is also unimplemented, since fetch
-would have to wrap and the CS-limit check is not built. D applies that
-fault, since only D knows the EIP.
+**D** keeps the instruction's EIP with an incrementer. In 16-bit code EIP is
+not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
+leaves EIP 10000h. Real-mode CS loads leave CS's limit at FFFFh, and an
+instruction that starts or runs past it raises #GP(0) at its fetch, before
+any fault its decode found; under a larger limit that is unimplemented, as
+the general CS-limit check is not built. D applies both, since only D knows
+the EIP. D also picks the memory operand's segment limit less the access's
+bytes but one, which reset precomputes per segment and size.
 
 The uop's src1 is always its destination's register: a byte or word result
 merges into the old value, an implicit source. src2 is the second register
@@ -154,11 +166,26 @@ AG, M1 or M2 into its next pipeline register, or EX beside its operand, which
 is EX's only forwarding mux. A late result reaches the next uop's ALU with no
 bubble. LEA's offset is early when the destination is 32-bit and comes from
 AG; a 16-bit LEA merges at EX like any other result. `fes_i386_dfwd` gives
-LEA's address operands and its stalls as before. A selector read (MOV r/m,
-Sreg) waits in D while an older uop writes that segment register.
+a memory operand's or LEA's address operands and its stalls as before. A
+selector read (MOV r/m, Sreg), and a memory operand for its segment's base,
+waits in D while an older uop writes that segment register; a register of
+the segments in flight makes each wait one select. A load waits one cycle
+behind a store, whose data EX computes in the cycle the load would be in M2.
 
-**AG** runs `fes_i386_agu` for LEA, or for a branch's target: CS.base + EIP +
-length + displacement in one carry chain, wrapped by operand size.
+**AG** runs `fes_i386_agu` for a memory operand's linear address and offset,
+for LEA's offset, or for a branch's target: CS.base + EIP + length +
+displacement in one carry chain, wrapped by operand size.
+
+**M1** checks the segment limit with one compare, the offset against D's
+limit, raising #SS(0) for SS and #GP(0) otherwise, and sends a load's address
+to the data port. It also takes the load's distance from the stores in EX and
+WB, which have not written when the port reads: the one in EX will be in WB
+when the load is in M2, and the one in WB writes on the edge the port reads.
+
+**M2** aligns the 8 loaded bytes to the access and takes each byte an older
+store writes from that store: the store in WB first, then the one that
+retired on the read edge. EX takes the value through its bypass selects, the
+ones a WB result uses, so EX's front stays one LUT level.
 
 **EX** (`fes_i386_ex`) takes its selects registered: M2 decodes them from
 the uop (`fes_i386_exctl`), so no opcode compare sits on EX's data paths. M2
@@ -187,7 +214,8 @@ at WB the fault stops the CPU with nothing retired (delivery waits for the
 microcode slice), and HLT retires and stops it.
 
 **WB** commits in order: the GPR file and segment registers in flip-flops,
-EFLAGS and EIP. A real-mode segment load sets the base to selector * 16 and
+EFLAGS, EIP and stores, the result's low bytes moved to the address's place
+in its dword and the next. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 
 **Reset and trace.** `init_*` is the architectural state reset loads; a
