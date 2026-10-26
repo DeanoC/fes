@@ -9,12 +9,15 @@ docs/pc386-machine-design.md, "Verification" and phases M1 and M2.
            DMA registers, pages and a transfer, 8042 commands, A20 and reset,
            RTC update and interrupts, the ATA command set, and the I/O timing
            classes. Needs only Verilator.
+  benches  cores/fes-pc386/sim/presenter_tb.cpp and plane_tb.cpp: the presenter
+           against its model, and the shared display plane through the port 2
+           bridge and arbiter. Needs only Verilator; under a minute.
   boot     cores/fes-pc386/sim/machine_tb.cpp runs the Bochs BIOS, the LGPL
            VGABios and FreeDOS on the machine (pc386_machine: the AT core and
            the RTL VGA) with the Bochs oracle as the CPU, types a command at
            the prompt, checks the answer read from VRAM and the I/O completion
            times, and replays the boot's VGA trace against Bochs's VGA.
-  vga      runs the presenter and port 2 benches, boots
+  vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
            presenter and the plane against the presenter model, and replays
@@ -333,10 +336,16 @@ def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path)
     return {'checks': checks, 'failures': failures}
 
 
-def run_vga(args, linked: list[Path]) -> dict:
-    print('Presenter and port 2 benches', flush=True)
+def run_benches(args) -> dict:
     benches = {'presenter': run_bench(args, 'presenter', 'pc386_presenter', PRESENTER_RTL, CORE / 'sim/presenter_tb.cpp'),
                'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
+    return {'checks': [line for bench in benches.values() for line in bench['checks']],
+            'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
+
+
+def run_vga(args, linked: list[Path]) -> dict:
+    print('Presenter and port 2 benches', flush=True)
+    benches = run_benches(args)['benches']
     for bench in benches.values():
         print('\n'.join(bench['checks']), flush=True)
     images = firmware.images(args.download, args.jobs)
@@ -386,7 +395,7 @@ def run_devices(args) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'boot', 'vga', 'all'), default='all')
+    parser.add_argument('--suite', choices=('devices', 'benches', 'boot', 'vga', 'all'), default='all')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None,
@@ -405,12 +414,15 @@ def main() -> int:
         for suite in ('devices', 'boot', 'vga') if args.suite == 'all' else (args.suite,):
             if suite == 'devices':
                 report = run_devices(args)
+            elif suite == 'benches':
+                report = run_benches(args)
             else:
                 args.limit_seconds = limit if limit is not None else 8 if suite == 'boot' else 12
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
+            (OUTPUT / suite).mkdir(parents=True, exist_ok=True)
             (OUTPUT / suite / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-            if suite != 'devices':
+            if suite not in ('devices', 'benches'):
                 for row in report['screen']:
                     print('|' + row + '|')
                 for name, present in report['present'].items():

@@ -56,8 +56,9 @@ class TestChangedTest(unittest.TestCase):
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
-        self.assertEqual(result["impact"]["cores"], ["c64", "coleco", "menu", "spectrum", "zx81"])
-        for target in ("sim-fes-c64", "sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81", "sim-fes-coleco-session"):
+        self.assertEqual(result["impact"]["cores"], ["c64", "coleco", "menu", "pc386", "spectrum", "zx81"])
+        for target in ("sim-fes-c64", "sim-fes-menu", "sim-fes-spectrum", "sim-fes-zx81", "sim-fes-coleco-session",
+                       "sim-fes-pc386"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
     def setUp(self):

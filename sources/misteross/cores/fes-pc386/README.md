@@ -48,6 +48,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
+python3 scripts/sim_fes_pc386.py --suite benches        # presenter and display plane on port 2, under a minute
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter and port 2 benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis

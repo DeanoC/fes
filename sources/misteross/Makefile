@@ -138,7 +138,7 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
-		"  sim-fes-pc386  Check the pc386 AT-core devices through their I/O port" \
+		"  sim-fes-pc386  Check the pc386 AT-core devices, the presenter and the display plane on port 2" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
 		"  synth-fes-pc386  Synthesize and pack the pc386 machine without the CPU (needs CACHE_ROOT)" \
@@ -2641,6 +2641,7 @@ sim-fes-pcxt:
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
+	$(PYTHON) scripts/sim_fes_pc386.py --suite benches --verilator "$(VERILATOR)"
 
 sim-fes-pc386-boot:
 	$(require_local_sim)
