@@ -10,6 +10,7 @@
 `define SELECT_COUNTER_0        (2'b00)
 `define SELECT_COUNTER_1        (2'b01)
 `define SELECT_COUNTER_2        (2'b10)
+`define SELECT_READ_BACK        (2'b11)
 
 `define RL_COUNTER_LATCH        (2'b00)
 `define RL_SELECT_MSB           (2'b10)

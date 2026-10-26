@@ -207,6 +207,14 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
+            'cores/fes-common/vendor/kf8259/KF8259.sv': {'pcxt', 'pc386'},
+            'cores/fes-common/vendor/kf8253/read_back.patch': {'pcxt', 'pc386'},
+            'cores/fes-common/rtl/fes_dma8237.sv': {'pcxt', 'pc386'},
+            'cores/fes-pc386/rtl/pc386_at_core.sv': {'pc386'},
+            'cores/fes-pc386/firmware/rombios/rombios.c': {'pc386'},
+            'scripts/sim_fes_pc386.py': {'pc386'},
+            'scripts/build_pc386_firmware.py': {'pc386'},
+            'scripts/build_pc386_freedos_image.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -307,7 +315,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt'):
+            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt', 'pc386'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

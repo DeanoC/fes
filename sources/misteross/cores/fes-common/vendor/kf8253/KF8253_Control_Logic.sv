@@ -25,7 +25,10 @@ module KF8253_Control_Logic (
     output  logic           write_counter_2,
     output  logic           read_counter_0,
     output  logic           read_counter_1,
-    output  logic           read_counter_2
+    output  logic           read_counter_2,
+    // 8254 read-back command, one strobe per counter it selects
+    output  logic   [2:0]   read_back_count,
+    output  logic   [2:0]   read_back_status
 );
 
 
@@ -76,6 +79,9 @@ module KF8253_Control_Logic (
     assign write_control_0 = (internal_data_bus[7:6] == `SELECT_COUNTER_0) & write_control;
     assign write_control_1 = (internal_data_bus[7:6] == `SELECT_COUNTER_1) & write_control;
     assign write_control_2 = (internal_data_bus[7:6] == `SELECT_COUNTER_2) & write_control;
+    wire   write_read_back = (internal_data_bus[7:6] == `SELECT_READ_BACK) & write_control;
+    assign read_back_count  = {3{write_read_back & ~internal_data_bus[5]}} & internal_data_bus[3:1];
+    assign read_back_status = {3{write_read_back & ~internal_data_bus[4]}} & internal_data_bus[3:1];
 
 
     //

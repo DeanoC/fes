@@ -1,10 +1,13 @@
 # FES pc386 machine design
 
-**Status:** Proposal, with its design decisions settled on 2026-10-25
-([decisions](#decisions)). No RTL, simulation, routed result or kit evidence
-exists for this machine. Every clock, area, bandwidth and latency figure below
-is a budget or an estimate unless it names a measurement. The milestone that
-measures one replaces it.
+**Status:** Design decisions settled on 2026-10-25 ([decisions](#decisions)).
+Phase M1 exists as RTL and simulation: the AT core in
+[`cores/fes-pc386/`](../cores/fes-pc386/README.md) boots the Bochs BIOS and
+FreeDOS to a prompt with the Bochs oracle as CPU
+([2026-10-26 record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md)).
+No routed result or kit evidence exists for this machine. Every clock, area,
+bandwidth and latency figure below is a budget or an estimate unless it names
+a measurement. The milestone that measures one replaces it.
 
 **Builds on:** the [i386 CPU design](i386-cpu-design.md). This page designs
 everything behind that CPU's [machine interface](i386-cpu-design.md#machine-interface)
@@ -84,7 +87,7 @@ controller, not its bus.
 | --- | --- | --- |
 | KF8259 (MIT import) | Master at 20h and slave at A0h in cascade, slave INT on master IR2 | None to the import. New wrapper: the CPU's INTA request runs both acknowledge cycles inside the machine and returns the vector; the slave supplies it for IR2. |
 | KF8253 (MIT import) | 8254 at 40h | Add the 8254 read-back command (control word bits 7:6 = 11) and the status byte as a recorded local change, with an equivalence test of the unchanged paths, as the existing counter change has. Channel 0 drives IRQ0, channel 1 the refresh toggle on port 61h bit 4, channel 2 the speaker. |
-| [`pcxt_dma.sv`](../cores/fes-pcxt/rtl/pcxt_dma.sv) | Two 8237s: 8-bit channels 0–3 at 00h, 16-bit channels 4–7 at C0h | Keep the register model, priority, modes and auto-init. Replace the ISA memory half with the CPU's DMA port and the ISA peripheral half with direct on-board DREQ/DACK. Add AT page registers (81h–8Fh, eight bits, 24-bit addresses) and cascade on channel 4. The second controller keeps its registers, status and word-count semantics but no data path: no device in this scope uses channels 5–7. DMA0 refresh service goes away. |
+| [`fes_dma8237.sv`](../cores/fes-common/rtl/fes_dma8237.sv) (was `pcxt_dma.sv`) | Two 8237s: 8-bit channels 0–3 at 00h, 16-bit channels 4–7 at C0h | Keep the register model, priority, modes and auto-init. Replace the ISA memory half with the CPU's DMA port and the ISA peripheral half with direct on-board DREQ/DACK. Add AT page registers (81h–8Fh, eight bits, 24-bit addresses) and cascade on channel 4. The second controller keeps its registers, status and word-count semantics but no data path: no device in this scope uses channels 5–7. DMA0 refresh service goes away. |
 | [`pcxt_speaker.sv`](../cores/fes-pcxt/rtl/pcxt_speaker.sv) | PC speaker source in the mixer | Its 48 kHz window becomes a rational enable of the sealed clock instead of fixed 100 MHz constants. |
 | KF8255 PPI | Not used | The AT has no 8255. Port 61h is a small register (below). |
 | XT keyboard transport | Not used | The 8042 replaces it. |
@@ -292,11 +295,17 @@ cycles for 16-bit devices.
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
 | `vga` | 3B0–3DF | Posted into the VGA FIFO; reads wait for the FIFO to drain |
 
-The ISA figures are estimates from the AT bus's default wait states (four for
-8-bit cycles, one for 16-bit). Phase M1 checks them against published
-port-access timings and period benchmarks before the machine fixes them. They
-are why a port-80h write or six OPL status reads keep their delay at any CPU
-speed. The governor charges each I/O instruction's reference cost separately;
+The ISA figures come from the AT bus's default wait states: an ISA cycle is
+two bus clocks plus four wait states for 8-bit cycles and one for 16-bit
+cycles. Phase M1 checked them against published figures on 2026-10-26 and they
+stand ([record](../../../docs/validation/2026-10-26-pc386-m1-freedos-boot/summary.md#io-timing)):
+ISA bus references give 6 and 3 bus clocks (750 and 375 ns at 8 MHz), a
+period parallel-port measurement gives six bus clocks per I/O read, and the
+AdLib guide's six and 35 status reads for its 3.3 us and 23 us delays need at
+most 550 and 660 ns per read, which 720 ns exceeds. In the M1 simulation every
+CPU I/O completed at exactly its class time plus the two-clock handshake.
+They are why a port-80h write or six OPL status reads keep their delay at any
+CPU speed. The governor charges each I/O instruction's reference cost separately;
 it never changes device time.
 
 VGA ports get local-bus behaviour, matching VGA memory: Wolfenstein 3D writes
@@ -335,9 +344,9 @@ Bytes from the keyboard and aux devices are paced like a PS/2 link: after the
 guest reads 60h, the next device byte appears no sooner than one PS/2 byte
 time, about 1 ms (11 bits at 10–16.7 kHz; estimate). Controller responses
 (self-test, output port) are immediate. A keyboard reset reports its BAT
-completion (AAh) after a few milliseconds rather than the half second some
-keyboards took. That is a recorded deviation; Phase M1 checks the BIOS's
-keyboard initialisation against it.
+completion (AAh) 5 ms later rather than the half second some keyboards took.
+That is a recorded deviation; in M1 the Bochs BIOS's keyboard initialisation,
+which waits up to about 94 ms for each byte, passes with it.
 
 ### Keyboard model
 
@@ -432,11 +441,14 @@ bank Bochs BIOS uses), on a 32.768 kHz fractional enable.
 
 The machine owns the bytes that describe its hardware and writes them from its
 configuration at every Execution release: 10h (no floppy drives), 12h and
-19h–1Ah (disk type), 14h (equipment), 15h–18h and 30h–31h (memory), 34h–35h
-(memory above 16 MiB), 2Dh, 38h and 3Dh (boot from disk) and 39h–3Ah (ATA
-translation: none). It recomputes the checksum in 2Eh–2Fh over 10h–2Dh. The
-Bochs emulator writes these same bytes before its BIOS runs; the BIOS reads
-disk geometry from ATA IDENTIFY, not from CMOS.
+19h–1Ah (disk type), 14h (equipment: 04h, VGA and the PS/2 port, no x87 or
+floppy), 15h–18h and 30h–31h (memory), 1Bh–23h (the disk's cylinders, heads
+and sectors), 34h–35h (memory above 16 MiB), 2Dh, 38h and 3Dh (boot from disk),
+39h–3Ah (ATA translation: none) and 3Fh (bit 0: no F12 boot menu, which would
+wait three seconds for a key). It recomputes the checksum in 2Eh–2Fh over
+10h–2Dh. The Bochs emulator writes these same bytes before its BIOS runs; the
+BIOS's ATA driver reads disk geometry from ATA IDENTIFY, and its POST copies
+1Bh–23h into the INT 41h fixed-disk table.
 
 It also writes 60h–62h with the latched Sound Blaster setting: base port
 high byte (22h or 24h), IRQ (2, 3, 5 or 7) and DMA channel (1). The Bochs BIOS
@@ -739,7 +751,9 @@ these are constants, tuned by ear against period recordings in Phase M3.
 ### ATA device
 
 One ATA hard disk, master on the primary channel. Slave registers read as ATA
-requires of device 0 when device 1 is absent.
+requires of device 0 when device 1 is absent: with DEV set, status and
+alternate status read 00h and the other registers are shared, as in Bochs's
+drive model. The Bochs BIOS lists that slave as "Unknown device".
 
 - **Commands:** IDENTIFY DEVICE, READ and WRITE SECTORS (20h/21h, 30h/31h),
   READ and WRITE MULTIPLE with SET MULTIPLE MODE, READ VERIFY, INITIALIZE
@@ -751,7 +765,15 @@ requires of device 0 when device 1 is absent.
   `isa16` class a sector takes about 92 µs of guest I/O, roughly 5.6 MB/s,
   in the range of period ISA IDE disks.
 - **Timing:** no seek or rotation is modelled. BSY covers the DDR transfer
-  only. No target times its disk.
+  only, and for writes not even that: once a whole sector is in the buffer the
+  device reports it done and stores it behind, like a drive with its write
+  cache on, and the next command waits until the stores have landed. The Bochs
+  BIOS reads status right after `outsw` and requires DRDY with BSY clear. No
+  target times its disk.
+- **Prefetch:** reads keep the command's next sector fetched in the other
+  half of the buffer, so a READ MULTIPLE block streams without BSY between
+  sectors. This needs the image port to deliver a sector faster than the guest
+  reads one (about 92 us).
 - **Writes** stage a whole sector in the buffer before any byte reaches the
   image, so a captured image never holds a torn sector (as for the
   [ST disk](../../mister-packages/docs/media-data.md)).
@@ -980,17 +1002,20 @@ Alternatives not taken, kept as later options:
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through port 92h), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
 | INT 16h | AH=00h–02h, 05h, 10h–12h | Present |
-| INT 16h AH=03h | Typematic rate (DOS `MODE CON RATE=`) | Missing; small local patch. No target needs it |
+| INT 16h AH=03h | Typematic rate (DOS `MODE CON RATE=`) | Local patch (M1). No target needs it |
 | INT 1Ah | RTC and tick count | Present |
 | INT 19h | Boot from the ATA disk's MBR | Present |
 | INT 09h, 74h | Keyboard (set 1, translated) and PS/2 mouse IRQ handlers | Present |
 | A20 | HIMEM's 8042 D1 and port 92h methods; unreal mode in Ultima VII | Hardware ([A20](#a20-and-cpu-reset)) |
 
-Expected local patches: INT 16h AH=03h; the boot order and disk-only boot
-defaults; the PCI BIOS, APM and PnP options off (the legacy build leaves
-`BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh); the floppy
-probe made harmless with no controller fitted (CMOS 10h already says none);
-and any POST step that assumes Bochs emulator ports.
+Local patches, as made in M1 ([firmware](../cores/fes-pc386/firmware/README.md)):
+INT 16h AH=03h; the PCI BIOS, APM and PnP options off (the legacy build leaves
+`BX_PCIBIOS` on, and its probe of CF8h/CFCh would only find FFh), which also
+needs the PAM-register call in POST built only with the PCI BIOS. The boot
+order and disk-only boot need no patch: the machine writes CMOS 2Dh, 38h, 3Dh
+and 3Fh. The floppy probe is already harmless with no controller fitted (CMOS
+10h says none and the ports read FFh), and no POST step needed a Bochs
+emulator port.
 Bochs's debug ports (400h–403h) and VGABIOS's (500h) stay as the machine's
 debug sink.
 
@@ -1261,8 +1286,9 @@ No decision is open.
 The machine RTL goes in `cores/fes-pc386/` with `fes_pc386_top` as the shell,
 beside the CPU in `cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
 `cores/fes-pc386/vendor/`. The KF8259 and KF8253 imports and the DMA
-controller move from `cores/fes-pcxt/` to `cores/fes-common/` when pc386 first
-uses them, since two cores then share them; the PC/XT keeps no copy. The
+controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
+(`vendor/kf8259`, `vendor/kf8253`, `rtl/fes_dma8237.sv`), since two cores share
+them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
 `scripts/build_fes_pc386_oss.py`. The FogCast disk builder and its FreeDOS

@@ -1,7 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Transaction-native 8237A subset for the XT. A peripheral byte and its memory
-// half retire before address/count change. No pin-level timing equivalence.
-module pcxt_dma (
+// Transaction-native 8237A subset shared by the PC/XT and pc386. A peripheral
+// byte and its memory half retire before address/count change. No pin-level
+// timing equivalence.
+//
+// The defaults are the XT: 20-bit addresses from four 4-bit page latches
+// indexed as the XT's 81h-83h, and channel 0 serving DRAM refresh from the
+// PIT. The AT's first controller sets ADDRESS_BITS=24, AT_PAGES=1 (one page
+// per channel, written with page_write at the channel's index) and REFRESH=0
+// (channel 0 then has no request source). Its second controller adds
+// WORD_ADDRESS=1: addresses and counts are words, so the cycle address is the
+// page without bit 0 followed by the word address shifted left once.
+module fes_dma8237 #(
+    parameter integer ADDRESS_BITS = 20,
+    parameter integer AT_PAGES = 0,
+    parameter integer REFRESH = 1,
+    parameter integer WORD_ADDRESS = 0
+) (
     input wire clk, reset, guest_ce,
     input wire reg_read, reg_write, page_write,
     input wire [3:0] reg_address,
@@ -13,7 +27,7 @@ module pcxt_dma (
     input wire granted, cpu_waiting, cpu_done,
     output wire cycle_valid,
     input wire cycle_ready, cycle_done,
-    output wire [19:0] cycle_address,
+    output wire [ADDRESS_BITS-1:0] cycle_address,
     output wire [7:0] cycle_wdata,
     output wire [1:0] cycle_kind, cycle_channel,
     output wire cycle_write, cycle_tc,
@@ -22,19 +36,20 @@ module pcxt_dma (
     output reg [1:0] fault,
     output reg refresh_done
 );
+    localparam integer PAGE_BITS = ADDRESS_BITS - 16;
     localparam IDLE=4'd0, SELECT=4'd1, DEV_SEND=4'd2, DEV_WAIT=4'd3,
                MEM_SEND=4'd4, MEM_WAIT=4'd5, COMPLETE=4'd6, YIELD=4'd7, FAILED=4'd8;
     reg [3:0] state;
     reg [15:0] base_address[0:3], current_address[0:3];
     reg [15:0] base_count[0:3], current_count[0:3];
     reg [7:0] mode[0:3];
-    reg [3:0] page[0:3];
+    reg [PAGE_BITS-1:0] page[0:3];
     reg [7:0] command;
     reg [3:0] mask_bits, software_request, tc_status;
     reg byte_high;
     reg [1:0] channel, lowest;
     reg [7:0] transfer_data;
-    reg [19:0] transfer_address;
+    reg [ADDRESS_BITS-1:0] transfer_address;
     reg terminal, service_started;
     reg [1:0] minimum_wait;
     reg refresh_pending, refresh_previous, yield_served;
@@ -73,9 +88,12 @@ module pcxt_dma (
     wire [1:0] operation = mode[service_channel][3:2];
     wire [1:0] transfer_mode = mode[service_channel][7:6];
     wire memory_phase = state == MEM_SEND || state == MEM_WAIT;
+    // The XT has latches at 81h (channel 2), 82h (3) and 83h (1, shared by 0).
+    wire [PAGE_BITS-1:0] service_page = AT_PAGES != 0 ? page[service_channel] :
+        page[service_channel == 2 ? 2'd1 : service_channel == 3 ? 2'd2 : 2'd3];
     assign hold_request = state != IDLE && state != YIELD && state != FAILED && !reset;
     assign cycle_valid = !reset && granted && (state == MEM_SEND || state == DEV_SEND);
-    assign cycle_address = memory_phase ? transfer_address : 20'b0;
+    assign cycle_address = memory_phase ? transfer_address : {ADDRESS_BITS{1'b0}};
     assign cycle_wdata = transfer_data;
     assign cycle_kind = memory_phase ? 2'd0 : 2'd3;
     assign cycle_write = memory_phase ? operation == 1 : operation == 2;
@@ -105,8 +123,8 @@ module pcxt_dma (
         end else begin
             refresh_previous <= refresh_clock; refresh_done <= 0;
             if (guest_ce && minimum_wait != 0) minimum_wait<=minimum_wait-1'b1;
-            if (refresh_edge) refresh_pending <= 1;
-            if (page_write) page[reg_address[1:0]] <= reg_wdata[3:0];
+            if (REFRESH != 0 && refresh_edge) refresh_pending <= 1;
+            if (page_write) page[reg_address[1:0]] <= reg_wdata[PAGE_BITS-1:0];
             if (reg_read) begin
                 if (!reg_address[3]) byte_high <= !byte_high;
                 if (reg_address == 8) tc_status <= 0;
@@ -162,8 +180,10 @@ module pcxt_dma (
                         (service_channel == 0 && operation == 1)) begin fault<=3; state<=FAILED; end
                     else begin
                         channel<=service_channel; service_started<=1; minimum_wait<=3;
-                        if (service_channel == 0) refresh_pending<=refresh_edge;
-                        transfer_address <= {page[service_channel == 2 ? 1 : service_channel == 3 ? 2 : 3], current_address[service_channel]};
+                        if (service_channel == 0) refresh_pending<=REFRESH != 0 && refresh_edge;
+                        transfer_address <= WORD_ADDRESS != 0 ?
+                            {service_page[PAGE_BITS-1:1], current_address[service_channel], 1'b0} :
+                            {service_page, current_address[service_channel]};
                         terminal <= current_count[service_channel] == 0;
                         if (operation == 0) state<=COMPLETE;
                         else if (operation == 1) state<=DEV_SEND;
@@ -185,7 +205,7 @@ module pcxt_dma (
                 COMPLETE: if (guest_ce && minimum_wait == 0) begin
                     current_address[channel] <= current_address[channel] + (mode[channel][5] ? 16'hffff : 16'd1);
                     current_count[channel] <= current_count[channel] - 1'b1;
-                    if (channel == 0) refresh_done<=1;
+                    if (REFRESH != 0 && channel == 0) refresh_done<=1;
                     if (command[4]) lowest<=channel;
                     if (terminal) begin
                         tc_status[channel]<=1; software_request[channel]<=0;
