@@ -258,7 +258,7 @@ outcome stands. The corpus itself then checks those values.
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone) and PUSH BP / MOV BP, SP / LEAVE frames, from random register states and zeroed memory | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames and the far pointer loads, from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
 
 The latency-free reruns also give the cycles between retirements: in
 sequence, after an instruction with more than one prefix, after a taken
@@ -269,9 +269,9 @@ cycles after a shift and anything else one; an instruction that reads memory
 must retire at least two cycles after a store, and any other instruction
 without a memory operand one; a push or pop right after another must retire
 one cycle behind it, as its ESP is early from AG, unless it is a pop after a
-push (a load after a store) or follows a segment load. CALL (two uops), LEAVE,
-PUSH and POP of (E)SP, which read ESP as data, and anything after POP (E)SP,
-which loads ESP, are left out of that check.
+push (a load after a store) or follows a segment load. CALL and RETF
+(several uops), LEAVE, PUSH and POP of (E)SP, which read ESP as data, and
+anything after POP (E)SP, which loads ESP, are left out of that check.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison

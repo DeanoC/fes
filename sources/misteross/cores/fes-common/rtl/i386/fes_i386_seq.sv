@@ -106,9 +106,10 @@ module fes_i386_seq (
             end
             fes_i386_pkg::SEQ_RETF: begin
                 if (d.step == 3'd0) begin
-                    // The selector, in the slot past the offset, into T0.
+                    // The selector, in the slot past the offset, into T0. The
+                    // slot is read whole, so its limit check is operand-sized,
+                    // as the 386EX's is.
                     n.uop.dst.index = 4'd0;
-                    n.uop.mem.bytes = 4'd2;
                     n.sel_part = 1'b1;
                     n.more = 1'b1;
                 end else begin
