@@ -277,8 +277,10 @@ class AffectedTests(unittest.TestCase):
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
 
-    def test_pcxt_cdc_audit_runs_host_checks_without_rtl(self):
-        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py'):
+    def test_pcxt_diagnostic_helpers_run_software_without_core_simulations(self):
+        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
+                     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py',
+                     'screen_fes_pcxt_uncertainty.py'):
             with self.subTest(script=name):
                 selected = plan(['sources/misteross/scripts/' + name])
                 self.assertTrue(selected['lanes']['fpga'])
