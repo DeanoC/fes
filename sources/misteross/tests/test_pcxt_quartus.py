@@ -76,6 +76,14 @@ class MailboxBindingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed common PLL-lock assertion'):
             validate_mailbox(self.before, self.after)
 
+    def test_real_source_capture_contains_the_standalone_proof(self):
+        with tempfile.TemporaryDirectory(prefix='pcxt-quartus-inputs-') as directory:
+            source, identities = builder.capture_sources(builder.ROOT, Path(directory))
+            for name in ('cores/fes-common/generated/fes_pcxt_isa.vh',
+                         'tests/test_pcxt_video_mailbox.py', 'cores/fes-pcxt/quartus/mailbox.sdc',
+                         'scripts/pcxt_quartus_mailbox.py'):
+                self.assertEqual(builder.sha(source / name), identities[name])
+
 
 @unittest.skipUnless(YOSYS, 'requires Yosys for the real elaboration path')
 class QuartusElaborationTests(unittest.TestCase):

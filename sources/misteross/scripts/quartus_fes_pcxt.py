@@ -57,8 +57,7 @@ def input_paths(root: Path) -> list[Path]:
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
     paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
-                  Path('scripts/pcxt_quartus_mailbox.py'), Path('tests/__init__.py'),
-                  Path('tests/test_pcxt_video_mailbox.py')))
+                  Path('scripts/pcxt_quartus_mailbox.py'), Path('tests/test_pcxt_video_mailbox.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
     return sorted(paths)
 
@@ -324,7 +323,7 @@ def main() -> int:
             if not abc.is_file():
                 raise ValueError('mailbox contract requires the selected Yosys installation\'s yosys-abc')
             record['mailbox_proof_abc'] = {'path': str(abc), 'sha256': sha(abc)}
-            run([sys.executable, '-m', 'unittest', 'tests.test_pcxt_video_mailbox', '-v'],
+            run([sys.executable, str(source / 'tests/test_pcxt_video_mailbox.py'), '-v'],
                 source, 'mailbox-proofs.log', record,
                 dict(os.environ, YOSYS=str(yosys), YOSYS_ABC=str(abc)))
             proof = (source / 'mailbox-proofs.log').read_text()
