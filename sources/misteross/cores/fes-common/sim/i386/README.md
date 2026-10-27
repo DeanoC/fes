@@ -277,8 +277,9 @@ Random programs also take interrupts, injected by the testbench:
   The RTL's NMI is a one-cycle pulse, never raised on two steps in a row.
 - **What is raised.** INTR now and then on vectors 8-15, more often after
   STI, CLI, MOV SS, POP SS, POPF and IRET, whose boundaries are special, and
-  NMI rarely. The vectors' entries and NMI's point at an IRET at FFFF:FFE0,
-  above any program's code. A program may write over them. The run then
+  NMI rarely, but often after the handler's NOP, where it meets the one
+  being handled. The vectors' entries and NMI's point at a handler, NOP and
+  IRET, at FFFF:FFE0, above any program's code. A program may write over them. The run then
   stops when an interrupt would go through the rewritten entry, before the
   sides part (`vector_moved_stops`), since what runs next is data.
 - **HLT wakes.** The generator puts STI, HLT in programs now and then, and a

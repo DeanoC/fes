@@ -1027,7 +1027,7 @@ struct Outcome {
 struct Irq {
     std::mt19937_64 *random = nullptr;
     uint32_t handler = 0;  // the linear address every injected vector's entry points at ...
-    std::array<uint8_t, 4> entry{};  // ... as this IP and CS
+    std::array<uint8_t, 4> entry{};  // ... as this IP and CS; there NOP, IRET
     bool intr_next = false, nmi_next = false;  // raised on the RTL, for the oracle's next step
     bool nmi_last = false;  // raised for the step before: NMI is not raised twice in a row, so the
                             // RTL's line is low between its one-cycle pulses
@@ -1041,13 +1041,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                  Mismatches &out, uint32_t code_lo = 0, uint32_t code_hi = 0, Irq *irq = nullptr) {
     Outcome outcome;
     // Raise INTR (or NMI) for the boundary after the instruction at code, on
-    // the RTL now; the oracle takes it before its next step.
-    auto raise = [&](const uint8_t *code, bool wake) {
+    // the RTL now; the oracle takes it before its next step. The handler's
+    // NOP counts as special too: an NMI after it meets the one being handled.
+    auto raise = [&](const uint8_t *code, uint32_t at, bool wake) {
         unsigned i = 0;
         while (i < 15 && is_prefix(code[i])) ++i;
         const uint8_t op = code[i];
         const bool edge = op == 0xfb || op == 0xfa || op == 0x17 || op == 0x9d || op == 0xcf ||
-                          (op == 0x8e && ((code[i + 1] >> 3) & 7) == 2);
+                          (op == 0x8e && ((code[i + 1] >> 3) & 7) == 2) || at == irq->handler;
         if (!rtl.pic.intr && (wake || (*irq->random)() % (edge ? 2 : 32) == 0)) {
             irq->vector = uint8_t(8 + (*irq->random)() % 8);
             rtl.pic.intr = true;
@@ -1096,7 +1097,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // Whether the vectors an injected interrupt may take still point at
         // the handler, which is still there.
         auto intact = [&](unsigned v) {
-            if (!irq || bus.ram[irq->handler] != 0xcf) return false;
+            if (!irq || bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf) return false;
             for (unsigned i = 0; i < 4; ++i)
                 if (bus.ram[v * 4 + i] != irq->entry[i]) return false;
             return true;
@@ -1110,7 +1111,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         // Not while the RTL is in HLT: the wake it takes now is this step's,
         // and a line raised for the next would reach it at the same boundary.
-        if (irq && !rtl.top.trace_halt) raise(code, false);
+        if (irq && !rtl.top.trace_halt) raise(code, linear, false);
         const Rtl::Event event = rtl.next();
         const std::string at = "@" + hex(before.eip) + ".";
 
@@ -1357,7 +1358,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const State now = oracle.get_state();
             if (irq && result.halted && rtl.top.trace_halt && !rtl.top.trace_unimplemented && (now.eflags & 0x200) &&
                 now.seg[fes_i386::SEG_CS].base + now.eip != code_hi) {
-                raise(code, true);
+                raise(code, linear, true);
                 continue;
             }
             outcome.halted = true;
@@ -1370,7 +1371,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (stop_at_exception) return outcome;
         }
         // ... or one whose frame wrote over the handler.
-        if (interrupted && bus.ram[irq->handler] != 0xcf) {
+        if (interrupted && (bus.ram[irq->handler] != 0x90 || bus.ram[irq->handler + 1] != 0xcf)) {
             outcome.vector_moved = true;
             return outcome;
         }
@@ -2683,9 +2684,9 @@ private:
     }
 };
 
-// Random programs' interrupts: vectors 8-15 and NMI's 2 at a handler that
-// IRETs, at FFFF:FFE0, above any program's code (CS.base at most FFFF0h, EIP
-// at most D100h, then the program).
+// Random programs' interrupts: vectors 8-15 and NMI's 2 at a handler, NOP
+// and IRET, at FFFF:FFE0, above any program's code (CS.base at most FFFF0h,
+// EIP at most D100h, then the program).
 constexpr uint32_t IRQ_HANDLER = 0x10ffd0;
 
 int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
@@ -2713,7 +2714,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         rtl.io.reset(false);
         bus.pic = Pic{};
         oracle.set_intr(false);
-        std::vector<std::pair<uint32_t, uint8_t>> image{{IRQ_HANDLER, 0xcf}};
+        std::vector<std::pair<uint32_t, uint8_t>> image{{IRQ_HANDLER, 0x90}, {IRQ_HANDLER + 1, 0xcf}};
         for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
