@@ -133,5 +133,5 @@ counter = "reads-divergence-dac-width"
 exercised = true
 reference = "DAC entries keep the 8 bits written, and 3C9h reads them back (the display then shifts them left by 2, wrapping)."
 rtl = "DAC entries are 6 bits; 3C9h reads them back with bits 7:6 clear."
-deciding = "IBM VGA Technical Reference, video DAC: 6-bit colour registers. Wolfenstein 3D's VL_TestPaletteSet (ID_VL.C) writes every byte value through the DAC and compares the readback to choose its palette routine; on a VGA, and on the RTL, the comparison fails. The replay follows the RTL's run and counts each such read."
+deciding = "IBM VGA Technical Reference, video DAC: 6-bit colour registers. Wolfenstein 3D's VL_TestPaletteSet (ID_VL.C) writes i for i in 0..767 through the DAC and compares the readbacks to set fastpalette (REP OUTSB versus individual byte OUTs); with 6-bit readback the comparison fails. The replay follows the RTL's run and counts each such read."
 follow = "rtl"

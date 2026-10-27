@@ -37,8 +37,8 @@
 // equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
 // --type-at types the --type text at that simulated time instead of at the
-// prompt (for a program that runs as the shell); --key-gap is the time from
-// one key to the next (default 0.03 s).
+// prompt (for a program that runs as the shell); --key-gap is applied after
+// each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
 #include "Vpc386_machine.h"
 #include "i386_oracle.h"
@@ -560,13 +560,14 @@ int main(int argc, char **argv) {
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
 
-            // Keyboard: one set 2 byte when the keyboard can take it, keys 30 ms apart.
+            // Keyboard: one set 2 byte when ready; delay unless the next byte is 0xf0.
             if (key_bytes.size() && machine.cycles >= next_key && machine.top.key_ready) {
                 machine.top.key_valid = 1;
                 machine.top.key_code = key_bytes.front();
                 machine.clock();
                 machine.top.key_valid = 0;
                 key_bytes.erase(key_bytes.begin());
+                // Skip the gap before 0xf0; the gap after its prefix holds the key.
                 if (key_bytes.empty() || key_bytes.front() != 0xf0) next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
             }
 

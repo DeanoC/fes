@@ -1,24 +1,30 @@
 # pc386 M2: VGA, capture, 720p presenter and the plane on port 2, in simulation, 26 October 2026
 
 **The pc386 machine's RTL VGA shows the VGA BIOS text screens, mode 13h and
-mode Y at 720p in simulation, and its trace replay matches Bochs's VGA.**
+mode Y at 720p in simulation. Every compared read in the boot and VGA-test
+replays matches Bochs; the pre-fix Wolfenstein replay has 576 classified
+DAC-width readbacks.**
 `pc386_machine` (the M1 AT core, the register-level VGA with VRAM on DDR port
 1, the capture writer, the area-weighted 720p presenter, and the shared
 display plane reading through a bridge on DDR port 2) boots FreeDOS and a VGA
 test disk with the Bochs oracle as CPU. Every picture the test disk marks, at
 720p from the presenter through the closed plane, equals the presenter
 model's scaling of its capture, pixel for pixel. Replaying each run's VGA
-trace into the RTL VGA and into Bochs's own VGA, every register and VRAM read
-agrees, VRAM agrees after every stable frame and at the end, and every stable
+trace into the RTL VGA and into Bochs's own VGA, every read matches the
+recording. All reads in the boot and VGA-test traces that are compared match
+Bochs. The Wolfenstein trace has 576 DAC readbacks that differ from Bochs only
+in bits 7:6; the replay classifies those as `dac-width`, and its other
+compared reads match. VRAM agrees after every stable frame and at the end, and every stable
 captured frame that Bochs can show equals Bochs's display of it. In the
 original 26 October run, 103 of the test disk's 10,197 captured frames and 131
 of the boot's 10,279 matched; nearly all the rest were tiny frames of the
 unprogrammed CRTC in the first milliseconds. The post-review rerun is recorded
-below. Opened on
-launcher frames, the plane blends exactly over the presenter while capture
-writes load port 2. Beyond the exit, Wolfenstein 3D (user-supplied, not committed)
-runs from its signon through the menus into the first level on the RTL VGA,
-and its 32-million-event trace replays against Bochs with the same result.
+below. Opened on launcher frames, the plane blends exactly over the presenter
+while capture writes load port 2. Beyond the exit, a pre-fix Wolfenstein 3D run
+(user-supplied, not committed) reaches the first level on the RTL VGA; its
+32-million-event trace replays with 576 classified DAC-width readbacks;
+its other compared reads match Bochs. This run does not establish which frames
+the fixed capture path publishes.
 The first machine-only synthesis puts the M2 blocks
 inside their budgets and finds M1's AT core far over its own. This is a
 **host-only check** plus diagnostic synthesis: no route, package or kit. It
@@ -105,7 +111,7 @@ the RTL's frame start, with the start address latched when the RTL latched it.
 | --- | ---: | ---: |
 | Events (port reads, port writes, memory reads, memory writes) | 85,234 (6, 4,204, 28,815, 52,209) | 13,481,185 (13,128,450, 19,511, 4,222, 329,002) |
 | RTL reads equal to the recording | all | all |
-| Reads equal to Bochs's (all but 3BAh/3DAh) | all | all |
+| Reads equal to Bochs's (3BAh/3DAh status reads skipped) | all | all |
 | VRAM equal to Bochs's, after every compared frame and at the end | yes | yes |
 | Frames captured | 10,279 | 10,197 |
 | Frames compared / matched | 131 / 131 | 103 / 103 |
@@ -113,6 +119,9 @@ the RTL's frame start, with the start address latched when the RTL latched it.
 | Not compared: written during the frame | 21 | 41 |
 | Not compared: CRTC not yet programmed | 10,010 | 10,010 |
 | Not compared: character and cursor blink phases differ | 117 | 43 |
+
+The separate Wolfenstein trace has 576 3C9h DAC-width readbacks that differ
+from Bochs only in bits 7:6; all its other compared reads match Bochs.
 
 Each replay takes about a minute. During development the replay found three
 RTL bugs this record's runs no longer have: capture took each pixel's valid
@@ -149,11 +158,14 @@ measurements.
   have enough memory": the fixture loads no HIMEM, so the kernel and FreeCom
   stay in conventional memory; as the shell it has room.
 - Run (`machine_tb` at `8d790c5cc4`, before the capture drop-recovery fix
-  `86cd58ea`; the run dropped no capture beat, so the fix does not touch it): `--limit-seconds 32 --type '||||||||'
-  --type-at 4.0 --key-gap 2.0 --trace … --frames …`: Enter every 2 s from
-  4.0 s takes it through the signon screen, PG-13, the title, the main menu,
-  episode 1 and "Bring 'em on" to "Get Psyched!" and the first level, which is
-  drawn in play from about 27 s.
+  `86cd58ea`): `--limit-seconds 32 --type '||||||||' --type-at 4.0
+  --key-gap 2.0 --trace … --frames …`. Enter starts at 4.0 s; the make and
+  break prefix are sent together, then a 2 s gap delays the release code and
+  another 2 s gap precedes the next make. Make-to-make is 4 s, with each Enter
+  held for 2 s. This is a pre-fix measurement, not evidence that the fixed RTL
+  publishes the same captures or frames. The run reaches the signon screen,
+  PG-13, the title, the main menu, episode 1 and "Bring 'em on" to "Get
+  Psyched!" and the first level, which is drawn in play from about 27 s.
 - Machine: 32.0 simulated seconds, 719,150,482 instructions, 38 minutes of
   wall time. No scanout underflow, capture drop, presenter or plane underflow.
   The last capture shows the first level's view (walls, a door, the weapon,
@@ -164,14 +176,17 @@ measurements.
   suites' exact write-time check holds for their own runs, which never fill
   the FIFO. 25,488,591 port reads (retrace polling) at 6 clocks.
 - Replay (trace 907 MB, 9.7 minutes): 32,288,060 events, of them 6,154,537
-  memory writes and 205,836 memory reads (latch copies), all reads equal to
-  the recording and to Bochs's, VRAM equal after every stable frame and at
-  the end, 1,405 of 1,405 comparable frames equal (1,321 mode Y graphics,
+  memory writes and 205,836 memory reads (latch copies); all reads equal the
+  recording, and all other compared reads match Bochs apart from the 576
+  classified DAC-width readbacks.
+  VRAM is equal after every stable frame and at the end; 1,405 of 1,405
+  comparable frames match (1,321 mode Y graphics,
   84 text from the boot). 768 frames were not compared because the game wrote
   VRAM during them: in play it draws the next page while one is shown, so
-  there VRAM equality is the check. 576 DAC reads differ only in bits 7:6:
-  `VL_TestPaletteSet` writes every byte value and reads it back, and the RTL
-  keeps a VGA's 6 bits (divergence `dac-width`, now named and counted).
+  there VRAM equality is the check. The 576 3C9h DAC reads differ from Bochs
+  only in bits 7:6 (the classified `dac-width` divergence); every other read
+  matches. `VL_TestPaletteSet` writes byte values and compares the readbacks
+  to set `fastpalette`.
 
 ## FreeDOS boot
 
