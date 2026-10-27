@@ -111,8 +111,10 @@ booting its named ROM and running a typed BASIC line, beeper edges captured on
 all four, and FLASH at 16-frame intervals on the 128K, +3 and Pentagon models.
 That diagnostic did not test tape, joysticks, AY music, expansion or any game
 or demo. Tape and snapshot loading on the later packages, games included, are in
-the Spectrum rows above; joysticks, AY music and expansion remain untested on
-hardware. These checks did not assemble or replace the appliance image.
+the Spectrum rows above. The [26 Oct turbo-loading record](validation/2026-10-26-spectrum-turbo-loading.md)
+also records AY title music heard on the Bubble Dizzy 128K snapshot on Kit B
+(run `tbB5`); joysticks and expansion remain untested on hardware. These checks
+did not assemble or replace the appliance image.
 Physical NMOS pin equivalence remains open.
 
 The named `fes.sms` 1.4.0 package, open Mode 4 ROM and installed image have

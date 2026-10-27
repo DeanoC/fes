@@ -214,9 +214,10 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 // snapshot name decides which it is. Library media and inserts by digest have
 // no name (""), and then the content decides: .tap has no signature, so a
 // snapshot's bytes can tile as .tap blocks and a .tap can be the size of a
-// snapshot. A file with a ZXST signature is a snapshot, and another valid
-// snapshot is taken as one unless every .tap block also passes the ROM
-// loader's checksum. It closes reader.
+// snapshot. TZX, PZX and CSW signatures keep those images on the tape path
+// before snapshot probing. A file with a ZXST signature is a snapshot, and
+// another valid snapshot is taken as one unless every .tap block also passes
+// the ROM loader's checksum. It closes reader.
 func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, reader io.ReadCloser, size int64) ([]byte, error) {
 	data, readErr := io.ReadAll(io.LimitReader(reader, size+1))
 	closeErr := reader.Close()
@@ -226,7 +227,7 @@ func spectrumCassetteStream(descriptor corepackage.Descriptor, name string, read
 	snapshot := spectrumsnapshots.Admit(name)
 	if name == "" {
 		snapshot = bytes.HasPrefix(data, []byte("ZXST")) ||
-			spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
+			!spectrumtapes.HasSignature(data) && spectrumsnapshots.Recognize(data) && !spectrumtapes.CheckedTAP(data)
 	}
 	if snapshot {
 		machine, stream, err := spectrumsnapshots.Convert(data)

@@ -819,10 +819,11 @@ stream, which plays as libspectrum 1.5 (Fuse 1.6.0) plays the original. A
 package that declares `fes.media.spectrum-snapshot` 1.0 (with `-128` and
 `-plus3` 1.0 for 128K and +2A/+3 snapshots) also lists `.z80`, `.sna` and
 `.szx`; a live insert's tape or snapshot name says which it is. Library media
-and inserts by digest have no name, and TAP has no magic header, so the host
-takes a valid snapshot as one unless every TAP block also passes the ROM
-loader's checksum, and routes any `ZXST` signature through snapshot conversion
-even when it is invalid so its snapshot error is preserved. The host converts a
+and inserts by digest have no name. TZX, PZX and CSW signatures keep those
+images on the tape path before snapshot probing; TAP has no signature, so the
+host takes a valid snapshot as one unless every TAP block also passes the ROM
+loader's checksum. Any `ZXST` signature routes through snapshot conversion
+even when invalid so its snapshot error is preserved. The host converts a
 snapshot by `internal/spectrumsnapshots` to the core's restore stream and
 refuses a snapshot of a machine the package does not run. A shell
 declares one unit-0 medium. A Spectrum shell that also declares
