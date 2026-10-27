@@ -71,7 +71,8 @@ OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
 CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
            'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
-           'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_ex.sv', 'fes_i386_cpu.sv')
+           'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
+           'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
@@ -82,7 +83,7 @@ SCOPE: frozenset[str] = frozenset([
     *(f'{opcode}.{reg}' for opcode in ('80', '81', '82', '83', 'C0', 'C1', 'D0', 'D1', 'D2', 'D3')
       for reg in range(8)),
     *(f'{opcode:02X}' for opcode in range(0x40, 0x50)),
-    *(f'{opcode}.{reg}' for opcode in ('F6', 'F7') for reg in range(4)),
+    *(f'{opcode}.{reg}' for opcode in ('F6', 'F7') for reg in range(8)),
     'FE.0', 'FE.1', 'FF.0', 'FF.1', '84', '85', '88', '89', '8A', '8B', '8C', '8E', 'C6', 'C7',
     '0FA4', '0FA5', '0FAC', '0FAD', '0FB6', '0FB7', '0FBE', '0FBF',
     *(f'0F{opcode:02X}' for opcode in range(0x90, 0xA0)),
@@ -102,6 +103,9 @@ SCOPE: frozenset[str] = frozenset([
     # XCHG, MOV with a direct offset, SALC, XLAT; CALL, PUSH and POP of r/m.
     '86', '87', *(f'{opcode:02X}' for opcode in range(0x91, 0x98)), 'A0', 'A1', 'A2', 'A3', 'D6', 'D7',
     'FF.2', 'FF.6', '8F',
+    # The multiply and divide unit: MUL, IMUL, DIV and IDIV (F6h/F7h /4-/7
+    # above), IMUL r, r/m and r, r/m, imm, AAM and AAD.
+    '0FAF', '69', '6B', 'D4', 'D5',
 ])
 # Files of an in-scope opcode whose forms are not built yet: POP m with
 # 32-bit addressing, whose ESP base would read ESP after the pop.
@@ -170,8 +174,8 @@ def run_directed(testbench: str, env: dict) -> dict:
     if result.returncode not in (0, 1):
         raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 6:
-        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 6 cases')
+    if summary['runs'] != 11:
+        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 11 cases')
     return {'summary': summary, 'failures': failures}
 
 
