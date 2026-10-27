@@ -1913,9 +1913,10 @@ of such archives, optionally with the firmware ROM map, onto the shell.
 ## FES ZX Spectrum
 
 `cores/fes-spectrum` builds four described cores from one shell on the
-`fes.computer` 1.0 mailbox: `fes.spectrum` 0.3.0 (48K), `fes.spectrum128`
-0.1.0 (128K/+2), `fes.spectrum-plus3` 0.1.0 (+2A/+3 without a disk drive) and
-`fes.pentagon` 0.1.0 (Pentagon 128). The `SPECTRUM_MODEL_*` define selects the
+`fes.computer` 1.0 mailbox: `fes.spectrum` 0.6.0 (48K), `fes.spectrum128`
+0.4.0 (128K/+2), `fes.spectrum-plus3` 0.5.0 (+2A/+3 with its uPD765A disk
+drive) and `fes.pentagon` 0.5.0 (Pentagon 128 with a Beta 128 TR-DOS drive).
+Each loads tapes in turbo, about three times faster. The `SPECTRUM_MODEL_*` define selects the
 model; [its README](../cores/fes-spectrum/README.md) lists each model's
 memory map, timing and firmware. The machine runs `fes_z80_nmos` on clock
 enables from `spectrum_ula.sv`, which owns the model's T-state rate, frame

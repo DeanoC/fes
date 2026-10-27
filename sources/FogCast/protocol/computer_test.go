@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/spectrumdisks"
+	"github.com/DeanoC/FogCast/internal/spectrumsnapshots"
 )
 
 func apple2Descriptor(floppy corepackage.Interface) corepackage.Descriptor {
@@ -162,6 +164,102 @@ func TestSpectrumTapeProjection(t *testing.T) {
 	if DeclaresDiskMedia(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) ||
 		!DeclaresSpectrumTape(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true})) {
 		t.Fatal("tape projected as a disk")
+	}
+}
+
+func TestSpectrumSnapshotDeclarations(t *testing.T) {
+	tape := corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}
+	snapshot := func(id string) corepackage.Interface { return corepackage.Interface{ID: id, Major: 1} }
+	base, paged, plus3 := snapshot(SpectrumSnapshotInterfaceID), snapshot(SpectrumSnapshot128InterfaceID), snapshot(SpectrumSnapshotPlus3InterfaceID)
+	for name, tc := range map[string]struct {
+		interfaces []corepackage.Interface
+		runs       [3]bool
+	}{
+		"tape only":     {[]corepackage.Interface{tape}, [3]bool{}},
+		"48K":           {[]corepackage.Interface{tape, base}, [3]bool{true, false, false}},
+		"128K":          {[]corepackage.Interface{tape, base, paged}, [3]bool{true, true, false}},
+		"+2A/+3":        {[]corepackage.Interface{tape, base, paged, plus3}, [3]bool{true, true, true}},
+		"no tape unit":  {[]corepackage.Interface{base, paged, plus3}, [3]bool{}},
+		"128K, no base": {[]corepackage.Interface{tape, paged}, [3]bool{}},
+	} {
+		d := corepackage.Descriptor{Core: corepackage.Core{ID: "example.any-core"},
+			ABI: corepackage.Contract{ID: "fes.computer", Major: 1}, Interfaces: tc.interfaces}
+		for machine, want := range tc.runs {
+			if got := SpectrumSnapshotRuns(d, spectrumsnapshots.Machine(machine)); got != want {
+				t.Errorf("%s: class %d runs = %v", name, machine, got)
+			}
+		}
+		media := DeclaredCoreMediaCapabilities(d)
+		listed := len(media) == 1 && strings.Contains(strings.Join(media[0].Extensions, " "), ".z80 .sna .szx")
+		if listed != tc.runs[0] {
+			t.Errorf("%s: snapshot extensions listed = %v (%v)", name, listed, media)
+		}
+	}
+	for name, want := range map[string]bool{"game.z80": true, "GAME.SNA": true, "game.tzx": true, "game.p": false, "a/game.z80": false} {
+		if AdmitSpectrumCassetteName(name) != want || AdmitLiveMediaName(name) != (want || name == "game.p") {
+			t.Errorf("cassette name %q admitted = %v", name, !want)
+		}
+	}
+}
+
+func TestSpectrumDiskDeclarations(t *testing.T) {
+	tape := corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}
+	disk := corepackage.Interface{ID: "fes.media.spectrum-disk", Major: 1, Required: true}
+	trdos := corepackage.Interface{ID: SpectrumDiskTrdosInterfaceID, Major: 1}
+	plus3 := corepackage.Interface{ID: SpectrumDiskPlus3InterfaceID, Major: 1}
+	optional := disk
+	optional.Required = false
+	for name, tc := range map[string]struct {
+		interfaces []corepackage.Interface
+		listed     bool
+		system     spectrumdisks.System
+	}{
+		"tape only":           {[]corepackage.Interface{tape}, false, 0},
+		"TR-DOS drive":        {[]corepackage.Interface{tape, disk, trdos}, true, spectrumdisks.TRDOS},
+		"+3 drive":            {[]corepackage.Interface{tape, disk, plus3}, true, spectrumdisks.Plus3},
+		"two controllers":     {[]corepackage.Interface{tape, disk, trdos, plus3}, false, 0},
+		"no controller":       {[]corepackage.Interface{tape, disk}, false, 0},
+		"no cassette":         {[]corepackage.Interface{disk, trdos}, false, 0},
+		"optional disk":       {[]corepackage.Interface{tape, optional, trdos}, false, 0},
+		"controller, no unit": {[]corepackage.Interface{tape, plus3}, false, 0},
+	} {
+		d := corepackage.Descriptor{Core: corepackage.Core{ID: "example.any-core"},
+			ABI: corepackage.Contract{ID: "fes.computer", Major: 1}, Interfaces: tc.interfaces}
+		if system, ok := SpectrumDiskSystem(d); ok != tc.listed || system != tc.system {
+			t.Errorf("%s: disk system %v, %v", name, system, ok)
+		}
+		var found *CoreMediaCapability
+		for _, m := range DeclaredCoreMediaCapabilities(d) {
+			if m.Role == DiskRole {
+				found = &m
+			}
+		}
+		if (found != nil) != tc.listed {
+			t.Fatalf("%s: disk role listed = %v", name, found != nil)
+		}
+		if found != nil && (*found.Unit != SpectrumDiskUnit || found.Interface != SpectrumDiskInterface() ||
+			strings.Join(found.Extensions, " ") != strings.Join(tc.system.Extensions(), " ") ||
+			found.MaxBytes != SpectrumDiskImageMaxBytes) {
+			t.Errorf("%s: disk capability %+v", name, *found)
+		}
+	}
+	for name, want := range map[string]bool{"game.trd": true, "GAME.SCL": true, "game.dsk": true, "a/game.trd": false} {
+		if AdmitSpectrumDiskName(name) != want || AdmitLiveMediaName(name) != want {
+			t.Errorf("disk name %q admitted = %v", name, !want)
+		}
+	}
+	unit := MediaUnitStatus{Unit: SpectrumDiskUnit, Interface: SpectrumDiskInterface(),
+		MinBytes: uint32(SpectrumDiskMinBytes), MaxBytes: uint32(SpectrumDiskMaxBytes), ChunkBytes: 512, State: MediaUnitReady}
+	if !unit.Valid() {
+		t.Fatal("observed disk unit refused")
+	}
+	for _, bad := range []MediaUnitStatus{
+		{Unit: 0, Interface: unit.Interface, MinBytes: unit.MinBytes, MaxBytes: unit.MaxBytes, ChunkBytes: 512, State: MediaUnitReady},
+		{Unit: 1, Interface: unit.Interface, MinBytes: 1, MaxBytes: unit.MaxBytes, ChunkBytes: 512, State: MediaUnitReady},
+	} {
+		if bad.Valid() {
+			t.Errorf("disk unit %+v admitted", bad)
+		}
 	}
 }
 

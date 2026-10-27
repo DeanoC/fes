@@ -2,14 +2,19 @@
 
 Use this lane to prepare one described core for an **already-compatible**
 platform. It never assembles `linux.img`, changes the factory package set,
-updates target software, or silently falls back to Quartus.
+updates target software, or silently falls back to Quartus. FES has accepted
+labelled Quartus product variants as policy, but the current recipe registry
+and this workflow still prepare only HIP/nextpnr packages; variant selection
+is part of the rollout in [Quartus-built cores](design/quartus-cores.md).
 
 ## Ownership and source of truth
 
 `config/core-recipes.toml` maps core IDs to the selected misteross producer,
 authentication function and toolchain lock. It is versioned, strictly validated
 data, not a list of shell commands. All current producers use HIP/nextpnr.
-The existing image builder and the developer command consume the same registry.
+An OSS failure never triggers a Quartus fallback. The accepted Quartus policy
+does not add a Quartus selector to this workflow yet. The existing image
+builder and the developer command consume the same registry.
 
 Keep ABI, programming profile and interface declarations in the sealed package
 manifest, generated from the owning shared/core definitions. Runtime compatibility

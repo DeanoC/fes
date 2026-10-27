@@ -1048,7 +1048,10 @@ SPECTRUM_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTH
 SPECTRUM_RTL := cores/fes-spectrum/rtl/spectrum_machine.sv cores/fes-spectrum/rtl/spectrum_ula.sv \
 	cores/fes-spectrum/rtl/spectrum_contention.sv cores/fes-spectrum/rtl/spectrum_ram.v \
 	cores/fes-spectrum/rtl/spectrum_rom.v cores/fes-spectrum/rtl/spectrum_video.v \
-	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_keyboard.v \
+	cores/fes-spectrum/rtl/spectrum_tape.v cores/fes-spectrum/rtl/spectrum_snapshot.v \
+	cores/fes-spectrum/rtl/spectrum_beta.sv cores/fes-spectrum/rtl/spectrum_fdd.sv \
+	cores/fes-spectrum/rtl/spectrum_upd765.sv \
+	cores/fes-spectrum/rtl/spectrum_keyboard.v \
 	cores/fes-spectrum/rtl/spectrum_audio.v cores/fes-spectrum/rtl/spectrum_slot_sockets.v \
 	cores/fes-zx81/expansions/zonx_ay.v $(FES_Z80_NMOS_RTL)
 SPECTRUM_PLANE_RTL := cores/fes-common/rtl/fes_display_cdc.v cores/fes-common/rtl/fes_display_plane.v \

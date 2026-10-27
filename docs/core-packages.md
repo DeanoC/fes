@@ -42,12 +42,14 @@ tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 The default `native-integration-dev` profile installs the locked idle RBF and
 `fes.menu`. Playable cores are separate installations.
 
-The FES image route is package-only. Quartus is reserved for a documented bring-up or
-oracle/check when a system is not yet supported by nextpnr; the package-only
-route does not invoke it.
-Each package can be installed on the host and given an explicit library entry;
-the package route does not infer ROM or media inputs or replace the existing
-catalog system.
+The FES image route is package-only. The accepted product policy allows a
+labelled `quartus` variant alongside an `oss` (HIP/nextpnr) build; see
+[Quartus-built cores](design/quartus-cores.md). The current recipe registry
+and package resolver still produce and select only OSS packages. Quartus is
+used only for a documented bring-up or oracle/check while that rollout is
+pending. There is no `FES_OSS_ONLY` control in this tree. Each package can be
+installed on the host and given an explicit library entry; the package route
+does not infer ROM or media inputs or replace the existing catalog system.
 
 ## ROM linking transition
 
@@ -94,8 +96,9 @@ The ZX Spectrum models each require their exact firmware: the 48K
 the 128K/+2 (`fes.spectrum128`) a 32 KiB `spectrum128-firmware` (editor ROM,
 then 48 BASIC), the +2A/+3 (`fes.spectrum-plus3`) a 64 KiB
 `spectrum-plus3-firmware` (ROMs 0–3 in order) and the Pentagon 128
-(`fes.pentagon`) a 32 KiB `pentagon-firmware` (128, then 48 BASIC). Their edge
-cards and tape (`.tzx`, `.tap`, `.pzx` or `.csw`) are separate inputs (see the
+(`fes.pentagon`) a 48 KiB `pentagon-firmware` (128, 48 BASIC, then TR-DOS).
+Their edge cards, tape (`.tzx`, `.tap`, `.pzx` or `.csw`) and the Pentagon's
+TR-DOS disk (`.trd` or `.scl`) are separate inputs (see the
 [ZX Spectrum pathfinder design](superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)
 and the [core README](../sources/misteross/cores/fes-spectrum/README.md)).
 The ZX81 family shares one shell. `fes.zx81` requires an 8192-byte

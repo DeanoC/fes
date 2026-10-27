@@ -514,10 +514,16 @@ package version 0.4.0: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB, then
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. The Spectrum models bind `spectrum-firmware` (16 KiB,
 `fes.spectrum`), `spectrum128-firmware` (32 KiB, `fes.spectrum128`),
-`spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3`) or `pentagon-firmware`
-(32 KiB, `fes.pentagon`), and role `cassette` for `fes.media.spectrum-tape`
-2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of up to 32 MiB, media unit 0,
-converted to the unit's PZX stream when it is inserted. `fes.zx81` on `fes.computer` uses the same
+`spectrum-plus3-firmware` (64 KiB, `fes.spectrum-plus3` 0.5.0) or `pentagon-firmware`
+(48 KiB, `fes.pentagon` 0.5.0: 128, 48 BASIC, then TR-DOS), and role `cassette`
+for `fes.media.spectrum-tape` 2.0: a `.tzx`, `.tap`, `.pzx` or `.csw` image of
+up to 32 MiB, media unit 0, converted to the unit's PZX stream when it is
+inserted. `fes.pentagon` also has role `disk` for `fes.media.spectrum-disk` 1.0
+with `fes.media.spectrum-disk-trdos`: a `.trd` or `.scl` image of up to 1 MiB,
+media unit 1, converted to the unit's raw track image; launched, it boots
+through TR-DOS. `fes.spectrum-plus3` has role `disk` for the same unit with
+`fes.media.spectrum-disk-plus3`: a standard or extended `.dsk` of up to 1 MiB;
+launched, the +3 menu's Loader boots it. `fes.zx81` on `fes.computer` uses the same
 role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
 unit 0. A previously saved `blob` selection for that package still launches.
 Persist a Spectrum or ZX81 selection with role `cassette`:

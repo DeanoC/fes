@@ -410,8 +410,10 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
-check, not the product FPGA route. The product route is HIP/nextpnr.
+These are modules in the FES repository. Quartus Lite 17.0.2 remains an
+explicit oracle/check in the current recipes. Accepted FES policy also allows
+a labelled Quartus-built variant after recipe and package-selection support
+lands; the current normal product route uses HIP/nextpnr.
 
 | Module | Owns |
 | --- | --- |
