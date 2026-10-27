@@ -9,6 +9,7 @@
 //
 // Prints PASS <name> or FAIL <name>: <detail> per check; exits 1 on a failure.
 #include "audio_link.h"
+#include "Vpc386_at_core.h"
 #include "verilated.h"
 
 #include <algorithm>
@@ -42,7 +43,7 @@ std::string hex(uint64_t value) {
 
 struct Bench {
     Vpc386_at_core top;
-    AudioLink link{top};
+    AudioLink<Vpc386_at_core> link{top};
     uint64_t cycles = 0;
     std::vector<uint8_t> memory = std::vector<uint8_t>(16u << 20);
     bool dma_pending = false;

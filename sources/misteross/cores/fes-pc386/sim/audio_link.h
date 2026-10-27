@@ -10,15 +10,15 @@
 // core in the same clock, as wires would.
 #pragma once
 
-#include "Vpc386_at_core.h"
 #include "Vpc386_audio.h"
 
 #include <cstdint>
 #include <vector>
 
+template <class AtCore>
 class AudioLink {
 public:
-    explicit AudioLink(Vpc386_at_core &at_core) : at(at_core) {}
+    explicit AudioLink(AtCore &at_core) : at(at_core) {}
 
     Vpc386_audio audio;
     std::vector<int16_t> samples;          // mixer output at 48 kHz
@@ -70,7 +70,7 @@ public:
     }
 
 private:
-    Vpc386_at_core &at;
+    AtCore &at;
     uint32_t request_phase = 0;
     bool other_pending = false;
     bool irq_before = false;

@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""pc386 machine M1 and M3: the firmware and FreeDOS locks, the image layout
-helpers, the vendored audio imports, the boot report parser and its I/O timing
-and audio checks, and (with Verilator) the directed device benches and a short
-OPL2 run against Nuked-OPL3. No network access; the oracle boot and the sound
-suite run from scripts/sim_fes_pc386.py --suite boot and --suite sound."""
+"""pc386 machine M1-M3: firmware/audio imports, boot reports, and directed
+device, audio, OPL2, presenter and port 2 benches. No network access; the
+oracle boot and VGA replay are separate suites."""
 import hashlib
 import json
 import os
@@ -100,12 +98,14 @@ class FreedosImageTest(unittest.TestCase):
             with self.assertRaises(freedos.ImageError):
                 freedos.mbr_code(source)
 
+
 class AudioImportTest(unittest.TestCase):
     def test_vendored_files_match_their_manifests(self):
-        for name, license in (('opl2_fpga', 'LGPL-3.0-or-later'), ('nuked-opl3', 'LGPL-2.1-or-later')):
+        for name, license_name in (('opl2_fpga', 'LGPL-3.0-or-later'),
+                                   ('nuked-opl3', 'LGPL-2.1-or-later')):
             tree = sim.CORE / 'vendor' / name
             manifest = json.loads((tree / 'source.json').read_text())
-            self.assertEqual(manifest['license'], license)
+            self.assertEqual(manifest['license'], license_name)
             self.assertRegex(manifest['commit'], r'^[0-9a-f]{40}$')
             listed = {item['path'] for item in manifest['files']}
             self.assertEqual(listed, {path.name for path in tree.iterdir()} - {'source.json', 'README.md', '.gitignore'},
@@ -125,12 +125,11 @@ class AudioImportTest(unittest.TestCase):
         self.assertEqual(built, {path.name for path in sim.OPL2_VENDOR.glob('*.sv')})
 
     def test_tone(self):
-        square = [8000 if (n // 24) % 2 else -8000 for n in range(4800)]   # 1 kHz at 48 kHz
+        square = [8000 if (n // 24) % 2 else -8000 for n in range(4800)]
         section = sim.tone(square)
         self.assertAlmostEqual(section['hz'], 1000.0, delta=1)
         self.assertEqual(section['peak'], 8000)
         self.assertEqual(sim.tone([0] * 100)['hz'], 0.0)
-
 
 BOOT_OUTPUT = """POST 00 11397
 DEBUG 402 BIOS BUILD DATE: 10/26/26
@@ -138,12 +137,18 @@ PROMPT 240000013
 IO isa8 1 74 71477
 IO isa8 2 146 249
 IO isa16 2 38 144384
-IO vga 2 5 2697
+IO vga-out 2 7 2697
+IO vga-in 1 6 120
+IO vga-in 1 31 4
 INTA 146 52
+SNAP text 720 400 frames/text.ppm
+PRESENT text frames/text-720p.ppm 0
+VGA scanout_underflows 0
 SCREEN 24 |C:\\>dir                                                                         |
 MARK 1200 speaker
 OPL2 samples=144000 exact=144000 nonzero=5000 writes=120
 AUDIO samples=139200
+SB resets=1 commands=12 dma=6000 irqs=6
 END prompt steps=69772120 cycles=290000013 seconds=2.900
 """
 
@@ -159,9 +164,13 @@ class BootReportTest(unittest.TestCase):
         self.assertTrue(report['screen'][0].startswith('C:\\>dir'))
         self.assertEqual(report['end']['reason'], 'prompt')
         self.assertEqual(report['end']['seconds'], 2.9)
+        self.assertEqual(report['snaps']['text'], {'width': 720, 'height': 400, 'file': 'frames/text.ppm'})
+        self.assertEqual(report['present']['text'], {'file': 'frames/text-720p.ppm', 'mismatches': 0})
+        self.assertEqual(report['vga'], {'scanout_underflows': 0})
         self.assertEqual(report['marks'], {'speaker': 1200})
         self.assertEqual(report['opl2'], {'samples': 144000, 'exact': 144000, 'nonzero': 5000, 'writes': 120})
         self.assertEqual(report['audio_samples'], 139200)
+        self.assertEqual(report['sb'], {'resets': 1, 'commands': 12, 'dma': 6000, 'irqs': 6})
 
     def test_timing_classes(self):
         self.assertEqual(sim.timing_failures(sim.parse_boot(BOOT_OUTPUT)), [])
@@ -171,6 +180,14 @@ class BootReportTest(unittest.TestCase):
         self.assertEqual(len(sim.timing_failures(inta)), 1)
         unknown = sim.parse_boot(BOOT_OUTPUT + 'IO isa16 1 99 1\n')
         self.assertEqual(len(sim.timing_failures(unknown)), 1)
+        # A VGA write posts at a fixed time; a read takes at least its minimum
+        # and at most the bound.
+        posted = sim.parse_boot(BOOT_OUTPUT.replace('IO vga-out 2 7 2697', 'IO vga-out 2 8 2697'))
+        self.assertEqual(len(sim.timing_failures(posted)), 1)
+        early = sim.parse_boot(BOOT_OUTPUT.replace('IO vga-in 1 6 120', 'IO vga-in 1 5 120'))
+        self.assertEqual(len(sim.timing_failures(early)), 1)
+        late = sim.parse_boot(BOOT_OUTPUT + f'IO vga-in 1 {sim.VGA_READ_BOUND + 1} 1\n')
+        self.assertEqual(len(sim.timing_failures(late)), 1)
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
@@ -197,6 +214,28 @@ class DeviceBenchTest(unittest.TestCase):
         random = report['runs'][0]
         self.assertEqual(random['exact'], random['samples'])
         self.assertGreater(random['nonzero'], 3000)
+
+
+@unittest.skipUnless(VERILATOR, 'requires Verilator')
+class PresenterBenchTest(unittest.TestCase):
+    """The presenter and the plane on port 2 against their models (minutes)."""
+    class Args:
+        verilator = VERILATOR
+        jobs = min(os.cpu_count() or 2, 16)
+
+    def bench(self, name, top, rtl, testbench):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(sim, 'OUTPUT', Path(directory)):
+            report = sim.run_bench(self.Args(), name, top, rtl, testbench)
+        self.assertEqual(report['failures'], [], '\n'.join(report['checks']))
+        return report
+
+    def test_presenter_matches_its_model(self):
+        report = self.bench('presenter', 'pc386_presenter', sim.PRESENTER_RTL, sim.CORE / 'sim/presenter_tb.cpp')
+        self.assertEqual(len(report['checks']), 10)
+
+    def test_plane_reads_through_port_2(self):
+        report = self.bench('plane', 'plane_top', sim.PLANE_RTL, sim.CORE / 'sim/plane_tb.cpp')
+        self.assertEqual(len(report['checks']), 11)
 
 
 if __name__ == '__main__':
