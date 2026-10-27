@@ -273,8 +273,9 @@ forwarding, and an offset wraps at its address's width.
   - ESP and EBP change only there, so a fault before it leaves them, with
     the pushes before it written.
 - **Rates, without latency:** REP MOVS, STOS, LODS and SCAS issue an element
-  a cycle, and REP CMPS one in two. ENTER takes its level plus 3 uops (level
-  0: 3).
+  a cycle, and REP CMPS one in two. ENTER is 2 uops at level 0, 3 at level 1
+  and the level plus 2 above, and a load waits a cycle behind its push of
+  EBP and of the frame pointer.
 
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
