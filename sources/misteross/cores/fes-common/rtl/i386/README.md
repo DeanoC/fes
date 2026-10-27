@@ -237,10 +237,18 @@ forwarding, and an offset wraps at its address's width.
 - **The first uop** of MOVS, CMPS, STOS, LODS or SCAS is a NOP that loads the
   copies from ESI, EDI and ECX (CX by address size). It waits until they are
   in registers, until no older uop that writes DF is in AG to EX, and until
-  neither its segment nor ES is being written. Then the string runs:
+  neither its segment nor ES is being written. Its registers are fixed, so
+  it reads each one's value and pending bit from D's forwarding directly,
+  with no select by register number. Then the string runs:
   - one element per count under REP (F2h or F3h), else one;
   - a REP with a count of 0 is a NOP that ends the instruction;
   - each element steps by its bytes, down when DF is set.
+- **The first element is built without the count**, which is still on its
+  way into the copy when `fes_i386_seq` builds it. The first uop latches
+  whether that element ends the instruction (a count of 0, or 1 but for
+  CMPS) and whether it is the NOP (0). D then issues it as the last, or as
+  the NOP, which writes nothing D tracks. Beside the copy of the count, D
+  keeps whether it is 0, 1 or 2, which `fes_i386_seq` reads.
 - **The elements.**
   - STOS is a store of eAX at ES:EDI, LODS a load of eAX from seg:ESI, and
     SCAS a compare of eAX with ES:EDI.
@@ -253,7 +261,8 @@ forwarding, and an offset wraps at its address's width.
 - **Each element's last uop** steps ESI, EDI and ECX at WB. A fault part way
   leaves them at the elements done, with EIP at the instruction, so no
   forwarding sees the steps. A uop that reads ESI, EDI or ECX waits in D
-  while a string element that steps it is in AG to WB.
+  while a string element that steps it is in AG to WB. Which of them a uop
+  reads is decoded into `dc` (`rd_str`), so that wait is one AND.
 - **REPE and REPNE** (F3h and F2h) CMPS and SCAS issue elements ahead of the
   flag result. An element but the last ends the instruction when its
   compare's ZF says so. It does that as a taken branch to the next
