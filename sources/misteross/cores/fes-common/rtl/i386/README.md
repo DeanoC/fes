@@ -6,8 +6,8 @@ holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms on a data port, fixed uop
 sequences, the string instructions and ENTER, I/O on an I/O port, the
-microcode ROM, exception delivery and the multiply and divide unit. There is
-no cache yet.
+microcode ROM, exception delivery, INTR and NMI, and the multiply and divide
+unit. There is no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -135,7 +135,9 @@ a taken branch or a fault in WB wait out a wrong-path load. A multiply or
 divide freezes them the same way while it works in EX (`md_busy`, a register
 set as the uop enters EX), and so the freeze has one more registered input
 and D's issue no new term. So does an I/O access in WB, until the machine
-completes it (`io_wb` and `io_done`, both registers; see I/O). What WB does with
+completes it (`io_wb` and `io_done`, both registers; see I/O), and an INTR
+being taken, until the machine returns its vector (`int_take` and
+`inta_done`; see Interrupts). What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
 
@@ -315,6 +317,30 @@ access at WB, never speculatively, on the I/O port.
 - **Rates, without latency, with an ack in the cycle the request rises:**
   REP INS and OUTS take 2 cycles an element. An IN or OUT takes 6 more
   than a NOP, mostly the next instruction's wait to issue.
+
+**Interrupts.** INTR and NMI are taken at instruction boundaries, as the
+design's commit rules ask.
+- **When.** On the edge an instruction's last uop retires, a delivery's
+  included, or while the CPU is in HLT.
+  - NMI comes first, unless one is being handled: an NMI blocks the next
+    until IRET's last uop retires (the microcode word's `iret` bit).
+  - INTR is taken if IF is set after the instruction.
+  - Neither is taken after MOV SS or POP SS, unless that one follows
+    another, nor after an STI that set IF: the shadow, as Bochs keeps it.
+    LSS has none.
+- **How.** The decision is a register, `int_take`, from that edge.
+  - An INTR first asks the machine for its vector: `inta_req` until
+    `inta_ack`, with D to WB frozen.
+  - Then WB flushes, as for a fault. The uop in WB, the next instruction's,
+    neither retires, stores nor makes an I/O access, and EX's running flags
+    go back to EFLAGS.
+  - DC takes the vector routine's entry with D's EIP the next instruction's,
+    so the routine pushes it. An NMI's vector is 2.
+- **HLT** waits for an interrupt now. `trace_halt` is HLT or the stop for
+  good, which `trace_unimplemented` tells apart. A HLT that retires with an
+  interrupt pending takes it at once.
+- **Not built yet:** interrupts between a REP string's elements (the string
+  runs to its end first), and the debug traps.
 
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from

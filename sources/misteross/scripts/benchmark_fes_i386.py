@@ -112,7 +112,8 @@ STAGES = {
     # (WB) and the stage records come before D, whose forwarding tables take
     # the register file and the records as ports.
     'cpu': (
-        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|io_ack|io_rdata|init_\w+)$|stimulus\.'),
+        ('envelope', r'(.*\.)?(signature|observed|noise|LED0|mem_valid|io_ack|io_rdata|intr|nmi|inta_ack|inta_vector'
+                     r'|init_\w+)$|stimulus\.'),
         ('F1', r'(.*\.)?(f2_block|fetch_block|active|itlb_page)$|l1i_'),
         ('F2', r'(.*\.)?(l1_valid|l1_block|l1_bytes|mem_data)$|.*\.oplen\.(one|two)_byte'),
         ('L1', r'(.*\.)?(l2_\w+|half|fill_bytes|fill_data)$|(.*\.)?fetch\.sums\.'),
@@ -120,7 +121,8 @@ STAGES = {
         # Q's output register may keep only the names of DC's inputs: the
         # decoder's (decode.q in Yosys, decode.by in Quartus) or dc_q's.
         ('Q', r'(.*\.)?(half_valid|tail_ok)$|(.*\.)?align\.(?!redirect_linear$)|(.*\.)?(decode\.(q|by)|dc_q)$'),
-        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+|io_done|io_data)$'),
+        ('WB', r'(.*\.)?(gpr|eflags|eip|seg_\w+|halted|t0|t1|trace_\w+|start|start_linear|arch_\w+|rt_\w+|exc_\w+|io_done|io_data'
+               r'|hlt|stopped|int_take|int_nmi|int_vec|inta_done|nmi_q|nmi_pend|nmi_block|movss_sh)$'),
         # A stage's output record passes most fields through, so they name
         # the register feeding it: ag_out's are ag_s (D), m1_out's m1_s (AG),
         # ex_out's ex_s (M2). ex.flags_in is EX's ex_flags. WB's decisions
