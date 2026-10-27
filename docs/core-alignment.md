@@ -32,7 +32,8 @@ core uses the standards below.
 
 ## Standards
 
-These are the choices already in the tree at `6d9939c2`.
+These standards record the accepted core policy and the implementation state
+of the current tree.
 
 1. FES allows both OSS (`oss`) and Quartus (`quartus`) as product toolchains
    (policy accepted in #1163; see

@@ -105,7 +105,43 @@ toolchain. Sketch (names to settle in the implementation PR):
 core_id = "fes.example"
 toolchains = ["oss", "quartus"]      # default ["oss"]
 default_toolchain = "oss"            # what an unlabelled selection resolves to
-# existing lock_path / [recipes.pnr] stay the oss lane
+identity_version = 2
+producer_script = "scripts/build_fes_example_package.py"
+producer_module = "scripts.build_fes_example_package"
+authenticate = "_authenticate_tools"
+lock_path = "cores/fes-example/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-example.package-selection.toml"
+package_dir_env = "FES_EXAMPLE_PACKAGE_DIR"
+package_selection_env = "FES_EXAMPLE_PACKAGE_SELECTION"
+quartus_role = "no oracle required"
+
+[recipes.pnr]
+seeds = [1, 2, 3, 4]
+timing_weights = [10]
+search_weights = [10]
+critexp = 2
+clocks = [{ name = "clk_sys", mhz = 100.0 }]
+freq = "100"
+qsf = "cores/fes-example/constraints.qsf"
+sdc = "cores/fes-example/clocks.sdc"
+router = "gpu"
+backend = "HIP"
+gpu_device = "lease"
+timeout_s = 1800
+threads = 1
+timing_allow_fail = false
+argv_style = "search"
+extra = []
+env = {}
+optional_env = {}
+unset_env = []
+compress_rbf = true
+detailed_timing_report = true
+
+[recipes.pnr.flags]
+randomize_seed = false
 
 [recipes.quartus]
 lock_path = "cores/fes-example/quartus.lock"
@@ -116,6 +152,12 @@ sdc = "cores/fes-example/clocks.sdc"
 seeds = [1, 2, 3, 4]
 clocks = [{ name = "clk_sys", mhz = 100.0 }]   # same meaning as the oss clocks
 ```
+
+The dual-lane sketch retains the current complete OSS recipe shape. A
+Quartus-only row is a future schema shape: it will omit the OSS `lock_path`,
+`gpu_router`, `hip_architectures` and `[recipes.pnr]` fields. The current
+`scripts/recipes.py` loader rejects that row; it becomes valid only after
+rollout step 2 changes the descriptor and parser.
 
 `quartus_role` is kept for cores that have no Quartus variant and stay
 oracle-only. It is not removed in the first step, so no existing recipe edit
@@ -176,7 +218,8 @@ authorized hosts or imposing a global job cap.
 - Quartus runs only on named, pinned build hosts authorized by the applicable
   license terms. The development machine can run Lite; Pro hosts are
   determined by confirmed entitlements. Each host's Quartus install is
-  recorded by version, edition and build number, and `make doctor` reports it.
+  recorded by version, edition and build number. A future `make doctor` report
+  is rollout step 6; the current command does not check Quartus availability.
 - The license file and any token stay on the host. Nothing licensed goes in
   the repository, a package, a cache key or CI logs. A package records the
   edition and version, never a seat or host ID.
@@ -186,7 +229,8 @@ authorized hosts or imposing a global job cap.
   the HIP router uses.
 - Quartus 17.0.2's SystemVerilog front end rejects some FES RTL (the i386
   CPU). Where that happens the existing route stays: Yosys elaborates the
-  netlist and Quartus maps and fits it, as in `scripts/quartus_fes_i386.py`.
+  netlist and Quartus maps and fits it, as in
+  `sources/misteross/scripts/quartus_fes_i386.py`.
   A Pro-edition front end may not need that. The recipe records which route
   built the package.
 
@@ -203,9 +247,9 @@ same meaning. Nothing is relaxed because the toolchain is different.
   Quartus.
 - **Seal.** A Quartus package is sealed like an OSS package: source closure,
   constraint file digests (QSF and SDC), the Quartus version and edition, the
-  seed and the RBF digest. The two-pass reproducibility check applies. If a
-  Quartus lane cannot reproduce byte-for-byte on a pinned host, that is a
-  finding to fix, not a reason to skip the second pass.
+  seed and the RBF digest. Repeat the same Quartus build on the pinned host and
+  compare the RBF digests. If the builds do not reproduce byte-for-byte, that
+  is a finding to fix, not a reason to skip the repeat build.
 - **No silent fallback.** A failed OSS route does not produce a Quartus
   package, and a failed Quartus lane does not produce an OSS one.
 - **Acceptance.** Image inclusion is not hardware acceptance, same as today.
@@ -256,7 +300,7 @@ packages for one core into a single image.
 - The `toolchain` label is visible wherever package identity is presented:
   package manifest, catalog and library entry, `unavailable-cores.json`,
   `inputs.json` and package-selection record, kit core list and update
-  manifest. Use the labels `OSS` and `Quartus` consistently.
+  manifest. Use the labels `oss` and `quartus` consistently.
 - The library displays one logical core and its available variants. A user or
   profile may select a toolchain explicitly; when omitted, selection resolves
   to the recipe's `default_toolchain`, which defaults to `oss`. The chosen
@@ -299,11 +343,18 @@ Each step is one scope, one PR.
    records unchanged. Write the toolchain into new manifests. Preserve legacy
    OSS keys by omitting `toolchain` from OSS functional-input JSON; include
    `"toolchain": "quartus"` for Quartus. Interpret missing labels as OSS.
-   Update `scripts/recipes.py` so `gpu_router` and `hip_architectures` are
-   required and validated only when the recipe declares an OSS lane. A
-   Quartus-only recipe has no `gpu_router` or HIP architecture fields and must
-   provide its Quartus descriptor; never invent a HIP route to satisfy the
-   parser. Add tests for both lane shapes and key compatibility/separation.
+   Extend `Format2Recipe` and `scripts/recipes.py` to select an exact recipe
+   field set by declared lane. An OSS lane keeps the current required
+   `lock_path`, `gpu_router`, `hip_architectures` and complete `[recipes.pnr]`
+   table. That table keeps its current exact keys (`seeds`, `timing_weights`,
+   `search_weights`, `critexp`, `clocks`, `freq`, `qsf`, `sdc`, `router`,
+   `backend`, `gpu_device`, `timeout_s`, `threads`, `timing_allow_fail`,
+   `argv_style`, `extra`, `env`, `optional_env`, `unset_env`, `compress_rbf`,
+   `detailed_timing_report` and `flags`), with `router = "gpu"` and
+   `backend = "HIP"`. A Quartus-only row omits those OSS fields and provides
+   its Quartus descriptor; do not populate a dummy HIP route to satisfy the
+   current parser. Add tests for both lane shapes and key
+   compatibility/separation.
 3. Implement `FES_OSS_ONLY` and the `toolchain-excluded` reason in
    `scripts/optional_cores.py`, with tests like `tests/test_optional_cores.py`.
    Until this step lands, the variable is not supported.
@@ -323,7 +374,7 @@ Each step is one scope, one PR.
 6. Licensed build host and runner, Pro install and `make doctor` report.
    Schedule jobs against confirmed license entitlements and host permissions.
 7. DE25-Nano board shell and first Quartus-only bring-up core, using the
-   Quartus-only recipe shape from step 2.
+   Quartus-only recipe shape only after step 2's schema and parser change lands.
 
 ## Open questions
 

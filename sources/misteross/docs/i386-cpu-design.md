@@ -405,11 +405,16 @@ Rules that follow, checked in review and against every routed critical path:
    start-after-next idea for Q ([#1097](https://github.com/DeanoC/fes/issues/1097))
    can be reconsidered if Q continues to limit after these measured cuts
    ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)).
-10. A Quartus 17.0.2 fit of the same Yosys netlist is the check that separates
-    RTL limits from OSS-flow limits. It is an oracle only, never the product
-    path ([#1112](https://github.com/DeanoC/fes/pull/1112)). An RTL cut is
-    worth making when it lifts the Quartus figure too; a gap that only nextpnr
-    shows belongs to the flow and goes to its fork.
+10. A Quartus 17.0.2 fit of the same Yosys netlist helps separate RTL limits
+    from OSS-flow limits. Under the accepted FES policy, a labelled `quartus`
+    build may ship alongside the `oss` build when complete sign-off results
+    differ significantly. The i386 measurements motivate this comparison;
+    eligibility follows the complete passing sign-off seed sets in the
+    [Quartus-built cores policy](../../../docs/design/quartus-cores.md).
+    Variant recipe and package-selection support is still rollout work, so
+    this fit remains an oracle/check until that path lands ([#1112](https://github.com/DeanoC/fes/pull/1112)).
+    An RTL cut is worth making when it lifts the Quartus figure too; a gap
+    that only nextpnr shows belongs to the flow and goes to its fork.
 
 ### The clock on each flow
 
