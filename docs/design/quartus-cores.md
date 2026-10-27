@@ -88,8 +88,9 @@ be cherry-picked. This comparison rule does not waive the per-seed timing
 checks. Otherwise the core ships OSS only. i386 is the example: about 70 MHz
 OSS against about 100 MHz Quartus is about 40% more. A core where the gap is
 3% ships OSS only. The result for each candidate goes in a dated note under
-`docs/validation/`, with both flows' sign-off seed sets and per-clock figures,
-like the i386 oracle note.
+`sources/misteross/docs/validation/`, with both flows' sign-off seed sets and
+per-clock figures, like the [i386 oracle
+note](../../sources/misteross/docs/validation/2026-10-25-i386-quartus-oracle.md).
 
 ## Toolchain label
 
@@ -197,9 +198,10 @@ optional-core flags in `scripts/optional_cores.py`:
 - The omission is written once in `unavailable-cores.json`, the way an
   optional timing miss is today. This adds a reason beside `timing-not-met`,
   `build-failed` and `skipped`: `toolchain-excluded`.
-- `FES_REQUIRE_ALL_CORES=1` with `FES_OSS_ONLY=1` is an error when any
-  selected core has no OSS lane, the same conflict rule that guards
-  `FES_SKIP_OPTIONAL_CORES` today.
+- The `FES_OSS_ONLY` conflict with `FES_REQUIRE_ALL_CORES=1` applies only when
+  a selected core has no OSS lane. This follows the existing behavior where
+  `FES_REQUIRE_ALL_CORES=1` makes an optional core's build failure fail the
+  image ([`scripts/build.py`](../../scripts/build.py#L1745)).
 - Verify reuses the recorded toolchain and omissions, ignores the flag, and
   rejects an OSS-only image that contains a `quartus` package.
 - `FES_OSS_ONLY` is not `FES_SKIP_OPTIONAL_CORES`. The skip flags are a fast
@@ -269,15 +271,19 @@ the lock forward, and the seal and timing checks still apply.
 
 ## CI
 
-CI cannot assume a licensed runner.
+CI cannot assume a Quartus-ready host.
 
-- Verilator simulation and lint stay independent of synthesis toolchain
-  (`scripts/ci_verilator.sh`) and run for every core regardless of toolchain.
-- Quartus jobs run only on a licensed, self-hosted runner. On a hosted runner
-  they are skipped and reported as skipped, not passed.
+- `scripts/ci_verilator.sh` installs the pinned Verilator 5.032 compiler used
+  by simulation checks; it does not run simulation or lint.
+- Quartus jobs run only on a pinned host authorized for their edition and
+  device. Quartus Lite 17.0.2 needs no license; Pro runner authorization and
+  license binding remain open pending confirmation of the available
+  entitlements. If no suitable host is available, CI reports the job as
+  skipped, not passed.
 - A pull request that changes the inputs of a Quartus lane (RTL, QSF, SDC, the
-  Quartus lock) needs a Quartus run on a licensed host before merge, with the
-  evidence in the pull request, the way HIL evidence is handled. The
+  Quartus lock) needs a Quartus run on a host authorized for its edition and
+  device before merge, with the evidence in the pull request, the way HIL
+  evidence is handled. The
   functional key makes this precise: an unchanged key reuses the cached sealed
   package and needs no run.
 - Open: whether a cache of sealed packages is enough for unlicensed
