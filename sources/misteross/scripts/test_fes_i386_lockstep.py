@@ -174,10 +174,10 @@ def run_directed(testbench: str, env: dict) -> dict:
     env = dict(env, FES_I386_MODE='directed', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
-        raise LockstepError(f'directed faults: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+        raise LockstepError(f'directed cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 14:
-        raise LockstepError(f'directed faults: testbench ran {summary["runs"]} of 14 cases')
+    if summary['runs'] != 16:
+        raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 16 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -406,7 +406,7 @@ def main() -> int:
         exit_code = 1
     report.update({
         'reset_store': reset_store,
-        'directed_faults': directed,
+        'directed_cases': directed,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
@@ -448,7 +448,7 @@ def main() -> int:
               f"{sum(gaps['after_store'].values())} others after a store, {share(gaps['after_store'], 1)} one cycle apart")
     print(f"unbuilt encodings: {unbuilt_runs} outside SCOPE, {len(unbuilt_failures)} not stopped as unimplemented")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
-    print(f"directed faults: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
+    print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
     for line in (reset_store_failures + directed_failures + unbuilt_failures + corpus_failures + random_failures)[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
