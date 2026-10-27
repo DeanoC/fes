@@ -271,15 +271,15 @@ every field and routine.
   INT's and IRET's do.
 
 **Multiply and divide** (`fes_i386_muldiv`) work in EX while D to WB
-freeze, from EX's operands, which stay put meanwhile. The unit touches EX
-only through registers:
-- it copies what EX makes its operand y of (EX's y register, WB's result,
-  the load, the bypass selects) in its first cycle and applies the bypass
-  itself; of EX's logic it reads only src1's bypassed value, which feeds
-  EX's keep lanes;
+freeze, from EX's operands, which stay put meanwhile. Only registers lie
+between the unit and EX:
+- in its first cycle it copies the uop's decode and imm, and what EX makes
+  its operands of (EX's src1 and y registers, WB's result, the load, the
+  bypass selects), and applies the bypasses itself; nothing of EX's logic
+  drives it;
 - in its last cycle it writes its result, merged into the destination's old
-  value, into the uop's record, which EX passes through LEA's select, and a
-  divide error into the record's fault;
+  value and registered by the cycle before, into the uop's record, which EX
+  passes through LEA's select, and a divide error into the record's fault;
 - the uop leaves on the cycle after with the unit's flags, which EX's flag
   logic takes off the adder's path.
 - **Forms.** MUL and IMUL of AL or eAX by r/m, IMUL r, r/m and r, r/m, imm
