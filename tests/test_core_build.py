@@ -588,6 +588,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.subprocess, 'run', side_effect=fake_run),
                     patch.object(build.platform, 'system', return_value='Linux'),
                     patch.object(build.platform, 'machine', return_value='x86_64'),
+                    patch.object(build.platform, 'build_bluetooth'),
                     patch.object(build, 'build_environment', return_value={}),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
                     patch.object(build, 'locked_diagnostics', no_diagnostics),
@@ -686,6 +687,13 @@ class CoreBuildTest(unittest.TestCase):
                     parsed.pop('check_packages', None)
                 return parsed
 
+            bluetooth_calls = []
+
+            def fake_bluetooth(*args, **kwargs):
+                if not artifacts:
+                    raise AssertionError('bluetooth agent is built with kit software')
+                bluetooth_calls.append(args)
+
             def fake_run(args, **kwargs):
                 if artifacts:
                     self.assertNotIn('build-agent', args)
@@ -742,6 +750,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build.platform, 'machine', return_value='x86_64'),
                     patch.object(build.platform, 'build_kit_software',
                                  side_effect=AssertionError('must not compile') if artifacts else None),
+                    patch.object(build.platform, 'build_bluetooth', side_effect=fake_bluetooth),
                     patch.object(build, 'write_receipt'),
                     patch.object(build, 'publish_host_inputs'),
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
@@ -765,6 +774,7 @@ class CoreBuildTest(unittest.TestCase):
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
+        self.assertEqual(len(bluetooth_calls), 1 if artifacts else 0)
         self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], ('5' if artifacts else '2') * 40)
         self.assertEqual(captured['assembly_lock']['idle_rbf'],
                          tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])

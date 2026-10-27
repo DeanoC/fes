@@ -2,6 +2,7 @@ package fogcast
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"strings"
@@ -81,6 +82,43 @@ func checkedTAP(size int, set func(data []byte)) []byte {
 	return data
 }
 
+func snapshotSizeTZX() []byte {
+	const size = 30 + 48<<10
+	data := make([]byte, size)
+	copy(data, []byte("ZXTape!\x1a"))
+	data[8], data[9] = 1, 20
+	data[10] = 0x10 // standard-speed data block
+	binary.LittleEndian.PutUint16(data[13:15], uint16(size-15))
+	data[29] = 1 // .z80 interrupt mode
+	return data
+}
+
+func pzxBlock(data []byte, tag string, body []byte) []byte {
+	data = append(data, tag...)
+	data = binary.LittleEndian.AppendUint32(data, uint32(len(body)))
+	return append(data, body...)
+}
+
+func snapshotSizePZX() []byte {
+	const size = 30 + 48<<10
+	data := pzxBlock(nil, "PZXT", []byte{1, 0, 'f', 'e', 's', 0})
+	data = pzxBlock(data, "PULS", []byte{100, 0})
+	data = pzxBlock(data, "BRWS", bytes.Repeat([]byte{'x'}, size-len(data)-8))
+	return data
+}
+
+func snapshotSizeCSW() []byte {
+	const size = 27 + 48<<10
+	data := make([]byte, size)
+	copy(data, []byte("Compressed Square Wave\x1a"))
+	data[23], data[24] = 1, 0x40           // CSW v1 and .sna SP $4001
+	data[25], data[26], data[27] = 0, 1, 1 // 256 Hz, .sna IM 0, RLE
+	for i := 32; i < len(data); i++ {
+		data[i] = 1
+	}
+	return data
+}
+
 func cassette(t *testing.T, d corepackage.Descriptor, data []byte) ([]byte, error) {
 	t.Helper()
 	return namedCassette(t, d, "", data)
@@ -133,6 +171,38 @@ func TestSpectrumCassetteStreamKeepsCheckedTAPOfSnapshotSize(t *testing.T) {
 				t.Errorf("%s named %q: %v, want %s", name, file, err, want)
 			}
 		}
+	}
+}
+
+func TestSpectrumCassetteStreamKeepsSignaturedTapesAtSnapshotSizes(t *testing.T) {
+	d := spectrumDescriptor(protocol.SpectrumSnapshotInterfaceID)
+	for _, tc := range []struct {
+		ext        string
+		size       int
+		data       []byte
+		snapshotOK bool
+	}{
+		{ext: ".tzx", size: 30 + (48 << 10), data: snapshotSizeTZX(), snapshotOK: true},
+		{ext: ".pzx", size: 30 + (48 << 10), data: snapshotSizePZX()},
+		{ext: ".csw", size: 27 + (48 << 10), data: snapshotSizeCSW(), snapshotOK: true},
+	} {
+		t.Run(tc.ext, func(t *testing.T) {
+			if len(tc.data) != tc.size {
+				t.Fatalf("fixture has %d bytes, want %d", len(tc.data), tc.size)
+			}
+			if !spectrumtapes.Recognize(tc.data) {
+				t.Fatal("fixture must be recognized as a tape")
+			}
+			if tc.snapshotOK && !spectrumsnapshots.Recognize(tc.data) {
+				t.Fatal("fixture must also be recognized as a snapshot")
+			}
+			for _, name := range []string{"", "game" + tc.ext} {
+				stream, err := namedCassette(t, d, name, tc.data)
+				if err != nil || !bytes.HasPrefix(stream, []byte("PZXT")) {
+					t.Errorf("name %q: %v, want tape stream", name, err)
+				}
+			}
+		})
 	}
 }
 

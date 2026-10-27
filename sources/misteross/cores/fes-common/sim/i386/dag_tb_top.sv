@@ -39,14 +39,19 @@ module dag_tb_top (
     fes_i386_amode amode (
         .modrm, .sib, .addr32, .has_base, .base, .has_index, .index, .scale, .stack
     );
+    // Stack operations are not part of this bench.
+    logic [15:0] unused_sp_hi;
+    logic        unused_sp_wait;
+    logic [31:0] unused_base_op;
     fes_i386_dfwd dfwd (
         .clk, .reset, .has_base, .base, .has_index, .index, .scale, .addr32, .d_writes(d_valid && d_writes),
-        .d_dst, .d_kind, .advance(d_valid && !stall), .prod_valid, .prod_dst, .prod_kind, .gpr,
-        .stage_value, .row, .last, .late, .late_hi, .stall
+        .d_dst, .d_kind, .d_sp(1'b0), .advance(d_valid && !stall), .hold(1'b0), .prod_valid, .prod_dst, .prod_kind,
+        .prod_sp(4'b0), .gpr, .stage_value, .wb_sp(32'd0), .row, .last, .late, .late_hi, .stall, .sp_hi(unused_sp_hi),
+        .sp_wait(unused_sp_wait)
     );
     fes_i386_agu agu (
         .addr32, .seg_term(addr32 ? seg_base : {16'b0, seg_base[15:0]}), .seg_hi(seg_base[31:16]),
         .seg_hi_plus1(seg_base[31:16] + 16'd1), .row, .last, .disp, .late, .late_hi, .late_m1, .late_ex,
-        .late_wb, .linear, .offset
+        .late_wb, .linear, .offset, .base_op(unused_base_op)
     );
 endmodule

@@ -172,6 +172,13 @@ differs. Directed tests in later phases decide these, not the oracle:
   results and FERR is not routed. The FES CPU models an empty socket.
 - MOV to or from TR6 and TR7 (0F 24, 0F 26) raises #UD in Bochs; the design
   accepts them.
+- A real-mode CS load follows the 386 rule described by Collins: the design
+  contract resets CS's limit to FFFFh and its access-rights byte to 93h (P=1,
+  DPL=0, S=1, read/write, expand-up, accessed data segment), while Bochs 3.1
+  preserves them. Neither corpus exposes the hidden CS cache, so this has no
+  deciding oracle-versus-corpus case. It is a known limit for the planned
+  directed unreal-mode test, not a `divergences.toml` entry; see the
+  [design contract](../../../../docs/i386-cpu-design.md#compatibility-contract).
 - LOADALL is not modelled.
 - Bochs below CPU level 6 keeps the 0F 38 and 0F 3A three-byte escapes in its
   decoder table without an opcode table and dereferences null decoding them.
@@ -227,35 +234,55 @@ the repository lock's older Yosys misreads the RTL's per-byte records.
 The oracle steps one instruction and the RTL runs until it retires one; the
 two architectural states are then compared: EIP, the eight GPRs, EFLAGS bits
 0-17 and the six segment registers with their hidden caches. Memory writes
-are compared as each side reports them. An instruction that faults in the
-oracle must fault in the RTL with the same vector and nothing retired; the
-RTL does not deliver exceptions yet, so the run ends there. HLT ends a run on
-both sides.
+are compared as each side reports them: each instruction must write the same
+bytes, with the same values, on both sides. An instruction that faults in
+the oracle must fault in the RTL with the same vector, nothing retired and
+nothing written; the RTL does not deliver exceptions yet, so the run ends
+there. Three directed fault cases cover 32-bit relative CALL, RET and JMP r/m
+targets outside the 16-bit CS limit, then check that fetch, issue and data
+reads remain inactive after each fault. HLT ends a run on both sides. Every
+byte either side writes, the oracle's exception frames included, is cleared
+after the run.
 
 The RTL starts each run from the state its `init_*` ports load at reset. Its
 memory model serves the fetch port with a random 0-12 cycle delay per block
 and garbage on the port until the block arrives
-(`FES_I386_LATENCY=1`, the default); the model's `Latency` port class is
-what later slices' data, MMIO and I/O ports take.
+(`FES_I386_LATENCY=1`, the default), and the data port the same per load:
+a load's bytes are memory as it was on the edge M1 sent the address, read
+before the store retiring on that edge writes, with garbage on the port until
+they arrive. The random runs report the cycles spent waiting for them. The
+model's `Latency` port class is what later slices' MMIO and I/O ports take.
 
 Where the oracle and SingleStepTests disagree, [`divergences.toml`](divergences.toml)
 says which side the FES CPU follows. For an entry that follows the corpus,
 each retirement it applies to leaves the fields it names out of the
 comparison with the oracle, and the oracle takes the RTL's values so both run
-on from the same state; the testbench works out each entry's opcode stem and
-`when` predicates from the instruction, as the vectors runner does. The
-corpus itself then checks those values.
+on from the same state, memory included; the testbench works out each
+entry's opcode stem and `when` predicates from the instruction, as the
+vectors runner does. An entry that leaves every field to the corpus also
+decides whether the instruction faults and with which vector: the RTL's
+outcome stands. The corpus itself then checks those values.
 
 `scripts/test_fes_i386_lockstep.py` drives it two ways:
 
 | Source | What runs | Checked |
 | --- | --- | --- |
 | SingleStepTests/80386 | Every state of the instruction forms the CPU executes (the runner's `SCOPE` table), from its initial state to its HLT | Every retirement against the oracle, then the RTL's final state against the corpus's, undefined flags and RAM included |
-| Random programs | Register and immediate forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs and backward jumps, from random register states | Every retirement against the oracle; a run stops at its HLT, a fault or 2,000 retirements. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Random programs | Register, immediate and 16-bit-addressed memory forms of the same instructions with segment, REP, 66h and 67h prefixes (and now and then a LOCK), forward branches, bounded LOOPs, backward jumps, pushes and pops, CALLs to subroutines that return with RET or RET imm16 (two deep, their bodies leaving ESP, SS and the return address alone), far CALLs returning with RETF or RETF imm16, through a pointer in the instruction or one stored just before, far JMPs, PUSH BP / MOV BP, SP / LEAVE frames and the far pointer loads, from random register states and zeroed memory. A far target is a CS:IP for the target's linear address, so the program's state is chosen before its layout | Every retirement against the oracle; a run stops at its HLT, a fault, 2,000 retirements or a store into its own code, which needs self-modifying-code detection the RTL does not have yet. Two seeds run again without latency and must retire the same trace (a hash of every retirement's state) |
+| Directed faults | 66 E8 with a 32-bit target past FFFFh, a 32-bit RET to 10000h, and JMP EBX to 10000h; each is followed by 32 monitored cycles | Bochs #GP(0), unchanged EIP/ESP and memory, and no fetch request, D issue or data read after the fault |
 
 The latency-free reruns also give the cycles between retirements: in
-sequence, after an instruction with more than one prefix, and after a taken
-branch.
+sequence, after an instruction with more than one prefix, after a taken
+branch, after a shift or rotate, and after a store. These check D's holds
+cycle-exactly, or the run fails: an instruction that consumes the flags
+(ADC, SBB, Jcc, SETcc, RCL, RCR, LAHF, CMC, LOOPE, LOOPNE) must retire two
+cycles after a shift and anything else one; an instruction that reads memory
+must retire at least two cycles after a store, and any other instruction
+without a memory operand one; a push or pop right after another must retire
+one cycle behind it, as its ESP is early from AG, unless it is a pop after a
+push (a load after a store) or follows a segment load. CALL and RETF
+(several uops), LEAVE, PUSH and POP of (E)SP, which read ESP as data, and
+anything after POP (E)SP, which loads ESP, are left out of that check.
 
 Each later slice adds its instruction forms to `SCOPE`, its ports to the
 memory model, and its instructions to the random generator; the comparison

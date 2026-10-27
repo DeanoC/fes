@@ -172,6 +172,7 @@ package fes_i386_pkg;
         logic        addr32;
         logic        lock;
         logic        system;
+        logic        in_a;   // the operand is src1 (x), else src2 (y)
     } mem_t;
 
     // Flags are tracked as two groups: CF, and OF/SF/ZF/AF/PF together.
@@ -188,7 +189,7 @@ package fes_i386_pkg;
     // Faults decode finds; each travels with its uop and is taken at WB.
     // UNIMPLEMENTED is not architectural: an encoding this build does not
     // execute yet. WB stops on it, so a check never retires one silently.
-    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED } fault_e;
+    typedef enum logic [2:0] { FAULT_NONE, FAULT_UD, FAULT_GP0, FAULT_NM, FAULT_UNIMPLEMENTED, FAULT_SS0 } fault_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -201,8 +202,21 @@ package fes_i386_pkg;
     // src1 is the destination's register whenever there is one: a byte or
     // word write merges into its old value, an implicit source. src2 is the
     // second register source, or imm when it is not valid; count_cl takes a
-    // shift count from CL, a third source.
+    // shift count from CL, a third source. A stack operation also writes ESP
+    // (sp_write), from the value AG computes (pipe_t sp_new): a second
+    // destination, which the main one overrides when it is ESP too (POP ESP).
+    // A segment register can be a second destination too (seg2: LES and its
+    // kin), written at WB with the selector in T0 (seg2_t) or in c. A
+    // destination in RS_TEMP is T0 (16 bits), or T1 (32) with index bit 3,
+    // which WB writes and no forwarding sees.
+    // sp_add: WB adds sp_new to ESP (RETF, whose jump flushes every younger
+    // uop, so nothing needs the new ESP sooner).
     typedef struct packed {
+        logic        seg2;
+        logic [2:0]  seg2_idx;
+        logic        seg2_t;
+        logic        sp_add;
+        logic        sp_write;
         uop_class_e  cls;
         logic [4:0]  op;
         reg_ref_t    src1;
@@ -219,21 +233,107 @@ package fes_i386_pkg;
 
     // ---- Pipeline ---------------------------------------------------------------
 
+    // An instruction decoded in DC, as D takes it (fes_i386_decode and
+    // fes_i386_amode on Q's output register; fes_i386_cpu).
+    typedef struct packed {
+        uop_t        uop;
+        logic [3:0]  length;
+        logic        opsize32;
+        logic        lea;
+        logic        lea_early;
+        logic [31:0] lea_disp;
+        logic        consumes;
+        logic        reads_seg;
+        logic [2:0]  seg_index;
+        logic        stop;
+        logic        has_base;
+        logic [2:0]  base;
+        logic        has_index;
+        logic [2:0]  index;
+        logic [1:0]  scale;
+        // The stack: what the instruction does to ESP (STK_*), and what D
+        // puts in its uop: the next instruction's EIP as src2 (a CALL's push),
+        // CS's base as src1 (RET and JMP r/m, whose EX adds the target).
+        logic [2:0]  stk;
+        logic        push_eip;
+        logic        cs_base;
+        // The uop reads a far pointer's selector, past its offset by the
+        // operand size. Each part is checked against the limit on its own,
+        // the selector's offset wrapped by address size, as the 386EX does.
+        logic        sel_part;
+        // A far transfer's selector and offset: far_sel and uop.imm, or T0
+        // and T1 (far_t, once the uops loading them have retired). far_jmp: the
+        // uop is the jump, whose target AG computes as the new CS's base
+        // plus the offset; far_chk: the uop checks the offset against CS's
+        // limit, before the transfer writes anything.
+        logic        far_jmp;
+        logic        far_chk;
+        logic        far_t;
+        logic [15:0] far_sel;
+        // The segment registers the uop writes, one-hot: its destination's
+        // or its second destination's (D's segment-busy update).
+        logic [5:0]  wseg;
+        // A fixed uop sequence (SEQ_*), the step dc holds, and whether
+        // another uop follows (fes_i386_seq).
+        logic [2:0]  seq;
+        logic [2:0]  step;
+        logic        more;
+    } decoded_t;
+
+    // STK_PEEK reads the stack without moving ESP (RETF's loads); STK_RETF
+    // is RETF's step of ESP, at its jump; STK_PROBE reads the lower slot of
+    // a far call's two pushes, only for its limit check.
+    typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
+    typedef enum logic [2:0] { SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM } seq_e;
+
+    // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
+    // each candidate arrangement: sel[d * 15 + z * 5 + k] for direction d (0
+    // right, 1 left), size z (8, 16, 32 bits) and fill k (the operand alone,
+    // rotate, rotate through carry, sign, the SHLD/SHRD source).
+    typedef struct packed {
+        logic [29:0] sel;
+        logic        left;
+        logic        z8, z16, z32;
+        logic [4:0]  s;                     // the shift amount: the count, or 31 - count left
+        logic [4:0]  count;                 // the count, unless EX takes CL from WB (byp_c)
+        logic        cf_rol, cf_ror, cf_shl, cf_shr;  // CF other than the last bit out
+        logic        szap;                  // SF, ZF, AF and PF change (not a rotate)
+    } shctl_t;
+
     // EX's controls, decoded from the uop in M2 (fes_i386_exctl) so that EX
-    // sees registered selects: one-hot where EX picks among sources.
+    // sees registered selects: one-hot where EX picks among sources. M2 also
+    // prepares EX's operands x and y (pipe_t); an operand still pending with
+    // its producer one stage ahead comes from the WB result register in EX,
+    // through the x and y bypass selects.
     typedef struct packed {
         logic       ok;                        // no fault: EX changes nothing otherwise
-        logic       byp_a, byp_b, byp_c;       // the operand comes from the WB result register
+        logic       byp_a, byp_c;              // src1 (the merge's old value) and CL come from WB
+        // x and y take WB's bits 7:0 (lo) or 15:8 (hi) into their low byte,
+        // its bits 15:8 (w16) and 31:16 (w32) in place.
+        logic       xw_lo, xw_hi, xw16, xw32;
+        logic       yw_lo, yw_hi, yw16, yw32;
+        logic       xl, yl;                    // ... the load data (pipe_t ld) instead of WB's
         logic       size8, size16;             // the operation's size (32 otherwise)
-        logic       src8, src16;               // src2's size for MOVZX, MOVSX and SIGN
+        logic       src8, src16;               // src2's size for MOVSX and SIGN
         logic       sub;                       // the adder subtracts
-        logic       x_zero;                    // NEG: 0 - a
-        logic       y_one, y_a;                // INC, DEC, LOOP add 1; NEG takes a
         logic       cin_cf, cin_ncf;           // ADC, SBB; else the carry-in is sub
-        logic       r_add, r_logic, r_shift, r_lea, r_ext, r_movsx, r_setcc, r_lahf, r_sign, r_mov;
-        logic       l_or, l_xor, l_not;        // the logic unit; AND otherwise
-        logic       f_add, f_incdec, f_logic, f_shift, f_flagop;  // which flags change, from where
+        // The result by lane: bits 7:0 (lo), 15:8 (mid), the low byte's
+        // result into 15:8 (h8, a high-byte destination) and 31:16 (hi); the
+        // old value elsewhere (kp).
+        logic       add_lo, add_mid, add_h8, add_hi;
+        logic       sh_lo, sh_mid, sh_h8, sh_hi;
+        logic       ot_lo, ot_mid, ot_h8, ot_hi;
+        logic       kp_lo, kp_mid, kp_hi;
+        logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
+        logic       l_or, l_xor;               // the logic unit; AND otherwise
+        logic       f_add;                     // CF comes from the adder
+        logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
+        logic       f_logic, f_shift;          // ... from the logic unit; from the shift, at WB
+        logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
+        logic       fl_cf, fl_cmc, fl_set;
         logic       b_jcc, b_jmp, b_loop, b_loope, b_loopne, b_jcxz;
+        logic       b_ind;                     // RET, JMP r/m: the target is x (CS's base) + y (the EIP)
+        shctl_t     sh;
     } exctl_t;
 
     // A uop from D to WB. a, b and c are the values of src1, src2 (or imm)
@@ -256,12 +356,26 @@ package fes_i386_pkg;
         logic [2:0]  dist_b;
         logic [2:0]  dist_c;
         logic        early;       // the result is ready at the end of AG (LEA)
+        logic [31:0] sp_new;      // AG: ESP after a stack operation (uop sp_write)
+        logic [31:0] maddr;       // AG: the memory operand's linear address
+        logic [31:0] moff;        // ... its offset
+        logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one
+        logic        mtiny;       // D: ... which is below zero: every access faults
+        logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address
         logic [31:0] target_eip;  // ... and EIP
         exctl_t      exc;         // M2: EX's controls
+        logic [31:0] x;           // M2: EX's adder, logic and shifter operands (fes_i386_exctl)
+        logic [31:0] y;
         logic [17:0] eflags;      // EX: EFLAGS after this uop
         logic        taken;       // EX: a branch that redirects fetch
+        logic        sh_out0;     // EX: a shift's bit out at the right, the one out at the left by size,
+        logic        sh_outn;     // and its wide-count CF (fes_i386_shflags, applied at WB: def_co)
+        logic        sh_cfw;
+        logic        sh_wide;
+        logic        def_co;
+        logic        def_szap;    // EX: a shift's SF, ZF and PF follow the result; AF is set
     } pipe_t;
 
 endpackage

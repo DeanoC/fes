@@ -1,0 +1,44 @@
+{
+  "repository": "https://github.com/bochs-emu/VGABIOS",
+  "commit": "12d978bd86fe88ee6b8620b0f1e91c7fb81bc2e6",
+  "tag": "v0_9d",
+  "license": "LGPL-2.1-or-later",
+  "local_changes": [],
+  "files": [
+    {
+      "path": "vgabios.c",
+      "upstream_path": "vgabios/vgabios.c",
+      "sha256": "9da3ce70bdf29103224d6110b1eef8bba378824d3bc19aaa572164dd1f2bfe73"
+    },
+    {
+      "path": "vgabios.h",
+      "upstream_path": "vgabios/vgabios.h",
+      "sha256": "317615641c6fbe0c117a67c983161466307c646012971d8d27d7bd4bb2f62747"
+    },
+    {
+      "path": "vgatables.h",
+      "upstream_path": "vgabios/vgatables.h",
+      "sha256": "612daa56548040986e06144db7046c71a6adeeff61b01a6f2fedd6fb27ae44bd"
+    },
+    {
+      "path": "vgafonts.h",
+      "upstream_path": "vgabios/vgafonts.h",
+      "sha256": "c5605521efeac3ae9c9568b9d314a1f4b443b1d298b479dad25d5dcefeeca0b4"
+    },
+    {
+      "path": "biossums.c",
+      "upstream_path": "vgabios/biossums.c",
+      "sha256": "838bd4671cf5fa7fb845012be942cd5efb78ff2bde0f9119295534b69ca3e272"
+    },
+    {
+      "path": "COPYING",
+      "upstream_path": "vgabios/COPYING",
+      "sha256": "c43e067abce73ca284383f4f905316e7cad6dd9aaf69f02ee961b6dfbc4de3c2"
+    },
+    {
+      "path": "README",
+      "upstream_path": "vgabios/README",
+      "sha256": "8ba8fc480f37165e4441f4060e1b5601c155fc94f819b883c39d4ff231c6a2fe"
+    }
+  ]
+}

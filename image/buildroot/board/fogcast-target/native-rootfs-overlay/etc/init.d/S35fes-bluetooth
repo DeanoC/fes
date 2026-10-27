@@ -1,0 +1,103 @@
+#!/bin/sh
+# Load the USB Bluetooth modules and prepare BlueZ storage. /var/lib/bluetooth
+# links to the ext4 appliance data partition (mmcblk0p3 at
+# /run/fogcast/fesdata3): BlueZ names entries after adapter and device
+# addresses, and the colons are invalid on the exFAT /media/fat.
+# fes-kit-software mounts that partition after bluetoothd starts, so a
+# background helper waits for the mount, creates the storage directory, and
+# restarts bluetoothd and the agent if an adapter registered before it existed.
+# A missing adapter or partition does not stop boot.
+set -eu
+
+data=/run/fogcast/fesdata3
+state=$data/bluetooth
+mods=/lib/modules/5.15.1-MiSTer/kernel/drivers/bluetooth
+log=/var/log/fes-bluetooth-storage.log
+waiter_pid_file=/run/fes-bluetooth-storage.pid
+
+prepare_storage() {
+  wait=600
+  while ! /bin/grep -q " $data ext4 " /proc/mounts; do
+    [ "$cancelled" -eq 0 ] || return 0
+    if [ "$wait" -le 0 ]; then
+      echo "$data not mounted; Bluetooth pairings cannot be stored"
+      return 1
+    fi
+    /bin/sleep 1
+    [ "$cancelled" -eq 0 ] || return 0
+    wait=$((wait - 1))
+  done
+  [ "$cancelled" -eq 0 ] || return 0
+  /bin/mkdir -p "$state"
+  [ "$cancelled" -eq 0 ] || return 0
+  /bin/chmod 0700 "$state"
+  echo "storage ready at $state"
+  if [ -e /sys/class/bluetooth/hci0 ]; then
+    [ "$cancelled" -eq 0 ] || return 0
+    echo "adapter registered before storage; restarting bluetoothd and agent"
+    /etc/init.d/S40bluetooth restart || true
+    [ "$cancelled" -eq 0 ] || return 0
+    /bin/sleep 2
+    [ "$cancelled" -eq 0 ] || return 0
+    /etc/init.d/S41fes-bluetooth restart || true
+  fi
+}
+
+start_storage_waiter() {
+  (
+    cancelled=0
+    trap '/bin/rm -f "$waiter_pid_file"' EXIT
+    # Defer termination until any in-flight service restart has returned. The
+    # stop path waits for this process, so it cannot return while this helper
+    # can still restart bluetoothd or the agent.
+    trap 'cancelled=1' TERM
+    prepare_storage
+  ) >>"$log" 2>&1 &
+  waiter=$!
+  printf '%s\n' "$waiter" > "$waiter_pid_file"
+  if ! /bin/kill -0 "$waiter" 2>/dev/null; then
+    /bin/rm -f "$waiter_pid_file"
+  fi
+}
+
+stop_storage_waiter() {
+  [ -f "$waiter_pid_file" ] || return 0
+  pid=
+  IFS= read -r pid < "$waiter_pid_file" || true
+  case "$pid" in
+    ''|*[!0-9]*) /bin/rm -f "$waiter_pid_file"; return 0 ;;
+  esac
+  /bin/kill "$pid" 2>/dev/null || true
+  while /bin/kill -0 "$pid" 2>/dev/null; do
+    /bin/sleep 1
+  done
+  /bin/rm -f "$waiter_pid_file"
+}
+
+load_modules() {
+  for name in btintel btbcm btrtl ath3k btusb; do
+    ko=$mods/$name.ko
+    if [ -f "$ko" ]; then
+      /sbin/insmod "$ko" || true
+    fi
+  done
+}
+
+case "${1:-start}" in
+  start)
+    start_storage_waiter
+    load_modules
+    ;;
+  stop)
+    stop_storage_waiter
+    ;;
+  restart)
+    stop_storage_waiter || exit $?
+    start_storage_waiter
+    load_modules
+    ;;
+  *)
+    printf "%s\n" "usage: $0 start|stop|restart" >&2
+    exit 2
+    ;;
+esac

@@ -105,6 +105,72 @@ class ReceiptTest(unittest.TestCase):
             after, _ = build.build_fingerprint(revisions, profile, "go test")
         self.assertEqual(before, after)
 
+    def test_image_fingerprint_binds_platform_build_sources_and_driver(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "platform/internal/btagent/agent.go"
+            source.parent.mkdir(parents=True)
+            source.write_text("package btagent\n")
+            (root / "platform/go.mod").write_text("module github.com/DeanoC/fes/platform\n")
+            (root / "platform/go.sum").write_text("dependency checksum\n")
+            driver = root / "scripts/platform.py"
+            driver.parent.mkdir(parents=True)
+            driver.write_text("build driver\n")
+            image_recipe_files = build.image_recipe_files
+            with mock.patch.object(build, "ROOT", root), \
+                    mock.patch.object(build, "BUILD_RECIPE_FILES", ()), \
+                    mock.patch.object(build, "toolchain_key", return_value="toolchain"), \
+                    mock.patch.object(build, "image_recipe_files",
+                                      side_effect=lambda: image_recipe_files(root)):
+                before, before_info = build.build_fingerprint({}, {}, "go test")
+                source.write_text("package btagent\n// changed image binary\n")
+                after, after_info = build.build_fingerprint({}, {}, "go test")
+            self.assertNotEqual(before, after)
+            driver.write_text("changed build driver\n")
+            driver_changed, _ = build.build_fingerprint({}, {}, "go test")
+            self.assertNotEqual(after, driver_changed)
+            for name in ("scripts/platform.py", "platform/internal/btagent/agent.go", "platform/go.mod", "platform/go.sum"):
+                self.assertIn(name, before_info["image_recipe"])
+                self.assertIn(name, after_info["image_recipe"])
+
+            output = root / "out"
+            output.mkdir()
+            build.publish_action_inputs(output, "image", after_info)
+            with mock.patch.object(build, "git", return_value="a" * 40):
+                build.write_receipt(output, "image", after, ["inputs.json"])
+            receipt = json.loads((output / "image.json").read_text())
+            recorded_inputs = json.loads((output / "inputs.json").read_text())
+            self.assertEqual(receipt["inputs"], after)
+            self.assertEqual(receipt["files"]["inputs.json"], build.digest(output / "inputs.json"))
+            self.assertEqual(recorded_inputs["image_recipe"], after_info["image_recipe"])
+
+    def test_image_fingerprint_binds_realtek_bluetooth_firmware_bytes(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            firmware = root / "image/firmware/rtl_bt"
+            firmware.mkdir(parents=True)
+            blob = firmware / "rtl8761bu_fw.bin"
+            checksums = firmware / "SHA256SUMS"
+            blob.write_bytes(b"firmware revision one")
+            checksums.write_text("digest  rtl8761bu_fw.bin\n")
+            image_recipe_files = build.image_recipe_files
+            with mock.patch.object(build, "ROOT", root), \
+                    mock.patch.object(build, "BUILD_RECIPE_FILES", ()), \
+                    mock.patch.object(build, "toolchain_key", return_value="toolchain"), \
+                    mock.patch.object(build, "image_recipe_files",
+                                      side_effect=lambda: image_recipe_files(root)):
+                before, before_info = build.build_fingerprint({}, {}, "go test")
+                blob.write_bytes(b"firmware revision two")
+                after, after_info = build.build_fingerprint({}, {}, "go test")
+            self.assertNotEqual(before, after)
+            for name in ("image/firmware/rtl_bt/rtl8761bu_fw.bin", "image/firmware/rtl_bt/SHA256SUMS"):
+                self.assertIn(name, before_info["image_recipe"])
+                self.assertIn(name, after_info["image_recipe"])
+
     def test_host_fingerprint_excludes_unrelated_system_inputs_but_binds_host_inputs(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

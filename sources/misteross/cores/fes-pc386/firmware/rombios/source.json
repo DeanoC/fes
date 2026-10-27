@@ -1,0 +1,44 @@
+{
+  "repository": "https://github.com/bochs-emu/Bochs",
+  "commit": "30cfd566ecc8deb33e56e801e32b444a7041b6d2",
+  "tag": "REL_3_1_FINAL",
+  "license": "LGPL-2.1-or-later",
+  "local_changes": [
+    "2026-10-26 rombios.h: BX_PCIBIOS, BX_APM and BX_PNPBIOS set to 0; pc386 has no PCI bus, APM or PnP. rombios.c: the POST call to pci_set_pam_regs_ro is built only with BX_PCIBIOS, as it does not assemble without it.",
+    "2026-10-26 rombios.c: INT 16h AH=03h AL=00h/05h sets the typematic rate and delay through keyboard command F3h; INT 16h AH=09h reports AX=0300h and 0305h as supported."
+  ],
+  "files": [
+    {
+      "path": "rombios.c",
+      "upstream_path": "bochs/bios/rombios.c",
+      "sha256": "503622d39cac2c7d853ec5f60f5fbc7b97088f00837f3e738c7149e1b374d68d",
+      "upstream_sha256": "1684aa54044872c8faf59dae2d6a465cb5fe1274f3c8ff0112f27e7eaea21703"
+    },
+    {
+      "path": "rombios.h",
+      "upstream_path": "bochs/bios/rombios.h",
+      "sha256": "f7f4bcfd5251b6718a662c4ed5a8ae17b3c2b009a7c7ba704a635b7808efad2a",
+      "upstream_sha256": "ef0eec27bfac0c88540182728220ca0df837ce9fb45a7291ca7791ef0bd17f5a"
+    },
+    {
+      "path": "apmbios.S",
+      "upstream_path": "bochs/bios/apmbios.S",
+      "sha256": "af9f36c078f2709db7f65385f4eefddfae0f3c5558aff6eb8a4ffa265222d137"
+    },
+    {
+      "path": "biossums.c",
+      "upstream_path": "bochs/bios/biossums.c",
+      "sha256": "751f5d72f7c3299f6c3e3fe7f3dc4734a935fa4248d67c0f7d40f311df40182d"
+    },
+    {
+      "path": "bxversion.h.in",
+      "upstream_path": "bochs/bxversion.h.in",
+      "sha256": "6ea58f1a4a14f3475a0060e6f393c8a574fde873deb9155c0e2d68c8f3784abb"
+    },
+    {
+      "path": "COPYING",
+      "upstream_path": "bochs/COPYING",
+      "sha256": "1e71c5e18d5a0e3723bf07314404f07b27c38fcdeae2a4b1f3088477baf61efa"
+    }
+  ]
+}

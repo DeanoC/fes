@@ -56,6 +56,14 @@ func Recognize(data []byte) bool {
 	return err == nil
 }
 
+// HasSignature reports whether data starts with a supported TZX, PZX or CSW
+// signature. These formats are unambiguous even when their bytes also fit a
+// snapshot parser.
+func HasSignature(data []byte) bool {
+	return bytes.HasPrefix(data, tzxSignature) || bytes.HasPrefix(data, pzxSignature) ||
+		bytes.HasPrefix(data, cswSignature)
+}
+
 // CheckedTAP reports whether data is a .tap image whose every block passes
 // the ROM loader's check: a flag byte, the data and a checksum byte that XOR
 // to zero. A file of snapshot size can also tile as .tap blocks; the host
